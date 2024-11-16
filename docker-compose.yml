@@ -1,0 +1,45 @@
+services:
+  bank-scrapper:
+    restart: unless-stopped
+    build: .
+    ports:
+      - '8126:8080'
+    environment:
+      MONGO_USERNAME: root
+      MONGO_PASSWORD: root
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      WEB_PORT: 8080
+      TR_COOKIES_PATH: /.tr/cookies.txt
+      GOOGLE_CREDENTIALS_PATH: /credentials.json
+      GOOGLE_TOKEN_PATH: /token.json
+    env_file:
+      - .env
+    volumes:
+      - ./.tr/:/.tr/
+      - ./credentials.json:/credentials.json
+      - ./token.json:/token.json
+
+  mongodb:
+    image: mongo:6-jammy
+    restart: unless-stopped
+    ports:
+      - '27117:27017'
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - dbdata6:/data/db
+
+  scheduled-update:
+    image: curlimages/curl:latest
+    restart: unless-stopped
+    environment:
+      START_WAIT_TIME_SECONDS: 30
+      WAIT_TIME_SECONDS: 7200
+    volumes:
+      - ./scheduled-update.sh:/scheduled-update.sh
+    command: /scheduled-update.sh
+
+volumes:
+  dbdata6:
