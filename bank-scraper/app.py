@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask
+from flask_cors import CORS
 from waitress import serve
 
 from application.use_cases.scrape import ScrapeImpl
@@ -14,6 +15,7 @@ from infrastructure.scrapers.unicaja_scraper import UnicajaSummaryGenerator
 from infrastructure.sheets_exporter.sheets_exporter import SheetsExporter
 
 app = Flask(__name__)
+CORS(app)
 port = os.environ.get("WEB_PORT", 8080)
 
 mongo_user = os.environ["MONGO_USERNAME"]

@@ -10,5 +10,6 @@ google-api-python-client==2.151.0
 google-auth-httplib2==0.2.0
 google-auth-oauthlib==1.2.1
 flask[async]==3.0.3
+flask-cors==5.0.0
 pymongo==4.10.1
 waitress==3.0.1
