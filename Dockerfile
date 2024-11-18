@@ -3,7 +3,7 @@ FROM python:3.9-slim
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./bank-scrapper /bank-scrapper
+COPY ./bank-scraper /bank-scraper
 
 # Firefox
 # RUN apt install firefox-esr -y
@@ -19,6 +19,6 @@ COPY ./bank-scrapper /bank-scrapper
 #     && rm /tmp/geckodriver.tar.gz
 # RUN apt remove wget -y
 
-WORKDIR /bank-scrapper
+WORKDIR /bank-scraper
 
 CMD ["python", "app.py"]
