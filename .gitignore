@@ -2,3 +2,4 @@
 *.json
 !.gitignore
 !.dockerignore
+!.github
