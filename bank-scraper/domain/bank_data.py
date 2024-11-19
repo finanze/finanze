@@ -114,8 +114,8 @@ class BankAdditionalData:
 
 @dataclass
 class BankData:
+    date: datetime
     account: Account
-    lastUpdate: datetime
     cards: Optional[Cards] = None
     mortgage: Optional[Mortgage] = None
     investments: Optional[Investments] = None

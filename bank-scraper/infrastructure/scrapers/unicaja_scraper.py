@@ -60,7 +60,7 @@ class UnicajaSummaryGenerator(BankScraper):
         )
 
         financial_data = BankData(
-            lastUpdate=datetime.now(timezone.utc),
+            date=datetime.now(timezone.utc),
             account=account_data,
             cards=cards_data,
             mortgage=mortgage_data,

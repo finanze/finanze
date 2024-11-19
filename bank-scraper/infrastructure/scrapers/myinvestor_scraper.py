@@ -185,8 +185,8 @@ class MyInvestorSummaryGenerator(BankScraper):
         )
 
         financial_data = BankData(
+            date=datetime.now(timezone.utc),
             account=account_data,
-            lastUpdate=datetime.now(timezone.utc),
             cards=cards_data,
             investments=investments_data,
             additionalData=BankAdditionalData(maintenance=maintenance["enMantenimeinto"]),

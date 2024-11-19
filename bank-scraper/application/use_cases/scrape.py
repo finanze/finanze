@@ -43,6 +43,6 @@ class ScrapeImpl(Scrape):
         result = await summary_generator.generate()
 
         if result.code == ScrapResultCode.COMPLETED:
-            self.repository.upsert_bank_data(bank, result.data)
+            self.repository.insert(bank, result.data)
 
         return result

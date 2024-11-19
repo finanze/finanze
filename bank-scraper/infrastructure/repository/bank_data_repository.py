@@ -132,7 +132,7 @@ def map_bank_data_to_domain(data: dict) -> BankData:
         )
 
     return BankData(
-        lastUpdate=data["lastUpdate"],
+        date=data["date"],
         account=account,
         cards=cards,
         mortgage=mortgage,
@@ -147,15 +147,19 @@ class BankDataRepository(BankDataPort):
         self.db = self.client[db_name]
         self.collection = self.db["banks_data"]
 
-    def upsert_bank_data(self, bank: Bank, data: BankData):
-        self.collection.update_one(
-            {"bank": bank.name},
-            {"$set": convert_dates(data)},
-            upsert=True
+    def insert(self, bank: Bank, data: BankData):
+        self.collection.insert_one(
+            {"bank": bank.name, **convert_dates(data)}
         )
 
     def get_all_data(self) -> dict[str, BankData]:
         pipeline = [
+            {
+                "$sort": {
+                    "bank": 1,
+                    "date": -1
+                }
+            },
             {
                 "$group": {
                     "_id": "$bank",
@@ -193,9 +197,9 @@ class BankDataRepository(BankDataPort):
     def get_last_updated(self, bank: Bank) -> Optional[datetime]:
         result = self.collection.find_one(
             {"bank": bank.name},
-            sort=[("lastUpdate", -1)],
-            projection={"_id": 0, "lastUpdate": 1}
+            sort=[("date", -1)],
+            projection={"_id": 0, "date": 1}
         )
         if not result:
             return None
-        return result["lastUpdate"].replace(tzinfo=timezone.utc)
+        return result["date"].replace(tzinfo=timezone.utc)

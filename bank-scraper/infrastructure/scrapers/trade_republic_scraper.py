@@ -88,7 +88,7 @@ class TradeRepublicSummaryGenerator(BankScraper):
         )
 
         financial_data = BankData(
-            lastUpdate=datetime.now(timezone.utc),
+            date=datetime.now(timezone.utc),
             account=Account(
                 total=cash_total,
             ),

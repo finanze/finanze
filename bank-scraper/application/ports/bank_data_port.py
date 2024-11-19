@@ -8,7 +8,7 @@ from domain.bank_data import BankData
 
 class BankDataPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def upsert_bank_data(self, bank: Bank, data: BankData):
+    def insert(self, bank: Bank, data: BankData):
         raise NotImplementedError
 
     @abc.abstractmethod
