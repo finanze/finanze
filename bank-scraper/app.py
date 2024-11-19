@@ -25,13 +25,15 @@ mongo_port = os.environ.get("MONGO_PORT", 27017)
 mongo_db_name = "bank_data_db"
 mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}"
 
+update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
+
 bank_scrapers = {
     Bank.MY_INVESTOR: MyInvestorSummaryGenerator(),
     Bank.TRADE_REPUBLIC: TradeRepublicSummaryGenerator(),
     Bank.UNICAJA: UnicajaSummaryGenerator(),
 }
 bank_data_repository = BankDataRepository(uri=mongo_uri, db_name=mongo_db_name)
-scraper_service = ScrapeImpl(bank_data_repository, bank_scrapers)
+scraper_service = ScrapeImpl(update_cooldown, bank_data_repository, bank_scrapers)
 sheet_export_service = UpdateSheetsImpl(bank_data_repository, SheetsExporter())
 controllers = Controllers(scraper_service, sheet_export_service)
 

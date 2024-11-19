@@ -7,11 +7,10 @@ from domain.bank import Bank
 from domain.scrap_result import ScrapResultCode, ScrapResult
 from domain.use_cases.scrape import Scrape
 
-UPDATE_COOLDOWN = 30
-
 
 class ScrapeImpl(Scrape):
-    def __init__(self, bank_data_port: BankDataPort, bank_scrapers: dict[Bank, BankScraper]):
+    def __init__(self, update_cooldown: int, bank_data_port: BankDataPort, bank_scrapers: dict[Bank, BankScraper]):
+        self.update_cooldown = update_cooldown
         self.repository = bank_data_port
         self.bank_scrapers = bank_scrapers
 
@@ -28,8 +27,8 @@ class ScrapeImpl(Scrape):
 
     async def execute(self, bank: Bank, params: dict) -> ScrapResult:
         last_update = self.repository.get_last_updated(bank)
-        if last_update and (datetime.now(timezone.utc) - last_update).seconds < UPDATE_COOLDOWN:
-            remaining_seconds = UPDATE_COOLDOWN - (datetime.now(timezone.utc) - last_update).seconds
+        if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
+            remaining_seconds = self.update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
             return ScrapResult(ScrapResultCode.COOLDOWN,
                                details={"lastUpdate": last_update.isoformat(), "wait": remaining_seconds})
 
