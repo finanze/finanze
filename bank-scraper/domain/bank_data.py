@@ -94,7 +94,8 @@ class FundInvestments:
 
 @dataclass
 class SegoInvestments:
-    amount: float
+    invested: float
+    wallet: float
     weightedInterestRate: float
     details: List[SegoDetail]
 

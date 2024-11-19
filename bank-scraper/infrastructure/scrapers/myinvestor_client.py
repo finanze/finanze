@@ -120,6 +120,11 @@ class MyInvestorAPIClient:
             "payload"
         ]["data"]
 
+    def get_sego_global_position(self):
+        return self.__get_request("/ms-sego/api/v1/investments/self/global-position")["payload"][
+            "data"
+        ]
+
     def get_active_sego_investments(self):
         return self.__get_request(
             "/ms-sego/api/v1/investments/self?operationStateCodes=DISPUTE&operationStateCodes=MANAGING_COLLECTION"

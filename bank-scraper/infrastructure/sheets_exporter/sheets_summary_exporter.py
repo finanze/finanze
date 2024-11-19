@@ -68,8 +68,9 @@ def map_myinvestor_summary_cells(myi_summary: BankData):
         {"range": f"{SUMMARY_SHEET}!B20", "values": [[cards.debit.limit]]},
         {"range": f"{SUMMARY_SHEET}!C20", "values": [[cards.debit.used]]},
         # Investments - Sego
-        {"range": f"{SUMMARY_SHEET}!B23", "values": [[sego.amount]]},
-        {"range": f"{SUMMARY_SHEET}!C23", "values": [[sego.amount]]},
+        {"range": f"{SUMMARY_SHEET}!B23", "values": [[sego.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C23", "values": [[sego.invested]]},
+        {"range": f"{SUMMARY_SHEET}!F23", "values": [[sego.wallet]]},
         {"range": f"{SUMMARY_SHEET}!D23", "values": [[len(sego.details)]]},
         {"range": f"{SUMMARY_SHEET}!E23", "values": [[sego.weightedInterestRate]]},
         # Investments - Stocks

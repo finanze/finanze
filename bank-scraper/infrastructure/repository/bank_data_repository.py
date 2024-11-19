@@ -49,7 +49,8 @@ def map_bank_data_to_domain(data: dict) -> BankData:
     if investments_data:
         sego_data = investments_data.get("sego", {})
         sego = SegoInvestments(
-            amount=sego_data["amount"],
+            invested=sego_data["invested"],
+            wallet=sego_data["wallet"],
             weightedInterestRate=sego_data["weightedInterestRate"],
             details=[
                 SegoDetail(

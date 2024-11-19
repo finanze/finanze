@@ -137,6 +137,8 @@ class MyInvestorSummaryGenerator(BankScraper):
             details=fund_list,
         )
 
+        raw_sego_summary = self.__client.get_sego_global_position()
+
         raw_sego_investments = self.__client.get_active_sego_investments()
         total_sego_amount = sum(
             [investment["amount"] for investment in raw_sego_investments]
@@ -170,7 +172,8 @@ class MyInvestorSummaryGenerator(BankScraper):
         ]
 
         sego_data = SegoInvestments(
-            amount=total_sego_amount,
+            invested=raw_sego_summary["inverted"],
+            wallet=raw_sego_summary["available"],
             weightedInterestRate=weighted_sego_net_interest_rate,
             details=sego_investments,
         )
