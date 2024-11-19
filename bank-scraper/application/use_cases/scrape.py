@@ -1,10 +1,13 @@
 import os
+from datetime import datetime, timezone
 
 from application.ports.bank_data_port import BankDataPort
 from application.ports.bank_scraper import BankScraper
 from domain.bank import Bank
 from domain.scrap_result import ScrapResultCode, ScrapResult
 from domain.use_cases.scrape import Scrape
+
+UPDATE_COOLDOWN = 30
 
 
 class ScrapeImpl(Scrape):
@@ -24,6 +27,12 @@ class ScrapeImpl(Scrape):
             return os.environ["UNICAJA_USERNAME"], os.environ["UNICAJA_PASSWORD"]
 
     async def execute(self, bank: Bank, params: dict) -> ScrapResult:
+        last_update = self.repository.get_last_updated(bank)
+        if last_update and (datetime.now(timezone.utc) - last_update).seconds < UPDATE_COOLDOWN:
+            remaining_seconds = UPDATE_COOLDOWN - (datetime.now(timezone.utc) - last_update).seconds
+            return ScrapResult(ScrapResultCode.COOLDOWN,
+                               details={"lastUpdate": last_update.isoformat(), "wait": remaining_seconds})
+
         credentials = self.get_creds(bank)
 
         summary_generator = self.bank_scrapers[bank]

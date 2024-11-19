@@ -1,5 +1,6 @@
 from dataclasses import asdict, is_dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from typing import Optional
 
 from pymongo import MongoClient
 
@@ -189,5 +190,12 @@ class BankDataRepository(BankDataPort):
 
         return mapped_result
 
-    def close(self):
-        self.client.close()
+    def get_last_updated(self, bank: Bank) -> Optional[datetime]:
+        result = self.collection.find_one(
+            {"bank": bank.name},
+            sort=[("lastUpdate", -1)],
+            projection={"_id": 0, "lastUpdate": 1}
+        )
+        if not result:
+            return None
+        return result["lastUpdate"].replace(tzinfo=timezone.utc)

@@ -8,6 +8,7 @@ from domain.bank_data import BankData
 class ScrapResultCode(Enum):
     CODE_REQUESTED = "CODE_REQUESTED"
     COMPLETED = "COMPLETED"
+    COOLDOWN = "COOLDOWN"
 
 
 @dataclass
