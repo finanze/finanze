@@ -5,8 +5,8 @@ from domain.bank import Bank
 FUNDS_SHEET = "Funds"
 
 
-def update_funds(sheet, summary: dict, sheet_id: str):
-    fund_rows = map_funds(summary)
+def update_funds(sheet, global_position: dict, sheet_id: str):
+    fund_rows = map_funds(global_position)
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
@@ -18,9 +18,9 @@ def update_funds(sheet, summary: dict, sheet_id: str):
     request.execute()
 
 
-def map_funds(summary):
+def map_funds(global_position):
     try:
-        details = summary.get(Bank.MY_INVESTOR.name, None).investments.funds.details
+        details = global_position.get(Bank.MY_INVESTOR.name, None).investments.funds.details
     except AttributeError:
         return []
 

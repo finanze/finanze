@@ -8,3 +8,7 @@ class AutoContributionsPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def upsert(self, bank: Bank, data: AutoContributions):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_all(self) -> dict[str, AutoContributions]:
+        raise NotImplementedError

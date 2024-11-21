@@ -74,7 +74,7 @@ class SegoDetail:
     name: str
     amount: float
     interestRate: float
-    maturity: str
+    maturity: date
     type: str
 
 

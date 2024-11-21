@@ -224,7 +224,7 @@ class MyInvestorSummaryGenerator(BankScraper):
                 amount=investment["amount"],
                 interestRate=round(investment["netInterestRate"] / 100, 4),
                 maturity=(
-                    date.fromisoformat(investment["returnDate"][:10]).isoformat()
+                    date.fromisoformat(investment["returnDate"][:10])
                     if investment["returnDate"]
                     else None
                 ),
@@ -265,9 +265,18 @@ class MyInvestorSummaryGenerator(BankScraper):
                 return None
             return datetime.strptime(date_str, OLD_DATE_FORMAT).date()
 
+        def get_alias(auto_contribution):
+            alias = auto_contribution["alias"]
+            if alias:
+                return alias
+            fund_name = auto_contribution["nombreFondo"]
+            if fund_name:
+                return fund_name
+            return None
+
         periodic_contributions = [
             PeriodicContribution(
-                alias=auto_contribution["alias"],
+                alias=get_alias(auto_contribution),
                 isin=auto_contribution["codigoIsin"],
                 amount=round(auto_contribution["importe"], 2),
                 since=get_date(auto_contribution["periodicidadAportacionDto"]["fechaDesde"]),

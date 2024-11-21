@@ -4,13 +4,13 @@ from domain.bank_data import BankGlobalPosition
 SUMMARY_SHEET = "Summary"
 
 
-def update_summary(sheet, summary: dict[str, BankGlobalPosition], sheet_id: str):
+def update_summary(sheet, global_position: dict[str, BankGlobalPosition], sheet_id: str):
     batch_update = {
         "value_input_option": "RAW",
         "data": [
-            *map_unicaja_summary_cells(summary.get(Bank.UNICAJA.name, {})),
-            *map_myinvestor_summary_cells(summary.get(Bank.MY_INVESTOR.name, {})),
-            *map_tr_summary_cells(summary.get(Bank.TRADE_REPUBLIC.name, {})),
+            *map_unicaja_summary_cells(global_position.get(Bank.UNICAJA.name, {})),
+            *map_myinvestor_summary_cells(global_position.get(Bank.MY_INVESTOR.name, {})),
+            *map_tr_summary_cells(global_position.get(Bank.TRADE_REPUBLIC.name, {})),
         ],
     }
 

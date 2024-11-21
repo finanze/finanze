@@ -5,8 +5,8 @@ from domain.bank import Bank
 OTHER_SHEET = "Other"
 
 
-def update_other(sheet, summary: dict, sheet_id: str):
-    stock_rows = map_stocks(summary)
+def update_other(sheet, global_position: dict, sheet_id: str):
+    stock_rows = map_stocks(global_position)
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
@@ -18,18 +18,18 @@ def update_other(sheet, summary: dict, sheet_id: str):
     request.execute()
 
 
-def map_stocks(summary):
+def map_stocks(global_position):
     return [
         [None, datetime.datetime.now(datetime.timezone.utc).isoformat()],
         [],
-        *map_myi_sego_investments(summary),
+        *map_myi_sego_investments(global_position),
         *[["" for _ in range(20)] for _ in range(20)],
     ]
 
 
-def map_myi_sego_investments(summary):
+def map_myi_sego_investments(global_position):
     try:
-        details = summary.get(Bank.MY_INVESTOR.name, None).investments.sego.details
+        details = global_position.get(Bank.MY_INVESTOR.name, None).investments.sego.details
     except AttributeError:
         return []
 
@@ -47,7 +47,7 @@ def map_myi_sego_investments(summary):
             "SEGO",
             i.type,
             i.interestRate,
-            i.maturity,
+            i.maturity.isoformat(),
             "MYI",
         ]
         for i in details

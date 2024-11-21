@@ -36,7 +36,7 @@ bank_scrapers = {
 bank_data_repository = BankDataRepository(uri=mongo_uri, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(uri=mongo_uri, db_name=mongo_db_name)
 scraper_service = ScrapeImpl(update_cooldown, bank_data_repository, auto_contrib_repository, bank_scrapers)
-sheet_export_service = UpdateSheetsImpl(bank_data_repository, SheetsExporter())
+sheet_export_service = UpdateSheetsImpl(bank_data_repository, auto_contrib_repository, SheetsExporter())
 controllers = Controllers(scraper_service, sheet_export_service)
 
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])
