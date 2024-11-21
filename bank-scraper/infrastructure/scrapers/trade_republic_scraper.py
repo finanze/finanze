@@ -2,9 +2,10 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from application.ports.bank_scraper import BankScraper
-from domain.bank_data import StockDetail, Investments, Account, BankData, StockInvestments
+from domain.bank_data import StockDetail, Investments, Account, BankGlobalPosition, StockInvestments
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.scrap_result import ScrapResultCode, ScrapResult
+from domain.scraped_bank_data import ScrapedBankData
 from infrastructure.scrapers.trade_republic_client import TradeRepublicClient
 
 
@@ -87,7 +88,7 @@ class TradeRepublicSummaryGenerator(BankScraper):
             )
         )
 
-        financial_data = BankData(
+        financial_data = BankGlobalPosition(
             date=datetime.now(timezone.utc),
             account=Account(
                 total=cash_total,
@@ -95,4 +96,8 @@ class TradeRepublicSummaryGenerator(BankScraper):
             investments=investments_data,
         )
 
-        return ScrapResult(ScrapResultCode.COMPLETED, financial_data)
+        data = ScrapedBankData(
+            position=financial_data
+        )
+
+        return ScrapResult(ScrapResultCode.COMPLETED, data)

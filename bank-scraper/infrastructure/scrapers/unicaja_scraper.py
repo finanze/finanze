@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 
 from application.ports.bank_scraper import BankScraper
-from domain.bank_data import Account, Cards, Card, Mortgage, BankData
+from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition
 from domain.scrap_result import ScrapResultCode, ScrapResult
+from domain.scraped_bank_data import ScrapedBankData
 from infrastructure.scrapers.unicaja_client import UnicajaClient
 
 
@@ -59,11 +60,15 @@ class UnicajaSummaryGenerator(BankScraper):
             nextPaymentDate=datetime.strptime(mortgage_response["nextPaymentDate"], "%Y-%m-%d").date(),
         )
 
-        financial_data = BankData(
+        financial_data = BankGlobalPosition(
             date=datetime.now(timezone.utc),
             account=account_data,
             cards=cards_data,
             mortgage=mortgage_data,
         )
 
-        return ScrapResult(ScrapResultCode.COMPLETED, financial_data)
+        data = ScrapedBankData(
+            position=financial_data
+        )
+
+        return ScrapResult(ScrapResultCode.COMPLETED, data)

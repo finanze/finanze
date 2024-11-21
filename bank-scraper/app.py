@@ -8,6 +8,7 @@ from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from domain.bank import Bank
 from infrastructure.controller.controllers import Controllers
+from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
 from infrastructure.repository.bank_data_repository import BankDataRepository
 from infrastructure.scrapers.myinvestor_scraper import MyInvestorSummaryGenerator
 from infrastructure.scrapers.trade_republic_scraper import TradeRepublicSummaryGenerator
@@ -33,7 +34,8 @@ bank_scrapers = {
     Bank.UNICAJA: UnicajaSummaryGenerator(),
 }
 bank_data_repository = BankDataRepository(uri=mongo_uri, db_name=mongo_db_name)
-scraper_service = ScrapeImpl(update_cooldown, bank_data_repository, bank_scrapers)
+auto_contrib_repository = AutoContributionsRepository(uri=mongo_uri, db_name=mongo_db_name)
+scraper_service = ScrapeImpl(update_cooldown, bank_data_repository, auto_contrib_repository, bank_scrapers)
 sheet_export_service = UpdateSheetsImpl(bank_data_repository, SheetsExporter())
 controllers = Controllers(scraper_service, sheet_export_service)
 

@@ -2,10 +2,12 @@ from datetime import date, datetime, timezone
 from itertools import chain
 
 from application.ports.bank_scraper import BankScraper
+from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
 from domain.bank_data import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, FundDetail, \
-    FundInvestments, SegoDetail, SegoInvestments, Investments, BankData, BankAdditionalData, Deposit, Deposits
+    FundInvestments, SegoDetail, SegoInvestments, Investments, BankGlobalPosition, BankAdditionalData, Deposit, Deposits
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
 from domain.scrap_result import ScrapResultCode, ScrapResult
+from domain.scraped_bank_data import ScrapedBankData
 from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
@@ -22,6 +24,38 @@ class MyInvestorSummaryGenerator(BankScraper):
 
     async def generate(self) -> ScrapResult:
         maintenance = self.__client.check_maintenance()
+
+        account_id, securities_account_id, account_data = self.scrape_account()
+
+        cards_data = self.scrape_cards(account_id)
+
+        investments_data = self.scrape_investments(securities_account_id)
+
+        deposits = self.scrape_deposits()
+
+        financial_data = BankGlobalPosition(
+            date=datetime.now(timezone.utc),
+            account=account_data,
+            cards=cards_data,
+            deposits=deposits,
+            investments=investments_data,
+            additionalData=BankAdditionalData(maintenance=maintenance["enMantenimeinto"]),
+        )
+
+        try:
+            auto_contributions = self.scrape_auto_contributions()
+        except Exception as e:
+            print(f"Error getting auto contributions: {e}")
+            auto_contributions = None
+
+        data = ScrapedBankData(
+            position=financial_data,
+            autoContributions=auto_contributions
+        )
+
+        return ScrapResult(ScrapResultCode.COMPLETED, data)
+
+    def scrape_account(self):
         accounts = self.__client.get_accounts()
 
         account_id = accounts[0]["idCuenta"]
@@ -41,7 +75,7 @@ class MyInvestorSummaryGenerator(BankScraper):
         except Exception as e:
             print(f"Error getting account remuneration: {e}")
 
-        account_data = Account(
+        return account_id, securities_account_id, Account(
             total=accounts[0]["importeCuenta"],
             retained=accounts[0]["retencionesSaldoCuenta"],
             interest=current_interest_rate,
@@ -51,6 +85,7 @@ class MyInvestorSummaryGenerator(BankScraper):
             ),
         )
 
+    def scrape_cards(self, account_id: str):
         cards = self.__client.get_cards(account_id=account_id)
         credit_card = next(
             (card for card in cards if card["cardType"] == "CREDIT"), None
@@ -60,11 +95,38 @@ class MyInvestorSummaryGenerator(BankScraper):
         credit_card_tx = self.__client.get_card_transactions(credit_card["cardId"])
         debit_card_tx = self.__client.get_card_transactions(debit_card["cardId"])
 
-        cards_data = Cards(
+        return Cards(
             credit=Card(limit=credit_card_tx["limit"], used=credit_card_tx["consumedMonth"]),
             debit=Card(limit=debit_card_tx["limit"], used=debit_card_tx["consumedMonth"]),
         )
 
+    def scrape_deposits(self):
+        deposits_raw = self.__client.get_deposits()
+
+        deposit_list = [
+            Deposit(
+                name=deposit["depositName"],
+                amount=round(deposit["amount"], 2),
+                totalInterests=round(deposit["grossInterest"], 2),
+                interestRate=round(deposit["tae"] / 100, 2),
+                maturity=datetime.strptime(deposit["expirationDate"], "%Y-%m-%dT%H:%M:%S.%fZ").date(),
+                creation=datetime.strptime(deposit["creationDate"], "%Y-%m-%dT%H:%M:%S.%fZ").date(),
+            )
+            for deposit in deposits_raw
+        ]
+
+        return Deposits(
+            total=sum([deposit["amount"] for deposit in deposits_raw]),
+            totalInterests=sum([deposit["grossInterest"] for deposit in deposits_raw]),
+            weightedInterestRate=round(
+                sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
+                / sum([deposit["amount"] for deposit in deposits_raw]),
+                2,
+            ),
+            details=deposit_list,
+        )
+
+    def scrape_investments(self, securities_account_id: str):
         stocks_account = None
         for account in self.__client.get_stocks_summary():
             if account["idCuenta"] == securities_account_id:
@@ -178,44 +240,44 @@ class MyInvestorSummaryGenerator(BankScraper):
             details=sego_investments,
         )
 
-        investments_data = Investments(
+        return Investments(
             stocks=stock_data,
             funds=fund_data,
             sego=sego_data,
         )
 
-        deposits_raw = self.__client.get_deposits()
+    def scrape_auto_contributions(self) -> AutoContributions:
+        auto_contributions = self.__client.get_auto_contributions()
 
-        deposit_list = [
-            Deposit(
-                name=deposit["depositName"],
-                amount=round(deposit["amount"], 2),
-                totalInterests=round(deposit["grossInterest"], 2),
-                interestRate=round(deposit["tae"] / 100, 2),
-                maturity=datetime.strptime(deposit["expirationDate"], "%Y-%m-%dT%H:%M:%S.%fZ").date(),
-                creation=datetime.strptime(deposit["creationDate"], "%Y-%m-%dT%H:%M:%S.%fZ").date(),
+        def get_frequency(frequency) -> ContributionFrequency:
+            return {
+                "UNA_SEMANA": ContributionFrequency.WEEKLY,
+                "DOS_SEMANAS": ContributionFrequency.BIWEEKLY,
+                "UN_MES": ContributionFrequency.MONTHLY,
+                "DOS_MESES": ContributionFrequency.BIMONTHLY,
+                "TRES_MESES": ContributionFrequency.QUARTERLY,
+                "SEIS_MESES": ContributionFrequency.SEMIANNUAL,
+                "UN_ANYO": ContributionFrequency.YEARLY,
+            }[frequency]
+
+        def get_date(date_str):
+            if not date_str:
+                return None
+            return datetime.strptime(date_str, OLD_DATE_FORMAT).date()
+
+        periodic_contributions = [
+            PeriodicContribution(
+                alias=auto_contribution["alias"],
+                isin=auto_contribution["codigoIsin"],
+                amount=round(auto_contribution["importe"], 2),
+                since=get_date(auto_contribution["periodicidadAportacionDto"]["fechaDesde"]),
+                until=get_date(auto_contribution["periodicidadAportacionDto"]["fechaHasta"]),
+                frequency=get_frequency(auto_contribution["periodicidadAportacionDto"]["periodicidad"]),
+                active=auto_contribution["estadoAportacionEnum"] == "ACTIVA",
             )
-            for deposit in deposits_raw
+            for auto_contribution in auto_contributions
         ]
 
-        deposits = Deposits(
-            total=sum([deposit["amount"] for deposit in deposits_raw]),
-            totalInterests=sum([deposit["grossInterest"] for deposit in deposits_raw]),
-            weightedInterestRate=round(
-                sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
-                / sum([deposit["amount"] for deposit in deposits_raw]),
-                2,
-            ),
-            details=deposit_list,
+        return AutoContributions(
+            periodic=periodic_contributions
         )
-
-        financial_data = BankData(
-            date=datetime.now(timezone.utc),
-            account=account_data,
-            cards=cards_data,
-            deposits=deposits,
-            investments=investments_data,
-            additionalData=BankAdditionalData(maintenance=maintenance["enMantenimeinto"]),
-        )
-
-        return ScrapResult(ScrapResultCode.COMPLETED, financial_data)

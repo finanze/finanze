@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional
 
-from domain.bank_data import BankData
+from domain.scraped_bank_data import ScrapedBankData
 
 
 class ScrapResultCode(Enum):
@@ -14,5 +14,5 @@ class ScrapResultCode(Enum):
 @dataclass
 class ScrapResult:
     code: ScrapResultCode
-    data: Optional[BankData] = None
+    data: Optional[ScrapedBankData] = None
     details: Optional[dict] = None

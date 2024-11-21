@@ -1,10 +1,10 @@
 from domain.bank import Bank
-from domain.bank_data import BankData
+from domain.bank_data import BankGlobalPosition
 
 SUMMARY_SHEET = "Summary"
 
 
-def update_summary(sheet, summary: dict[str, BankData], sheet_id: str):
+def update_summary(sheet, summary: dict[str, BankGlobalPosition], sheet_id: str):
     batch_update = {
         "value_input_option": "RAW",
         "data": [
@@ -19,7 +19,7 @@ def update_summary(sheet, summary: dict[str, BankData], sheet_id: str):
     request.execute()
 
 
-def map_unicaja_summary_cells(unicaja_summary: BankData):
+def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
     if not unicaja_summary:
         return []
 
@@ -47,7 +47,7 @@ def map_unicaja_summary_cells(unicaja_summary: BankData):
     ]
 
 
-def map_myinvestor_summary_cells(myi_summary: BankData):
+def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
     if not myi_summary:
         return []
 
@@ -89,7 +89,7 @@ def map_myinvestor_summary_cells(myi_summary: BankData):
     ]
 
 
-def map_tr_summary_cells(tr_summary: BankData):
+def map_tr_summary_cells(tr_summary: BankGlobalPosition):
     if not tr_summary:
         return []
 

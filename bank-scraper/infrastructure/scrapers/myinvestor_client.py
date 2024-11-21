@@ -144,5 +144,10 @@ class MyInvestorAPIClient:
             "/myinvestor-server/rest/protected/inversiones?soloCarteras=false&soloActivas=true"
         )
 
+    def get_auto_contributions(self):
+        return self.__get_request(
+            "/myinvestor-server/rest/protected/aportaciones/list"
+        )
+
     def get_deposits(self):
         return self.__get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]

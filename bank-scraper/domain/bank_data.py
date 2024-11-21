@@ -131,7 +131,7 @@ class BankAdditionalData:
 
 
 @dataclass
-class BankData:
+class BankGlobalPosition:
     date: datetime
     account: Account
     cards: Optional[Cards] = None

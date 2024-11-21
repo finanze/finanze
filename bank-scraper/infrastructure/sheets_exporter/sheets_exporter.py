@@ -6,7 +6,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 from application.ports.sheets_export_port import SheetsUpdatePort
-from domain.bank_data import BankData
+from domain.bank_data import BankGlobalPosition
 from infrastructure.sheets_exporter.sheets_funds_exporter import update_funds
 from infrastructure.sheets_exporter.sheets_other_exporter import update_other
 from infrastructure.sheets_exporter.sheets_stocks_exporter import update_stocks
@@ -44,7 +44,7 @@ class SheetsExporter(SheetsUpdatePort):
 
         return creds
 
-    def update(self, summary: dict[str, BankData]):
+    def update(self, summary: dict[str, BankGlobalPosition]):
         update_summary(self.__sheet, summary, self.__spreadsheet_id)
         update_funds(self.__sheet, summary, self.__spreadsheet_id)
         update_stocks(self.__sheet, summary, self.__spreadsheet_id)

@@ -1,28 +1,32 @@
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timezone
+from enum import Enum
 from typing import Optional
 
 from pymongo import MongoClient
 
 from application.ports.bank_data_port import BankDataPort
 from domain.bank import Bank
-from domain.bank_data import BankData, Account, Investments, Cards, Card, Mortgage, SegoInvestments, FundInvestments, \
+from domain.bank_data import BankGlobalPosition, Account, Investments, Cards, Card, Mortgage, SegoInvestments, \
+    FundInvestments, \
     StockInvestments, SegoDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits
 
 
-def convert_dates(obj):
+def map_serializable(obj):
     if isinstance(obj, dict):
-        return {key: convert_dates(value) for key, value in obj.items()}
+        return {key: map_serializable(value) for key, value in obj.items()}
     elif isinstance(obj, list):
-        return [convert_dates(element) for element in obj]
+        return [map_serializable(element) for element in obj]
     elif isinstance(obj, date) and not isinstance(obj, datetime):
         return datetime.combine(obj, datetime.min.time())
     elif is_dataclass(obj):
-        return convert_dates(asdict(obj))
+        return map_serializable(asdict(obj))
+    elif isinstance(obj, Enum):
+        return obj.name
     return obj
 
 
-def map_bank_data_to_domain(data: dict) -> BankData:
+def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
     account_data = data.get("account", {})
     account = None
     if account_data:
@@ -151,7 +155,7 @@ def map_bank_data_to_domain(data: dict) -> BankData:
             maintenance=data["additionalData"]["maintenance"]
         )
 
-    return BankData(
+    return BankGlobalPosition(
         date=data["date"],
         account=account,
         cards=cards,
@@ -168,12 +172,12 @@ class BankDataRepository(BankDataPort):
         self.db = self.client[db_name]
         self.collection = self.db["banks_data"]
 
-    def insert(self, bank: Bank, data: BankData):
+    def insert(self, bank: Bank, data: BankGlobalPosition):
         self.collection.insert_one(
-            {"bank": bank.name, **convert_dates(data)}
+            {"bank": bank.name, **map_serializable(data)}
         )
 
-    def get_all_data(self) -> dict[str, BankData]:
+    def get_all_data(self) -> dict[str, BankGlobalPosition]:
         pipeline = [
             {
                 "$sort": {
