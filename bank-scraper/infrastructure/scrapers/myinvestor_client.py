@@ -143,3 +143,6 @@ class MyInvestorAPIClient:
         return self.__get_request(
             "/myinvestor-server/rest/protected/inversiones?soloCarteras=false&soloActivas=true"
         )
+
+    def get_deposits(self):
+        return self.__get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]

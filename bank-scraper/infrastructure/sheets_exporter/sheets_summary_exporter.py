@@ -55,6 +55,7 @@ def map_myinvestor_summary_cells(myi_summary: BankData):
     sego = myi_summary.investments.sego
     stocks = myi_summary.investments.stocks
     funds = myi_summary.investments.funds
+    deposits = myi_summary.deposits
     return [
         {"range": f"{SUMMARY_SHEET}!K14", "values": [[myi_summary.date.isoformat()]]},
         # Account
@@ -67,20 +68,24 @@ def map_myinvestor_summary_cells(myi_summary: BankData):
         # Cards - Debit
         {"range": f"{SUMMARY_SHEET}!B20", "values": [[cards.debit.limit]]},
         {"range": f"{SUMMARY_SHEET}!C20", "values": [[cards.debit.used]]},
+        # Deposits
+        {"range": f"{SUMMARY_SHEET}!B23", "values": [[deposits.total]]},
+        {"range": f"{SUMMARY_SHEET}!C23", "values": [[deposits.totalInterests]]},
+        {"range": f"{SUMMARY_SHEET}!D23", "values": [[deposits.weightedInterestRate]]},
         # Investments - Sego
-        {"range": f"{SUMMARY_SHEET}!B23", "values": [[sego.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C23", "values": [[sego.invested]]},
-        {"range": f"{SUMMARY_SHEET}!F23", "values": [[sego.wallet]]},
-        {"range": f"{SUMMARY_SHEET}!D23", "values": [[len(sego.details)]]},
-        {"range": f"{SUMMARY_SHEET}!E23", "values": [[sego.weightedInterestRate]]},
+        {"range": f"{SUMMARY_SHEET}!B26", "values": [[sego.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C26", "values": [[sego.invested]]},
+        {"range": f"{SUMMARY_SHEET}!F26", "values": [[sego.wallet]]},
+        {"range": f"{SUMMARY_SHEET}!D26", "values": [[len(sego.details)]]},
+        {"range": f"{SUMMARY_SHEET}!E26", "values": [[sego.weightedInterestRate]]},
         # Investments - Stocks
-        {"range": f"{SUMMARY_SHEET}!B24", "values": [[stocks.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C24", "values": [[stocks.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D24", "values": [[len(stocks.details)]]},
+        {"range": f"{SUMMARY_SHEET}!B27", "values": [[stocks.initialInvestment]]},
+        {"range": f"{SUMMARY_SHEET}!C27", "values": [[stocks.marketValue]]},
+        {"range": f"{SUMMARY_SHEET}!D27", "values": [[len(stocks.details)]]},
         # Investments - Funds
-        {"range": f"{SUMMARY_SHEET}!B25", "values": [[funds.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C25", "values": [[funds.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D25", "values": [[len(funds.details)]]},
+        {"range": f"{SUMMARY_SHEET}!B28", "values": [[funds.initialInvestment]]},
+        {"range": f"{SUMMARY_SHEET}!C28", "values": [[funds.marketValue]]},
+        {"range": f"{SUMMARY_SHEET}!D28", "values": [[len(funds.details)]]},
     ]
 
 
@@ -90,11 +95,11 @@ def map_tr_summary_cells(tr_summary: BankData):
 
     stocks = tr_summary.investments.stocks
     return [
-        {"range": f"{SUMMARY_SHEET}!K28", "values": [[tr_summary.date.isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!K31", "values": [[tr_summary.date.isoformat()]]},
         # Account
-        {"range": f"{SUMMARY_SHEET}!B30", "values": [[tr_summary.account.total]]},
+        {"range": f"{SUMMARY_SHEET}!B33", "values": [[tr_summary.account.total]]},
         # Investments - Stocks
-        {"range": f"{SUMMARY_SHEET}!B33", "values": [[stocks.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C33", "values": [[stocks.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D33", "values": [[len(stocks.details)]]},
+        {"range": f"{SUMMARY_SHEET}!B36", "values": [[stocks.initialInvestment]]},
+        {"range": f"{SUMMARY_SHEET}!C36", "values": [[stocks.marketValue]]},
+        {"range": f"{SUMMARY_SHEET}!D36", "values": [[len(stocks.details)]]},
     ]

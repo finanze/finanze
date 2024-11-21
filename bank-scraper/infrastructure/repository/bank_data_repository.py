@@ -7,7 +7,7 @@ from pymongo import MongoClient
 from application.ports.bank_data_port import BankDataPort
 from domain.bank import Bank
 from domain.bank_data import BankData, Account, Investments, Cards, Card, Mortgage, SegoInvestments, FundInvestments, \
-    StockInvestments, SegoDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData
+    StockInvestments, SegoDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits
 
 
 def convert_dates(obj):
@@ -115,6 +115,26 @@ def map_bank_data_to_domain(data: dict) -> BankData:
             funds=funds
         )
 
+    deposits_data = data.get("deposits", {})
+    deposits = None
+    if deposits_data:
+        deposits = Deposits(
+            total=deposits_data["total"],
+            totalInterests=deposits_data["totalInterests"],
+            weightedInterestRate=deposits_data["weightedInterestRate"],
+            details=[
+                Deposit(
+                    name=detail["name"],
+                    amount=detail["amount"],
+                    totalInterests=detail["totalInterests"],
+                    interestRate=detail["interestRate"],
+                    maturity=detail["maturity"],
+                    creation=detail["creation"]
+                )
+                for detail in deposits_data["details"]
+            ]
+        )
+
     mortgage_data = data["mortgage"]
     mortgage = Mortgage(
         currentInstallment=mortgage_data["currentInstallment"],
@@ -136,6 +156,7 @@ def map_bank_data_to_domain(data: dict) -> BankData:
         account=account,
         cards=cards,
         mortgage=mortgage,
+        deposits=deposits,
         investments=investments,
         additionalData=additional_data
     )

@@ -3,7 +3,7 @@ from itertools import chain
 
 from application.ports.bank_scraper import BankScraper
 from domain.bank_data import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, FundDetail, \
-    FundInvestments, SegoDetail, SegoInvestments, Investments, BankData, BankAdditionalData
+    FundInvestments, SegoDetail, SegoInvestments, Investments, BankData, BankAdditionalData, Deposit, Deposits
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
 from domain.scrap_result import ScrapResultCode, ScrapResult
 from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
@@ -184,10 +184,36 @@ class MyInvestorSummaryGenerator(BankScraper):
             sego=sego_data,
         )
 
+        deposits_raw = self.__client.get_deposits()
+
+        deposit_list = [
+            Deposit(
+                name=deposit["depositName"],
+                amount=round(deposit["amount"], 2),
+                totalInterests=round(deposit["grossInterest"], 2),
+                interestRate=round(deposit["tae"] / 100, 2),
+                maturity=datetime.strptime(deposit["expirationDate"], "%Y-%m-%dT%H:%M:%S.%fZ").date(),
+                creation=datetime.strptime(deposit["creationDate"], "%Y-%m-%dT%H:%M:%S.%fZ").date(),
+            )
+            for deposit in deposits_raw
+        ]
+
+        deposits = Deposits(
+            total=sum([deposit["amount"] for deposit in deposits_raw]),
+            totalInterests=sum([deposit["grossInterest"] for deposit in deposits_raw]),
+            weightedInterestRate=round(
+                sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
+                / sum([deposit["amount"] for deposit in deposits_raw]),
+                2,
+            ),
+            details=deposit_list,
+        )
+
         financial_data = BankData(
             date=datetime.now(timezone.utc),
             account=account_data,
             cards=cards_data,
+            deposits=deposits,
             investments=investments_data,
             additionalData=BankAdditionalData(maintenance=maintenance["enMantenimeinto"]),
         )

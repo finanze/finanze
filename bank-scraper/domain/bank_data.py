@@ -108,6 +108,24 @@ class Investments:
 
 
 @dataclass
+class Deposit:
+    name: str
+    amount: float
+    totalInterests: float
+    interestRate: float
+    creation: date
+    maturity: date
+
+
+@dataclass
+class Deposits:
+    total: float
+    totalInterests: float
+    weightedInterestRate: float
+    details: List[Deposit]
+
+
+@dataclass
 class BankAdditionalData:
     maintenance: Optional[bool] = None
 
@@ -118,5 +136,6 @@ class BankData:
     account: Account
     cards: Optional[Cards] = None
     mortgage: Optional[Mortgage] = None
+    deposits: Optional[Deposits] = None
     investments: Optional[Investments] = None
     additionalData: Optional[BankAdditionalData] = None
