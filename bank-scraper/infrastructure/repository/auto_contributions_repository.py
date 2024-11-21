@@ -15,6 +15,6 @@ class AutoContributionsRepository(AutoContributionsPort):
     def upsert(self, bank: Bank, data: AutoContributions):
         self.collection.update_one(
             {"bank": bank.name},
-            {"$set": {"data": map_serializable(data)}},
+            {"$set": map_serializable(data)},
             upsert=True,
         )

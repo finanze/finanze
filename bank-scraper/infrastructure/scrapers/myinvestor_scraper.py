@@ -119,8 +119,8 @@ class MyInvestorSummaryGenerator(BankScraper):
             total=sum([deposit["amount"] for deposit in deposits_raw]),
             totalInterests=sum([deposit["grossInterest"] for deposit in deposits_raw]),
             weightedInterestRate=round(
-                sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
-                / sum([deposit["amount"] for deposit in deposits_raw]),
+                (sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
+                 / sum([deposit["amount"] for deposit in deposits_raw])) / 100,
                 2,
             ),
             details=deposit_list,
