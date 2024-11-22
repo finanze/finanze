@@ -47,7 +47,7 @@ def map_myi_sego_investments(global_position):
             "SEGO",
             i.type,
             i.interestRate,
-            i.maturity.isoformat(),
+            i.maturity.isoformat()[:10],
             "MYI",
         ]
         for i in details

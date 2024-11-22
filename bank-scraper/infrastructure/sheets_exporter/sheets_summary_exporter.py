@@ -43,7 +43,7 @@ def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
         {"range": f"{SUMMARY_SHEET}!D10", "values": [[mortgage.principalPaid]]},
         {"range": f"{SUMMARY_SHEET}!E10", "values": [[mortgage.principalOutstanding]]},
         {"range": f"{SUMMARY_SHEET}!F10", "values": [[mortgage.interestRate]]},
-        {"range": f"{SUMMARY_SHEET}!G10", "values": [[mortgage.nextPaymentDate.isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!G10", "values": [[mortgage.nextPaymentDate.isoformat()[:10]]]},
     ]
 
 
