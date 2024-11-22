@@ -4,9 +4,12 @@ from datetime import datetime, timezone
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.bank_data_port import BankDataPort
 from application.ports.bank_scraper import BankScraper
-from domain.bank import Bank
+from domain.bank import Bank, BankFeature
 from domain.scrap_result import ScrapResultCode, ScrapResult
+from domain.scraped_bank_data import ScrapedBankData
 from domain.use_cases.scrape import Scrape
+
+DEFAULT_FEATURES = [BankFeature.POSITION]
 
 
 class ScrapeImpl(Scrape):
@@ -31,28 +34,46 @@ class ScrapeImpl(Scrape):
         elif bank == Bank.UNICAJA:
             return os.environ["UNICAJA_USERNAME"], os.environ["UNICAJA_PASSWORD"]
 
-    async def execute(self, bank: Bank, params: dict) -> ScrapResult:
+    async def execute(self,
+                      bank: Bank,
+                      features: list[BankFeature],
+                      **kwargs) -> ScrapResult:
         last_update = self.bank_data_port.get_last_updated(bank)
         if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
             remaining_seconds = self.update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
-            return ScrapResult(ScrapResultCode.COOLDOWN,
-                               details={"lastUpdate": last_update.isoformat(), "wait": remaining_seconds})
+            details = {"lastUpdate": last_update.isoformat(), "wait": remaining_seconds}
+            return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
+        login_args = kwargs.get("login", {})
         credentials = self.get_creds(bank)
 
-        summary_generator = self.bank_scrapers[bank]
-        login_result = summary_generator.login(credentials, params)
+        specific_scraper = self.bank_scrapers[bank]
+        login_result = specific_scraper.login(credentials, **login_args)
 
         if login_result:
             return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
 
-        result = await summary_generator.generate()
+        if not features:
+            features = DEFAULT_FEATURES
 
-        if result.code == ScrapResultCode.COMPLETED:
-            if result.data.position:
-                self.bank_data_port.insert(bank, result.data.position)
+        position = None
+        if BankFeature.POSITION in features:
+            position = await specific_scraper.global_position()
 
-            if result.data.autoContributions:
-                self.auto_contr_repository.upsert(bank, result.data.autoContributions)
+        auto_contributions = None
+        if BankFeature.AUTO_CONTRIBUTIONS in features:
+            auto_contributions = await specific_scraper.auto_contributions()
 
-        return result
+        transactions = None
+        if BankFeature.TRANSACTIONS in features:
+            transactions = await specific_scraper.transactions()
+
+        if position:
+            self.bank_data_port.insert(bank, position)
+
+        if auto_contributions:
+            self.auto_contr_repository.upsert(bank, auto_contributions)
+
+        data = ScrapedBankData(position=position, autoContributions=auto_contributions)
+
+        return ScrapResult(ScrapResultCode.COMPLETED, data=data)

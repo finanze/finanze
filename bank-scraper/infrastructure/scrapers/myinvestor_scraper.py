@@ -6,8 +6,6 @@ from domain.auto_contributions import PeriodicContribution, ContributionFrequenc
 from domain.bank_data import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, FundDetail, \
     FundInvestments, SegoDetail, SegoInvestments, Investments, BankGlobalPosition, BankAdditionalData, Deposit, Deposits
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
-from domain.scrap_result import ScrapResultCode, ScrapResult
-from domain.scraped_bank_data import ScrapedBankData
 from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
@@ -18,11 +16,11 @@ class MyInvestorSummaryGenerator(BankScraper):
     def __init__(self):
         self.__client = MyInvestorAPIClient()
 
-    def login(self, credentials: tuple, params: dict = None):
+    def login(self, credentials: tuple, **kwargs):
         username, password = credentials
         self.__client.login(username, password)
 
-    async def generate(self) -> ScrapResult:
+    async def global_position(self) -> BankGlobalPosition:
         maintenance = self.__client.check_maintenance()
 
         account_id, securities_account_id, account_data = self.scrape_account()
@@ -33,7 +31,7 @@ class MyInvestorSummaryGenerator(BankScraper):
 
         deposits = self.scrape_deposits()
 
-        financial_data = BankGlobalPosition(
+        return BankGlobalPosition(
             date=datetime.now(timezone.utc),
             account=account_data,
             cards=cards_data,
@@ -42,18 +40,8 @@ class MyInvestorSummaryGenerator(BankScraper):
             additionalData=BankAdditionalData(maintenance=maintenance["enMantenimeinto"]),
         )
 
-        try:
-            auto_contributions = self.scrape_auto_contributions()
-        except Exception as e:
-            print(f"Error getting auto contributions: {e}")
-            auto_contributions = None
-
-        data = ScrapedBankData(
-            position=financial_data,
-            autoContributions=auto_contributions
-        )
-
-        return ScrapResult(ScrapResultCode.COMPLETED, data)
+    async def auto_contributions(self) -> AutoContributions:
+        return self.scrape_auto_contributions()
 
     def scrape_account(self):
         accounts = self.__client.get_accounts()

@@ -8,6 +8,12 @@ class Bank(Enum):
     TRADE_REPUBLIC = "TRADE_REPUBLIC"
 
 
+class BankFeature(Enum):
+    POSITION = "POSITION",
+    AUTO_CONTRIBUTIONS = "AUTO_CONTRIBUTIONS",
+    TRANSACTIONS = "TRANSACTIONS"
+
+
 @dataclass
 class BankInfo:
     name: str

@@ -4,8 +4,6 @@ from typing import Optional
 from application.ports.bank_scraper import BankScraper
 from domain.bank_data import StockDetail, Investments, Account, BankGlobalPosition, StockInvestments
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
-from domain.scrap_result import ScrapResultCode, ScrapResult
-from domain.scraped_bank_data import ScrapedBankData
 from infrastructure.scrapers.trade_republic_client import TradeRepublicClient
 
 
@@ -14,10 +12,10 @@ class TradeRepublicSummaryGenerator(BankScraper):
     def __init__(self):
         self.__client = TradeRepublicClient()
 
-    def login(self, credentials: tuple, params: dict = None) -> Optional[dict]:
+    def login(self, credentials: tuple, **kwargs) -> Optional[dict]:
         phone, pin = credentials
-        process_id = params.get("processId", None)
-        code = params.get("code", None)
+        process_id = kwargs.get("processId", None)
+        code = kwargs.get("code", None)
         return self.__client.login(phone, pin, process_id, code)
 
     async def instrument_mapper(self, stock: dict, currency: str):
@@ -64,7 +62,7 @@ class TradeRepublicSummaryGenerator(BankScraper):
             subtype=subtype
         )
 
-    async def generate(self) -> ScrapResult:
+    async def global_position(self) -> BankGlobalPosition:
         portfolio = await self.__client.get_portfolio()
 
         currency = portfolio.cash[0]["currencyId"]
@@ -88,16 +86,10 @@ class TradeRepublicSummaryGenerator(BankScraper):
             )
         )
 
-        financial_data = BankGlobalPosition(
+        return BankGlobalPosition(
             date=datetime.now(timezone.utc),
             account=Account(
                 total=cash_total,
             ),
             investments=investments_data,
         )
-
-        data = ScrapedBankData(
-            position=financial_data
-        )
-
-        return ScrapResult(ScrapResultCode.COMPLETED, data)
