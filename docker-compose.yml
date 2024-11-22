@@ -31,15 +31,5 @@ services:
     volumes:
       - dbdata6:/data/db
 
-  scheduled-update:
-    image: curlimages/curl:latest
-    restart: unless-stopped
-    environment:
-      START_WAIT_TIME_SECONDS: 30
-      WAIT_TIME_SECONDS: 7200
-    volumes:
-      - ./scheduled-update.sh:/scheduled-update.sh
-    command: /scheduled-update.sh
-
 volumes:
   dbdata6:
