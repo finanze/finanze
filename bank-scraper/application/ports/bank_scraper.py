@@ -3,6 +3,7 @@ from typing import Optional
 
 from domain.auto_contributions import AutoContributions
 from domain.bank_data import BankGlobalPosition
+from domain.transactions import Transactions
 
 
 class BankScraper(metaclass=abc.ABCMeta):
@@ -15,5 +16,5 @@ class BankScraper(metaclass=abc.ABCMeta):
     async def auto_contributions(self) -> AutoContributions:
         raise NotImplementedError
 
-    async def transactions(self):
+    async def transactions(self, registered_txs: set[str]) -> Transactions:
         raise NotImplementedError

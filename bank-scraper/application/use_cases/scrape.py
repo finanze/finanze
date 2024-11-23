@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.bank_data_port import BankDataPort
 from application.ports.bank_scraper import BankScraper
+from application.ports.transaction_port import TransactionPort
 from domain.bank import Bank, BankFeature
 from domain.scrap_result import ScrapResultCode, ScrapResult
 from domain.scraped_bank_data import ScrapedBankData
@@ -17,10 +18,12 @@ class ScrapeImpl(Scrape):
                  update_cooldown: int,
                  bank_data_port: BankDataPort,
                  auto_contr_port: AutoContributionsPort,
+                 transaction_port: TransactionPort,
                  bank_scrapers: dict[Bank, BankScraper]):
         self.update_cooldown = update_cooldown
         self.bank_data_port = bank_data_port
         self.auto_contr_repository = auto_contr_port
+        self.transaction_port = transaction_port
         self.bank_scrapers = bank_scrapers
 
     @staticmethod
@@ -66,14 +69,18 @@ class ScrapeImpl(Scrape):
 
         transactions = None
         if BankFeature.TRANSACTIONS in features:
-            transactions = await specific_scraper.transactions()
+            registered_txs = self.transaction_port.get_ids_by_source(bank)
+            transactions = await specific_scraper.transactions(registered_txs)
 
         if position:
-            self.bank_data_port.insert(bank, position)
+            self.bank_data_port.save(bank, position)
 
         if auto_contributions:
-            self.auto_contr_repository.upsert(bank, auto_contributions)
+            self.auto_contr_repository.save(bank, auto_contributions)
 
-        data = ScrapedBankData(position=position, autoContributions=auto_contributions)
+        if transactions:
+            self.transaction_port.save(bank, transactions)
+
+        data = ScrapedBankData(position=position, autoContributions=auto_contributions, transactions=transactions)
 
         return ScrapResult(ScrapResultCode.COMPLETED, data=data)

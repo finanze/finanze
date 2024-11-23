@@ -1,6 +1,8 @@
 from datetime import date
+from typing import Optional
 
 import requests
+from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
@@ -79,6 +81,7 @@ class MyInvestorAPIClient:
             "/myinvestor-server/rest/protected/usuarios/usuario-logueado"
         )
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_accounts(self):
         return self.__get_request(
             "/myinvestor-server/rest/protected/cuentas/efectivo?soloActivas=true"
@@ -89,10 +92,10 @@ class MyInvestorAPIClient:
             f"/myinvestor-server/rest/protected/cuentas/{account_id}/remuneracion"
         )
 
-    def get_account_movements(self, account_id, from_date=None, to_date=None):
-        to_date = to_date or date.strftime(date.today(), OLD_DATE_FORMAT)
-        from_date = from_date or date.strftime(
-            date.today() - relativedelta(months=1), OLD_DATE_FORMAT
+    def get_account_movements(self, account_id, from_date: Optional[date] = None, to_date: Optional[date] = None):
+        to_date = date.strftime(to_date or date.today(), OLD_DATE_FORMAT)
+        from_date = date.strftime(
+            from_date or (date.today() - relativedelta(months=1)), OLD_DATE_FORMAT
         )
 
         request = {
@@ -143,6 +146,70 @@ class MyInvestorAPIClient:
         return self.__get_request(
             "/myinvestor-server/rest/protected/inversiones?soloCarteras=false&soloActivas=true"
         )
+
+    def get_stock_orders(self,
+                         securities_account_id: str,
+                         from_date: Optional[date] = None,
+                         to_date: Optional[date] = None,
+                         completed: bool = True):
+        to_date = date.strftime(to_date or date.today(), OLD_DATE_FORMAT)
+        from_date = date.strftime(
+            from_date or (date.today().replace(month=1, day=1)), OLD_DATE_FORMAT
+        )
+
+        request = {
+            "codigoIsin": None,
+            "descendente": True,
+            "estadoOrdenesEnum": "COMPLETADAS" if completed else "TODAS",
+            "fecha_desde": from_date,
+            "fecha_hasta": to_date,
+            "filtroProducto": "ACCIONES_ETF",
+            "idCuentaPensiones": None,
+            "idCuentaValores": securities_account_id,
+            "importeDesde": None,
+            "importeHasta": None,
+            "orden": None,
+            "tipoOperacionEnum": None,
+            "tipoOrdenesEnum": None,
+        }
+
+        return self.__post_request(
+            "/ms-broker/v1/ordenes/obtenerOrdenes", body=request)
+
+    def get_stock_order_details(self, order_id: str):
+        return self.__get_request(f"/ms-broker/v1/ordenes/obtenerDetalleOrden/{order_id}")
+
+    def get_fund_orders(self,
+                        securities_account_id: str,
+                        from_date: Optional[date] = None,
+                        to_date: Optional[date] = None,
+                        completed: bool = True):
+        to_date = date.strftime(to_date or date.today(), OLD_DATE_FORMAT)
+        from_date = date.strftime(
+            from_date or (date.today().replace(month=1, day=1)), OLD_DATE_FORMAT
+        )
+
+        request = {
+            "codigoIsin": None,
+            "descendente": True,
+            "estadoOrdenesEnum": "COMPLETADAS" if completed else "TODAS",
+            "fecha_desde": from_date,
+            "fecha_hasta": to_date,
+            "filtroProducto": None,
+            "idCuentaPensiones": None,
+            "idCuentaValores": securities_account_id,
+            "importeDesde": None,
+            "importeHasta": None,
+            "orden": None,
+            "tipoOperacionEnum": None,
+            "tipoOrdenesEnum": None,
+        }
+
+        return self.__post_request(
+            "/myinvestor-server/rest/protected/fondos/consulta-ordenes", body=request)["listadoOperaciones"]
+
+    def get_fund_order_details(self, order_id: str):
+        return self.__get_request(f"/myinvestor-server/rest/protected/fondos/ordenes/{order_id}")
 
     def get_auto_contributions(self):
         return self.__get_request(

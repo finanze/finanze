@@ -2,6 +2,7 @@ import os
 
 from flask import Flask
 from flask_cors import CORS
+from pymongo import MongoClient
 from waitress import serve
 
 from application.use_cases.scrape import ScrapeImpl
@@ -10,6 +11,7 @@ from domain.bank import Bank
 from infrastructure.controller.controllers import Controllers
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
 from infrastructure.repository.bank_data_repository import BankDataRepository
+from infrastructure.repository.transaction_repository import TransactionRepository
 from infrastructure.scrapers.myinvestor_scraper import MyInvestorSummaryGenerator
 from infrastructure.scrapers.trade_republic_scraper import TradeRepublicSummaryGenerator
 from infrastructure.scrapers.unicaja_scraper import UnicajaSummaryGenerator
@@ -26,6 +28,8 @@ mongo_port = os.environ.get("MONGO_PORT", 27017)
 mongo_db_name = "bank_data_db"
 mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}"
 
+mongo_client = MongoClient(mongo_uri)
+
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 
 bank_scrapers = {
@@ -33,10 +37,20 @@ bank_scrapers = {
     Bank.TRADE_REPUBLIC: TradeRepublicSummaryGenerator(),
     Bank.UNICAJA: UnicajaSummaryGenerator(),
 }
-bank_data_repository = BankDataRepository(uri=mongo_uri, db_name=mongo_db_name)
-auto_contrib_repository = AutoContributionsRepository(uri=mongo_uri, db_name=mongo_db_name)
-scraper_service = ScrapeImpl(update_cooldown, bank_data_repository, auto_contrib_repository, bank_scrapers)
-sheet_export_service = UpdateSheetsImpl(bank_data_repository, auto_contrib_repository, SheetsExporter())
+bank_data_repository = BankDataRepository(client=mongo_client, db_name=mongo_db_name)
+auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)
+transaction_repository = TransactionRepository(client=mongo_client, db_name=mongo_db_name)
+scraper_service = ScrapeImpl(
+    update_cooldown,
+    bank_data_repository,
+    auto_contrib_repository,
+    transaction_repository,
+    bank_scrapers)
+sheet_export_service = UpdateSheetsImpl(
+    bank_data_repository,
+    auto_contrib_repository,
+    transaction_repository,
+    SheetsExporter())
 controllers = Controllers(scraper_service, sheet_export_service)
 
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])

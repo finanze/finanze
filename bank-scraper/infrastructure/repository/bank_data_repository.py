@@ -167,17 +167,17 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
 
 
 class BankDataRepository(BankDataPort):
-    def __init__(self, uri: str, db_name: str):
-        self.client = MongoClient(uri)
+    def __init__(self, client: MongoClient, db_name: str):
+        self.client = client
         self.db = self.client[db_name]
         self.collection = self.db["banks_data"]
 
-    def insert(self, bank: Bank, data: BankGlobalPosition):
+    def save(self, source: Bank, data: BankGlobalPosition):
         self.collection.insert_one(
-            {"bank": bank.name, **map_serializable(data)}
+            {"bank": source.name, **map_serializable(data)}
         )
 
-    def get_all_data(self) -> dict[str, BankGlobalPosition]:
+    def get_last_grouped_by_source(self) -> dict[str, BankGlobalPosition]:
         pipeline = [
             {
                 "$sort": {

@@ -6,9 +6,9 @@ from domain.bank import Bank
 
 class AutoContributionsPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def upsert(self, bank: Bank, data: AutoContributions):
+    def save(self, source: Bank, data: AutoContributions):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self) -> dict[str, AutoContributions]:
+    def get_all_grouped_by_source(self) -> dict[str, AutoContributions]:
         raise NotImplementedError

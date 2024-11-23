@@ -8,11 +8,11 @@ from domain.bank_data import BankGlobalPosition
 
 class BankDataPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def insert(self, bank: Bank, data: BankGlobalPosition):
+    def save(self, source: Bank, data: BankGlobalPosition):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all_data(self) -> dict[str, BankGlobalPosition]:
+    def get_last_grouped_by_source(self) -> dict[str, BankGlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod

@@ -29,19 +29,19 @@ def map_contributions_to_domain(data: dict) -> AutoContributions:
 
 
 class AutoContributionsRepository(AutoContributionsPort):
-    def __init__(self, uri: str, db_name: str):
-        self.client = MongoClient(uri)
+    def __init__(self, client: MongoClient, db_name: str):
+        self.client = client
         self.db = self.client[db_name]
         self.collection = self.db["auto_contributions"]
 
-    def upsert(self, bank: Bank, data: AutoContributions):
+    def save(self, source: Bank, data: AutoContributions):
         self.collection.update_one(
-            {"bank": bank.name},
+            {"bank": source.name},
             {"$set": map_serializable(data)},
             upsert=True,
         )
 
-    def get_all(self) -> dict[str, AutoContributions]:
+    def get_all_grouped_by_source(self) -> dict[str, AutoContributions]:
         pipeline = [
             {
                 "$group": {

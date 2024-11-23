@@ -3,12 +3,17 @@ from itertools import chain
 
 from application.ports.bank_scraper import BankScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
+from domain.bank import Bank
 from domain.bank_data import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, FundDetail, \
     FundInvestments, SegoDetail, SegoInvestments, Investments, BankGlobalPosition, BankAdditionalData, Deposit, Deposits
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
+from domain.transactions import Transactions, FundTx, TxType, StockTx, TxProductType
 from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
+TIME_FORMAT = "%H:%M:%S"
+OLD_DATE_TIME_FORMAT = OLD_DATE_FORMAT + " " + TIME_FORMAT
+DASH_OLD_DATE_TIME_FORMAT = "%Y-%m-%d " + TIME_FORMAT
 
 
 class MyInvestorSummaryGenerator(BankScraper):
@@ -42,6 +47,16 @@ class MyInvestorSummaryGenerator(BankScraper):
 
     async def auto_contributions(self) -> AutoContributions:
         return self.scrape_auto_contributions()
+
+    async def transactions(self, registered_txs: set[str]) -> Transactions:
+        accounts = self.__client.get_accounts()
+        securities_account_id = accounts[0]["idCuentaValores"]
+
+        fund_txs = self.scrape_fund_txs(securities_account_id, registered_txs)
+        stock_txs = self.scrape_stock_txs(securities_account_id, registered_txs)
+
+        investment_txs = fund_txs + stock_txs
+        return Transactions(investment=investment_txs)
 
     def scrape_account(self):
         accounts = self.__client.get_accounts()
@@ -278,3 +293,110 @@ class MyInvestorSummaryGenerator(BankScraper):
         return AutoContributions(
             periodic=periodic_contributions
         )
+
+    def scrape_fund_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[FundTx]:
+        raw_fund_orders = self.__client.get_fund_orders(securities_account_id=securities_account_id,
+                                                        from_date=date.fromisocalendar(2020, 1, 1))
+
+        fund_txs = []
+        for order in raw_fund_orders:
+            ref = order["referencia"]
+
+            if ref in registered_txs:
+                continue
+
+            raw_order_details = self.__client.get_fund_order_details(ref)
+            order_date = datetime.strptime(raw_order_details["fechaOrden"] + " " + raw_order_details["horaOrden"],
+                                           OLD_DATE_TIME_FORMAT)
+            execution_op = None
+            linked_ops = raw_order_details["operacionesAsociadas"]
+            if linked_ops:
+                execution_op = linked_ops[0]
+            execution_date = datetime.strptime(execution_op["fechaHoraEjecucion"], OLD_DATE_TIME_FORMAT)
+
+            raw_operation_type = order["tipoOperacion"]
+            if "SUSCRIP" in raw_operation_type:
+                operation_type = TxType.BUY
+            elif "REEMBOLSO" in raw_operation_type:
+                operation_type = TxType.SELL
+            else:
+                print(f"Unknown operation type: {raw_operation_type}")
+                continue
+
+            fund_txs.append(
+                FundTx(
+                    id=ref,
+                    name=order["nombreFondo"].strip(),
+                    amount=round(execution_op["efectivoBruto"], 2),
+                    netAmount=round(execution_op["efectivoNeto"], 2),
+                    currency=SYMBOL_CURRENCY_MAP.get(order["divisa"], order["divisa"]),
+                    currencySymbol=order["divisa"],
+                    type=operation_type,
+                    date=order_date,
+                    source=Bank.MY_INVESTOR,
+                    isin=order["codIsin"],
+                    shares=round(raw_order_details["titulosEjecutados"], 4),
+                    price=round(execution_op["precioBruto"], 4),
+                    market=order["mercado"],
+                    fees=round(execution_op["comisiones"], 2),
+                    executionDate=execution_date,
+                    productType=TxProductType.FUND
+                )
+            )
+
+        return fund_txs
+
+    def scrape_stock_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[StockTx]:
+        raw_stock_orders = self.__client.get_stock_orders(securities_account_id=securities_account_id,
+                                                          from_date=date.fromisocalendar(2020, 1, 1))
+
+        stock_txs = []
+        for order in raw_stock_orders:
+            ref = order["referencia"]
+
+            if ref in registered_txs:
+                continue
+
+            raw_order_details = self.__client.get_stock_order_details(ref)
+            order_date = datetime.strptime(raw_order_details["fechaOrden"], OLD_DATE_TIME_FORMAT)
+            execution_op = None
+            linked_ops = raw_order_details["operacionesAsociadas"]
+            if linked_ops:
+                execution_op = linked_ops[0]
+            execution_date = datetime.strptime(execution_op["fechaHoraEjecucion"], DASH_OLD_DATE_TIME_FORMAT)
+
+            raw_operation_type = order["operacion"]
+            if "COMPRA" in raw_operation_type:
+                operation_type = TxType.BUY
+            elif "VENTA" in raw_operation_type:
+                operation_type = TxType.SELL
+            else:
+                print(f"Unknown operation type: {raw_operation_type}")
+                continue
+
+            fees = execution_op["comisionCorretaje"] + execution_op["comisionMiembroMercado"] + execution_op[
+                "costeCanon"]
+
+            stock_txs.append(
+                StockTx(
+                    id=ref,
+                    name=order["nombreInstrumento"].strip(),
+                    ticker=order["ticker"],
+                    amount=round(execution_op["efectivoBruto"], 2),
+                    netAmount=round(execution_op["efectivoNeto"], 2),
+                    currency=order["divisa"],
+                    currencySymbol=CURRENCY_SYMBOL_MAP.get(order["divisa"], order["divisa"]),
+                    type=operation_type,
+                    date=order_date,
+                    source=Bank.MY_INVESTOR,
+                    isin=raw_order_details["codIsin"],
+                    shares=round(raw_order_details["titulosEjecutados"], 4),
+                    price=round(execution_op["precioBruto"], 4),
+                    market=order["codMercado"],
+                    fees=round(fees, 2),
+                    executionDate=execution_date,
+                    productType=TxProductType.STOCK_ETF
+                )
+            )
+
+        return stock_txs
