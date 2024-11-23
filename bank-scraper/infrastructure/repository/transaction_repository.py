@@ -2,8 +2,14 @@ from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
 from domain.bank import Bank
-from domain.transactions import Transactions
+from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx
 from infrastructure.repository.bank_data_repository import map_serializable
+
+
+def map_investment_tx(doc: dict) -> BaseInvestmentTx:
+    if doc["productType"] == "STOCK_ETF":
+        return StockTx(**doc)
+    return FundTx(**doc)
 
 
 class TransactionRepository(TransactionPort):
@@ -25,7 +31,13 @@ class TransactionRepository(TransactionPort):
         )
 
     def get_all(self) -> Transactions:
-        pass
+        result = self.collection.find({}, {"_id": 0}).sort("date", 1)
+        return Transactions(
+            investment=[
+                map_investment_tx(doc)
+                for doc in result
+            ]
+        )
 
     def get_ids_by_source(self, source: Bank) -> set[str]:
         pipeline = [

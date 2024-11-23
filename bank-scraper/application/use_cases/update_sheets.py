@@ -22,3 +22,6 @@ class UpdateSheetsImpl(UpdateSheets):
 
         auto_contributions = self.auto_contr_port.get_all_grouped_by_source()
         self.sheets_update_port.update_contributions(auto_contributions)
+
+        transactions = self.transaction_port.get_all()
+        self.sheets_update_port.update_transactions(transactions)

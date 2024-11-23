@@ -8,11 +8,13 @@ from googleapiclient.discovery import build
 from application.ports.sheets_export_port import SheetsUpdatePort
 from domain.auto_contributions import AutoContributions
 from domain.bank_data import BankGlobalPosition
+from domain.transactions import Transactions
 from infrastructure.sheets_exporter.sheets_contribs_exporter import update_contributions
 from infrastructure.sheets_exporter.sheets_funds_exporter import update_funds
 from infrastructure.sheets_exporter.sheets_other_exporter import update_other
 from infrastructure.sheets_exporter.sheets_stocks_exporter import update_stocks
 from infrastructure.sheets_exporter.sheets_summary_exporter import update_summary
+from infrastructure.sheets_exporter.sheets_txs_exporter import update_transactions
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -54,3 +56,6 @@ class SheetsExporter(SheetsUpdatePort):
 
     def update_contributions(self, contributions: dict[str, AutoContributions]):
         update_contributions(self.__sheet, contributions, self.__spreadsheet_id)
+
+    def update_transactions(self, transactions: Transactions):
+        update_transactions(self.__sheet, transactions, self.__spreadsheet_id)

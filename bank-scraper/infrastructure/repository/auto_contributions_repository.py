@@ -1,7 +1,7 @@
 from pymongo import MongoClient
 
 from application.ports.auto_contributions_port import AutoContributionsPort
-from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency
+from domain.auto_contributions import AutoContributions, PeriodicContribution
 from domain.bank import Bank
 from infrastructure.repository.bank_data_repository import map_serializable
 
@@ -12,15 +12,7 @@ def map_contributions_to_domain(data: dict) -> AutoContributions:
     periodic_contributions_data = data.get("periodic", [])
     for contribution_data in periodic_contributions_data:
         periodic_contributions.append(
-            PeriodicContribution(
-                alias=contribution_data["alias"],
-                isin=contribution_data["isin"],
-                amount=contribution_data["amount"],
-                since=contribution_data["since"],
-                until=contribution_data["until"],
-                frequency=ContributionFrequency[contribution_data["frequency"]],
-                active=contribution_data["active"]
-            )
+            PeriodicContribution(**contribution_data)
         )
 
     return AutoContributions(
@@ -29,6 +21,7 @@ def map_contributions_to_domain(data: dict) -> AutoContributions:
 
 
 class AutoContributionsRepository(AutoContributionsPort):
+
     def __init__(self, client: MongoClient, db_name: str):
         self.client = client
         self.db = self.client[db_name]

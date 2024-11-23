@@ -1,27 +1,29 @@
 import datetime
 
-from domain.bank import Bank
+from domain.auto_contributions import AutoContributions, PeriodicContribution
 
 CONTRIBUTIONS_SHEET = "Auto Contribuciones"
 
 
-def update_contributions(sheet, contributions: dict, sheet_id: str):
-    contributions_rows = map_periodic_contributions(contributions)
+def update_contributions(sheet, contributions: dict[str, AutoContributions], sheet_id: str):
+    periodic = []
+    for contrib in contributions.values():
+        periodic.extend(contrib.periodic)
+    periodic = sorted(periodic, key=lambda c: (c.isin, c.since))
+    periodic_contributions_rows = map_periodic_contributions(periodic)
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
         range=f"{CONTRIBUTIONS_SHEET}!A1",
         valueInputOption="RAW",
-        body={"values": contributions_rows},
+        body={"values": periodic_contributions_rows},
     )
 
     request.execute()
 
 
-def map_periodic_contributions(contributions):
-    try:
-        contributions = contributions.get(Bank.MY_INVESTOR.name, None).periodic
-    except AttributeError:
+def map_periodic_contributions(contributions: list[PeriodicContribution]):
+    if not contributions:
         return []
 
     return [

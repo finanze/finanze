@@ -332,14 +332,14 @@ class MyInvestorSummaryGenerator(BankScraper):
                     currency=SYMBOL_CURRENCY_MAP.get(order["divisa"], order["divisa"]),
                     currencySymbol=order["divisa"],
                     type=operation_type,
-                    date=order_date,
+                    orderDate=order_date,
                     source=Bank.MY_INVESTOR,
                     isin=order["codIsin"],
                     shares=round(raw_order_details["titulosEjecutados"], 4),
                     price=round(execution_op["precioBruto"], 4),
                     market=order["mercado"],
                     fees=round(execution_op["comisiones"], 2),
-                    executionDate=execution_date,
+                    date=execution_date,
                     productType=TxProductType.FUND
                 )
             )
@@ -387,14 +387,14 @@ class MyInvestorSummaryGenerator(BankScraper):
                     currency=order["divisa"],
                     currencySymbol=CURRENCY_SYMBOL_MAP.get(order["divisa"], order["divisa"]),
                     type=operation_type,
-                    date=order_date,
+                    orderDate=order_date,
                     source=Bank.MY_INVESTOR,
                     isin=raw_order_details["codIsin"],
                     shares=round(raw_order_details["titulosEjecutados"], 4),
                     price=round(execution_op["precioBruto"], 4),
                     market=order["codMercado"],
                     fees=round(fees, 2),
-                    executionDate=execution_date,
+                    date=execution_date,
                     productType=TxProductType.STOCK_ETF
                 )
             )
