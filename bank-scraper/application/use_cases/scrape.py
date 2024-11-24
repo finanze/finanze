@@ -41,11 +41,12 @@ class ScrapeImpl(Scrape):
                       bank: Bank,
                       features: list[BankFeature],
                       **kwargs) -> ScrapResult:
-        last_update = self.bank_data_port.get_last_updated(bank)
-        if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
-            remaining_seconds = self.update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
-            details = {"lastUpdate": last_update.isoformat(), "wait": remaining_seconds}
-            return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
+        if BankFeature.POSITION in features:
+            last_update = self.bank_data_port.get_last_updated(bank)
+            if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
+                remaining_seconds = self.update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
+                details = {"lastUpdate": last_update.isoformat(), "wait": remaining_seconds}
+                return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
         login_args = kwargs.get("login", {})
         credentials = self.get_creds(bank)

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 
 from domain.bank import Bank
 
@@ -37,12 +38,12 @@ class BaseInvestmentTx(BaseTx):
 class StockTx(BaseInvestmentTx):
     netAmount: float
     isin: str
-    ticker: str
+    ticker: Optional[str]
     shares: float
     price: float
-    market: str
+    market: Optional[str]
     fees: float
-    orderDate: datetime
+    orderDate: Optional[datetime]
 
 
 @dataclass

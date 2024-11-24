@@ -1,11 +1,13 @@
 import os
+from datetime import datetime
 from typing import Optional
 
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from pytr.utils import get_logger
 
-from infrastructure.scrapers.tr_details import Details
+from infrastructure.scrapers.tr_details import TRDetails
+from infrastructure.scrapers.tr_timeline import TRTimeline
 
 
 class TradeRepublicClient:
@@ -20,7 +22,7 @@ class TradeRepublicClient:
         self.__tr_api = TradeRepublicApi(
             phone_no=phone,
             pin=pin,
-            locale="es",
+            locale="en",
             save_cookies=True,
             cookies_file=self.__cookies_file,
         )
@@ -49,6 +51,13 @@ class TradeRepublicClient:
         return portfolio
 
     async def get_details(self, isin: str, types: list = ["stockDetails", "instrument"]):
-        details = Details(self.__tr_api, isin)
+        details = TRDetails(self.__tr_api, isin)
         await details.details_loop(types)
         return details
+
+    async def get_transactions(self, since: Optional[datetime] = None, already_registered_ids: set[str] = None):
+        dl = TRTimeline(self.__tr_api,
+                        since=since,
+                        requested_data=["timelineTransactions", "timelineDetailV2"],
+                        already_registered_ids=already_registered_ids)
+        return await dl.fetch()

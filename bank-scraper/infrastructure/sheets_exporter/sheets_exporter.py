@@ -1,4 +1,5 @@
 import os.path
+from datetime import datetime
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -54,8 +55,8 @@ class SheetsExporter(SheetsUpdatePort):
         update_stocks(self.__sheet, global_position, self.__spreadsheet_id)
         update_other(self.__sheet, global_position, self.__spreadsheet_id)
 
-    def update_contributions(self, contributions: dict[str, AutoContributions]):
-        update_contributions(self.__sheet, contributions, self.__spreadsheet_id)
+    def update_contributions(self, contributions: dict[str, AutoContributions], last_update: dict[str, datetime]):
+        update_contributions(self.__sheet, contributions, self.__spreadsheet_id, last_update)
 
-    def update_transactions(self, transactions: Transactions):
-        update_transactions(self.__sheet, transactions, self.__spreadsheet_id)
+    def update_transactions(self, transactions: Transactions, last_update: dict[str, datetime]):
+        update_transactions(self.__sheet, transactions, self.__spreadsheet_id, last_update)

@@ -21,7 +21,9 @@ class UpdateSheetsImpl(UpdateSheets):
         self.sheets_update_port.update_global_position(global_position)
 
         auto_contributions = self.auto_contr_port.get_all_grouped_by_source()
-        self.sheets_update_port.update_contributions(auto_contributions)
+        auto_contributions_last_update = self.auto_contr_port.get_last_update_grouped_by_source()
+        self.sheets_update_port.update_contributions(auto_contributions, auto_contributions_last_update)
 
         transactions = self.transaction_port.get_all()
-        self.sheets_update_port.update_transactions(transactions)
+        transactions_last_update = self.transaction_port.get_last_created_grouped_by_source()
+        self.sheets_update_port.update_transactions(transactions, transactions_last_update)

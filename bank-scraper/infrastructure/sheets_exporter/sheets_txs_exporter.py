@@ -5,14 +5,23 @@ from domain.transactions import Transactions
 TXS_SHEET = "TXs"
 
 
-def update_transactions(sheet, txs: Transactions, sheet_id: str):
+def update_transactions(sheet, txs: Transactions, sheet_id: str, last_update: dict[str, datetime]):
     tx_rows = map_investment_txs(txs.investment)
+
+    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=False)
+    last_update_row = [None]
+    for k, v in last_update:
+        last_update_row.append(k)
+        last_update_row.append(v.isoformat())
+    last_update_row.extend(["" for _ in range(10)])
+
+    rows = [last_update_row, *tx_rows]
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
         range=f"{TXS_SHEET}!A1",
         valueInputOption="RAW",
-        body={"values": tx_rows},
+        body={"values": rows},
     )
 
     request.execute()
@@ -44,7 +53,7 @@ def map_investment_tx(tx):
         tx.price,
         tx.market,
         tx.fees,
-        tx.orderDate.isoformat(),
+        tx.orderDate.isoformat() if tx.orderDate else "",
     ]
 
 

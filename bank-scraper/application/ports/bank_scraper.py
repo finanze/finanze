@@ -3,6 +3,7 @@ from typing import Optional
 
 from domain.auto_contributions import AutoContributions
 from domain.bank_data import BankGlobalPosition
+from domain.exceptions import FeatureNotSupported
 from domain.transactions import Transactions
 
 
@@ -11,10 +12,10 @@ class BankScraper(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     async def global_position(self) -> BankGlobalPosition:
-        raise NotImplementedError
+        raise FeatureNotSupported
 
     async def auto_contributions(self) -> AutoContributions:
-        raise NotImplementedError
+        raise FeatureNotSupported
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
-        raise NotImplementedError
+        raise FeatureNotSupported

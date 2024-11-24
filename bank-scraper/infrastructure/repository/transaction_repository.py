@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
@@ -25,13 +27,13 @@ class TransactionRepository(TransactionPort):
             return
         self.collection.insert_many(
             [
-                map_serializable(tx)
+                {**map_serializable(tx), "createdAt": datetime.now(timezone.utc)}
                 for tx in txs
             ]
         )
 
     def get_all(self) -> Transactions:
-        result = self.collection.find({}, {"_id": 0}).sort("date", 1)
+        result = self.collection.find({}, {"_id": 0, "createdAt": 0}).sort("date", 1)
         return Transactions(
             investment=[
                 map_investment_tx(doc)
@@ -46,3 +48,17 @@ class TransactionRepository(TransactionPort):
         ]
         result = self.collection.aggregate(pipeline)
         return {doc["id"] for doc in result}
+
+    def get_last_created_grouped_by_source(self) -> dict[str, datetime]:
+        pipeline = [
+            {"$sort": {"createdAt": -1}},
+            {
+                "$group": {
+                    "_id": "$source",
+                    "lastCreatedAt": {"$first": "$createdAt"}
+                }
+            },
+            {"$project": {"_id": 0, "source": "$_id", "lastCreatedAt": 1}}
+        ]
+        result = list(self.collection.aggregate(pipeline))
+        return {doc["source"]: doc["lastCreatedAt"] for doc in result}

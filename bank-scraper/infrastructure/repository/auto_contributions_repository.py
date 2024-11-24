@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from pymongo import MongoClient
 
 from application.ports.auto_contributions_port import AutoContributionsPort
@@ -28,9 +30,10 @@ class AutoContributionsRepository(AutoContributionsPort):
         self.collection = self.db["auto_contributions"]
 
     def save(self, source: Bank, data: AutoContributions):
+        data = {**map_serializable(data), "updatedAt": datetime.now(timezone.utc)}
         self.collection.update_one(
             {"bank": source.name},
-            {"$set": map_serializable(data)},
+            {"$set": data},
             upsert=True,
         )
 
@@ -69,3 +72,23 @@ class AutoContributionsRepository(AutoContributionsPort):
             mapped_result[bank_name] = bank_data
 
         return mapped_result
+
+    def get_last_update_grouped_by_source(self) -> dict[str, datetime]:
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$bank",
+                    "lastUpdate": {"$max": "$updatedAt"}
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "bank": "$_id",
+                    "lastUpdate": "$lastUpdate"
+                }
+            }
+        ]
+        result = list(self.collection.aggregate(pipeline))
+
+        return {entry["bank"]: entry["lastUpdate"] for entry in result}

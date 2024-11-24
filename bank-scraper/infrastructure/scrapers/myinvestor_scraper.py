@@ -348,21 +348,23 @@ class MyInvestorSummaryGenerator(BankScraper):
 
     def scrape_stock_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[StockTx]:
         raw_stock_orders = self.__client.get_stock_orders(securities_account_id=securities_account_id,
-                                                          from_date=date.fromisocalendar(2020, 1, 1))
+                                                          from_date=date.fromisocalendar(2020, 1, 1),
+                                                          completed=False)
 
         stock_txs = []
         for order in raw_stock_orders:
             ref = order["referencia"]
 
             if ref in registered_txs:
-                continue
+                break
 
             raw_order_details = self.__client.get_stock_order_details(ref)
             order_date = datetime.strptime(raw_order_details["fechaOrden"], OLD_DATE_TIME_FORMAT)
-            execution_op = None
             linked_ops = raw_order_details["operacionesAsociadas"]
-            if linked_ops:
-                execution_op = linked_ops[0]
+            if not linked_ops:
+                print(f"Order {ref} has no linked operations")
+                continue
+            execution_op = linked_ops[0]
             execution_date = datetime.strptime(execution_op["fechaHoraEjecucion"], DASH_OLD_DATE_TIME_FORMAT)
 
             raw_operation_type = order["operacion"]
@@ -374,16 +376,24 @@ class MyInvestorSummaryGenerator(BankScraper):
                 print(f"Unknown operation type: {raw_operation_type}")
                 continue
 
-            fees = execution_op["comisionCorretaje"] + execution_op["comisionMiembroMercado"] + execution_op[
-                "costeCanon"]
+            amount = round(execution_op["efectivoBruto"], 2)
+            net_amount = round(execution_op["efectivoNeto"], 2)
+
+            fees = 0
+            if operation_type == TxType.BUY:
+                # Financial Tx Tax not included in "comisionCorretaje", "comisionMiembroMercado" and "costeCanon"
+                fees = net_amount - amount
+            elif operation_type == TxType.SELL:
+                fees = execution_op["comisionCorretaje"] + execution_op["comisionMiembroMercado"] + execution_op[
+                    "costeCanon"]
 
             stock_txs.append(
                 StockTx(
                     id=ref,
                     name=order["nombreInstrumento"].strip(),
                     ticker=order["ticker"],
-                    amount=round(execution_op["efectivoBruto"], 2),
-                    netAmount=round(execution_op["efectivoNeto"], 2),
+                    amount=amount,
+                    netAmount=net_amount,
                     currency=order["divisa"],
                     currencySymbol=CURRENCY_SYMBOL_MAP.get(order["divisa"], order["divisa"]),
                     type=operation_type,
