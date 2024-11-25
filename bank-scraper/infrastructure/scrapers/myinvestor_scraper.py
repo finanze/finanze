@@ -101,8 +101,8 @@ class MyInvestorSummaryGenerator(BankScraper):
         debit_card_tx = self.__client.get_card_transactions(debit_card["cardId"])
 
         return Cards(
-            credit=Card(limit=credit_card_tx["limit"], used=credit_card_tx["consumedMonth"]),
-            debit=Card(limit=debit_card_tx["limit"], used=debit_card_tx["consumedMonth"]),
+            credit=Card(limit=credit_card_tx["limit"], used=abs(credit_card_tx["consumedMonth"])),
+            debit=Card(limit=debit_card_tx["limit"], used=abs(debit_card_tx["consumedMonth"])),
         )
 
     def scrape_deposits(self):
