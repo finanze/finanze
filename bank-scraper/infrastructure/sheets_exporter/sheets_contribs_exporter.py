@@ -1,8 +1,20 @@
 import datetime
 
+from dateutil.tz import tzlocal
+
 from domain.auto_contributions import AutoContributions, PeriodicContribution
 
 CONTRIBUTIONS_SHEET = "Auto Contribuciones"
+
+
+def map_last_update_row(last_update: dict[str, datetime]):
+    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=False)
+    last_update_row = [None]
+    for k, v in last_update:
+        last_update_row.append(k)
+        last_update_row.append(v.astimezone(tz=tzlocal()).isoformat())
+    last_update_row.extend(["" for _ in range(10)])
+    return last_update_row
 
 
 def update_contributions(sheet,
@@ -14,12 +26,7 @@ def update_contributions(sheet,
         periodic.extend(contrib.periodic)
     periodic = sorted(periodic, key=lambda c: (c.isin, c.since))
 
-    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=False)
-    last_update_row = [None]
-    for k, v in last_update:
-        last_update_row.append(k)
-        last_update_row.append(v.isoformat())
-    last_update_row.extend(["" for _ in range(10)])
+    last_update_row = map_last_update_row(last_update)
     periodic_contributions_rows = map_periodic_contributions(periodic)
 
     rows = [last_update_row, *periodic_contributions_rows]

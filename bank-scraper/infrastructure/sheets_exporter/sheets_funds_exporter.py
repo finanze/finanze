@@ -1,5 +1,7 @@
 import datetime
 
+from dateutil.tz import tzlocal
+
 from domain.bank import Bank
 
 FUNDS_SHEET = "Funds"
@@ -25,7 +27,7 @@ def map_funds(global_position):
         return []
 
     return [
-        [None, datetime.datetime.now(datetime.timezone.utc).isoformat()],
+        [None, datetime.datetime.now(tzlocal()).isoformat()],
         [],
         *[
             [

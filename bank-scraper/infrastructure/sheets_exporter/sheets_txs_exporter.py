@@ -1,6 +1,7 @@
 import datetime
 
 from domain.transactions import Transactions
+from infrastructure.sheets_exporter.sheets_contribs_exporter import map_last_update_row
 
 TXS_SHEET = "TXs"
 
@@ -8,13 +9,7 @@ TXS_SHEET = "TXs"
 def update_transactions(sheet, txs: Transactions, sheet_id: str, last_update: dict[str, datetime]):
     tx_rows = map_investment_txs(txs.investment)
 
-    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=False)
-    last_update_row = [None]
-    for k, v in last_update:
-        last_update_row.append(k)
-        last_update_row.append(v.isoformat())
-    last_update_row.extend(["" for _ in range(10)])
-
+    last_update_row = map_last_update_row(last_update)
     rows = [last_update_row, *tx_rows]
 
     request = sheet.values().update(

@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+from datetime import datetime
+
+from dateutil.tz import tzlocal
 
 from application.ports.bank_scraper import BankScraper
 from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition
@@ -59,7 +61,7 @@ class UnicajaSummaryGenerator(BankScraper):
         )
 
         return BankGlobalPosition(
-            date=datetime.now(timezone.utc),
+            date=datetime.now(tzlocal()),
             account=account_data,
             cards=cards_data,
             mortgage=mortgage_data,

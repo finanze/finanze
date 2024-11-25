@@ -1,3 +1,5 @@
+from dateutil.tz import tzlocal
+
 from domain.bank import Bank
 from domain.bank_data import BankGlobalPosition
 
@@ -26,7 +28,7 @@ def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
     cards = unicaja_summary.cards
     mortgage = unicaja_summary.mortgage
     return [
-        {"range": f"{SUMMARY_SHEET}!K1", "values": [[unicaja_summary.date.isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!K1", "values": [[unicaja_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
         # Account
         {"range": f"{SUMMARY_SHEET}!B3", "values": [[unicaja_summary.account.total]]},
         {"range": f"{SUMMARY_SHEET}!C3", "values": [[unicaja_summary.account.retained]]},
@@ -57,7 +59,7 @@ def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
     funds = myi_summary.investments.funds
     deposits = myi_summary.deposits
     return [
-        {"range": f"{SUMMARY_SHEET}!K14", "values": [[myi_summary.date.isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!K14", "values": [[myi_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
         # Account
         {"range": f"{SUMMARY_SHEET}!B16", "values": [[myi_summary.account.total]]},
         {"range": f"{SUMMARY_SHEET}!C16", "values": [[myi_summary.account.retained]]},
@@ -95,7 +97,7 @@ def map_tr_summary_cells(tr_summary: BankGlobalPosition):
 
     stocks = tr_summary.investments.stocks
     return [
-        {"range": f"{SUMMARY_SHEET}!K31", "values": [[tr_summary.date.isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!K31", "values": [[tr_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
         # Account
         {"range": f"{SUMMARY_SHEET}!B33", "values": [[tr_summary.account.total]]},
         # Investments - Stocks

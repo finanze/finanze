@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from dateutil.tz import tzlocal
 from pymongo import MongoClient
 
 from application.ports.auto_contributions_port import AutoContributionsPort
@@ -30,7 +31,7 @@ class AutoContributionsRepository(AutoContributionsPort):
         self.collection = self.db["auto_contributions"]
 
     def save(self, source: Bank, data: AutoContributions):
-        data = {**map_serializable(data), "updatedAt": datetime.now(timezone.utc)}
+        data = {**map_serializable(data), "updatedAt": datetime.now(tzlocal())}
         self.collection.update_one(
             {"bank": source.name},
             {"$set": data},
@@ -91,4 +92,4 @@ class AutoContributionsRepository(AutoContributionsPort):
         ]
         result = list(self.collection.aggregate(pipeline))
 
-        return {entry["bank"]: entry["lastUpdate"] for entry in result}
+        return {entry["bank"]: entry["lastUpdate"].replace(tzinfo=timezone.utc) for entry in result}

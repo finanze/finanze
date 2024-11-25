@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from dateutil.tz import tzlocal
 from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
@@ -27,7 +28,7 @@ class TransactionRepository(TransactionPort):
             return
         self.collection.insert_many(
             [
-                {**map_serializable(tx), "createdAt": datetime.now(timezone.utc)}
+                {**map_serializable(tx), "createdAt": datetime.now(tzlocal())}
                 for tx in txs
             ]
         )
@@ -61,4 +62,4 @@ class TransactionRepository(TransactionPort):
             {"$project": {"_id": 0, "source": "$_id", "lastCreatedAt": 1}}
         ]
         result = list(self.collection.aggregate(pipeline))
-        return {doc["source"]: doc["lastCreatedAt"] for doc in result}
+        return {doc["source"]: doc["lastCreatedAt"].replace(tzinfo=timezone.utc) for doc in result}

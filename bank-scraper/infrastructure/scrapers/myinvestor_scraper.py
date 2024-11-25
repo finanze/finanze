@@ -1,5 +1,7 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from itertools import chain
+
+from dateutil.tz import tzlocal
 
 from application.ports.bank_scraper import BankScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
@@ -37,7 +39,7 @@ class MyInvestorSummaryGenerator(BankScraper):
         deposits = self.scrape_deposits()
 
         return BankGlobalPosition(
-            date=datetime.now(timezone.utc),
+            date=datetime.now(tzlocal()),
             account=account_data,
             cards=cards_data,
             deposits=deposits,

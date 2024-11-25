@@ -156,7 +156,7 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
         )
 
     return BankGlobalPosition(
-        date=data["date"],
+        date=data["date"].replace(tzinfo=timezone.utc),
         account=account,
         cards=cards,
         mortgage=mortgage,

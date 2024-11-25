@@ -1,6 +1,8 @@
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
+
+from dateutil.tz import tzlocal
 
 from application.ports.bank_scraper import BankScraper
 from domain.bank import Bank
@@ -90,7 +92,7 @@ class TradeRepublicSummaryGenerator(BankScraper):
         )
 
         return BankGlobalPosition(
-            date=datetime.now(timezone.utc),
+            date=datetime.now(tzlocal()),
             account=Account(
                 total=cash_total,
             ),

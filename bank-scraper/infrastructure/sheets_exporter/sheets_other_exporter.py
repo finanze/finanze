@@ -1,5 +1,7 @@
 import datetime
 
+from dateutil.tz import tzlocal
+
 from domain.bank import Bank
 
 OTHER_SHEET = "Other"
@@ -20,7 +22,7 @@ def update_other(sheet, global_position: dict, sheet_id: str):
 
 def map_stocks(global_position):
     return [
-        [None, datetime.datetime.now(datetime.timezone.utc).isoformat()],
+        [None, datetime.datetime.now(tzlocal()).isoformat()],
         [],
         *map_myi_sego_investments(global_position),
         *[["" for _ in range(20)] for _ in range(20)],
