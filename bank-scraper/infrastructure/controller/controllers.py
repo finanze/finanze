@@ -6,10 +6,7 @@ from domain.use_cases.update_sheets import UpdateSheets
 
 
 def map_features(features: list[str]) -> list[BankFeature]:
-    try:
-        return [BankFeature[feature] for feature in features]
-    except ValueError:
-        return []
+    return [BankFeature[feature] for feature in features]
 
 
 class Controllers:
@@ -28,14 +25,19 @@ class Controllers:
             return jsonify({"message": f"Invalid bank {bank_str}"}), 400
 
         bank_feats = body.get("features", [])
-        features = map_features(bank_feats)
+        try:
+            features = map_features(bank_feats)
+        except KeyError as e:
+            return jsonify({"message": f"Invalid feature {e}"}), 400
 
         code = body.get("code", None)
         process_id = body.get("processId", None)
+        avoid_new_login = body.get("avoidNewLogin", False)
 
         login_args = {
             "code": code,
-            "processId": process_id
+            "processId": process_id,
+            "avoidNewLogin": avoid_new_login,
         }
         result = await self.__scrape.execute(bank, features, login=login_args)
 

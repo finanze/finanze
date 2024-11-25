@@ -1,6 +1,8 @@
 import os
 from datetime import datetime, timezone
 
+from dateutil.tz import tzlocal
+
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.bank_data_port import BankDataPort
 from application.ports.bank_scraper import BankScraper
@@ -45,7 +47,7 @@ class ScrapeImpl(Scrape):
             last_update = self.bank_data_port.get_last_updated(bank)
             if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
                 remaining_seconds = self.update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
-                details = {"lastUpdate": last_update.isoformat(), "wait": remaining_seconds}
+                details = {"lastUpdate": last_update.astimezone(tzlocal()).isoformat(), "wait": remaining_seconds}
                 return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
         login_args = kwargs.get("login", {})
@@ -55,7 +57,10 @@ class ScrapeImpl(Scrape):
         login_result = specific_scraper.login(credentials, **login_args)
 
         if login_result:
-            return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
+            if login_result.get("success", False):
+                return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
+            else:
+                return ScrapResult(ScrapResultCode.NOT_LOGGED)
 
         if not features:
             features = DEFAULT_FEATURES

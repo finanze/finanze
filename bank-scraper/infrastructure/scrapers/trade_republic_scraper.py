@@ -21,7 +21,8 @@ class TradeRepublicSummaryGenerator(BankScraper):
         phone, pin = credentials
         process_id = kwargs.get("processId", None)
         code = kwargs.get("code", None)
-        return self.__client.login(phone, pin, process_id, code)
+        avoid_new_login = kwargs.get("avoidNewLogin", False)
+        return self.__client.login(phone, pin, avoid_new_login, process_id, code)
 
     async def instrument_mapper(self, stock: dict, currency: str):
         isin = stock["instrumentId"]

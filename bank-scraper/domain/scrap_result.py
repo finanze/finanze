@@ -7,6 +7,7 @@ from domain.scraped_bank_data import ScrapedBankData
 
 class ScrapResultCode(Enum):
     CODE_REQUESTED = "CODE_REQUESTED"
+    NOT_LOGGED = "NOT_LOGGED"
     COMPLETED = "COMPLETED"
     COOLDOWN = "COOLDOWN"
 

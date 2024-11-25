@@ -16,7 +16,12 @@ class TradeRepublicClient:
         self.__tr_api = None
         self.__cookies_file = os.environ["TR_COOKIES_PATH"]
 
-    def login(self, phone: str, pin: str, process_id: str = None, code: str = None) -> Optional[dict]:
+    def login(self,
+              phone: str,
+              pin: str,
+              avoid_new_login: bool = False,
+              process_id: str = None,
+              code: str = None) -> Optional[dict]:
         log = get_logger(__name__)
 
         self.__tr_api = TradeRepublicApi(
@@ -38,9 +43,12 @@ class TradeRepublicClient:
                 return None
 
             elif not code and not process_id:
-                countdown = self.__tr_api.inititate_weblogin()
-                process_id = self.__tr_api._process_id
-                return {"countdown": countdown, "processId": process_id}
+                if not avoid_new_login:
+                    countdown = self.__tr_api.inititate_weblogin()
+                    process_id = self.__tr_api._process_id
+                    return {"success": True, "countdown": countdown, "processId": process_id}
+                else:
+                    return {"success": False}
 
             else:
                 raise ValueError("Invalid login data")
