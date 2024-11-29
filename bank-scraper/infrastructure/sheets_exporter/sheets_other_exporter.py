@@ -40,7 +40,6 @@ def map_myi_sego_investments(global_position):
             i.name,
             "",
             "",
-            "",
             1,
             i.amount,
             i.amount,
@@ -49,7 +48,9 @@ def map_myi_sego_investments(global_position):
             "SEGO",
             i.type,
             i.interestRate,
+            i.start.isoformat()[:10],
             i.maturity.isoformat()[:10],
+            i.state,
             "MYI",
         ]
         for i in details

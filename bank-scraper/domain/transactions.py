@@ -11,10 +11,14 @@ class TxType(str, Enum):
     SELL = "SELL"
     DIVIDEND = "DIVIDEND"
 
+    INVESTMENT = "INVESTMENT"
+    MATURITY = "MATURITY"
+
 
 class TxProductType(str, Enum):
     FUND = "FUND"
     STOCK_ETF = "STOCK_ETF"
+    SEGO = "SEGO"
 
 
 @dataclass
@@ -43,6 +47,7 @@ class StockTx(BaseInvestmentTx):
     price: float
     market: Optional[str]
     fees: float
+    retentions: Optional[float]
     orderDate: Optional[datetime]
 
 
@@ -54,7 +59,15 @@ class FundTx(BaseInvestmentTx):
     price: float
     market: str
     fees: float
+    retentions: Optional[float]
     orderDate: datetime
+
+
+@dataclass
+class SegoTx(BaseInvestmentTx):
+    fees: float
+    retentions: float
+    interests: float
 
 
 @dataclass

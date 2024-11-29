@@ -123,21 +123,20 @@ class MyInvestorAPIClient:
             "payload"
         ]["data"]
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_sego_global_position(self):
         return self.__get_request("/ms-sego/api/v1/investments/self/global-position")["payload"][
             "data"
         ]
 
-    def get_active_sego_investments(self):
-        return self.__get_request(
-            "/ms-sego/api/v1/investments/self?operationStateCodes=DISPUTE&operationStateCodes=MANAGING_COLLECTION"
-            "&operationStateCodes=NOT_ARRIVING_COLLECTION_DATE"
-        )["payload"]["data"]
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_all_sego_investments(self):
+        return self.__get_request("/ms-sego/api/v1/investments/self")["payload"]["data"]
 
-    def get_finished_sego_investments(self):
-        return self.__get_request(
-            "/ms-sego/api/v1/investments/self?operationStateCodes=CASHED&operationStateCodes=FAILED"
-        )["payload"]["data"]
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_sego_movements(self, page: int = 1):
+        params = f"?limit=100&page={page}"
+        return self.__get_request(f"/ms-sego/api/v1/investments/self/wallet/movements{params}")["payload"]["data"]
 
     def get_stocks_summary(self):
         return self.__get_request("/ms-broker/v1/acciones/resumen-acciones-cliente")

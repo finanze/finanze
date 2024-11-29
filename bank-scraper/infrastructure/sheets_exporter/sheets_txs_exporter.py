@@ -1,6 +1,7 @@
 import datetime
+from typing import Union
 
-from domain.transactions import Transactions
+from domain.transactions import Transactions, BaseTx, BaseInvestmentTx, FundTx, StockTx, SegoTx
 from infrastructure.sheets_exporter.sheets_contribs_exporter import map_last_update_row
 
 TXS_SHEET = "TXs"
@@ -22,7 +23,7 @@ def update_transactions(sheet, txs: Transactions, sheet_id: str, last_update: di
     request.execute()
 
 
-def map_base_tx(tx):
+def map_base_tx(tx: BaseTx):
     return [
         tx.id,
         tx.name,
@@ -35,12 +36,19 @@ def map_base_tx(tx):
     ]
 
 
-def map_investment_tx(tx):
-    stock = tx.productType == "STOCK_ETF"
+def map_investment_tx(tx: BaseInvestmentTx):
+    map_fn = map_sego_tx if isinstance(tx, SegoTx) else map_fund_stock_investment_tx
     return [
         *map_base_tx(tx),
         "",
         tx.productType,
+        *map_fn(tx)
+    ]
+
+
+def map_fund_stock_investment_tx(tx: Union[FundTx, StockTx]):
+    stock = tx.productType == "STOCK_ETF"
+    return [
         tx.netAmount,
         tx.isin,
         tx.ticker if stock else "",
@@ -49,6 +57,20 @@ def map_investment_tx(tx):
         tx.market,
         tx.fees,
         tx.orderDate.isoformat() if tx.orderDate else "",
+    ]
+
+
+def map_sego_tx(tx: SegoTx):
+    return [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        tx.fees,
+        "",
+        tx.retentions
     ]
 
 

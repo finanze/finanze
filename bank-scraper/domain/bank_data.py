@@ -74,8 +74,10 @@ class SegoDetail:
     name: str
     amount: float
     interestRate: float
+    start: date
     maturity: date
     type: str
+    state: str
 
 
 @dataclass

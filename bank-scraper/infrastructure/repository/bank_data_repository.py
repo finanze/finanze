@@ -62,8 +62,10 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
                     name=detail["name"],
                     amount=detail["amount"],
                     interestRate=detail["interestRate"],
+                    start=detail["start"],
                     maturity=detail["maturity"],
-                    type=detail["type"]
+                    type=detail["type"],
+                    state=detail["state"],
                 )
                 for detail in sego_data["details"]
             ]

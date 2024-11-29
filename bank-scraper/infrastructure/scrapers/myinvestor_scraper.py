@@ -1,7 +1,9 @@
 from datetime import date, datetime
-from itertools import chain
+from hashlib import sha1
+from typing import Optional
 
 from dateutil.tz import tzlocal
+from itertools import chain
 
 from application.ports.bank_scraper import BankScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
@@ -9,13 +11,18 @@ from domain.bank import Bank
 from domain.bank_data import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, FundDetail, \
     FundInvestments, SegoDetail, SegoInvestments, Investments, BankGlobalPosition, BankAdditionalData, Deposit, Deposits
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
-from domain.transactions import Transactions, FundTx, TxType, StockTx, TxProductType
+from domain.transactions import Transactions, FundTx, TxType, StockTx, TxProductType, SegoTx
 from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
 TIME_FORMAT = "%H:%M:%S"
 OLD_DATE_TIME_FORMAT = OLD_DATE_FORMAT + " " + TIME_FORMAT
 DASH_OLD_DATE_TIME_FORMAT = "%Y-%m-%d " + TIME_FORMAT
+
+ISO8601_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
+
+ACTIVE_SEGO_STATES = ["DISPUTE", "MANAGING_COLLECTION", "NOT_ARRIVING_COLLECTION_DATE"]
+FINISHED_SEGO_STATES = ["CASHED", "FAILED"]
 
 
 class MyInvestorSummaryGenerator(BankScraper):
@@ -57,7 +64,10 @@ class MyInvestorSummaryGenerator(BankScraper):
         fund_txs = self.scrape_fund_txs(securities_account_id, registered_txs)
         stock_txs = self.scrape_stock_txs(securities_account_id, registered_txs)
 
-        investment_txs = fund_txs + stock_txs
+        sego_txs = self.scrape_sego_txs(registered_txs)
+
+        investment_txs = fund_txs + stock_txs + sego_txs
+
         return Transactions(investment=investment_txs)
 
     def scrape_account(self):
@@ -205,17 +215,30 @@ class MyInvestorSummaryGenerator(BankScraper):
         )
 
         raw_sego_summary = self.__client.get_sego_global_position()
-
-        raw_sego_investments = self.__client.get_active_sego_investments()
+        raw_sego_movements = self.__client.get_sego_movements()
+        sego_investment_movements = sorted(
+            [
+                movement
+                for movement in raw_sego_movements
+                if movement["type"] == "TRANSFER"
+                   and movement["amount"] < 0
+                   and "Inversión" in movement["description"]
+            ],
+            key=lambda movement: movement["date"],
+        )
+        raw_sego_investments = self.__client.get_all_sego_investments()
+        active_sego_investments = [
+            investment for investment in raw_sego_investments if investment["operationStateType"] in ACTIVE_SEGO_STATES
+        ]
         total_sego_amount = sum(
-            [investment["amount"] for investment in raw_sego_investments]
+            [investment["amount"] for investment in active_sego_investments]
         )
         weighted_sego_net_interest_rate = round(
             (
                     sum(
                         [
                             investment["amount"] * investment["netInterestRate"]
-                            for investment in raw_sego_investments
+                            for investment in active_sego_investments
                         ]
                     )
                     / total_sego_amount
@@ -223,19 +246,31 @@ class MyInvestorSummaryGenerator(BankScraper):
             / 100,
             4,
         )
+
         sego_investments = [
             SegoDetail(
                 name=investment["operationName"],
                 amount=investment["amount"],
                 interestRate=round(investment["netInterestRate"] / 100, 4),
+                start=date.fromisoformat(
+                    next(
+                        (
+                            movement["date"][0:10]
+                            for movement in sego_investment_movements
+                            if investment["operationName"] in movement["description"]
+                        ),
+                        None,
+                    )
+                ),
                 maturity=(
                     date.fromisoformat(investment["returnDate"][:10])
                     if investment["returnDate"]
                     else None
                 ),
                 type=investment["operationType"],
+                state=investment["operationStateType"]
             )
-            for investment in raw_sego_investments
+            for investment in active_sego_investments
         ]
 
         sego_data = SegoInvestments(
@@ -341,6 +376,7 @@ class MyInvestorSummaryGenerator(BankScraper):
                     price=round(execution_op["precioBruto"], 4),
                     market=order["mercado"],
                     fees=round(execution_op["comisiones"], 2),
+                    retentions=0,
                     date=execution_date,
                     productType=TxProductType.FUND
                 )
@@ -406,9 +442,128 @@ class MyInvestorSummaryGenerator(BankScraper):
                     price=round(execution_op["precioBruto"], 4),
                     market=order["codMercado"],
                     fees=round(fees, 2),
+                    retentions=0,
                     date=execution_date,
                     productType=TxProductType.STOCK_ETF
                 )
             )
 
         return stock_txs
+
+    def scrape_sego_txs(self, registered_txs: set[str]) -> list[SegoTx]:
+        all_investments = self.__client.get_all_sego_investments()
+        investment_names = [investment["operationName"] for investment in all_investments]
+
+        txs = self.__client.get_sego_movements()
+
+        investment_txs = {}
+
+        for tx in txs:
+            if tx["type"] == "TRANSFER":
+                matching_investment_name = next(
+                    (investment_name for investment_name in investment_names if investment_name in tx["description"]),
+                    None
+                )
+                if matching_investment_name:
+                    if matching_investment_name not in investment_txs:
+                        investment_txs[matching_investment_name] = {}
+
+                    description = tx["description"].lower()
+                    if "comisiones" in description:
+                        investment_txs[matching_investment_name]["fee"] = tx
+                    elif "retención" in description:
+                        investment_txs[matching_investment_name]["tax"] = tx
+                    elif "devolución" in description and "intereses" in description:
+                        investment_txs[matching_investment_name]["interests"] = tx
+                    elif "devolución" in description and "capital" in description:
+                        investment_txs[matching_investment_name]["maturity"] = tx
+                    elif "inversión" in description:
+                        if not investment_txs[matching_investment_name].get("investment", None):
+                            investment_txs[matching_investment_name]["investment"] = []
+
+                        investment_txs[matching_investment_name]["investment"].append(tx)
+                    else:
+                        print(f"Unknown SEGO transaction type: {description}")
+
+        sego_txs = []
+
+        for name, txs in investment_txs.items():
+            maturity_tx = txs.get("maturity", None)
+            investment_txs = txs.get("investment", [])
+            investment_txs = sorted(investment_txs, key=lambda txx: (txx["date"], txx["amount"]))
+
+            repeated_inv_counter = 0
+            last_inv = None
+            for tx in investment_txs:
+                if last_inv and last_inv["date"] == tx["date"] and last_inv["amount"] == tx["amount"]:
+                    repeated_inv_counter += 1
+                last_inv = tx
+
+                tx_type = TxType.INVESTMENT
+                stored_tx = self.map_sego_txs(tx, name, tx_type, repeated_inv_counter, 0, 0, 0, registered_txs)
+                if stored_tx:
+                    sego_txs.append(stored_tx)
+
+            if maturity_tx:
+                interests = 0
+                fee = 0
+                tax = 0
+                interest_tx = txs.get("interests", None)
+                if interest_tx:
+                    interests = round(interest_tx["amount"], 2)
+                    fee_tx = txs["fee"]
+                    fee = abs(round(fee_tx["amount"], 2))
+                    tax_tx = txs["tax"]
+                    tax = abs(round(tax_tx["amount"], 2))
+
+                tx_type = TxType.MATURITY
+                stored_tx = self.map_sego_txs(maturity_tx, name, tx_type, 0, fee, tax, interests, registered_txs)
+                if stored_tx:
+                    sego_txs.append(stored_tx)
+
+        return sego_txs
+
+    def map_sego_txs(self,
+                     tx: dict,
+                     name: str,
+                     tx_type: TxType,
+                     repeat_counter: int,
+                     fee: float,
+                     tax: float,
+                     interests: float,
+                     registered_txs: set[str]) -> Optional[SegoTx]:
+        tx_date = datetime.strptime(tx["date"], ISO8601_DATETIME_FORMAT)
+        raw_amount = round(tx["amount"], 2)
+
+        amount = abs(raw_amount) + interests - fee - tax
+
+        calc_id = self.calc_sego_tx_id(name, tx_date, amount, tx_type, repeat_counter)
+        if calc_id not in registered_txs:
+            currency_symbol = tx["formattedAmount"][-1]
+            currency = SYMBOL_CURRENCY_MAP.get(currency_symbol, "EUR")
+
+            return SegoTx(
+                id=calc_id,
+                name=name,
+                amount=amount,
+                currency=currency,
+                currencySymbol=currency_symbol,
+                type=tx_type,
+                date=tx_date,
+                source=Bank.MY_INVESTOR,
+                productType=TxProductType.SEGO,
+                fees=fee,
+                retentions=tax,
+                interests=interests
+            )
+
+        return None
+
+    @staticmethod
+    def calc_sego_tx_id(inv_name: str,
+                        tx_date: datetime,
+                        amount: float,
+                        tx_type: TxType,
+                        repeat_counter: int) -> str:
+        return sha1(
+            f"S_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}_{repeat_counter}".encode("UTF-8")).hexdigest()
