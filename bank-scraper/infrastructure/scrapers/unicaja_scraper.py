@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, date
 
+from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.bank_scraper import BankScraper
@@ -26,10 +27,16 @@ class UnicajaSummaryGenerator(BankScraper):
         account_pending_payments = round(
             account_balance + account_allowed_overdraft - account_available, 2
         )
+        last_week_date = date.today() - relativedelta(weeks=1)
+        account_pending_transfers_raw = self.__client.get_transfers_historic(from_date=last_week_date)
+        account_pending_transfer_amount = sum(
+            transfer["importe"]["cantidad"] for transfer in account_pending_transfers_raw["transferencias"] if
+            transfer["estadoTransferencia"] == "P"
+        )
 
         account_data = Account(
             total=account_balance,
-            retained=account_pending_payments,
+            retained=account_pending_payments + account_pending_transfer_amount,
             interest=0,  # :(
             additionalData=None,
         )

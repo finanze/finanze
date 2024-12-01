@@ -1,11 +1,15 @@
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, date
+from typing import Optional
 
 import pyDes
 import requests
 from bs4 import BeautifulSoup
+from dateutil.relativedelta import relativedelta
+
+REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
 
 class UnicajaClient:
@@ -226,8 +230,11 @@ class UnicajaClient:
             "/services/rest/api/tarjetas/configuracionUso/datos", card_config_request
         )
 
-    def get_card_movements(self):
-        card_movs_request = {"ppp": "002", "fechaDesde": "2023-11-01", "impDesde": "0"}
+    def get_card_movements(self, from_date: Optional[date] = None):
+        from_date = date.strftime(
+            from_date or (date.today() - relativedelta(months=1)), REQUEST_DATE_FORMAT
+        )
+        card_movs_request = {"ppp": "002", "fechaDesde": from_date, "impDesde": "0"}
         return self.__post_request(
             "/services/rest/api/tarjetas/movimientos/listadoMovimientos/v2",
             card_movs_request,
@@ -287,6 +294,18 @@ class UnicajaClient:
 
     def get_transfers_summary(self):
         return self.__get_request("/services/rest/api/transferencias/resumen")
+
+    def get_transfers_historic(self, from_date: Optional[date] = None, to_date: Optional[date] = None):
+        to_date = date.strftime(to_date or date.today(), REQUEST_DATE_FORMAT)
+        from_date = date.strftime(
+            from_date or (date.today() - relativedelta(months=1)), REQUEST_DATE_FORMAT
+        )
+        request = {
+            "tipo": "E",
+            "fechaDesde": from_date,
+            "fechaHasta": to_date,
+        }
+        return self.__post_request("/services/rest/api/transferencias/listaTransferencias", request)
 
     def get_transfer_contacts(self):
         return self.__get_request("/services/rest/api/utilidades/contactos/listado")
