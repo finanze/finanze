@@ -5,8 +5,9 @@ from typing import List, Optional
 
 @dataclass
 class AccountAdditionalData:
-    averageInterestRate: Optional[float]
-    remunerationType: Optional[str]
+    averageInterestRate: Optional[float] = None
+    remunerationType: Optional[str] = None
+    pendingTransfers: Optional[float] = None
 
 
 @dataclass

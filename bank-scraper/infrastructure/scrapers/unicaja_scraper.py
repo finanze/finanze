@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.bank_scraper import BankScraper
-from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition
+from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition, AccountAdditionalData
 from infrastructure.scrapers.unicaja_client import UnicajaClient
 
 
@@ -36,9 +36,11 @@ class UnicajaSummaryGenerator(BankScraper):
 
         account_data = Account(
             total=account_balance,
-            retained=account_pending_payments + account_pending_transfer_amount,
+            retained=account_pending_payments,
             interest=0,  # :(
-            additionalData=None,
+            additionalData=AccountAdditionalData(
+                pendingTransfers=account_pending_transfer_amount
+            )
         )
 
         card_list = self.__client.get_cards()

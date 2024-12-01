@@ -1,6 +1,7 @@
 from flask import request, jsonify
 
 from domain.bank import Bank, BankFeature
+from domain.use_cases.fiscal_year import FiscalYear
 from domain.use_cases.scrape import Scrape
 from domain.use_cases.update_sheets import UpdateSheets
 
@@ -10,9 +11,10 @@ def map_features(features: list[str]) -> list[BankFeature]:
 
 
 class Controllers:
-    def __init__(self, scrape: Scrape, update_sheets: UpdateSheets):
+    def __init__(self, scrape: Scrape, update_sheets: UpdateSheets, fiscal_year: FiscalYear):
         self.__scrape = scrape
         self.__update_sheets = update_sheets
+        self.__fiscal_year = fiscal_year
 
     async def scrape(self):
         body = request.json
@@ -51,3 +53,13 @@ class Controllers:
     def update_sheets(self):
         self.__update_sheets.execute()
         return "", 204
+
+    def calc_fiscal_year(self):
+        body = request.json
+        year = body.get("year", None)
+        if not year:
+            return jsonify({"message": "Year not provided"}), 400
+
+        result = self.__fiscal_year.execute(year)
+
+        return jsonify(result), 200

@@ -33,6 +33,7 @@ def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
         {"range": f"{SUMMARY_SHEET}!B3", "values": [[unicaja_summary.account.total]]},
         {"range": f"{SUMMARY_SHEET}!C3", "values": [[unicaja_summary.account.retained]]},
         {"range": f"{SUMMARY_SHEET}!D3", "values": [[unicaja_summary.account.interest]]},
+        {"range": f"{SUMMARY_SHEET}!E3", "values": [[unicaja_summary.account.additionalData.pendingTransfers]]},
         # Cards - Credit
         {"range": f"{SUMMARY_SHEET}!B6", "values": [[cards.credit.limit]]},
         {"range": f"{SUMMARY_SHEET}!C6", "values": [[cards.credit.used]]},

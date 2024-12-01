@@ -2,7 +2,7 @@ import abc
 from datetime import datetime
 
 from domain.bank import Bank
-from domain.transactions import Transactions
+from domain.transactions import Transactions, TxProductType
 
 
 class TransactionPort(metaclass=abc.ABCMeta):
@@ -12,6 +12,10 @@ class TransactionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def get_all(self) -> Transactions:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_by_product(self, product_types: list[TxProductType]) -> Transactions:
         raise NotImplementedError
 
     @abc.abstractmethod

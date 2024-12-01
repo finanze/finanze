@@ -5,8 +5,17 @@ from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
 from domain.bank import Bank
-from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, SegoTx
+from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, SegoTx, TxProductType
 from infrastructure.repository.bank_data_repository import map_serializable
+
+
+def map_transactions(result) -> Transactions:
+    return Transactions(
+        investment=[
+            map_investment_tx(doc)
+            for doc in result
+        ]
+    )
 
 
 def map_investment_tx(doc: dict) -> BaseInvestmentTx:
@@ -50,6 +59,16 @@ class TransactionRepository(TransactionPort):
                 for doc in result
             ]
         )
+
+    def get_by_product(self, product_types: list[TxProductType]) -> Transactions:
+        product_types = [product_type.value for product_type in product_types]
+
+        result = self.collection.find(
+            {"productType": {"$in": product_types}},
+            {"_id": 0, "createdAt": 0}
+        ).sort("date", 1)
+
+        return map_transactions(result)
 
     def get_ids_by_source(self, source: Bank) -> set[str]:
         pipeline = [

@@ -5,6 +5,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from waitress import serve
 
+from application.use_cases.fiscal_year import FiscalYearImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from domain.bank import Bank
@@ -40,21 +41,23 @@ bank_scrapers = {
 bank_data_repository = BankDataRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)
 transaction_repository = TransactionRepository(client=mongo_client, db_name=mongo_db_name)
-scraper_service = ScrapeImpl(
+scrape = ScrapeImpl(
     update_cooldown,
     bank_data_repository,
     auto_contrib_repository,
     transaction_repository,
     bank_scrapers)
-sheet_export_service = UpdateSheetsImpl(
+update_sheets = UpdateSheetsImpl(
     bank_data_repository,
     auto_contrib_repository,
     transaction_repository,
     SheetsExporter())
-controllers = Controllers(scraper_service, sheet_export_service)
+fiscal_year = FiscalYearImpl(transaction_repository)
+controllers = Controllers(scrape, update_sheets, fiscal_year)
 
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])
 app.add_url_rule('/api/v1/update-sheets', view_func=controllers.update_sheets, methods=['POST'])
+app.add_url_rule('/api/v1/calculations/year', view_func=controllers.calc_fiscal_year, methods=['POST'])
 
 if __name__ == '__main__':
     serve(app, host="0.0.0.0", port=port)
