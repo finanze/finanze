@@ -12,13 +12,13 @@ from infrastructure.repository.bank_data_repository import map_serializable
 def map_investment_tx(doc: dict) -> BaseInvestmentTx:
     if doc["productType"] == "STOCK_ETF":
         return StockTx(
-            **doc,
-            retentions=doc.get("retentions", None),
+            **{**doc,
+               'retentions': doc.get("retentions", None)}
         )
     elif doc["productType"] == "FUND":
         return FundTx(
-            **doc,
-            retentions=doc.get("retentions", None),
+            **{**doc,
+               'retentions': doc.get("retentions", None)}
         )
     else:
         return SegoTx(**doc)
