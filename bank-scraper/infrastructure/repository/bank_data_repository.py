@@ -33,9 +33,9 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
         account_additional_data = None
         if account_data["additionalData"]:
             account_additional_data = AccountAdditionalData(
-                averageInterestRate=account_data["additionalData"]["averageInterestRate"],
-                remunerationType=account_data["additionalData"]["remunerationType"],
-                pendingTransfers=account_data["additionalData"]["pendingTransfers"]
+                averageInterestRate=account_data["additionalData"].get("averageInterestRate", None),
+                remunerationType=account_data["additionalData"].get("remunerationType", None),
+                pendingTransfers=account_data["additionalData"].get("pendingTransfers", None)
             )
         account = Account(
             total=account_data["total"],
