@@ -9,7 +9,8 @@ from application.ports.bank_data_port import BankDataPort
 from domain.bank import Bank
 from domain.bank_data import BankGlobalPosition, Account, Investments, Cards, Card, Mortgage, SegoInvestments, \
     FundInvestments, \
-    StockInvestments, SegoDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits
+    StockInvestments, SegoDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits, \
+    RealStateCFInvestments, RealStateCFDetail
 
 
 def map_serializable(obj):
@@ -72,6 +73,26 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
             ]
         ) if sego_data else None
 
+        rs_cf_data = investments_data.get("realStateCF", {})
+        rs_cf = RealStateCFInvestments(
+            invested=rs_cf_data["invested"],
+            wallet=rs_cf_data["wallet"],
+            weightedInterestRate=rs_cf_data["weightedInterestRate"],
+            details=[
+                RealStateCFDetail(
+                    name=detail["name"],
+                    amount=detail["amount"],
+                    interestRate=detail["interestRate"],
+                    lastInvestDate=detail["lastInvestDate"],
+                    months=detail["months"],
+                    type=detail["type"],
+                    businessType=detail["businessType"],
+                    state=detail["state"],
+                )
+                for detail in rs_cf_data["details"]
+            ]
+        ) if rs_cf_data else None
+
         funds_data = investments_data.get("funds", {})
         funds = FundInvestments(
             initialInvestment=funds_data["initialInvestment"],
@@ -119,7 +140,8 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
         investments = Investments(
             sego=sego,
             stocks=stocks,
-            funds=funds
+            funds=funds,
+            realStateCF=rs_cf
         )
 
     deposits_data = data.get("deposits", {})

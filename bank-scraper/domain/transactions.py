@@ -19,6 +19,7 @@ class TxProductType(str, Enum):
     FUND = "FUND"
     STOCK_ETF = "STOCK_ETF"
     SEGO = "SEGO"
+    REAL_STATE_CF = "REAL_STATE_CF"
 
 
 @dataclass
@@ -65,6 +66,13 @@ class FundTx(BaseInvestmentTx):
 
 @dataclass
 class SegoTx(BaseInvestmentTx):
+    fees: float
+    retentions: float
+    interests: float
+
+
+@dataclass
+class RealStateCFTx(BaseInvestmentTx):
     fees: float
     retentions: float
     interests: float

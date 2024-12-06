@@ -1,8 +1,9 @@
+import logging
 from datetime import datetime
 from typing import Optional
 
 from pytr.api import TradeRepublicError
-from pytr.utils import preview, get_logger
+from pytr.utils import preview
 
 
 class TRTimeline:
@@ -21,7 +22,7 @@ class TRTimeline:
         self.since = since
         self.requested_data = requested_data
 
-        self.log = get_logger(__name__)
+        self.log = logging.getLogger(__name__)
 
         self.received_detail = 0
         self.requested_detail = 0
@@ -170,6 +171,11 @@ class TRTimeline:
 
     async def process_timeline_detail(self, response):
         self.received_detail += 1
+        if response["id"] not in self.timeline_events:
+            self.log.warning(f"Received unexpected detail {response['id']}")
+            self.log.debug(f"{response}")
+            return
+
         event = self.timeline_events[response["id"]]
         event["details"] = response
 

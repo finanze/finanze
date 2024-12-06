@@ -1,7 +1,7 @@
 import datetime
 from typing import Union
 
-from domain.transactions import Transactions, BaseTx, BaseInvestmentTx, FundTx, StockTx, SegoTx
+from domain.transactions import Transactions, BaseTx, BaseInvestmentTx, FundTx, StockTx, SegoTx, RealStateCFTx
 from infrastructure.sheets_exporter.sheets_contribs_exporter import map_last_update_row
 
 TXS_SHEET = "TXs"
@@ -37,7 +37,12 @@ def map_base_tx(tx: BaseTx):
 
 
 def map_investment_tx(tx: BaseInvestmentTx):
-    map_fn = map_sego_tx if isinstance(tx, SegoTx) else map_fund_stock_investment_tx
+    map_fn = map_fund_stock_investment_tx
+    if isinstance(tx, SegoTx):
+        map_fn = map_sego_tx
+    elif isinstance(tx, RealStateCFTx):
+        map_fn = map_real_state_cf_tx
+
     return [
         *map_base_tx(tx),
         "",
@@ -61,6 +66,20 @@ def map_fund_stock_investment_tx(tx: Union[FundTx, StockTx]):
 
 
 def map_sego_tx(tx: SegoTx):
+    return [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        tx.fees,
+        "",
+        tx.retentions
+    ]
+
+
+def map_real_state_cf_tx(tx: RealStateCFTx):
     return [
         "",
         "",

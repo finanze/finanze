@@ -1,10 +1,10 @@
+import logging
 import os
 from datetime import datetime
 from typing import Optional
 
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
-from pytr.utils import get_logger
 
 from infrastructure.scrapers.tr_details import TRDetails
 from infrastructure.scrapers.tr_timeline import TRTimeline
@@ -22,7 +22,7 @@ class TradeRepublicClient:
               avoid_new_login: bool = False,
               process_id: str = None,
               code: str = None) -> Optional[dict]:
-        log = get_logger(__name__)
+        log = logging.getLogger(__name__)
 
         self.__tr_api = TradeRepublicApi(
             phone_no=phone,

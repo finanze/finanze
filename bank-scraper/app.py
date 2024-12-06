@@ -1,3 +1,4 @@
+import logging
 import os
 
 from flask import Flask
@@ -13,10 +14,15 @@ from infrastructure.controller.controllers import Controllers
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
 from infrastructure.repository.bank_data_repository import BankDataRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
-from infrastructure.scrapers.myinvestor_scraper import MyInvestorSummaryGenerator
-from infrastructure.scrapers.trade_republic_scraper import TradeRepublicSummaryGenerator
-from infrastructure.scrapers.unicaja_scraper import UnicajaSummaryGenerator
+from infrastructure.scrapers.myinvestor_scraper import MyInvestorScraper
+from infrastructure.scrapers.trade_republic_scraper import TradeRepublicScraper
+from infrastructure.scrapers.unicaja_scraper import UnicajaSraper
+from infrastructure.scrapers.urbanitae_scraper import UrbanitaeScraper
 from infrastructure.sheets_exporter.sheets_exporter import SheetsExporter
+
+log_level = os.environ.get("LOG_LEVEL", "WARNING")
+logging.basicConfig()
+logging.getLogger().setLevel(logging.DEBUG)
 
 app = Flask(__name__)
 CORS(app)
@@ -34,9 +40,10 @@ mongo_client = MongoClient(mongo_uri)
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 
 bank_scrapers = {
-    Bank.MY_INVESTOR: MyInvestorSummaryGenerator(),
-    Bank.TRADE_REPUBLIC: TradeRepublicSummaryGenerator(),
-    Bank.UNICAJA: UnicajaSummaryGenerator(),
+    Bank.MY_INVESTOR: MyInvestorScraper(),
+    Bank.TRADE_REPUBLIC: TradeRepublicScraper(),
+    Bank.UNICAJA: UnicajaSraper(),
+    Bank.URBANITAE: UrbanitaeScraper(),
 }
 bank_data_repository = BankDataRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)

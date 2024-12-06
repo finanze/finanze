@@ -82,6 +82,18 @@ class SegoDetail:
 
 
 @dataclass
+class RealStateCFDetail:
+    name: str
+    amount: float
+    interestRate: float
+    lastInvestDate: date
+    months: int
+    type: str
+    businessType: str
+    state: str
+
+
+@dataclass
 class StockInvestments:
     initialInvestment: float
     marketValue: float
@@ -104,10 +116,19 @@ class SegoInvestments:
 
 
 @dataclass
+class RealStateCFInvestments:
+    invested: float
+    wallet: float
+    weightedInterestRate: float
+    details: List[RealStateCFDetail]
+
+
+@dataclass
 class Investments:
     stocks: Optional[StockInvestments] = None
     funds: Optional[FundInvestments] = None
     sego: Optional[SegoInvestments] = None
+    realStateCF: Optional[RealStateCFInvestments] = None
 
 
 @dataclass
@@ -136,7 +157,7 @@ class BankAdditionalData:
 @dataclass
 class BankGlobalPosition:
     date: datetime
-    account: Account
+    account: Optional[Account] = None
     cards: Optional[Cards] = None
     mortgage: Optional[Mortgage] = None
     deposits: Optional[Deposits] = None

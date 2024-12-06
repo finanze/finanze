@@ -8,7 +8,7 @@ from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition,
 from infrastructure.scrapers.unicaja_client import UnicajaClient
 
 
-class UnicajaSummaryGenerator(BankScraper):
+class UnicajaSraper(BankScraper):
 
     def __init__(self):
         self.__client = UnicajaClient()

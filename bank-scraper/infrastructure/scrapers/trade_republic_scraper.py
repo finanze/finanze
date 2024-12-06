@@ -12,7 +12,7 @@ from domain.transactions import Transactions, StockTx, TxProductType, TxType
 from infrastructure.scrapers.trade_republic_client import TradeRepublicClient
 
 
-class TradeRepublicSummaryGenerator(BankScraper):
+class TradeRepublicScraper(BankScraper):
 
     def __init__(self):
         self.__client = TradeRepublicClient()

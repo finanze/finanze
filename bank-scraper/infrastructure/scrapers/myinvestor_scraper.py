@@ -25,7 +25,7 @@ ACTIVE_SEGO_STATES = ["DISPUTE", "MANAGING_COLLECTION", "NOT_ARRIVING_COLLECTION
 FINISHED_SEGO_STATES = ["CASHED", "FAILED"]
 
 
-class MyInvestorSummaryGenerator(BankScraper):
+class MyInvestorScraper(BankScraper):
 
     def __init__(self):
         self.__client = MyInvestorAPIClient()
