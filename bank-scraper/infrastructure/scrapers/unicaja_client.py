@@ -276,6 +276,8 @@ class UnicajaClient:
             return value
 
         tables = soup.find_all("table", class_="td-bgcolor5")
+        if not tables:
+            return None
 
         for table in tables:
             rows = table.find_all("tr")

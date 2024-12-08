@@ -96,7 +96,7 @@ class UrbanitaeAPIClient:
         params = "?page=0&size=1000&sortField=INVEST_DATE&sortDirection=DESC"
         return self.__get_request(f"/investor/summary{params}")["content"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=600))
+    @cached(cache=TTLCache(maxsize=50, ttl=600))
     def get_project_detail(self, project_id: str):
         return self.__get_request(f"/projects/{project_id}")
 

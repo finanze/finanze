@@ -16,8 +16,9 @@ from infrastructure.repository.bank_data_repository import BankDataRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
 from infrastructure.scrapers.myinvestor_scraper import MyInvestorScraper
 from infrastructure.scrapers.trade_republic_scraper import TradeRepublicScraper
-from infrastructure.scrapers.unicaja_scraper import UnicajaSraper
+from infrastructure.scrapers.unicaja_scraper import UnicajaScraper
 from infrastructure.scrapers.urbanitae_scraper import UrbanitaeScraper
+from infrastructure.scrapers.wecity_scraper import WecityScraper
 from infrastructure.sheets_exporter.sheets_exporter import SheetsExporter
 
 log_level = os.environ.get("LOG_LEVEL", "WARNING")
@@ -42,8 +43,9 @@ update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 bank_scrapers = {
     Bank.MY_INVESTOR: MyInvestorScraper(),
     Bank.TRADE_REPUBLIC: TradeRepublicScraper(),
-    Bank.UNICAJA: UnicajaSraper(),
+    Bank.UNICAJA: UnicajaScraper(),
     Bank.URBANITAE: UrbanitaeScraper(),
+    Bank.WECITY: WecityScraper(),
 }
 bank_data_repository = BankDataRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)

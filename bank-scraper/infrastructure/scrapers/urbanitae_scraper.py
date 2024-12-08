@@ -51,7 +51,11 @@ class UrbanitaeScraper(BankScraper):
         ]
 
         total_invested = round(sum([inv.amount for inv in real_state_cf_inv_details]), 2)
-        weighted_interest_rate = round(sum([inv.interestRate for inv in real_state_cf_inv_details]), 2)
+        weighted_interest_rate = round(
+            (sum([inv.amount * inv.interestRate for inv in real_state_cf_inv_details])
+             / sum([inv.amount for inv in real_state_cf_inv_details])) / 100,
+            2,
+        )
         investments = Investments(
             realStateCF=RealStateCFInvestments(
                 invested=total_invested,
@@ -72,6 +76,9 @@ class UrbanitaeScraper(BankScraper):
         def map_tx(tx):
             tx_type_raw = tx["type"]
             tx_type = TxType.INVESTMENT if tx_type_raw == "INVESTMENT" else None
+            if not tx_type:
+                print(f"Skipping tx {tx['name']} with type {tx_type_raw}")
+                return None
 
             currency = tx["externalProviderData"]["currency"]
             name = tx["externalProviderData"]["argumentValue"]

@@ -87,7 +87,8 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
                     months=detail["months"],
                     type=detail["type"],
                     businessType=detail["businessType"],
-                    state=detail["state"],
+                    state=detail.get("state", None),
+                    potentialExtension=detail.get("potentialExtension", None),
                 )
                 for detail in rs_cf_data["details"]
             ]

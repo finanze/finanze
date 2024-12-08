@@ -8,7 +8,7 @@ from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition,
 from infrastructure.scrapers.unicaja_client import UnicajaClient
 
 
-class UnicajaSraper(BankScraper):
+class UnicajaScraper(BankScraper):
 
     def __init__(self):
         self.__client = UnicajaClient()
@@ -60,14 +60,17 @@ class UnicajaSraper(BankScraper):
 
         self.__client.get_loans()
         mortgage_response = self.__client.get_loan(p="2", ppp="001")
-        mortgage_data = Mortgage(
-            currentInstallment=mortgage_response["currentInstallment"],
-            loanAmount=mortgage_response["loanAmount"],
-            principalPaid=mortgage_response["principalPaid"],
-            principalOutstanding=mortgage_response["principalOutstanding"],
-            interestRate=mortgage_response["interestRate"],
-            nextPaymentDate=datetime.strptime(mortgage_response["nextPaymentDate"], "%Y-%m-%d").date(),
-        )
+        mortgage_data = None
+        # When its near invoicing period, the mortgage is not returned
+        if mortgage_response:
+            mortgage_data = Mortgage(
+                currentInstallment=mortgage_response["currentInstallment"],
+                loanAmount=mortgage_response["loanAmount"],
+                principalPaid=mortgage_response["principalPaid"],
+                principalOutstanding=mortgage_response["principalOutstanding"],
+                interestRate=mortgage_response["interestRate"],
+                nextPaymentDate=datetime.strptime(mortgage_response["nextPaymentDate"], "%Y-%m-%d").date(),
+            )
 
         return BankGlobalPosition(
             date=datetime.now(tzlocal()),

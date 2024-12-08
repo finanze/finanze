@@ -133,7 +133,7 @@ class MyInvestorAPIClient:
     def get_all_sego_investments(self):
         return self.__get_request("/ms-sego/api/v1/investments/self")["payload"]["data"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    @cached(cache=TTLCache(maxsize=10, ttl=120))
     def get_sego_movements(self, page: int = 1):
         params = f"?limit=100&page={page}"
         return self.__get_request(f"/ms-sego/api/v1/investments/self/wallet/movements{params}")["payload"]["data"]

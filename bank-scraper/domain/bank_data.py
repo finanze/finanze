@@ -88,9 +88,10 @@ class RealStateCFDetail:
     interestRate: float
     lastInvestDate: date
     months: int
+    potentialExtension: Optional[int]
     type: str
     businessType: str
-    state: str
+    state: Optional[str]
 
 
 @dataclass

@@ -38,11 +38,6 @@ def map_myi_sego_investments(global_position):
     return [
         [
             i.name,
-            "",
-            "",
-            1,
-            i.amount,
-            i.amount,
             i.amount,
             "EUR",
             "SEGO",
