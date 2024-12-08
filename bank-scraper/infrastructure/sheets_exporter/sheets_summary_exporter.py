@@ -13,6 +13,8 @@ def update_summary(sheet, global_position: dict[str, BankGlobalPosition], sheet_
             *map_unicaja_summary_cells(global_position.get(Bank.UNICAJA.name, {})),
             *map_myinvestor_summary_cells(global_position.get(Bank.MY_INVESTOR.name, {})),
             *map_tr_summary_cells(global_position.get(Bank.TRADE_REPUBLIC.name, {})),
+            *map_urbanitae_summary_cells(global_position.get(Bank.URBANITAE.name, {})),
+            *map_wecity_summary_cells(global_position.get(Bank.WECITY.name, {})),
         ],
     }
 
@@ -105,4 +107,34 @@ def map_tr_summary_cells(tr_summary: BankGlobalPosition):
         {"range": f"{SUMMARY_SHEET}!B36", "values": [[stocks.initialInvestment]]},
         {"range": f"{SUMMARY_SHEET}!C36", "values": [[stocks.marketValue]]},
         {"range": f"{SUMMARY_SHEET}!D36", "values": [[len(stocks.details)]]},
+    ]
+
+
+def map_urbanitae_summary_cells(urbanitae_summary: BankGlobalPosition):
+    if not urbanitae_summary:
+        return []
+
+    real_state_cf = urbanitae_summary.investments.realStateCF
+    return [
+        {"range": f"{SUMMARY_SHEET}!K42", "values": [[urbanitae_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        # Investments - Real State CF
+        {"range": f"{SUMMARY_SHEET}!B43", "values": [[real_state_cf.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C43", "values": [[len(real_state_cf.details)]]},
+        {"range": f"{SUMMARY_SHEET}!D43", "values": [[real_state_cf.weightedInterestRate]]},
+        {"range": f"{SUMMARY_SHEET}!E43", "values": [[real_state_cf.wallet]]},
+    ]
+
+
+def map_wecity_summary_cells(wecity_summary: BankGlobalPosition):
+    if not wecity_summary:
+        return []
+
+    real_state_cf = wecity_summary.investments.realStateCF
+    return [
+        {"range": f"{SUMMARY_SHEET}!K49", "values": [[wecity_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        # Investments - Real State CF
+        {"range": f"{SUMMARY_SHEET}!B50", "values": [[real_state_cf.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C50", "values": [[len(real_state_cf.details)]]},
+        {"range": f"{SUMMARY_SHEET}!D50", "values": [[real_state_cf.weightedInterestRate]]},
+        {"range": f"{SUMMARY_SHEET}!E50", "values": [[real_state_cf.wallet]]},
     ]

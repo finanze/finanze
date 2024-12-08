@@ -8,7 +8,7 @@ OTHER_SHEET = "Other"
 
 
 def update_other(sheet, global_position: dict, sheet_id: str):
-    stock_rows = map_stocks(global_position)
+    stock_rows = map_investments(global_position)
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
@@ -20,16 +20,16 @@ def update_other(sheet, global_position: dict, sheet_id: str):
     request.execute()
 
 
-def map_stocks(global_position):
+def map_investments(global_position):
     return [
         [None, datetime.datetime.now(tzlocal()).isoformat()],
         [],
-        *map_myi_sego_investments(global_position),
+        *map_sego_investments(global_position),
         *[["" for _ in range(20)] for _ in range(20)],
     ]
 
 
-def map_myi_sego_investments(global_position):
+def map_sego_investments(global_position):
     try:
         details = global_position.get(Bank.MY_INVESTOR.name, None).investments.sego.details
     except AttributeError:

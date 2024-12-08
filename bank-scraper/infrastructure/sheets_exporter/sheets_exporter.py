@@ -13,6 +13,7 @@ from domain.transactions import Transactions
 from infrastructure.sheets_exporter.sheets_contribs_exporter import update_contributions
 from infrastructure.sheets_exporter.sheets_funds_exporter import update_funds
 from infrastructure.sheets_exporter.sheets_other_exporter import update_other
+from infrastructure.sheets_exporter.sheets_rscf_exporter import update_rscf
 from infrastructure.sheets_exporter.sheets_stocks_exporter import update_stocks
 from infrastructure.sheets_exporter.sheets_summary_exporter import update_summary
 from infrastructure.sheets_exporter.sheets_txs_exporter import update_transactions
@@ -54,6 +55,7 @@ class SheetsExporter(SheetsUpdatePort):
         update_funds(self.__sheet, global_position, self.__spreadsheet_id)
         update_stocks(self.__sheet, global_position, self.__spreadsheet_id)
         update_other(self.__sheet, global_position, self.__spreadsheet_id)
+        update_rscf(self.__sheet, global_position, self.__spreadsheet_id)
 
     def update_contributions(self, contributions: dict[str, AutoContributions], last_update: dict[str, datetime]):
         update_contributions(self.__sheet, contributions, self.__spreadsheet_id, last_update)

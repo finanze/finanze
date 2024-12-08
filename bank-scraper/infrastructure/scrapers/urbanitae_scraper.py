@@ -37,9 +37,10 @@ class UrbanitaeScraper(BankScraper):
             return RealStateCFDetail(
                 name=inv["projectName"],
                 amount=round(inv["investedQuantityActive"], 2),
-                interestRate=round(inv["totalNetProfitability"], 2),
+                interestRate=round(inv["totalNetProfitability"] / 100, 2),
                 lastInvestDate=datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT),
-                months=months,
+                months=int(months),
+                potentialExtension=None,
                 type=inv["projectType"],
                 businessType=inv["projectBusinessModel"],
                 state=inv["projectPhase"],
@@ -53,7 +54,7 @@ class UrbanitaeScraper(BankScraper):
         total_invested = round(sum([inv.amount for inv in real_state_cf_inv_details]), 2)
         weighted_interest_rate = round(
             (sum([inv.amount * inv.interestRate for inv in real_state_cf_inv_details])
-             / sum([inv.amount for inv in real_state_cf_inv_details])) / 100,
+             / sum([inv.amount for inv in real_state_cf_inv_details])),
             2,
         )
         investments = Investments(
