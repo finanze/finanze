@@ -17,6 +17,7 @@ services:
       - .env
     volumes:
       - ./.tr/:/.tr/
+      - ./.wc/:/.wc/
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
 
