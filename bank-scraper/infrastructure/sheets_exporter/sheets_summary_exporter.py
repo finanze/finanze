@@ -29,7 +29,7 @@ def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
 
     cards = unicaja_summary.cards
     mortgage = unicaja_summary.mortgage
-    return [
+    base_rows = [
         {"range": f"{SUMMARY_SHEET}!K1", "values": [[unicaja_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
         # Account
         {"range": f"{SUMMARY_SHEET}!B3", "values": [[unicaja_summary.account.total]]},
@@ -42,14 +42,19 @@ def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
         # Cards - Debit
         {"range": f"{SUMMARY_SHEET}!B7", "values": [[cards.debit.limit]]},
         {"range": f"{SUMMARY_SHEET}!C7", "values": [[cards.debit.used]]},
+    ]
+
+    mortgage_rows = [
         # Mortgage
         {"range": f"{SUMMARY_SHEET}!B10", "values": [[mortgage.currentInstallment]]},
         {"range": f"{SUMMARY_SHEET}!C10", "values": [[mortgage.loanAmount]]},
         {"range": f"{SUMMARY_SHEET}!D10", "values": [[mortgage.principalPaid]]},
         {"range": f"{SUMMARY_SHEET}!E10", "values": [[mortgage.principalOutstanding]]},
         {"range": f"{SUMMARY_SHEET}!F10", "values": [[mortgage.interestRate]]},
-        {"range": f"{SUMMARY_SHEET}!G10", "values": [[mortgage.nextPaymentDate.isoformat()[:10]]]},
-    ]
+        {"range": f"{SUMMARY_SHEET}!G10", "values": [[mortgage.nextPaymentDate.isoformat()[:10]]]}
+    ] if mortgage else []
+
+    return base_rows + mortgage_rows
 
 
 def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
