@@ -55,7 +55,7 @@ class WecityScraper(BankScraper):
                 RealStateCFDetail(
                     name=name,
                     amount=round(amount, 2),
-                    interestRate=round(investments_details["interestRate"], 2) / 100,
+                    interestRate=round(investments_details["interestRate"] / 100, 4),
                     lastInvestDate=last_invest_date,
                     months=investments_details["months"],
                     potentialExtension=investments_details["potentialExtension"],
@@ -69,7 +69,7 @@ class WecityScraper(BankScraper):
         weighted_interest_rate = round(
             (sum([inv.amount * inv.interestRate for inv in investment_details])
              / sum([inv.amount for inv in investment_details])),
-            2,
+            4,
         )
         investments = Investments(
             realStateCF=RealStateCFInvestments(
