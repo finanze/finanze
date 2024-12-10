@@ -45,6 +45,9 @@ class ScrapeImpl(Scrape):
         elif bank == Bank.WECITY:
             return os.environ["WECITY_USERNAME"], os.environ["WECITY_PASSWORD"]
 
+        elif bank == Bank.SEGO:
+            return os.environ["SEGO_USERNAME"], os.environ["SEGO_PASSWORD"]
+
     async def execute(self,
                       bank: Bank,
                       features: list[BankFeature],

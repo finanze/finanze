@@ -71,11 +71,12 @@ class FundDetail:
 
 
 @dataclass
-class SegoDetail:
+class FactoringDetail:
     name: str
     amount: float
     interestRate: float
-    start: date
+    netInterestRate: float
+    lastInvestDate: datetime
     maturity: date
     type: str
     state: str
@@ -109,11 +110,11 @@ class FundInvestments:
 
 
 @dataclass
-class SegoInvestments:
+class FactoringInvestments:
     invested: float
     wallet: float
     weightedInterestRate: float
-    details: List[SegoDetail]
+    details: List[FactoringDetail]
 
 
 @dataclass
@@ -128,7 +129,7 @@ class RealStateCFInvestments:
 class Investments:
     stocks: Optional[StockInvestments] = None
     funds: Optional[FundInvestments] = None
-    sego: Optional[SegoInvestments] = None
+    factoring: Optional[FactoringInvestments] = None
     realStateCF: Optional[RealStateCFInvestments] = None
 
 

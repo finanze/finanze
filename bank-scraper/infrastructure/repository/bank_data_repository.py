@@ -7,9 +7,9 @@ from pymongo import MongoClient
 
 from application.ports.bank_data_port import BankDataPort
 from domain.bank import Bank
-from domain.bank_data import BankGlobalPosition, Account, Investments, Cards, Card, Mortgage, SegoInvestments, \
+from domain.bank_data import BankGlobalPosition, Account, Investments, Cards, Card, Mortgage, FactoringInvestments, \
     FundInvestments, \
-    StockInvestments, SegoDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits, \
+    StockInvestments, FactoringDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits, \
     RealStateCFInvestments, RealStateCFDetail
 
 
@@ -54,24 +54,25 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
     investments_data = data.get("investments", {})
     investments = None
     if investments_data:
-        sego_data = investments_data.get("sego", {})
-        sego = SegoInvestments(
-            invested=sego_data["invested"],
-            wallet=sego_data["wallet"],
-            weightedInterestRate=sego_data["weightedInterestRate"],
+        factoring_data = investments_data.get("factoring", {})
+        factoring = FactoringInvestments(
+            invested=factoring_data["invested"],
+            wallet=factoring_data["wallet"],
+            weightedInterestRate=factoring_data["weightedInterestRate"],
             details=[
-                SegoDetail(
+                FactoringDetail(
                     name=detail["name"],
                     amount=detail["amount"],
                     interestRate=detail["interestRate"],
-                    start=detail["start"],
+                    netInterestRate=detail["netInterestRate"],
+                    lastInvestDate=detail["lastInvestDate"],
                     maturity=detail["maturity"],
                     type=detail["type"],
                     state=detail["state"],
                 )
-                for detail in sego_data["details"]
+                for detail in factoring_data["details"]
             ]
-        ) if sego_data else None
+        ) if factoring_data else None
 
         rs_cf_data = investments_data.get("realStateCF", {})
         rs_cf = RealStateCFInvestments(
@@ -139,7 +140,7 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
         ) if stocks_data else None
 
         investments = Investments(
-            sego=sego,
+            factoring=factoring,
             stocks=stocks,
             funds=funds,
             realStateCF=rs_cf

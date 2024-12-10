@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 import requests
@@ -60,9 +60,9 @@ class UrbanitaeAPIClient:
     def get_transactions(self,
                          from_date: Optional[date] = None,
                          to_date: Optional[date] = None):
-        to_date = date.strftime(to_date or date.today(), DATETIME_FORMAT)
-        from_date = date.strftime(
-            from_date or (date.today() - relativedelta(years=5)), DATETIME_FORMAT
+        to_date = datetime.strftime(to_date or datetime.today(), DATETIME_FORMAT)
+        from_date = datetime.strftime(
+            from_date or (datetime.today() - relativedelta(years=5)), DATETIME_FORMAT
         )
         params = f"?page=0&size=1000&startDate={from_date}&endDate={to_date}"
         # "type"

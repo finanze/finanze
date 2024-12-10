@@ -15,6 +15,7 @@ def update_summary(sheet, global_position: dict[str, BankGlobalPosition], sheet_
             *map_tr_summary_cells(global_position.get(Bank.TRADE_REPUBLIC.name, {})),
             *map_urbanitae_summary_cells(global_position.get(Bank.URBANITAE.name, {})),
             *map_wecity_summary_cells(global_position.get(Bank.WECITY.name, {})),
+            *map_sego_summary_cells(global_position.get(Bank.SEGO.name, {})),
         ],
     }
 
@@ -62,7 +63,6 @@ def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
         return []
 
     cards = myi_summary.cards
-    sego = myi_summary.investments.sego
     stocks = myi_summary.investments.stocks
     funds = myi_summary.investments.funds
     deposits = myi_summary.deposits
@@ -82,12 +82,6 @@ def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
         {"range": f"{SUMMARY_SHEET}!B23", "values": [[deposits.total]]},
         {"range": f"{SUMMARY_SHEET}!C23", "values": [[deposits.totalInterests]]},
         {"range": f"{SUMMARY_SHEET}!D23", "values": [[deposits.weightedInterestRate]]},
-        # Investments - Sego
-        {"range": f"{SUMMARY_SHEET}!B26", "values": [[sego.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C26", "values": [[sego.invested]]},
-        {"range": f"{SUMMARY_SHEET}!F26", "values": [[sego.wallet]]},
-        {"range": f"{SUMMARY_SHEET}!D26", "values": [[len(sego.details)]]},
-        {"range": f"{SUMMARY_SHEET}!E26", "values": [[sego.weightedInterestRate]]},
         # Investments - Stocks
         {"range": f"{SUMMARY_SHEET}!B27", "values": [[stocks.initialInvestment]]},
         {"range": f"{SUMMARY_SHEET}!C27", "values": [[stocks.marketValue]]},
@@ -142,4 +136,20 @@ def map_wecity_summary_cells(wecity_summary: BankGlobalPosition):
         {"range": f"{SUMMARY_SHEET}!C50", "values": [[len(real_state_cf.details)]]},
         {"range": f"{SUMMARY_SHEET}!D50", "values": [[real_state_cf.weightedInterestRate]]},
         {"range": f"{SUMMARY_SHEET}!E50", "values": [[real_state_cf.wallet]]},
+    ]
+
+
+def map_sego_summary_cells(sego_summary: BankGlobalPosition):
+    if not sego_summary:
+        return []
+
+    factoring = sego_summary.investments.factoring
+    return [
+        {"range": f"{SUMMARY_SHEET}!K56", "values": [[sego_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        # Investments - Wallet
+        {"range": f"{SUMMARY_SHEET}!B58", "values": [[factoring.wallet]]},
+        # Investments - Factoring
+        {"range": f"{SUMMARY_SHEET}!B61", "values": [[factoring.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C61", "values": [[len(factoring.details)]]},
+        {"range": f"{SUMMARY_SHEET}!D61", "values": [[factoring.weightedInterestRate]]},
     ]

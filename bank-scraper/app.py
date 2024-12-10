@@ -15,6 +15,7 @@ from infrastructure.repository.auto_contributions_repository import AutoContribu
 from infrastructure.repository.bank_data_repository import BankDataRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
 from infrastructure.scrapers.myinvestor_scraper import MyInvestorScraper
+from infrastructure.scrapers.sego_scraper import SegoScraper
 from infrastructure.scrapers.trade_republic_scraper import TradeRepublicScraper
 from infrastructure.scrapers.unicaja_scraper import UnicajaScraper
 from infrastructure.scrapers.urbanitae_scraper import UrbanitaeScraper
@@ -46,6 +47,7 @@ bank_scrapers = {
     Bank.UNICAJA: UnicajaScraper(),
     Bank.URBANITAE: UrbanitaeScraper(),
     Bank.WECITY: WecityScraper(),
+    Bank.SEGO: SegoScraper()
 }
 bank_data_repository = BankDataRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)

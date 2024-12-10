@@ -8,6 +8,7 @@ class Bank(str, Enum):
     TRADE_REPUBLIC = "TRADE_REPUBLIC"
     URBANITAE = "URBANITAE"
     WECITY = "WECITY"
+    SEGO = "SEGO"
 
 
 class BankFeature(Enum):

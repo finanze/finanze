@@ -5,7 +5,7 @@ from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
 from domain.bank import Bank
-from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, SegoTx, TxProductType, RealStateCFTx
+from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, TxProductType, RealStateCFTx
 from infrastructure.repository.bank_data_repository import map_serializable
 
 
@@ -32,8 +32,8 @@ def map_investment_tx(doc: dict) -> BaseInvestmentTx:
     elif doc["productType"] == "REAL_STATE_CF":
         return RealStateCFTx(**doc)
 
-    elif doc["productType"] == "SEGO":
-        return SegoTx(**doc)
+    elif doc["productType"] == "FACTORING":
+        return FactoringTx(**doc)
 
     raise ValueError(f"Unknown product type: {doc['productType']}")
 

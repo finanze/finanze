@@ -33,11 +33,12 @@ class UrbanitaeScraper(BankScraper):
             project_details = self.__client.get_project_detail(inv["projectId"])
 
             months = project_details["details"]["investmentPeriod"]
+            interest_rate = project_details["fund"]["apreciationProfitability"]
 
             return RealStateCFDetail(
                 name=inv["projectName"],
                 amount=round(inv["investedQuantityActive"], 2),
-                interestRate=round(inv["totalNetProfitability"] / 100, 4),
+                interestRate=round(interest_rate / 100, 4),
                 lastInvestDate=datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT),
                 months=int(months),
                 potentialExtension=None,
@@ -74,17 +75,22 @@ class UrbanitaeScraper(BankScraper):
     async def transactions(self, registered_txs: set[str]) -> Transactions:
         raw_txs = self.__client.get_transactions()
 
-        def map_tx(tx):
+        txs = []
+        for tx in raw_txs:
+            ref = tx["id"]
+            if ref in registered_txs:
+                continue
+
             tx_type_raw = tx["type"]
             tx_type = TxType.INVESTMENT if tx_type_raw == "INVESTMENT" else None
-            if not tx_type:
-                print(f"Skipping tx {tx['name']} with type {tx_type_raw}")
-                return None
+            if tx_type != TxType.INVESTMENT:
+                print(f"Skipping tx {ref} with type {tx_type_raw}")
+                continue
 
             currency = tx["externalProviderData"]["currency"]
             name = tx["externalProviderData"]["argumentValue"]
 
-            return RealStateCFTx(
+            txs.append(RealStateCFTx(
                 id=tx["id"],
                 name=name,
                 amount=round(tx["amount"], 2),
@@ -97,8 +103,6 @@ class UrbanitaeScraper(BankScraper):
                 fees=round(tx["fee"], 2),
                 retentions=0,
                 interests=0,
-            )
-
-        txs = [map_tx(tx) for tx in raw_txs if tx["id"] not in registered_txs and tx["type"] == "INVESTMENT"]
+            ))
 
         return Transactions(investment=txs)

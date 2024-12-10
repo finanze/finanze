@@ -24,14 +24,14 @@ def map_investments(global_position):
     return [
         [None, datetime.datetime.now(tzlocal()).isoformat()],
         [],
-        *map_sego_investments(global_position),
+        *map_factoring_investments(global_position),
         *[["" for _ in range(20)] for _ in range(20)],
     ]
 
 
-def map_sego_investments(global_position):
+def map_factoring_investments(global_position):
     try:
-        details = global_position.get(Bank.MY_INVESTOR.name, None).investments.sego.details
+        details = global_position.get(Bank.SEGO.name, None).investments.factoring.details
     except AttributeError:
         return []
 
@@ -40,13 +40,14 @@ def map_sego_investments(global_position):
             i.name,
             i.amount,
             "EUR",
-            "SEGO",
+            "FACTORING",
             i.type,
             i.interestRate,
-            i.start.isoformat()[:10],
+            i.netInterestRate,
+            i.lastInvestDate.isoformat(),
             i.maturity.isoformat()[:10],
             i.state,
-            "MYI",
+            "SEGO",
         ]
         for i in details
     ]
