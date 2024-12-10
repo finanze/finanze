@@ -46,8 +46,8 @@ def map_rscf_urbanitae_investments(global_position):
             i.interestRate,
             i.lastInvestDate.isoformat()[:10],
             i.months,
-            i.potentialExtension,
-            i.state,
+            i.potentialExtension or "",
+            i.state or "",
             "URBANITAE",
         ]
         for i in details
@@ -70,8 +70,8 @@ def map_rscf_wecity_investments(global_position):
             i.interestRate,
             i.lastInvestDate.isoformat()[:10],
             i.months,
-            i.potentialExtension,
-            i.state,
+            i.potentialExtension or "",
+            i.state or "",
             "WECITY",
         ]
         for i in details

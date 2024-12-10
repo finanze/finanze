@@ -73,7 +73,7 @@ class SegoScraper(BankScraper):
 
         investment_movements = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring"])
 
-        raw_sego_investments = self.__client.get_investments()
+        raw_sego_investments = self.__client.get_investments() + self.__client.get_pending_investments()
         active_sego_investments = [
             investment for investment in raw_sego_investments if
             investment["tipoEstadoOperacionCodigo"] in ACTIVE_SEGO_STATES

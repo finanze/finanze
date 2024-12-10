@@ -44,7 +44,7 @@ def map_factoring_investments(global_position):
             i.type,
             i.interestRate,
             i.netInterestRate,
-            i.lastInvestDate.isoformat(),
+            i.lastInvestDate.isoformat() if i.lastInvestDate else "",
             i.maturity.isoformat()[:10],
             i.state,
             "SEGO",

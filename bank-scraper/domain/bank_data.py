@@ -76,7 +76,7 @@ class FactoringDetail:
     amount: float
     interestRate: float
     netInterestRate: float
-    lastInvestDate: datetime
+    lastInvestDate: Optional[datetime]
     maturity: date
     type: str
     state: str

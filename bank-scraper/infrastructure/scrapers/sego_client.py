@@ -66,6 +66,9 @@ class SegoAPIClient:
         }
         return self.__post_request("/factoring/v1/Inversiones/Filter", body=request)["list"]
 
+    def get_pending_investments(self):
+        return self.__get_request("/factoring/v1/Inversiones/Pendientes")
+
     def get_movements(self, page: int = 0):
         params = f"?page={page}&limit=100"
         return self.__get_request(f"/core/v1/Wallet/Transactions{params}")
