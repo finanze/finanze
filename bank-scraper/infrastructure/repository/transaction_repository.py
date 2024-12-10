@@ -5,15 +5,20 @@ from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
 from domain.bank import Bank
-from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, TxProductType, RealStateCFTx
+from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, TxProductType, \
+    RealStateCFTx, AccountTx
 from infrastructure.repository.bank_data_repository import map_serializable
 
 
-def map_transactions(result) -> Transactions:
+def map_transactions(investment_result, account_result) -> Transactions:
     return Transactions(
         investment=[
             map_investment_tx(doc)
-            for doc in result
+            for doc in investment_result
+        ],
+        account=[
+            map_account_tx(doc)
+            for doc in account_result
         ]
     )
 
@@ -38,7 +43,13 @@ def map_investment_tx(doc: dict) -> BaseInvestmentTx:
     raise ValueError(f"Unknown product type: {doc['productType']}")
 
 
+def map_account_tx(doc: dict) -> AccountTx:
+    return AccountTx(**doc)
+
+
 class TransactionRepository(TransactionPort):
+    INVESTMENT_CATEGORY = "INVESTMENT"
+    ACCOUNT_CATEGORY = "ACCOUNT"
 
     def __init__(self, client: MongoClient, db_name: str):
         self.client = client
@@ -46,34 +57,49 @@ class TransactionRepository(TransactionPort):
         self.collection = self.db["transactions"]
 
     def save(self, source: Bank, data: Transactions):
-        txs = data.investment
-        if not txs:
-            return
-        self.collection.insert_many(
-            [
-                {**map_serializable(tx), "createdAt": datetime.now(tzlocal())}
-                for tx in txs
-            ]
-        )
+        self._save(data.investment, self.INVESTMENT_CATEGORY)
+        self._save(data.account, self.ACCOUNT_CATEGORY)
+
+    def _save(self, txs, category):
+        if txs:
+            self.collection.insert_many(
+                [
+                    {
+                        **map_serializable(tx),
+                        "createdAt": datetime.now(tzlocal()),
+                        "category": category
+                    }
+                    for tx in txs
+                ]
+            )
 
     def get_all(self) -> Transactions:
-        result = self.collection.find({}, {"_id": 0, "createdAt": 0}).sort("date", 1)
-        return Transactions(
-            investment=[
-                map_investment_tx(doc)
-                for doc in result
-            ]
-        )
+        investment_result = (self.collection.find(
+            {"category": self.INVESTMENT_CATEGORY},
+            {"_id": 0, "createdAt": 0, "category": 0}
+        ).sort("date", 1))
+
+        account_result = (self.collection.find(
+            {"category": self.ACCOUNT_CATEGORY},
+            {"_id": 0, "createdAt": 0, "category": 0}
+        ).sort("date", 1))
+
+        return map_transactions(investment_result, account_result)
 
     def get_by_product(self, product_types: list[TxProductType]) -> Transactions:
         product_types = [product_type.value for product_type in product_types]
 
-        result = self.collection.find(
-            {"productType": {"$in": product_types}},
-            {"_id": 0, "createdAt": 0}
+        investment_result = self.collection.find(
+            {"productType": {"$in": product_types}, "category": self.INVESTMENT_CATEGORY},
+            {"_id": 0, "createdAt": 0, "category": 0}
         ).sort("date", 1)
 
-        return map_transactions(result)
+        account_result = self.collection.find(
+            {"productType": {"$in": product_types}, "category": self.ACCOUNT_CATEGORY},
+            {"_id": 0, "createdAt": 0, "category": 0}
+        ).sort("date", 1)
+
+        return map_transactions(investment_result, account_result)
 
     def get_ids_by_source(self, source: Bank) -> set[str]:
         pipeline = [

@@ -53,6 +53,9 @@ class TradeRepublicClient:
             else:
                 raise ValueError("Invalid login data")
 
+    async def close(self):
+        await self.__tr_api._ws.close()
+
     async def get_portfolio(self):
         portfolio = Portfolio(self.__tr_api)
         await portfolio.portfolio_loop()

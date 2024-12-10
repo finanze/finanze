@@ -14,6 +14,8 @@ class TxType(str, Enum):
     INVESTMENT = "INVESTMENT"
     MATURITY = "MATURITY"
 
+    INTEREST = "INTEREST"
+
 
 class TxProductType(str, Enum):
     FUND = "FUND"
@@ -37,6 +39,14 @@ class BaseTx:
 @dataclass
 class BaseInvestmentTx(BaseTx):
     productType: TxProductType
+
+
+@dataclass
+class AccountTx(BaseTx):
+    fees: float
+    retentions: float
+    interestRate: float
+    avgBalance: float
 
 
 @dataclass
@@ -81,3 +91,4 @@ class RealStateCFTx(BaseInvestmentTx):
 @dataclass
 class Transactions:
     investment: list[BaseInvestmentTx]
+    account: Optional[list[AccountTx]] = None

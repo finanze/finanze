@@ -1,23 +1,39 @@
 import datetime
 from typing import Union
 
-from domain.transactions import Transactions, BaseTx, BaseInvestmentTx, FundTx, StockTx, FactoringTx, RealStateCFTx
+from domain.transactions import Transactions, BaseTx, BaseInvestmentTx, FundTx, StockTx, FactoringTx, RealStateCFTx, \
+    AccountTx
 from infrastructure.sheets_exporter.sheets_contribs_exporter import map_last_update_row
 
-TXS_SHEET = "TXs"
+INVESTMENT_TXS_SHEET = "Investment TXs"
+ACCOUNT_TXS_SHEET = "Account TXs"
 
 
 def update_transactions(sheet, txs: Transactions, sheet_id: str, last_update: dict[str, datetime]):
-    tx_rows = map_investment_txs(txs.investment)
+    inv_tx_rows = map_investment_txs(txs.investment)
 
-    last_update_row = map_last_update_row(last_update)
-    rows = [last_update_row, *tx_rows]
+    inv_last_update_row = map_last_update_row(last_update)
+    inv_rows = [inv_last_update_row, [], *inv_tx_rows]
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
-        range=f"{TXS_SHEET}!A1",
+        range=f"{INVESTMENT_TXS_SHEET}!A1",
         valueInputOption="RAW",
-        body={"values": rows},
+        body={"values": inv_rows},
+    )
+
+    request.execute()
+
+    acc_tx_rows = map_account_txs(txs.account)
+
+    acc_last_update_row = map_last_update_row(last_update)
+    acc_rows = [acc_last_update_row, [], *acc_tx_rows]
+
+    request = sheet.values().update(
+        spreadsheetId=sheet_id,
+        range=f"{ACCOUNT_TXS_SHEET}!A1",
+        valueInputOption="RAW",
+        body={"values": acc_rows},
     )
 
     request.execute()
@@ -48,6 +64,16 @@ def map_investment_tx(tx: BaseInvestmentTx):
         "",
         tx.productType,
         *map_fn(tx)
+    ]
+
+
+def map_account_tx(tx: AccountTx):
+    return [
+        *map_base_tx(tx),
+        tx.fees,
+        tx.retentions,
+        tx.interestRate,
+        tx.avgBalance
     ]
 
 
@@ -98,10 +124,20 @@ def map_investment_txs(txs):
         return []
 
     return [
-        [None, datetime.datetime.now(datetime.timezone.utc).isoformat()],
-        [],
         *[
             map_investment_tx(tx) for tx in txs
+        ],
+        *[["" for _ in range(20)] for _ in range(20)],
+    ]
+
+
+def map_account_txs(txs):
+    if not txs:
+        return []
+
+    return [
+        *[
+            map_account_tx(tx) for tx in txs
         ],
         *[["" for _ in range(20)] for _ in range(20)],
     ]
