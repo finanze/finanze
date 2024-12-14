@@ -63,7 +63,8 @@ def map_investment_tx(tx: BaseInvestmentTx):
         *map_base_tx(tx),
         "",
         tx.productType,
-        *map_fn(tx)
+        *map_fn(tx),
+        *["" for _ in range(10)],
     ]
 
 
@@ -93,29 +94,31 @@ def map_fund_stock_investment_tx(tx: Union[FundTx, StockTx]):
 
 def map_factoring_tx(tx: FactoringTx):
     return [
+        tx.netAmount or "",
         "",
         "",
         "",
         "",
         "",
+        tx.fees or "",
         "",
-        tx.fees,
-        "",
-        tx.retentions
+        tx.retentions or "",
+        tx.interests or ""
     ]
 
 
 def map_real_state_cf_tx(tx: RealStateCFTx):
     return [
+        tx.netAmount or "",
         "",
         "",
         "",
         "",
         "",
+        tx.fees or "",
         "",
-        tx.fees,
-        "",
-        tx.retentions
+        tx.retentions or "",
+        tx.interests or ""
     ]
 
 

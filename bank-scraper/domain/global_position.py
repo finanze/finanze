@@ -90,7 +90,7 @@ class RealStateCFDetail:
     name: str
     amount: float
     interestRate: float
-    lastInvestDate: date
+    lastInvestDate: datetime
     months: int
     potentialExtension: Optional[int]
     type: str

@@ -79,11 +79,12 @@ class FundTx(BaseInvestmentTx):
     market: str
     fees: float
     retentions: Optional[float]
-    orderDate: datetime
+    orderDate: Optional[datetime]
 
 
 @dataclass
 class FactoringTx(BaseInvestmentTx):
+    netAmount: float
     fees: float
     retentions: float
     interests: float
@@ -91,6 +92,7 @@ class FactoringTx(BaseInvestmentTx):
 
 @dataclass
 class RealStateCFTx(BaseInvestmentTx):
+    netAmount: float
     fees: float
     retentions: float
     interests: float

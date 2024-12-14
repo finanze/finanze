@@ -8,8 +8,6 @@ from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateC
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
 from infrastructure.scrapers.wecity_client import WecityAPIClient
 
-DATE_FORMAT = "%d/%m/%Y"
-
 
 class WecityScraper(EntityScraper):
 
@@ -24,42 +22,55 @@ class WecityScraper(EntityScraper):
         return self.__client.login(username, password, avoid_new_login, process_id, code)
 
     async def global_position(self) -> GlobalPosition:
-        wallet, investments_overview = self.__client.get_wallet_and_investments_overview()
+        wallet = self.__client.get_wallet()["LW"]["balance"]
+        investments = self.__client.get_investments()
 
         investment_details = []
-        for inv in investments_overview:
-            name = inv["name"]
-            amount = inv["amount"]
-            investments_details = self.__client.get_investment_details(inv["id"])
+        for inv_id, inv in investments.items():
+            opportunity = inv["opportunity"]
+            name = opportunity["name"].strip()
+            amount = inv["amount"]["current"]
+            investments_details = self.__client.get_investment_details(inv_id)
 
-            raw_business_type = investments_details["businessType"]
+            raw_business_type = opportunity["investment_type_id"]
             business_type = raw_business_type
-            if raw_business_type == "Préstamo":
+            if raw_business_type == 2:
                 business_type = "LENDING"
 
-            raw_project_type = investments_details["type"]
+            raw_project_type = investments_details["opportunity"]["property_type"]["es"]
             project_type = raw_project_type
             if raw_project_type == "Residencial":
                 project_type = "HOUSING"
             elif raw_project_type == "Suelo":
                 project_type = "FLOOR"
 
+            state_id = opportunity["state_id"]
+            state = "-"
+            if state_id == 3:
+                state = "FUNDED"
+
             txs = self.scrape_transactions()
             last_invest_date = max(
-                [tx["date"] for tx in txs if "Inversión comprometida" in tx["category"] and tx["name"] == name],
+                [tx["date"] for tx in txs if "investment" == tx["category"] and tx["name"] == name],
                 default=None)
+
+            periods = inv["periods"]
+            ordinary_period = periods["ordinary"]
+            extended_period = periods.get("prorroga", None)
+            if extended_period:
+                extended_period = extended_period["plazo"]
 
             investment_details.append(
                 RealStateCFDetail(
                     name=name,
                     amount=round(amount, 2),
-                    interestRate=round(investments_details["interestRate"] / 100, 4),
+                    interestRate=round(float(opportunity["annual_profitability"]) / 100, 4),
                     lastInvestDate=last_invest_date,
-                    months=investments_details["months"],
-                    potentialExtension=investments_details["potentialExtension"],
+                    months=ordinary_period["plazo"],
+                    potentialExtension=extended_period,
                     type=project_type,
                     businessType=business_type,
-                    state=None,
+                    state=state,
                 )
             )
 
@@ -72,7 +83,7 @@ class WecityScraper(EntityScraper):
         investments = Investments(
             realStateCF=RealStateCFInvestments(
                 invested=total_invested,
-                wallet=wallet,
+                wallet=round(wallet, 2),
                 weightedInterestRate=weighted_interest_rate,
                 details=investment_details
             )
@@ -86,12 +97,11 @@ class WecityScraper(EntityScraper):
         raw_transactions = self.scrape_transactions()
 
         txs = []
-        inv_by_am_date_name_type_count = {}
         for tx in raw_transactions:
             tx_type_raw = tx["category"]
-            if "Ingreso de capital" in tx_type_raw:
+            if tx_type_raw not in ["investment"]:
                 continue
-            tx_type = TxType.INVESTMENT if "Inversión comprometida" in tx_type_raw else None
+            tx_type = TxType.INVESTMENT if "investment" == tx_type_raw else None
             if not tx_type:
                 print(f"Skipping tx {tx['name']} with type {tx_type_raw}")
                 continue
@@ -99,11 +109,8 @@ class WecityScraper(EntityScraper):
             name = tx["name"]
             amount = round(tx["amount"], 2)
             tx_date = tx["date"]
-            amount_date_name_type = f"{amount}_{tx_date.isoformat()}_{name}_{tx_type}"
 
-            count = inv_by_am_date_name_type_count.get(amount_date_name_type, 0) + 1
-            ref = self.calc_tx_id(name, tx_date, amount, tx_type, count)
-            inv_by_am_date_name_type_count[amount_date_name_type] = count
+            ref = self.calc_tx_id(name, tx_date, amount, tx_type)
 
             if ref in registered_txs:
                 continue
@@ -121,21 +128,22 @@ class WecityScraper(EntityScraper):
                 fees=0,
                 retentions=0,
                 interests=0,
+                netAmount=amount,
                 sourceType=SourceType.REAL
             ))
 
         return Transactions(investment=txs)
 
     def scrape_transactions(self):
-        _, raw_txs = self.__client.get_wallet_and_transactions()
+        raw_txs = self.__client.get_transactions()
 
         txs = []
         for tx in raw_txs:
             txs.append(
                 {
-                    "date": datetime.strptime(tx["date"], DATE_FORMAT).date(),
-                    "category": tx["category"],
-                    "name": tx["name"],
+                    "date": datetime.fromtimestamp(tx["date"]),
+                    "category": tx["type"],
+                    "name": tx["title"].strip(),
                     "amount": round(tx["amount"], 2)
                 }
             )
@@ -146,7 +154,6 @@ class WecityScraper(EntityScraper):
     def calc_tx_id(inv_name: str,
                    tx_date: date,
                    amount: float,
-                   tx_type: TxType,
-                   repeat_counter: int) -> str:
+                   tx_type: TxType) -> str:
         return sha1(
-            f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}_{repeat_counter}".encode("UTF-8")).hexdigest()
+            f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()

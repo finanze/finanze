@@ -100,6 +100,7 @@ class UrbanitaeScraper(EntityScraper):
                 fees=round(tx["fee"], 2),
                 retentions=0,
                 interests=0,
+                netAmount=0,
                 sourceType=SourceType.REAL
             ))
 

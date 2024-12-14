@@ -38,7 +38,8 @@ def map_txs(ref: str,
     currency = tx["currency"]
     base_amount = tx["amount"]
 
-    amount = base_amount + interests - fee - tax
+    amount = base_amount + interests
+    net_amount = base_amount + interests - fee - tax
 
     return FactoringTx(
         id=ref,
@@ -53,6 +54,7 @@ def map_txs(ref: str,
         fees=fee,
         retentions=tax,
         interests=interests,
+        netAmount=net_amount,
         sourceType=SourceType.REAL)
 
 

@@ -11,6 +11,7 @@ services:
       MONGO_PORT: 27017
       WEB_PORT: 8080
       TR_COOKIES_PATH: /.tr/cookies.txt
+      WC_COOKIES_PATH: /.wc/cookies.txt
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
     env_file:
