@@ -2,7 +2,7 @@ import datetime
 
 from dateutil.tz import tzlocal
 
-from domain.bank import Bank
+from domain.financial_entity import Entity
 
 OTHER_SHEET = "Other"
 
@@ -31,7 +31,7 @@ def map_investments(global_position):
 
 def map_factoring_investments(global_position):
     try:
-        details = global_position.get(Bank.SEGO.name, None).investments.factoring.details
+        details = global_position.get(Entity.SEGO.name, None).investments.factoring.details
     except AttributeError:
         return []
 

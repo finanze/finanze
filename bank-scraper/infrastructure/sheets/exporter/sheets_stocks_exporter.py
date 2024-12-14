@@ -2,7 +2,7 @@ import datetime
 
 from dateutil.tz import tzlocal
 
-from domain.bank import Bank
+from domain.financial_entity import Entity
 
 STOCKS_SHEET = "Stocks"
 
@@ -32,7 +32,7 @@ def map_stocks(global_position):
 
 def map_myi_stocks(global_position):
     try:
-        details = global_position.get(Bank.MY_INVESTOR.name, None).investments.stocks.details
+        details = global_position.get(Entity.MY_INVESTOR.name, None).investments.stocks.details
     except AttributeError:
         return []
 
@@ -57,7 +57,7 @@ def map_myi_stocks(global_position):
 
 def map_tr_stocks(global_position):
     try:
-        details = global_position.get(Bank.TRADE_REPUBLIC.name, None).investments.stocks.details
+        details = global_position.get(Entity.TRADE_REPUBLIC.name, None).investments.stocks.details
     except AttributeError:
         return []
 

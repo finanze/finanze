@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from datetime import datetime, date
+from enum import Enum
 from typing import List, Optional
+
+from dateutil.tz import tzlocal
 
 
 @dataclass
@@ -152,16 +155,25 @@ class Deposits:
 
 
 @dataclass
-class BankAdditionalData:
+class PositionAdditionalData:
     maintenance: Optional[bool] = None
 
 
 @dataclass
-class BankGlobalPosition:
-    date: datetime
+class GlobalPosition:
+    date: datetime = None
     account: Optional[Account] = None
     cards: Optional[Cards] = None
     mortgage: Optional[Mortgage] = None
     deposits: Optional[Deposits] = None
     investments: Optional[Investments] = None
-    additionalData: Optional[BankAdditionalData] = None
+    additionalData: Optional[PositionAdditionalData] = None
+
+    def __post_init__(self):
+        if self.date is None:
+            self.date = datetime.now(tzlocal())
+
+
+class SourceType(str, Enum):
+    REAL = "REAL"
+    VIRTUAL = "VIRTUAL"

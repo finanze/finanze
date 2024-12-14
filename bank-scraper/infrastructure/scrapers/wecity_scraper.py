@@ -2,18 +2,16 @@ from datetime import datetime, date
 from hashlib import sha1
 from typing import Optional
 
-from dateutil.tz import tzlocal
-
-from application.ports.bank_scraper import BankScraper
-from domain.bank import Bank
-from domain.bank_data import BankGlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments
+from application.ports.entity_scraper import EntityScraper
+from domain.financial_entity import Entity
+from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, SourceType
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
 from infrastructure.scrapers.wecity_client import WecityAPIClient
 
 DATE_FORMAT = "%d/%m/%Y"
 
 
-class WecityScraper(BankScraper):
+class WecityScraper(EntityScraper):
 
     def __init__(self):
         self.__client = WecityAPIClient()
@@ -25,7 +23,7 @@ class WecityScraper(BankScraper):
         avoid_new_login = kwargs.get("avoidNewLogin", False)
         return self.__client.login(username, password, avoid_new_login, process_id, code)
 
-    async def global_position(self) -> BankGlobalPosition:
+    async def global_position(self) -> GlobalPosition:
         wallet, investments_overview = self.__client.get_wallet_and_investments_overview()
 
         investment_details = []
@@ -80,8 +78,7 @@ class WecityScraper(BankScraper):
             )
         )
 
-        return BankGlobalPosition(
-            date=datetime.now(tzlocal()),
+        return GlobalPosition(
             investments=investments
         )
 
@@ -119,11 +116,12 @@ class WecityScraper(BankScraper):
                 currencySymbol="€",
                 type=tx_type,
                 date=tx_date,
-                source=Bank.WECITY,
+                entity=Entity.WECITY,
                 productType=TxProductType.REAL_STATE_CF,
                 fees=0,
                 retentions=0,
                 interests=0,
+                sourceType=SourceType.REAL
             ))
 
         return Transactions(investment=txs)

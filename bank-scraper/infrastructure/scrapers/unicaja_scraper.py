@@ -1,14 +1,13 @@
 from datetime import datetime, date
 
 from dateutil.relativedelta import relativedelta
-from dateutil.tz import tzlocal
 
-from application.ports.bank_scraper import BankScraper
-from domain.bank_data import Account, Cards, Card, Mortgage, BankGlobalPosition, AccountAdditionalData
+from application.ports.entity_scraper import EntityScraper
+from domain.global_position import Account, Cards, Card, Mortgage, GlobalPosition, AccountAdditionalData
 from infrastructure.scrapers.unicaja_client import UnicajaClient
 
 
-class UnicajaScraper(BankScraper):
+class UnicajaScraper(EntityScraper):
 
     def __init__(self):
         self.__client = UnicajaClient()
@@ -17,7 +16,7 @@ class UnicajaScraper(BankScraper):
         username, password = credentials
         self.__client.login(username, password)
 
-    async def global_position(self) -> BankGlobalPosition:
+    async def global_position(self) -> GlobalPosition:
         accounts_response = self.__client.list_accounts()
         account_data_raw = accounts_response["cuentas"][0]
 
@@ -72,8 +71,7 @@ class UnicajaScraper(BankScraper):
                 nextPaymentDate=datetime.strptime(mortgage_response["nextPaymentDate"], "%Y-%m-%d").date(),
             )
 
-        return BankGlobalPosition(
-            date=datetime.now(tzlocal()),
+        return GlobalPosition(
             account=account_data,
             cards=cards_data,
             mortgage=mortgage_data,

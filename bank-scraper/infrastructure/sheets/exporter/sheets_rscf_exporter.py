@@ -2,19 +2,19 @@ import datetime
 
 from dateutil.tz import tzlocal
 
-from domain.bank import Bank
+from domain.financial_entity import Entity
 
 RSCF_SHEET = "Real State CF"
 
 
 def update_rscf(sheet, global_position: dict, sheet_id: str):
-    stock_rows = map_investments(global_position)
+    rows = map_investments(global_position)
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
         range=f"{RSCF_SHEET}!A1",
         valueInputOption="RAW",
-        body={"values": stock_rows},
+        body={"values": rows},
     )
 
     request.execute()
@@ -32,7 +32,7 @@ def map_investments(global_position):
 
 def map_rscf_urbanitae_investments(global_position):
     try:
-        details = global_position.get(Bank.URBANITAE.name, None).investments.realStateCF.details
+        details = global_position.get(Entity.URBANITAE.name, None).investments.realStateCF.details
     except AttributeError:
         return []
 
@@ -56,7 +56,7 @@ def map_rscf_urbanitae_investments(global_position):
 
 def map_rscf_wecity_investments(global_position):
     try:
-        details = global_position.get(Bank.WECITY.name, None).investments.realStateCF.details
+        details = global_position.get(Entity.WECITY.name, None).investments.realStateCF.details
     except AttributeError:
         return []
 

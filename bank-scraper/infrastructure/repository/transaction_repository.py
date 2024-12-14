@@ -4,10 +4,10 @@ from dateutil.tz import tzlocal
 from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
-from domain.bank import Bank
+from domain.global_position import SourceType
 from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, TxProductType, \
     RealStateCFTx, AccountTx
-from infrastructure.repository.bank_data_repository import map_serializable
+from infrastructure.repository.position_repository import map_serializable
 
 
 def map_transactions(investment_result, account_result) -> Transactions:
@@ -56,7 +56,7 @@ class TransactionRepository(TransactionPort):
         self.db = self.client[db_name]
         self.collection = self.db["transactions"]
 
-    def save(self, source: Bank, data: Transactions):
+    def save(self, data: Transactions) -> None:
         self._save(data.investment, self.INVESTMENT_CATEGORY)
         self._save(data.account, self.ACCOUNT_CATEGORY)
 
@@ -101,24 +101,32 @@ class TransactionRepository(TransactionPort):
 
         return map_transactions(investment_result, account_result)
 
-    def get_ids_by_source(self, source: Bank) -> set[str]:
+    def get_ids_by_entity(self, entity: str) -> set[str]:
         pipeline = [
-            {"$match": {"source": source.name}},
+            {"$match": {"entity": entity}},
             {"$project": {"_id": 0, "id": 1}},
         ]
         result = self.collection.aggregate(pipeline)
         return {doc["id"] for doc in result}
 
-    def get_last_created_grouped_by_source(self) -> dict[str, datetime]:
+    def get_ids_by_source_type(self, source_type: SourceType) -> set[str]:
+        pipeline = [
+            {"$match": {"sourceType": source_type.value}},
+            {"$project": {"_id": 0, "id": 1}},
+        ]
+        result = self.collection.aggregate(pipeline)
+        return {doc["id"] for doc in result}
+
+    def get_last_created_grouped_by_entity(self) -> dict[str, datetime]:
         pipeline = [
             {"$sort": {"createdAt": -1}},
             {
                 "$group": {
-                    "_id": "$source",
+                    "_id": "$entity",
                     "lastCreatedAt": {"$first": "$createdAt"}
                 }
             },
-            {"$project": {"_id": 0, "source": "$_id", "lastCreatedAt": 1}}
+            {"$project": {"_id": 0, "entity": "$_id", "lastCreatedAt": 1}}
         ]
         result = list(self.collection.aggregate(pipeline))
-        return {doc["source"]: doc["lastCreatedAt"].replace(tzinfo=timezone.utc) for doc in result}
+        return {doc["entity"]: doc["lastCreatedAt"].replace(tzinfo=timezone.utc) for doc in result}

@@ -5,11 +5,12 @@ from typing import Optional
 
 from pymongo import MongoClient
 
-from application.ports.bank_data_port import BankDataPort
-from domain.bank import Bank
-from domain.bank_data import BankGlobalPosition, Account, Investments, Cards, Card, Mortgage, FactoringInvestments, \
+from application.ports.position_port import PositionPort
+from domain.financial_entity import Entity
+from domain.global_position import GlobalPosition, Account, Investments, Cards, Card, Mortgage, FactoringInvestments, \
     FundInvestments, \
-    StockInvestments, FactoringDetail, FundDetail, StockDetail, BankAdditionalData, AccountAdditionalData, Deposit, Deposits, \
+    StockInvestments, FactoringDetail, FundDetail, StockDetail, PositionAdditionalData, AccountAdditionalData, Deposit, \
+    Deposits, \
     RealStateCFInvestments, RealStateCFDetail
 
 
@@ -27,7 +28,7 @@ def map_serializable(obj):
     return obj
 
 
-def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
+def map_data_to_domain(data: dict) -> GlobalPosition:
     account_data = data.get("account", {})
     account = None
     if account_data:
@@ -178,11 +179,11 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
 
     additional_data = None
     if data["additionalData"]:
-        additional_data = BankAdditionalData(
+        additional_data = PositionAdditionalData(
             maintenance=data["additionalData"]["maintenance"]
         )
 
-    return BankGlobalPosition(
+    return GlobalPosition(
         date=data["date"].replace(tzinfo=timezone.utc),
         account=account,
         cards=cards,
@@ -193,35 +194,35 @@ def map_bank_data_to_domain(data: dict) -> BankGlobalPosition:
     )
 
 
-class BankDataRepository(BankDataPort):
+class PositionRepository(PositionPort):
     def __init__(self, client: MongoClient, db_name: str):
         self.client = client
         self.db = self.client[db_name]
         self.collection = self.db["banks_data"]
 
-    def save(self, source: Bank, data: BankGlobalPosition):
+    def save(self, entity: str, position: GlobalPosition):
         self.collection.insert_one(
-            {"bank": source.name, **map_serializable(data)}
+            {"entity": entity, **map_serializable(position)}
         )
 
-    def get_last_grouped_by_source(self) -> dict[str, BankGlobalPosition]:
+    def get_last_grouped_by_entity(self) -> dict[str, GlobalPosition]:
         pipeline = [
             {
                 "$sort": {
-                    "bank": 1,
+                    "entity": 1,
                     "date": -1
                 }
             },
             {
                 "$group": {
-                    "_id": "$bank",
+                    "_id": "$entity",
                     "data": {"$first": "$$ROOT"}
                 }
             },
             {
                 "$project": {
                     "_id": 0,
-                    "bank": "$_id",
+                    "entity": "$_id",
                     "data": {
                         "$arrayToObject": {
                             "$filter": {
@@ -237,18 +238,18 @@ class BankDataRepository(BankDataPort):
 
         mapped_result = {}
         for entry in result:
-            bank_name = entry["bank"]
+            entity_name = entry["entity"]
             raw_data = entry["data"]
 
-            bank_data = map_bank_data_to_domain(raw_data)
+            entity_data = map_data_to_domain(raw_data)
 
-            mapped_result[bank_name] = bank_data
+            mapped_result[entity_name] = entity_data
 
         return mapped_result
 
-    def get_last_updated(self, bank: Bank) -> Optional[datetime]:
+    def get_last_updated(self, entity: Entity) -> Optional[datetime]:
         result = self.collection.find_one(
-            {"bank": bank.name},
+            {"entity": entity.name},
             sort=[("date", -1)],
             projection={"_id": 0, "date": 1}
         )

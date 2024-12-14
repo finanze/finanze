@@ -8,7 +8,7 @@ CONTRIBUTIONS_SHEET = "Auto Contribuciones"
 
 
 def map_last_update_row(last_update: dict[str, datetime]):
-    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=False)
+    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=True)
     last_update_row = [None]
     for k, v in last_update:
         last_update_row.append(k)

@@ -3,7 +3,7 @@ from typing import Union
 
 from domain.transactions import Transactions, BaseTx, BaseInvestmentTx, FundTx, StockTx, FactoringTx, RealStateCFTx, \
     AccountTx
-from infrastructure.sheets_exporter.sheets_contribs_exporter import map_last_update_row
+from infrastructure.sheets.exporter.sheets_contribs_exporter import map_last_update_row
 
 INVESTMENT_TXS_SHEET = "Investment TXs"
 ACCOUNT_TXS_SHEET = "Account TXs"
@@ -48,7 +48,7 @@ def map_base_tx(tx: BaseTx):
         tx.currencySymbol,
         tx.type,
         tx.date.isoformat(),
-        tx.source,
+        tx.entity,
     ]
 
 

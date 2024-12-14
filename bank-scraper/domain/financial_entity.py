@@ -1,8 +1,7 @@
-from dataclasses import dataclass
 from enum import Enum
 
 
-class Bank(str, Enum):
+class Entity(str, Enum):
     MY_INVESTOR = "MY_INVESTOR",
     UNICAJA = "UNICAJA",
     TRADE_REPUBLIC = "TRADE_REPUBLIC"
@@ -11,12 +10,7 @@ class Bank(str, Enum):
     SEGO = "SEGO"
 
 
-class BankFeature(Enum):
+class Feature(Enum):
     POSITION = "POSITION",
     AUTO_CONTRIBUTIONS = "AUTO_CONTRIBUTIONS",
     TRANSACTIONS = "TRANSACTIONS"
-
-
-@dataclass
-class BankInfo:
-    name: str

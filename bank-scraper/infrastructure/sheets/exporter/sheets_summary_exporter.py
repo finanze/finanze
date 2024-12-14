@@ -1,21 +1,21 @@
 from dateutil.tz import tzlocal
 
-from domain.bank import Bank
-from domain.bank_data import BankGlobalPosition
+from domain.financial_entity import Entity
+from domain.global_position import GlobalPosition
 
 SUMMARY_SHEET = "Summary"
 
 
-def update_summary(sheet, global_position: dict[str, BankGlobalPosition], sheet_id: str):
+def update_summary(sheet, global_position: dict[str, GlobalPosition], sheet_id: str):
     batch_update = {
         "value_input_option": "RAW",
         "data": [
-            *map_unicaja_summary_cells(global_position.get(Bank.UNICAJA.name, {})),
-            *map_myinvestor_summary_cells(global_position.get(Bank.MY_INVESTOR.name, {})),
-            *map_tr_summary_cells(global_position.get(Bank.TRADE_REPUBLIC.name, {})),
-            *map_urbanitae_summary_cells(global_position.get(Bank.URBANITAE.name, {})),
-            *map_wecity_summary_cells(global_position.get(Bank.WECITY.name, {})),
-            *map_sego_summary_cells(global_position.get(Bank.SEGO.name, {})),
+            *map_unicaja_summary_cells(global_position.get(Entity.UNICAJA.name, {})),
+            *map_myinvestor_summary_cells(global_position.get(Entity.MY_INVESTOR.name, {})),
+            *map_tr_summary_cells(global_position.get(Entity.TRADE_REPUBLIC.name, {})),
+            *map_urbanitae_summary_cells(global_position.get(Entity.URBANITAE.name, {})),
+            *map_wecity_summary_cells(global_position.get(Entity.WECITY.name, {})),
+            *map_sego_summary_cells(global_position.get(Entity.SEGO.name, {})),
         ],
     }
 
@@ -24,7 +24,7 @@ def update_summary(sheet, global_position: dict[str, BankGlobalPosition], sheet_
     request.execute()
 
 
-def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
+def map_unicaja_summary_cells(unicaja_summary: GlobalPosition):
     if not unicaja_summary:
         return []
 
@@ -58,7 +58,7 @@ def map_unicaja_summary_cells(unicaja_summary: BankGlobalPosition):
     return base_rows + mortgage_rows
 
 
-def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
+def map_myinvestor_summary_cells(myi_summary: GlobalPosition):
     if not myi_summary:
         return []
 
@@ -93,7 +93,7 @@ def map_myinvestor_summary_cells(myi_summary: BankGlobalPosition):
     ]
 
 
-def map_tr_summary_cells(tr_summary: BankGlobalPosition):
+def map_tr_summary_cells(tr_summary: GlobalPosition):
     if not tr_summary:
         return []
 
@@ -109,7 +109,7 @@ def map_tr_summary_cells(tr_summary: BankGlobalPosition):
     ]
 
 
-def map_urbanitae_summary_cells(urbanitae_summary: BankGlobalPosition):
+def map_urbanitae_summary_cells(urbanitae_summary: GlobalPosition):
     if not urbanitae_summary:
         return []
 
@@ -124,7 +124,7 @@ def map_urbanitae_summary_cells(urbanitae_summary: BankGlobalPosition):
     ]
 
 
-def map_wecity_summary_cells(wecity_summary: BankGlobalPosition):
+def map_wecity_summary_cells(wecity_summary: GlobalPosition):
     if not wecity_summary:
         return []
 
@@ -139,7 +139,7 @@ def map_wecity_summary_cells(wecity_summary: BankGlobalPosition):
     ]
 
 
-def map_sego_summary_cells(sego_summary: BankGlobalPosition):
+def map_sego_summary_cells(sego_summary: GlobalPosition):
     if not sego_summary:
         return []
 

@@ -1,11 +1,9 @@
 from datetime import datetime
 
-from dateutil.tz import tzlocal
-
-from application.ports.bank_scraper import BankScraper
-from domain.bank import Bank
-from domain.bank_data import Investments, BankGlobalPosition, RealStateCFInvestments, RealStateCFDetail
+from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
+from domain.financial_entity import Entity
+from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, SourceType
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
 from infrastructure.scrapers.urbanitae_client import UrbanitaeAPIClient
 
@@ -13,7 +11,7 @@ FUNDED_STATES = ["FUNDED", "POST_PREFUNDING", "FORMALIZED"]
 CANCELLED_STATES = ["CLOSED", "CANCELED", "CANCELED_WITH_COMPENSATION"]
 
 
-class UrbanitaeScraper(BankScraper):
+class UrbanitaeScraper(EntityScraper):
     DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
     def __init__(self):
@@ -23,7 +21,7 @@ class UrbanitaeScraper(BankScraper):
         username, password = credentials
         self.__client.login(username, password)
 
-    async def global_position(self) -> BankGlobalPosition:
+    async def global_position(self) -> GlobalPosition:
         wallet = self.__client.get_wallet()
         balance = wallet["balance"]
 
@@ -67,8 +65,7 @@ class UrbanitaeScraper(BankScraper):
             )
         )
 
-        return BankGlobalPosition(
-            date=datetime.now(tzlocal()),
+        return GlobalPosition(
             investments=investments
         )
 
@@ -98,11 +95,12 @@ class UrbanitaeScraper(BankScraper):
                 currencySymbol=CURRENCY_SYMBOL_MAP.get(currency, currency),
                 type=tx_type,
                 date=datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT),
-                source=Bank.URBANITAE,
+                entity=Entity.URBANITAE,
                 productType=TxProductType.REAL_STATE_CF,
                 fees=round(tx["fee"], 2),
                 retentions=0,
                 interests=0,
+                sourceType=SourceType.REAL
             ))
 
         return Transactions(investment=txs)

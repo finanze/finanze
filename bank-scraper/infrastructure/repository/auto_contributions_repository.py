@@ -5,8 +5,7 @@ from pymongo import MongoClient
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import AutoContributions, PeriodicContribution
-from domain.bank import Bank
-from infrastructure.repository.bank_data_repository import map_serializable
+from infrastructure.repository.position_repository import map_serializable
 
 
 def map_contributions_to_domain(data: dict) -> AutoContributions:
@@ -30,26 +29,26 @@ class AutoContributionsRepository(AutoContributionsPort):
         self.db = self.client[db_name]
         self.collection = self.db["auto_contributions"]
 
-    def save(self, source: Bank, data: AutoContributions):
+    def save(self, entity: str, data: AutoContributions):
         data = {**map_serializable(data), "updatedAt": datetime.now(tzlocal())}
         self.collection.update_one(
-            {"bank": source.name},
+            {"entity": entity},
             {"$set": data},
             upsert=True,
         )
 
-    def get_all_grouped_by_source(self) -> dict[str, AutoContributions]:
+    def get_all_grouped_by_entity(self) -> dict[str, AutoContributions]:
         pipeline = [
             {
                 "$group": {
-                    "_id": "$bank",
+                    "_id": "$entity",
                     "data": {"$first": "$$ROOT"}
                 }
             },
             {
                 "$project": {
                     "_id": 0,
-                    "bank": "$_id",
+                    "entity": "$_id",
                     "data": {
                         "$arrayToObject": {
                             "$filter": {
@@ -65,31 +64,31 @@ class AutoContributionsRepository(AutoContributionsPort):
 
         mapped_result = {}
         for entry in result:
-            bank_name = entry["bank"]
+            entity_name = entry["entity"]
             raw_data = entry["data"]
 
-            bank_data = map_contributions_to_domain(raw_data)
+            entity_data = map_contributions_to_domain(raw_data)
 
-            mapped_result[bank_name] = bank_data
+            mapped_result[entity_name] = entity_data
 
         return mapped_result
 
-    def get_last_update_grouped_by_source(self) -> dict[str, datetime]:
+    def get_last_update_grouped_by_entity(self) -> dict[str, datetime]:
         pipeline = [
             {
                 "$group": {
-                    "_id": "$bank",
+                    "_id": "$entity",
                     "lastUpdate": {"$max": "$updatedAt"}
                 }
             },
             {
                 "$project": {
                     "_id": 0,
-                    "bank": "$_id",
+                    "entity": "$_id",
                     "lastUpdate": "$lastUpdate"
                 }
             }
         ]
         result = list(self.collection.aggregate(pipeline))
 
-        return {entry["bank"]: entry["lastUpdate"].replace(tzinfo=timezone.utc) for entry in result}
+        return {entry["entity"]: entry["lastUpdate"].replace(tzinfo=timezone.utc) for entry in result}

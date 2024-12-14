@@ -1,15 +1,15 @@
 from datetime import date, datetime
 
-from dateutil.tz import tzlocal
 from itertools import chain
 
-from application.ports.bank_scraper import BankScraper
+from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
-from domain.bank import Bank
-from domain.bank_data import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, FundDetail, \
-    FundInvestments, Investments, BankGlobalPosition, BankAdditionalData, \
-    Deposit, Deposits
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
+from domain.financial_entity import Entity
+from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
+    FundDetail, \
+    FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
+    Deposit, Deposits, SourceType
 from domain.transactions import Transactions, FundTx, TxType, StockTx, TxProductType
 from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
 
@@ -19,7 +19,7 @@ OLD_DATE_TIME_FORMAT = OLD_DATE_FORMAT + " " + TIME_FORMAT
 DASH_OLD_DATE_TIME_FORMAT = "%Y-%m-%d " + TIME_FORMAT
 
 
-class MyInvestorScraper(BankScraper):
+class MyInvestorScraper(EntityScraper):
 
     def __init__(self):
         self.__client = MyInvestorAPIClient()
@@ -28,7 +28,7 @@ class MyInvestorScraper(BankScraper):
         username, password = credentials
         self.__client.login(username, password)
 
-    async def global_position(self) -> BankGlobalPosition:
+    async def global_position(self) -> GlobalPosition:
         maintenance = self.__client.check_maintenance()
 
         account_id, securities_account_id, account_data = self.scrape_account()
@@ -39,13 +39,12 @@ class MyInvestorScraper(BankScraper):
 
         deposits = self.scrape_deposits()
 
-        return BankGlobalPosition(
-            date=datetime.now(tzlocal()),
+        return GlobalPosition(
             account=account_data,
             cards=cards_data,
             deposits=deposits,
             investments=investments_data,
-            additionalData=BankAdditionalData(maintenance=maintenance["enMantenimeinto"]),
+            additionalData=PositionAdditionalData(maintenance=maintenance["enMantenimeinto"]),
         )
 
     async def auto_contributions(self) -> AutoContributions:
@@ -122,12 +121,13 @@ class MyInvestorScraper(BankScraper):
             for deposit in deposits_raw
         ]
 
+        total_amount = sum([deposit["amount"] for deposit in deposits_raw])
         return Deposits(
-            total=sum([deposit["amount"] for deposit in deposits_raw]),
+            total=total_amount,
             totalInterests=sum([deposit["grossInterest"] for deposit in deposits_raw]),
             weightedInterestRate=round(
                 (sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
-                 / sum([deposit["amount"] for deposit in deposits_raw])) / 100,
+                 / total_amount) / 100,
                 4,
             ),
             details=deposit_list,
@@ -295,7 +295,7 @@ class MyInvestorScraper(BankScraper):
                     currencySymbol=order["divisa"],
                     type=operation_type,
                     orderDate=order_date,
-                    source=Bank.MY_INVESTOR,
+                    entity=Entity.MY_INVESTOR,
                     isin=order["codIsin"],
                     shares=round(raw_order_details["titulosEjecutados"], 4),
                     price=round(execution_op["precioBruto"], 4),
@@ -303,7 +303,8 @@ class MyInvestorScraper(BankScraper):
                     fees=round(execution_op["comisiones"], 2),
                     retentions=0,
                     date=execution_date,
-                    productType=TxProductType.FUND
+                    productType=TxProductType.FUND,
+                    sourceType=SourceType.REAL
                 )
             )
 
@@ -361,7 +362,7 @@ class MyInvestorScraper(BankScraper):
                     currencySymbol=CURRENCY_SYMBOL_MAP.get(order["divisa"], order["divisa"]),
                     type=operation_type,
                     orderDate=order_date,
-                    source=Bank.MY_INVESTOR,
+                    entity=Entity.MY_INVESTOR,
                     isin=raw_order_details["codIsin"],
                     shares=round(raw_order_details["titulosEjecutados"], 4),
                     price=round(execution_op["precioBruto"], 4),
@@ -369,7 +370,9 @@ class MyInvestorScraper(BankScraper):
                     fees=round(fees, 2),
                     retentions=0,
                     date=execution_date,
-                    productType=TxProductType.STOCK_ETF
+                    productType=TxProductType.STOCK_ETF,
+                    sourceType=SourceType.REAL,
+                    linkedTx=None
                 )
             )
 

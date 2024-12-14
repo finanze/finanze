@@ -2,7 +2,7 @@ import datetime
 
 from dateutil.tz import tzlocal
 
-from domain.bank import Bank
+from domain.financial_entity import Entity
 
 FUNDS_SHEET = "Funds"
 
@@ -22,7 +22,7 @@ def update_funds(sheet, global_position: dict, sheet_id: str):
 
 def map_funds(global_position):
     try:
-        details = global_position.get(Bank.MY_INVESTOR.name, None).investments.funds.details
+        details = global_position.get(Entity.MY_INVESTOR.name, None).investments.funds.details
     except AttributeError:
         return []
 

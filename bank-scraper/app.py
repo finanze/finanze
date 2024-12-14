@@ -6,13 +6,13 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from waitress import serve
 
-from application.use_cases.fiscal_year import FiscalYearImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
-from domain.bank import Bank
+from application.use_cases.virtual_scrape import VirtualScrapeImpl
+from domain.financial_entity import Entity
 from infrastructure.controller.controllers import Controllers
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
-from infrastructure.repository.bank_data_repository import BankDataRepository
+from infrastructure.repository.position_repository import PositionRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
 from infrastructure.scrapers.myinvestor_scraper import MyInvestorScraper
 from infrastructure.scrapers.sego_scraper import SegoScraper
@@ -20,7 +20,8 @@ from infrastructure.scrapers.trade_republic_scraper import TradeRepublicScraper
 from infrastructure.scrapers.unicaja_scraper import UnicajaScraper
 from infrastructure.scrapers.urbanitae_scraper import UrbanitaeScraper
 from infrastructure.scrapers.wecity_scraper import WecityScraper
-from infrastructure.sheets_exporter.sheets_exporter import SheetsExporter
+from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
+from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 
 log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
@@ -41,34 +42,38 @@ mongo_client = MongoClient(mongo_uri)
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 
-bank_scrapers = {
-    Bank.MY_INVESTOR: MyInvestorScraper(),
-    Bank.TRADE_REPUBLIC: TradeRepublicScraper(),
-    Bank.UNICAJA: UnicajaScraper(),
-    Bank.URBANITAE: UrbanitaeScraper(),
-    Bank.WECITY: WecityScraper(),
-    Bank.SEGO: SegoScraper()
+entity_scrapers = {
+    Entity.MY_INVESTOR: MyInvestorScraper(),
+    Entity.TRADE_REPUBLIC: TradeRepublicScraper(),
+    Entity.UNICAJA: UnicajaScraper(),
+    Entity.URBANITAE: UrbanitaeScraper(),
+    Entity.WECITY: WecityScraper(),
+    Entity.SEGO: SegoScraper()
 }
-bank_data_repository = BankDataRepository(client=mongo_client, db_name=mongo_db_name)
+virtual_scraper = SheetsImporter()
+position_repository = PositionRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)
 transaction_repository = TransactionRepository(client=mongo_client, db_name=mongo_db_name)
 scrape = ScrapeImpl(
     update_cooldown,
-    bank_data_repository,
+    position_repository,
     auto_contrib_repository,
     transaction_repository,
-    bank_scrapers)
+    entity_scrapers)
 update_sheets = UpdateSheetsImpl(
-    bank_data_repository,
+    position_repository,
     auto_contrib_repository,
     transaction_repository,
     SheetsExporter())
-fiscal_year = FiscalYearImpl(transaction_repository)
-controllers = Controllers(scrape, update_sheets, fiscal_year)
+virtual_scrape = VirtualScrapeImpl(
+    position_repository,
+    transaction_repository,
+    virtual_scraper)
+controllers = Controllers(scrape, update_sheets, virtual_scrape)
 
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])
+app.add_url_rule('/api/v1/scrape/virtual', view_func=controllers.virtual_scrape, methods=['POST'])
 app.add_url_rule('/api/v1/update-sheets', view_func=controllers.update_sheets, methods=['POST'])
-app.add_url_rule('/api/v1/calculations/year', view_func=controllers.calc_fiscal_year, methods=['POST'])
 
 if __name__ == '__main__':
     serve(app, host="0.0.0.0", port=port)

@@ -2,13 +2,11 @@ from datetime import date, datetime
 from hashlib import sha1
 from typing import Optional
 
-from dateutil.tz import tzlocal
-
-from application.ports.bank_scraper import BankScraper
-from domain.bank import Bank
-from domain.bank_data import FactoringDetail, FactoringInvestments, Investments, \
-    BankGlobalPosition
+from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
+from domain.financial_entity import Entity
+from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
+    GlobalPosition, SourceType
 from domain.transactions import Transactions, TxType, TxProductType, FactoringTx
 from infrastructure.scrapers.sego_client import SegoAPIClient
 
@@ -50,14 +48,15 @@ def map_txs(ref: str,
         currencySymbol=currency_symbol,
         type=tx_type,
         date=tx_date,
-        source=Bank.SEGO,
+        entity=Entity.SEGO,
         productType=TxProductType.FACTORING,
         fees=fee,
         retentions=tax,
-        interests=interests)
+        interests=interests,
+        sourceType=SourceType.REAL)
 
 
-class SegoScraper(BankScraper):
+class SegoScraper(EntityScraper):
     SEGO_FEE = 0.2
 
     def __init__(self):
@@ -67,7 +66,7 @@ class SegoScraper(BankScraper):
         username, password = credentials
         self.__client.login(username, password)
 
-    async def global_position(self) -> BankGlobalPosition:
+    async def global_position(self) -> GlobalPosition:
         raw_wallet = self.__client.get_wallet()
         wallet_amount = raw_wallet["importe"]
 
@@ -151,8 +150,7 @@ class SegoScraper(BankScraper):
             details=factoring_investments,
         )
 
-        return BankGlobalPosition(
-            date=datetime.now(tzlocal()),
+        return GlobalPosition(
             investments=Investments(
                 factoring=sego_data,
             ),

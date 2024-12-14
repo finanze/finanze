@@ -2,12 +2,10 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from dateutil.tz import tzlocal
-
-from application.ports.bank_scraper import BankScraper
-from domain.bank import Bank
-from domain.bank_data import StockDetail, Investments, Account, BankGlobalPosition, StockInvestments
+from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
+from domain.financial_entity import Entity
+from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, SourceType
 from domain.transactions import Transactions, StockTx, TxProductType, TxType, AccountTx
 from infrastructure.scrapers.trade_republic_client import TradeRepublicClient
 
@@ -63,7 +61,7 @@ def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
         currencySymbol=CURRENCY_SYMBOL_MAP.get(currency, currency),
         type=tx_type,
         date=date,
-        source=Bank.TRADE_REPUBLIC,
+        entity=Entity.TRADE_REPUBLIC,
         netAmount=net_amount,
         isin=isin,
         ticker=None,
@@ -74,6 +72,8 @@ def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
         retentions=0,
         orderDate=None,
         productType=TxProductType.STOCK_ETF,
+        sourceType=SourceType.REAL,
+        linkedTx=None
     )
 
 
@@ -113,11 +113,12 @@ def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
         avgBalance=round(avg_balance, 2),
         type=TxType.INTEREST,
         date=date,
-        source=Bank.TRADE_REPUBLIC,
+        entity=Entity.TRADE_REPUBLIC,
+        sourceType=SourceType.REAL
     )
 
 
-class TradeRepublicScraper(BankScraper):
+class TradeRepublicScraper(EntityScraper):
     DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
     def __init__(self):
@@ -174,7 +175,7 @@ class TradeRepublicScraper(BankScraper):
             subtype=subtype
         )
 
-    async def global_position(self) -> BankGlobalPosition:
+    async def global_position(self) -> GlobalPosition:
         portfolio = await self.__client.get_portfolio()
 
         currency = portfolio.cash[0]["currencyId"]
@@ -200,8 +201,7 @@ class TradeRepublicScraper(BankScraper):
             )
         )
 
-        return BankGlobalPosition(
-            date=datetime.now(tzlocal()),
+        return GlobalPosition(
             account=Account(
                 total=cash_total,
             ),

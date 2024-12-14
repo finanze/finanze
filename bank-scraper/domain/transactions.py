@@ -3,13 +3,19 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from domain.bank import Bank
+from domain.financial_entity import Entity
+from domain.global_position import SourceType
 
 
 class TxType(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
     DIVIDEND = "DIVIDEND"
+    RIGHT_ISSUE = "RIGHT_ISSUE"
+    RIGHT_SELL = "RIGHT_SELL"
+    SUBSCRIPTION = "SUBSCRIPTION"
+    SWAP_FROM = "SWAP_FROM"
+    SWAP_TO = "SWAP_TO"
 
     INVESTMENT = "INVESTMENT"
     MATURITY = "MATURITY"
@@ -33,7 +39,8 @@ class BaseTx:
     currencySymbol: str
     type: TxType
     date: datetime
-    source: Bank
+    entity: Entity
+    sourceType: SourceType
 
 
 @dataclass
@@ -60,6 +67,7 @@ class StockTx(BaseInvestmentTx):
     fees: float
     retentions: Optional[float]
     orderDate: Optional[datetime]
+    linkedTx: Optional[str] = None
 
 
 @dataclass
