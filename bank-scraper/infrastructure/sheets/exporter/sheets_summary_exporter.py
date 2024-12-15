@@ -83,13 +83,13 @@ def map_myinvestor_summary_cells(myi_summary: GlobalPosition):
         {"range": f"{SUMMARY_SHEET}!C23", "values": [[deposits.totalInterests]]},
         {"range": f"{SUMMARY_SHEET}!D23", "values": [[deposits.weightedInterestRate]]},
         # Investments - Stocks
-        {"range": f"{SUMMARY_SHEET}!B27", "values": [[stocks.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C27", "values": [[stocks.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D27", "values": [[len(stocks.details)]]},
+        {"range": f"{SUMMARY_SHEET}!B26", "values": [[stocks.initialInvestment]]},
+        {"range": f"{SUMMARY_SHEET}!C26", "values": [[stocks.marketValue]]},
+        {"range": f"{SUMMARY_SHEET}!D26", "values": [[len(stocks.details)]]},
         # Investments - Funds
-        {"range": f"{SUMMARY_SHEET}!B28", "values": [[funds.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C28", "values": [[funds.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D28", "values": [[len(funds.details)]]},
+        {"range": f"{SUMMARY_SHEET}!B27", "values": [[funds.initialInvestment]]},
+        {"range": f"{SUMMARY_SHEET}!C27", "values": [[funds.marketValue]]},
+        {"range": f"{SUMMARY_SHEET}!D27", "values": [[len(funds.details)]]},
     ]
 
 
