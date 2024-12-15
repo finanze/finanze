@@ -1,21 +1,44 @@
+from dataclasses import asdict
+from datetime import date
+
 from dateutil.tz import tzlocal
 
-from domain.financial_entity import Entity
 from domain.global_position import GlobalPosition
 
 SUMMARY_SHEET = "Summary"
+SHEET_RANGE = f"{SUMMARY_SHEET}!A:Z"
+
+LAST_UPDATE_FIELD = "lastUpdate"
+ADDITIONAL_DATA_FIELD = "additionalData"
+COUNT_FIELD = "count"
+DETAILS_FIELD = "details"
+
+ERROR_VALUE = "ERR"
 
 
 def update_summary(sheet, global_position: dict[str, GlobalPosition], sheet_id: str):
+    result = sheet.values().get(spreadsheetId=sheet_id, range=SHEET_RANGE).execute()
+    cells = result.get('values', [[]]) + [[""]]
+
+    bank = None
+    last_end = 0
+    for row_i in range(len(cells)):
+        if not cells[row_i]:
+            continue
+        title = cells[row_i][0]
+        last_row = row_i == len(cells) - 1
+        if title in global_position or last_row:
+            if not bank:
+                bank = title
+                continue
+            update_entity_summary(global_position.get(bank, {}), cells[last_end:row_i + 1 if last_row else row_i])
+            bank = title
+            last_end = row_i
+
     batch_update = {
         "value_input_option": "RAW",
         "data": [
-            *map_unicaja_summary_cells(global_position.get(Entity.UNICAJA.name, {})),
-            *map_myinvestor_summary_cells(global_position.get(Entity.MY_INVESTOR.name, {})),
-            *map_tr_summary_cells(global_position.get(Entity.TRADE_REPUBLIC.name, {})),
-            *map_urbanitae_summary_cells(global_position.get(Entity.URBANITAE.name, {})),
-            *map_wecity_summary_cells(global_position.get(Entity.WECITY.name, {})),
-            *map_sego_summary_cells(global_position.get(Entity.SEGO.name, {})),
+            {"range": SHEET_RANGE, "values": cells},
         ],
     }
 
@@ -24,134 +47,89 @@ def update_summary(sheet, global_position: dict[str, GlobalPosition], sheet_id: 
     request.execute()
 
 
-def map_unicaja_summary_cells(unicaja_summary: GlobalPosition):
-    if not unicaja_summary:
-        return []
+def update_entity_summary(global_position: GlobalPosition, current_cells: list[list[str]]):
+    if not global_position:
+        return
 
-    cards = unicaja_summary.cards
-    mortgage = unicaja_summary.mortgage
-    base_rows = [
-        {"range": f"{SUMMARY_SHEET}!K1", "values": [[unicaja_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
-        # Account
-        {"range": f"{SUMMARY_SHEET}!B3", "values": [[unicaja_summary.account.total]]},
-        {"range": f"{SUMMARY_SHEET}!C3", "values": [[unicaja_summary.account.retained]]},
-        {"range": f"{SUMMARY_SHEET}!D3", "values": [[unicaja_summary.account.interest]]},
-        {"range": f"{SUMMARY_SHEET}!E3", "values": [[unicaja_summary.account.additionalData.pendingTransfers]]},
-        # Cards - Credit
-        {"range": f"{SUMMARY_SHEET}!B6", "values": [[cards.credit.limit]]},
-        {"range": f"{SUMMARY_SHEET}!C6", "values": [[cards.credit.used]]},
-        # Cards - Debit
-        {"range": f"{SUMMARY_SHEET}!B7", "values": [[cards.debit.limit]]},
-        {"range": f"{SUMMARY_SHEET}!C7", "values": [[cards.debit.used]]},
-    ]
+    header = current_cells[0]
+    last_update_index = header.index(LAST_UPDATE_FIELD)
+    set_field_value(header, last_update_index + 1, global_position.date.astimezone(tz=tzlocal()).isoformat())
 
-    mortgage_rows = [
-        # Mortgage
-        {"range": f"{SUMMARY_SHEET}!B10", "values": [[mortgage.currentInstallment]]},
-        {"range": f"{SUMMARY_SHEET}!C10", "values": [[mortgage.loanAmount]]},
-        {"range": f"{SUMMARY_SHEET}!D10", "values": [[mortgage.principalPaid]]},
-        {"range": f"{SUMMARY_SHEET}!E10", "values": [[mortgage.principalOutstanding]]},
-        {"range": f"{SUMMARY_SHEET}!F10", "values": [[mortgage.interestRate]]},
-        {"range": f"{SUMMARY_SHEET}!G10", "values": [[mortgage.nextPaymentDate.isoformat()[:10]]]}
-    ] if mortgage else []
+    pos_dict = asdict(global_position)
+    parent = None
+    field_columns = []
+    prev_row = None
+    last_row_final_simple_category = False
+    last_row_grid_category = False
+    for row in current_cells:
+        if (not row and (last_row_grid_category or not prev_row)) or last_row_final_simple_category:
+            prev_row = row.copy()
+            last_row_final_simple_category, last_row_grid_category = False, False
+            field_columns = []
+            parent = None
+            continue
+        prev_row = row.copy()
+        last_row_final_simple_category, last_row_grid_category = False, False
 
-    return base_rows + mortgage_rows
+        title = row[0] if row else None
+        if title in pos_dict:
+            parent = pos_dict[title]
+            field_columns = row[1:]
+            continue
 
+        if not title:
+            last_row_final_simple_category = True
+            if not row:
+                row.append("")
 
-def map_myinvestor_summary_cells(myi_summary: GlobalPosition):
-    if not myi_summary:
-        return []
+            for column_i in range(len(field_columns)):
+                column = field_columns[column_i]
+                if not column:
+                    set_field_value(row, column_i + 1, "")
+                    continue
 
-    cards = myi_summary.cards
-    stocks = myi_summary.investments.stocks
-    funds = myi_summary.investments.funds
-    deposits = myi_summary.deposits
-    return [
-        {"range": f"{SUMMARY_SHEET}!K14", "values": [[myi_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
-        # Account
-        {"range": f"{SUMMARY_SHEET}!B16", "values": [[myi_summary.account.total]]},
-        {"range": f"{SUMMARY_SHEET}!C16", "values": [[myi_summary.account.retained]]},
-        {"range": f"{SUMMARY_SHEET}!D16", "values": [[myi_summary.account.interest]]},
-        # Cards - Credit
-        {"range": f"{SUMMARY_SHEET}!B19", "values": [[cards.credit.limit]]},
-        {"range": f"{SUMMARY_SHEET}!C19", "values": [[cards.credit.used]]},
-        # Cards - Debit
-        {"range": f"{SUMMARY_SHEET}!B20", "values": [[cards.debit.limit]]},
-        {"range": f"{SUMMARY_SHEET}!C20", "values": [[cards.debit.used]]},
-        # Deposits
-        {"range": f"{SUMMARY_SHEET}!B23", "values": [[deposits.total]]},
-        {"range": f"{SUMMARY_SHEET}!C23", "values": [[deposits.totalInterests]]},
-        {"range": f"{SUMMARY_SHEET}!D23", "values": [[deposits.weightedInterestRate]]},
-        # Investments - Stocks
-        {"range": f"{SUMMARY_SHEET}!B26", "values": [[stocks.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C26", "values": [[stocks.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D26", "values": [[len(stocks.details)]]},
-        # Investments - Funds
-        {"range": f"{SUMMARY_SHEET}!B27", "values": [[funds.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C27", "values": [[funds.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D27", "values": [[len(funds.details)]]},
-    ]
+                if column == COUNT_FIELD:
+                    value = len(parent.get(DETAILS_FIELD))
+                else:
+                    value = parent.get(column, None)
+                    if value is None:
+                        additional_data = parent.get(ADDITIONAL_DATA_FIELD, None)
+                        if additional_data:
+                            value = additional_data.get(column, ERROR_VALUE)
 
+                set_field_value(row, column_i + 1, value)
 
-def map_tr_summary_cells(tr_summary: GlobalPosition):
-    if not tr_summary:
-        return []
+        else:
+            last_row_grid_category = True
+            for column_i in range(len(field_columns)):
+                column = field_columns[column_i]
+                if not column:
+                    set_field_value(row, column_i + 1, "")
+                    continue
 
-    stocks = tr_summary.investments.stocks
-    return [
-        {"range": f"{SUMMARY_SHEET}!K31", "values": [[tr_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
-        # Account
-        {"range": f"{SUMMARY_SHEET}!B33", "values": [[tr_summary.account.total]]},
-        # Investments - Stocks
-        {"range": f"{SUMMARY_SHEET}!B36", "values": [[stocks.initialInvestment]]},
-        {"range": f"{SUMMARY_SHEET}!C36", "values": [[stocks.marketValue]]},
-        {"range": f"{SUMMARY_SHEET}!D36", "values": [[len(stocks.details)]]},
-    ]
+                if title not in parent:
+                    value = ERROR_VALUE
+                else:
+                    if column == COUNT_FIELD:
+                        value = len(parent[title].get(DETAILS_FIELD))
+                    else:
+                        value = parent[title].get(column, ERROR_VALUE)
+
+                set_field_value(row, column_i + 1, value)
 
 
-def map_urbanitae_summary_cells(urbanitae_summary: GlobalPosition):
-    if not urbanitae_summary:
-        return []
-
-    real_state_cf = urbanitae_summary.investments.realStateCF
-    return [
-        {"range": f"{SUMMARY_SHEET}!K42", "values": [[urbanitae_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
-        # Wallet
-        {"range": f"{SUMMARY_SHEET}!B44", "values": [[urbanitae_summary.account.total]]},
-        # Investments - Real State CF
-        {"range": f"{SUMMARY_SHEET}!B47", "values": [[real_state_cf.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C47", "values": [[len(real_state_cf.details)]]},
-        {"range": f"{SUMMARY_SHEET}!D47", "values": [[real_state_cf.weightedInterestRate]]},
-    ]
+def set_field_value(row: list[str], index: int, value):
+    value = format_field_value(value)
+    if len(row) > index:
+        row[index] = value
+    else:
+        row.append(value)
 
 
-def map_wecity_summary_cells(wecity_summary: GlobalPosition):
-    if not wecity_summary:
-        return []
+def format_field_value(value):
+    if value is None:
+        return ""
 
-    real_state_cf = wecity_summary.investments.realStateCF
-    return [
-        {"range": f"{SUMMARY_SHEET}!K50", "values": [[wecity_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
-        # Wallet
-        {"range": f"{SUMMARY_SHEET}!B52", "values": [[wecity_summary.account.total]]},
-        # Investments - Real State CF
-        {"range": f"{SUMMARY_SHEET}!B55", "values": [[real_state_cf.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C55", "values": [[len(real_state_cf.details)]]},
-        {"range": f"{SUMMARY_SHEET}!D55", "values": [[real_state_cf.weightedInterestRate]]},
-    ]
-
-
-def map_sego_summary_cells(sego_summary: GlobalPosition):
-    if not sego_summary:
-        return []
-
-    factoring = sego_summary.investments.factoring
-    return [
-        {"range": f"{SUMMARY_SHEET}!K58", "values": [[sego_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
-        # Investments - Wallet
-        {"range": f"{SUMMARY_SHEET}!B60", "values": [[sego_summary.account.total]]},
-        # Investments - Factoring
-        {"range": f"{SUMMARY_SHEET}!B63", "values": [[factoring.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C63", "values": [[len(factoring.details)]]},
-        {"range": f"{SUMMARY_SHEET}!D63", "values": [[factoring.weightedInterestRate]]},
-    ]
+    if isinstance(value, date):
+        return value.isoformat()[:10]
+    return value
