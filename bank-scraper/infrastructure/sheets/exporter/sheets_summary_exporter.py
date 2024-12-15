@@ -116,11 +116,12 @@ def map_urbanitae_summary_cells(urbanitae_summary: GlobalPosition):
     real_state_cf = urbanitae_summary.investments.realStateCF
     return [
         {"range": f"{SUMMARY_SHEET}!K42", "values": [[urbanitae_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        # Wallet
+        {"range": f"{SUMMARY_SHEET}!B44", "values": [[urbanitae_summary.account.total]]},
         # Investments - Real State CF
-        {"range": f"{SUMMARY_SHEET}!B43", "values": [[real_state_cf.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C43", "values": [[len(real_state_cf.details)]]},
-        {"range": f"{SUMMARY_SHEET}!D43", "values": [[real_state_cf.weightedInterestRate]]},
-        {"range": f"{SUMMARY_SHEET}!E43", "values": [[real_state_cf.wallet]]},
+        {"range": f"{SUMMARY_SHEET}!B47", "values": [[real_state_cf.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C47", "values": [[len(real_state_cf.details)]]},
+        {"range": f"{SUMMARY_SHEET}!D47", "values": [[real_state_cf.weightedInterestRate]]},
     ]
 
 
@@ -130,12 +131,13 @@ def map_wecity_summary_cells(wecity_summary: GlobalPosition):
 
     real_state_cf = wecity_summary.investments.realStateCF
     return [
-        {"range": f"{SUMMARY_SHEET}!K49", "values": [[wecity_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!K50", "values": [[wecity_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        # Wallet
+        {"range": f"{SUMMARY_SHEET}!B52", "values": [[wecity_summary.account.total]]},
         # Investments - Real State CF
-        {"range": f"{SUMMARY_SHEET}!B50", "values": [[real_state_cf.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C50", "values": [[len(real_state_cf.details)]]},
-        {"range": f"{SUMMARY_SHEET}!D50", "values": [[real_state_cf.weightedInterestRate]]},
-        {"range": f"{SUMMARY_SHEET}!E50", "values": [[real_state_cf.wallet]]},
+        {"range": f"{SUMMARY_SHEET}!B55", "values": [[real_state_cf.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C55", "values": [[len(real_state_cf.details)]]},
+        {"range": f"{SUMMARY_SHEET}!D55", "values": [[real_state_cf.weightedInterestRate]]},
     ]
 
 
@@ -145,11 +147,11 @@ def map_sego_summary_cells(sego_summary: GlobalPosition):
 
     factoring = sego_summary.investments.factoring
     return [
-        {"range": f"{SUMMARY_SHEET}!K56", "values": [[sego_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
+        {"range": f"{SUMMARY_SHEET}!K58", "values": [[sego_summary.date.astimezone(tz=tzlocal()).isoformat()]]},
         # Investments - Wallet
-        {"range": f"{SUMMARY_SHEET}!B58", "values": [[factoring.wallet]]},
+        {"range": f"{SUMMARY_SHEET}!B60", "values": [[sego_summary.account.total]]},
         # Investments - Factoring
-        {"range": f"{SUMMARY_SHEET}!B61", "values": [[factoring.invested]]},
-        {"range": f"{SUMMARY_SHEET}!C61", "values": [[len(factoring.details)]]},
-        {"range": f"{SUMMARY_SHEET}!D61", "values": [[factoring.weightedInterestRate]]},
+        {"range": f"{SUMMARY_SHEET}!B63", "values": [[factoring.invested]]},
+        {"range": f"{SUMMARY_SHEET}!C63", "values": [[len(factoring.details)]]},
+        {"range": f"{SUMMARY_SHEET}!D63", "values": [[factoring.weightedInterestRate]]},
     ]

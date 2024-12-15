@@ -58,7 +58,6 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
         factoring_data = investments_data.get("factoring", {})
         factoring = FactoringInvestments(
             invested=factoring_data["invested"],
-            wallet=factoring_data["wallet"],
             weightedInterestRate=factoring_data["weightedInterestRate"],
             details=[
                 FactoringDetail(
@@ -78,7 +77,6 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
         rs_cf_data = investments_data.get("realStateCF", {})
         rs_cf = RealStateCFInvestments(
             invested=rs_cf_data["invested"],
-            wallet=rs_cf_data["wallet"],
             weightedInterestRate=rs_cf_data["weightedInterestRate"],
             details=[
                 RealStateCFDetail(
@@ -198,7 +196,7 @@ class PositionRepository(PositionPort):
     def __init__(self, client: MongoClient, db_name: str):
         self.client = client
         self.db = self.client[db_name]
-        self.collection = self.db["banks_data"]
+        self.collection = self.db["positions"]
 
     def save(self, entity: str, position: GlobalPosition):
         self.collection.insert_one(

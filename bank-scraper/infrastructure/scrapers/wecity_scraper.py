@@ -4,7 +4,8 @@ from typing import Optional
 
 from application.ports.entity_scraper import EntityScraper
 from domain.financial_entity import Entity
-from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, SourceType
+from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, SourceType, \
+    Account
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
 from infrastructure.scrapers.wecity_client import WecityAPIClient
 
@@ -23,6 +24,8 @@ class WecityScraper(EntityScraper):
 
     async def global_position(self) -> GlobalPosition:
         wallet = self.__client.get_wallet()["LW"]["balance"]
+        account = Account(total=round(wallet, 2))
+
         investments = self.__client.get_investments()
 
         investment_details = []
@@ -83,13 +86,13 @@ class WecityScraper(EntityScraper):
         investments = Investments(
             realStateCF=RealStateCFInvestments(
                 invested=total_invested,
-                wallet=round(wallet, 2),
                 weightedInterestRate=weighted_interest_rate,
                 details=investment_details
             )
         )
 
         return GlobalPosition(
+            account=account,
             investments=investments
         )
 

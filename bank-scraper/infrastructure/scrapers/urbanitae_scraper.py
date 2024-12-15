@@ -3,7 +3,8 @@ from datetime import datetime
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.financial_entity import Entity
-from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, SourceType
+from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, SourceType, \
+    Account
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
 from infrastructure.scrapers.urbanitae_client import UrbanitaeAPIClient
 
@@ -24,6 +25,8 @@ class UrbanitaeScraper(EntityScraper):
     async def global_position(self) -> GlobalPosition:
         wallet = self.__client.get_wallet()
         balance = wallet["balance"]
+
+        account = Account(total=round(balance, 2))
 
         investments_data = self.__client.get_investments()
 
@@ -59,13 +62,13 @@ class UrbanitaeScraper(EntityScraper):
         investments = Investments(
             realStateCF=RealStateCFInvestments(
                 invested=total_invested,
-                wallet=round(balance, 2),
                 weightedInterestRate=weighted_interest_rate,
                 details=real_state_cf_inv_details
             )
         )
 
         return GlobalPosition(
+            account=account,
             investments=investments
         )
 

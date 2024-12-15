@@ -6,7 +6,7 @@ from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.financial_entity import Entity
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
-    GlobalPosition, SourceType
+    GlobalPosition, SourceType, Account
 from domain.transactions import Transactions, TxType, TxProductType, FactoringTx
 from infrastructure.scrapers.sego_client import SegoAPIClient
 
@@ -71,6 +71,7 @@ class SegoScraper(EntityScraper):
     async def global_position(self) -> GlobalPosition:
         raw_wallet = self.__client.get_wallet()
         wallet_amount = raw_wallet["importe"]
+        account = Account(total=round(wallet_amount, 2))
 
         investment_movements = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring"])
 
@@ -147,12 +148,12 @@ class SegoScraper(EntityScraper):
 
         sego_data = FactoringInvestments(
             invested=total_invested,
-            wallet=wallet_amount,
             weightedInterestRate=weighted_net_interest_rate,
             details=factoring_investments,
         )
 
         return GlobalPosition(
+            account=account,
             investments=Investments(
                 factoring=sego_data,
             ),

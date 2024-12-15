@@ -115,7 +115,6 @@ class FundInvestments:
 @dataclass
 class FactoringInvestments:
     invested: float
-    wallet: float
     weightedInterestRate: float
     details: List[FactoringDetail]
 
@@ -123,7 +122,6 @@ class FactoringInvestments:
 @dataclass
 class RealStateCFInvestments:
     invested: float
-    wallet: float
     weightedInterestRate: float
     details: List[RealStateCFDetail]
 
