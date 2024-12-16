@@ -1,5 +1,6 @@
 import logging
 import os
+from logging import getLevelName
 
 from flask import Flask
 from flask_cors import CORS
@@ -25,7 +26,7 @@ from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 
 log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
-logging.getLogger().setLevel(logging.DEBUG)
+logging.getLogger().setLevel(getLevelName(log_level))
 
 app = Flask(__name__)
 CORS(app)
