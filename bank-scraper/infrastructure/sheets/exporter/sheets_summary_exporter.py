@@ -1,5 +1,5 @@
 from dataclasses import asdict
-from datetime import date
+from datetime import date, datetime
 
 from dateutil.tz import tzlocal
 
@@ -130,6 +130,8 @@ def format_field_value(value):
     if value is None:
         return ""
 
-    if isinstance(value, date):
+    if isinstance(value, date) and not isinstance(value, datetime):
         return value.isoformat()[:10]
+    elif isinstance(value, datetime):
+        return value.isoformat()
     return value
