@@ -28,10 +28,12 @@ class UnicajaScraper(EntityScraper):
         )
         last_week_date = date.today() - relativedelta(weeks=1)
         account_pending_transfers_raw = self.__client.get_transfers_historic(from_date=last_week_date)
-        account_pending_transfer_amount = sum(
-            transfer["importe"]["cantidad"] for transfer in account_pending_transfers_raw["transferencias"] if
-            transfer["estadoTransferencia"] == "P"
-        )
+        account_pending_transfer_amount = 0
+        if "noDatos" not in account_pending_transfers_raw:
+            account_pending_transfer_amount = sum(
+                transfer["importe"]["cantidad"] for transfer in account_pending_transfers_raw["transferencias"] if
+                transfer["estadoTransferencia"] == "P"
+            )
 
         account_data = Account(
             total=account_balance,
