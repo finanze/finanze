@@ -18,14 +18,14 @@ def update_sheet(
         data: Union[dict, object],
         sheet_id: str,
         sheet_name: str,
-        subfield: Union[str, list[str]],
+        field_paths: list[str],
         last_update: dict[str, datetime] = None):
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_name).execute()
     cells = result.get('values', None)
     if not cells:
         rows = [[NO_HEADERS_FOUND]]
     else:
-        rows = map_rows(data, cells, subfield, last_update)
+        rows = map_rows(data, cells, field_paths, last_update)
         if not rows:
             return
 
@@ -42,7 +42,7 @@ def update_sheet(
 def map_rows(
         data: Union[dict, object],
         cells: list[list[str]],
-        subfield: Union[str, list[str]],
+        field_paths: list[str],
         last_update: dict[str, datetime]) -> list[list[str]]:
     per_entity_date = False
     last_update_row_index, column_index = next(
@@ -76,7 +76,7 @@ def map_rows(
         else:
             return [[NO_HEADERS_FOUND]]
 
-    product_rows = map_products(data, columns, subfield)
+    product_rows = map_products(data, columns, field_paths)
     return [
         *cells[:header_row_index + 1],
         *product_rows,
@@ -87,27 +87,28 @@ def map_rows(
 def map_products(
         data: Union[dict, object],
         columns: list[str],
-        subfield: Union[str, list]) -> list[list[str]]:
-    subfields = [subfield] if isinstance(subfield, str) else subfield
+        field_paths: list[str]) -> list[list[str]]:
     product_rows = []
     if isinstance(data, dict):
-        for entity, target_data in data.items():
-            try:
-                for subfield in subfields:
-                    field_path = subfield.split(".")
-                    for field in field_path:
+        for entity, entity_data in data.items():
+            for field_path in field_paths:
+                try:
+                    path_tokens = field_path.split(".")
+                    target_data = entity_data
+                    for field in path_tokens:
                         target_data = getattr(target_data, field)
 
                     for product in target_data:
-                        product_rows.append(map_product_row(product, entity, subfield, columns))
-            except AttributeError:
-                pass
+                        product_rows.append(map_product_row(product, entity, field_path, columns))
+                except AttributeError:
+                    pass
     else:
         target_data = data
-        for subfield in subfields:
-            field_path = subfield.split(".")
-            for field in field_path:
+        for field_path in field_paths:
+            path_tokens = field_path.split(".")
+            for field in path_tokens:
                 target_data = getattr(target_data, field)
+
             for product in target_data:
                 product_rows.append(map_product_row(product, None, None, columns))
 
@@ -131,7 +132,11 @@ def map_product_row(details, entity, p_type, columns) -> list[str]:
 
 
 def format_type_name(value):
-    return value.upper()
+    tokens = value.split(".")
+    if len(tokens) >= 2:
+        return tokens[-2].upper()
+    else:
+        return value.upper()
 
 
 def map_last_update_row(last_update: dict[str, datetime]):

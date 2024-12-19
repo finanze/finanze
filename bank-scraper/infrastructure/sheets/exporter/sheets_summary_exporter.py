@@ -5,9 +5,6 @@ from dateutil.tz import tzlocal
 
 from domain.global_position import GlobalPosition
 
-SUMMARY_SHEET = "Summary"
-SHEET_RANGE = f"{SUMMARY_SHEET}!A:Z"
-
 LAST_UPDATE_FIELD = "lastUpdate"
 ADDITIONAL_DATA_FIELD = "additionalData"
 COUNT_FIELD = "count"
@@ -16,8 +13,14 @@ DETAILS_FIELD = "details"
 ERROR_VALUE = "ERR"
 
 
-def update_summary(sheet, global_position: dict[str, GlobalPosition], sheet_id: str):
-    result = sheet.values().get(spreadsheetId=sheet_id, range=SHEET_RANGE).execute()
+def update_summary(
+        sheet,
+        global_positions: dict[str, GlobalPosition],
+        sheet_id: str,
+        sheet_name: str):
+    sheet_range = f"{sheet_name}!A:Z"
+
+    result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     cells = result.get('values', [[]]) + [[""]]
 
     bank = None
@@ -27,18 +30,18 @@ def update_summary(sheet, global_position: dict[str, GlobalPosition], sheet_id: 
             continue
         title = cells[row_i][0]
         last_row = row_i == len(cells) - 1
-        if title in global_position or last_row:
+        if title in global_positions or last_row:
             if not bank:
                 bank = title
                 continue
-            update_entity_summary(global_position.get(bank, {}), cells[last_end:row_i + 1 if last_row else row_i])
+            update_entity_summary(global_positions.get(bank, {}), cells[last_end:row_i + 1 if last_row else row_i])
             bank = title
             last_end = row_i
 
     batch_update = {
         "value_input_option": "RAW",
         "data": [
-            {"range": SHEET_RANGE, "values": cells},
+            {"range": sheet_range, "values": cells},
         ],
     }
 
