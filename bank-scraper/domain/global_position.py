@@ -127,14 +127,6 @@ class RealStateCFInvestments:
 
 
 @dataclass
-class Investments:
-    stocks: Optional[StockInvestments] = None
-    funds: Optional[FundInvestments] = None
-    factoring: Optional[FactoringInvestments] = None
-    realStateCF: Optional[RealStateCFInvestments] = None
-
-
-@dataclass
 class Deposit:
     name: str
     amount: float
@@ -153,6 +145,15 @@ class Deposits:
 
 
 @dataclass
+class Investments:
+    stocks: Optional[StockInvestments] = None
+    funds: Optional[FundInvestments] = None
+    factoring: Optional[FactoringInvestments] = None
+    realStateCF: Optional[RealStateCFInvestments] = None
+    deposits: Optional[Deposits] = None
+
+
+@dataclass
 class PositionAdditionalData:
     maintenance: Optional[bool] = None
 
@@ -163,7 +164,6 @@ class GlobalPosition:
     account: Optional[Account] = None
     cards: Optional[Cards] = None
     mortgage: Optional[Mortgage] = None
-    deposits: Optional[Deposits] = None
     investments: Optional[Investments] = None
     additionalData: Optional[PositionAdditionalData] = None
 

@@ -3,12 +3,11 @@ from datetime import date, datetime
 
 from dateutil.tz import tzlocal
 
+from application.use_cases.update_sheets import DETAILS_FIELD, ADDITIONAL_DATA_FIELD
 from domain.global_position import GlobalPosition
 
 LAST_UPDATE_FIELD = "lastUpdate"
-ADDITIONAL_DATA_FIELD = "additionalData"
 COUNT_FIELD = "count"
-DETAILS_FIELD = "details"
 
 ERROR_VALUE = "ERR"
 
@@ -92,7 +91,10 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
                     continue
 
                 if column == COUNT_FIELD:
-                    value = len(parent.get(DETAILS_FIELD))
+                    if DETAILS_FIELD in parent:
+                        value = len(parent.get(DETAILS_FIELD))
+                    else:
+                        value = ""
                 else:
                     value = parent.get(column, None)
                     if value is None:
@@ -114,7 +116,10 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
                     value = ERROR_VALUE
                 else:
                     if column == COUNT_FIELD:
-                        value = len(parent[title].get(DETAILS_FIELD))
+                        if DETAILS_FIELD in parent[title]:
+                            value = len(parent[title].get(DETAILS_FIELD))
+                        else:
+                            value = ""
                     else:
                         value = parent[title].get(column, ERROR_VALUE)
 

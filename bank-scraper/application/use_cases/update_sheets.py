@@ -9,6 +9,9 @@ from domain.global_position import GlobalPosition
 from domain.transactions import Transactions
 from domain.use_cases.update_sheets import UpdateSheets
 
+DETAILS_FIELD = "details"
+ADDITIONAL_DATA_FIELD = "additionalData"
+
 
 class UpdateSheetsImpl(UpdateSheets):
     SHEET_CONFIG = {
@@ -54,7 +57,7 @@ class UpdateSheetsImpl(UpdateSheets):
     def update_investment_sheets(self, global_position: dict[str, GlobalPosition]):
         for sheet_name, fields in self.SHEET_CONFIG["investments"].items():
             fields = [fields] if isinstance(fields, str) else fields
-            composed_fields = [f"investments.{field}.details" for field in fields]
+            composed_fields = [f"investments.{field}.{DETAILS_FIELD}" for field in fields]
 
             self.sheets_update_port.update_sheet(global_position, sheet_name, composed_fields)
 

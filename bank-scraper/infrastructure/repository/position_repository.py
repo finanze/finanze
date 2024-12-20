@@ -138,31 +138,32 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
             ]
         ) if stocks_data else None
 
+        deposits_data = investments_data.get("deposits", {})
+        deposits = None
+        if deposits_data:
+            deposits = Deposits(
+                total=deposits_data["total"],
+                totalInterests=deposits_data["totalInterests"],
+                weightedInterestRate=deposits_data["weightedInterestRate"],
+                details=[
+                    Deposit(
+                        name=detail["name"],
+                        amount=detail["amount"],
+                        totalInterests=detail["totalInterests"],
+                        interestRate=detail["interestRate"],
+                        maturity=detail["maturity"],
+                        creation=detail["creation"]
+                    )
+                    for detail in deposits_data["details"]
+                ]
+            )
+
         investments = Investments(
             factoring=factoring,
             stocks=stocks,
             funds=funds,
-            realStateCF=rs_cf
-        )
-
-    deposits_data = data.get("deposits", {})
-    deposits = None
-    if deposits_data:
-        deposits = Deposits(
-            total=deposits_data["total"],
-            totalInterests=deposits_data["totalInterests"],
-            weightedInterestRate=deposits_data["weightedInterestRate"],
-            details=[
-                Deposit(
-                    name=detail["name"],
-                    amount=detail["amount"],
-                    totalInterests=detail["totalInterests"],
-                    interestRate=detail["interestRate"],
-                    maturity=detail["maturity"],
-                    creation=detail["creation"]
-                )
-                for detail in deposits_data["details"]
-            ]
+            realStateCF=rs_cf,
+            deposits=deposits
         )
 
     mortgage_data = data["mortgage"]
@@ -186,7 +187,6 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
         account=account,
         cards=cards,
         mortgage=mortgage,
-        deposits=deposits,
         investments=investments,
         additionalData=additional_data
     )

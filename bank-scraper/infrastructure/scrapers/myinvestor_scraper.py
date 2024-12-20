@@ -37,12 +37,9 @@ class MyInvestorScraper(EntityScraper):
 
         investments_data = self.scrape_investments(securities_account_id)
 
-        deposits = self.scrape_deposits()
-
         return GlobalPosition(
             account=account_data,
             cards=cards_data,
-            deposits=deposits,
             investments=investments_data,
             additionalData=PositionAdditionalData(maintenance=maintenance["enMantenimeinto"]),
         )
@@ -206,9 +203,12 @@ class MyInvestorScraper(EntityScraper):
             details=fund_list,
         )
 
+        deposits = self.scrape_deposits()
+
         return Investments(
             stocks=stock_data,
             funds=fund_data,
+            deposits=deposits,
         )
 
     def scrape_auto_contributions(self) -> AutoContributions:

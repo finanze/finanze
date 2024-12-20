@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 from application.ports.virtual_scraper import VirtualScraper
-from domain.global_position import GlobalPosition, Deposits, Deposit, SourceType
+from domain.global_position import GlobalPosition, Deposits, Deposit, SourceType, Investments
 from domain.transactions import Transactions, TxType, TxProductType, StockTx, FundTx, RealStateCFTx, \
     FactoringTx
 from infrastructure.sheets.sheets_base_loader import spreadsheets
@@ -35,7 +35,7 @@ class SheetsImporter(VirtualScraper):
             deposits = deposits_per_entity.get(entity, None)
 
             global_positions[entity] = GlobalPosition(
-                deposits=deposits
+                investments=Investments(deposits=deposits)
             )
 
         return global_positions
