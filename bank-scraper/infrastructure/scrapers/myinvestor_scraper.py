@@ -105,6 +105,8 @@ class MyInvestorScraper(EntityScraper):
 
     def scrape_deposits(self):
         deposits_raw = self.__client.get_deposits()
+        if not deposits_raw:
+            return None
 
         deposit_list = [
             Deposit(

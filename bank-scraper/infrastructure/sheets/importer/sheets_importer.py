@@ -1,85 +1,148 @@
+import inspect
 import os
 from datetime import datetime
 from typing import Optional
 
 from application.ports.virtual_scraper import VirtualScraper
-from domain.global_position import GlobalPosition, Deposits, Deposit, SourceType, Investments
+from domain.exception.exceptions import MissingFieldsError
+from domain.global_position import GlobalPosition, SourceType, Deposits, Deposit, FundInvestments, \
+    FactoringInvestments, RealStateCFInvestments, StockInvestments, StockDetail, FactoringDetail, RealStateCFDetail, \
+    FundDetail, Investments
 from domain.transactions import Transactions, TxType, TxProductType, StockTx, FundTx, RealStateCFTx, \
     FactoringTx
 from infrastructure.sheets.sheets_base_loader import spreadsheets
 
 
 def parse_number(value: str) -> float:
-    return float(value.strip()[:-1].strip().replace(".", "").replace(",", "."))
+    return float(value.strip().replace(".", "").replace(",", "."))
+
+
+def total(products):
+    return round(sum([product.amount for product in products]), 2)
+
+
+def total_interests(products):
+    return round(sum([product.totalInterests for product in products]), 2)
+
+
+def weighted_interest_rate(products):
+    return round(sum([product.interestRate * product.amount for product in products]) / total(products), 6)
+
+
+def initial_investment(products):
+    return round(sum([product.initialInvestment for product in products]), 2)
+
+
+def market_value(products):
+    return round(sum([product.marketValue for product in products]), 2)
+
+
+AGGR_FIELD_OPERATION = {
+    "total": total,
+    "invested": total,
+    "totalInterests": total_interests,
+    "weightedInterestRate": weighted_interest_rate,
+    "initialInvestment": initial_investment,
+    "marketValue": market_value
+}
 
 
 class SheetsImporter(VirtualScraper):
-    DEPOSITS_RANGE = "Deposits!A2:Z"
     INVESTMENT_TXS_RANGE = "Investment TXs!A2:Z"
 
     DATE_FORMAT = "%d/%m/%Y"
     DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
+
+    IMPORT_CONFIG = {
+        "investments": {
+            "Deposits": "deposits",
+        },
+        "transactions": {
+            "Account TXs": "account"
+        }
+    }
+
+    INV_TYPE_ATTR_MAP = {
+        "deposits": (Deposits, Deposit),
+        "funds": (FundInvestments, FundDetail),
+        "stocks": (StockInvestments, StockDetail),
+        "factoring": (FactoringInvestments, FactoringDetail),
+        "realStateCF": (RealStateCFInvestments, RealStateCFDetail),
+    }
 
     def __init__(self):
         self.__sheet_id = os.environ["READ_SHEETS_IDS"]
         self.__sheet = spreadsheets()
 
     async def global_positions(self) -> dict[str, GlobalPosition]:
-        available_entities = set()
-        deposits_per_entity = self.load_deposits()
-        if deposits_per_entity:
-            available_entities.update(deposits_per_entity.keys())
+        global_positions_dicts = {}
+        for sheet_range, field in self.IMPORT_CONFIG["investments"].items():
+            parent_type, detail_type = self.INV_TYPE_ATTR_MAP.get(field, (None, None))
+            if not parent_type:
+                raise ValueError(f"Invalid field {field}")
+
+            per_entity = self.load_investment_products(detail_type, parent_type, sheet_range)
+            for entity in per_entity:
+                if entity not in global_positions_dicts:
+                    global_positions_dicts[entity] = {"investments": {}}
+
+                global_positions_dicts[entity]["investments"][field] = per_entity[entity]
 
         global_positions = {}
-        for entity in available_entities:
-            deposits = deposits_per_entity.get(entity, None)
-
-            global_positions[entity] = GlobalPosition(
-                investments=Investments(deposits=deposits)
-            )
+        for entity, data in global_positions_dicts.items():
+            investments = Investments(**data["investments"])
+            global_positions[entity] = GlobalPosition(investments=investments)
 
         return global_positions
 
-    def load_deposits(self) -> dict[str, Deposits]:
-        result = self.__read_sheet_table(self.DEPOSITS_RANGE)
-        if not result:
+    def load_investment_products(self, cls, parent_cls, sheet_range) -> dict[str, any]:
+        cells = self.__read_sheet_table(sheet_range)
+        if not cells:
             return {}
 
-        deposit_details_per_entity = {}
-        for row in result:
-            name = row[0]
-            amount = round(parse_number(row[1]), 2)
-            interest_rate = round(parse_number(row[4]) / 100, 6)
-            interest = round(parse_number(row[5]), 2)
-            start = datetime.strptime(row[6], self.DATETIME_FORMAT).date()
-            maturity = datetime.strptime(row[7], self.DATE_FORMAT)
-            entity = row[8]
+        header_row_index, start_column_index = next(((index, next((i for i, x in enumerate(row) if x), None))
+                                                     for index, row in enumerate(cells) if row),
+                                                    (None, None))
+        if header_row_index is None or start_column_index is None:
+            return {}
 
-            entity_deposits = deposit_details_per_entity.get(entity, [])
-            entity_deposits.append(Deposit(
-                name=name,
-                amount=amount,
-                interestRate=interest_rate,
-                totalInterests=interest,
-                creation=start,
-                maturity=maturity
-            ))
-            deposit_details_per_entity[entity] = entity_deposits
+        columns = cells[header_row_index][start_column_index:]
 
-        deposits_per_entity = {}
-        for entity, entity_deposits in deposit_details_per_entity.items():
-            total = sum([deposit.amount for deposit in entity_deposits])
-            total_interests = sum([deposit.totalInterests for deposit in entity_deposits])
-            weighted_interest_rate = sum([deposit.interestRate * deposit.amount for deposit in entity_deposits]) / total
+        details_per_entity = {}
+        for row in cells[header_row_index + 1:]:
+            product_dict = {}
+            for j, column in enumerate(columns, start_column_index):
+                if not column:
+                    continue
+                parsed = self.parse_cell(row[j])
+                if parsed is not None:
+                    product_dict[column] = parsed
 
-            deposits_per_entity[entity] = Deposits(
-                total=round(total, 2),
-                totalInterests=round(total_interests, 2),
-                weightedInterestRate=round(weighted_interest_rate, 6),
-                details=entity_deposits
-            )
+            entity = product_dict["entity"]
+            entity_products = details_per_entity.get(entity, [])
+            try:
+                entity_products.append(cls.from_dict(product_dict))
+            except MissingFieldsError as e:
+                print(f"Skipping row {row}: {e}")
+                continue
 
-        return deposits_per_entity
+            details_per_entity[entity] = entity_products
+
+        if not details_per_entity:
+            return {}
+
+        per_entity = {}
+        parent_params = inspect.signature(parent_cls).parameters
+        for entity, entity_products in details_per_entity.items():
+            parent_obj_dict = {}
+            for param in parent_params:
+                if param in AGGR_FIELD_OPERATION:
+                    parent_obj_dict[param] = AGGR_FIELD_OPERATION[param](entity_products)
+
+            parent_obj_dict["details"] = entity_products
+            per_entity[entity] = parent_cls(**parent_obj_dict)
+
+        return per_entity
 
     async def transactions(self, registered_txs: set[str]) -> Optional[Transactions]:
         result = self.__read_sheet_table(self.INVESTMENT_TXS_RANGE)
@@ -144,6 +207,20 @@ class SheetsImporter(VirtualScraper):
         return Transactions(
             investment=inv_txs
         )
+
+    def parse_cell(self, value: str):
+        try:
+            return parse_number(value)
+        except ValueError:
+            try:
+                return datetime.strptime(value, self.DATETIME_FORMAT)
+            except ValueError:
+                try:
+                    return datetime.strptime(value, self.DATE_FORMAT)
+                except ValueError:
+                    if not len(value):
+                        return None
+                    return value
 
     def __read_sheet_table(self, cell_range) -> list[list]:
         result = self.__sheet.values().get(spreadsheetId=self.__sheet_id, range=cell_range).execute()

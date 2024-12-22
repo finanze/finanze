@@ -112,8 +112,8 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
                     set_field_value(row, column_i + 1, "")
                     continue
 
-                if title not in parent:
-                    value = ERROR_VALUE
+                if title not in parent or not parent[title]:
+                    value = ""
                 else:
                     if column == COUNT_FIELD:
                         if DETAILS_FIELD in parent[title]:

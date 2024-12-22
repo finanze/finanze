@@ -1,9 +1,34 @@
+import inspect
+from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime, date
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, TypeVar
 
 from dateutil.tz import tzlocal
+
+from domain.exception.exceptions import MissingFieldsError
+
+T = TypeVar("T", bound="BaseDataClass")
+
+
+class BaseData(ABC):
+    @classmethod
+    def from_dict(cls: type[T], env: dict) -> T:
+        parameters = inspect.signature(cls).parameters
+        required_fields = {
+            name for name, param in parameters.items()
+            if param.default == param.empty and param.kind in (param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY)
+        }
+
+        missing_fields = list(required_fields - env.keys())
+        if missing_fields:
+            raise MissingFieldsError(missing_fields)
+
+        return cls(**{
+            k: v for k, v in env.items()
+            if k in parameters
+        })
 
 
 @dataclass
@@ -44,7 +69,7 @@ class Mortgage:
 
 
 @dataclass
-class StockDetail:
+class StockDetail(BaseData):
     name: str
     ticker: str
     isin: str
@@ -60,7 +85,7 @@ class StockDetail:
 
 
 @dataclass
-class FundDetail:
+class FundDetail(BaseData):
     name: str
     isin: str
     market: str
@@ -70,11 +95,11 @@ class FundDetail:
     marketValue: float
     currency: str
     currencySymbol: str
-    lastUpdate: date
+    lastUpdate: Optional[date] = None
 
 
 @dataclass
-class FactoringDetail:
+class FactoringDetail(BaseData):
     name: str
     amount: float
     interestRate: float
@@ -86,7 +111,7 @@ class FactoringDetail:
 
 
 @dataclass
-class RealStateCFDetail:
+class RealStateCFDetail(BaseData):
     name: str
     amount: float
     interestRate: float
@@ -127,7 +152,7 @@ class RealStateCFInvestments:
 
 
 @dataclass
-class Deposit:
+class Deposit(BaseData):
     name: str
     amount: float
     totalInterests: float

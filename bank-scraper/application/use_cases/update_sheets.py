@@ -55,18 +55,18 @@ class UpdateSheetsImpl(UpdateSheets):
         self.update_transactions(transactions, transactions_last_update)
 
     def update_investment_sheets(self, global_position: dict[str, GlobalPosition]):
-        for sheet_name, fields in self.SHEET_CONFIG["investments"].items():
+        for sheet_range, fields in self.SHEET_CONFIG["investments"].items():
             fields = [fields] if isinstance(fields, str) else fields
             composed_fields = [f"investments.{field}.{DETAILS_FIELD}" for field in fields]
 
-            self.sheets_update_port.update_sheet(global_position, sheet_name, composed_fields)
+            self.sheets_update_port.update_sheet(global_position, sheet_range, composed_fields)
 
     def update_contributions(self, contributions: dict[str, AutoContributions], last_update: dict[str, datetime]):
-        for sheet_name, fields in self.SHEET_CONFIG["contributions"].items():
+        for sheet_range, fields in self.SHEET_CONFIG["contributions"].items():
             fields = [fields] if isinstance(fields, str) else fields
-            self.sheets_update_port.update_sheet(contributions, sheet_name, fields, last_update)
+            self.sheets_update_port.update_sheet(contributions, sheet_range, fields, last_update)
 
     def update_transactions(self, transactions: Transactions, last_update: dict[str, datetime]):
-        for sheet_name, fields in self.SHEET_CONFIG["transactions"].items():
+        for sheet_range, fields in self.SHEET_CONFIG["transactions"].items():
             fields = [fields] if isinstance(fields, str) else fields
-            self.sheets_update_port.update_sheet(transactions, sheet_name, fields, last_update)
+            self.sheets_update_port.update_sheet(transactions, sheet_range, fields, last_update)
