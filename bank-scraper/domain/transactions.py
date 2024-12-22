@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Optional
 
 from domain.financial_entity import Entity
-from domain.global_position import SourceType
+from domain.global_position import SourceType, BaseData
 
 
 class TxType(str, Enum):
@@ -31,7 +31,7 @@ class TxProductType(str, Enum):
 
 
 @dataclass
-class BaseTx:
+class BaseTx(BaseData):
     id: str
     name: str
     amount: float
@@ -60,13 +60,13 @@ class AccountTx(BaseTx):
 class StockTx(BaseInvestmentTx):
     netAmount: float
     isin: str
-    ticker: Optional[str]
     shares: float
     price: float
-    market: Optional[str]
     fees: float
-    retentions: Optional[float]
-    orderDate: Optional[datetime]
+    ticker: Optional[str] = None
+    market: Optional[str] = None
+    retentions: Optional[float] = None
+    orderDate: Optional[datetime] = None
     linkedTx: Optional[str] = None
 
 
@@ -78,8 +78,8 @@ class FundTx(BaseInvestmentTx):
     price: float
     market: str
     fees: float
-    retentions: Optional[float]
-    orderDate: Optional[datetime]
+    retentions: Optional[float] = None
+    orderDate: Optional[datetime] = None
 
 
 @dataclass
@@ -102,3 +102,8 @@ class RealStateCFTx(BaseInvestmentTx):
 class Transactions:
     investment: list[BaseInvestmentTx]
     account: Optional[list[AccountTx]] = None
+
+    def __add__(self, other):
+        investment = (self.investment or []) + (other.investment or [])
+        account = (self.account or []) + (other.account or [])
+        return Transactions(investment=investment, account=account)
