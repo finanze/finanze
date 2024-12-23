@@ -10,6 +10,7 @@ class ScrapResultCode(str, Enum):
     NOT_LOGGED = "NOT_LOGGED"
     COMPLETED = "COMPLETED"
     COOLDOWN = "COOLDOWN"
+    DISABLED = "DISABLED"
 
 
 @dataclass

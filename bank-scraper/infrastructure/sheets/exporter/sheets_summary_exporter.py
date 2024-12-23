@@ -15,9 +15,8 @@ ERROR_VALUE = "ERR"
 def update_summary(
         sheet,
         global_positions: dict[str, GlobalPosition],
-        sheet_id: str,
-        sheet_name: str):
-    sheet_range = f"{sheet_name}!A:Z"
+        config: dict):
+    sheet_id, sheet_range = config["spreadsheetId"], config["range"]
 
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     cells = result.get('values', [[]]) + [[""]]
@@ -54,8 +53,9 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
         return
 
     header = current_cells[0]
-    last_update_index = header.index(LAST_UPDATE_FIELD)
-    set_field_value(header, last_update_index + 1, global_position.date.astimezone(tz=tzlocal()).isoformat())
+    if LAST_UPDATE_FIELD in header:
+        last_update_index = header.index(LAST_UPDATE_FIELD)
+        set_field_value(header, last_update_index + 1, global_position.date.astimezone(tz=tzlocal()).isoformat())
 
     pos_dict = asdict(global_position)
     parent = None
@@ -110,6 +110,9 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
                 column = field_columns[column_i]
                 if not column:
                     set_field_value(row, column_i + 1, "")
+                    continue
+
+                if parent is None:
                     continue
 
                 if title not in parent or not parent[title]:

@@ -100,7 +100,7 @@ class RealStateCFTx(BaseInvestmentTx):
 
 @dataclass
 class Transactions:
-    investment: list[BaseInvestmentTx]
+    investment: Optional[list[BaseInvestmentTx]] = None
     account: Optional[list[AccountTx]] = None
 
     def __add__(self, other):

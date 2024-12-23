@@ -1,4 +1,3 @@
-import os.path
 from datetime import datetime
 from typing import Union, Optional
 
@@ -12,19 +11,17 @@ from infrastructure.sheets.sheets_base_loader import spreadsheets
 class SheetsExporter(SheetsUpdatePort):
 
     def __init__(self):
-        self.__sheet_id = os.environ["WRITE_SHEETS_IDS"]
         self.__sheet = spreadsheets()
 
     def update_summary(
             self,
             global_positions: dict[str, GlobalPosition],
-            sheet_name: str):
-        update_summary(self.__sheet, global_positions, self.__sheet_id, sheet_name)
+            config: dict):
+        update_summary(self.__sheet, global_positions, config)
 
     def update_sheet(
             self,
             data: Union[object, dict[str, object]],
-            sheet_name: str,
-            field_paths: list[str],
+            config: dict,
             last_update: Optional[dict[str, datetime]] = None):
-        update_sheet(self.__sheet, data, self.__sheet_id, sheet_name, field_paths, last_update)
+        update_sheet(self.__sheet, data, config, last_update)

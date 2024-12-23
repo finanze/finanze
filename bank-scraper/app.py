@@ -11,6 +11,7 @@ from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.virtual_scrape import VirtualScrapeImpl
 from domain.financial_entity import Entity
+from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.controllers import Controllers
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
 from infrastructure.repository.position_repository import PositionRepository
@@ -42,6 +43,10 @@ mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}"
 mongo_client = MongoClient(mongo_uri)
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
+config_path = os.environ.get("CONFIG_PATH", "config.yml")
+
+config_loader = ConfigLoader(config_path)
+config_loader.check_or_create_default_config()
 
 entity_scrapers = {
     Entity.MY_INVESTOR: MyInvestorScraper(),
@@ -55,6 +60,7 @@ virtual_scraper = SheetsImporter()
 position_repository = PositionRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)
 transaction_repository = TransactionRepository(client=mongo_client, db_name=mongo_db_name)
+
 scrape = ScrapeImpl(
     update_cooldown,
     position_repository,
@@ -65,11 +71,13 @@ update_sheets = UpdateSheetsImpl(
     position_repository,
     auto_contrib_repository,
     transaction_repository,
-    SheetsExporter())
+    SheetsExporter(),
+    config_loader)
 virtual_scrape = VirtualScrapeImpl(
     position_repository,
     transaction_repository,
-    virtual_scraper)
+    virtual_scraper,
+    config_loader)
 controllers = Controllers(scrape, update_sheets, virtual_scrape)
 
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])

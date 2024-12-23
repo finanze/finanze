@@ -10,14 +10,13 @@ class SheetsUpdatePort(metaclass=abc.ABCMeta):
     def update_summary(
             self,
             global_positions: dict[str, GlobalPosition],
-            sheet_name: str):
+            config: dict):
         raise NotImplementedError
 
     @abc.abstractmethod
     def update_sheet(
             self,
             data: Union[object, dict[str, object]],
-            sheet_name: str,
-            field_paths: list[str],
+            config: dict,
             last_update: Optional[dict[str, datetime]] = None):
         raise NotImplementedError

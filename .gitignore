@@ -3,3 +3,4 @@
 !.gitignore
 !.dockerignore
 !.github
+config.yml

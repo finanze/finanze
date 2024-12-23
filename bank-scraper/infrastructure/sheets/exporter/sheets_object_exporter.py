@@ -16,11 +16,10 @@ ENTITY_UPDATED_AT = "entityUpdatedAt"
 def update_sheet(
         sheet,
         data: Union[dict, object],
-        sheet_id: str,
-        sheet_name: str,
-        field_paths: list[str],
+        config: dict,
         last_update: dict[str, datetime] = None):
-    result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_name).execute()
+    sheet_id, sheet_range, field_paths = config["spreadsheetId"], config["range"], config["data"]
+    result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     cells = result.get('values', None)
     if not cells:
         rows = [[NO_HEADERS_FOUND]]
@@ -31,7 +30,7 @@ def update_sheet(
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
-        range=f"{sheet_name}!A1",
+        range=f"{sheet_range}!A1",
         valueInputOption="RAW",
         body={"values": rows},
     )
@@ -80,7 +79,7 @@ def map_rows(
     return [
         *cells[:header_row_index + 1],
         *product_rows,
-        *[["" for _ in range(20)] for _ in range(20)],
+        *[["" for _ in range(100)] for _ in range(500)],
     ]
 
 
@@ -103,10 +102,12 @@ def map_products(
                 except AttributeError:
                     pass
     else:
-        target_data = data
         for field_path in field_paths:
+            target_data = data
             path_tokens = field_path.split(".")
             for field in path_tokens:
+                if not hasattr(target_data, field):
+                    continue
                 target_data = getattr(target_data, field)
 
             for product in target_data:

@@ -1,0 +1,57 @@
+export:
+  sheets:
+    globals:
+      spreadsheetId: defaultSheetId
+
+    summary:
+      - spreadsheetId: oneSpecificSheetId
+        range: Summary
+      - range: Basic Summary
+
+    investments:
+      - spreadsheetId: anotherSpecificSheetId
+        range: Funds
+        data: funds
+      - range: Stocks
+        data: stocks
+      - range: Real State CF
+        data: realStateCF
+      - range: Mixed
+        data:
+          - factoring
+          - realStateCF
+
+    contributions:
+      - range: Contributions
+        data: periodic
+
+    transactions:
+      - range: Investment TXs
+        data: investment
+      - range: Account TXs
+        data: account
+      - range: All TXs
+        data: [ investment, account ]
+
+scrape:
+  enabledEntities:
+    - UNICAJA
+
+  virtual:
+    enabled: true
+
+    globals:
+      spreadsheetId: defaultSheetId
+      datetimeFormat: "%d/%m/%Y %H:%M:%S"
+      dateFormat: "%d/%m/%Y"
+
+    investments:
+      - spreadsheetId: oneSpecificSheetId
+        range: Deposits
+        data: deposits
+        datetimeFormat: "%d/%m/%Y %H:%M:%S"
+        dateFormat: "%d/%m/%Y"
+
+    transactions:
+      - range: Investment TXs
+        data: investment
