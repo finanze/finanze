@@ -4,6 +4,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./bank-scraper /bank-scraper
+COPY ./resources /bank-scraper/resources
 
 # Firefox
 # RUN apt install firefox-esr -y
