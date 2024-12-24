@@ -22,7 +22,7 @@ class ConfigLoader(ConfigPort):
     def check_or_create_default_config(self):
         if not self.config_path.is_file():
             print(f"Config file not found, creating default config at {self.config_file}")
-            shutil.copy(self.DEFAULT_CONFIG_PATH, self.config_file)
+            shutil.copyfile(self.DEFAULT_CONFIG_PATH, self.config_file)
 
         self.load()
         print(f"Config file loaded from {self.config_file}")
