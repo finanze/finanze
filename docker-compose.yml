@@ -14,6 +14,7 @@ services:
       WC_COOKIES_PATH: /.wc/cookies.txt
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
+      CONFIG_PATH: /config/config.yml
     env_file:
       - .env
     volumes:
@@ -21,6 +22,9 @@ services:
       - ./.wc/:/.wc/
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - ./config/:/config/
 
   mongodb:
     image: mongo:6-jammy
