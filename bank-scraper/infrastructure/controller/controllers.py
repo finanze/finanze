@@ -1,6 +1,7 @@
 from flask import request, jsonify
 
 from domain.financial_entity import Entity, Feature
+from domain.use_cases.get_available_sources import GetAvailableSources
 from domain.use_cases.scrape import Scrape
 from domain.use_cases.update_sheets import UpdateSheets
 from domain.use_cases.virtual_scrape import VirtualScrape
@@ -11,10 +12,19 @@ def map_features(features: list[str]) -> list[Feature]:
 
 
 class Controllers:
-    def __init__(self, scrape: Scrape, update_sheets: UpdateSheets, virtual_scrape: VirtualScrape):
+    def __init__(self,
+                 get_available_sources: GetAvailableSources,
+                 scrape: Scrape,
+                 update_sheets: UpdateSheets,
+                 virtual_scrape: VirtualScrape):
+        self.__get_available_sources = get_available_sources
         self.__scrape = scrape
         self.__update_sheets = update_sheets
         self.__virtual_scrape = virtual_scrape
+
+    async def get_available_sources(self):
+        available_sources = await self.__get_available_sources.execute()
+        return jsonify(available_sources), 200
 
     async def scrape(self):
         body = request.json

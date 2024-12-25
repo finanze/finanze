@@ -7,6 +7,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from waitress import serve
 
+from application.use_cases.get_available_sources import GetAvailableSourcesImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.virtual_scrape import VirtualScrapeImpl
@@ -61,6 +62,7 @@ position_repository = PositionRepository(client=mongo_client, db_name=mongo_db_n
 auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_name=mongo_db_name)
 transaction_repository = TransactionRepository(client=mongo_client, db_name=mongo_db_name)
 
+get_available_sources = GetAvailableSourcesImpl(config_loader)
 scrape = ScrapeImpl(
     update_cooldown,
     position_repository,
@@ -78,8 +80,9 @@ virtual_scrape = VirtualScrapeImpl(
     transaction_repository,
     virtual_scraper,
     config_loader)
-controllers = Controllers(scrape, update_sheets, virtual_scrape)
+controllers = Controllers(get_available_sources, scrape, update_sheets, virtual_scrape)
 
+app.add_url_rule('/api/v1/scrape', view_func=controllers.get_available_sources, methods=['GET'])
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])
 app.add_url_rule('/api/v1/scrape/virtual', view_func=controllers.virtual_scrape, methods=['POST'])
 app.add_url_rule('/api/v1/update-sheets', view_func=controllers.update_sheets, methods=['POST'])

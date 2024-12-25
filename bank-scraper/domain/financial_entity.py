@@ -10,7 +10,17 @@ class Entity(str, Enum):
     SEGO = "SEGO"
 
 
-class Feature(Enum):
+class Feature(str, Enum):
     POSITION = "POSITION",
     AUTO_CONTRIBUTIONS = "AUTO_CONTRIBUTIONS",
     TRANSACTIONS = "TRANSACTIONS"
+
+
+ENTITY_FEATURES = {
+    Entity.MY_INVESTOR: [Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    Entity.UNICAJA: [Feature.POSITION],
+    Entity.TRADE_REPUBLIC: [Feature.POSITION, Feature.TRANSACTIONS],
+    Entity.URBANITAE: [Feature.POSITION, Feature.TRANSACTIONS],
+    Entity.WECITY: [Feature.POSITION, Feature.TRANSACTIONS],
+    Entity.SEGO: [Feature.POSITION, Feature.TRANSACTIONS],
+}
