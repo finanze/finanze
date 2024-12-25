@@ -16,11 +16,41 @@ class Feature(str, Enum):
     TRANSACTIONS = "TRANSACTIONS"
 
 
-ENTITY_FEATURES = {
-    Entity.MY_INVESTOR: [Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
-    Entity.UNICAJA: [Feature.POSITION],
-    Entity.TRADE_REPUBLIC: [Feature.POSITION, Feature.TRANSACTIONS],
-    Entity.URBANITAE: [Feature.POSITION, Feature.TRANSACTIONS],
-    Entity.WECITY: [Feature.POSITION, Feature.TRANSACTIONS],
-    Entity.SEGO: [Feature.POSITION, Feature.TRANSACTIONS],
+ENTITY_DETAILS = {
+    Entity.MY_INVESTOR: {
+        "id": Entity.MY_INVESTOR,
+        "name": "MyInvestor",
+        "features": [Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS]
+    },
+    Entity.UNICAJA: {
+        "id": Entity.UNICAJA,
+        "name": "Unicaja",
+        "features": [Feature.POSITION]
+    },
+    Entity.TRADE_REPUBLIC: {
+        "id": Entity.TRADE_REPUBLIC,
+        "name": "Trade Republic",
+        "features": [Feature.POSITION, Feature.TRANSACTIONS],
+        "pin": {
+            "positions": 4
+        }
+    },
+    Entity.URBANITAE: {
+        "id": Entity.URBANITAE,
+        "name": "Urbanitae",
+        "features": [Feature.POSITION, Feature.TRANSACTIONS]
+    },
+    Entity.WECITY: {
+        "id": Entity.WECITY,
+        "name": "Wecity",
+        "features": [Feature.POSITION, Feature.TRANSACTIONS],
+        "pin": {
+            "positions": 6
+        }
+    },
+    Entity.SEGO: {
+        "id": Entity.SEGO,
+        "name": "SEGO",
+        "features": [Feature.POSITION, Feature.TRANSACTIONS]
+    }
 }
