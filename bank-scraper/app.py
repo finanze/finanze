@@ -68,7 +68,8 @@ scrape = ScrapeImpl(
     position_repository,
     auto_contrib_repository,
     transaction_repository,
-    entity_scrapers)
+    entity_scrapers,
+    config_loader)
 update_sheets = UpdateSheetsImpl(
     position_repository,
     auto_contrib_repository,

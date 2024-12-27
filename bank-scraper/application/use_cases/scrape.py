@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
+from application.ports.config_port import ConfigPort
 from application.ports.entity_scraper import EntityScraper
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
@@ -21,12 +22,14 @@ class ScrapeImpl(Scrape):
                  position_port: PositionPort,
                  auto_contr_port: AutoContributionsPort,
                  transaction_port: TransactionPort,
-                 entity_scrapers: dict[Entity, EntityScraper]):
+                 entity_scrapers: dict[Entity, EntityScraper],
+                 config_port: ConfigPort):
         self.update_cooldown = update_cooldown
         self.position_port = position_port
         self.auto_contr_repository = auto_contr_port
         self.transaction_port = transaction_port
         self.entity_scrapers = entity_scrapers
+        self.config_port = config_port
 
     @staticmethod
     def get_creds(entity: Entity) -> tuple:
@@ -52,6 +55,10 @@ class ScrapeImpl(Scrape):
                       entity: Entity,
                       features: list[Feature],
                       **kwargs) -> ScrapResult:
+        scrape_config = self.config_port.load()["scrape"].get("enabledEntities")
+        if scrape_config and entity not in scrape_config:
+            return ScrapResult(ScrapResultCode.DISABLED)
+
         if Feature.POSITION in features:
             last_update = self.position_port.get_last_updated(entity)
             if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
