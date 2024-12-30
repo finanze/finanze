@@ -2,6 +2,7 @@ from dataclasses import asdict
 from datetime import date, datetime
 
 from dateutil.tz import tzlocal
+from pytz import utc
 
 from application.use_cases.update_sheets import DETAILS_FIELD, ADDITIONAL_DATA_FIELD
 from domain.global_position import GlobalPosition
@@ -144,5 +145,5 @@ def format_field_value(value):
     if isinstance(value, date) and not isinstance(value, datetime):
         return value.isoformat()[:10]
     elif isinstance(value, datetime):
-        return value.isoformat()
+        return value.replace(tzinfo=utc).astimezone(tzlocal()).isoformat()
     return value

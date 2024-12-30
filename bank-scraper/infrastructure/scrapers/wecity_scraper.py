@@ -2,6 +2,8 @@ from datetime import datetime, date
 from hashlib import sha1
 from typing import Optional
 
+from dateutil.tz import tzlocal
+
 from application.ports.entity_scraper import EntityScraper
 from domain.financial_entity import Entity
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, SourceType, \
@@ -57,6 +59,8 @@ class WecityScraper(EntityScraper):
                 [tx["date"] for tx in txs if "investment" == tx["category"] and tx["name"] == name],
                 default=None)
 
+            last_invest_date = last_invest_date.replace(tzinfo=tzlocal())
+
             periods = inv["periods"]
             ordinary_period = periods["ordinary"]
             extended_period = periods.get("prorroga", None)
@@ -111,7 +115,7 @@ class WecityScraper(EntityScraper):
 
             name = tx["name"]
             amount = round(tx["amount"], 2)
-            tx_date = tx["date"]
+            tx_date = tx["date"].replace(tzinfo=tzlocal())
 
             ref = self.calc_tx_id(name, tx_date, amount, tx_type)
 

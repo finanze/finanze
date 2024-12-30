@@ -2,6 +2,8 @@ from datetime import date, datetime
 from hashlib import sha1
 from typing import Optional
 
+from pytz import utc
+
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.financial_entity import Entity
@@ -175,7 +177,7 @@ class SegoScraper(EntityScraper):
                 if parsed_tag_time:
                     mov_datetime = mov_datetime.replace(second=parsed_tag_time.second)
 
-                movement["date"] = mov_datetime
+                movement["date"] = mov_datetime.replace(tzinfo=utc)
 
                 currency_symbol = movement["amount"][-1]
                 currency = SYMBOL_CURRENCY_MAP.get(currency_symbol, "EUR")
