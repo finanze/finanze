@@ -2,6 +2,8 @@ export:
   sheets:
     globals:
       spreadsheetId: defaultSheetId
+      datetimeFormat: "%d/%m/%Y %H:%M:%S"
+      dateFormat: "%d/%m/%Y"
 
     summary:
       - spreadsheetId: oneSpecificSheetId

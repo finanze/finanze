@@ -33,12 +33,13 @@ def update_summary(
             if not bank:
                 bank = title
                 continue
-            update_entity_summary(global_positions.get(bank, {}), cells[last_end:row_i + 1 if last_row else row_i])
+            update_entity_summary(global_positions.get(bank, {}), cells[last_end:row_i + 1 if last_row else row_i],
+                                  config)
             bank = title
             last_end = row_i
 
     batch_update = {
-        "value_input_option": "RAW",
+        "value_input_option": "USER_ENTERED",
         "data": [
             {"range": sheet_range, "values": cells},
         ],
@@ -49,14 +50,24 @@ def update_summary(
     request.execute()
 
 
-def update_entity_summary(global_position: GlobalPosition, current_cells: list[list[str]]):
+def update_entity_summary(
+        global_position: GlobalPosition,
+        current_cells: list[list[str]],
+        config):
     if not global_position:
         return
 
     header = current_cells[0]
     if LAST_UPDATE_FIELD in header:
         last_update_index = header.index(LAST_UPDATE_FIELD)
-        set_field_value(header, last_update_index + 1, global_position.date.astimezone(tz=tzlocal()).isoformat())
+        last_update_date = global_position.date.astimezone(tz=tzlocal())
+        config_datetime_format = config.get("datetimeFormat")
+        if config_datetime_format:
+            formated_last_update_date = last_update_date.strftime(config_datetime_format)
+        else:
+            formated_last_update_date = last_update_date.isoformat()
+
+        set_field_value(header, last_update_index + 1, formated_last_update_date, config)
 
     pos_dict = asdict(global_position)
     parent = None
@@ -88,7 +99,7 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
             for column_i in range(len(field_columns)):
                 column = field_columns[column_i]
                 if not column:
-                    set_field_value(row, column_i + 1, "")
+                    set_field_value(row, column_i + 1, "", config)
                     continue
 
                 if column == COUNT_FIELD:
@@ -103,14 +114,14 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
                         if additional_data:
                             value = additional_data.get(column, ERROR_VALUE)
 
-                set_field_value(row, column_i + 1, value)
+                set_field_value(row, column_i + 1, value, config)
 
         else:
             last_row_grid_category = True
             for column_i in range(len(field_columns)):
                 column = field_columns[column_i]
                 if not column:
-                    set_field_value(row, column_i + 1, "")
+                    set_field_value(row, column_i + 1, "", config)
                     continue
 
                 if parent is None:
@@ -127,23 +138,34 @@ def update_entity_summary(global_position: GlobalPosition, current_cells: list[l
                     else:
                         value = parent[title].get(column, ERROR_VALUE)
 
-                set_field_value(row, column_i + 1, value)
+                set_field_value(row, column_i + 1, value, config)
 
 
-def set_field_value(row: list[str], index: int, value):
-    value = format_field_value(value)
+def set_field_value(row: list[str], index: int, value, config):
+    value = format_field_value(value, config)
     if len(row) > index:
         row[index] = value
     else:
         row.append(value)
 
 
-def format_field_value(value):
+def format_field_value(value, config):
     if value is None:
         return ""
 
     if isinstance(value, date) and not isinstance(value, datetime):
+        config_date_format = config.get("dateFormat")
+        if config_date_format:
+            return value.strftime(config_date_format)
+
         return value.isoformat()[:10]
+
     elif isinstance(value, datetime):
-        return value.replace(tzinfo=utc).astimezone(tzlocal()).isoformat()
+        value = value.replace(tzinfo=utc).astimezone(tzlocal())
+        config_date_format = config.get("datetimeFormat")
+        if config_date_format:
+            return value.strftime(config_date_format)
+
+        return value.isoformat()
+
     return value

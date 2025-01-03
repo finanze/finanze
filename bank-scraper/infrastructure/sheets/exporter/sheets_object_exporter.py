@@ -24,14 +24,14 @@ def update_sheet(
     if not cells:
         rows = [[NO_HEADERS_FOUND]]
     else:
-        rows = map_rows(data, cells, field_paths, last_update)
+        rows = map_rows(data, cells, field_paths, last_update, config)
         if not rows:
             return
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
         range=f"{sheet_range}!A1",
-        valueInputOption="RAW",
+        valueInputOption="USER_ENTERED",
         body={"values": rows},
     )
 
@@ -42,7 +42,8 @@ def map_rows(
         data: Union[dict, object],
         cells: list[list[str]],
         field_paths: list[str],
-        last_update: dict[str, datetime]) -> list[list[str]]:
+        last_update: dict[str, datetime],
+        config) -> list[list[str]]:
     per_entity_date = False
     last_update_row_index, column_index = next(
         ((index, row.index(LAST_UPDATE_FIELD)) for index, row in enumerate(cells) if LAST_UPDATE_FIELD in row),
@@ -56,11 +57,18 @@ def map_rows(
 
     if column_index is not None:
         if per_entity_date:
-            entity_last_update_row = map_last_update_row(last_update)
+            entity_last_update_row = map_last_update_row(last_update, config)
             cells[last_update_row_index] = [*["" for _ in range(column_index)], *entity_last_update_row]
         else:
-            set_field_value(cells[last_update_row_index], column_index + 1,
-                            datetime.datetime.now(tzlocal()).isoformat())
+            last_update_date = datetime.datetime.now(tzlocal())
+            config_datetime_format = config.get("datetimeFormat")
+            if config_datetime_format:
+                formated_last_update_date = last_update_date.strftime(config_datetime_format)
+            else:
+                formated_last_update_date = last_update_date.isoformat()
+
+            set_field_value(cells[last_update_row_index], column_index + 1, formated_last_update_date, config)
+
             for i, cell in enumerate(cells[last_update_row_index]):
                 if i < column_index or i > column_index + 1:
                     cells[last_update_row_index][i] = ""
@@ -70,12 +78,12 @@ def map_rows(
          row), (None, None))
     if header_row_index is None or columns is None:
         if column_index is not None:
-            set_field_value(cells[last_update_row_index], column_index + 2, NO_HEADERS_FOUND)
+            set_field_value(cells[last_update_row_index], column_index + 2, NO_HEADERS_FOUND, config)
             return cells
         else:
             return [[NO_HEADERS_FOUND]]
 
-    product_rows = map_products(data, columns, field_paths)
+    product_rows = map_products(data, columns, field_paths, config)
     return [
         *cells[:header_row_index + 1],
         *product_rows,
@@ -86,7 +94,8 @@ def map_rows(
 def map_products(
         data: Union[dict, object],
         columns: list[str],
-        field_paths: list[str]) -> list[list[str]]:
+        field_paths: list[str],
+        config) -> list[list[str]]:
     product_rows = []
     if isinstance(data, dict):
         for entity, entity_data in data.items():
@@ -98,7 +107,7 @@ def map_products(
                         target_data = getattr(target_data, field)
 
                     for product in target_data:
-                        product_rows.append(map_product_row(product, entity, field_path, columns))
+                        product_rows.append(map_product_row(product, entity, field_path, columns, config))
                 except AttributeError:
                     pass
     else:
@@ -111,12 +120,12 @@ def map_products(
                 target_data = getattr(target_data, field)
 
             for product in target_data:
-                product_rows.append(map_product_row(product, None, None, columns))
+                product_rows.append(map_product_row(product, None, None, columns, config))
 
     return product_rows
 
 
-def map_product_row(details, entity, p_type, columns) -> list[str]:
+def map_product_row(details, entity, p_type, columns, config) -> list[str]:
     rows = []
     details = asdict(details)
     if ENTITY_COLUMN not in details:
@@ -125,7 +134,7 @@ def map_product_row(details, entity, p_type, columns) -> list[str]:
         details[TYPE_COLUMN] = format_type_name(p_type)
     for column in columns:
         if column in details:
-            rows.append(format_field_value(details[column]))
+            rows.append(format_field_value(details[column], config))
         else:
             rows.append("")
 
@@ -140,11 +149,17 @@ def format_type_name(value):
         return value.upper()
 
 
-def map_last_update_row(last_update: dict[str, datetime]):
+def map_last_update_row(last_update: dict[str, datetime], config):
     last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=True)
     last_update_row = [None]
     for k, v in last_update:
         last_update_row.append(k)
-        last_update_row.append(v.astimezone(tz=tzlocal()).isoformat())
+        last_update_date = v.astimezone(tz=tzlocal())
+        config_datetime_format = config.get("datetimeFormat")
+        if config_datetime_format:
+            formated_last_update_date = last_update_date.strftime(config_datetime_format)
+        else:
+            formated_last_update_date = last_update_date.isoformat()
+        last_update_row.append(formated_last_update_date)
     last_update_row.extend(["" for _ in range(10)])
     return last_update_row
