@@ -78,7 +78,7 @@ class ScrapeImpl(Scrape):
             return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
 
         elif login_result_code not in [LoginResult.CREATED, LoginResult.RESUMED]:
-            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code])
+            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details=login_result)
 
         if not features:
             features = DEFAULT_FEATURES

@@ -1,5 +1,7 @@
+import json
 import os
 import pathlib
+import re
 from http.cookiejar import MozillaCookieJar, Cookie
 
 import requests
@@ -85,8 +87,6 @@ class WecityAPIClient:
 
         elif not process_id and not code:
             if not avoid_new_login:
-                self.__session.cookies.clear()
-
                 body = f"usuario={username}&password={password}&boton-login="
                 response = self.__session.request("POST", self.BASE_OLD_URL + "/login", data=body, headers=headers)
 
@@ -100,6 +100,16 @@ class WecityAPIClient:
                 if "Doble Factor de Autenticación" in response_text:
                     process_id = requests.utils.dict_from_cookiejar(self.__session.cookies)["PHPSESSID"]
                     return {"result": LoginResult.CODE_REQUESTED, "processId": process_id}
+
+                pattern = r"localStorage\.setItem\('CapacitorStorage\.user',\s*'(.*?)'\);"
+                match = re.search(pattern, response.text)
+                if match:
+                    json_str = match.group(1)
+                    user_data = json.loads(json_str)
+                    print("Refreshing session")
+                    self.__add_auth_headers()
+
+                    return {"result": LoginResult.RESUMED, "userData": user_data}
 
                 print(response_text)
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
