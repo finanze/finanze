@@ -85,6 +85,8 @@ class WecityAPIClient:
 
         elif not process_id and not code:
             if not avoid_new_login:
+                self.__session.cookies.clear()
+
                 body = f"usuario={username}&password={password}&boton-login="
                 response = self.__session.request("POST", self.BASE_OLD_URL + "/login", data=body, headers=headers)
 
