@@ -32,7 +32,7 @@ class WecityAPIClient:
     def __get_request(self, path: str, api_url: bool = False) -> requests.Response:
         response = self.__session.request("GET", (self.BASE_URL if api_url else self.BASE_OLD_URL) + path)
 
-        if response.status_code == 200:
+        if response.ok:
             return response.json()
 
         print("Error Status Code:", response.status_code)
