@@ -9,7 +9,7 @@ from application.ports.entity_scraper import EntityScraper
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
 from domain.financial_entity import Entity, Feature
-from domain.scrap_result import ScrapResultCode, ScrapResult
+from domain.scrap_result import ScrapResultCode, ScrapResult, LoginResult, SCRAP_BAD_LOGIN_CODES
 from domain.scraped_data import ScrapedData
 from domain.use_cases.scrape import Scrape
 
@@ -71,12 +71,14 @@ class ScrapeImpl(Scrape):
 
         specific_scraper = self.entity_scrapers[entity]
         login_result = specific_scraper.login(credentials, **login_args)
+        login_result_code = login_result["result"]
+        del login_result["result"]
 
-        if login_result:
-            if login_result.get("success", False):
-                return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
-            else:
-                return ScrapResult(ScrapResultCode.NOT_LOGGED)
+        if login_result_code == LoginResult.CODE_REQUESTED:
+            return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
+
+        elif login_result_code not in [LoginResult.CREATED, LoginResult.RESUMED]:
+            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code])
 
         if not features:
             features = DEFAULT_FEATURES

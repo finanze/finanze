@@ -1,6 +1,5 @@
 import re
 from datetime import datetime
-from typing import Optional
 
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
@@ -124,11 +123,12 @@ class TradeRepublicScraper(EntityScraper):
     def __init__(self):
         self.__client = TradeRepublicClient()
 
-    def login(self, credentials: tuple, **kwargs) -> Optional[dict]:
+    def login(self, credentials: tuple, **kwargs) -> dict:
         phone, pin = credentials
         process_id = kwargs.get("processId", None)
         code = kwargs.get("code", None)
         avoid_new_login = kwargs.get("avoidNewLogin", False)
+
         return self.__client.login(phone, pin, avoid_new_login, process_id, code)
 
     async def instrument_mapper(self, stock: dict, currency: str):

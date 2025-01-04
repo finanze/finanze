@@ -24,9 +24,9 @@ class MyInvestorScraper(EntityScraper):
     def __init__(self):
         self.__client = MyInvestorAPIClient()
 
-    def login(self, credentials: tuple, **kwargs):
+    def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        self.__client.login(username, password)
+        return self.__client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
         maintenance = self.__client.check_maintenance()

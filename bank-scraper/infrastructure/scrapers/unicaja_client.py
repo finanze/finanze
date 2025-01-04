@@ -2,12 +2,14 @@ import json
 import os
 import re
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, Union
 
 import pyDes
 import requests
 from bs4 import BeautifulSoup
 from dateutil.relativedelta import relativedelta
+
+from domain.scrap_result import LoginResult
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
@@ -41,7 +43,7 @@ class UnicajaClient:
     def __init__(self, timeout=DEFAULT_TIMEOUT):
         self.__timeout = timeout
 
-    def legacy_login(self, username: str, password: str):
+    def legacy_login(self, username: str, password: str) -> dict:
 
         from seleniumwire import webdriver
         from selenium.webdriver.firefox.options import Options
@@ -82,6 +84,8 @@ class UnicajaClient:
 
             self.__setup_session(auth_request)
 
+            return {"result": LoginResult.CREATED}
+
         except TimeoutException:
             print("Timed out waiting for autenticacion.")
 
@@ -89,21 +93,35 @@ class UnicajaClient:
             if driver:
                 driver.quit()
 
-    def rest_login(self, username: str, password: str):
+    def rest_login(self, username: str, password: str) -> dict:
         self.__session = requests.Session()
 
         ck = self.ck()
         encoded_password = self.__encrypt_password(ck, password)
         auth_response = self.auth(username, encoded_password)
+        auth_response_body = auth_response.json()
 
-        self.__session.headers["tokenCSRF"] = auth_response["tokenCSRF"]
-        self.__session.headers["Content-Type"] = "application/x-www-form-urlencoded"
+        if auth_response.ok:
+            if "tokenCSRF" not in auth_response_body:
+                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
-    def login(self, username: str, password: str, rest_login: bool = True):
-        if rest_login:
-            self.rest_login(username, password)
+            self.__session.headers["tokenCSRF"] = auth_response_body["tokenCSRF"]
+            self.__session.headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+            return {"result": LoginResult.CREATED}
+
+        elif auth_response_body.status_code == 400:
+            return {"result": LoginResult.INVALID_CREDENTIALS}
+
         else:
-            self.legacy_login(username, password)
+            return {"result": LoginResult.UNEXPECTED_ERROR,
+                    "message": f"Got unexpected response code {auth_response_body.status_code}"}
+
+    def login(self, username: str, password: str, rest_login: bool = True) -> dict:
+        if rest_login:
+            return self.rest_login(username, password)
+        else:
+            return self.legacy_login(username, password)
 
     def __encrypt_password(self, key: str, password: str):
         return (
@@ -153,13 +171,17 @@ class UnicajaClient:
             method: str,
             body: dict,
             params: dict,
-            json: bool,
-    ) -> requests.Response:
+            json: bool = True,
+            raw: bool = False,
+    ) -> Union[dict, str, requests.Response]:
         response = self.__session.request(
             method, self.BASE_URL + path, data=body, params=params
         )
 
-        if response.status_code == 200:
+        if raw:
+            return response
+
+        if response.ok:
             if json:
                 return response.json()
             else:
@@ -171,13 +193,13 @@ class UnicajaClient:
 
     def __get_request(
             self, path: str, params: dict = None, json: bool = True
-    ) -> requests.Response:
+    ) -> Union[dict, str]:
         return self.__execute_request(path, "GET", body=None, json=json, params=params)
 
     def __post_request(
-            self, path: str, body: object, json: bool = True
-    ) -> requests.Response:
-        return self.__execute_request(path, "POST", body=body, json=json, params=None)
+            self, path: str, body: object, raw=False
+    ) -> Union[dict, requests.Response]:
+        return self.__execute_request(path, "POST", body=body, json=True, raw=raw, params=None)
 
     def ck(self):
         return self.__get_request("/services/rest/openapi/ck")["ck"]
@@ -189,7 +211,7 @@ class UnicajaClient:
             "password": encoded_password,
             "origen": "bdigital",
         }
-        return self.__post_request(self.AUTH_PATH, body=data)
+        return self.__post_request(self.AUTH_PATH, body=data, raw=True)
 
     def get_user(self):
         return self.__get_request("/services/rest/perfilusuario")

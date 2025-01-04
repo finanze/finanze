@@ -18,9 +18,9 @@ class UrbanitaeScraper(EntityScraper):
     def __init__(self):
         self.__client = UrbanitaeAPIClient()
 
-    def login(self, credentials: tuple, **kwargs):
+    def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        self.__client.login(username, password)
+        return self.__client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
         wallet = self.__client.get_wallet()

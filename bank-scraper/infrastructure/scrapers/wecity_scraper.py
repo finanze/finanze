@@ -1,6 +1,5 @@
 from datetime import datetime, date
 from hashlib import sha1
-from typing import Optional
 
 from dateutil.tz import tzlocal
 
@@ -17,11 +16,12 @@ class WecityScraper(EntityScraper):
     def __init__(self):
         self.__client = WecityAPIClient()
 
-    def login(self, credentials: tuple, **kwargs) -> Optional[dict]:
+    def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
         process_id = kwargs.get("processId", None)
         code = kwargs.get("code", None)
         avoid_new_login = kwargs.get("avoidNewLogin", False)
+
         return self.__client.login(username, password, avoid_new_login, process_id, code)
 
     async def global_position(self) -> GlobalPosition:

@@ -12,9 +12,9 @@ class UnicajaScraper(EntityScraper):
     def __init__(self):
         self.__client = UnicajaClient()
 
-    def login(self, credentials: tuple, **kwargs):
+    def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        self.__client.login(username, password)
+        return self.__client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
         accounts_response = self.__client.list_accounts()

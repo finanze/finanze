@@ -1,9 +1,10 @@
 import os
 import pathlib
 from http.cookiejar import MozillaCookieJar, Cookie
-from typing import Optional
 
 import requests
+
+from domain.scrap_result import LoginResult
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -43,16 +44,16 @@ class WecityAPIClient:
               password: str,
               avoid_new_login: bool = False,
               process_id: str = None,
-              code: str = None) -> Optional[dict]:
+              code: str = None) -> dict:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
         if self._resume_web_session():
             print("Web session resumed")
-            return None
+            return {"result": LoginResult.RESUMED}
 
         if code and process_id:
             if len(code) != 6:
-                return {"success": False, "message": "Invalid code"}
+                return {"result": LoginResult.INVALID_CODE}
 
             body = ""
             for pos in range(len(code)):
@@ -67,41 +68,45 @@ class WecityAPIClient:
             self.__session.cookies.set_cookie(session_cookie)
             response = self.__session.request("POST", self.BASE_OLD_URL + "/login", data=body, headers=headers)
 
-            if response.status_code != 200:
-                return {"success": False, "message": "Unknown error"}
+            if not response.ok:
+                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
 
             response_text = response.text
+            if "El código introducido no es correcto" in response_text:
+                return {"result": LoginResult.INVALID_CODE}
+
             if "Entrar en mi cuenta" in response_text:
-                return {"success": False, "message": "Unknown error"}
+                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
             self.__session.cookies.save(ignore_discard=True, ignore_expires=True)
             self.__add_auth_headers()
 
-            return None
+            return {"result": LoginResult.CREATED}
 
         elif not process_id and not code:
             if not avoid_new_login:
                 body = f"usuario={username}&password={password}&boton-login="
                 response = self.__session.request("POST", self.BASE_OLD_URL + "/login", data=body, headers=headers)
 
-                if response.status_code != 200:
-                    return {"success": False, "message": "Unknown error"}
+                if not response.ok:
+                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
 
                 response_text = response.text
                 if "Tu usuario o contraseña no son correctos" in response_text:
-                    return {"success": False, "message": "Invalid credentials"}
+                    return {"result": LoginResult.INVALID_CREDENTIALS}
 
                 if "Doble Factor de Autenticación" in response_text:
                     process_id = requests.utils.dict_from_cookiejar(self.__session.cookies)["PHPSESSID"]
-                    return {"success": True, "processId": process_id}
+                    return {"result": LoginResult.CODE_REQUESTED, "processId": process_id}
+
+                print(response_text)
+                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
             else:
-                return {"success": False}
+                return {"result": LoginResult.NOT_LOGGED}
 
         else:
             raise ValueError("Invalid params")
-
-        return {"success": False, "message": "Unknown error"}
 
     def _resume_web_session(self):
         if self._cookies_file.exists():

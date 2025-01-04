@@ -1,9 +1,11 @@
 from datetime import date, datetime
-from typing import Optional
+from typing import Optional, Union
 
 import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
+
+from domain.scrap_result import LoginResult
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -16,13 +18,16 @@ class UrbanitaeAPIClient:
         self.__user_info = None
 
     def __execute_request(
-            self, path: str, method: str, body: dict
-    ) -> requests.Response:
+            self, path: str, method: str, body: dict, raw: bool = False
+    ) -> Union[dict, requests.Response]:
         response = requests.request(
             method, self.BASE_URL + path, json=body, headers=self.__headers
         )
 
-        if response.status_code == 200:
+        if raw:
+            return response
+
+        if response.ok:
             return response.json()
 
         print("Error Status Code:", response.status_code)
@@ -32,10 +37,10 @@ class UrbanitaeAPIClient:
     def __get_request(self, path: str) -> requests.Response:
         return self.__execute_request(path, "GET", body=None)
 
-    def __post_request(self, path: str, body: dict) -> requests.Response:
-        return self.__execute_request(path, "POST", body=body)
+    def __post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
+        return self.__execute_request(path, "POST", body=body, raw=raw)
 
-    def login(self, username: str, password: str):
+    def login(self, username: str, password: str) -> dict:
         self.__headers = dict()
         self.__headers["Content-Type"] = "application/json"
         self.__headers["User-Agent"] = (
@@ -47,9 +52,24 @@ class UrbanitaeAPIClient:
             "username": username,
             "password": password
         }
-        response = self.__post_request("/session", body=request)
-        self.__user_info = response
-        self.__headers["x-auth-token"] = response["token"]
+        response = self.__post_request("/session", body=request, raw=True)
+
+        if response.ok:
+            response_body = response.json()
+            if "token" not in response_body:
+                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+
+            self.__user_info = response_body
+            self.__headers["x-auth-token"] = response_body["token"]
+
+            return {"result": LoginResult.CREATED}
+
+        elif response.status_code == 401:
+            return {"result": LoginResult.INVALID_CREDENTIALS}
+
+        else:
+            return {"result": LoginResult.UNEXPECTED_ERROR,
+                    "message": f"Got unexpected response code {response.status_code}"}
 
     def get_user(self):
         return self.__user_info
