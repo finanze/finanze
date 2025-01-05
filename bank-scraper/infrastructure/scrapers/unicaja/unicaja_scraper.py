@@ -4,7 +4,7 @@ from dateutil.relativedelta import relativedelta
 
 from application.ports.entity_scraper import EntityScraper
 from domain.global_position import Account, Cards, Card, Mortgage, GlobalPosition, AccountAdditionalData
-from infrastructure.scrapers.unicaja_client import UnicajaClient
+from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 
 
 class UnicajaScraper(EntityScraper):

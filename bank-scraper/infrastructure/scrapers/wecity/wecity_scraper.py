@@ -8,7 +8,7 @@ from domain.financial_entity import Entity
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, SourceType, \
     Account
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
-from infrastructure.scrapers.wecity_client import WecityAPIClient
+from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 
 
 class WecityScraper(EntityScraper):

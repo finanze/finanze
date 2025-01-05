@@ -6,7 +6,7 @@ from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.financial_entity import Entity
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, SourceType
 from domain.transactions import Transactions, StockTx, TxProductType, TxType, AccountTx
-from infrastructure.scrapers.trade_republic_client import TradeRepublicClient
+from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
 
 
 def parse_sub_section_float(section: dict):

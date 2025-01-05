@@ -17,12 +17,12 @@ from infrastructure.controller.controllers import Controllers
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
 from infrastructure.repository.position_repository import PositionRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
-from infrastructure.scrapers.myinvestor_scraper import MyInvestorScraper
-from infrastructure.scrapers.sego_scraper import SegoScraper
-from infrastructure.scrapers.trade_republic_scraper import TradeRepublicScraper
-from infrastructure.scrapers.unicaja_scraper import UnicajaScraper
-from infrastructure.scrapers.urbanitae_scraper import UrbanitaeScraper
-from infrastructure.scrapers.wecity_scraper import WecityScraper
+from infrastructure.scrapers.myinvestor.myinvestor_scraper import MyInvestorScraper
+from infrastructure.scrapers.sego.sego_scraper import SegoScraper
+from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScraper
+from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
+from infrastructure.scrapers.urbanitae.urbanitae_scraper import UrbanitaeScraper
+from infrastructure.scrapers.wecity.wecity_scraper import WecityScraper
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 

@@ -10,7 +10,7 @@ from domain.financial_entity import Entity
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
     GlobalPosition, SourceType, Account
 from domain.transactions import Transactions, TxType, TxProductType, FactoringTx
-from infrastructure.scrapers.sego_client import SegoAPIClient
+from infrastructure.scrapers.sego.sego_client import SegoAPIClient
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M"
 TAG_TIME_FORMAT = "%H:%M:%S"

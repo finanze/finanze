@@ -11,7 +11,7 @@ from domain.global_position import Account, AccountAdditionalData, Cards, Card, 
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
     Deposit, Deposits, SourceType
 from domain.transactions import Transactions, FundTx, TxType, StockTx, TxProductType
-from infrastructure.scrapers.myinvestor_client import MyInvestorAPIClient
+from infrastructure.scrapers.myinvestor.myinvestor_client import MyInvestorAPIClient
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
 TIME_FORMAT = "%H:%M:%S"

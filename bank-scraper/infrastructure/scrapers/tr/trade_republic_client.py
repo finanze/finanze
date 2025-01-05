@@ -8,8 +8,8 @@ from pytr.portfolio import Portfolio
 from requests import HTTPError
 
 from domain.scrap_result import LoginResult
-from infrastructure.scrapers.tr_details import TRDetails
-from infrastructure.scrapers.tr_timeline import TRTimeline
+from infrastructure.scrapers.tr.tr_details import TRDetails
+from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 
 
 class TradeRepublicClient:

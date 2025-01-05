@@ -6,7 +6,7 @@ from domain.financial_entity import Entity
 from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, SourceType, \
     Account
 from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
-from infrastructure.scrapers.urbanitae_client import UrbanitaeAPIClient
+from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
 
 FUNDED_STATES = ["FUNDED", "POST_PREFUNDING", "FORMALIZED"]
 CANCELLED_STATES = ["CLOSED", "CANCELED", "CANCELED_WITH_COMPENSATION"]
