@@ -1,6 +1,7 @@
 from typing import Union
 
 import requests
+from cachetools import TTLCache, cached
 
 from domain.scrap_result import LoginResult
 
@@ -66,13 +67,18 @@ class SegoAPIClient:
             return {"result": LoginResult.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {response.status_code}"}
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_user(self):
         return self.__get_request("/core/v1/InformacionBasica")
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_wallet(self):
         return self.__get_request("/core/v1/wallet")
 
-    def get_investments(self, states: list[str] = []):
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_investments(self, states: set[str] = frozenset([])):
+        states = list(states)
+
         request = {
             "tipoEstadoOperacionCodigoArray": states,
             "tipoEstadoRondaCodigo": "",
@@ -85,9 +91,11 @@ class SegoAPIClient:
         }
         return self.__post_request("/factoring/v1/Inversiones/Filter", body=request)["list"]
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_pending_investments(self):
         return self.__get_request("/factoring/v1/Inversiones/Pendientes")
 
+    @cached(cache=TTLCache(maxsize=10, ttl=120))
     def get_movements(self, page: int = 0):
         params = f"?page={page}&limit=100"
         return self.__get_request(f"/core/v1/Wallet/Transactions{params}")

@@ -3,8 +3,14 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from domain.financial_entity import Entity
 from domain.global_position import SourceType, BaseData
+
+
+class ProductType(str, Enum):
+    FUND = "FUND"
+    STOCK_ETF = "STOCK_ETF"
+    FACTORING = "FACTORING"
+    REAL_STATE_CF = "REAL_STATE_CF"
 
 
 class TxType(str, Enum):
@@ -23,13 +29,6 @@ class TxType(str, Enum):
     INTEREST = "INTEREST"
 
 
-class TxProductType(str, Enum):
-    FUND = "FUND"
-    STOCK_ETF = "STOCK_ETF"
-    FACTORING = "FACTORING"
-    REAL_STATE_CF = "REAL_STATE_CF"
-
-
 @dataclass
 class BaseTx(BaseData):
     id: str
@@ -39,13 +38,13 @@ class BaseTx(BaseData):
     currencySymbol: str
     type: TxType
     date: datetime
-    entity: Entity
+    entity: str
     sourceType: SourceType
 
 
 @dataclass
 class BaseInvestmentTx(BaseTx):
-    productType: TxProductType
+    productType: ProductType
 
 
 @dataclass

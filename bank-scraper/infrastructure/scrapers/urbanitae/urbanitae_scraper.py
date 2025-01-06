@@ -4,8 +4,8 @@ from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.financial_entity import Entity
 from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, SourceType, \
-    Account
-from domain.transactions import Transactions, RealStateCFTx, TxType, TxProductType
+    Account, HistoricalPosition
+from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
 
 FUNDED_STATES = ["FUNDED", "POST_PREFUNDING", "FORMALIZED"]
@@ -30,26 +30,8 @@ class UrbanitaeScraper(EntityScraper):
 
         investments_data = self.__client.get_investments()
 
-        def map_investment(inv):
-            project_details = self.__client.get_project_detail(inv["projectId"])
-
-            months = project_details["details"]["investmentPeriod"]
-            interest_rate = project_details["fund"]["apreciationProfitability"]
-
-            return RealStateCFDetail(
-                name=inv["projectName"],
-                amount=round(inv["investedQuantityActive"], 2),
-                interestRate=round(interest_rate / 100, 4),
-                lastInvestDate=datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT),
-                months=int(months),
-                potentialExtension=None,
-                type=inv["projectType"],
-                businessType=inv["projectBusinessModel"],
-                state=inv["projectPhase"],
-            )
-
         real_state_cf_inv_details = [
-            map_investment(inv)
+            self.map_investment(inv)
             for inv in investments_data if inv["projectPhase"] in FUNDED_STATES
         ]
 
@@ -70,6 +52,26 @@ class UrbanitaeScraper(EntityScraper):
         return GlobalPosition(
             account=account,
             investments=investments
+        )
+
+    def map_investment(self, inv):
+        project_details = self.__client.get_project_detail(inv["projectId"])
+
+        months = project_details["details"]["investmentPeriod"]
+        interest_rate = project_details["fund"]["apreciationProfitability"]
+
+        return RealStateCFDetail(
+            name=inv["projectName"],
+            amount=round(inv["investedQuantityActive"], 2),
+            currency="EUR",
+            currencySymbol="€",
+            interestRate=round(interest_rate / 100, 4),
+            lastInvestDate=datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT),
+            months=int(months),
+            potentialExtension=None,
+            type=inv["projectType"],
+            businessType=inv["projectBusinessModel"],
+            state=inv["projectPhase"],
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
@@ -99,7 +101,7 @@ class UrbanitaeScraper(EntityScraper):
                 type=tx_type,
                 date=datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT),
                 entity=Entity.URBANITAE,
-                productType=TxProductType.REAL_STATE_CF,
+                productType=ProductType.REAL_STATE_CF,
                 fees=round(tx["fee"], 2),
                 retentions=0,
                 interests=0,
@@ -108,3 +110,21 @@ class UrbanitaeScraper(EntityScraper):
             ))
 
         return Transactions(investment=txs)
+
+    async def historical_position(self) -> HistoricalPosition:
+        investments_data = self.__client.get_investments()
+
+        real_state_cf_inv_details = [
+            self.map_investment(inv)
+            for inv in investments_data
+        ]
+
+        return HistoricalPosition(
+            investments=Investments(
+                realStateCF=RealStateCFInvestments(
+                    invested=0,
+                    weightedInterestRate=0,
+                    details=real_state_cf_inv_details
+                )
+            )
+        )

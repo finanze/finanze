@@ -5,8 +5,7 @@ from pymongo import MongoClient
 
 from application.ports.transaction_port import TransactionPort
 from domain.global_position import SourceType
-from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, TxProductType, \
-    RealStateCFTx, AccountTx
+from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, RealStateCFTx, AccountTx
 from infrastructure.repository.position_repository import map_serializable
 
 
@@ -56,7 +55,7 @@ class TransactionRepository(TransactionPort):
         self.db = self.client[db_name]
         self.collection = self.db["transactions"]
 
-    def save(self, data: Transactions) -> None:
+    def save(self, data: Transactions):
         self._save(data.investment, self.INVESTMENT_CATEGORY)
         self._save(data.account, self.ACCOUNT_CATEGORY)
 
@@ -86,21 +85,6 @@ class TransactionRepository(TransactionPort):
 
         return map_transactions(investment_result, account_result)
 
-    def get_by_product(self, product_types: list[TxProductType]) -> Transactions:
-        product_types = [product_type.value for product_type in product_types]
-
-        investment_result = self.collection.find(
-            {"productType": {"$in": product_types}, "category": self.INVESTMENT_CATEGORY},
-            {"_id": 0, "createdAt": 0, "category": 0}
-        ).sort("date", 1)
-
-        account_result = self.collection.find(
-            {"productType": {"$in": product_types}, "category": self.ACCOUNT_CATEGORY},
-            {"_id": 0, "createdAt": 0, "category": 0}
-        ).sort("date", 1)
-
-        return map_transactions(investment_result, account_result)
-
     def get_ids_by_entity(self, entity: str) -> set[str]:
         pipeline = [
             {"$match": {"entity": entity}},
@@ -108,6 +92,19 @@ class TransactionRepository(TransactionPort):
         ]
         result = self.collection.aggregate(pipeline)
         return {doc["id"] for doc in result}
+
+    def get_by_entity(self, entity: str) -> Transactions:
+        investment_result = (self.collection.find(
+            {"entity": entity, "category": self.INVESTMENT_CATEGORY},
+            {"_id": 0, "createdAt": 0, "category": 0}
+        ).sort("date", 1))
+
+        account_result = (self.collection.find(
+            {"entity": entity, "category": self.ACCOUNT_CATEGORY},
+            {"_id": 0, "createdAt": 0, "category": 0}
+        ).sort("date", 1))
+
+        return map_transactions(investment_result, account_result)
 
     def get_ids_by_source_type(self, source_type: SourceType) -> set[str]:
         pipeline = [

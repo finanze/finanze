@@ -102,6 +102,8 @@ class FundDetail(BaseData):
 class FactoringDetail(BaseData):
     name: str
     amount: float
+    currency: str
+    currencySymbol: str
     interestRate: float
     netInterestRate: float
     lastInvestDate: Optional[datetime]
@@ -114,6 +116,8 @@ class FactoringDetail(BaseData):
 class RealStateCFDetail(BaseData):
     name: str
     amount: float
+    currency: str
+    currencySymbol: str
     interestRate: float
     lastInvestDate: datetime
     months: int
@@ -195,6 +199,11 @@ class GlobalPosition:
     def __post_init__(self):
         if self.date is None:
             self.date = datetime.now(tzlocal())
+
+
+@dataclass
+class HistoricalPosition:
+    investments: Investments
 
 
 class SourceType(str, Enum):

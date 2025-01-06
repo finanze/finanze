@@ -5,6 +5,7 @@ import re
 from http.cookiejar import MozillaCookieJar, Cookie
 
 import requests
+from cachetools import TTLCache, cached
 
 from domain.scrap_result import LoginResult
 
@@ -138,17 +139,22 @@ class WecityAPIClient:
         except requests.exceptions.HTTPError:
             return False
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_user(self):
         return self.__get_request("/ajax/ajax.php?option=checkuser")["data"]
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_wallet(self):
         return self.__get_request("/customers/me/wallet", api_url=True)["return"]
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_investments(self):
         return self.__get_request("/customers/me/invests-all", api_url=True)["return"]["data"]
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_investment_details(self, investment_id: int):
         return self.__get_request(f"/investments/{investment_id}/general", api_url=True)["return"]
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_transactions(self):
         return self.__get_request("/customers/me/transactions", api_url=True)["return"]

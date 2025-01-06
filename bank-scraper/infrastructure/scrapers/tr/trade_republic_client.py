@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 from typing import Optional
 
+from cachetools import TTLCache, cached
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from requests import HTTPError
@@ -69,6 +70,7 @@ class TradeRepublicClient:
     async def close(self):
         await self.__tr_api._ws.close()
 
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     async def get_portfolio(self):
         portfolio = Portfolio(self.__tr_api)
         await portfolio.portfolio_loop()

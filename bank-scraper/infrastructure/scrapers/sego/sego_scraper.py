@@ -1,3 +1,4 @@
+import copy
 from datetime import date, datetime
 from hashlib import sha1
 from typing import Optional
@@ -8,15 +9,15 @@ from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.financial_entity import Entity
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
-    GlobalPosition, SourceType, Account
-from domain.transactions import Transactions, TxType, TxProductType, FactoringTx
+    GlobalPosition, SourceType, Account, HistoricalPosition
+from domain.transactions import Transactions, TxType, ProductType, FactoringTx
 from infrastructure.scrapers.sego.sego_client import SegoAPIClient
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M"
 TAG_TIME_FORMAT = "%H:%M:%S"
 
 ACTIVE_SEGO_STATES = ["disputa", "gestionando-cobro", "no-llego-fecha-cobro"]
-FINISHED_SEGO_STATES = ["cobrado", "fallido"]
+FINISHED_SEGO_STATES = frozenset({"cobrado", "fallido"})
 
 
 def parse_tag(tag: str) -> dict:
@@ -52,7 +53,7 @@ def map_txs(ref: str,
         type=tx_type,
         date=tx_date,
         entity=Entity.SEGO,
-        productType=TxProductType.FACTORING,
+        productType=ProductType.FACTORING,
         fees=fee,
         retentions=tax,
         interests=interests,
@@ -85,54 +86,7 @@ class SegoScraper(EntityScraper):
 
         factoring_investments = []
         for investment in active_sego_investments:
-            raw_proj_type = investment["tipoOperacionCodigo"]
-            proj_type = None
-            if raw_proj_type == "admin-publica":
-                proj_type = "PUBLIC_ADMIN"
-            elif raw_proj_type == "con-seguro":
-                proj_type = "INSURED"
-            elif raw_proj_type == "sin-seguro":
-                proj_type = "NON_INSURED"
-
-            raw_state = investment["tipoEstadoOperacionCodigo"]
-            state = "disputado"
-            if raw_state == "no-llego-fecha-cobro":
-                state = "MATURITY_NOT_REACHED"
-            elif raw_state == "gestionando-cobro":
-                state = "MANAGING_COLLECTION"
-            elif raw_state == "fallido":
-                state = "FAILED"
-            elif raw_state == "cobrado":
-                state = "COLLECTED"
-
-            name = investment["nombreOperacion"]
-            interest_rate = investment["tasaInteres"]
-
-            last_invest_date = next(
-                (
-                    movement["date"]
-                    for movement in investment_movements
-                    if name in movement["mensajeCompleto"]
-                ),
-                None,
-            )
-
-            factoring_investments.append(
-                FactoringDetail(
-                    name=name,
-                    amount=round(float(investment["importe"]), 2),
-                    interestRate=round(interest_rate / 100, 4),
-                    netInterestRate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
-                    lastInvestDate=last_invest_date,
-                    maturity=(
-                        date.fromisoformat(investment["fechaDevolucion"][:10])
-                        if investment["fechaDevolucion"]
-                        else None
-                    ),
-                    type=proj_type,
-                    state=state
-                )
-            )
+            factoring_investments.append(self.map_investment(investment_movements, investment))
 
         total_invested = sum([investment.amount for investment in factoring_investments])
         weighted_net_interest_rate = round(
@@ -161,8 +115,63 @@ class SegoScraper(EntityScraper):
             ),
         )
 
-    def _get_normalized_movements(self, types=[], subtypes=[]) -> list[dict]:
-        raw_movements = self.__client.get_movements()
+    def map_investment(self, investment_movements, investment):
+        raw_proj_type = investment["tipoOperacionCodigo"]
+        proj_type = None
+        if raw_proj_type == "admin-publica":
+            proj_type = "PUBLIC_ADMIN"
+        elif raw_proj_type == "con-seguro":
+            proj_type = "INSURED"
+        elif raw_proj_type == "sin-seguro":
+            proj_type = "NON_INSURED"
+
+        raw_state = investment["tipoEstadoOperacionCodigo"]
+        state = "disputado"
+        if raw_state == "no-llego-fecha-cobro":
+            state = "MATURITY_NOT_REACHED"
+        elif raw_state == "gestionando-cobro":
+            state = "MANAGING_COLLECTION"
+        elif raw_state == "fallido":
+            state = "FAILED"
+        elif raw_state == "cobrado":
+            state = "COLLECTED"
+
+        name = investment["nombreOperacion"].strip()
+        interest_rate = investment["tasaInteres"]
+
+        last_invest_date = next(
+            (
+                movement["date"]
+                for movement in investment_movements
+                if name in movement["mensajeCompleto"]
+            ),
+            None,
+        )
+
+        return FactoringDetail(
+            name=name,
+            amount=round(float(investment["importe"]), 2),
+            currency="EUR",
+            currencySymbol="€",
+            interestRate=round(interest_rate / 100, 4),
+            netInterestRate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
+            lastInvestDate=last_invest_date,
+            maturity=(
+                date.fromisoformat(investment["fechaDevolucion"][:10])
+                if investment["fechaDevolucion"]
+                else None
+            ),
+            type=proj_type,
+            state=state
+        )
+
+    def _get_normalized_movements(self, types=None, subtypes=None) -> list[dict]:
+        if subtypes is None:
+            subtypes = []
+        if types is None:
+            types = []
+
+        raw_movements = copy.deepcopy(self.__client.get_movements())
         normalized_movs = []
         for movement in raw_movements:
             if (not types or movement["type"] in types) and (not subtypes or movement["tipo"] in subtypes):
@@ -196,7 +205,7 @@ class SegoScraper(EntityScraper):
         return Transactions(investment=factoring_txs)
 
     def scrape_factoring_txs(self, registered_txs: set[str]) -> list[FactoringTx]:
-        completed_investments = self.__client.get_investments(["cobrado"])
+        completed_investments = self.__client.get_investments(FINISHED_SEGO_STATES)
 
         txs = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring", "Devolución Capital"])
 
@@ -208,7 +217,7 @@ class SegoScraper(EntityScraper):
                 print(f"No tag in SEGO transaction: {tx}")
                 continue
 
-            investment_name = tag_props["operacion"]
+            investment_name = tag_props["operacion"].strip()
             tx_date = tx["date"]
             raw_tx_type = tx["tipo"].lower()
             tx_type = TxType.INVESTMENT if "inversión" in raw_tx_type else TxType.MATURITY
@@ -222,7 +231,7 @@ class SegoScraper(EntityScraper):
             if tx_type == TxType.MATURITY:
                 matching_investment = next(
                     (investment for investment in completed_investments if
-                     investment["nombreOperacion"] == investment_name),
+                     investment["nombreOperacion"].strip() == investment_name),
                     None,
                 )
                 fee = round(float(matching_investment["comision"]), 2)
@@ -243,3 +252,25 @@ class SegoScraper(EntityScraper):
                         tx_type: TxType) -> str:
         return sha1(
             f"S_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
+
+    async def historical_position(self) -> HistoricalPosition:
+        investment_movements = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring"])
+
+        raw_sego_investments = self.__client.get_investments() + self.__client.get_pending_investments()
+        active_sego_investments = [
+            investment for investment in raw_sego_investments
+        ]
+
+        factoring_investments = []
+        for investment in active_sego_investments:
+            factoring_investments.append(self.map_investment(investment_movements, investment))
+
+        return HistoricalPosition(
+            investments=Investments(
+                factoring=FactoringInvestments(
+                    invested=0,
+                    weightedInterestRate=0,
+                    details=factoring_investments
+                )
+            )
+        )

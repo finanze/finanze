@@ -5,7 +5,7 @@ from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.financial_entity import Entity
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, SourceType
-from domain.transactions import Transactions, StockTx, TxProductType, TxType, AccountTx
+from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
 
 
@@ -70,7 +70,7 @@ def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
         fees=fees + taxes,
         retentions=0,
         orderDate=None,
-        productType=TxProductType.STOCK_ETF,
+        productType=ProductType.STOCK_ETF,
         sourceType=SourceType.REAL,
         linkedTx=None
     )

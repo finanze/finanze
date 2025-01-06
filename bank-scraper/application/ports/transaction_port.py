@@ -1,14 +1,13 @@
 import abc
 from datetime import datetime
 
-from domain.financial_entity import Entity
 from domain.global_position import SourceType
-from domain.transactions import Transactions, TxProductType
+from domain.transactions import Transactions
 
 
 class TransactionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, data: Transactions) -> None:
+    def save(self, data: Transactions):
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -16,11 +15,11 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_product(self, product_types: list[TxProductType]) -> Transactions:
+    def get_ids_by_entity(self, entity: str) -> set[str]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_ids_by_entity(self, entity: str) -> set[str]:
+    def get_by_entity(self, entity: str) -> Transactions:
         raise NotImplementedError
 
     @abc.abstractmethod

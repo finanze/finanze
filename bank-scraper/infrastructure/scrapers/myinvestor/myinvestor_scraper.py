@@ -10,7 +10,7 @@ from domain.global_position import Account, AccountAdditionalData, Cards, Card, 
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
     Deposit, Deposits, SourceType
-from domain.transactions import Transactions, FundTx, TxType, StockTx, TxProductType
+from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.myinvestor_client import MyInvestorAPIClient
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
@@ -305,7 +305,7 @@ class MyInvestorScraper(EntityScraper):
                     fees=round(execution_op["comisiones"], 2),
                     retentions=0,
                     date=execution_date,
-                    productType=TxProductType.FUND,
+                    productType=ProductType.FUND,
                     sourceType=SourceType.REAL
                 )
             )
@@ -372,7 +372,7 @@ class MyInvestorScraper(EntityScraper):
                     fees=round(fees, 2),
                     retentions=0,
                     date=execution_date,
-                    productType=TxProductType.STOCK_ETF,
+                    productType=ProductType.STOCK_ETF,
                     sourceType=SourceType.REAL,
                     linkedTx=None
                 )

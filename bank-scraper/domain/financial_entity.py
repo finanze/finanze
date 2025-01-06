@@ -14,6 +14,7 @@ class Feature(str, Enum):
     POSITION = "POSITION",
     AUTO_CONTRIBUTIONS = "AUTO_CONTRIBUTIONS",
     TRANSACTIONS = "TRANSACTIONS"
+    HISTORIC = "HISTORIC"
 
 
 ENTITY_DETAILS = {
@@ -38,12 +39,12 @@ ENTITY_DETAILS = {
     Entity.URBANITAE: {
         "id": Entity.URBANITAE,
         "name": "Urbanitae",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS]
+        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC]
     },
     Entity.WECITY: {
         "id": Entity.WECITY,
         "name": "Wecity",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS],
+        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
         "pin": {
             "positions": 6
         }
@@ -51,6 +52,6 @@ ENTITY_DETAILS = {
     Entity.SEGO: {
         "id": Entity.SEGO,
         "name": "SEGO",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS]
+        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC]
     }
 }
