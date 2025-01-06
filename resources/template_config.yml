@@ -35,6 +35,9 @@ export:
       - range: All TXs
         data: [ investment, account ]
 
+    historic:
+      - range: Historic
+
 scrape:
   enabledEntities:
     - UNICAJA

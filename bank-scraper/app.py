@@ -77,6 +77,7 @@ update_sheets = UpdateSheetsImpl(
     position_repository,
     auto_contrib_repository,
     transaction_repository,
+    historic_repository,
     SheetsExporter(),
     config_loader)
 virtual_scrape = VirtualScrapeImpl(

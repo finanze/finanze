@@ -2,11 +2,13 @@ from datetime import datetime
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
+from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
 from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions
 from domain.global_position import GlobalPosition
+from domain.historic import Historic
 from domain.transactions import Transactions
 from domain.use_cases.update_sheets import UpdateSheets
 
@@ -28,11 +30,13 @@ class UpdateSheetsImpl(UpdateSheets):
                  position_port: PositionPort,
                  auto_contr_port: AutoContributionsPort,
                  transaction_port: TransactionPort,
+                 historic_port: HistoricPort,
                  sheets_update_port: SheetsUpdatePort,
                  config_port: ConfigPort):
         self.position_port = position_port
         self.auto_contr_port = auto_contr_port
         self.transaction_port = transaction_port
+        self.historic_port = historic_port
         self.sheets_update_port = sheets_update_port
         self.config_port = config_port
 
@@ -40,16 +44,18 @@ class UpdateSheetsImpl(UpdateSheets):
         config = self.config_port.load()
         sheets_export_config = config["export"]["sheets"]
 
-        config_globals = sheets_export_config["globals"]
+        config_globals = sheets_export_config.get("globals", {})
 
-        summary_configs = sheets_export_config["summary"]
-        investment_configs = sheets_export_config["investments"]
-        contrib_configs = sheets_export_config["contributions"]
-        tx_configs = sheets_export_config["transactions"]
+        summary_configs = sheets_export_config.get("summary", [])
+        investment_configs = sheets_export_config.get("investments", [])
+        contrib_configs = sheets_export_config.get("contributions", [])
+        tx_configs = sheets_export_config.get("transactions", [])
+        historic_configs = sheets_export_config.get("historic", [])
         apply_global_config(config_globals, summary_configs)
         apply_global_config(config_globals, investment_configs)
         apply_global_config(config_globals, contrib_configs)
         apply_global_config(config_globals, tx_configs)
+        apply_global_config(config_globals, historic_configs)
 
         global_position = self.position_port.get_last_grouped_by_entity()
 
@@ -63,6 +69,9 @@ class UpdateSheetsImpl(UpdateSheets):
         transactions = self.transaction_port.get_all()
         transactions_last_update = self.transaction_port.get_last_created_grouped_by_entity()
         self.update_transactions(transactions, tx_configs, transactions_last_update)
+
+        historic = self.historic_port.get_all()
+        self.update_historic(historic, historic_configs)
 
     def update_summary_sheets(self, global_position: dict[str, GlobalPosition], summary_configs):
         for config in summary_configs:
@@ -81,10 +90,18 @@ class UpdateSheetsImpl(UpdateSheets):
         for config in contrib_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields
+
             self.sheets_update_port.update_sheet(contributions, config, last_update)
 
     def update_transactions(self, transactions: Transactions, tx_configs, last_update: dict[str, datetime]):
         for config in tx_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields
+
             self.sheets_update_port.update_sheet(transactions, config, last_update)
+
+    def update_historic(self, historic: Historic, historic_configs):
+        for config in historic_configs:
+            config["data"] = ["entries"]
+
+            self.sheets_update_port.update_sheet(historic, config)

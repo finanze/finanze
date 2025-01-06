@@ -63,6 +63,8 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
                 FactoringDetail(
                     name=detail["name"],
                     amount=detail["amount"],
+                    currency=detail.get("currency", None),
+                    currencySymbol=detail.get("currencySymbol", None),
                     interestRate=detail["interestRate"],
                     netInterestRate=detail["netInterestRate"],
                     lastInvestDate=detail["lastInvestDate"],
@@ -82,6 +84,8 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
                 RealStateCFDetail(
                     name=detail["name"],
                     amount=detail["amount"],
+                    currency=detail.get("currency", None),
+                    currencySymbol=detail.get("currencySymbol", None),
                     interestRate=detail["interestRate"],
                     lastInvestDate=detail["lastInvestDate"],
                     months=detail["months"],
