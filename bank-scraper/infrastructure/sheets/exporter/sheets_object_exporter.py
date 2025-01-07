@@ -107,6 +107,8 @@ def map_products(
                         target_data = getattr(target_data, field)
 
                     for product in target_data:
+                        if not matches_filters(product, config):
+                            continue
                         product_rows.append(map_product_row(product, entity, field_path, columns, config))
                 except AttributeError:
                     pass
@@ -120,9 +122,26 @@ def map_products(
                 target_data = getattr(target_data, field)
 
             for product in target_data:
+                if not matches_filters(product, config):
+                    continue
                 product_rows.append(map_product_row(product, None, None, columns, config))
 
     return product_rows
+
+
+def matches_filters(element, config):
+    filters = config.get("filters", [])
+    match = True
+    for filter_rule in filters:
+        filtered_field = filter_rule["field"]
+        matching_values = filter_rule["values"]
+        matching_values = [matching_values] if not isinstance(matching_values, list) else matching_values
+        matching_values = [str(value) for value in matching_values]
+        value = str(getattr(element, filtered_field))
+        if value not in matching_values:
+            match = False
+            break
+    return match
 
 
 def map_product_row(details, entity, p_type, columns, config) -> list[str]:

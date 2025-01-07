@@ -32,11 +32,24 @@ export:
         data: investment
       - range: Account TXs
         data: account
+        datetimeFormat: "%-Y-%-m-%-d / %-I:%-M:%-S %Z"
+        dateFormat: "%-Y-%-m-%-d"
+        filters:
+          - field: entity
+            values: TRADE_REPUBLIC
       - range: All TXs
         data: [ investment, account ]
 
     historic:
-      - range: Historic
+      - range: Factoring Historic
+        # data is not available for historic
+        filters:
+          - field: productType
+            values: FACTORING
+          - field: state
+            values:
+              - COLLECTED
+              - MANAGING_COLLECTION
 
 scrape:
   enabledEntities:
