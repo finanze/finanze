@@ -107,7 +107,7 @@ class WecityAPIClient:
                 if match:
                     json_str = match.group(1)
                     user_data = json.loads(json_str)
-                    token = user_data.get("token")
+                    token = user_data.get("data", {}).get("token")
                     if not token:
                         print(user_data)
                         return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found when refreshing"}
