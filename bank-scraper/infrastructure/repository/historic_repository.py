@@ -40,7 +40,7 @@ class HistoricRepository(HistoricPort):
         entries = (self.collection.find(
             {},
             {"_id": 0, "createdAt": 0}
-        ).sort("date", 1))
+        ).sort("lastInvestDate", 1))
 
         return map_transactions(entries)
 
