@@ -8,11 +8,15 @@ from domain.historic import Historic, FactoringEntry, RealStateCFEntry
 from infrastructure.repository.position_repository import map_serializable
 
 
-def map_transactions(entries) -> Historic:
-    factoring_entries = [FactoringEntry(**doc) for doc in entries if doc["productType"] == "FACTORING"]
-    real_state_entries = [RealStateCFEntry(**doc) for doc in entries if doc["productType"] == "REAL_STATE_CF"]
+def map_transactions(raw_entries) -> Historic:
+    entries = []
+    for doc in raw_entries:
+        if doc["productType"] == "FACTORING":
+            entries.append(FactoringEntry(**doc))
+        elif doc["productType"] == "REAL_STATE_CF":
+            entries.append(RealStateCFEntry(**doc))
 
-    return Historic(entries=factoring_entries + real_state_entries)
+    return Historic(entries=entries)
 
 
 class HistoricRepository(HistoricPort):

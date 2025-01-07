@@ -13,6 +13,7 @@ class BaseHistoricEntry:
     currency: str
     currencySymbol: str
     lastInvestDate: datetime
+    lastTxDate: datetime
     effectiveMaturity: Optional[datetime]
     netReturn: Optional[float]
     fees: Optional[float]

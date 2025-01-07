@@ -190,6 +190,8 @@ class ScrapeImpl(Scrape):
                 if last_maturity_tx:
                     last_maturity_tx = last_maturity_tx.date
 
+            last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
+
             historic_entry_base = {
                 "name": inv_name,
                 "invested": inv.amount,
@@ -197,6 +199,7 @@ class ScrapeImpl(Scrape):
                 "currency": inv.currency,
                 "currencySymbol": inv.currencySymbol,
                 "lastInvestDate": inv.lastInvestDate,
+                "lastTxDate": last_tx_date,
                 "effectiveMaturity": last_maturity_tx,
                 "netReturn": net_return,
                 "fees": fees,

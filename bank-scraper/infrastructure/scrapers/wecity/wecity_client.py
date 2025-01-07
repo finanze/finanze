@@ -52,7 +52,7 @@ class WecityAPIClient:
 
         if self._resume_web_session():
             print("Web session resumed")
-            return {"result": LoginResult.RESUMED}
+            return {"result": LoginResult.RESUMED, "message": "Resumed stored session"}
 
         if code and process_id:
             if len(code) != 6:
@@ -107,10 +107,15 @@ class WecityAPIClient:
                 if match:
                     json_str = match.group(1)
                     user_data = json.loads(json_str)
-                    print("Refreshing session")
-                    self.__add_auth_headers()
+                    token = user_data.get("token")
+                    if not token:
+                        print(user_data)
+                        return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found when refreshing"}
 
-                    return {"result": LoginResult.RESUMED, "userData": user_data}
+                    print(f"Refreshing session with {token[:5]}...")
+                    self.__add_auth_headers(token)
+
+                    return {"result": LoginResult.RESUMED, "message": "Resumed web session"}
 
                 print(response_text)
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
@@ -127,15 +132,18 @@ class WecityAPIClient:
             return self.__add_auth_headers()
         return False
 
-    def __add_auth_headers(self):
+    def __add_auth_headers(self, token: str = None):
         try:
-            user_data = self.get_user()
-            if user_data:
-                self.__session.headers["x-auth-token"] = user_data["token"]
-                return True
-            else:
-                print("User data not available")
-                return False
+            if not token:
+                user_data = self.get_user()
+                if user_data:
+                    token = user_data["token"]
+                else:
+                    print("User data not available")
+                    return False
+
+            self.__session.headers["x-auth-token"] = token
+            return True
         except requests.exceptions.HTTPError:
             return False
 
