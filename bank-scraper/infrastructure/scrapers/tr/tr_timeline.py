@@ -55,7 +55,9 @@ class TRTimeline:
                 continue
 
             if "timelineTransactions" in self.requested_data and subscription.get("type", "") == "timelineTransactions":
-                await self._process_and_request_next_timeline_transactions(response)
+                result = await self._process_and_request_next_timeline_transactions(response)
+                if result is not None:
+                    return result
 
             elif "timelineActivityLog" in self.requested_data and subscription.get("type", "") == "timelineActivityLog":
                 await self._process_and_request_next_timeline_activity_log(response)
@@ -111,7 +113,11 @@ class TRTimeline:
             if "timelineActivityLog" in self.requested_data:
                 await self._request_timeline_activity_log()
             else:
-                await self._request_all_timeline_details()
+                if self.timeline_events:
+                    await self._request_all_timeline_details()
+                else:
+                    return []
+        return None
 
     async def _process_and_request_next_timeline_activity_log(self, response):
         """
