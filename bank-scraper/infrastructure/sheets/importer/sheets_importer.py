@@ -2,6 +2,8 @@ import inspect
 from datetime import datetime
 from typing import Optional
 
+from pydantic import ValidationError
+
 from application.ports.virtual_scraper import VirtualScraper
 from domain.exception.exceptions import MissingFieldsError
 from domain.global_position import GlobalPosition, SourceType, Deposits, Deposit, FundInvestments, \
@@ -178,6 +180,9 @@ class SheetsImporter(VirtualScraper):
             try:
                 entry_fn(row, entry_dict)
             except MissingFieldsError as e:
+                print(f"Skipping row {row}: {e}")
+                continue
+            except ValidationError as e:
                 print(f"Skipping row {row}: {e}")
                 continue
 

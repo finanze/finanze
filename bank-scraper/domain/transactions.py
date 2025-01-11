@@ -1,9 +1,11 @@
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from domain.global_position import SourceType, BaseData
+from pydantic.dataclasses import dataclass
+
+from domain.global_position import SourceType
+from domain.base import BaseData
 
 
 class ProductType(str, Enum):

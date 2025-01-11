@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 from typing import Optional
+
+from pydantic.dataclasses import dataclass
 
 from domain.financial_entity import Entity, Feature
 

@@ -1,6 +1,7 @@
-from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Union
+
+from pydantic.dataclasses import dataclass
 
 from domain.scraped_data import ScrapedData, VirtuallyScrapedData
 

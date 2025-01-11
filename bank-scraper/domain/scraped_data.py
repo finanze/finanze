@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 from typing import Optional
+
+from pydantic.dataclasses import dataclass
 
 from domain.auto_contributions import AutoContributions
 from domain.global_position import GlobalPosition

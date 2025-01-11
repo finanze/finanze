@@ -1,8 +1,9 @@
-from dataclasses import dataclass
 from datetime import datetime, date
 from typing import Optional
 
-from domain.transactions import ProductType
+from pydantic.dataclasses import dataclass
+
+from domain.transactions import ProductType, BaseInvestmentTx
 
 
 @dataclass
@@ -22,7 +23,7 @@ class BaseHistoricEntry:
     state: Optional[str]
     entity: str
     productType: ProductType
-    relatedTxs: list[dict]
+    relatedTxs: list[BaseInvestmentTx]
 
 
 @dataclass
