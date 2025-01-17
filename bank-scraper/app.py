@@ -18,7 +18,7 @@ from infrastructure.repository.auto_contributions_repository import AutoContribu
 from infrastructure.repository.historic_repository import HistoricRepository
 from infrastructure.repository.position_repository import PositionRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
-from infrastructure.scrapers.myinvestor.myinvestor_scraper import MyInvestorScraper
+from infrastructure.scrapers.myinvestor import MyInvestorScraper
 from infrastructure.scrapers.sego.sego_scraper import SegoScraper
 from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScraper
 from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
