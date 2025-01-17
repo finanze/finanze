@@ -105,7 +105,7 @@ class WecityAPIClient:
                 pattern = r"localStorage\.setItem\('CapacitorStorage\.user',\s*'(.*?)'\);"
                 match = re.search(pattern, response.text)
                 if match:
-                    json_str = match.group(1)
+                    json_str = match.group(1).encode('utf-8').decode('unicode_escape')
                     try:
                         user_data = json.loads(json_str)
                     except json.JSONDecodeError as e:
