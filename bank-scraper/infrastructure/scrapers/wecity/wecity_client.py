@@ -106,7 +106,13 @@ class WecityAPIClient:
                 match = re.search(pattern, response.text)
                 if match:
                     json_str = match.group(1)
-                    user_data = json.loads(json_str)
+                    try:
+                        user_data = json.loads(json_str)
+                    except json.JSONDecodeError as e:
+                        print(e)
+                        print(json_str)
+                        return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Error parsing user data"}
+
                     token = user_data.get("data", {}).get("token")
                     if not token:
                         print(user_data)
