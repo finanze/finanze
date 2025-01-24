@@ -3,7 +3,7 @@ services:
     restart: unless-stopped
     build: .
     ports:
-      - '8126:8080'
+      - '8080:8080'
     environment:
       MONGO_USERNAME: root
       MONGO_PASSWORD: root
