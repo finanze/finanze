@@ -1,4 +1,3 @@
-import os
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -6,6 +5,7 @@ from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
+from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_scraper import EntityScraper
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
@@ -29,7 +29,8 @@ class ScrapeImpl(Scrape):
                  transaction_port: TransactionPort,
                  historic_repository: HistoricRepository,
                  entity_scrapers: dict[Entity, EntityScraper],
-                 config_port: ConfigPort):
+                 config_port: ConfigPort,
+                 credentials_port: CredentialsPort):
         self.update_cooldown = update_cooldown
         self.position_port = position_port
         self.auto_contr_repository = auto_contr_port
@@ -37,26 +38,7 @@ class ScrapeImpl(Scrape):
         self.historic_repository = historic_repository
         self.entity_scrapers = entity_scrapers
         self.config_port = config_port
-
-    @staticmethod
-    def get_creds(entity: Entity) -> tuple:
-        if entity == Entity.MY_INVESTOR:
-            return os.environ["MYI_USERNAME"], os.environ["MYI_PASSWORD"]
-
-        elif entity == Entity.TRADE_REPUBLIC:
-            return os.environ["TR_PHONE"], os.environ["TR_PIN"]
-
-        elif entity == Entity.UNICAJA:
-            return os.environ["UNICAJA_USERNAME"], os.environ["UNICAJA_PASSWORD"]
-
-        elif entity == Entity.URBANITAE:
-            return os.environ["URBANITAE_USERNAME"], os.environ["URBANITAE_PASSWORD"]
-
-        elif entity == Entity.WECITY:
-            return os.environ["WECITY_USERNAME"], os.environ["WECITY_PASSWORD"]
-
-        elif entity == Entity.SEGO:
-            return os.environ["SEGO_USERNAME"], os.environ["SEGO_PASSWORD"]
+        self.credentials_port = credentials_port
 
     async def execute(self,
                       entity: Entity,
@@ -77,7 +59,7 @@ class ScrapeImpl(Scrape):
                 return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
         login_args = kwargs.get("login", {})
-        credentials = self.get_creds(entity)
+        credentials = self.credentials_port.get(entity)
 
         specific_scraper = self.entity_scrapers[entity]
         login_result = specific_scraper.login(credentials, **login_args)
@@ -93,6 +75,11 @@ class ScrapeImpl(Scrape):
         if not features:
             features = DEFAULT_FEATURES
 
+        scraped_data = await self.get_data(entity, features, specific_scraper)
+
+        return ScrapResult(ScrapResultCode.COMPLETED, data=scraped_data)
+
+    async def get_data(self, entity, features, specific_scraper) -> ScrapedData:
         position = None
         if Feature.POSITION in features:
             position = await specific_scraper.global_position()
@@ -122,12 +109,11 @@ class ScrapeImpl(Scrape):
                 self.historic_repository.delete_by_entity(entity.name)
                 self.historic_repository.save(historic)
 
-        data = ScrapedData(position=position,
-                           autoContributions=auto_contributions,
-                           transactions=transactions,
-                           historic=historic)
-
-        return ScrapResult(ScrapResultCode.COMPLETED, data=data)
+        scraped_data = ScrapedData(position=position,
+                                   autoContributions=auto_contributions,
+                                   transactions=transactions,
+                                   historic=historic)
+        return scraped_data
 
     async def build_historic(self, entity, specific_scraper) -> Historic:
         historical_position = await specific_scraper.historical_position()

@@ -14,6 +14,7 @@ from application.use_cases.virtual_scrape import VirtualScrapeImpl
 from domain.financial_entity import Entity
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.controllers import Controllers
+from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
 from infrastructure.repository.historic_repository import HistoricRepository
 from infrastructure.repository.position_repository import PositionRepository
@@ -64,6 +65,8 @@ auto_contrib_repository = AutoContributionsRepository(client=mongo_client, db_na
 transaction_repository = TransactionRepository(client=mongo_client, db_name=mongo_db_name)
 historic_repository = HistoricRepository(client=mongo_client, db_name=mongo_db_name)
 
+credentials_reader = CredentialsReader()
+
 get_available_sources = GetAvailableSourcesImpl(config_loader)
 scrape = ScrapeImpl(
     update_cooldown,
@@ -72,7 +75,8 @@ scrape = ScrapeImpl(
     transaction_repository,
     historic_repository,
     entity_scrapers,
-    config_loader)
+    config_loader,
+    credentials_reader)
 update_sheets = UpdateSheetsImpl(
     position_repository,
     auto_contrib_repository,
