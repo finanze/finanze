@@ -79,7 +79,7 @@ can get the needed environment names.
     ```
 
 2. Use the provided API endpoints to interact with the scraper:
-    - `GET /scrape`: Get available entities.
-    - `POST /scrape`: Start a scraping process for a specific entity.
-    - `POST /update-sheets`: Update Google Sheets with the latest data.
-    - `POST /virtual-scrape`: Perform a virtual scrape.
+    - `GET /api/v1/scrape`: Get available entities.
+    - `POST /api/v1/scrape`: Start a scraping process for a specific entity.
+    - `POST /api/v1/update-sheets`: Update Google Sheets with the latest data.
+    - `POST /api/v1/scrape/virtual`: Perform a virtual scrape.
