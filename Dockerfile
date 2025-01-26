@@ -1,16 +1,20 @@
 FROM python:3.9-slim
 
 COPY requirements.txt .
+COPY requirements-selenium.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ./bank-scraper /bank-scraper
 COPY ./resources /bank-scraper/resources
 
-ARG INCLUDE_FIREFOX=true
+ARG SELENIUM_SUPPORT=true
 
-RUN if [ "$INSTALL_FIREFOX" = "true" ]; then \
-    # Firefox
-    apt install firefox-esr openssl -y && \
+RUN bash -c 'if [ "$SELENIUM_SUPPORT" = "true" ]; then \
+    # Install selenium Python dependencies
+    pip install --no-cache-dir -r requirements-selenium.txt && \
+    # Firefox & ffmpeg
+    apt update && \
+    apt install firefox-esr openssl ffmpeg -y && \
     # Geckodriver into /usr/local/bin/
     apt install wget -y && \
     wget -qO /tmp/geckodriver.tar.gz \
@@ -18,7 +22,7 @@ RUN if [ "$INSTALL_FIREFOX" = "true" ]; then \
     tar -xzf /tmp/geckodriver.tar.gz -C /usr/local/bin/ && \
     rm /tmp/geckodriver.tar.gz && \
     apt remove -y wget && apt clean && rm -rf /var/lib/apt/lists/*; \
-fi
+fi'
 
 ENV GECKODRIVER_PATH=/usr/local/bin/geckodriver
 

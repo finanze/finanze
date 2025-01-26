@@ -3,5 +3,5 @@
 !.gitignore
 !.dockerignore
 !.github
-config.yml
+/config/
 *.log

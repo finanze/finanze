@@ -14,6 +14,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+
       - name: Build and Publish to Registry
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
@@ -21,3 +22,15 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           platforms: linux/amd64,linux/arm64/v8
+          buildargs: SELENIUM_SUPPORT=true
+          tags: latest
+
+      - name: Build and Publish (ex-selenium)
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: marcosav/bank-scraper
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          platforms: linux/amd64,linux/arm64/v8
+          buildargs: SELENIUM_SUPPORT=false
+          tags: ex-selenium
