@@ -4,3 +4,4 @@
 !.dockerignore
 !.github
 config.yml
+*.log

@@ -30,6 +30,7 @@ work, be outdated or partially implemented. That's why this documentation is so 
 - `TRADE_REPUBLIC` (stocks/ETFs/Crypto & account)
 - `UNICJA` (main account and related cards & mortgage)
 - `WECITY` (wallet & investments)
+- `MINTOS` (wallet & loan distribution)
 
 ### Entity Features
 

@@ -8,6 +8,7 @@ class Entity(str, Enum):
     URBANITAE = "URBANITAE"
     WECITY = "WECITY"
     SEGO = "SEGO"
+    MINTOS = "MINTOS"
 
 
 class Feature(str, Enum):
@@ -53,5 +54,10 @@ ENTITY_DETAILS = {
         "id": Entity.SEGO,
         "name": "SEGO",
         "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC]
+    },
+    Entity.MINTOS: {
+        "id": Entity.MINTOS,
+        "name": "Mintos",
+        "features": [Feature.POSITION]
     }
 }

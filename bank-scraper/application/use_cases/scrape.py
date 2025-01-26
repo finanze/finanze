@@ -60,6 +60,8 @@ class ScrapeImpl(Scrape):
 
         login_args = kwargs.get("login", {})
         credentials = self.credentials_port.get(entity)
+        if not credentials:
+            return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
 
         specific_scraper = self.entity_scrapers[entity]
         login_result = specific_scraper.login(credentials, **login_args)

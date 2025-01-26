@@ -1,3 +1,4 @@
+import json
 from dataclasses import asdict
 from datetime import date, datetime
 
@@ -136,7 +137,18 @@ def update_entity_summary(
                         else:
                             value = ""
                     else:
-                        value = parent[title].get(column, ERROR_VALUE)
+                        complex_column = '.' in column
+                        fields = column.split(".")
+                        value = parent[title].get(fields[0], ERROR_VALUE)
+                        if complex_column:
+                            for field in fields[1:]:
+                                if isinstance(value, dict):
+                                    value = value.get(field, ERROR_VALUE)
+                                    if value == ERROR_VALUE:
+                                        break
+                                else:
+                                    value = ERROR_VALUE
+                                    break
 
                 set_field_value(row, column_i + 1, value, config)
 
@@ -167,5 +179,8 @@ def format_field_value(value, config):
             return value.strftime(config_date_format)
 
         return value.isoformat()
+
+    elif isinstance(value, dict) or isinstance(value, list):
+        return json.dumps(value, default=str)
 
     return value

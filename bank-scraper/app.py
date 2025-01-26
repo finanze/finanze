@@ -19,6 +19,7 @@ from infrastructure.repository.auto_contributions_repository import AutoContribu
 from infrastructure.repository.historic_repository import HistoricRepository
 from infrastructure.repository.position_repository import PositionRepository
 from infrastructure.repository.transaction_repository import TransactionRepository
+from infrastructure.scrapers.mintos.mintos_scraper import MintosScraper
 from infrastructure.scrapers.myinvestor import MyInvestorScraper
 from infrastructure.scrapers.sego.sego_scraper import SegoScraper
 from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScraper
@@ -57,7 +58,8 @@ entity_scrapers = {
     Entity.UNICAJA: UnicajaScraper(),
     Entity.URBANITAE: UrbanitaeScraper(),
     Entity.WECITY: WecityScraper(),
-    Entity.SEGO: SegoScraper()
+    Entity.SEGO: SegoScraper(),
+    Entity.MINTOS: MintosScraper()
 }
 virtual_scraper = SheetsImporter()
 position_repository = PositionRepository(client=mongo_client, db_name=mongo_db_name)

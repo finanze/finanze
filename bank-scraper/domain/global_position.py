@@ -151,12 +151,21 @@ class Deposits:
 
 
 @dataclass
+class Crowdlending:
+    total: float
+    weightedInterestRate: float
+    distribution: dict
+    details: List
+
+
+@dataclass
 class Investments:
     stocks: Optional[StockInvestments] = None
     funds: Optional[FundInvestments] = None
     factoring: Optional[FactoringInvestments] = None
     realStateCF: Optional[RealStateCFInvestments] = None
     deposits: Optional[Deposits] = None
+    crowdlending: Optional[Crowdlending] = None
 
 
 @dataclass

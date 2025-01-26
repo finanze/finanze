@@ -11,7 +11,7 @@ from domain.global_position import GlobalPosition, Account, Investments, Cards, 
     FundInvestments, \
     StockInvestments, FactoringDetail, FundDetail, StockDetail, PositionAdditionalData, AccountAdditionalData, Deposit, \
     Deposits, \
-    RealStateCFInvestments, RealStateCFDetail
+    RealStateCFInvestments, RealStateCFDetail, Crowdlending
 
 
 def map_serializable(obj):
@@ -162,12 +162,23 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
                 ]
             )
 
+        crowdlending_data = investments_data.get("crowdlending", {})
+        crowdlending = None
+        if crowdlending_data:
+            crowdlending = Crowdlending(
+                total=crowdlending_data["total"],
+                weightedInterestRate=crowdlending_data["weightedInterestRate"],
+                distribution=crowdlending_data["distribution"],
+                details=crowdlending_data["details"]
+            )
+
         investments = Investments(
             factoring=factoring,
             stocks=stocks,
             funds=funds,
             realStateCF=rs_cf,
-            deposits=deposits
+            deposits=deposits,
+            crowdlending=crowdlending
         )
 
     mortgage_data = data["mortgage"]
