@@ -57,11 +57,12 @@ class MintosAPIClient:
         from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
         geckodriver_path = os.getenv("GECKODRIVER_PATH")
+        geckodriver_logs_path = os.getenv("GECKODRIVER_LOGS_PATH", "geckodriver.log")
 
         driver = None
 
         if geckodriver_path:
-            service = Service(executable_path=geckodriver_path)
+            service = Service(executable_path=geckodriver_path, log_path=geckodriver_logs_path)
         else:
             service = Service()
 

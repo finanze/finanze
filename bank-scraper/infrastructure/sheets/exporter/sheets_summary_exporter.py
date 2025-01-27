@@ -103,6 +103,9 @@ def update_entity_summary(
                     set_field_value(row, column_i + 1, "", config)
                     continue
 
+                if parent is None:
+                    continue
+
                 if column == COUNT_FIELD:
                     if DETAILS_FIELD in parent:
                         value = len(parent.get(DETAILS_FIELD))
