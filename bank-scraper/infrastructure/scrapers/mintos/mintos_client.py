@@ -43,16 +43,16 @@ class MintosAPIClient:
     ) -> Union[dict, requests.Response]:
         return self.__execute_request(path, "POST", body=body)
 
-    def login(self, username: str, password: str) -> dict:
+    async def login(self, username: str, password: str) -> dict:
 
+        from seleniumwire import webdriver
         from selenium.common import TimeoutException
         from selenium.webdriver.common.by import By
         from selenium.webdriver.common.keys import Keys
-        from selenium.webdriver.firefox.options import Options
+        from selenium.webdriver import FirefoxOptions
         from selenium.webdriver.firefox.service import Service
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.webdriver.support.ui import WebDriverWait
-        from seleniumwire import webdriver
 
         from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
@@ -66,7 +66,7 @@ class MintosAPIClient:
         else:
             service = Service()
 
-        options = Options()
+        options = FirefoxOptions()
         options.add_argument("--headless")
 
         try:
@@ -85,13 +85,13 @@ class MintosAPIClient:
 
             password_input.send_keys(Keys.RETURN)
 
-            wait = WebDriverWait(driver, 5)
+            wait = WebDriverWait(driver, 4)
             try:
                 wait.until(EC.url_contains("overview"))
             except TimeoutException:
                 print("Not redirecting to overview page, checking recaptcha.")
                 recaptcha_solver = RecaptchaSolver(driver, 10)
-                recaptcha_solver.solveCaptcha()
+                await recaptcha_solver.solve_audio_captcha()
 
             driver.wait_for_request(self.USER_PATH, timeout=10)
 
