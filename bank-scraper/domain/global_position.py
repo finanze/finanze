@@ -98,10 +98,10 @@ class RealStateCFDetail(BaseData):
     interestRate: float
     lastInvestDate: datetime
     months: int
-    potentialExtension: Optional[int]
     type: str
     businessType: str
-    state: Optional[str]
+    state: Optional[str] = None
+    potentialExtension: Optional[int] = None
 
 
 @dataclass
