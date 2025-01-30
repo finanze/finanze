@@ -94,14 +94,21 @@ class UnicajaClient:
                 driver.quit()
 
     def rest_login(self, username: str, password: str) -> dict:
+        user_agent = "Mozilla/5.0 (Linux; Android 5.1.1; Lenovo PB1-750M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
         self.__session = requests.Session()
+        self.__session.headers["User-Agent"] = user_agent
 
         ck = self.ck()
+
+        abck = os.getenv("UNICAJA_ABCK")
+        self.__session.cookies.set("_abck", abck)
+
         encoded_password = self.__encrypt_password(ck, password)
         auth_response = self.auth(username, encoded_password)
-        auth_response_body = auth_response.json()
 
         if auth_response.ok:
+            auth_response_body = auth_response.json()
+
             if "tokenCSRF" not in auth_response_body:
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
@@ -110,12 +117,12 @@ class UnicajaClient:
 
             return {"result": LoginResult.CREATED}
 
-        elif auth_response_body.status_code == 400:
+        elif auth_response.status_code == 400:
             return {"result": LoginResult.INVALID_CREDENTIALS}
 
         else:
             return {"result": LoginResult.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {auth_response_body.status_code}"}
+                    "message": f"Got unexpected response code {auth_response.status_code}"}
 
     def login(self, username: str, password: str, rest_login: bool = True) -> dict:
         if rest_login:
