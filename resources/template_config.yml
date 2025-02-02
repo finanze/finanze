@@ -42,7 +42,7 @@ export:
 
     historic:
       - range: Factoring Historic
-        # data is not available for historic
+        # "data" config entry is not available for historic, use filters instead
         filters:
           - field: productType
             values: FACTORING
