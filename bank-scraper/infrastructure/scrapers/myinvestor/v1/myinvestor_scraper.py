@@ -1,5 +1,4 @@
 from datetime import date, datetime
-
 from itertools import chain
 
 from application.ports.entity_scraper import EntityScraper
@@ -322,16 +321,22 @@ class MyInvestorScraperV1(EntityScraper):
         return fund_txs
 
     def scrape_stock_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[StockTx]:
-        raw_stock_orders = self.__client.get_stock_orders(securities_account_id=securities_account_id,
-                                                          from_date=date.fromisocalendar(2020, 1, 1),
-                                                          completed=False)
+        try:
+            raw_stock_orders = self.__client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.fromisocalendar(2020, 1, 1),
+                                                              completed=False)
+        except:
+            # Both v1 & v2 stock order history endpoint are failing for some dates, we retry since 2025
+            raw_stock_orders = self.__client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.fromisocalendar(2025, 1, 1),
+                                                              completed=False)
 
         stock_txs = []
         for order in raw_stock_orders:
             ref = order["referencia"]
 
             if ref in registered_txs:
-                break
+                continue
 
             raw_order_details = self.__client.get_stock_order_details(ref)
             order_date = datetime.strptime(raw_order_details["fechaOrden"], OLD_DATE_TIME_FORMAT)

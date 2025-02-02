@@ -45,25 +45,42 @@ class UnicajaClient:
 
     def legacy_login(self, username: str, password: str) -> dict:
 
-        from seleniumwire import webdriver
-        from selenium.webdriver.firefox.options import Options
-        from selenium.webdriver.firefox.service import Service
+        from selenium.common import TimeoutException
+        from selenium.webdriver import FirefoxOptions
         from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.common.exceptions import TimeoutException
         from selenium.webdriver.common.keys import Keys
-
-        geckodriver_path = os.getenv("GECKODRIVER_PATH")
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.support.ui import WebDriverWait
+        from seleniumwire import webdriver
 
         driver = None
+
+        options = FirefoxOptions()
+        options.add_argument("--headless")
+
+        wire_address = os.getenv("WIRE_ADDRESS", '127.0.0.1')
+        wire_port = int(os.getenv("WIRE_PORT", "8088"))
+        proxy_address = os.getenv("WIRE_PROXY_SERVER_ADDRESS", "host.docker.internal")
+        webdriver_address = os.getenv("WEBDRIVER_ADDRESS", "http://localhost:4444")
+
+        options.set_preference('network.proxy.type', 1)
+        options.set_preference('network.proxy.http', proxy_address)
+        options.set_preference('network.proxy.http_port', wire_port)
+        options.set_preference('network.proxy.ssl', proxy_address)
+        options.set_preference('network.proxy.ssl_port', wire_port)
+
+        wire_options = {
+            "auto_config": False,
+            "port": wire_port,
+            'addr': wire_address,
+        }
+
         try:
-            options = Options()
-            service = None
-            if geckodriver_path:
-                service = Service(executable_path=geckodriver_path)
-            options.add_argument("--headless")
-            driver = webdriver.Firefox(options=options, service=service)
+            driver = webdriver.Remote(
+                command_executor=webdriver_address,
+                options=options,
+                seleniumwire_options=wire_options
+            )
 
             driver.get(self.BASE_URL + "/login")
 
