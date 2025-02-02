@@ -1,7 +1,9 @@
 services:
   bank-scraper:
     restart: unless-stopped
-    build: .
+    build: . # Use the Dockerfile in the current directory
+    # image: marcosav/bank-scraper:latest
+    # image: marcosav/bank-scraper:ex-selenium
     ports:
       - '8080:8080'
     environment:
@@ -28,9 +30,9 @@ services:
       - ./.wc/:/.wc/
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
       - ./config/:/config/
+      - /etc/timezone:/etc/timezone:ro # Use host's timezone
+      - /etc/localtime:/etc/localtime:ro # Use host's localtime
 
   selenium:
     image: selenium/standalone-firefox:latest

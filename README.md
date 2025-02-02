@@ -14,6 +14,7 @@ work, be outdated or partially implemented. That's why this documentation is so 
 - [Configuration](#configuration)
 - [Environment Variables](#environment-variables)
 - [Usage](#usage)
+- [Credits](#credits)
 
 ## Features
 
@@ -32,7 +33,7 @@ work, be outdated or partially implemented. That's why this documentation is so 
     - As web login uses Akamai bot protection, setting `UNICAJA_ABCK` is needed.
 - `WECITY` (wallet & investments) [requires 2FA]
 - `MINTOS` (wallet & loan distribution) (experimental)
-    - Needs Selenium to resolve reCAPTCHA, checkout docker-compose.yml.
+    - Needs Selenium to resolve reCAPTCHA, checkout [docker-compose.yml](docker-compose.yml).
 
 ### Entity Features
 
@@ -119,3 +120,16 @@ can get the needed environment names.
    ```
     - `POST /api/v1/update-sheets`: Update Google Sheets with the latest data.
     - `POST /api/v1/scrape/virtual`: Perform a virtual scrape.
+
+## Credits
+
+- Selenium reCAPTCHA resolution is based
+  on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
+  project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
+  for
+  it [here](bank-scraper/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
+  with headless mode.
+- Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
+  heavily
+  modified to allow resumable sessions, fetch transactions and other minor changes, this library has been vital for this
+  project.
