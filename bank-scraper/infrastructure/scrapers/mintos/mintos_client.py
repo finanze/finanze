@@ -1,10 +1,7 @@
-import os
 from typing import Union, Optional
 
 import requests
 from cachetools import TTLCache, cached
-
-from domain.scrap_result import LoginResult
 
 
 class MintosAPIClient:
@@ -44,70 +41,8 @@ class MintosAPIClient:
         return self.__execute_request(path, "POST", body=body)
 
     async def login(self, username: str, password: str) -> dict:
-
-        from seleniumwire import webdriver
-        from selenium.common import TimeoutException
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.common.keys import Keys
-        from selenium.webdriver import FirefoxOptions
-        from selenium.webdriver.firefox.service import Service
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import WebDriverWait
-
-        from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
-
-        geckodriver_path = os.getenv("GECKODRIVER_PATH")
-        geckodriver_logs_path = os.getenv("GECKODRIVER_LOGS_PATH", "geckodriver.log")
-
-        driver = None
-
-        if geckodriver_path:
-            service = Service(executable_path=geckodriver_path, log_path=geckodriver_logs_path)
-        else:
-            service = Service()
-
-        options = FirefoxOptions()
-        options.add_argument("--headless")
-
-        try:
-            driver = webdriver.Firefox(options=options, service=service)
-
-            driver.get(f"{self.BASE_URL}/en/login/")
-
-            wait = WebDriverWait(driver, 5)
-            wait.until(EC.element_to_be_clickable((By.ID, "login-username")))
-
-            username_input = driver.find_element(By.ID, "login-username")
-            username_input.send_keys(username)
-
-            password_input = driver.find_element(By.ID, "login-password")
-            password_input.send_keys(password)
-
-            password_input.send_keys(Keys.RETURN)
-
-            wait = WebDriverWait(driver, 4)
-            try:
-                wait.until(EC.url_contains("overview"))
-            except TimeoutException:
-                print("Not redirecting to overview page, checking recaptcha.")
-                recaptcha_solver = RecaptchaSolver(driver, 10)
-                await recaptcha_solver.solve_audio_captcha()
-
-            driver.wait_for_request(self.USER_PATH, timeout=10)
-
-            user_request = next(x for x in driver.requests if self.USER_PATH in x.url)
-
-            self.__session.headers["Cookie"] = user_request.headers["Cookie"]
-
-            return {"result": LoginResult.CREATED}
-
-        except Exception as e:
-            print(f"An error occurred while logging in: {e}")
-            raise
-
-        finally:
-            if driver:
-                driver.quit()
+        from infrastructure.scrapers.mintos.mintos_selenium_login_client import login
+        return await login(self.__session, username, password)
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_user(self) -> dict:

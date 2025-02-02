@@ -15,6 +15,12 @@ services:
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
       CONFIG_PATH: /config/config.yml
+      # LOG_LEVEL: DEBUG
+      # Selenium related envs
+      WIRE_ADDRESS: 0.0.0.0
+      WIRE_PORT: 8088
+      WIRE_PROXY_SERVER_ADDRESS: bank-scraper
+      WEBDRIVER_ADDRESS: http://selenium:4444
     env_file:
       - .env
     volumes:
@@ -25,6 +31,14 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       - ./config/:/config/
+
+  selenium:
+    image: selenium/standalone-firefox:latest
+    restart: unless-stopped
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    shm_size: "2g"
 
   mongodb:
     image: mongo:6-jammy
