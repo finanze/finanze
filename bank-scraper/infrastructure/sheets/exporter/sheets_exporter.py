@@ -11,17 +11,17 @@ from infrastructure.sheets.sheets_base_loader import spreadsheets
 class SheetsExporter(SheetsUpdatePort):
 
     def __init__(self):
-        self.__sheet = spreadsheets()
+        self._sheet = spreadsheets()
 
     def update_summary(
             self,
             global_positions: dict[str, GlobalPosition],
             config: dict):
-        update_summary(self.__sheet, global_positions, config)
+        update_summary(self._sheet, global_positions, config)
 
     def update_sheet(
             self,
             data: Union[object, dict[str, object]],
             config: dict,
             last_update: Optional[dict[str, datetime]] = None):
-        update_sheet(self.__sheet, data, config, last_update)
+        update_sheet(self._sheet, data, config, last_update)

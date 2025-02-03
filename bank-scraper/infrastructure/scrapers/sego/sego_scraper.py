@@ -1,4 +1,5 @@
 import copy
+import logging
 from datetime import date, datetime
 from hashlib import sha1
 from typing import Optional
@@ -65,20 +66,21 @@ class SegoScraper(EntityScraper):
     SEGO_FEE = 0.2
 
     def __init__(self):
-        self.__client = SegoAPIClient()
+        self._client = SegoAPIClient()
+        self._log = logging.getLogger(__name__)
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        return self.__client.login(username, password)
+        return self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
-        raw_wallet = self.__client.get_wallet()
+        raw_wallet = self._client.get_wallet()
         wallet_amount = raw_wallet["importe"]
         account = Account(total=round(wallet_amount, 2))
 
         investment_movements = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring"])
 
-        raw_sego_investments = self.__client.get_investments() + self.__client.get_pending_investments()
+        raw_sego_investments = self._client.get_investments() + self._client.get_pending_investments()
         active_sego_investments = [
             investment for investment in raw_sego_investments if
             investment["tipoEstadoOperacionCodigo"] in ACTIVE_SEGO_STATES
@@ -86,7 +88,7 @@ class SegoScraper(EntityScraper):
 
         factoring_investments = []
         for investment in active_sego_investments:
-            factoring_investments.append(self.map_investment(investment_movements, investment))
+            factoring_investments.append(self._map_investment(investment_movements, investment))
 
         total_invested = sum([investment.amount for investment in factoring_investments])
         weighted_net_interest_rate = round(
@@ -115,7 +117,7 @@ class SegoScraper(EntityScraper):
             ),
         )
 
-    def map_investment(self, investment_movements, investment):
+    def _map_investment(self, investment_movements, investment):
         raw_proj_type = investment["tipoOperacionCodigo"]
         proj_type = None
         if raw_proj_type == "admin-publica":
@@ -171,7 +173,7 @@ class SegoScraper(EntityScraper):
         if types is None:
             types = []
 
-        raw_movements = copy.deepcopy(self.__client.get_movements())
+        raw_movements = copy.deepcopy(self._client.get_movements())
         normalized_movs = []
         for movement in raw_movements:
             if (not types or movement["type"] in types) and (not subtypes or movement["tipo"] in subtypes):
@@ -205,7 +207,7 @@ class SegoScraper(EntityScraper):
         return Transactions(investment=factoring_txs)
 
     def scrape_factoring_txs(self, registered_txs: set[str]) -> list[FactoringTx]:
-        completed_investments = self.__client.get_investments(FINISHED_SEGO_STATES)
+        completed_investments = self._client.get_investments(FINISHED_SEGO_STATES)
 
         txs = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring", "Devolución Capital"])
 
@@ -214,7 +216,7 @@ class SegoScraper(EntityScraper):
         for tx in txs:
             tag_props = parse_tag(tx["tag"]) if tx.get("tag", None) else None
             if not tag_props:
-                print(f"No tag in SEGO transaction: {tx}")
+                self._log.warning(f"No tag in SEGO transaction: {tx}")
                 continue
 
             investment_name = tag_props["operacion"].strip()
@@ -223,7 +225,7 @@ class SegoScraper(EntityScraper):
             tx_type = TxType.INVESTMENT if "inversión" in raw_tx_type else TxType.MATURITY
 
             amount = tx["amount"]
-            ref = self.calc_sego_tx_id(investment_name, tx_date, amount, tx_type)
+            ref = self._calc_sego_tx_id(investment_name, tx_date, amount, tx_type)
             if ref in registered_txs:
                 continue
 
@@ -246,24 +248,24 @@ class SegoScraper(EntityScraper):
         return investment_txs
 
     @staticmethod
-    def calc_sego_tx_id(inv_name: str,
-                        tx_date: datetime,
-                        amount: float,
-                        tx_type: TxType) -> str:
+    def _calc_sego_tx_id(inv_name: str,
+                         tx_date: datetime,
+                         amount: float,
+                         tx_type: TxType) -> str:
         return sha1(
             f"S_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
 
     async def historical_position(self) -> HistoricalPosition:
         investment_movements = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring"])
 
-        raw_sego_investments = self.__client.get_investments() + self.__client.get_pending_investments()
+        raw_sego_investments = self._client.get_investments() + self._client.get_pending_investments()
         active_sego_investments = [
             investment for investment in raw_sego_investments
         ]
 
         factoring_investments = []
         for investment in active_sego_investments:
-            factoring_investments.append(self.map_investment(investment_movements, investment))
+            factoring_investments.append(self._map_investment(investment_movements, investment))
 
         return HistoricalPosition(
             investments=Investments(

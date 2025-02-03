@@ -10,14 +10,14 @@ from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 class UnicajaScraper(EntityScraper):
 
     def __init__(self):
-        self.__client = UnicajaClient()
+        self._client = UnicajaClient()
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        return self.__client.login(username, password)
+        return self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
-        accounts_response = self.__client.list_accounts()
+        accounts_response = self._client.list_accounts()
         account_data_raw = accounts_response["cuentas"][0]
 
         account_balance = account_data_raw["saldo"]["cantidad"]
@@ -27,7 +27,7 @@ class UnicajaScraper(EntityScraper):
             account_balance + account_allowed_overdraft - account_available, 2
         )
         last_week_date = date.today() - relativedelta(weeks=1)
-        account_pending_transfers_raw = self.__client.get_transfers_historic(from_date=last_week_date)
+        account_pending_transfers_raw = self._client.get_transfers_historic(from_date=last_week_date)
         account_pending_transfer_amount = 0
         if "noDatos" not in account_pending_transfers_raw:
             account_pending_transfer_amount = sum(
@@ -44,7 +44,7 @@ class UnicajaScraper(EntityScraper):
             )
         )
 
-        card_list = self.__client.get_cards()
+        card_list = self._client.get_cards()
         debit_card_raw = card_list["tarjetas"][0]
         credit_card_raw = card_list["tarjetas"][1]
 
@@ -59,8 +59,8 @@ class UnicajaScraper(EntityScraper):
             ),
         )
 
-        self.__client.get_loans()
-        mortgage_response = self.__client.get_loan(p="2", ppp="001")
+        self._client.get_loans()
+        mortgage_response = self._client.get_loan(p="2", ppp="001")
         mortgage_data = None
         # When its near invoicing period, the mortgage is not returned
         if mortgage_response:

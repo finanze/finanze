@@ -33,15 +33,15 @@ class UpdateSheetsImpl(UpdateSheets):
                  historic_port: HistoricPort,
                  sheets_update_port: SheetsUpdatePort,
                  config_port: ConfigPort):
-        self.position_port = position_port
-        self.auto_contr_port = auto_contr_port
-        self.transaction_port = transaction_port
-        self.historic_port = historic_port
-        self.sheets_update_port = sheets_update_port
-        self.config_port = config_port
+        self._position_port = position_port
+        self._auto_contr_port = auto_contr_port
+        self._transaction_port = transaction_port
+        self._historic_port = historic_port
+        self._sheets_update_port = sheets_update_port
+        self._config_port = config_port
 
     def execute(self):
-        config = self.config_port.load()
+        config = self._config_port.load()
         sheets_export_config = config["export"]["sheets"]
 
         config_globals = sheets_export_config.get("globals", {})
@@ -57,25 +57,25 @@ class UpdateSheetsImpl(UpdateSheets):
         apply_global_config(config_globals, tx_configs)
         apply_global_config(config_globals, historic_configs)
 
-        global_position = self.position_port.get_last_grouped_by_entity()
+        global_position = self._position_port.get_last_grouped_by_entity()
 
         self.update_summary_sheets(global_position, summary_configs)
         self.update_investment_sheets(global_position, investment_configs)
 
-        auto_contributions = self.auto_contr_port.get_all_grouped_by_entity()
-        auto_contributions_last_update = self.auto_contr_port.get_last_update_grouped_by_entity()
+        auto_contributions = self._auto_contr_port.get_all_grouped_by_entity()
+        auto_contributions_last_update = self._auto_contr_port.get_last_update_grouped_by_entity()
         self.update_contributions(auto_contributions, contrib_configs, auto_contributions_last_update)
 
-        transactions = self.transaction_port.get_all()
-        transactions_last_update = self.transaction_port.get_last_created_grouped_by_entity()
+        transactions = self._transaction_port.get_all()
+        transactions_last_update = self._transaction_port.get_last_created_grouped_by_entity()
         self.update_transactions(transactions, tx_configs, transactions_last_update)
 
-        historic = self.historic_port.get_all()
+        historic = self._historic_port.get_all()
         self.update_historic(historic, historic_configs)
 
     def update_summary_sheets(self, global_position: dict[str, GlobalPosition], summary_configs):
         for config in summary_configs:
-            self.sheets_update_port.update_summary(global_position, config)
+            self._sheets_update_port.update_summary(global_position, config)
 
     def update_investment_sheets(self, global_position: dict[str, GlobalPosition], inv_configs):
         for config in inv_configs:
@@ -83,7 +83,7 @@ class UpdateSheetsImpl(UpdateSheets):
             fields = [fields] if isinstance(fields, str) else fields
             config["data"] = [f"investments.{field}.{DETAILS_FIELD}" for field in fields]
 
-            self.sheets_update_port.update_sheet(global_position, config)
+            self._sheets_update_port.update_sheet(global_position, config)
 
     def update_contributions(self, contributions: dict[str, AutoContributions], contrib_configs,
                              last_update: dict[str, datetime]):
@@ -91,17 +91,17 @@ class UpdateSheetsImpl(UpdateSheets):
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields
 
-            self.sheets_update_port.update_sheet(contributions, config, last_update)
+            self._sheets_update_port.update_sheet(contributions, config, last_update)
 
     def update_transactions(self, transactions: Transactions, tx_configs, last_update: dict[str, datetime]):
         for config in tx_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields
 
-            self.sheets_update_port.update_sheet(transactions, config, last_update)
+            self._sheets_update_port.update_sheet(transactions, config, last_update)
 
     def update_historic(self, historic: Historic, historic_configs):
         for config in historic_configs:
             config["data"] = ["entries"]
 
-            self.sheets_update_port.update_sheet(historic, config)
+            self._sheets_update_port.update_sheet(historic, config)

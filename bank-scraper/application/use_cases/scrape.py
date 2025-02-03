@@ -1,3 +1,4 @@
+import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -31,20 +32,22 @@ class ScrapeImpl(Scrape):
                  entity_scrapers: dict[Entity, EntityScraper],
                  config_port: ConfigPort,
                  credentials_port: CredentialsPort):
-        self.update_cooldown = update_cooldown
-        self.position_port = position_port
-        self.auto_contr_repository = auto_contr_port
-        self.transaction_port = transaction_port
-        self.historic_repository = historic_repository
-        self.entity_scrapers = entity_scrapers
-        self.config_port = config_port
-        self.credentials_port = credentials_port
+        self._update_cooldown = update_cooldown
+        self._position_port = position_port
+        self._auto_contr_repository = auto_contr_port
+        self._transaction_port = transaction_port
+        self._historic_repository = historic_repository
+        self._entity_scrapers = entity_scrapers
+        self._config_port = config_port
+        self._credentials_port = credentials_port
+
+        self._log = logging.getLogger(__name__)
 
     async def execute(self,
                       entity: Entity,
                       features: list[Feature],
                       **kwargs) -> ScrapResult:
-        scrape_config = self.config_port.load()["scrape"].get("enabledEntities")
+        scrape_config = self._config_port.load()["scrape"].get("enabledEntities")
         if scrape_config and entity not in scrape_config:
             return ScrapResult(ScrapResultCode.DISABLED)
 
@@ -52,18 +55,18 @@ class ScrapeImpl(Scrape):
             return ScrapResult(ScrapResultCode.FEATURE_NOT_SUPPORTED)
 
         if Feature.POSITION in features:
-            last_update = self.position_port.get_last_updated(entity)
-            if last_update and (datetime.now(timezone.utc) - last_update).seconds < self.update_cooldown:
-                remaining_seconds = self.update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
+            last_update = self._position_port.get_last_updated(entity)
+            if last_update and (datetime.now(timezone.utc) - last_update).seconds < self._update_cooldown:
+                remaining_seconds = self._update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
                 details = {"lastUpdate": last_update.astimezone(tzlocal()).isoformat(), "wait": remaining_seconds}
                 return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
         login_args = kwargs.get("login", {})
-        credentials = self.credentials_port.get(entity)
+        credentials = self._credentials_port.get(entity)
         if not credentials:
             return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
 
-        specific_scraper = self.entity_scrapers[entity]
+        specific_scraper = self._entity_scrapers[entity]
         login_result = await specific_scraper.login(credentials, **login_args)
         login_result_code = login_result["result"]
         del login_result["result"]
@@ -92,24 +95,24 @@ class ScrapeImpl(Scrape):
 
         transactions = None
         if Feature.TRANSACTIONS in features:
-            registered_txs = self.transaction_port.get_ids_by_entity(entity.name)
+            registered_txs = self._transaction_port.get_ids_by_entity(entity.name)
             transactions = await specific_scraper.transactions(registered_txs)
 
         if position:
-            self.position_port.save(entity.name, position)
+            self._position_port.save(entity.name, position)
 
         if auto_contributions:
-            self.auto_contr_repository.save(entity.name, auto_contributions)
+            self._auto_contr_repository.save(entity.name, auto_contributions)
 
         historic = None
         if transactions:
-            self.transaction_port.save(transactions)
+            self._transaction_port.save(transactions)
 
             if transactions.investment and Feature.HISTORIC in features:
                 historic = await self.build_historic(entity, specific_scraper)
 
-                self.historic_repository.delete_by_entity(entity.name)
-                self.historic_repository.save(historic)
+                self._historic_repository.delete_by_entity(entity.name)
+                self._historic_repository.save(historic)
 
         scraped_data = ScrapedData(position=position,
                                    autoContributions=auto_contributions,
@@ -137,7 +140,7 @@ class ScrapeImpl(Scrape):
 
         investments = list(investments_by_name.values())
 
-        related_txs = self.transaction_port.get_by_entity(entity.name)
+        related_txs = self._transaction_port.get_by_entity(entity.name)
         txs_by_name = {}
         for tx in related_txs.investment:
             if tx.name in txs_by_name:
@@ -149,7 +152,7 @@ class ScrapeImpl(Scrape):
         for inv in investments:
             inv_name = inv["name"]
             if inv_name not in txs_by_name:
-                print(f"No txs for investment {inv_name}")
+                self._log.warning(f"No txs for investment {inv_name}")
                 continue
 
             related_inv_txs = txs_by_name[inv_name]
@@ -163,7 +166,7 @@ class ScrapeImpl(Scrape):
             elif product_type == "FACTORING":
                 inv = FactoringDetail(**inv)
             else:
-                print(f"Skipping investment with unsupported product type {product_type}")
+                self._log.warning(f"Skipping investment with unsupported product type {product_type}")
                 continue
 
             returned, fees, retentions, interests, net_return, last_maturity_tx = None, None, None, None, None, None

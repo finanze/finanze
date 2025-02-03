@@ -7,10 +7,10 @@ from domain.use_cases.get_available_sources import GetAvailableSources
 class GetAvailableSourcesImpl(GetAvailableSources):
 
     def __init__(self, config_port: ConfigPort):
-        self.config_port = config_port
+        self._config_port = config_port
 
     async def execute(self) -> AvailableSources:
-        scrape_config = self.config_port.load()["scrape"]
+        scrape_config = self._config_port.load()["scrape"]
 
         virtual_enabled = scrape_config["virtual"]["enabled"]
 

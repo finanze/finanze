@@ -32,25 +32,25 @@ def map_loan_distribution(input_json):
 class MintosScraper(EntityScraper):
 
     def __init__(self):
-        self.__client = MintosAPIClient()
+        self._client = MintosAPIClient()
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        return await self.__client.login(username, password)
+        return await self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
-        user_json = self.__client.get_user()
+        user_json = self._client.get_user()
         wallet = user_json["aggregates"][0]
         wallet_currency_id = wallet["currency"]
         balance = wallet["accountBalance"]
 
-        overview_json = self.__client.get_overview(wallet_currency_id)
+        overview_json = self._client.get_overview(wallet_currency_id)
         loans = overview_json["loans"]["value"]
 
-        overview_net_annual_returns_json = self.__client.get_net_annual_returns(wallet_currency_id)
+        overview_net_annual_returns_json = self._client.get_net_annual_returns(wallet_currency_id)
         net_annual_returns = overview_net_annual_returns_json["netAnnualReturns"][str(wallet_currency_id)]
 
-        portfolio_data_json = self.__client.get_portfolio(wallet_currency_id)
+        portfolio_data_json = self._client.get_portfolio(wallet_currency_id)
         total_investment_distribution = portfolio_data_json["totalInvestmentDistribution"]
 
         account_data = Account(

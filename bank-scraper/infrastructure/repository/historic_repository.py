@@ -20,13 +20,14 @@ def map_transactions(raw_entries) -> Historic:
 
 
 class HistoricRepository(HistoricPort):
+
     def __init__(self, client: MongoClient, db_name: str):
-        self.client = client
-        self.db = self.client[db_name]
-        self.collection = self.db["historic"]
+        self._client = client
+        self._db = self._client[db_name]
+        self._collection = self._db["historic"]
 
     def save(self, historic: Historic):
-        self.collection.insert_many(
+        self._collection.insert_many(
             [
                 {
                     **map_serializable(entry),
@@ -37,7 +38,7 @@ class HistoricRepository(HistoricPort):
         )
 
     def get_all(self) -> Historic:
-        entries = (self.collection.find(
+        entries = (self._collection.find(
             {},
             {"_id": 0, "createdAt": 0}
         ).sort("lastInvestDate", 1))
@@ -45,4 +46,4 @@ class HistoricRepository(HistoricPort):
         return map_transactions(entries)
 
     def delete_by_entity(self, entity: str):
-        self.collection.delete_many({"entity": entity})
+        self._collection.delete_many({"entity": entity})

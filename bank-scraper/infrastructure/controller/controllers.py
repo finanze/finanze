@@ -17,13 +17,13 @@ class Controllers:
                  scrape: Scrape,
                  update_sheets: UpdateSheets,
                  virtual_scrape: VirtualScrape):
-        self.__get_available_sources = get_available_sources
-        self.__scrape = scrape
-        self.__update_sheets = update_sheets
-        self.__virtual_scrape = virtual_scrape
+        self._get_available_sources = get_available_sources
+        self._scrape = scrape
+        self._update_sheets = update_sheets
+        self._virtual_scrape = virtual_scrape
 
     async def get_available_sources(self):
-        available_sources = await self.__get_available_sources.execute()
+        available_sources = await self._get_available_sources.execute()
         return jsonify(available_sources), 200
 
     async def scrape(self):
@@ -51,7 +51,7 @@ class Controllers:
             "processId": process_id,
             "avoidNewLogin": avoid_new_login,
         }
-        result = await self.__scrape.execute(entity, features, login=login_args)
+        result = await self._scrape.execute(entity, features, login=login_args)
 
         response = {"code": result.code.name}
         if result.details:
@@ -61,11 +61,11 @@ class Controllers:
         return jsonify(response), 200
 
     def update_sheets(self):
-        self.__update_sheets.execute()
+        self._update_sheets.execute()
         return "", 204
 
     async def virtual_scrape(self):
-        result = await self.__virtual_scrape.execute()
+        result = await self._virtual_scrape.execute()
 
         response = {"code": result.code.name}
         if result.data:

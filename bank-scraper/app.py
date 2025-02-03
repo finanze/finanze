@@ -13,6 +13,7 @@ from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.virtual_scrape import VirtualScrapeImpl
 from domain.financial_entity import Entity
 from infrastructure.config.config_loader import ConfigLoader
+from infrastructure.controller import exception_handler
 from infrastructure.controller.controllers import Controllers
 from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.repository.auto_contributions_repository import AutoContributionsRepository
@@ -97,6 +98,7 @@ app.add_url_rule('/api/v1/scrape', view_func=controllers.get_available_sources, 
 app.add_url_rule('/api/v1/scrape', view_func=controllers.scrape, methods=['POST'])
 app.add_url_rule('/api/v1/scrape/virtual', view_func=controllers.virtual_scrape, methods=['POST'])
 app.add_url_rule('/api/v1/update-sheets', view_func=controllers.update_sheets, methods=['POST'])
+app.register_error_handler(500, exception_handler.handle_unexpected_error)
 
 if __name__ == '__main__':
     serve(app, host="0.0.0.0", port=port)

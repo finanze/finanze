@@ -5,7 +5,7 @@ from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_playwright import RecaptchaSolver
 
 
-async def login(session, username: str, password: str) -> dict:
+async def login(log, session, username: str, password: str) -> dict:
     async with async_playwright() as p:
         # browser = await p.firefox.connect('ws://localhost:3000/firefox/playwright')
         # Only working in non-headless mode, so mostly no useful
@@ -25,7 +25,7 @@ async def login(session, username: str, password: str) -> dict:
             try:
                 await page.wait_for_url(lambda url: "overview" in url, timeout=4000)
             except Exception:
-                print("Not redirecting to overview page, checking recaptcha.")
+                log.info("Not redirecting to overview page, checking recaptcha.")
                 recaptcha_solver = RecaptchaSolver(page, 10)
                 await recaptcha_solver.solve_audio_captcha()
 
@@ -38,7 +38,7 @@ async def login(session, username: str, password: str) -> dict:
             return {"result": LoginResult.CREATED}
 
         except Exception as e:
-            print(f"An error occurred while logging in: {e}")
+            log.error(f"An error occurred while logging in: {e}")
             raise
 
         finally:

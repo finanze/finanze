@@ -16,13 +16,13 @@ class VirtualScrapeImpl(VirtualScrape):
                  transaction_port: TransactionPort,
                  virtual_scraper: VirtualScraper,
                  config_port: ConfigPort):
-        self.position_port = position_port
-        self.transaction_port = transaction_port
-        self.virtual_scraper = virtual_scraper
-        self.config_port = config_port
+        self._position_port = position_port
+        self._transaction_port = transaction_port
+        self._virtual_scraper = virtual_scraper
+        self._config_port = config_port
 
     async def execute(self) -> ScrapResult:
-        config = self.config_port.load()
+        config = self._config_port.load()
         virtual_scrape_config = config["scrape"]["virtual"]
 
         if not virtual_scrape_config["enabled"]:
@@ -30,22 +30,22 @@ class VirtualScrapeImpl(VirtualScrape):
 
         config_globals = virtual_scrape_config["globals"]
 
-        registered_txs = self.transaction_port.get_ids_by_source_type(SourceType.VIRTUAL)
+        registered_txs = self._transaction_port.get_ids_by_source_type(SourceType.VIRTUAL)
 
         investment_sheets = virtual_scrape_config["investments"]
         transaction_sheets = virtual_scrape_config["transactions"]
         apply_global_config(config_globals, investment_sheets)
         apply_global_config(config_globals, transaction_sheets)
 
-        global_positions = await self.virtual_scraper.global_positions(investment_sheets)
-        transactions = await self.virtual_scraper.transactions(transaction_sheets, registered_txs)
+        global_positions = await self._virtual_scraper.global_positions(investment_sheets)
+        transactions = await self._virtual_scraper.transactions(transaction_sheets, registered_txs)
 
         if global_positions:
             for entity, position in global_positions.items():
-                self.position_port.save(entity, position)
+                self._position_port.save(entity, position)
 
         if transactions:
-            self.transaction_port.save(transactions)
+            self._transaction_port.save(transactions)
 
         data = VirtuallyScrapedData(positions=global_positions, transactions=transactions)
 

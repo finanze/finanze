@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from typing import Optional, Union
 
@@ -14,13 +15,14 @@ class MyInvestorAPIV1Client:
     BASE_URL = "https://app.myinvestor.es"
 
     def __init__(self):
-        self.__headers = {}
+        self._headers = {}
+        self._log = logging.getLogger(__name__)
 
-    def __execute_request(
+    def _execute_request(
             self, path: str, method: str, body: dict, raw: bool = False
     ) -> Union[dict, requests.Response]:
         response = requests.request(
-            method, self.BASE_URL + path, json=body, headers=self.__headers
+            method, self.BASE_URL + path, json=body, headers=self._headers
         )
 
         if raw:
@@ -29,22 +31,22 @@ class MyInvestorAPIV1Client:
         if response.ok:
             return response.json()
 
-        print("Error Status Code:", response.status_code)
-        print("Error Response Body:", response.text)
+        self._log.error("Error Status Code:", response.status_code)
+        self._log.error("Error Response Body:", response.text)
         raise Exception("There was an error during the request")
 
-    def __get_request(self, path: str) -> requests.Response:
-        return self.__execute_request(path, "GET", body=None)
+    def _get_request(self, path: str) -> requests.Response:
+        return self._execute_request(path, "GET", body=None)
 
-    def __post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
-        return self.__execute_request(path, "POST", body=body, raw=raw)
+    def _post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
+        return self._execute_request(path, "POST", body=body, raw=raw)
 
     def login(self, username: str, password: str) -> dict:
-        self.__headers = dict()
-        self.__headers["Content-Type"] = "application/json"
-        self.__headers["Referer"] = self.BASE_URL
-        self.__headers["x-origin-b2b"] = self.BASE_URL
-        self.__headers["User-Agent"] = (
+        self._headers = dict()
+        self._headers["Content-Type"] = "application/json"
+        self._headers["Referer"] = self.BASE_URL
+        self._headers["x-origin-b2b"] = self.BASE_URL
+        self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
@@ -58,7 +60,7 @@ class MyInvestorAPIV1Client:
             "otpId": None,
             "code": None,
         }
-        response = self.__post_request("/ms-keycloak/api/v1/auth/token", body=request, raw=True)
+        response = self._post_request("/ms-keycloak/api/v1/auth/token", body=request, raw=True)
 
         if response.ok:
             try:
@@ -66,7 +68,7 @@ class MyInvestorAPIV1Client:
             except KeyError:
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
-            self.__headers["Authorization"] = "Bearer " + token
+            self._headers["Authorization"] = "Bearer " + token
 
             return {"result": LoginResult.CREATED}
 
@@ -89,25 +91,25 @@ class MyInvestorAPIV1Client:
             "hashApp": None,
             "contrasena": None,
         }
-        response = self.__post_request(
+        response = self._post_request(
             "/myinvestor-server/rest/public/mantenimientos/check-mantenimiento",
             body=request,
         )
         return response
 
     def get_user(self):
-        return self.__get_request(
+        return self._get_request(
             "/myinvestor-server/rest/protected/usuarios/usuario-logueado"
         )
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_accounts(self):
-        return self.__get_request(
+        return self._get_request(
             "/myinvestor-server/rest/protected/cuentas/efectivo?soloActivas=true"
         )
 
     def get_account_remuneration(self, account_id):
-        return self.__get_request(
+        return self._get_request(
             f"/myinvestor-server/rest/protected/cuentas/{account_id}/remuneracion"
         )
 
@@ -128,40 +130,40 @@ class MyInvestorAPIV1Client:
             "referenciaMovimiento": None,
         }
 
-        return self.__post_request(
+        return self._post_request(
             "/myinvestor-server/rest/protected/cuentas/consulta-movimientos-efectivo",
             body=request,
         )
 
     def get_cards(self, account_id=None):
         params = f"?accountId={account_id}" if account_id else ""
-        return self.__get_request(f"/ms-cards/api/v1/cards{params}")["payload"]["data"]
+        return self._get_request(f"/ms-cards/api/v1/cards{params}")["payload"]["data"]
 
     def get_card_transactions(self, card_id):
-        return self.__get_request(f"/ms-cards/api/v1/cards/{card_id}/transaction")[
+        return self._get_request(f"/ms-cards/api/v1/cards/{card_id}/transaction")[
             "payload"
         ]["data"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_sego_global_position(self):
-        return self.__get_request("/ms-sego/api/v1/investments/self/global-position")["payload"][
+        return self._get_request("/ms-sego/api/v1/investments/self/global-position")["payload"][
             "data"
         ]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_all_sego_investments(self):
-        return self.__get_request("/ms-sego/api/v1/investments/self")["payload"]["data"]
+        return self._get_request("/ms-sego/api/v1/investments/self")["payload"]["data"]
 
     @cached(cache=TTLCache(maxsize=10, ttl=120))
     def get_sego_movements(self, page: int = 1):
         params = f"?limit=100&page={page}"
-        return self.__get_request(f"/ms-sego/api/v1/investments/self/wallet/movements{params}")["payload"]["data"]
+        return self._get_request(f"/ms-sego/api/v1/investments/self/wallet/movements{params}")["payload"]["data"]
 
     def get_stocks_summary(self):
-        return self.__get_request("/ms-broker/v1/acciones/resumen-acciones-cliente")
+        return self._get_request("/ms-broker/v1/acciones/resumen-acciones-cliente")
 
     def get_funds_and_portfolios_summary(self):
-        return self.__get_request(
+        return self._get_request(
             "/myinvestor-server/rest/protected/inversiones?soloCarteras=false&soloActivas=true"
         )
 
@@ -191,11 +193,11 @@ class MyInvestorAPIV1Client:
             "tipoOrdenesEnum": None,
         }
 
-        return self.__post_request(
+        return self._post_request(
             "/ms-broker/v1/ordenes/obtenerOrdenes", body=request)
 
     def get_stock_order_details(self, order_id: str):
-        return self.__get_request(f"/ms-broker/v1/ordenes/obtenerDetalleOrden/{order_id}")
+        return self._get_request(f"/ms-broker/v1/ordenes/obtenerDetalleOrden/{order_id}")
 
     def get_fund_orders(self,
                         securities_account_id: str,
@@ -223,16 +225,16 @@ class MyInvestorAPIV1Client:
             "tipoOrdenesEnum": None,
         }
 
-        return self.__post_request(
+        return self._post_request(
             "/myinvestor-server/rest/protected/fondos/consulta-ordenes", body=request)["listadoOperaciones"]
 
     def get_fund_order_details(self, order_id: str):
-        return self.__get_request(f"/myinvestor-server/rest/protected/fondos/ordenes/{order_id}")
+        return self._get_request(f"/myinvestor-server/rest/protected/fondos/ordenes/{order_id}")
 
     def get_auto_contributions(self):
-        return self.__get_request(
+        return self._get_request(
             "/myinvestor-server/rest/protected/aportaciones/list"
         )
 
     def get_deposits(self):
-        return self.__get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]
+        return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]

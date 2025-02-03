@@ -209,12 +209,12 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
 
 class PositionRepository(PositionPort):
     def __init__(self, client: MongoClient, db_name: str):
-        self.client = client
-        self.db = self.client[db_name]
-        self.collection = self.db["positions"]
+        self._client = client
+        self._db = self._client[db_name]
+        self._collection = self._db["positions"]
 
     def save(self, entity: str, position: GlobalPosition):
-        self.collection.insert_one(
+        self._collection.insert_one(
             {"entity": entity, **map_serializable(position)}
         )
 
@@ -247,7 +247,7 @@ class PositionRepository(PositionPort):
                 }
             }
         ]
-        result = list(self.collection.aggregate(pipeline))
+        result = list(self._collection.aggregate(pipeline))
 
         mapped_result = {}
         for entry in result:
@@ -261,7 +261,7 @@ class PositionRepository(PositionPort):
         return mapped_result
 
     def get_last_updated(self, entity: Entity) -> Optional[datetime]:
-        result = self.collection.find_one(
+        result = self._collection.find_one(
             {"entity": entity.name},
             sort=[("date", -1)],
             projection={"_id": 0, "date": 1}

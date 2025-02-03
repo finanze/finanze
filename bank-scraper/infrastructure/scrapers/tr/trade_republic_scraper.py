@@ -121,7 +121,7 @@ class TradeRepublicScraper(EntityScraper):
     DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
     def __init__(self):
-        self.__client = TradeRepublicClient()
+        self._client = TradeRepublicClient()
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         phone, pin = credentials
@@ -129,16 +129,16 @@ class TradeRepublicScraper(EntityScraper):
         code = kwargs.get("code", None)
         avoid_new_login = kwargs.get("avoidNewLogin", False)
 
-        return self.__client.login(phone, pin, avoid_new_login, process_id, code)
+        return self._client.login(phone, pin, avoid_new_login, process_id, code)
 
-    async def instrument_mapper(self, stock: dict, currency: str):
+    async def _instrument_mapper(self, stock: dict, currency: str):
         isin = stock["instrumentId"]
         average_buy = round(float(stock["averageBuyIn"]), 4)
         shares = float(stock["netSize"])
         market_value = round(float(stock["netValue"]), 4)
         initial_investment = round(average_buy * shares, 4)
 
-        details = await self.__client.get_details(isin)
+        details = await self._client.get_details(isin)
         type_id = details.instrument["typeId"].upper()
         name = details.instrument["name"]
         ticker = details.instrument["homeSymbol"]
@@ -176,17 +176,17 @@ class TradeRepublicScraper(EntityScraper):
         )
 
     async def global_position(self) -> GlobalPosition:
-        portfolio = await self.__client.get_portfolio()
+        portfolio = await self._client.get_portfolio()
 
         currency = portfolio.cash[0]["currencyId"]
         cash_total = portfolio.cash[0]["amount"]
 
         investments = []
         for position in portfolio.portfolio["positions"]:
-            investment = await self.instrument_mapper(position, currency)
+            investment = await self._instrument_mapper(position, currency)
             investments.append(investment)
 
-        await self.__client.close()
+        await self._client.close()
 
         initial_investment = round(
             sum(map(lambda x: x.initialInvestment, investments)), 4
@@ -209,8 +209,8 @@ class TradeRepublicScraper(EntityScraper):
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
-        raw_txs = await self.__client.get_transactions(already_registered_ids=registered_txs)
-        await self.__client.close()
+        raw_txs = await self._client.get_transactions(already_registered_ids=registered_txs)
+        await self._client.close()
 
         investment_txs = []
         account_txs = []

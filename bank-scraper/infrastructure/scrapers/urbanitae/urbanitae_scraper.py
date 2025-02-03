@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from application.ports.entity_scraper import EntityScraper
@@ -16,22 +17,23 @@ class UrbanitaeScraper(EntityScraper):
     DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
     def __init__(self):
-        self.__client = UrbanitaeAPIClient()
+        self._client = UrbanitaeAPIClient()
+        self._log = logging.getLogger(__name__)
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        return self.__client.login(username, password)
+        return self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
-        wallet = self.__client.get_wallet()
+        wallet = self._client.get_wallet()
         balance = wallet["balance"]
 
         account = Account(total=round(balance, 2))
 
-        investments_data = self.__client.get_investments()
+        investments_data = self._client.get_investments()
 
         real_state_cf_inv_details = [
-            self.map_investment(inv)
+            self._map_investment(inv)
             for inv in investments_data if inv["projectPhase"] in FUNDED_STATES
         ]
 
@@ -54,8 +56,8 @@ class UrbanitaeScraper(EntityScraper):
             investments=investments
         )
 
-    def map_investment(self, inv):
-        project_details = self.__client.get_project_detail(inv["projectId"])
+    def _map_investment(self, inv):
+        project_details = self._client.get_project_detail(inv["projectId"])
 
         months = project_details["details"]["investmentPeriod"]
         interest_rate = project_details["fund"]["apreciationProfitability"]
@@ -75,7 +77,7 @@ class UrbanitaeScraper(EntityScraper):
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
-        raw_txs = self.__client.get_transactions()
+        raw_txs = self._client.get_transactions()
 
         txs = []
         for tx in raw_txs:
@@ -86,7 +88,7 @@ class UrbanitaeScraper(EntityScraper):
             tx_type_raw = tx["type"]
             tx_type = TxType.INVESTMENT if tx_type_raw == "INVESTMENT" else None
             if tx_type != TxType.INVESTMENT:
-                print(f"Skipping tx {ref} with type {tx_type_raw}")
+                self._log.debug(f"Skipping tx {ref} with type {tx_type_raw}")
                 continue
 
             currency = tx["externalProviderData"]["currency"]
@@ -112,10 +114,10 @@ class UrbanitaeScraper(EntityScraper):
         return Transactions(investment=txs)
 
     async def historical_position(self) -> HistoricalPosition:
-        investments_data = self.__client.get_investments()
+        investments_data = self._client.get_investments()
 
         real_state_cf_inv_details = [
-            self.map_investment(inv)
+            self._map_investment(inv)
             for inv in investments_data
         ]
 

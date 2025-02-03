@@ -1,4 +1,5 @@
 import inspect
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -65,7 +66,8 @@ class SheetsImporter(VirtualScraper):
     }
 
     def __init__(self):
-        self.__sheet = spreadsheets()
+        self._sheet = spreadsheets()
+        self._log = logging.getLogger(__name__)
 
     async def global_positions(self, investment_configs) -> dict[str, GlobalPosition]:
         global_positions_dicts = {}
@@ -75,7 +77,7 @@ class SheetsImporter(VirtualScraper):
             if not parent_type:
                 raise ValueError(f"Invalid field {field}")
 
-            per_entity = self.load_investment_products(detail_type, parent_type, config)
+            per_entity = self._load_investment_products(detail_type, parent_type, config)
             for entity in per_entity:
                 if entity not in global_positions_dicts:
                     global_positions_dicts[entity] = {"investments": {}}
@@ -89,7 +91,7 @@ class SheetsImporter(VirtualScraper):
 
         return global_positions
 
-    def load_investment_products(self, cls, parent_cls, config) -> dict[str, any]:
+    def _load_investment_products(self, cls, parent_cls, config) -> dict[str, any]:
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
@@ -99,7 +101,7 @@ class SheetsImporter(VirtualScraper):
 
             details_per_entity[entity] = entity_products
 
-        self.__parse_sheet_table(config, process_entry_fn)
+        self._parse_sheet_table(config, process_entry_fn)
 
         if not details_per_entity:
             return {}
@@ -123,7 +125,7 @@ class SheetsImporter(VirtualScraper):
         for config in txs_configs:
             field = config["data"]
 
-            txs = self.load_inv_txs(config)
+            txs = self._load_inv_txs(config)
             txs = [tx for tx in txs if tx.id not in registered_txs]
 
             current_transactions = None
@@ -137,7 +139,7 @@ class SheetsImporter(VirtualScraper):
 
         return transactions
 
-    def load_inv_txs(self, config) -> list:
+    def _load_inv_txs(self, config) -> list:
         txs = []
 
         def process_entry_fn(row, tx_dict):
@@ -145,18 +147,19 @@ class SheetsImporter(VirtualScraper):
 
             prod_type = tx_dict.get("productType")
             if prod_type not in self.TX_PROD_TYPE_ATTR_MAP:
-                print(f"Skipping row {row}: Invalid product type {prod_type}")
+                self._log.warn(f"Skipping row {row}: Invalid product type {prod_type}")
                 return
+
             cls = self.TX_PROD_TYPE_ATTR_MAP[prod_type]
             txs.append(cls.from_dict(tx_dict))
 
-        self.__parse_sheet_table(config, process_entry_fn)
+        self._parse_sheet_table(config, process_entry_fn)
 
         return txs
 
-    def __parse_sheet_table(self, config, entry_fn):
+    def _parse_sheet_table(self, config, entry_fn):
         sheet_range, sheet_id = config["range"], config["spreadsheetId"]
-        cells = self.__read_sheet_table(sheet_id, sheet_range)
+        cells = self._read_sheet_table(sheet_id, sheet_range)
         if not cells:
             return {}
 
@@ -173,20 +176,20 @@ class SheetsImporter(VirtualScraper):
             for j, column in enumerate(columns, start_column_index):
                 if not column or j >= len(row):
                     continue
-                parsed = self.parse_cell(row[j], config)
+                parsed = self._parse_cell(row[j], config)
                 if parsed is not None:
                     entry_dict[column] = parsed
 
             try:
                 entry_fn(row, entry_dict)
             except MissingFieldsError as e:
-                print(f"Skipping row {row}: {e}")
+                self._log.warn(f"Skipping row {row}: {e}")
                 continue
             except ValidationError as e:
-                print(f"Skipping row {row}: {e}")
+                self._log.warn(f"Skipping row {row}: {e}")
                 continue
 
-    def parse_cell(self, value: str, config: dict) -> any:
+    def _parse_cell(self, value: str, config: dict) -> any:
         try:
             return parse_number(value)
         except ValueError:
@@ -200,6 +203,6 @@ class SheetsImporter(VirtualScraper):
                         return None
                     return value
 
-    def __read_sheet_table(self, sheet_id, cell_range) -> list[list]:
-        result = self.__sheet.values().get(spreadsheetId=sheet_id, range=cell_range).execute()
+    def _read_sheet_table(self, sheet_id, cell_range) -> list[list]:
+        result = self._sheet.values().get(spreadsheetId=sheet_id, range=cell_range).execute()
         return result.get('values', [])

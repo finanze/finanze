@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, date
 from hashlib import sha1
 
@@ -14,7 +15,8 @@ from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 class WecityScraper(EntityScraper):
 
     def __init__(self):
-        self.__client = WecityAPIClient()
+        self._client = WecityAPIClient()
+        self._log = logging.getLogger(__name__)
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
@@ -22,18 +24,18 @@ class WecityScraper(EntityScraper):
         code = kwargs.get("code", None)
         avoid_new_login = kwargs.get("avoidNewLogin", False)
 
-        return self.__client.login(username, password, avoid_new_login, process_id, code)
+        return self._client.login(username, password, avoid_new_login, process_id, code)
 
     async def global_position(self) -> GlobalPosition:
-        wallet = self.__client.get_wallet()["LW"]["balance"]
+        wallet = self._client.get_wallet()["LW"]["balance"]
         account = Account(total=round(wallet, 2))
 
         txs = self.scrape_transactions()
-        investments = self.__client.get_investments()
+        investments = self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            investment_details.append(self.map_investment(txs, inv_id, inv))
+            investment_details.append(self._map_investment(txs, inv_id, inv))
 
         total_invested = round(sum([inv.amount for inv in investment_details]), 2)
         weighted_interest_rate = round(
@@ -54,11 +56,11 @@ class WecityScraper(EntityScraper):
             investments=investments
         )
 
-    def map_investment(self, txs, inv_id, inv):
+    def _map_investment(self, txs, inv_id, inv):
         opportunity = inv["opportunity"]
         name = opportunity["name"].strip()
         amount = inv["amount"]["current"]
-        investments_details = self.__client.get_investment_details(inv_id)
+        investments_details = self._client.get_investment_details(inv_id)
 
         raw_business_type = opportunity["investment_type_id"]
         business_type = raw_business_type
@@ -113,14 +115,14 @@ class WecityScraper(EntityScraper):
                 continue
             tx_type = TxType.INVESTMENT if "investment" == tx_type_raw else None
             if not tx_type:
-                print(f"Skipping tx {tx['name']} with type {tx_type_raw}")
+                self._log.debug(f"Skipping tx {tx['name']} with type {tx_type_raw}")
                 continue
 
             name = tx["name"]
             amount = round(tx["amount"], 2)
             tx_date = tx["date"].replace(tzinfo=tzlocal())
 
-            ref = self.calc_tx_id(name, tx_date, amount, tx_type)
+            ref = self._calc_tx_id(name, tx_date, amount, tx_type)
 
             if ref in registered_txs:
                 continue
@@ -145,7 +147,7 @@ class WecityScraper(EntityScraper):
         return Transactions(investment=txs)
 
     def scrape_transactions(self):
-        raw_txs = self.__client.get_transactions()
+        raw_txs = self._client.get_transactions()
 
         txs = []
         for tx in raw_txs:
@@ -161,20 +163,20 @@ class WecityScraper(EntityScraper):
         return sorted(txs, key=lambda txx: (txx["date"], txx["amount"]))
 
     @staticmethod
-    def calc_tx_id(inv_name: str,
-                   tx_date: date,
-                   amount: float,
-                   tx_type: TxType) -> str:
+    def _calc_tx_id(inv_name: str,
+                    tx_date: date,
+                    amount: float,
+                    tx_type: TxType) -> str:
         return sha1(
             f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
 
     async def historical_position(self) -> HistoricalPosition:
         txs = self.scrape_transactions()
-        investments = self.__client.get_investments()
+        investments = self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            investment_details.append(self.map_investment(txs, inv_id, inv))
+            investment_details.append(self._map_investment(txs, inv_id, inv))
 
         return HistoricalPosition(
             investments=Investments(

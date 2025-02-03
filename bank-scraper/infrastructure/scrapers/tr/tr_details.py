@@ -16,24 +16,24 @@ class TRDetails:
         self.neon_news = None
         self.stock_details = None
 
-        self.tr = tr
-        self.isin = isin
+        self._tr = tr
+        self._isin = isin
 
-    async def details_loop(self, data: list = DATA_TYPES):
+    async def fetch(self, data: list = DATA_TYPES):
         recv = 0
         if "stockDetails" in data:
-            await self.tr.stock_details(self.isin)
+            await self._tr.stock_details(self._isin)
         if "neonNews" in data:
-            await self.tr.news(self.isin)
+            await self._tr.news(self._isin)
         # await self.tr.subscribe_news(self.isin)
         if "ticker" in data:
-            await self.tr.ticker(self.isin, exchange="LSX")
+            await self._tr.ticker(self._isin, exchange="LSX")
         if "performance" in data:
-            await self.tr.performance(self.isin, exchange="LSX")
+            await self._tr.performance(self._isin, exchange="LSX")
         if "instrument" in data:
-            await self.tr.instrument_details(self.isin)
+            await self._tr.instrument_details(self._isin)
         if "instrumentSuitability" in data:
-            await self.tr.instrument_suitability(self.isin)
+            await self._tr.instrument_suitability(self._isin)
 
         # await self.tr.add_watchlist(self.isin)
         # await self.tr.remove_watchlist(self.isin)
@@ -41,7 +41,7 @@ class TRDetails:
         # await self.tr.unsubscribe_news(self.isin)
 
         while True:
-            _subscription_id, subscription, response = await self.tr.recv()
+            _subscription_id, subscription, response = await self._tr.recv()
 
             if "stockDetails" in data and subscription["type"] == "stockDetails":
                 recv += 1

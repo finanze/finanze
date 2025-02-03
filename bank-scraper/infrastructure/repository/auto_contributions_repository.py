@@ -25,13 +25,13 @@ def map_contributions_to_domain(data: dict) -> AutoContributions:
 class AutoContributionsRepository(AutoContributionsPort):
 
     def __init__(self, client: MongoClient, db_name: str):
-        self.client = client
-        self.db = self.client[db_name]
-        self.collection = self.db["auto_contributions"]
+        self._client = client
+        self._db = self._client[db_name]
+        self._collection = self._db["auto_contributions"]
 
     def save(self, entity: str, data: AutoContributions):
         data = {**map_serializable(data), "updatedAt": datetime.now(tzlocal())}
-        self.collection.update_one(
+        self._collection.update_one(
             {"entity": entity},
             {"$set": data},
             upsert=True,
@@ -60,7 +60,7 @@ class AutoContributionsRepository(AutoContributionsPort):
                 }
             }
         ]
-        result = list(self.collection.aggregate(pipeline))
+        result = list(self._collection.aggregate(pipeline))
 
         mapped_result = {}
         for entry in result:
@@ -89,6 +89,6 @@ class AutoContributionsRepository(AutoContributionsPort):
                 }
             }
         ]
-        result = list(self.collection.aggregate(pipeline))
+        result = list(self._collection.aggregate(pipeline))
 
         return {entry["entity"]: entry["lastUpdate"].replace(tzinfo=timezone.utc) for entry in result}

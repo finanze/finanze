@@ -8,7 +8,7 @@ from googleapiclient.discovery import build
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
-def __load_creds():
+def _load_creds():
     credentials_path = os.environ["GOOGLE_CREDENTIALS_PATH"]
     token_path = os.environ["GOOGLE_TOKEN_PATH"]
 
@@ -30,6 +30,6 @@ def __load_creds():
 
 
 def spreadsheets():
-    creds = __load_creds()
+    creds = _load_creds()
     service = build("sheets", "v4", credentials=creds)
     return service.spreadsheets()

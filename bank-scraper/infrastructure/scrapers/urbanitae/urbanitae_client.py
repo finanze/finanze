@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime
 from typing import Optional, Union
 
@@ -14,14 +15,15 @@ class UrbanitaeAPIClient:
     BASE_URL = "https://urbanitae.com/api"
 
     def __init__(self):
-        self.__headers = {}
-        self.__user_info = None
+        self._headers = {}
+        self._user_info = None
+        self._log = logging.getLogger(__name__)
 
-    def __execute_request(
+    def _execute_request(
             self, path: str, method: str, body: dict, raw: bool = False
     ) -> Union[dict, requests.Response]:
         response = requests.request(
-            method, self.BASE_URL + path, json=body, headers=self.__headers
+            method, self.BASE_URL + path, json=body, headers=self._headers
         )
 
         if raw:
@@ -30,20 +32,20 @@ class UrbanitaeAPIClient:
         if response.ok:
             return response.json()
 
-        print("Error Status Code:", response.status_code)
-        print("Error Response Body:", response.text)
+        self._log.error("Error Status Code:", response.status_code)
+        self._log.error("Error Response Body:", response.text)
         raise Exception("There was an error during the request")
 
-    def __get_request(self, path: str) -> requests.Response:
-        return self.__execute_request(path, "GET", body=None)
+    def _get_request(self, path: str) -> requests.Response:
+        return self._execute_request(path, "GET", body=None)
 
-    def __post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
-        return self.__execute_request(path, "POST", body=body, raw=raw)
+    def _post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
+        return self._execute_request(path, "POST", body=body, raw=raw)
 
     def login(self, username: str, password: str) -> dict:
-        self.__headers = dict()
-        self.__headers["Content-Type"] = "application/json"
-        self.__headers["User-Agent"] = (
+        self._headers = dict()
+        self._headers["Content-Type"] = "application/json"
+        self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
@@ -52,15 +54,15 @@ class UrbanitaeAPIClient:
             "username": username,
             "password": password
         }
-        response = self.__post_request("/session", body=request, raw=True)
+        response = self._post_request("/session", body=request, raw=True)
 
         if response.ok:
             response_body = response.json()
             if "token" not in response_body:
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
-            self.__user_info = response_body
-            self.__headers["x-auth-token"] = response_body["token"]
+            self._user_info = response_body
+            self._headers["x-auth-token"] = response_body["token"]
 
             return {"result": LoginResult.CREATED}
 
@@ -72,10 +74,10 @@ class UrbanitaeAPIClient:
                     "message": f"Got unexpected response code {response.status_code}"}
 
     def get_user(self):
-        return self.__user_info
+        return self._user_info
 
     def get_wallet(self):
-        return self.__get_request("/investor/wallet")
+        return self._get_request("/investor/wallet")
 
     def get_transactions(self,
                          from_date: Optional[date] = None,
@@ -110,15 +112,15 @@ class UrbanitaeAPIClient:
         # 	OPERATOR
         # 	P2P
         # 	UNKNOWN
-        return self.__get_request(f"/investor/wallet/transactions{params}")["content"]
+        return self._get_request(f"/investor/wallet/transactions{params}")["content"]
 
     def get_investments(self):
         params = "?page=0&size=1000&sortField=INVEST_DATE&sortDirection=DESC"
-        return self.__get_request(f"/investor/summary{params}")["content"]
+        return self._get_request(f"/investor/summary{params}")["content"]
 
     @cached(cache=TTLCache(maxsize=50, ttl=600))
     def get_project_detail(self, project_id: str):
-        return self.__get_request(f"/projects/{project_id}")
+        return self._get_request(f"/projects/{project_id}")
 
     def get_project_timeline(self, project_id: str):
-        return self.__get_request(f"/communications/timeline/project//{project_id}")
+        return self._get_request(f"/communications/timeline/project//{project_id}")

@@ -13,7 +13,7 @@ from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
 
-async def login(session, username: str, password: str) -> dict:
+async def login(log, session, username: str, password: str) -> dict:
     driver = None
 
     options = FirefoxOptions()
@@ -60,7 +60,7 @@ async def login(session, username: str, password: str) -> dict:
         try:
             wait.until(EC.url_contains("overview"))
         except TimeoutException:
-            print("Not redirecting to overview page, checking recaptcha.")
+            log.info("Not redirecting to overview page, checking recaptcha.")
             recaptcha_solver = RecaptchaSolver(driver, 10)
             await recaptcha_solver.solve_audio_captcha()
 
@@ -73,7 +73,7 @@ async def login(session, username: str, password: str) -> dict:
         return {"result": LoginResult.CREATED}
 
     except Exception as e:
-        print(f"An error occurred while logging in: {e}")
+        log.error(f"An error occurred while logging in: {e}")
         raise
 
     finally:

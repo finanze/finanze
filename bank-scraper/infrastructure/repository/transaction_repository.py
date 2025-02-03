@@ -51,9 +51,9 @@ class TransactionRepository(TransactionPort):
     ACCOUNT_CATEGORY = "ACCOUNT"
 
     def __init__(self, client: MongoClient, db_name: str):
-        self.client = client
-        self.db = self.client[db_name]
-        self.collection = self.db["transactions"]
+        self._client = client
+        self._db = self._client[db_name]
+        self._collection = self._db["transactions"]
 
     def save(self, data: Transactions):
         self._save(data.investment, self.INVESTMENT_CATEGORY)
@@ -61,7 +61,7 @@ class TransactionRepository(TransactionPort):
 
     def _save(self, txs, category):
         if txs:
-            self.collection.insert_many(
+            self._collection.insert_many(
                 [
                     {
                         **map_serializable(tx),
@@ -73,12 +73,12 @@ class TransactionRepository(TransactionPort):
             )
 
     def get_all(self) -> Transactions:
-        investment_result = (self.collection.find(
+        investment_result = (self._collection.find(
             {"category": self.INVESTMENT_CATEGORY},
             {"_id": 0, "createdAt": 0, "category": 0}
         ).sort("date", 1))
 
-        account_result = (self.collection.find(
+        account_result = (self._collection.find(
             {"category": self.ACCOUNT_CATEGORY},
             {"_id": 0, "createdAt": 0, "category": 0}
         ).sort("date", 1))
@@ -90,16 +90,16 @@ class TransactionRepository(TransactionPort):
             {"$match": {"entity": entity}},
             {"$project": {"_id": 0, "id": 1}},
         ]
-        result = self.collection.aggregate(pipeline)
+        result = self._collection.aggregate(pipeline)
         return {doc["id"] for doc in result}
 
     def get_by_entity(self, entity: str) -> Transactions:
-        investment_result = (self.collection.find(
+        investment_result = (self._collection.find(
             {"entity": entity, "category": self.INVESTMENT_CATEGORY},
             {"_id": 0, "createdAt": 0, "category": 0}
         ).sort("date", 1))
 
-        account_result = (self.collection.find(
+        account_result = (self._collection.find(
             {"entity": entity, "category": self.ACCOUNT_CATEGORY},
             {"_id": 0, "createdAt": 0, "category": 0}
         ).sort("date", 1))
@@ -111,7 +111,7 @@ class TransactionRepository(TransactionPort):
             {"$match": {"sourceType": source_type.value}},
             {"$project": {"_id": 0, "id": 1}},
         ]
-        result = self.collection.aggregate(pipeline)
+        result = self._collection.aggregate(pipeline)
         return {doc["id"] for doc in result}
 
     def get_last_created_grouped_by_entity(self) -> dict[str, datetime]:
@@ -125,5 +125,5 @@ class TransactionRepository(TransactionPort):
             },
             {"$project": {"_id": 0, "entity": "$_id", "lastCreatedAt": 1}}
         ]
-        result = list(self.collection.aggregate(pipeline))
+        result = list(self._collection.aggregate(pipeline))
         return {doc["entity"]: doc["lastCreatedAt"].replace(tzinfo=timezone.utc) for doc in result}
