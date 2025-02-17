@@ -71,7 +71,9 @@ class SegoScraper(EntityScraper):
 
     async def login(self, credentials: tuple, **kwargs) -> dict:
         username, password = credentials
-        return self._client.login(username, password)
+        code = kwargs.get("code", None)
+        avoid_new_login = kwargs.get("avoidNewLogin", False)
+        return self._client.login(username, password, avoid_new_login, code)
 
     async def global_position(self) -> GlobalPosition:
         raw_wallet = self._client.get_wallet()

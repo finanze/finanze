@@ -37,7 +37,12 @@ class SegoAPIClient:
     def _post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
-    def login(self, username: str, password: str) -> dict:
+    def login(self,
+              username: str,
+              password: str,
+              avoid_new_login: bool = False,
+              code: str = None) -> dict:
+
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Ocp-Apim-Subscription-Key"] = "2e73914170f440bbb8e60ded6f77a41a"
@@ -50,12 +55,22 @@ class SegoAPIClient:
             "codigoPlataforma": "web-sego",
             "email": username,
             "password": password,
-            "tipoTfaCodigo": "login",
+            "tipoTfaCodigo": "login"
         }
+
+        if code:
+            request["codigoSMS"] = code
+
         response = self._post_request("/core/v1/Login/Inversor", body=request, raw=True)
 
         if response.ok:
             response_body = response.json()
+            if response_body["isCodigoEnviado"]:
+                if avoid_new_login:
+                    return {"result": LoginResult.NOT_LOGGED}
+
+                return {"result": LoginResult.CODE_REQUESTED}
+
             if "token" not in response_body:
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
 

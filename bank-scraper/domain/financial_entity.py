@@ -53,7 +53,10 @@ ENTITY_DETAILS = {
     Entity.SEGO: {
         "id": Entity.SEGO,
         "name": "SEGO",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC]
+        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+        "pin": {
+            "positions": 6
+        }
     },
     Entity.MINTOS: {
         "id": Entity.MINTOS,
