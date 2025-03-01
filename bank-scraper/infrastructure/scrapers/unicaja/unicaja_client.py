@@ -266,8 +266,8 @@ class UnicajaClient:
     def get_cards(self):
         return self._get_request("/services/rest/api/productos/listatarjetas")
 
-    def get_card(self):
-        card_details_request = {"ppp": "002", "tipotarjeta": "2"}
+    def get_card(self, ppp: str, card_type: str):
+        card_details_request = {"ppp": ppp, "tipotarjeta": card_type}
         return self._post_request(
             "/services/rest/api/tarjetas/detalleTarjeta", card_details_request
         )

@@ -46,6 +46,9 @@ class UnicajaScraper(EntityScraper):
 
         card_list = self._client.get_cards()
         debit_card_raw = card_list["tarjetas"][0]
+        debit_card_details_raw = self._client.get_card(debit_card_raw["ppp"], debit_card_raw["codtipotarjeta"])
+        deferred_debit_amount = debit_card_details_raw["datosCredito"]["importeDispuesto"]["cantidad"]
+
         credit_card_raw = card_list["tarjetas"][1]
 
         cards_data = Cards(
@@ -55,7 +58,7 @@ class UnicajaScraper(EntityScraper):
             ),
             debit=Card(
                 limit=debit_card_raw["limite"]["cantidad"],
-                used=debit_card_raw["pagadoMesActual"]["cantidad"],
+                used=debit_card_raw["pagadoMesActual"]["cantidad"] + deferred_debit_amount,
             ),
         )
 
