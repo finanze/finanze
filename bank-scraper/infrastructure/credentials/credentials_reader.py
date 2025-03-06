@@ -27,3 +27,6 @@ class CredentialsReader(CredentialsPort):
 
         elif entity == Entity.MINTOS:
             return os.environ["MINTOS_USERNAME"], os.environ["MINTOS_PASSWORD"]
+
+        elif entity == Entity.F24:
+            return os.environ["F24_USERNAME"], os.environ["F24_PASSWORD"]

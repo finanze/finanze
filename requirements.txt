@@ -16,3 +16,5 @@ python-dateutil>=2.8.2
 pyyaml==6.0
 pytz==2024.2
 pydantic==2.10.5
+requests_toolbelt==1.0.0
+tzlocal==5.3
