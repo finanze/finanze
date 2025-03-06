@@ -9,8 +9,6 @@ from requests_toolbelt import MultipartEncoder
 
 from domain.scrap_result import LoginResult
 
-DATETIME_FORMAT = "%d-%m-%Y %H:%M:%S"
-
 
 class F24APIClient:
     BASE_URL = "https://freedom24.com"

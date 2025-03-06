@@ -34,6 +34,7 @@ work, be outdated or partially implemented. That's why this documentation is so 
 - `WECITY` (wallet & investments) [requires 2FA]
 - `MINTOS` (wallet & loan distribution) (experimental)
     - Needs Selenium to resolve reCAPTCHA, checkout [docker-compose.yml](docker-compose.yml).
+- `F24` (savings and brokerage account & deposits)
 
 ### Entity Features
 
