@@ -217,8 +217,10 @@ class TradeRepublicScraper(EntityScraper):
         for raw_tx in raw_txs:
             status = raw_tx.get("status", None)
             event_type = raw_tx.get("eventType", None)
-            if not (status == "EXECUTED" and event_type in ["TRADE_INVOICE", "ORDER_EXECUTED", "INTEREST_PAYOUT",
-                                                            "INTEREST_PAYOUT_CREATED"]):
+            if not (event_type
+                    and status == "EXECUTED"
+                    and event_type.upper() in ["TRADE_INVOICE", "ORDER_EXECUTED", "INTEREST_PAYOUT",
+                                               "INTEREST_PAYOUT_CREATED", "TRADING_TRADE_EXECUTED"]):
                 continue
 
             date = datetime.strptime(raw_tx["timestamp"], self.DATETIME_FORMAT)
