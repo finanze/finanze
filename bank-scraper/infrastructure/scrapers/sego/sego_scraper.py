@@ -176,7 +176,7 @@ class SegoScraper(EntityScraper):
             types = []
 
         raw_movements = []
-        page = 0
+        page = 1
         while True:
             fetched_movs = copy.deepcopy(self._client.get_movements(page=page, limit=100))
             raw_movements += fetched_movs
