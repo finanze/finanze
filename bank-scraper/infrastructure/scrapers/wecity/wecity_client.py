@@ -2,8 +2,8 @@ import json
 import logging
 import os
 import pathlib
-import re
-from http.cookiejar import MozillaCookieJar, Cookie
+from datetime import datetime, timezone
+from uuid import uuid4
 
 import requests
 from cachetools import TTLCache, cached
@@ -19,6 +19,11 @@ class WecityAPIClient:
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
+        self._session_file = None
+
+        session_file = os.environ.get("WC_SESSION_PATH")
+        if session_file:
+            self._session_file = pathlib.Path(session_file)
 
     def _get_request(self, path: str, api_url: bool = False) -> requests.Response:
         response = self._session.request("GET", (self.BASE_URL if api_url else self.BASE_OLD_URL) + path)
@@ -33,18 +38,14 @@ class WecityAPIClient:
     def _init_session(self):
         self._session = requests.Session()
 
-        cookies_file = os.environ["WC_COOKIES_PATH"]
-        self._cookies_file = pathlib.Path(cookies_file)
-
         agent = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
         self._session.headers["User-Agent"] = agent
 
-        if not self._cookies_file.parent.exists():
-            self._cookies_file.parent.mkdir(parents=True, exist_ok=True)
-        self._session.cookies = MozillaCookieJar(self._cookies_file)
+        if self._session_file and not self._session_file.parent.exists():
+            self._session_file.parent.mkdir(parents=True, exist_ok=True)
 
     def login(self,
               username: str,
@@ -55,82 +56,72 @@ class WecityAPIClient:
 
         self._init_session()
 
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
         if self._resume_web_session():
             self._log.debug("Web session resumed")
-            return {"result": LoginResult.RESUMED, "message": "Resumed stored session"}
+            return {"result": LoginResult.RESUMED}
+
+        request = {
+            "username": username,
+            "password": password,
+            "2facode": code or "",
+            "browser_id": process_id
+        }
 
         if code and process_id:
             if len(code) != 6:
                 return {"result": LoginResult.INVALID_CODE}
 
-            body = ""
-            for pos in range(len(code)):
-                body += f"sms_{pos + 1}={code[pos]}&"
-
-            body += "sms_code=&boton-2factor="
-
-            session_cookie = Cookie(0, name="PHPSESSID", value=process_id, port=None, port_specified=False,
-                                    domain="www.wecity.com", domain_specified=True, domain_initial_dot=True,
-                                    path="/", path_specified=True, secure=False, expires=None, discard=False,
-                                    comment=None, comment_url=None, rest={})
-            self._session.cookies.set_cookie(session_cookie)
-            response = self._session.request("POST", self.BASE_OLD_URL + "/login", data=body, headers=headers)
+            response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
 
             if not response.ok:
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
 
-            response_text = response.text
-            if "El código introducido no es correcto" in response_text:
-                return {"result": LoginResult.INVALID_CODE}
-
-            if "Entrar en mi cuenta" in response_text:
+            response = response.json()
+            response_return = response.get("return", None)
+            if not response_return:
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
-            self._session.cookies.save(ignore_discard=True, ignore_expires=True)
-            self._add_auth_headers()
+            response_2factor = response_return.get("2factor", None)
+            if response_2factor and "check 2fa" in response_2factor.lower():
+                return {"result": LoginResult.INVALID_CODE}
+
+            token = response_return.get("token", None)
+            if not token:
+                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+
+            self._session.headers["x-auth-token"] = token
+
+            sess_created_at = response_return.get("sess_time")
+            sess_created_at = datetime.fromtimestamp(sess_created_at, tz=timezone.utc)
+            sess_expiration = response_return.get("sess_expire")
+            sess_expiration = datetime.fromtimestamp(sess_expiration, tz=timezone.utc)
+
+            self._update_session_file(token, sess_created_at, sess_expiration)
 
             return {"result": LoginResult.CREATED}
 
         elif not process_id and not code:
             if not avoid_new_login:
-                body = f"usuario={username}&password={password}&boton-login="
-                response = self._session.request("POST", self.BASE_OLD_URL + "/login", data=body, headers=headers)
+                process_id = str(uuid4())
+                request["browser_id"] = process_id
+
+                response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
+
+                if response.status_code == 401:
+                    return {"result": LoginResult.INVALID_CREDENTIALS}
 
                 if not response.ok:
                     return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
 
-                response_text = response.text
-                if "Tu usuario o contraseña no son correctos" in response_text:
-                    return {"result": LoginResult.INVALID_CREDENTIALS}
+                response = response.json()
+                response_return = response.get("return", None)
+                if not response_return:
+                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
-                if "Doble Factor de Autenticación" in response_text:
-                    process_id = requests.utils.dict_from_cookiejar(self._session.cookies)["PHPSESSID"]
+                response_2factor = response_return.get("2factor", None)
+                if response_2factor and "check 2fa" in response_2factor.lower():
                     return {"result": LoginResult.CODE_REQUESTED, "processId": process_id}
 
-                pattern = r"localStorage\.setItem\('CapacitorStorage\.user',\s*'(.*?)'\);"
-                match = re.search(pattern, response.text)
-                if match:
-                    json_str = match.group(1).encode('utf-8').decode('unicode_escape')
-                    try:
-                        user_data = json.loads(json_str)
-                    except json.JSONDecodeError as e:
-                        self._log.debug(e)
-                        self._log.debug(json_str)
-                        return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Error parsing user data"}
-
-                    token = user_data.get("data", {}).get("token")
-                    if not token:
-                        self._log.debug(user_data)
-                        return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found when refreshing"}
-
-                    self._log.debug(f"Refreshing session with {token[:5]}...")
-                    self._add_auth_headers(token)
-
-                    return {"result": LoginResult.RESUMED, "message": "Resumed web session"}
-
-                self._log.debug(response_text)
                 return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
             else:
@@ -139,30 +130,38 @@ class WecityAPIClient:
         else:
             raise ValueError("Invalid params")
 
-    def _resume_web_session(self):
-        if self._cookies_file.exists():
-            self._session.cookies.load(ignore_discard=True, ignore_expires=True)
-            return self._add_auth_headers()
-        return False
+    def _resume_web_session(self) -> bool:
+        if not self._session_file or not self._session_file.exists():
+            return False
 
-    def _add_auth_headers(self, token: str = None):
-        try:
-            if not token:
-                user_data = self.get_user()
-                if user_data:
-                    token = user_data["token"]
-                else:
-                    self._log.debug("User data not available")
-                    return False
+        with self._session_file.open("r") as f:
+            session_data = json.load(f)
+            if not session_data:
+                return False
+
+            token = session_data["token"]
+            expiration = datetime.fromisoformat(session_data["expiration"])
+            if datetime.now(timezone.utc) >= expiration:
+                return False
 
             self._session.headers["x-auth-token"] = token
             return True
-        except requests.exceptions.HTTPError:
-            return False
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_user(self):
-        return self._get_request("/ajax/ajax.php?option=checkuser")["data"]
+    def _update_session_file(self, token, creation, expiration):
+        if not self._session_file:
+            return
+
+        with self._session_file.open("w") as f:
+            session_data = {
+                "token": token,
+                "creation": creation.isoformat(),
+                "expiration": expiration.isoformat(),
+            }
+            json.dump(session_data, f)
+
+    # @cached(cache=TTLCache(maxsize=1, ttl=120))
+    # def get_user(self):
+    #    return self._get_request("/ajax/ajax.php?option=checkuser")["data"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_wallet(self):
