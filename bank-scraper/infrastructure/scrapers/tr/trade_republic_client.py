@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 from datetime import datetime
 from typing import Optional
 
@@ -17,7 +18,7 @@ class TradeRepublicClient:
 
     def __init__(self):
         self._tr_api = None
-        self._cookies_file = os.environ["TR_COOKIES_PATH"]
+        self._cookies_file = pathlib.Path(os.environ["TR_COOKIES_PATH"])
         self._log = logging.getLogger(__name__)
 
     def login(self,
@@ -26,6 +27,9 @@ class TradeRepublicClient:
               avoid_new_login: bool = False,
               process_id: str = None,
               code: str = None) -> dict:
+
+        if not self._cookies_file.parent.exists():
+            self._cookies_file.parent.mkdir(parents=True, exist_ok=True)
 
         self._tr_api = TradeRepublicApi(
             phone_no=phone,
