@@ -116,7 +116,7 @@ class SegoAPIClient:
         return self._get_request("/factoring/v1/Inversiones/Pendientes")
 
     @cached(cache=TTLCache(maxsize=10, ttl=120))
-    def get_movements(self, page: int = 0, limit: int = 100):
+    def get_movements(self, page: int = 1, limit: int = 100):
         if limit > 100:
             raise ValueError("Limit cannot be greater than 100")
 
