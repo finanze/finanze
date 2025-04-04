@@ -2,6 +2,7 @@ import abc
 from datetime import datetime
 from typing import Union, Optional
 
+from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
 
 
@@ -16,7 +17,7 @@ class SheetsUpdatePort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def update_sheet(
             self,
-            data: Union[object, dict[str, object]],
+            data: Union[object, dict[FinancialEntity, object]],
             config: dict,
-            last_update: Optional[dict[str, datetime]] = None):
+            last_update: Optional[dict[FinancialEntity, datetime]] = None):
         raise NotImplementedError

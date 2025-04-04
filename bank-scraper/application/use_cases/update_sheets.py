@@ -7,6 +7,7 @@ from application.ports.position_port import PositionPort
 from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions
+from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.transactions import Transactions
@@ -64,14 +65,15 @@ class UpdateSheetsImpl(UpdateSheets):
 
         auto_contributions = self._auto_contr_port.get_all_grouped_by_entity()
         auto_contributions_last_update = self._auto_contr_port.get_last_update_grouped_by_entity()
+
         self.update_contributions(auto_contributions, contrib_configs, auto_contributions_last_update)
 
         transactions = self._transaction_port.get_all()
         transactions_last_update = self._transaction_port.get_last_created_grouped_by_entity()
         self.update_transactions(transactions, tx_configs, transactions_last_update)
 
-        historic = self._historic_port.get_all()
-        self.update_historic(historic, historic_configs)
+        #historic = self._historic_port.get_all()
+        #self.update_historic(historic, historic_configs)
 
     def update_summary_sheets(self, global_position: dict[str, GlobalPosition], summary_configs):
         for config in summary_configs:
@@ -85,15 +87,20 @@ class UpdateSheetsImpl(UpdateSheets):
 
             self._sheets_update_port.update_sheet(global_position, config)
 
-    def update_contributions(self, contributions: dict[str, AutoContributions], contrib_configs,
-                             last_update: dict[str, datetime]):
+    def update_contributions(self,
+                             contributions: dict[FinancialEntity, AutoContributions],
+                             contrib_configs,
+                             last_update: dict[FinancialEntity, datetime]):
         for config in contrib_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields
 
             self._sheets_update_port.update_sheet(contributions, config, last_update)
 
-    def update_transactions(self, transactions: Transactions, tx_configs, last_update: dict[str, datetime]):
+    def update_transactions(self,
+                            transactions: Transactions,
+                            tx_configs,
+                            last_update: dict[FinancialEntity, datetime]):
         for config in tx_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields

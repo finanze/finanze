@@ -1,11 +1,14 @@
 import json
 from dataclasses import asdict
 from datetime import date, datetime
+from uuid import UUID
 
 from dateutil.tz import tzlocal
 from pytz import utc
 
 from application.use_cases.update_sheets import DETAILS_FIELD, ADDITIONAL_DATA_FIELD
+from domain.dezimal import Dezimal
+from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
 
 LAST_UPDATE_FIELD = "lastUpdate"
@@ -185,5 +188,11 @@ def format_field_value(value, config):
 
     elif isinstance(value, dict) or isinstance(value, list):
         return json.dumps(value, default=str)
+
+    elif isinstance(value, Dezimal):
+        return float(value)
+
+    elif isinstance(value, UUID):
+        return str(value)
 
     return value

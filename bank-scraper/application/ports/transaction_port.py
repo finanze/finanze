@@ -15,15 +15,15 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_ids_by_entity(self, entity: str) -> set[str]:
+    def get_refs_by_entity(self, entity_id: int) -> set[str]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_entity(self, entity: str) -> Transactions:
+    def get_by_entity(self, entity_id: int) -> Transactions:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_ids_by_source_type(self, source_type: SourceType) -> set[str]:
+    def get_refs_by_source_type(self, real: bool) -> set[str]:
         raise NotImplementedError
 
     @abc.abstractmethod

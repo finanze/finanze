@@ -1,13 +1,15 @@
 import logging
 from datetime import datetime, date
 from hashlib import sha1
+from uuid import uuid4
 
 from dateutil.tz import tzlocal
 
 from application.ports.entity_scraper import EntityScraper
-from domain.financial_entity import Entity
-from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, SourceType, \
-    Account, HistoricalPosition
+from domain.dezimal import Dezimal
+from domain.financial_entity import WECITY
+from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
+    HistoricalPosition
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 
@@ -128,20 +130,20 @@ class WecityScraper(EntityScraper):
                 continue
 
             txs.append(RealStateCFTx(
-                id=ref,
+                id=uuid4(),
+                ref=ref,
                 name=name,
-                amount=amount,
+                amount=Dezimal(amount),
                 currency="EUR",
-                currencySymbol="€",
                 type=tx_type,
                 date=tx_date,
-                entity=Entity.WECITY,
-                productType=ProductType.REAL_STATE_CF,
-                fees=0,
-                retentions=0,
-                interests=0,
-                netAmount=amount,
-                sourceType=SourceType.REAL
+                entity=WECITY,
+                product_type=ProductType.REAL_STATE_CF,
+                fees=Dezimal(0),
+                retentions=Dezimal(0),
+                interests=Dezimal(0),
+                net_amount=amount,
+                is_real=True
             ))
 
         return Transactions(investment=txs)

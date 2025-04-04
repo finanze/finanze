@@ -1,15 +1,17 @@
 import logging
 from datetime import date, datetime
 from itertools import chain
+from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
-from domain.financial_entity import Entity
+from domain.dezimal import Dezimal
+from domain.financial_entity import MY_INVESTOR
 from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
-    Deposit, Deposits, SourceType
+    Deposit, Deposits
 from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.v1.myinvestor_client import MyInvestorAPIV1Client
 
@@ -253,13 +255,15 @@ class MyInvestorScraperV1(EntityScraper):
 
         periodic_contributions = [
             PeriodicContribution(
+                id=uuid4(),
                 alias=get_alias(auto_contribution),
                 isin=auto_contribution["codigoIsin"],
-                amount=round(auto_contribution["importe"], 2),
+                amount=Dezimal(round(auto_contribution["importe"], 2)),
                 since=get_date(auto_contribution["periodicidadAportacionDto"]["fechaDesde"]),
                 until=get_date(auto_contribution["periodicidadAportacionDto"]["fechaHasta"]),
                 frequency=get_frequency(auto_contribution["periodicidadAportacionDto"]["periodicidad"]),
                 active=auto_contribution["estadoAportacionEnum"] == "ACTIVA",
+                is_real=True
             )
             for auto_contribution in auto_contributions
         ]
@@ -299,24 +303,24 @@ class MyInvestorScraperV1(EntityScraper):
 
             fund_txs.append(
                 FundTx(
-                    id=ref,
+                    id=uuid4(),
+                    ref=ref,
                     name=order["nombreFondo"].strip(),
-                    amount=round(execution_op["efectivoBruto"], 2),
-                    netAmount=round(execution_op["efectivoNeto"], 2),
+                    amount=Dezimal(round(execution_op["efectivoBruto"], 2)),
+                    net_amount=Dezimal(round(execution_op["efectivoNeto"], 2)),
                     currency=SYMBOL_CURRENCY_MAP.get(order["divisa"], order["divisa"]),
-                    currencySymbol=order["divisa"],
                     type=operation_type,
-                    orderDate=order_date,
-                    entity=Entity.MY_INVESTOR,
+                    order_date=order_date,
+                    entity=MY_INVESTOR,
                     isin=order["codIsin"],
-                    shares=round(raw_order_details["titulosEjecutados"], 4),
-                    price=round(execution_op["precioBruto"], 4),
+                    shares=Dezimal(round(raw_order_details["titulosEjecutados"], 4)),
+                    price=Dezimal(round(execution_op["precioBruto"], 4)),
                     market=order["mercado"],
-                    fees=round(execution_op["comisiones"], 2),
-                    retentions=0,
+                    fees=Dezimal(round(execution_op["comisiones"], 2)),
+                    retentions=Dezimal(0),
                     date=execution_date,
-                    productType=ProductType.FUND,
-                    sourceType=SourceType.REAL
+                    product_type=ProductType.FUND,
+                    is_real=True
                 )
             )
 
@@ -371,26 +375,26 @@ class MyInvestorScraperV1(EntityScraper):
 
             stock_txs.append(
                 StockTx(
-                    id=ref,
+                    id=uuid4(),
+                    ref=ref,
                     name=order["nombreInstrumento"].strip(),
                     ticker=order["ticker"],
-                    amount=amount,
-                    netAmount=net_amount,
+                    amount=Dezimal(amount),
+                    net_amount=Dezimal(net_amount),
                     currency=order["divisa"],
-                    currencySymbol=CURRENCY_SYMBOL_MAP.get(order["divisa"], order["divisa"]),
                     type=operation_type,
-                    orderDate=order_date,
-                    entity=Entity.MY_INVESTOR,
+                    order_date=order_date,
+                    entity=MY_INVESTOR,
                     isin=raw_order_details["codIsin"],
-                    shares=round(raw_order_details["titulosEjecutados"], 4),
-                    price=round(execution_op["precioBruto"], 4),
+                    shares=Dezimal(round(raw_order_details["titulosEjecutados"], 4)),
+                    price=Dezimal(round(execution_op["precioBruto"], 4)),
                     market=order["codMercado"],
-                    fees=round(fees, 2),
-                    retentions=0,
+                    fees=Dezimal(round(fees, 2)),
+                    retentions=Dezimal(0),
                     date=execution_date,
-                    productType=ProductType.STOCK_ETF,
-                    sourceType=SourceType.REAL,
-                    linkedTx=None
+                    product_type=ProductType.STOCK_ETF,
+                    linked_tx=None,
+                    is_real=True
                 )
             )
 

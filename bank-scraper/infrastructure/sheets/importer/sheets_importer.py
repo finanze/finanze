@@ -126,7 +126,7 @@ class SheetsImporter(VirtualScraper):
             field = config["data"]
 
             txs = self._load_inv_txs(config)
-            txs = [tx for tx in txs if tx.id not in registered_txs]
+            txs = [tx for tx in txs if tx.ref not in registered_txs]
 
             current_transactions = None
             if field == "investment":

@@ -1,7 +1,7 @@
 import abc
 
 from domain.auto_contributions import AutoContributions
-from domain.exceptions import FeatureNotSupported
+from domain.exception.exceptions import FeatureNotSupported
 from domain.global_position import GlobalPosition, HistoricalPosition
 from domain.transactions import Transactions
 

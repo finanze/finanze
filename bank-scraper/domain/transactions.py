@@ -1,11 +1,13 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
 from pydantic.dataclasses import dataclass
 
-from domain.global_position import SourceType
 from domain.base import BaseData
+from domain.dezimal import Dezimal
+from domain.financial_entity import FinancialEntity
 
 
 class ProductType(str, Enum):
@@ -33,70 +35,70 @@ class TxType(str, Enum):
 
 @dataclass
 class BaseTx(BaseData):
-    id: str
+    id: UUID
+    ref: str
     name: str
-    amount: float
+    amount: Dezimal
     currency: str
-    currencySymbol: str
     type: TxType
     date: datetime
-    entity: str
-    sourceType: SourceType
+    entity: FinancialEntity
+    is_real: bool
 
 
 @dataclass
 class BaseInvestmentTx(BaseTx):
-    productType: ProductType
+    product_type: ProductType
 
 
 @dataclass
 class AccountTx(BaseTx):
-    fees: float
-    retentions: float
-    interestRate: float
-    avgBalance: float
+    fees: Dezimal
+    retentions: Dezimal
+    interest_rate: Dezimal
+    avg_balance: Dezimal
 
 
 @dataclass
 class StockTx(BaseInvestmentTx):
-    netAmount: float
+    net_amount: Dezimal
     isin: str
-    shares: float
-    price: float
-    fees: float
+    shares: Dezimal
+    price: Dezimal
+    fees: Dezimal
     ticker: Optional[str] = None
     market: Optional[str] = None
-    retentions: Optional[float] = None
-    orderDate: Optional[datetime] = None
-    linkedTx: Optional[str] = None
+    retentions: Optional[Dezimal] = None
+    order_date: Optional[datetime] = None
+    linked_tx: Optional[str] = None
 
 
 @dataclass
 class FundTx(BaseInvestmentTx):
-    netAmount: float
+    net_amount: Dezimal
     isin: str
-    shares: float
-    price: float
+    shares: Dezimal
+    price: Dezimal
     market: str
-    fees: float
-    retentions: Optional[float] = None
-    orderDate: Optional[datetime] = None
+    fees: Dezimal
+    retentions: Optional[Dezimal] = None
+    order_date: Optional[datetime] = None
 
 
 @dataclass
 class FactoringTx(BaseInvestmentTx):
-    netAmount: float
-    fees: float
-    retentions: float
-    interests: float
+    net_amount: Dezimal
+    fees: Dezimal
+    retentions: Dezimal
+    interests: Dezimal
 
 
 @dataclass
 class RealStateCFTx(BaseInvestmentTx):
-    netAmount: float
-    fees: float
-    retentions: float
-    interests: float
+    net_amount: Dezimal
+    fees: Dezimal
+    retentions: Dezimal
+    interests: Dezimal
 
 
 @dataclass

@@ -5,7 +5,7 @@ from pymongo import MongoClient
 
 from application.ports.historic_port import HistoricPort
 from domain.historic import Historic, FactoringEntry, RealStateCFEntry
-from infrastructure.repository.position_repository import map_serializable
+from infrastructure.repository.position.position_mongo_repository import map_serializable
 
 
 def map_transactions(raw_entries) -> Historic:
@@ -19,7 +19,7 @@ def map_transactions(raw_entries) -> Historic:
     return Historic(entries=entries)
 
 
-class HistoricRepository(HistoricPort):
+class HistoricMongoRepository(HistoricPort):
 
     def __init__(self, client: MongoClient, db_name: str):
         self._client = client

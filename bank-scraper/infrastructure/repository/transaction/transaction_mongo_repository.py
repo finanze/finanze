@@ -6,7 +6,7 @@ from pymongo import MongoClient
 from application.ports.transaction_port import TransactionPort
 from domain.global_position import SourceType
 from domain.transactions import Transactions, StockTx, FundTx, BaseInvestmentTx, FactoringTx, RealStateCFTx, AccountTx
-from infrastructure.repository.position_repository import map_serializable
+from infrastructure.repository.position.position_mongo_repository import map_serializable
 
 
 def map_transactions(investment_result, account_result) -> Transactions:
@@ -46,7 +46,7 @@ def map_account_tx(doc: dict) -> AccountTx:
     return AccountTx(**doc)
 
 
-class TransactionRepository(TransactionPort):
+class TransactionMongoRepository(TransactionPort):
     INVESTMENT_CATEGORY = "INVESTMENT"
     ACCOUNT_CATEGORY = "ACCOUNT"
 

@@ -1,11 +1,12 @@
 import logging
 from datetime import datetime
+from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
-from domain.currency_symbols import CURRENCY_SYMBOL_MAP
-from domain.financial_entity import Entity
-from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, SourceType, \
-    Account, HistoricalPosition
+from domain.dezimal import Dezimal
+from domain.financial_entity import URBANITAE
+from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, Account, \
+    HistoricalPosition
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
 
@@ -95,20 +96,20 @@ class UrbanitaeScraper(EntityScraper):
             name = tx["externalProviderData"]["argumentValue"]
 
             txs.append(RealStateCFTx(
-                id=tx["id"],
+                id=uuid4(),
+                ref=tx["id"],
                 name=name,
-                amount=round(tx["amount"], 2),
+                amount=Dezimal(round(tx["amount"], 2)),
                 currency=currency,
-                currencySymbol=CURRENCY_SYMBOL_MAP.get(currency, currency),
                 type=tx_type,
                 date=datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT),
-                entity=Entity.URBANITAE,
-                productType=ProductType.REAL_STATE_CF,
+                entity=URBANITAE,
+                product_type=ProductType.REAL_STATE_CF,
                 fees=round(tx["fee"], 2),
-                retentions=0,
-                interests=0,
-                netAmount=0,
-                sourceType=SourceType.REAL
+                retentions=Dezimal(0),
+                interests=Dezimal(0),
+                net_amount=Dezimal(0),
+                is_real=True
             ))
 
         return Transactions(investment=txs)

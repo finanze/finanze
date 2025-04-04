@@ -1,6 +1,6 @@
 from application.ports.config_port import ConfigPort
-from domain.available_sources import AvailableSources, AvailableSourceEntity
-from domain.financial_entity import Entity, ENTITY_DETAILS
+from domain.available_sources import AvailableSources
+from domain.financial_entity import NATIVE_ENTITIES
 from domain.use_cases.get_available_sources import GetAvailableSources
 
 
@@ -14,12 +14,11 @@ class GetAvailableSourcesImpl(GetAvailableSources):
 
         virtual_enabled = scrape_config["virtual"]["enabled"]
 
-        all_entities = Entity.__members__.values()
-        enabled_entities_config = scrape_config.get("enabledEntities", all_entities)
+        enabled_entities_config = scrape_config.get("enabledEntities", [e.name for e in NATIVE_ENTITIES])
 
         enabled_entities = [
-            AvailableSourceEntity(**details) for entity, details in ENTITY_DETAILS.items()
-            if entity in enabled_entities_config
+            entity for entity in NATIVE_ENTITIES
+            if entity.name in enabled_entities_config
         ]
 
         return AvailableSources(

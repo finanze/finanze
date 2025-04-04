@@ -53,7 +53,7 @@ export:
 
 scrape:
   enabledEntities:
-    - UNICAJA
+    - Unicaja
 
   virtual:
     enabled: true

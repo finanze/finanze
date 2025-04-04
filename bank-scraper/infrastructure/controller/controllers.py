@@ -1,6 +1,6 @@
 from flask import request, jsonify
 
-from domain.financial_entity import Entity, Feature
+from domain.financial_entity import Feature
 from domain.use_cases.get_available_sources import GetAvailableSources
 from domain.use_cases.scrape import Scrape
 from domain.use_cases.update_sheets import UpdateSheets
@@ -28,13 +28,11 @@ class Controllers:
 
     async def scrape(self):
         body = request.json
-        entity_field = body.get("entity", None)
-        if not entity_field:
+        entity = body.get("entity", None)
+        if not entity:
             return jsonify({"message": "Source entity not provided"}), 400
-        try:
-            entity = Entity[entity_field]
-        except ValueError:
-            return jsonify({"message": f"Invalid entity {entity_field}"}), 400
+
+        entity = int(entity)
 
         feature_fields = body.get("features", [])
         try:

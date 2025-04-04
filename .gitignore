@@ -5,3 +5,4 @@
 !.github
 /config/
 *.log
+bank_data_db

@@ -10,6 +10,7 @@ class ScrapResultCode(str, Enum):
     COMPLETED = "COMPLETED"
     COOLDOWN = "COOLDOWN"
     DISABLED = "DISABLED"
+    ENTITY_NOT_FOUND = "ENTITY_NOT_FOUND"
     FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED"
 
     # Login related codes

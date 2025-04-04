@@ -6,7 +6,7 @@ from typing import Optional
 from pymongo import MongoClient
 
 from application.ports.position_port import PositionPort
-from domain.financial_entity import Entity
+from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition, Account, Investments, Cards, Card, Mortgage, FactoringInvestments, \
     FundInvestments, \
     StockInvestments, FactoringDetail, FundDetail, StockDetail, PositionAdditionalData, AccountAdditionalData, Deposit, \
@@ -207,7 +207,7 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
     )
 
 
-class PositionRepository(PositionPort):
+class PositionMongoRepository(PositionPort):
     def __init__(self, client: MongoClient, db_name: str):
         self._client = client
         self._db = self._client[db_name]
@@ -260,7 +260,7 @@ class PositionRepository(PositionPort):
 
         return mapped_result
 
-    def get_last_updated(self, entity: Entity) -> Optional[datetime]:
+    def get_last_updated(self, entity: FinancialEntity) -> Optional[datetime]:
         result = self._collection.find_one(
             {"entity": entity.name},
             sort=[("date", -1)],

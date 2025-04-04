@@ -1,8 +1,11 @@
 from datetime import date
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
 from pydantic.dataclasses import dataclass
+
+from domain.dezimal import Dezimal
 
 
 class ContributionFrequency(str, Enum):
@@ -17,13 +20,15 @@ class ContributionFrequency(str, Enum):
 
 @dataclass
 class PeriodicContribution:
+    id: UUID
     alias: str
     isin: str
-    amount: float
+    amount: Dezimal
     since: date
     until: Optional[date]
     frequency: ContributionFrequency
     active: bool
+    is_real: bool
 
 
 @dataclass

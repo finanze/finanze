@@ -168,15 +168,15 @@ class UnicajaClient:
 
             raise Exception("There was an error during the login process")
         else:
-            tokenCsrf = body["tokenCSRF"]
-            if not tokenCsrf:
+            token_csrf = body["tokenCSRF"]
+            if not token_csrf:
                 raise Exception("Token CSRF not found")
 
         self._session = requests.Session()
 
         headers = {}
 
-        headers["tokenCSRF"] = tokenCsrf
+        headers["tokenCSRF"] = token_csrf
         headers["Cookie"] = request.headers["Cookie"]
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 

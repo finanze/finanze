@@ -3,14 +3,16 @@ import logging
 from datetime import date, datetime
 from hashlib import sha1
 from typing import Optional
+from uuid import uuid4
 
 from pytz import utc
 
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
-from domain.financial_entity import Entity
+from domain.dezimal import Dezimal
+from domain.financial_entity import SEGO
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
-    GlobalPosition, SourceType, Account, HistoricalPosition
+    GlobalPosition, Account, HistoricalPosition
 from domain.transactions import Transactions, TxType, ProductType, FactoringTx
 from infrastructure.scrapers.sego.sego_client import SegoAPIClient
 
@@ -38,7 +40,6 @@ def map_txs(ref: str,
             tax: float,
             interests: float) -> Optional[FactoringTx]:
     tx_date = tx["date"]
-    currency_symbol = tx["currencySymbol"]
     currency = tx["currency"]
     base_amount = tx["amount"]
 
@@ -46,20 +47,20 @@ def map_txs(ref: str,
     net_amount = base_amount + interests - fee - tax
 
     return FactoringTx(
-        id=ref,
+        id=uuid4(),
+        ref=ref,
         name=name,
-        amount=amount,
+        amount=Dezimal(amount),
         currency=currency,
-        currencySymbol=currency_symbol,
         type=tx_type,
         date=tx_date,
-        entity=Entity.SEGO,
-        productType=ProductType.FACTORING,
-        fees=fee,
-        retentions=tax,
-        interests=interests,
-        netAmount=net_amount,
-        sourceType=SourceType.REAL)
+        entity=SEGO,
+        product_type=ProductType.FACTORING,
+        fees=Dezimal(fee),
+        retentions=Dezimal(tax),
+        interests=Dezimal(interests),
+        net_amount=Dezimal(net_amount),
+        is_real=True)
 
 
 class SegoScraper(EntityScraper):

@@ -1,15 +1,6 @@
+from dataclasses import dataclass
 from enum import Enum
-
-
-class Entity(str, Enum):
-    MY_INVESTOR = "MY_INVESTOR",
-    UNICAJA = "UNICAJA",
-    TRADE_REPUBLIC = "TRADE_REPUBLIC"
-    URBANITAE = "URBANITAE"
-    WECITY = "WECITY"
-    SEGO = "SEGO"
-    MINTOS = "MINTOS"
-    F24 = "F24"
+from typing import Optional
 
 
 class Feature(str, Enum):
@@ -19,54 +10,84 @@ class Feature(str, Enum):
     HISTORIC = "HISTORIC"
 
 
-ENTITY_DETAILS = {
-    Entity.MY_INVESTOR: {
-        "id": Entity.MY_INVESTOR,
-        "name": "MyInvestor",
-        "features": [Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS]
-    },
-    Entity.UNICAJA: {
-        "id": Entity.UNICAJA,
-        "name": "Unicaja",
-        "features": [Feature.POSITION]
-    },
-    Entity.TRADE_REPUBLIC: {
-        "id": Entity.TRADE_REPUBLIC,
-        "name": "Trade Republic",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS],
-        "pin": {
-            "positions": 4
-        }
-    },
-    Entity.URBANITAE: {
-        "id": Entity.URBANITAE,
-        "name": "Urbanitae",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC]
-    },
-    Entity.WECITY: {
-        "id": Entity.WECITY,
-        "name": "Wecity",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
-        "pin": {
-            "positions": 6
-        }
-    },
-    Entity.SEGO: {
-        "id": Entity.SEGO,
-        "name": "SEGO",
-        "features": [Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
-        "pin": {
-            "positions": 6
-        }
-    },
-    Entity.MINTOS: {
-        "id": Entity.MINTOS,
-        "name": "Mintos",
-        "features": [Feature.POSITION]
-    },
-    Entity.F24: {
-        "id": Entity.F24,
-        "name": "Freedom24",
-        "features": [Feature.POSITION]
-    }
-}
+@dataclass
+class PinDetails:
+    positions: int
+
+
+@dataclass
+class FinancialEntity:
+    id: int
+    name: str
+    features: Optional[list[Feature]] = None
+    pin: Optional[PinDetails] = None
+    is_real: bool = True
+
+    def __str__(self):
+        return self.name
+
+    def __hash__(self):
+        return hash(self.id)
+
+
+MY_INVESTOR = FinancialEntity(
+    id=1,
+    name="MyInvestor",
+    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+)
+
+UNICAJA = FinancialEntity(
+    id=2,
+    name="Unicaja",
+    features=[Feature.POSITION],
+)
+
+TRADE_REPUBLIC = FinancialEntity(
+    id=3,
+    name="Trade Republic",
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    pin=PinDetails(positions=4),
+)
+
+URBANITAE = FinancialEntity(
+    id=4,
+    name="Urbanitae",
+    features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+)
+
+WECITY = FinancialEntity(
+    id=5,
+    name="Wecity",
+    features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    pin=PinDetails(positions=6),
+)
+
+SEGO = FinancialEntity(
+    id=6,
+    name="SEGO",
+    features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    pin=PinDetails(positions=6),
+)
+
+MINTOS = FinancialEntity(
+    id=7,
+    name="Mintos",
+    features=[Feature.POSITION],
+)
+
+F24 = FinancialEntity(
+    id=8,
+    name="Freedom24",
+    features=[Feature.POSITION],
+)
+
+NATIVE_ENTITIES = [
+    MY_INVESTOR,
+    UNICAJA,
+    TRADE_REPUBLIC,
+    URBANITAE,
+    WECITY,
+    SEGO,
+    MINTOS,
+    F24
+]

@@ -1,10 +1,12 @@
 import re
 from datetime import datetime
+from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP
-from domain.financial_entity import Entity
-from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, SourceType
+from domain.dezimal import Dezimal
+from domain.financial_entity import TRADE_REPUBLIC
+from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
 
@@ -53,26 +55,26 @@ def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
     price = round(amount / shares, 4)
 
     return StockTx(
-        id=raw_tx["id"],
+        id=uuid4(),
+        ref=raw_tx["id"],
         name=name,
-        amount=amount,
+        amount=Dezimal(amount),
         currency=currency,
-        currencySymbol=CURRENCY_SYMBOL_MAP.get(currency, currency),
         type=tx_type,
         date=date,
-        entity=Entity.TRADE_REPUBLIC,
-        netAmount=net_amount,
+        entity=TRADE_REPUBLIC,
+        net_amount=Dezimal(net_amount),
         isin=isin,
         ticker=None,
-        shares=shares,
-        price=price,
+        shares=Dezimal(shares),
+        price=Dezimal(price),
         market=None,
-        fees=fees + taxes,
-        retentions=0,
-        orderDate=None,
-        productType=ProductType.STOCK_ETF,
-        sourceType=SourceType.REAL,
-        linkedTx=None
+        fees=Dezimal(fees + taxes),
+        retentions=Dezimal(0),
+        order_date=None,
+        product_type=ProductType.STOCK_ETF,
+        linked_tx=None,
+        is_real=True
     )
 
 
@@ -101,19 +103,19 @@ def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
         accrued = amount_obj["value"]
 
     return AccountTx(
-        id=raw_tx["id"],
+        id=uuid4(),
+        ref=raw_tx["id"],
         name=name,
-        amount=round(accrued, 2),
+        amount=Dezimal(round(accrued, 2)),
         currency=currency,
-        currencySymbol=CURRENCY_SYMBOL_MAP.get(currency, currency),
-        fees=0,
-        retentions=round(taxes, 2),
-        interestRate=round(annual_rate / 100, 4),
-        avgBalance=round(avg_balance, 2),
+        fees=Dezimal(0),
+        retentions=Dezimal(round(taxes, 2)),
+        interest_rate=Dezimal(round(annual_rate / 100, 4)),
+        avg_balance=Dezimal(round(avg_balance, 2)),
         type=TxType.INTEREST,
         date=date,
-        entity=Entity.TRADE_REPUBLIC,
-        sourceType=SourceType.REAL
+        entity=TRADE_REPUBLIC,
+        is_real=True
     )
 
 
@@ -217,8 +219,10 @@ class TradeRepublicScraper(EntityScraper):
         for raw_tx in raw_txs:
             status = raw_tx.get("status", None)
             event_type = raw_tx.get("eventType", None)
-            if not (status == "EXECUTED" and event_type in ["TRADE_INVOICE", "ORDER_EXECUTED", "INTEREST_PAYOUT",
-                                                            "INTEREST_PAYOUT_CREATED"]):
+            if not (event_type
+                    and status == "EXECUTED"
+                    and event_type.upper() in ["TRADE_INVOICE", "ORDER_EXECUTED", "INTEREST_PAYOUT",
+                                               "INTEREST_PAYOUT_CREATED", "TRADING_TRADE_EXECUTED"]):
                 continue
 
             date = datetime.strptime(raw_tx["timestamp"], self.DATETIME_FORMAT)

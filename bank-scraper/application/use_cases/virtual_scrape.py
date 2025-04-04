@@ -3,7 +3,6 @@ from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_scraper import VirtualScraper
 from application.use_cases.update_sheets import apply_global_config
-from domain.global_position import SourceType
 from domain.scrap_result import ScrapResult, ScrapResultCode
 from domain.scraped_data import VirtuallyScrapedData
 from domain.use_cases.virtual_scrape import VirtualScrape
@@ -30,7 +29,7 @@ class VirtualScrapeImpl(VirtualScrape):
 
         config_globals = virtual_scrape_config["globals"]
 
-        registered_txs = self._transaction_port.get_ids_by_source_type(SourceType.VIRTUAL)
+        registered_txs = self._transaction_port.get_refs_by_source_type(real=False)
 
         investment_sheets = virtual_scrape_config["investments"]
         transaction_sheets = virtual_scrape_config["transactions"]

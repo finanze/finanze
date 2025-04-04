@@ -5,7 +5,7 @@ from pymongo import MongoClient
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import AutoContributions, PeriodicContribution
-from infrastructure.repository.position_repository import map_serializable
+from infrastructure.repository.position.position_mongo_repository import map_serializable
 
 
 def map_contributions_to_domain(data: dict) -> AutoContributions:
@@ -22,7 +22,7 @@ def map_contributions_to_domain(data: dict) -> AutoContributions:
     )
 
 
-class AutoContributionsRepository(AutoContributionsPort):
+class AutoContributionsMongoRepository(AutoContributionsPort):
 
     def __init__(self, client: MongoClient, db_name: str):
         self._client = client

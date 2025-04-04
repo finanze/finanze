@@ -1,6 +1,7 @@
 import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
+from typing import List
 
 from dateutil.tz import tzlocal
 
@@ -8,16 +9,16 @@ from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_scraper import EntityScraper
+from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
-from domain.financial_entity import Entity, Feature, ENTITY_DETAILS
+from domain.financial_entity import FinancialEntity, Feature, NATIVE_ENTITIES
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import Historic, RealStateCFEntry, FactoringEntry
 from domain.scrap_result import ScrapResultCode, ScrapResult, LoginResult, SCRAP_BAD_LOGIN_CODES
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType
 from domain.use_cases.scrape import Scrape
-from infrastructure.repository.historic_repository import HistoricRepository
 
 DEFAULT_FEATURES = [Feature.POSITION]
 
@@ -28,15 +29,15 @@ class ScrapeImpl(Scrape):
                  position_port: PositionPort,
                  auto_contr_port: AutoContributionsPort,
                  transaction_port: TransactionPort,
-                 historic_repository: HistoricRepository,
-                 entity_scrapers: dict[Entity, EntityScraper],
+                 historic_port: HistoricPort,
+                 entity_scrapers: dict[FinancialEntity, EntityScraper],
                  config_port: ConfigPort,
                  credentials_port: CredentialsPort):
         self._update_cooldown = update_cooldown
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
         self._transaction_port = transaction_port
-        self._historic_repository = historic_repository
+        self._historic_port = historic_port
         self._entity_scrapers = entity_scrapers
         self._config_port = config_port
         self._credentials_port = credentials_port
@@ -44,14 +45,18 @@ class ScrapeImpl(Scrape):
         self._log = logging.getLogger(__name__)
 
     async def execute(self,
-                      entity: Entity,
+                      entity_id: int,
                       features: list[Feature],
                       **kwargs) -> ScrapResult:
-        scrape_config = self._config_port.load()["scrape"].get("enabledEntities")
-        if scrape_config and entity not in scrape_config:
-            return ScrapResult(ScrapResultCode.DISABLED)
+        # scrape_config = self._config_port.load()["scrape"].get("enabledEntities")
+        # if scrape_config and entity_id not in scrape_config:
+        #     return ScrapResult(ScrapResultCode.DISABLED)
 
-        if features and not all(f in ENTITY_DETAILS[entity]["features"] for f in features):
+        entity = next((e for e in NATIVE_ENTITIES if entity_id == e.id), None)
+        if not entity:
+            return ScrapResult(ScrapResultCode.ENTITY_NOT_FOUND)
+
+        if features and not all(f in entity.features for f in features):
             return ScrapResult(ScrapResultCode.FEATURE_NOT_SUPPORTED)
 
         if Feature.POSITION in features:
@@ -84,7 +89,10 @@ class ScrapeImpl(Scrape):
 
         return ScrapResult(ScrapResultCode.COMPLETED, data=scraped_data)
 
-    async def get_data(self, entity, features, specific_scraper) -> ScrapedData:
+    async def get_data(self,
+                       entity: FinancialEntity,
+                       features: List[Feature],
+                       specific_scraper) -> ScrapedData:
         position = None
         if Feature.POSITION in features:
             position = await specific_scraper.global_position()
@@ -95,14 +103,14 @@ class ScrapeImpl(Scrape):
 
         transactions = None
         if Feature.TRANSACTIONS in features:
-            registered_txs = self._transaction_port.get_ids_by_entity(entity.name)
+            registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
             transactions = await specific_scraper.transactions(registered_txs)
 
         if position:
             self._position_port.save(entity.name, position)
 
         if auto_contributions:
-            self._auto_contr_repository.save(entity.name, auto_contributions)
+            self._auto_contr_repository.save(entity.id, auto_contributions)
 
         historic = None
         if transactions:
@@ -111,8 +119,8 @@ class ScrapeImpl(Scrape):
             if transactions.investment and Feature.HISTORIC in features:
                 historic = await self.build_historic(entity, specific_scraper)
 
-                self._historic_repository.delete_by_entity(entity.name)
-                self._historic_repository.save(historic)
+                self._historic_port.delete_by_entity(entity.name)
+                self._historic_port.save(historic)
 
         scraped_data = ScrapedData(position=position,
                                    autoContributions=auto_contributions,

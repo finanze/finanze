@@ -1,15 +1,17 @@
 import logging
 import traceback
 from datetime import date, datetime
+from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
-from domain.financial_entity import Entity
+from domain.dezimal import Dezimal
+from domain.financial_entity import MY_INVESTOR
 from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
-    Deposit, Deposits, SourceType
+    Deposit, Deposits
 from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.v2.myinvestor_client import MyInvestorAPIV2Client
 
@@ -255,13 +257,15 @@ class MyInvestorScraperV2(EntityScraper):
 
         periodic_contributions = [
             PeriodicContribution(
+                id=uuid4(),
                 alias=get_alias(auto_contribution),
                 isin=auto_contribution["isin"],
-                amount=round(auto_contribution["amount"], 2),
+                amount=Dezimal(round(auto_contribution["amount"], 2)),
                 since=get_date(auto_contribution["contributionTimeFrame"]["startDate"]),
                 until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
                 frequency=get_frequency(auto_contribution["contributionTimeFrame"]["recurrence"]),
                 active=auto_contribution["status"] == "ACTIVE",
+                is_real=True
             )
             for auto_contribution in auto_contributions
         ]
@@ -300,39 +304,48 @@ class MyInvestorScraperV2(EntityScraper):
 
             fund_txs.append(
                 FundTx(
-                    id=ref,
+                    id=uuid4(),
+                    ref=ref,
                     name=order["fundName"].strip(),
-                    amount=round(execution_op["grossAmountOperationFundCurrency"], 2),
-                    netAmount=round(execution_op["netAmountFundCurrency"], 2),
+                    amount=Dezimal(round(execution_op["grossAmountOperationFundCurrency"], 2)),
+                    net_amount=Dezimal(round(execution_op["netAmountFundCurrency"], 2)),
                     currency=order["currency"],
-                    currencySymbol=CURRENCY_SYMBOL_MAP.get(order["currency"], order["currency"]),
                     type=operation_type,
-                    orderDate=order_date,
-                    entity=Entity.MY_INVESTOR,
+                    order_date=order_date,
+                    entity=MY_INVESTOR,
                     isin=order["isin"],
-                    shares=round(raw_order_details["executedShares"], 4),
-                    price=round(execution_op["liquidationValue"], 4),
+                    shares=Dezimal(round(raw_order_details["executedShares"], 4)),
+                    price=Dezimal(round(execution_op["liquidationValue"], 4)),
                     market=order["market"],
-                    fees=round(execution_op["commissions"], 2),
-                    retentions=0,
+                    fees=Dezimal(round(execution_op["commissions"], 2)),
+                    retentions=Dezimal(0),
                     date=execution_date,
-                    productType=ProductType.FUND,
-                    sourceType=SourceType.REAL
+                    product_type=ProductType.FUND,
+                    is_real=True
                 )
             )
 
         return fund_txs
 
     def scrape_stock_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[StockTx]:
+        raw_stock_orders = []
+
+        # Both v1 & v2 stock order history endpoint are failing for some dates, we retry since current year
         try:
-            raw_stock_orders = self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                             from_date=date.fromisocalendar(2020, 1, 1),
-                                                             status=None)
-        except:
-            # Both v1 & v2 stock order history endpoint are failing for some dates, we retry since 2025
-            raw_stock_orders = self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                             from_date=date.fromisocalendar(2025, 1, 1),
-                                                             status=None)
+            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.fromisocalendar(2020, 1, 1),
+                                                              to_date=date.today().replace(year=date.today().year - 1,
+                                                                                           month=9, day=1),
+                                                              status=None)
+
+            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.today().replace(year=2024, month=9, day=1),
+                                                              to_date=date.fromisocalendar(date.today().year, 1, 1),
+                                                              status=None)
+        finally:
+            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.fromisocalendar(date.today().year, 1, 2),
+                                                              status=None)
 
         stock_txs = []
         for order in raw_stock_orders:
@@ -370,26 +383,26 @@ class MyInvestorScraperV2(EntityScraper):
 
             stock_txs.append(
                 StockTx(
-                    id=ref,
+                    id=uuid4(),
+                    ref=ref,
                     name=order["toolName"].strip(),
                     ticker=order["ticker"],
-                    amount=amount,
-                    netAmount=net_amount,
+                    amount=Dezimal(amount),
+                    net_amount=Dezimal(net_amount),
                     currency=order["currency"],
-                    currencySymbol=CURRENCY_SYMBOL_MAP.get(order["currency"], order["currency"]),
                     type=operation_type,
-                    orderDate=order_date,
-                    entity=Entity.MY_INVESTOR,
+                    order_date=order_date,
+                    entity=MY_INVESTOR,
                     isin=raw_order_details["instrumentIsin"],
-                    shares=round(raw_order_details["executedShares"], 4),
-                    price=round(raw_order_details["priceCurrency"], 4),
+                    shares=Dezimal(round(raw_order_details["executedShares"], 4)),
+                    price=Dezimal(round(raw_order_details["priceCurrency"], 4)),
                     market=order["marketId"],
-                    fees=round(fees, 2),
-                    retentions=0,
+                    fees=Dezimal(round(fees, 2)),
+                    retentions=Dezimal(0),
                     date=execution_date,
-                    productType=ProductType.STOCK_ETF,
-                    sourceType=SourceType.REAL,
-                    linkedTx=None
+                    product_type=ProductType.STOCK_ETF,
+                    is_real=True,
+                    linked_tx=None
                 )
             )
 
