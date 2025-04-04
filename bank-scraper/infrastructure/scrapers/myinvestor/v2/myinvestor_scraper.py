@@ -324,15 +324,22 @@ class MyInvestorScraperV2(EntityScraper):
         return fund_txs
 
     def scrape_stock_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[StockTx]:
+        raw_stock_orders = []
         try:
-            raw_stock_orders = self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                             from_date=date.fromisocalendar(2020, 1, 1),
-                                                             status=None)
-        except:
-            # Both v1 & v2 stock order history endpoint are failing for some dates, we retry since 2025
-            raw_stock_orders = self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                             from_date=date.fromisocalendar(2025, 1, 1),
-                                                             status=None)
+            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.fromisocalendar(2020, 1, 1),
+                                                              to_date=date.today().replace(year=date.today().year - 1,
+                                                                                           month=9, day=1),
+                                                              status=None)
+
+            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.today().replace(year=2024, month=9, day=1),
+                                                              to_date=date.fromisocalendar(date.today().year, 1, 1),
+                                                              status=None)
+        finally:
+            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
+                                                              from_date=date.fromisocalendar(date.today().year, 1, 2),
+                                                              status=None)
 
         stock_txs = []
         for order in raw_stock_orders:
