@@ -1,3 +1,4 @@
+import codecs
 import logging
 from typing import Union
 
@@ -9,6 +10,8 @@ from domain.scrap_result import LoginResult
 
 class SegoAPIClient:
     BASE_URL = "https://apim-sego-core-prod.azure-api.net"
+
+    API_KEY = '2r73914170s440ooo8r60qrq6s77n41n'
 
     def __init__(self):
         self._headers = {}
@@ -45,7 +48,7 @@ class SegoAPIClient:
 
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
-        self._headers["Ocp-Apim-Subscription-Key"] = "2e73914170f440bbb8e60ded6f77a41a"
+        self._headers["Ocp-Apim-Subscription-Key"] = codecs.decode(self.API_KEY, 'rot_13')
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
