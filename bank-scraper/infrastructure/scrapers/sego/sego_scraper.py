@@ -130,7 +130,7 @@ class SegoScraper(EntityScraper):
             proj_type = "NON_INSURED"
 
         raw_state = investment["tipoEstadoOperacionCodigo"]
-        state = "disputado"
+        state = "DISPUTE"
         if raw_state == "no-llego-fecha-cobro":
             state = "MATURITY_NOT_REACHED"
         elif raw_state == "gestionando-cobro":
@@ -175,7 +175,16 @@ class SegoScraper(EntityScraper):
         if types is None:
             types = []
 
-        raw_movements = copy.deepcopy(self._client.get_movements())
+        raw_movements = []
+        page = 0
+        while True:
+            fetched_movs = copy.deepcopy(self._client.get_movements(page=page, limit=100))
+            raw_movements += fetched_movs
+
+            if len(fetched_movs) < 100:
+                break
+            page += 1
+
         normalized_movs = []
         for movement in raw_movements:
             if (not types or movement["type"] in types) and (not subtypes or movement["tipo"] in subtypes):
