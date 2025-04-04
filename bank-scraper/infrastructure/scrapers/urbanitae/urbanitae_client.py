@@ -1,8 +1,12 @@
+import base64
+import codecs
 import logging
 from datetime import date, datetime
 from typing import Optional, Union
 
 import requests
+from Cryptodome.Cipher import AES
+from Cryptodome.Util.Padding import pad
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
@@ -13,6 +17,8 @@ DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
 class UrbanitaeAPIClient:
     BASE_URL = "https://urbanitae.com/api"
+
+    PASSWORD_ENCRYPTION_KEY = "9ZJtHA1fYAr1w2nT"
 
     def __init__(self):
         self._headers = {}
@@ -52,7 +58,7 @@ class UrbanitaeAPIClient:
 
         request = {
             "username": username,
-            "password": password
+            "password": self._encrypt_password(password)
         }
         response = self._post_request("/session", body=request, raw=True)
 
@@ -73,6 +79,28 @@ class UrbanitaeAPIClient:
             return {"result": LoginResult.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {response.status_code}"}
 
+    def _encrypt_password(self, password: str) -> str:
+        key = str.encode(codecs.decode(self.PASSWORD_ENCRYPTION_KEY, 'rot_13'))
+
+        iv = self._generate_iv(datetime.now())
+
+        password = password.encode('utf-8')
+
+        padded_data = pad(password, AES.block_size)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        encrypted_data = cipher.encrypt(padded_data)
+
+        return base64.b64encode(encrypted_data).decode('utf-8')
+
+    def _generate_iv(self, date: datetime) -> bytes:
+        day = str(date.day).zfill(2)
+        month = str(date.month).zfill(2)
+        year = str(date.year)
+
+        iv_string = f"DD{day}MM{month}YYYY{year}"
+
+        return iv_string.encode('utf-8')
+
     def get_user(self):
         return self._user_info
 
@@ -80,13 +108,15 @@ class UrbanitaeAPIClient:
         return self._get_request("/investor/wallet")
 
     def get_transactions(self,
+                         page: int = 0,
+                         limit: int = 1000,
                          from_date: Optional[date] = None,
                          to_date: Optional[date] = None):
         to_date = datetime.strftime(to_date or datetime.today(), DATETIME_FORMAT)
         from_date = datetime.strftime(
             from_date or (datetime.today() - relativedelta(years=5)), DATETIME_FORMAT
         )
-        params = f"?page=0&size=1000&startDate={from_date}&endDate={to_date}"
+        params = f"?page={page}&size={limit}&startDate={from_date}&endDate={to_date}"
         # "type"
         # 	MONEY_IN
         # 	MONEY_IN_CARD

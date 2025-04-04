@@ -78,7 +78,15 @@ class UrbanitaeScraper(EntityScraper):
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
-        raw_txs = self._client.get_transactions()
+        raw_txs = []
+        page = 0
+        while True:
+            fetched_txs = self._client.get_transactions(page=page, limit=1000)
+            raw_txs += fetched_txs
+
+            if len(fetched_txs) < 1000:
+                break
+            page += 1
 
         txs = []
         for tx in raw_txs:
