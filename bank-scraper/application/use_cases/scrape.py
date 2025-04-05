@@ -2,7 +2,9 @@ import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import List
+from uuid import uuid4
 
+from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
@@ -12,9 +14,10 @@ from application.ports.entity_scraper import EntityScraper
 from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
+from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity, Feature, NATIVE_ENTITIES
 from domain.global_position import RealStateCFDetail, FactoringDetail
-from domain.historic import Historic, RealStateCFEntry, FactoringEntry
+from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
 from domain.scrap_result import ScrapResultCode, ScrapResult, LoginResult, SCRAP_BAD_LOGIN_CODES
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType
@@ -117,10 +120,10 @@ class ScrapeImpl(Scrape):
             self._transaction_port.save(transactions)
 
             if transactions.investment and Feature.HISTORIC in features:
-                historic = await self.build_historic(entity, specific_scraper)
+                entries = await self.build_historic(entity, specific_scraper)
 
-                self._historic_port.delete_by_entity(entity.name)
-                self._historic_port.save(historic)
+                self._historic_port.delete_by_entity(entity.id)
+                self._historic_port.save(entries)
 
         scraped_data = ScrapedData(position=position,
                                    autoContributions=auto_contributions,
@@ -128,7 +131,9 @@ class ScrapeImpl(Scrape):
                                    historic=historic)
         return scraped_data
 
-    async def build_historic(self, entity, specific_scraper) -> Historic:
+    async def build_historic(self,
+                             entity: FinancialEntity,
+                             specific_scraper: EntityScraper) -> list[BaseHistoricEntry]:
         historical_position = await specific_scraper.historical_position()
 
         investments_by_name = {}
@@ -148,7 +153,7 @@ class ScrapeImpl(Scrape):
 
         investments = list(investments_by_name.values())
 
-        related_txs = self._transaction_port.get_by_entity(entity.name)
+        related_txs = self._transaction_port.get_by_entity(entity.id)
         txs_by_name = {}
         for tx in related_txs.investment:
             if tx.name in txs_by_name:
@@ -167,7 +172,7 @@ class ScrapeImpl(Scrape):
             inv_txs = [tx for tx in related_inv_txs if tx.type == TxType.INVESTMENT]
             maturity_txs = [tx for tx in related_inv_txs if tx.type == TxType.MATURITY]
 
-            product_type = next((tx.productType for tx in inv_txs), None)
+            product_type = next((tx.product_type for tx in inv_txs), None)
 
             if product_type == "REAL_STATE_CF":
                 inv = RealStateCFDetail(**inv)
@@ -183,7 +188,7 @@ class ScrapeImpl(Scrape):
                 fees = sum([tx.fees for tx in maturity_txs])
                 retentions = sum([tx.retentions for tx in maturity_txs])
                 interests = sum([tx.interests for tx in maturity_txs])
-                net_return = sum([tx.netAmount for tx in maturity_txs])
+                net_return = sum([tx.net_amount for tx in maturity_txs])
 
                 last_maturity_tx = max(maturity_txs, key=lambda txx: txx.date)
                 if last_maturity_tx:
@@ -192,46 +197,44 @@ class ScrapeImpl(Scrape):
             last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
 
             historic_entry_base = {
+                "id": uuid4(),
                 "name": inv_name,
                 "invested": inv.amount,
                 "returned": returned,
                 "currency": inv.currency,
-                "currencySymbol": inv.currencySymbol,
-                "lastInvestDate": inv.lastInvestDate,
-                "lastTxDate": last_tx_date,
-                "effectiveMaturity": last_maturity_tx,
-                "netReturn": net_return,
+                "last_invest_date": inv.lastInvestDate,
+                "last_tx_date": last_tx_date,
+                "effective_maturity": last_maturity_tx,
+                "net_return": net_return,
                 "fees": fees,
                 "retentions": retentions,
                 "interests": interests,
                 "state": inv.state,
-                "entity": entity.name,
-                "productType": product_type,
-                "relatedTxs": related_inv_txs
+                "entity": entity,
+                "product_type": product_type,
+                "related_txs": related_inv_txs
             }
 
             historic_entry = None
             if product_type == "REAL_STATE_CF":
                 historic_entry = RealStateCFEntry(
                     **historic_entry_base,
-                    interestRate=inv.interestRate,
-                    months=inv.months,
-                    potentialExtension=inv.potentialExtension,
+                    interest_rate=Dezimal(inv.interestRate),
+                    maturity=inv.lastInvestDate + relativedelta(months=inv.months),
+                    potential_extension=inv.potentialExtension,
                     type=inv.type,
-                    businessType=inv.businessType
+                    business_type=inv.businessType
                 )
 
             elif product_type == "FACTORING":
                 historic_entry = FactoringEntry(
                     **historic_entry_base,
-                    interestRate=inv.interestRate,
-                    netInterestRate=inv.netInterestRate,
+                    interest_rate=Dezimal(inv.interestRate),
+                    net_interest_rate=Dezimal(inv.netInterestRate),
                     maturity=inv.maturity,
                     type=inv.type
                 )
 
             historic_entries.append(historic_entry)
 
-        return Historic(
-            entries=historic_entries
-        )
+        return historic_entries

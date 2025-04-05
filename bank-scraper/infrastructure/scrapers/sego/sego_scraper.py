@@ -50,7 +50,7 @@ def map_txs(ref: str,
         id=uuid4(),
         ref=ref,
         name=name,
-        amount=Dezimal(amount),
+        amount=Dezimal(round(amount, 2)),
         currency=currency,
         type=tx_type,
         date=tx_date,
@@ -59,7 +59,7 @@ def map_txs(ref: str,
         fees=Dezimal(fee),
         retentions=Dezimal(tax),
         interests=Dezimal(interests),
-        net_amount=Dezimal(net_amount),
+        net_amount=Dezimal(round(net_amount, 2)),
         is_real=True)
 
 

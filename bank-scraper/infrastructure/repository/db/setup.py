@@ -14,6 +14,8 @@ def initialize_database(path: Union[str, Path]) -> DBClient:
         check_same_thread=False,
     )
 
+    connection.execute("PRAGMA foreign_keys = ON")
+
     connection.row_factory = sqlite3.Row
 
     client = DBClient(connection)

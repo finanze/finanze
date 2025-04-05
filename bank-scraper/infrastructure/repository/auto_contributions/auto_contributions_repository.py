@@ -1,6 +1,4 @@
-import json
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import uuid4
 
 from application.ports.auto_contributions_port import AutoContributionsPort
@@ -14,21 +12,6 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
     def __init__(self, client: DBClient):
         self._db_client = client
-
-    def _get_entity_info(self, entity_name: str) -> Optional[dict]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT id, is_real, properties FROM financial_entities WHERE name = ?",
-                (entity_name,)
-            )
-            result = cursor.fetchone()
-            if not result:
-                return None
-            return {
-                "id": result[0],
-                "is_real": bool(result[1]),
-                "properties": json.loads(result[2])
-            }
 
     def save(self, entity_id: int, data: AutoContributions):
         with self._db_client.tx() as cursor:

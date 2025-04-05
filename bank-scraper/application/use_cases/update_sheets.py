@@ -72,8 +72,8 @@ class UpdateSheetsImpl(UpdateSheets):
         transactions_last_update = self._transaction_port.get_last_created_grouped_by_entity()
         self.update_transactions(transactions, tx_configs, transactions_last_update)
 
-        #historic = self._historic_port.get_all()
-        #self.update_historic(historic, historic_configs)
+        historic = self._historic_port.get_all()
+        self.update_historic(historic, historic_configs)
 
     def update_summary_sheets(self, global_position: dict[str, GlobalPosition], summary_configs):
         for config in summary_configs:

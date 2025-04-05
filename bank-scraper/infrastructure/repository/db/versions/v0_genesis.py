@@ -243,6 +243,46 @@ CREATE TABLE account_transactions (
 CREATE INDEX idx_account_entity_id ON account_transactions(entity_id);
 CREATE INDEX idx_account_date ON account_transactions(date DESC);
 CREATE INDEX idx_account_type ON account_transactions(type);
+
+
+CREATE TABLE investment_historic (
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    invested TEXT NOT NULL,
+    returned TEXT,
+    currency CHAR(3) NOT NULL,
+    last_invest_date DATETIME NOT NULL,
+    last_tx_date DATETIME NOT NULL,
+    effective_maturity DATE,
+    net_return TEXT,
+    fees TEXT,
+    retentions TEXT,
+    interests TEXT,
+    state VARCHAR(32),
+    entity_id INTEGER NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    product_type VARCHAR(32) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    
+    net_interest_rate TEXT,
+    interest_rate TEXT,
+    maturity DATE,
+    potential_extension INTEGER,
+    type VARCHAR(32),
+    business_type VARCHAR(32)
+);
+
+CREATE INDEX idx_ihist_entity_id ON investment_historic(entity_id);
+CREATE INDEX idx_ihist_product_type ON investment_historic(product_type);
+
+CREATE TABLE investment_historic_txs (
+    tx_id CHAR(36) NOT NULL PRIMARY KEY,
+    historic_entry_id CHAR(36) NOT NULL,
+    
+    FOREIGN KEY (historic_entry_id) REFERENCES investment_historic(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY (tx_id) REFERENCES investment_transactions(id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE INDEX idx_ihist_txs_historic_entry_id ON investment_historic_txs(historic_entry_id);
 """
 
 INSERT_FINANCIAL_ENTITIES = """

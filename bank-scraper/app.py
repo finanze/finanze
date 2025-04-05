@@ -64,7 +64,7 @@ virtual_scraper = SheetsImporter()
 position_repository = PositionRepository(client=mongo_client, db_name=mongo_db_name)
 auto_contrib_repository = AutoContributionsRepository(client=db_client)
 transaction_repository = TransactionRepository(client=db_client)
-historic_repository = HistoricRepository(client=mongo_client, db_name=mongo_db_name)
+historic_repository = HistoricRepository(client=db_client)
 
 credentials_reader = CredentialsReader()
 
