@@ -12,7 +12,7 @@ from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.financial_entity import SEGO
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
-    GlobalPosition, Account, HistoricalPosition
+    GlobalPosition, Account, HistoricalPosition, AccountType
 from domain.transactions import Transactions, TxType, ProductType, FactoringTx
 from infrastructure.scrapers.sego.sego_client import SegoAPIClient
 
@@ -36,12 +36,12 @@ def map_txs(ref: str,
             tx: dict,
             name: str,
             tx_type: TxType,
-            fee: float,
-            tax: float,
-            interests: float) -> Optional[FactoringTx]:
+            fee: Dezimal,
+            tax: Dezimal,
+            interests: Dezimal) -> Optional[FactoringTx]:
     tx_date = tx["date"]
     currency = tx["currency"]
-    base_amount = tx["amount"]
+    base_amount = Dezimal(tx["amount"])
 
     amount = base_amount + interests
     net_amount = base_amount + interests - fee - tax
@@ -50,21 +50,21 @@ def map_txs(ref: str,
         id=uuid4(),
         ref=ref,
         name=name,
-        amount=Dezimal(round(amount, 2)),
+        amount=round(amount, 2),
         currency=currency,
         type=tx_type,
         date=tx_date,
         entity=SEGO,
         product_type=ProductType.FACTORING,
-        fees=Dezimal(fee),
-        retentions=Dezimal(tax),
-        interests=Dezimal(interests),
-        net_amount=Dezimal(round(net_amount, 2)),
+        fees=fee,
+        retentions=tax,
+        interests=interests,
+        net_amount=round(net_amount, 2),
         is_real=True)
 
 
 class SegoScraper(EntityScraper):
-    SEGO_FEE = 0.2
+    SEGO_FEE = Dezimal(0.2)
 
     def __init__(self):
         self._client = SegoAPIClient()
@@ -79,7 +79,12 @@ class SegoScraper(EntityScraper):
     async def global_position(self) -> GlobalPosition:
         raw_wallet = self._client.get_wallet()
         wallet_amount = raw_wallet["importe"]
-        account = Account(total=round(wallet_amount, 2))
+        account = Account(
+            id=uuid4(),
+            currency='EUR',
+            total=round(Dezimal(wallet_amount), 2),
+            type=AccountType.VIRTUAL_WALLET
+        )
 
         investment_movements = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring"])
 
@@ -98,7 +103,7 @@ class SegoScraper(EntityScraper):
             (
                     sum(
                         [
-                            investment.amount * investment.netInterestRate
+                            investment.amount * investment.net_interest_rate
                             for investment in factoring_investments
                         ]
                     )
@@ -108,19 +113,21 @@ class SegoScraper(EntityScraper):
         )
 
         sego_data = FactoringInvestments(
-            invested=total_invested,
-            weightedInterestRate=weighted_net_interest_rate,
+            total=total_invested,
+            weighted_interest_rate=weighted_net_interest_rate,
             details=factoring_investments,
         )
 
         return GlobalPosition(
-            account=account,
+            id=uuid4(),
+            entity=SEGO,
+            account=[account],
             investments=Investments(
                 factoring=sego_data,
             ),
         )
 
-    def _map_investment(self, investment_movements, investment):
+    def _map_investment(self, investment_movements, investment) -> FactoringDetail:
         raw_proj_type = investment["tipoOperacionCodigo"]
         proj_type = None
         if raw_proj_type == "admin-publica":
@@ -142,7 +149,7 @@ class SegoScraper(EntityScraper):
             state = "COLLECTED"
 
         name = investment["nombreOperacion"].strip()
-        interest_rate = investment["tasaInteres"]
+        interest_rate = Dezimal(investment["tasaInteres"])
 
         last_invest_date = next(
             (
@@ -154,13 +161,13 @@ class SegoScraper(EntityScraper):
         )
 
         return FactoringDetail(
+            id=uuid4(),
             name=name,
-            amount=round(float(investment["importe"]), 2),
+            amount=round(Dezimal(investment["importe"]), 2),
             currency="EUR",
-            currencySymbol="€",
-            interestRate=round(interest_rate / 100, 4),
-            netInterestRate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
-            lastInvestDate=last_invest_date,
+            interest_rate=round(interest_rate / 100, 4),
+            net_interest_rate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
+            last_invest_date=last_invest_date,
             maturity=(
                 date.fromisoformat(investment["fechaDevolucion"][:10])
                 if investment["fechaDevolucion"]
@@ -205,7 +212,7 @@ class SegoScraper(EntityScraper):
                 currency_symbol = movement["amount"][-1]
                 currency = SYMBOL_CURRENCY_MAP.get(currency_symbol, "EUR")
                 raw_formated_amount = movement["amount"]
-                movement["amount"] = float(raw_formated_amount[2:-1].replace(".", "").replace(",", "."))
+                movement["amount"] = Dezimal(raw_formated_amount[2:-1].replace(".", "").replace(",", "."))
                 movement["currency"] = currency
                 movement["currencySymbol"] = currency_symbol
 
@@ -248,10 +255,11 @@ class SegoScraper(EntityScraper):
                      investment["nombreOperacion"].strip() == investment_name),
                     None,
                 )
-                fee = round(float(matching_investment["comision"]), 2)
-                tax = round(float(matching_investment["retencion"]), 2)
+                fee = round(Dezimal(matching_investment["comision"]), 2)
+                tax = round(Dezimal(matching_investment["retencion"]), 2)
                 interests = round(
-                    float(matching_investment["gananciasOrdinarias"] + matching_investment["gananciasExtraOrdinarias"]),
+                    Dezimal(
+                        matching_investment["gananciasOrdinarias"] + matching_investment["gananciasExtraOrdinarias"]),
                     2)
 
             stored_tx = map_txs(ref, tx, investment_name, tx_type, fee, tax, interests)
@@ -262,7 +270,7 @@ class SegoScraper(EntityScraper):
     @staticmethod
     def _calc_sego_tx_id(inv_name: str,
                          tx_date: datetime,
-                         amount: float,
+                         amount: Dezimal,
                          tx_type: TxType) -> str:
         return sha1(
             f"S_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
@@ -282,8 +290,8 @@ class SegoScraper(EntityScraper):
         return HistoricalPosition(
             investments=Investments(
                 factoring=FactoringInvestments(
-                    invested=0,
-                    weightedInterestRate=0,
+                    total=Dezimal(0),
+                    weighted_interest_rate=Dezimal(0),
                     details=factoring_investments
                 )
             )

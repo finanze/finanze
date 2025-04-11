@@ -41,7 +41,7 @@ class FactoringEntry(BaseHistoricEntry):
 class RealStateCFEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     maturity: date
-    potential_extension: Optional[int]
+    extended_maturity: Optional[date]
     type: str
     business_type: str
 

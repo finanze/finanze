@@ -2,11 +2,13 @@ import logging
 from datetime import datetime
 from uuid import uuid4
 
+from dateutil.relativedelta import relativedelta
+
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.financial_entity import URBANITAE
 from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, Account, \
-    HistoricalPosition
+    HistoricalPosition, AccountType
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
 
@@ -27,9 +29,14 @@ class UrbanitaeScraper(EntityScraper):
 
     async def global_position(self) -> GlobalPosition:
         wallet = self._client.get_wallet()
-        balance = wallet["balance"]
+        balance = Dezimal(wallet["balance"])
 
-        account = Account(total=round(balance, 2))
+        account = Account(
+            id=uuid4(),
+            total=round(balance, 2),
+            currency='EUR',
+            type=AccountType.VIRTUAL_WALLET
+        )
 
         investments_data = self._client.get_investments()
 
@@ -40,40 +47,43 @@ class UrbanitaeScraper(EntityScraper):
 
         total_invested = round(sum([inv.amount for inv in real_state_cf_inv_details]), 2)
         weighted_interest_rate = round(
-            (sum([inv.amount * inv.interestRate for inv in real_state_cf_inv_details])
+            (sum([inv.amount * inv.interest_rate for inv in real_state_cf_inv_details])
              / sum([inv.amount for inv in real_state_cf_inv_details])),
             4,
         )
         investments = Investments(
-            realStateCF=RealStateCFInvestments(
-                invested=total_invested,
-                weightedInterestRate=weighted_interest_rate,
+            real_state_cf=RealStateCFInvestments(
+                total=total_invested,
+                weighted_interest_rate=weighted_interest_rate,
                 details=real_state_cf_inv_details
             )
         )
 
         return GlobalPosition(
-            account=account,
+            id=uuid4(),
+            entity=URBANITAE,
+            account=[account],
             investments=investments
         )
 
     def _map_investment(self, inv):
         project_details = self._client.get_project_detail(inv["projectId"])
 
-        months = project_details["details"]["investmentPeriod"]
-        interest_rate = project_details["fund"]["apreciationProfitability"]
+        months = int(project_details["details"]["investmentPeriod"])
+        interest_rate = Dezimal(project_details["fund"]["apreciationProfitability"])
+        last_invest_date = datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT)
 
         return RealStateCFDetail(
+            id=uuid4(),
             name=inv["projectName"],
-            amount=round(inv["investedQuantityActive"], 2),
+            amount=round(Dezimal(inv["investedQuantityActive"]), 2),
             currency="EUR",
-            currencySymbol="€",
-            interestRate=round(interest_rate / 100, 4),
-            lastInvestDate=datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT),
-            months=int(months),
-            potentialExtension=None,
+            interest_rate=round(interest_rate / 100, 4),
+            last_invest_date=last_invest_date,
+            maturity=(last_invest_date + relativedelta(months=months)).date(),
+            extended_maturity=None,
             type=inv["projectType"],
-            businessType=inv["projectBusinessModel"],
+            business_type=inv["projectBusinessModel"],
             state=inv["projectPhase"],
         )
 
@@ -113,7 +123,7 @@ class UrbanitaeScraper(EntityScraper):
                 date=datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT),
                 entity=URBANITAE,
                 product_type=ProductType.REAL_STATE_CF,
-                fees=round(tx["fee"], 2),
+                fees=round(Dezimal(tx["fee"]), 2),
                 retentions=Dezimal(0),
                 interests=Dezimal(0),
                 net_amount=Dezimal(0),
@@ -132,9 +142,9 @@ class UrbanitaeScraper(EntityScraper):
 
         return HistoricalPosition(
             investments=Investments(
-                realStateCF=RealStateCFInvestments(
-                    invested=0,
-                    weightedInterestRate=0,
+                real_state_cf=RealStateCFInvestments(
+                    total=None,
+                    weighted_interest_rate=None,
                     details=real_state_cf_inv_details
                 )
             )

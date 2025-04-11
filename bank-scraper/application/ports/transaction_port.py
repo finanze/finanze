@@ -1,7 +1,6 @@
 import abc
 from datetime import datetime
 
-from domain.global_position import SourceType
 from domain.transactions import Transactions
 
 

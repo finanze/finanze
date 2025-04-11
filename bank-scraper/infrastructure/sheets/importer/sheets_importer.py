@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from application.ports.virtual_scraper import VirtualScraper
 from domain.exception.exceptions import MissingFieldsError
-from domain.global_position import GlobalPosition, SourceType, Deposits, Deposit, FundInvestments, \
+from domain.global_position import GlobalPosition, Deposits, Deposit, FundInvestments, \
     FactoringInvestments, RealStateCFInvestments, StockInvestments, StockDetail, FactoringDetail, RealStateCFDetail, \
     FundDetail, Investments
 from domain.transactions import Transactions, StockTx, FundTx, RealStateCFTx, \
@@ -143,7 +143,7 @@ class SheetsImporter(VirtualScraper):
         txs = []
 
         def process_entry_fn(row, tx_dict):
-            tx_dict["sourceType"] = SourceType.VIRTUAL
+            tx_dict["is_real"] = False
 
             prod_type = tx_dict.get("productType")
             if prod_type not in self.TX_PROD_TYPE_ATTR_MAP:

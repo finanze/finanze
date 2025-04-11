@@ -10,8 +10,8 @@ from infrastructure.sheets.exporter.sheets_summary_exporter import LAST_UPDATE_F
 
 NO_HEADERS_FOUND = "NO_HEADERS_FOUND"
 ENTITY_COLUMN = "entity"
-TYPE_COLUMN = "investmentType"
-ENTITY_UPDATED_AT = "entityUpdatedAt"
+TYPE_COLUMN = "investment_type"
+ENTITY_UPDATED_AT = "entity_updated_at"
 
 
 def update_sheet(

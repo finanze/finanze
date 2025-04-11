@@ -49,7 +49,6 @@ class MyInvestorAPIV2Client:
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
         self._headers["x-origin-b2b"] = self.BASE_URL
-        # self._headers["x-myinvestor-app"] = "x-myinvestor-app"
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"

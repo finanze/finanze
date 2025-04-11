@@ -58,10 +58,10 @@ class UpdateSheetsImpl(UpdateSheets):
         apply_global_config(config_globals, tx_configs)
         apply_global_config(config_globals, historic_configs)
 
-        global_position = self._position_port.get_last_grouped_by_entity()
+        global_position_by_entity = self._position_port.get_last_grouped_by_entity()
 
-        self.update_summary_sheets(global_position, summary_configs)
-        self.update_investment_sheets(global_position, investment_configs)
+        self.update_summary_sheets(global_position_by_entity, summary_configs)
+        self.update_investment_sheets(global_position_by_entity, investment_configs)
 
         auto_contributions = self._auto_contr_port.get_all_grouped_by_entity()
         auto_contributions_last_update = self._auto_contr_port.get_last_update_grouped_by_entity()
@@ -75,11 +75,11 @@ class UpdateSheetsImpl(UpdateSheets):
         historic = self._historic_port.get_all()
         self.update_historic(historic, historic_configs)
 
-    def update_summary_sheets(self, global_position: dict[str, GlobalPosition], summary_configs):
+    def update_summary_sheets(self, global_position: dict[FinancialEntity, GlobalPosition], summary_configs):
         for config in summary_configs:
             self._sheets_update_port.update_summary(global_position, config)
 
-    def update_investment_sheets(self, global_position: dict[str, GlobalPosition], inv_configs):
+    def update_investment_sheets(self, global_position: dict[FinancialEntity, GlobalPosition], inv_configs):
         for config in inv_configs:
             fields = config["data"]
             fields = [fields] if isinstance(fields, str) else fields

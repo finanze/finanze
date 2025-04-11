@@ -36,7 +36,7 @@ class Dezimal:
         return f'{self.val:f}'
 
     def __repr__(self) -> str:
-        return f'FVal({self.val!s})'
+        return f'D({self.val!s})'
 
     def __hash__(self) -> int:
         return hash(self.val)

@@ -91,3 +91,6 @@ class TradeRepublicClient:
                         requested_data=["timelineTransactions", "timelineDetailV2"],
                         already_registered_ids=already_registered_ids)
         return await dl.fetch()
+
+    def get_user_info(self):
+        return self._tr_api.settings()

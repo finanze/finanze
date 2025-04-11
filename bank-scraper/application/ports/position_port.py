@@ -8,13 +8,13 @@ from domain.global_position import GlobalPosition
 
 class PositionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, entity: str, position: GlobalPosition):
+    def save(self, position: GlobalPosition):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_grouped_by_entity(self) -> dict[str, GlobalPosition]:
+    def get_last_grouped_by_entity(self) -> dict[FinancialEntity, GlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_updated(self, entity: FinancialEntity) -> Optional[datetime]:
+    def get_last_updated(self, entity_id: int) -> Optional[datetime]:
         raise NotImplementedError

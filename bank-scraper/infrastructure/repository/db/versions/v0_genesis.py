@@ -31,7 +31,8 @@ CREATE TABLE account_positions (
     name TEXT,
     iban VARCHAR(32),
     total TEXT NOT NULL,
-    interest TEXT NOT NULL,
+    currency CHAR(3) NOT NULL,
+    interest TEXT,
     retained TEXT,
     pending_transfers TEXT
 );
@@ -43,9 +44,11 @@ CREATE TABLE card_positions (
     global_position_id CHAR(36) REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
     type VARCHAR(32) NOT NULL,
     name TEXT,
+    currency CHAR(3) NOT NULL,
     ending TEXT,
     card_limit TEXT,
     used TEXT,
+    active BOOLEAN NOT NULL,
     related_account CHAR(36) REFERENCES account_positions(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -54,6 +57,7 @@ CREATE INDEX idx_cp_global_position_id ON card_positions(global_position_id);
 CREATE TABLE mortgage_positions (
     id CHAR(36) PRIMARY KEY,
     global_position_id CHAR(36) REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    currency CHAR(3) NOT NULL,
     name TEXT,
     current_installment TEXT NOT NULL,
     interest_rate TEXT NOT NULL,
@@ -67,18 +71,18 @@ CREATE INDEX idx_mp_global_position_id ON mortgage_positions(global_position_id)
 
 -- - Latest investment position KPIs
 
-CREATE TABLE latest_investment_position_kpis (
+CREATE TABLE investment_position_kpis (
+    global_position_id CHAR(36) NOT NULL REFERENCES global_positions(id),
     entity_id INTEGER NOT NULL REFERENCES financial_entities(id),
     investment_type VARCHAR(32) NOT NULL,
     metric VARCHAR(64) NOT NULL,
     value TEXT NOT NULL,
-    last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    global_position_id CHAR(36) NOT NULL REFERENCES global_positions(id),
-    PRIMARY KEY (entity_id, investment_type, metric)
+    date TIMESTAMP NOT NULL,
+    PRIMARY KEY (global_position_id, investment_type, metric)
 );
 
-CREATE INDEX idx_ikpis_global_position_id ON latest_investment_position_kpis(global_position_id);
-CREATE INDEX idx_ikpis_entity_type_metric ON latest_investment_position_kpis(entity_id, investment_type, metric);
+CREATE INDEX idx_ikpis_global_position_id ON investment_position_kpis(global_position_id);
+CREATE INDEX idx_ikpis_entity_type_metric ON investment_position_kpis(global_position_id, investment_type, metric);
 
 CREATE TABLE stock_positions (
     id CHAR(36) PRIMARY KEY,
@@ -137,11 +141,11 @@ CREATE TABLE real_state_cf_positions (
     currency CHAR(3) NOT NULL,
     interest_rate TEXT NOT NULL,
     last_invest_date DATETIME,
-    months INTEGER NOT NULL,
+    maturity DATE NOT NULL,
     type VARCHAR(32) NOT NULL,
     business_type VARCHAR(32) NOT NULL,
     state VARCHAR(32),
-    potential_extension INTEGER
+    extended_maturity DATE
 );
 
 CREATE INDEX idx_rscfp_global_position_id ON real_state_cf_positions(global_position_id);
@@ -151,7 +155,8 @@ CREATE TABLE deposit_positions (
     global_position_id CHAR(36) REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
     name TEXT NOT NULL,
     amount TEXT NOT NULL,
-    total_interests TEXT NOT NULL,
+    currency CHAR(3) NOT NULL,
+    expected_interests TEXT NOT NULL,
     interest_rate TEXT NOT NULL,
     creation DATETIME NOT NULL,
     maturity DATE NOT NULL
@@ -162,6 +167,7 @@ CREATE INDEX idx_dp_global_position_id ON deposit_positions(global_position_id);
 CREATE TABLE crowdlending_positions (
     id CHAR(36) PRIMARY KEY,
     global_position_id CHAR(36) REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    currency CHAR(3) NOT NULL,
     distribution JSON NOT NULL
 );
 

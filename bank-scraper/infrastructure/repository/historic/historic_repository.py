@@ -51,7 +51,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
             **common,
             interest_rate=Dezimal(row["interest_rate"]),
             maturity=datetime.fromisoformat(row["maturity"]).date(),
-            potential_extension=row["potential_extension"],
+            extended_maturity=row["extended_maturity"],
             type=row["type"],
             business_type=row["business_type"]
         )
@@ -116,13 +116,13 @@ class HistoricSQLRepository(HistoricPort):
                         last_tx_date, effective_maturity, net_return, fees,
                         retentions, interests, state, entity_id, product_type,
                         interest_rate, net_interest_rate, maturity,
-                        potential_extension, type, business_type
+                        extended_maturity, type, business_type
                     ) VALUES (
                         :id, :name, :invested, :returned, :currency, :last_invest_date,
                         :last_tx_date, :effective_maturity, :net_return, :fees,
                         :retentions, :interests, :state, :entity_id, :product_type,
                         :interest_rate, :net_interest_rate, :maturity,
-                        :potential_extension, :type, :business_type
+                        :extended_maturity, :type, :business_type
                     )
                 """, base_data)
 

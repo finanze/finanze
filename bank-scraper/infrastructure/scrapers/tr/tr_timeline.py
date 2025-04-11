@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from pytr.api import TradeRepublicError
+from pytr.api import TradeRepublicError, TradeRepublicApi
 from pytr.utils import preview
 
 
@@ -14,7 +14,7 @@ class TRTimeline:
     ]
 
     def __init__(self,
-                 tr,
+                 tr: TradeRepublicApi,
                  since: Optional[datetime] = None,
                  already_registered_ids: set[str] = None,
                  requested_data: list = TIMELINE_DATA_TYPES):

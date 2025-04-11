@@ -3,15 +3,18 @@ from datetime import datetime, date
 from hashlib import sha1
 from uuid import uuid4
 
+from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.financial_entity import WECITY
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
-    HistoricalPosition
+    HistoricalPosition, AccountType
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
+
+DATE_FORMAT = "%Y-%m-%d"
 
 
 class WecityScraper(EntityScraper):
@@ -29,8 +32,13 @@ class WecityScraper(EntityScraper):
         return self._client.login(username, password, avoid_new_login, process_id, code)
 
     async def global_position(self) -> GlobalPosition:
-        wallet = self._client.get_wallet()["LW"]["balance"]
-        account = Account(total=round(wallet, 2))
+        wallet = Dezimal(self._client.get_wallet()["LW"]["balance"])
+        account = Account(
+            id=uuid4(),
+            total=round(wallet, 2),
+            currency='EUR',
+            type=AccountType.VIRTUAL_WALLET
+        )
 
         txs = self.scrape_transactions()
         investments = self._client.get_investments()
@@ -41,27 +49,29 @@ class WecityScraper(EntityScraper):
 
         total_invested = round(sum([inv.amount for inv in investment_details]), 2)
         weighted_interest_rate = round(
-            (sum([inv.amount * inv.interestRate for inv in investment_details])
+            (sum([inv.amount * inv.interest_rate for inv in investment_details])
              / sum([inv.amount for inv in investment_details])),
             4,
         )
         investments = Investments(
-            realStateCF=RealStateCFInvestments(
-                invested=total_invested,
-                weightedInterestRate=weighted_interest_rate,
+            real_state_cf=RealStateCFInvestments(
+                total=total_invested,
+                weighted_interest_rate=weighted_interest_rate,
                 details=investment_details
             )
         )
 
         return GlobalPosition(
-            account=account,
+            id=uuid4(),
+            entity=WECITY,
+            account=[account],
             investments=investments
         )
 
     def _map_investment(self, txs, inv_id, inv):
         opportunity = inv["opportunity"]
         name = opportunity["name"].strip()
-        amount = inv["amount"]["current"]
+        amount = Dezimal(inv["amount"]["current"])
         investments_details = self._client.get_investment_details(inv_id)
 
         raw_business_type = opportunity["investment_type_id"]
@@ -89,21 +99,30 @@ class WecityScraper(EntityScraper):
 
         periods = inv["periods"]
         ordinary_period = periods["ordinary"]
+        start_date = last_invest_date
+        if ordinary_period:
+            start_date = ordinary_period.get("fecha_inicio", None)
+            if start_date:
+                start_date = datetime.strptime(start_date, DATE_FORMAT).date()
+
         extended_period = periods.get("prorroga", None)
         if extended_period:
             extended_period = extended_period["plazo"]
 
+        maturity = start_date + relativedelta(months=int(ordinary_period["plazo"]))
+        extended_maturity = (maturity + relativedelta(months=int(extended_period))) if extended_period else None
+
         return RealStateCFDetail(
+            id=uuid4(),
             name=name,
             amount=round(amount, 2),
             currency="EUR",
-            currencySymbol="€",
-            interestRate=round(float(opportunity["annual_profitability"]) / 100, 4),
-            lastInvestDate=last_invest_date,
-            months=ordinary_period["plazo"],
-            potentialExtension=extended_period,
+            interest_rate=round(Dezimal(opportunity["annual_profitability"]) / 100, 4),
+            last_invest_date=last_invest_date,
+            maturity=maturity,
+            extended_maturity=extended_maturity,
             type=project_type,
-            businessType=business_type,
+            business_type=business_type,
             state=state,
         )
 
@@ -121,7 +140,7 @@ class WecityScraper(EntityScraper):
                 continue
 
             name = tx["name"]
-            amount = round(tx["amount"], 2)
+            amount = round(Dezimal(tx["amount"]), 2)
             tx_date = tx["date"].replace(tzinfo=tzlocal())
 
             ref = self._calc_tx_id(name, tx_date, amount, tx_type)
@@ -133,7 +152,7 @@ class WecityScraper(EntityScraper):
                 id=uuid4(),
                 ref=ref,
                 name=name,
-                amount=Dezimal(amount),
+                amount=amount,
                 currency="EUR",
                 type=tx_type,
                 date=tx_date,
@@ -158,7 +177,7 @@ class WecityScraper(EntityScraper):
                     "date": datetime.fromtimestamp(tx["date"]),
                     "category": tx["type"],
                     "name": tx["title"].strip(),
-                    "amount": round(tx["amount"], 2)
+                    "amount": round(Dezimal(tx["amount"]), 2)
                 }
             )
 
@@ -167,7 +186,7 @@ class WecityScraper(EntityScraper):
     @staticmethod
     def _calc_tx_id(inv_name: str,
                     tx_date: date,
-                    amount: float,
+                    amount: Dezimal,
                     tx_type: TxType) -> str:
         return sha1(
             f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
@@ -182,9 +201,9 @@ class WecityScraper(EntityScraper):
 
         return HistoricalPosition(
             investments=Investments(
-                realStateCF=RealStateCFInvestments(
-                    invested=0,
-                    weightedInterestRate=0,
+                real_state_cf=RealStateCFInvestments(
+                    total=None,
+                    weighted_interest_rate=None,
                     details=investment_details
                 )
             )

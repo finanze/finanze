@@ -16,7 +16,7 @@ class SheetsExporter(SheetsUpdatePort):
 
     def update_summary(
             self,
-            global_positions: dict[str, GlobalPosition],
+            global_positions: dict[FinancialEntity, GlobalPosition],
             config: dict):
         update_summary(self._sheet, global_positions, config)
 

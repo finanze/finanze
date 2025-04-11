@@ -34,15 +34,15 @@ log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
 logging.getLogger().setLevel(getLevelName(log_level))
 
-mongo_user = os.environ["MONGO_USERNAME"]
-mongo_password = os.environ["MONGO_PASSWORD"]
-mongo_host = os.environ["MONGO_HOST"]
-mongo_port = os.environ.get("MONGO_PORT", 27017)
-mongo_db_name = "bank_data_db"
-mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}"
+#mongo_user = os.environ["MONGO_USERNAME"]
+#mongo_password = os.environ["MONGO_PASSWORD"]
+#mongo_host = os.environ["MONGO_HOST"]
+#mongo_port = os.environ.get("MONGO_PORT", 27017)
+#mongo_db_name = "bank_data_db"
+#mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}"
 
 db_client = initialize_database("bank_data_db")
-mongo_client = MongoClient(mongo_uri)
+#mongo_client = MongoClient(mongo_uri)
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 config_path = os.environ.get("CONFIG_PATH", "config.yml")
@@ -61,7 +61,7 @@ entity_scrapers = {
     fe.F24: F24Scraper(),
 }
 virtual_scraper = SheetsImporter()
-position_repository = PositionRepository(client=mongo_client, db_name=mongo_db_name)
+position_repository = PositionRepository(client=db_client)
 auto_contrib_repository = AutoContributionsRepository(client=db_client)
 transaction_repository = TransactionRepository(client=db_client)
 historic_repository = HistoricRepository(client=db_client)

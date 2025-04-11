@@ -7,9 +7,9 @@ from pymongo import MongoClient
 
 from application.ports.position_port import PositionPort
 from domain.financial_entity import FinancialEntity
-from domain.global_position import GlobalPosition, Account, Investments, Cards, Card, Mortgage, FactoringInvestments, \
+from domain.global_position import GlobalPosition, Account, Investments, Card, Mortgage, FactoringInvestments, \
     FundInvestments, \
-    StockInvestments, FactoringDetail, FundDetail, StockDetail, PositionAdditionalData, AccountAdditionalData, Deposit, \
+    StockInvestments, FactoringDetail, FundDetail, StockDetail, Deposit, \
     Deposits, \
     RealStateCFInvestments, RealStateCFDetail, Crowdlending
 
@@ -167,7 +167,7 @@ def map_data_to_domain(data: dict) -> GlobalPosition:
         if crowdlending_data:
             crowdlending = Crowdlending(
                 total=crowdlending_data["total"],
-                weightedInterestRate=crowdlending_data["weightedInterestRate"],
+                weighted_interest_rate=crowdlending_data["weightedInterestRate"],
                 distribution=crowdlending_data["distribution"],
                 details=crowdlending_data["details"]
             )

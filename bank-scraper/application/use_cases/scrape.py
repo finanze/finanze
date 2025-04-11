@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import uuid4
 
-from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
@@ -63,7 +62,7 @@ class ScrapeImpl(Scrape):
             return ScrapResult(ScrapResultCode.FEATURE_NOT_SUPPORTED)
 
         if Feature.POSITION in features:
-            last_update = self._position_port.get_last_updated(entity)
+            last_update = self._position_port.get_last_updated(entity_id)
             if last_update and (datetime.now(timezone.utc) - last_update).seconds < self._update_cooldown:
                 remaining_seconds = self._update_cooldown - (datetime.now(timezone.utc) - last_update).seconds
                 details = {"lastUpdate": last_update.astimezone(tzlocal()).isoformat(), "wait": remaining_seconds}
@@ -110,7 +109,7 @@ class ScrapeImpl(Scrape):
             transactions = await specific_scraper.transactions(registered_txs)
 
         if position:
-            self._position_port.save(entity.name, position)
+            self._position_port.save(position)
 
         if auto_contributions:
             self._auto_contr_repository.save(entity.id, auto_contributions)
@@ -145,9 +144,9 @@ class ScrapeImpl(Scrape):
                 inv_name = inv["name"]
                 if inv_name in investments_by_name:
                     investments_by_name[inv_name]["amount"] += inv["amount"]
-                    investments_by_name[inv_name]["lastInvestDate"] = max(
-                        investments_by_name[inv_name]["lastInvestDate"],
-                        inv["lastInvestDate"])
+                    investments_by_name[inv_name]["last_invest_date"] = max(
+                        investments_by_name[inv_name]["last_invest_date"],
+                        inv["last_invest_date"])
                 else:
                     investments_by_name[inv_name] = inv
 
@@ -202,7 +201,7 @@ class ScrapeImpl(Scrape):
                 "invested": inv.amount,
                 "returned": returned,
                 "currency": inv.currency,
-                "last_invest_date": inv.lastInvestDate,
+                "last_invest_date": inv.last_invest_date,
                 "last_tx_date": last_tx_date,
                 "effective_maturity": last_maturity_tx,
                 "net_return": net_return,
@@ -219,18 +218,18 @@ class ScrapeImpl(Scrape):
             if product_type == "REAL_STATE_CF":
                 historic_entry = RealStateCFEntry(
                     **historic_entry_base,
-                    interest_rate=Dezimal(inv.interestRate),
-                    maturity=inv.lastInvestDate + relativedelta(months=inv.months),
-                    potential_extension=inv.potentialExtension,
+                    interest_rate=Dezimal(inv.interest_rate),
+                    maturity=inv.maturity,
+                    extended_maturity=inv.extended_maturity,
                     type=inv.type,
-                    business_type=inv.businessType
+                    business_type=inv.business_type
                 )
 
             elif product_type == "FACTORING":
                 historic_entry = FactoringEntry(
                     **historic_entry_base,
-                    interest_rate=Dezimal(inv.interestRate),
-                    net_interest_rate=Dezimal(inv.netInterestRate),
+                    interest_rate=Dezimal(inv.interest_rate),
+                    net_interest_rate=Dezimal(inv.net_interest_rate),
                     maturity=inv.maturity,
                     type=inv.type
                 )

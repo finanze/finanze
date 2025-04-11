@@ -3,27 +3,26 @@ from datetime import datetime
 from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
-from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.dezimal import Dezimal
 from domain.financial_entity import TRADE_REPUBLIC
-from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments
+from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
 
 
-def parse_sub_section_float(section: dict):
+def parse_sub_section_float(section: dict) -> Dezimal:
     if not section:
-        return 0.0
+        return Dezimal(0)
 
     value = section["detail"]["text"]
     return parse_float(value)
 
 
-def parse_float(value: str):
+def parse_float(value: str) -> Dezimal:
     value = value.replace("\xa0", "").strip()
     value = value.replace(",", "")
     numeric_value = re.sub(r"[^\d.]", "", value)
-    return float(numeric_value)
+    return Dezimal(numeric_value)
 
 
 def get_section(d, title):
@@ -135,9 +134,9 @@ class TradeRepublicScraper(EntityScraper):
 
     async def _instrument_mapper(self, stock: dict, currency: str):
         isin = stock["instrumentId"]
-        average_buy = round(float(stock["averageBuyIn"]), 4)
-        shares = float(stock["netSize"])
-        market_value = round(float(stock["netValue"]), 4)
+        average_buy = round(Dezimal(stock["averageBuyIn"]), 4)
+        shares = Dezimal(stock["netSize"])
+        market_value = round(Dezimal(stock["netValue"]), 4)
         initial_investment = round(average_buy * shares, 4)
 
         details = await self._client.get_details(isin)
@@ -156,32 +155,38 @@ class TradeRepublicScraper(EntityScraper):
         elif type_id == "BOND":
             name = ""
             subtype = details.instrument["bondInfo"]["issuerClassification"]
-            interest_rate = details.instrument["bondInfo"]["interestRate"]
+            interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
             maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
 
         if not subtype:
             subtype = type_id
 
         return StockDetail(
+            id=uuid4(),
             name=name,
             ticker=ticker,
             isin=isin,
             market=", ".join(stock["exchangeIds"]),
             shares=shares,
-            initialInvestment=initial_investment,
-            averageBuyPrice=average_buy,
-            marketValue=market_value,
+            initial_investment=initial_investment,
+            average_buy_price=average_buy,
+            market_value=market_value,
             currency=currency,
-            currencySymbol=CURRENCY_SYMBOL_MAP.get(currency, currency),
             type=type_id,
             subtype=subtype
         )
 
     async def global_position(self) -> GlobalPosition:
+        user_info = self._client.get_user_info()
+        cash_account = user_info.get("cashAccount")
+        iban = None
+        if cash_account:
+            iban = cash_account.get("iban")
+
         portfolio = await self._client.get_portfolio()
 
         currency = portfolio.cash[0]["currencyId"]
-        cash_total = portfolio.cash[0]["amount"]
+        cash_total = Dezimal(portfolio.cash[0]["amount"])
 
         investments = []
         for position in portfolio.portfolio["positions"]:
@@ -191,22 +196,28 @@ class TradeRepublicScraper(EntityScraper):
         await self._client.close()
 
         initial_investment = round(
-            sum(map(lambda x: x.initialInvestment, investments)), 4
+            sum(map(lambda x: x.initial_investment, investments)), 2
         )
-        market_value = round(sum(map(lambda x: x.marketValue, investments)), 4)
+        market_value = round(sum(map(lambda x: x.market_value, investments)), 4)
 
         investments_data = Investments(
             stocks=StockInvestments(
-                initialInvestment=initial_investment,
-                marketValue=market_value,
+                investment=initial_investment,
+                market_value=market_value,
                 details=investments,
             )
         )
 
         return GlobalPosition(
-            account=Account(
+            id=uuid4(),
+            entity=TRADE_REPUBLIC,
+            account=[Account(
+                id=uuid4(),
                 total=cash_total,
-            ),
+                currency='EUR',
+                iban=iban,
+                type=AccountType.BROKERAGE
+            )],
             investments=investments_data,
         )
 

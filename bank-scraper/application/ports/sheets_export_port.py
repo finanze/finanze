@@ -10,7 +10,7 @@ class SheetsUpdatePort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def update_summary(
             self,
-            global_positions: dict[str, GlobalPosition],
+            global_positions: dict[FinancialEntity, GlobalPosition],
             config: dict):
         raise NotImplementedError
 

@@ -5,13 +5,13 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
-from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
+from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.financial_entity import MY_INVESTOR
-from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
+from domain.global_position import Account, Card, StockDetail, StockInvestments, \
     FundDetail, \
-    FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
-    Deposit, Deposits
+    FundInvestments, Investments, GlobalPosition, \
+    Deposit, Deposits, AccountType, CardType
 from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.v2.myinvestor_client import MyInvestorAPIV2Client
 
@@ -30,19 +30,20 @@ class MyInvestorScraperV2(EntityScraper):
         return self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
-        maintenance = self._client.check_maintenance()
+        #maintenance = self._client.check_maintenance()
 
         account_id, securities_account_id, account_data = self.scrape_account()
 
-        cards_data = self.scrape_cards(account_id)
+        cards_data = self.scrape_cards(account_id, account_data)
 
         investments_data = self.scrape_investments(securities_account_id)
 
         return GlobalPosition(
-            account=account_data,
+            id=uuid4(),
+            entity=MY_INVESTOR,
+            account=[account_data],
             cards=cards_data,
             investments=investments_data,
-            additionalData=PositionAdditionalData(maintenance=len(maintenance) > 0),
         )
 
     async def auto_contributions(self) -> AutoContributions:
@@ -86,43 +87,78 @@ class MyInvestorScraperV2(EntityScraper):
         related_security_account_id = self._get_related_security_account(account_id)["accountId"]
 
         current_interest_rate = None
-        avg_interest_rate = None
-        remuneration_type = None
 
         try:
             remuneration_details = self._client.get_account_remuneration(account_id)
             current_interest_rate = round(remuneration_details["taePromotion"] / 100, 4)
-            avg_interest_rate = round(
-                remuneration_details["calculateTaeAverage"] / 100, 4
-            )
-            remuneration_type = remuneration_details["remunerationType"]
+            if not current_interest_rate:
+                current_interest_rate = Dezimal(remuneration_details["remunerationPercentage"])
+            else:
+                current_interest_rate = round(
+                    Dezimal(remuneration_details["calculateTaeAverage"]) / 100, 4
+                )
         except Exception as e:
             self._log.error(f"Error getting account remuneration: {e}")
 
+        iban = accounts[0]["iban"]
+        alias = accounts[0]["alias"]
+        total = Dezimal(accounts[0]["enabledBalance"])
+        retained = Dezimal(accounts[0]["withheldBalance"])
+
         return account_id, related_security_account_id, Account(
-            total=accounts[0]["enabledBalance"],
-            retained=accounts[0]["withheldBalance"],
-            interest=current_interest_rate,
-            additionalData=AccountAdditionalData(
-                averageInterestRate=avg_interest_rate,
-                remunerationType=remuneration_type,
-            ),
+            id=uuid4(),
+            total=total,
+            currency='EUR',
+            name=alias,
+            iban=iban,
+            type=AccountType.CHECKING,
+            retained=retained,
+            interest=current_interest_rate
         )
 
-    def scrape_cards(self, account_id: str):
-        cards = self._client.get_cards(account_id=account_id)
+    def scrape_cards(self, account_id: str, account: Account):
+        raw_cards = self._client.get_cards(account_id=account_id)
         credit_card = next(
-            (card for card in cards if card["cardType"] == "CREDIT"), None
+            (card for card in raw_cards if card["cardType"] == "CREDIT"), None
         )
-        debit_card = next((card for card in cards if card["cardType"] == "DEBIT"), None)
+        debit_card = next((card for card in raw_cards if card["cardType"] == "DEBIT"), None)
 
-        credit_card_tx = self._client.get_card_totals(credit_card["cardId"])
-        debit_card_tx = self._client.get_card_totals(debit_card["cardId"])
+        related_account = account.id
 
-        return Cards(
-            credit=Card(limit=credit_card_tx["limit"], used=abs(credit_card_tx["consumedMonth"])),
-            debit=Card(limit=debit_card_tx["limit"], used=abs(debit_card_tx["consumedMonth"])),
-        )
+        cards = []
+        if credit_card:
+            credit_card_tx = self._client.get_card_totals(credit_card["cardId"])
+            credit_pan = credit_card["pan"].split(" ")[-1]
+            credit_active = credit_card["status"] == "ACTIVATE"
+
+            cards.append(Card(
+                id=uuid4(),
+                ending=credit_pan,
+                currency='EUR',
+                type=CardType.CREDIT,
+                limit=Dezimal(credit_card_tx["limit"]),
+                used=abs(Dezimal(credit_card_tx["consumedMonth"])),
+                active=credit_active,
+                related_account=related_account
+            ))
+
+        if debit_card:
+            debit_pan = debit_card["pan"].split(" ")[-1]
+            debit_card_tx = self._client.get_card_totals(debit_card["cardId"])
+            debit_active = debit_card["status"] == "ACTIVATE"
+
+            cards.append(Card(
+                id=uuid4(),
+                ending=debit_pan,
+                currency='EUR',
+                type=CardType.DEBIT,
+                limit=Dezimal(debit_card_tx["disposable"]),
+                used=abs(Dezimal(debit_card_tx["consumedMonth"])),
+                active=debit_active,
+                related_account=related_account
+            ))
+
+        return cards
 
     def scrape_deposits(self):
         deposits_raw = self._client.get_deposits()
@@ -131,22 +167,24 @@ class MyInvestorScraperV2(EntityScraper):
 
         deposit_list = [
             Deposit(
+                id=uuid4(),
                 name=deposit["depositName"],
-                amount=round(deposit["amount"], 2),
-                totalInterests=round(deposit["grossInterest"], 2),
-                interestRate=round(deposit["tae"] / 100, 4),
+                amount=round(Dezimal(deposit["amount"]), 2),
+                currency='EUR',
+                expected_interests=round(Dezimal(deposit["grossInterest"]), 2),
+                interest_rate=round(Dezimal(deposit["tae"]) / 100, 4),
                 maturity=datetime.strptime(deposit["expirationDate"], ISO_DATE_TIME_FORMAT).date(),
-                creation=datetime.strptime(deposit["creationDate"], ISO_DATE_TIME_FORMAT).date(),
+                creation=datetime.strptime(deposit["creationDate"], ISO_DATE_TIME_FORMAT),
             )
             for deposit in deposits_raw
         ]
 
-        total_amount = sum([deposit["amount"] for deposit in deposits_raw])
+        total_amount = sum([Dezimal(deposit["amount"]) for deposit in deposits_raw])
         return Deposits(
             total=total_amount,
-            totalInterests=sum([deposit["grossInterest"] for deposit in deposits_raw]),
-            weightedInterestRate=round(
-                (sum([deposit["amount"] * deposit["tae"] for deposit in deposits_raw])
+            expected_interests=sum([Dezimal(deposit["grossInterest"]) for deposit in deposits_raw]),
+            weighted_interest_rate=round(
+                (sum([Dezimal(deposit["amount"]) * Dezimal(deposit["tae"]) for deposit in deposits_raw])
                  / total_amount) / 100,
                 4,
             ),
@@ -159,63 +197,61 @@ class MyInvestorScraperV2(EntityScraper):
         broker_investments = investments.get("BROKER")
 
         stock_list = []
-        total_broker_investment = 0
+        total_broker_investment = Dezimal(0)
         if broker_investments:
             stock_list = [
                 StockDetail(
+                    id=uuid4(),
                     name=stock["investmentName"],
                     ticker=stock.get("ticker", ""),
                     isin=stock["isin"],
                     market=stock["marketCode"],
-                    shares=stock["shares"],
-                    initialInvestment=round(stock["initialInvestment"], 4),
-                    averageBuyPrice=round(stock["initialInvestment"] / stock["shares"], 4),
-                    marketValue=round(stock["marketValue"], 4),
+                    shares=Dezimal(stock["shares"]),
+                    initial_investment=round(Dezimal(stock["initialInvestment"]), 4),
+                    average_buy_price=round(Dezimal(stock["initialInvestment"]) / Dezimal(stock["shares"]), 4),
+                    market_value=round(Dezimal(stock["marketValue"]), 4),
                     currency=stock["liquidationValueCurrency"],
-                    currencySymbol=CURRENCY_SYMBOL_MAP.get(stock["liquidationValueCurrency"],
-                                                           stock["liquidationValueCurrency"]),
                     type=stock["brokerProductType"],
                     subtype=stock.get("activeTypeCode"),
                 )
                 for stock in broker_investments["investmentList"]
             ]
 
-            total_broker_investment = sum([stock.initialInvestment for stock in stock_list])
+            total_broker_investment = sum([stock.initial_investment for stock in stock_list])
 
         stock_data = StockInvestments(
-            initialInvestment=round(total_broker_investment, 4),
-            marketValue=round(broker_investments["totalAmount"], 4) if broker_investments else 0,
+            investment=round(total_broker_investment, 2),
+            market_value=round(Dezimal(broker_investments["totalAmount"]), 4) if broker_investments else 0,
             details=stock_list,
         )
 
         fund_investments = investments.get("INDEXED_FUND")
 
         fund_list = []
-        total_fund_investment = 0
+        total_fund_investment = Dezimal(0)
         if fund_investments:
             fund_list = [
                 FundDetail(
+                    id=uuid4(),
                     name=fund["investmentName"],
                     isin=fund["isin"],
                     market=fund["marketCode"],
                     shares=fund["shares"],
-                    initialInvestment=round(fund["initialInvestment"], 4),
-                    averageBuyPrice=round(fund["initialInvestment"] / fund["shares"], 4),
-                    marketValue=round(fund["marketValue"], 4),
+                    initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
+                    average_buy_price=round(Dezimal(fund["initialInvestment"]) / Dezimal(fund["shares"]), 4),
+                    market_value=round(Dezimal(fund["marketValue"]), 4),
                     currency=SYMBOL_CURRENCY_MAP.get(
                         fund["liquidationValueCurrency"], fund["liquidationValueCurrency"]
                     ),
-                    currencySymbol=fund["liquidationValueCurrency"],
-                    lastUpdate=datetime.strptime(fund["liquidationValueDate"], ISO_DATE_TIME_FORMAT).date(),
                 )
                 for fund in fund_investments["investmentList"]
             ]
 
-            total_fund_investment = sum([fund.initialInvestment for fund in fund_list])
+            total_fund_investment = sum([fund.initial_investment for fund in fund_list])
 
         fund_data = FundInvestments(
-            initialInvestment=round(total_fund_investment, 4),
-            marketValue=round(fund_investments["totalAmount"], 4) if fund_investments else 0,
+            investment=round(total_fund_investment, 2),
+            market_value=round(Dezimal(fund_investments["totalAmount"]), 4) if fund_investments else 0,
             details=fund_list,
         )
 
@@ -260,7 +296,7 @@ class MyInvestorScraperV2(EntityScraper):
                 id=uuid4(),
                 alias=get_alias(auto_contribution),
                 isin=auto_contribution["isin"],
-                amount=Dezimal(round(auto_contribution["amount"], 2)),
+                amount=round(Dezimal(auto_contribution["amount"]), 2),
                 since=get_date(auto_contribution["contributionTimeFrame"]["startDate"]),
                 until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
                 frequency=get_frequency(auto_contribution["contributionTimeFrame"]["recurrence"]),
@@ -296,7 +332,7 @@ class MyInvestorScraperV2(EntityScraper):
             raw_operation_type = order["operationType"]
             if raw_operation_type == "INVESTMENT_FUNDS_SUBSCRIPTION":
                 operation_type = TxType.BUY
-            elif "REIMB" in raw_operation_type:  # ??
+            elif "INVESTMENT_FUND_REIMBURSEMENT" in raw_operation_type:
                 operation_type = TxType.SELL
             else:
                 self._log.warning(f"Unknown operation type: {raw_operation_type}")
@@ -307,17 +343,17 @@ class MyInvestorScraperV2(EntityScraper):
                     id=uuid4(),
                     ref=ref,
                     name=order["fundName"].strip(),
-                    amount=Dezimal(round(execution_op["grossAmountOperationFundCurrency"], 2)),
-                    net_amount=Dezimal(round(execution_op["netAmountFundCurrency"], 2)),
+                    amount=round(Dezimal(execution_op["grossAmountOperationFundCurrency"]), 2),
+                    net_amount=round(Dezimal(execution_op["netAmountFundCurrency"]), 2),
                     currency=order["currency"],
                     type=operation_type,
                     order_date=order_date,
                     entity=MY_INVESTOR,
                     isin=order["isin"],
-                    shares=Dezimal(round(raw_order_details["executedShares"], 4)),
-                    price=Dezimal(round(execution_op["liquidationValue"], 4)),
+                    shares=round(Dezimal(raw_order_details["executedShares"]), 4),
+                    price=round(Dezimal(execution_op["liquidationValue"]), 4),
                     market=order["market"],
-                    fees=Dezimal(round(execution_op["commissions"], 2)),
+                    fees=round(Dezimal(execution_op["commissions"]), 2),
                     retentions=Dezimal(0),
                     date=execution_date,
                     product_type=ProductType.FUND,
@@ -369,15 +405,15 @@ class MyInvestorScraperV2(EntityScraper):
             if not raw_order_details.get("executedShares"):
                 continue
 
-            amount = round(raw_order_details["grossAmountOperationCurrency"], 2)
-            net_amount = round(raw_order_details["netAmountCurrency"], 2)
+            amount = round(Dezimal(raw_order_details["grossAmountOperationCurrency"]), 2)
+            net_amount = round(Dezimal(raw_order_details["netAmountCurrency"]), 2)
 
-            fees = 0
+            fees = Dezimal(0)
             if operation_type == TxType.BUY:
                 # Financial Tx Tax not included in "comisionCorretaje", "comisionMiembroMercado" and "costeCanon"
                 fees = net_amount - amount
             elif operation_type == TxType.SELL:
-                fees = raw_order_details["tradeCommissions"] + raw_order_details["otherCommissions"]
+                fees = Dezimal(raw_order_details["tradeCommissions"]) + Dezimal(raw_order_details["otherCommissions"])
 
             execution_date = datetime.strptime(raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT)
 
@@ -387,17 +423,17 @@ class MyInvestorScraperV2(EntityScraper):
                     ref=ref,
                     name=order["toolName"].strip(),
                     ticker=order["ticker"],
-                    amount=Dezimal(amount),
-                    net_amount=Dezimal(net_amount),
+                    amount=amount,
+                    net_amount=net_amount,
                     currency=order["currency"],
                     type=operation_type,
                     order_date=order_date,
                     entity=MY_INVESTOR,
                     isin=raw_order_details["instrumentIsin"],
-                    shares=Dezimal(round(raw_order_details["executedShares"], 4)),
-                    price=Dezimal(round(raw_order_details["priceCurrency"], 4)),
+                    shares=round(Dezimal(raw_order_details["executedShares"]), 4),
+                    price=round(Dezimal(raw_order_details["priceCurrency"]), 4),
                     market=order["marketId"],
-                    fees=Dezimal(round(fees, 2)),
+                    fees=round(fees, 2),
                     retentions=Dezimal(0),
                     date=execution_date,
                     product_type=ProductType.STOCK_ETF,

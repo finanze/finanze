@@ -11,7 +11,7 @@ from domain.financial_entity import MY_INVESTOR
 from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
-    Deposit, Deposits
+    Deposit, Deposits, AccountType
 from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.v1.myinvestor_client import MyInvestorAPIV1Client
 
@@ -92,6 +92,7 @@ class MyInvestorScraperV1(EntityScraper):
 
         return account_id, securities_account_id, Account(
             total=accounts[0]["importeCuenta"],
+            type=AccountType.CASH,
             retained=accounts[0]["retencionesSaldoCuenta"],
             interest=current_interest_rate,
             additionalData=AccountAdditionalData(
