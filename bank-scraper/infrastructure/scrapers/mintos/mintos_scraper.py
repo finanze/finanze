@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.financial_entity import MINTOS
+from domain.native_entities import MINTOS
 from domain.global_position import GlobalPosition, Account, Investments, Crowdlending, AccountType
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 

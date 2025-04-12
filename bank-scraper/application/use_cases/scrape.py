@@ -2,7 +2,7 @@ import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import List
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from dateutil.tz import tzlocal
 
@@ -14,7 +14,8 @@ from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity, Feature, NATIVE_ENTITIES
+from domain.financial_entity import FinancialEntity, Feature
+from domain.native_entities import NATIVE_ENTITIES
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
 from domain.scrap_result import ScrapResultCode, ScrapResult, LoginResult, SCRAP_BAD_LOGIN_CODES
@@ -47,7 +48,7 @@ class ScrapeImpl(Scrape):
         self._log = logging.getLogger(__name__)
 
     async def execute(self,
-                      entity_id: int,
+                      entity_id: UUID,
                       features: list[Feature],
                       **kwargs) -> ScrapResult:
         # scrape_config = self._config_port.load()["scrape"].get("enabledEntities")
@@ -125,7 +126,7 @@ class ScrapeImpl(Scrape):
                 self._historic_port.save(entries)
 
         scraped_data = ScrapedData(position=position,
-                                   autoContributions=auto_contributions,
+                                   auto_contributions=auto_contributions,
                                    transactions=transactions,
                                    historic=historic)
         return scraped_data

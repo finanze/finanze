@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.financial_entity import F24
+from domain.native_entities import F24
 from domain.global_position import Account, GlobalPosition, Investments, \
     Deposits, Deposit, AccountType
 from domain.scrap_result import LoginResult

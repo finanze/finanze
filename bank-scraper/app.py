@@ -3,10 +3,9 @@ import os
 from logging import getLevelName
 
 from flask_cors import CORS
-from pymongo import MongoClient
 from waitress import serve
 
-import domain.financial_entity as fe
+import domain.native_entities
 from application.use_cases.get_available_sources import GetAvailableSourcesImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
@@ -17,7 +16,7 @@ from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.controllers import Controllers
 from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.repository import AutoContributionsRepository, HistoricRepository, PositionRepository, \
-    TransactionRepository
+    TransactionRepository, EntityRepository
 from infrastructure.repository.db.setup import initialize_database
 from infrastructure.scrapers.f24.f24_scraper import F24Scraper
 from infrastructure.scrapers.mintos.mintos_scraper import MintosScraper
@@ -34,15 +33,7 @@ log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
 logging.getLogger().setLevel(getLevelName(log_level))
 
-#mongo_user = os.environ["MONGO_USERNAME"]
-#mongo_password = os.environ["MONGO_PASSWORD"]
-#mongo_host = os.environ["MONGO_HOST"]
-#mongo_port = os.environ.get("MONGO_PORT", 27017)
-#mongo_db_name = "bank_data_db"
-#mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}"
-
 db_client = initialize_database("bank_data_db")
-#mongo_client = MongoClient(mongo_uri)
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 config_path = os.environ.get("CONFIG_PATH", "config.yml")
@@ -51,20 +42,21 @@ config_loader = ConfigLoader(config_path)
 config_loader.check_or_create_default_config()
 
 entity_scrapers = {
-    fe.MY_INVESTOR: MyInvestorScraper(),
-    fe.TRADE_REPUBLIC: TradeRepublicScraper(),
-    fe.UNICAJA: UnicajaScraper(),
-    fe.URBANITAE: UrbanitaeScraper(),
-    fe.WECITY: WecityScraper(),
-    fe.SEGO: SegoScraper(),
-    fe.MINTOS: MintosScraper(),
-    fe.F24: F24Scraper(),
+    domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
+    domain.native_entities.TRADE_REPUBLIC: TradeRepublicScraper(),
+    domain.native_entities.UNICAJA: UnicajaScraper(),
+    domain.native_entities.URBANITAE: UrbanitaeScraper(),
+    domain.native_entities.WECITY: WecityScraper(),
+    domain.native_entities.SEGO: SegoScraper(),
+    domain.native_entities.MINTOS: MintosScraper(),
+    domain.native_entities.F24: F24Scraper(),
 }
 virtual_scraper = SheetsImporter()
 position_repository = PositionRepository(client=db_client)
 auto_contrib_repository = AutoContributionsRepository(client=db_client)
 transaction_repository = TransactionRepository(client=db_client)
 historic_repository = HistoricRepository(client=db_client)
+entity_repository = EntityRepository(client=db_client)
 
 credentials_reader = CredentialsReader()
 
@@ -89,6 +81,7 @@ virtual_scrape = VirtualScrapeImpl(
     position_repository,
     transaction_repository,
     virtual_scraper,
+    entity_repository,
     config_loader)
 
 controllers = Controllers(get_available_sources, scrape, update_sheets, virtual_scrape)

@@ -7,7 +7,7 @@ from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
-from domain.financial_entity import MY_INVESTOR
+from domain.native_entities import MY_INVESTOR
 from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \

@@ -1,4 +1,5 @@
 import abc
+from uuid import UUID
 
 from domain.historic import Historic, BaseHistoricEntry
 
@@ -13,5 +14,5 @@ class HistoricPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_by_entity(self, entity_id: int):
+    def delete_by_entity(self, entity_id: UUID):
         raise NotImplementedError

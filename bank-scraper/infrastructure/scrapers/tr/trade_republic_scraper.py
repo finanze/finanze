@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.financial_entity import TRADE_REPUBLIC
+from domain.native_entities import TRADE_REPUBLIC
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient

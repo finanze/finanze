@@ -14,7 +14,7 @@ from infrastructure.repository.db.client import DBClient
 
 def _map_account_row(row) -> AccountTx:
     entity = FinancialEntity(
-        id=row["entity_id"],
+        id=UUID(row["entity_id"]),
         name=row["entity_name"],
         is_real=row["entity_is_real"]
     )
@@ -38,7 +38,7 @@ def _map_account_row(row) -> AccountTx:
 
 def _map_investment_row(row) -> BaseInvestmentTx:
     entity = FinancialEntity(
-        id=row["entity_id"],
+        id=UUID(row["entity_id"]),
         name=row["entity_name"],
         is_real=row["entity_is_real"]
     )
@@ -66,8 +66,8 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
-            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
-            order_date=datetime.fromisoformat(row["order_date"]) if row["order_date"] else None,
+            retentions=Dezimal(row["retentions"]) if "retentions" in row else None,
+            order_date=datetime.fromisoformat(row["order_date"]) if "order_date" in row else None,
             linked_tx=row["linked_tx"]
         )
     elif row["product_type"] == ProductType.FUND.value:
@@ -79,8 +79,8 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
-            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
-            order_date=datetime.fromisoformat(row["order_date"]) if row["order_date"] else None
+            retentions=Dezimal(row["retentions"]) if "retentions" in row else None,
+            order_date=datetime.fromisoformat(row["order_date"]) if "order_date" in row else None,
         )
     elif row["product_type"] == ProductType.FACTORING.value:
         return FactoringTx(
@@ -122,7 +122,7 @@ class TransactionSQLRepository(TransactionPort):
                     "currency": tx.currency,
                     "type": tx.type.value,
                     "date": tx.date.isoformat(),
-                    "entity_id": tx.entity.id,
+                    "entity_id": str(tx.entity.id),
                     "is_real": tx.is_real,
                     "product_type": tx.product_type.value,
 
@@ -207,7 +207,7 @@ class TransactionSQLRepository(TransactionPort):
                         tx.currency,
                         tx.type.value,
                         tx.date.isoformat(),
-                        tx.entity.id,
+                        str(tx.entity.id),
                         tx.is_real,
                         str(tx.fees),
                         str(tx.retentions),
@@ -240,7 +240,7 @@ class TransactionSQLRepository(TransactionPort):
             """)
             return [_map_account_row(row) for row in cursor.fetchall()]
 
-    def _get_investment_txs_by_entity(self, entity_id: int) -> List[BaseInvestmentTx]:
+    def _get_investment_txs_by_entity(self, entity_id: UUID) -> List[BaseInvestmentTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
                 SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
@@ -250,7 +250,7 @@ class TransactionSQLRepository(TransactionPort):
             """, (entity_id,))
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
-    def _get_account_txs_by_entity(self, entity_id: int) -> List[AccountTx]:
+    def _get_account_txs_by_entity(self, entity_id: UUID) -> List[AccountTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
                 SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
@@ -260,7 +260,7 @@ class TransactionSQLRepository(TransactionPort):
             """, (entity_id,))
             return [_map_account_row(row) for row in cursor.fetchall()]
 
-    def get_refs_by_entity(self, entity_id: int) -> Set[str]:
+    def get_refs_by_entity(self, entity_id: UUID) -> Set[str]:
         with self._db_client.read() as cursor:
             cursor.execute("""
                 SELECT ref FROM investment_transactions
@@ -271,7 +271,7 @@ class TransactionSQLRepository(TransactionPort):
             """, (entity_id, entity_id))
             return {row[0] for row in cursor.fetchall()}
 
-    def get_by_entity(self, entity_id: int) -> Transactions:
+    def get_by_entity(self, entity_id: UUID) -> Transactions:
         return Transactions(
             investment=self._get_investment_txs_by_entity(entity_id),
             account=self._get_account_txs_by_entity(entity_id)
@@ -302,7 +302,7 @@ class TransactionSQLRepository(TransactionPort):
             result = {}
             for row in cursor.fetchall():
                 entity = FinancialEntity(
-                    id=row["id"],
+                    id=UUID(row["id"]),
                     name=row["name"],
                     is_real=row["is_real"]
                 )

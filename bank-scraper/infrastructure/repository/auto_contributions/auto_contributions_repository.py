@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import uuid4, UUID
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency
@@ -13,7 +13,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entity_id: int, data: AutoContributions):
+    def save(self, entity_id: UUID, data: AutoContributions):
         with self._db_client.tx() as cursor:
             # Delete existing contributions for this entity
             cursor.execute(
@@ -55,8 +55,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             entities = {}
             for row in cursor.fetchall():
                 entity = FinancialEntity(
-                    id=row["entity_id"],
-                    features=row["features"],
+                    id=UUID(row["entity_id"]),
                     name=row["name"],
                     is_real=row["is_real"]
                 )
@@ -70,7 +69,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         isin=row["isin"],
                         amount=Dezimal(row["amount"]),
                         since=datetime.fromisoformat(row["since"]).date(),
-                        until=datetime.fromisoformat(row["until"]).date() if row["until"] else None,
+                        until=datetime.fromisoformat(row["until"]).date() if "until" in row else None,
                         frequency=ContributionFrequency[row["frequency"]],
                         active=bool(row["active"]),
                         is_real=bool(row["is_real"])
@@ -94,8 +93,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             result = {}
             for row in cursor.fetchall():
                 entity = FinancialEntity(
-                    id=row["id"],
-                    features=row["features"],
+                    id=UUID(row["id"]),
                     name=row["name"],
                     is_real=row["is_real"]
                 )

@@ -6,10 +6,8 @@ DDL = """
 -- FINANCIAL ENTITY
 
 CREATE TABLE financial_entities (
-    id INTEGER PRIMARY KEY,
+    id CHAR(36) PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    features JSON NOT NULL,
-    properties JSON NOT NULL,
     is_real BOOLEAN NOT NULL
 );
 
@@ -18,7 +16,7 @@ CREATE TABLE financial_entities (
 CREATE TABLE global_positions (
     id CHAR(36) PRIMARY KEY,
     date DATETIME NOT NULL,
-    entity_id INTEGER NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE INDEX idx_gp_entity_id ON global_positions(entity_id);
@@ -26,7 +24,7 @@ CREATE INDEX idx_global_positions_date ON global_positions(date DESC);
 
 CREATE TABLE account_positions (
     id CHAR(36) PRIMARY KEY,
-    global_position_id CHAR(36) REFERENCES global_positions(id),
+    global_position_id CHAR(36) REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
     type VARCHAR(32) NOT NULL,
     name TEXT,
     iban VARCHAR(32),
@@ -72,8 +70,8 @@ CREATE INDEX idx_mp_global_position_id ON mortgage_positions(global_position_id)
 -- - Latest investment position KPIs
 
 CREATE TABLE investment_position_kpis (
-    global_position_id CHAR(36) NOT NULL REFERENCES global_positions(id),
-    entity_id INTEGER NOT NULL REFERENCES financial_entities(id),
+    global_position_id CHAR(36) NOT NULL REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     investment_type VARCHAR(32) NOT NULL,
     metric VARCHAR(64) NOT NULL,
     value TEXT NOT NULL,
@@ -177,7 +175,7 @@ CREATE INDEX idx_clp_global_position_id ON crowdlending_positions(global_positio
 
 CREATE TABLE periodic_contributions (
     id CHAR(36) NOT NULL PRIMARY KEY,
-    entity_id INTEGER NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     isin VARCHAR(12) NOT NULL,
     alias VARCHAR(100),
     amount TEXT NOT NULL,
@@ -202,7 +200,7 @@ CREATE TABLE investment_transactions (
     currency CHAR(3) NOT NULL,
     type VARCHAR(32) NOT NULL,
     date DATETIME NOT NULL,
-    entity_id INTEGER NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     is_real BOOLEAN NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     product_type VARCHAR(32),
@@ -210,7 +208,7 @@ CREATE TABLE investment_transactions (
     isin VARCHAR(12) DEFAULT NULL,
     market VARCHAR(32) DEFAULT NULL,
     order_date DATETIME DEFAULT NULL,
-    linked_tx CHAR(36) DEFAULT NULL REFERENCES investment_transactions(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+    linked_tx CHAR(36) DEFAULT NULL,
 
     net_amount TEXT DEFAULT NULL,
     shares TEXT DEFAULT NULL,
@@ -236,7 +234,7 @@ CREATE TABLE account_transactions (
     currency CHAR(3) NOT NULL,
     type VARCHAR(32) NOT NULL,
     date DATETIME NOT NULL,
-    entity_id INTEGER NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     is_real BOOLEAN NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     
@@ -265,7 +263,7 @@ CREATE TABLE investment_historic (
     retentions TEXT,
     interests TEXT,
     state VARCHAR(32),
-    entity_id INTEGER NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     product_type VARCHAR(32) NOT NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     
@@ -292,56 +290,16 @@ CREATE INDEX idx_ihist_txs_historic_entry_id ON investment_historic_txs(historic
 """
 
 INSERT_FINANCIAL_ENTITIES = """
-INSERT INTO financial_entities (name, features, properties, is_real)
+INSERT INTO financial_entities (id, name, is_real)
 VALUES 
-    (
-        'MyInvestor', 
-        json_array('POSITION', 'AUTO_CONTRIBUTIONS', 'TRANSACTIONS'), 
-        json_object(),
-        TRUE
-    ),
-    (
-        'Unicaja', 
-        json_array('POSITION'), 
-        json_object(),
-        TRUE
-    ),
-    (
-        'Trade Republic', 
-        json_array('POSITION', 'TRANSACTIONS'), 
-        json_object('pin', json_object('positions', 4)),
-        TRUE
-    ),
-    (
-        'Urbanitae', 
-        json_array('POSITION', 'TRANSACTIONS', 'HISTORIC'), 
-        json_object(),
-        TRUE
-    ),
-    (
-        'Wecity', 
-        json_array('POSITION', 'TRANSACTIONS', 'HISTORIC'), 
-        json_object('pin', json_object('positions', 6)),
-        TRUE
-    ),
-    (
-        'SEGO', 
-        json_array('POSITION', 'TRANSACTIONS', 'HISTORIC'), 
-        json_object('pin', json_object('positions', 6)),
-        TRUE
-    ),
-    (
-        'Mintos', 
-        json_array('POSITION'), 
-        json_object(),
-        TRUE
-    ),
-    (
-        'Freedom24', 
-        json_array('POSITION'), 
-        json_object(),
-        TRUE
-    );
+    ('e0000000-0000-0000-0000-000000000001', 'MyInvestor', TRUE),
+    ('e0000000-0000-0000-0000-000000000002', 'Unicaja', TRUE),
+    ('e0000000-0000-0000-0000-000000000003', 'Trade Republic', TRUE),
+    ('e0000000-0000-0000-0000-000000000004', 'Urbanitae', TRUE),
+    ('e0000000-0000-0000-0000-000000000005', 'Wecity', TRUE),
+    ('e0000000-0000-0000-0000-000000000006', 'SEGO', TRUE),
+    ('e0000000-0000-0000-0000-000000000007', 'Mintos', TRUE),
+    ('e0000000-0000-0000-0000-000000000008', 'Freedom24', TRUE);
 """
 
 

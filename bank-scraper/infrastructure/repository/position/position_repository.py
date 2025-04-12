@@ -17,18 +17,18 @@ from infrastructure.repository.db.client import DBClient
 KPIs = Optional[dict[str, Dezimal]]
 PositionInvestmentKPIs = dict[str, KPIs]
 
-MARKET_VALUE = 'MARKET_VALUE'
-INVESTMENT = 'INVESTMENT'
-WEIGHTED_INTEREST_RATE = 'WEIGHTED_INTEREST_RATE'
-TOTAL = 'TOTAL'
-EXPECTED_INTERESTS = 'EXPECTED_INTERESTS'
+MARKET_VALUE = "MARKET_VALUE"
+INVESTMENT = "INVESTMENT"
+WEIGHTED_INTEREST_RATE = "WEIGHTED_INTEREST_RATE"
+TOTAL = "TOTAL"
+EXPECTED_INTERESTS = "EXPECTED_INTERESTS"
 
-STOCKS = 'STOCKS'
-FUNDS = 'FUNDS'
-FACTORING = 'FACTORING'
-REAL_STATE_CF = 'REAL_STATE_CF'
-DEPOSITS = 'DEPOSITS'
-CROWDLENDING = 'CROWDLENDING'
+STOCKS = "STOCKS"
+FUNDS = "FUNDS"
+FACTORING = "FACTORING"
+REAL_STATE_CF = "REAL_STATE_CF"
+DEPOSITS = "DEPOSITS"
+CROWDLENDING = "CROWDLENDING"
 
 
 def _save_investment_kpis(cursor, position: GlobalPosition, product_type: str, kpis: KPIs):
@@ -40,7 +40,7 @@ def _save_investment_kpis(cursor, position: GlobalPosition, product_type: str, k
             "INSERT INTO investment_position_kpis "
             "(global_position_id, entity_id, investment_type, metric, value, date) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (str(position.id), position.entity.id, product_type, metric, str(value), position.date.isoformat())
+            (str(position.id), str(position.entity.id), product_type, metric, str(value), position.date.isoformat())
         )
 
 
@@ -328,7 +328,7 @@ class PositionSQLRepository(PositionPort):
                 "INSERT INTO global_positions (id, date, entity_id) VALUES (?, ?, ?)",
                 (str(position.id),
                  position.date.isoformat(),
-                 position.entity.id)
+                 str(position.entity.id))
             )
 
             # Save accounts
@@ -365,19 +365,19 @@ class PositionSQLRepository(PositionPort):
             positions = {}
             for row in cursor.fetchall():
                 entity = FinancialEntity(
-                    id=row["entity_id"],
+                    id=UUID(row["entity_id"]),
                     name=row["entity_name"],
                     is_real=row["entity_is_real"]
                 )
 
                 position = GlobalPosition(
-                    id=UUID(row['id']),
+                    id=UUID(row["id"]),
                     entity=entity,
-                    date=datetime.fromisoformat(row['date']),
-                    account=self._get_account_position(row['id']),
-                    cards=self._get_card_positions(row['id']),
-                    mortgage=self._get_mortgage_position(row['id']),
-                    investments=self._get_investments(row['id']),
+                    date=datetime.fromisoformat(row["date"]),
+                    account=self._get_account_position(row["id"]),
+                    cards=self._get_card_positions(row["id"]),
+                    mortgage=self._get_mortgage_position(row["id"]),
+                    investments=self._get_investments(row["id"]),
                 )
                 positions[entity] = position
 
@@ -391,14 +391,14 @@ class PositionSQLRepository(PositionPort):
 
             accounts = [
                 Account(
-                    id=UUID(row['id']),
-                    total=Dezimal(row['total']),
-                    currency=row['currency'],
-                    type=AccountType[row['type']],
-                    name=row['name'],
-                    interest=Dezimal(row['interest']) if row['interest'] else None,
-                    retained=Dezimal(row['retained']) if row['retained'] else None,
-                    pending_transfers=Dezimal(row['pending_transfers']) if row['pending_transfers'] else None,
+                    id=UUID(row["id"]),
+                    total=Dezimal(row["total"]),
+                    currency=row["currency"],
+                    type=AccountType[row["type"]],
+                    name=row["name"],
+                    interest=Dezimal(row["interest"]) if "interest" in row else None,
+                    retained=Dezimal(row["retained"]) if "retained" in row else None,
+                    pending_transfers=Dezimal(row["pending_transfers"]) if "pending_transfers" in row else None,
                 ) for row in cursor
             ]
 
@@ -413,15 +413,15 @@ class PositionSQLRepository(PositionPort):
 
             cards = [
                 Card(
-                    id=UUID(row['id']),
-                    name=row['name'],
-                    currency=row['currency'],
-                    ending=row['ending'],
-                    type=CardType[row['type']],
-                    limit=Dezimal(row['card_limit']) if row['card_limit'] else None,
-                    used=Dezimal(row['used']),
-                    active=bool(row['active']),
-                    related_account=row['related_account']
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    currency=row["currency"],
+                    ending=row["ending"],
+                    type=CardType[row["type"]],
+                    limit=Dezimal(row["card_limit"]) if "card_limit" in row else None,
+                    used=Dezimal(row["used"]),
+                    active=bool(row["active"]),
+                    related_account=row["related_account"]
                 ) for row in cursor
             ]
 
@@ -436,15 +436,15 @@ class PositionSQLRepository(PositionPort):
 
             mortgages = [
                 Mortgage(
-                    id=UUID(row['id']),
-                    currency=row['currency'],
-                    name=row['name'],
-                    current_installment=Dezimal(row['current_installment']),
-                    interest_rate=Dezimal(row['interest_rate']),
-                    loan_amount=Dezimal(row['loan_amount']),
-                    next_payment_date=datetime.fromisoformat(row['next_payment_date']).date(),
-                    principal_outstanding=Dezimal(row['principal_outstanding']),
-                    principal_paid=Dezimal(row['principal_paid'])
+                    id=UUID(row["id"]),
+                    currency=row["currency"],
+                    name=row["name"],
+                    current_installment=Dezimal(row["current_installment"]),
+                    interest_rate=Dezimal(row["interest_rate"]),
+                    loan_amount=Dezimal(row["loan_amount"]),
+                    next_payment_date=datetime.fromisoformat(row["next_payment_date"]).date(),
+                    principal_outstanding=Dezimal(row["principal_outstanding"]),
+                    principal_paid=Dezimal(row["principal_paid"])
                 ) for row in cursor
             ]
 
@@ -470,7 +470,7 @@ class PositionSQLRepository(PositionPort):
 
             kpis = {}
             for row in cursor:
-                kpis.setdefault(row['investment_type'], {})[row['metric']] = Dezimal(row['value'])
+                kpis.setdefault(row["investment_type"], {})[row["metric"]] = Dezimal(row["value"])
             return kpis
 
     def _get_stock_investments(self, global_position_id: str, kpis: KPIs) -> Optional[StockInvestments]:
@@ -482,18 +482,18 @@ class PositionSQLRepository(PositionPort):
 
             details = [
                 StockDetail(
-                    id=UUID(row['id']),
-                    name=row['name'],
-                    ticker=row['ticker'],
-                    isin=row['isin'],
-                    market=row['market'],
-                    shares=Dezimal(row['shares']),
-                    initial_investment=Dezimal(row['initial_investment']),
-                    average_buy_price=Dezimal(row['average_buy_price']),
-                    market_value=Dezimal(row['market_value']),
-                    currency=row['currency'],
-                    type=row['type'],
-                    subtype=row['subtype']
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    ticker=row["ticker"],
+                    isin=row["isin"],
+                    market=row["market"],
+                    shares=Dezimal(row["shares"]),
+                    initial_investment=Dezimal(row["initial_investment"]),
+                    average_buy_price=Dezimal(row["average_buy_price"]),
+                    market_value=Dezimal(row["market_value"]),
+                    currency=row["currency"],
+                    type=row["type"],
+                    subtype=row["subtype"]
                 )
                 for row in cursor
             ]
@@ -516,15 +516,15 @@ class PositionSQLRepository(PositionPort):
 
             details = [
                 FundDetail(
-                    id=UUID(row['id']),
-                    name=row['name'],
-                    isin=row['isin'],
-                    market=row['market'],
-                    shares=Dezimal(row['shares']),
-                    initial_investment=Dezimal(row['initial_investment']),
-                    average_buy_price=Dezimal(row['average_buy_price']),
-                    market_value=Dezimal(row['market_value']),
-                    currency=row['currency']
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    isin=row["isin"],
+                    market=row["market"],
+                    shares=Dezimal(row["shares"]),
+                    initial_investment=Dezimal(row["initial_investment"]),
+                    average_buy_price=Dezimal(row["average_buy_price"]),
+                    market_value=Dezimal(row["market_value"]),
+                    currency=row["currency"]
                 )
                 for row in cursor
             ]
@@ -547,17 +547,17 @@ class PositionSQLRepository(PositionPort):
 
             details = [
                 FactoringDetail(
-                    id=UUID(row['id']),
-                    name=row['name'],
-                    amount=Dezimal(row['amount']),
-                    currency=row['currency'],
-                    interest_rate=Dezimal(row['interest_rate']),
-                    net_interest_rate=Dezimal(row['net_interest_rate']),
-                    last_invest_date=datetime.fromisoformat(row['last_invest_date']) if row[
-                        'last_invest_date'] else None,
-                    maturity=datetime.fromisoformat(row['maturity']).date(),
-                    type=row['type'],
-                    state=row['state']
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    amount=Dezimal(row["amount"]),
+                    currency=row["currency"],
+                    interest_rate=Dezimal(row["interest_rate"]),
+                    net_interest_rate=Dezimal(row["net_interest_rate"]),
+                    last_invest_date=datetime.fromisoformat(
+                        row["last_invest_date"]) if "last_invest_date" in row else None,
+                    maturity=datetime.fromisoformat(row["maturity"]).date(),
+                    type=row["type"],
+                    state=row["state"]
                 )
                 for row in cursor
             ]
@@ -580,17 +580,17 @@ class PositionSQLRepository(PositionPort):
 
             details = [
                 RealStateCFDetail(
-                    id=UUID(row['id']),
-                    name=row['name'],
-                    amount=Dezimal(row['amount']),
-                    currency=row['currency'],
-                    interest_rate=Dezimal(row['interest_rate']),
-                    last_invest_date=datetime.fromisoformat(row['last_invest_date']),
-                    maturity=row['maturity'],
-                    type=row['type'],
-                    business_type=row['business_type'],
-                    state=row['state'],
-                    extended_maturity=row['extended_maturity']
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    amount=Dezimal(row["amount"]),
+                    currency=row["currency"],
+                    interest_rate=Dezimal(row["interest_rate"]),
+                    last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
+                    maturity=row["maturity"],
+                    type=row["type"],
+                    business_type=row["business_type"],
+                    state=row["state"],
+                    extended_maturity=row["extended_maturity"]
                 )
                 for row in cursor
             ]
@@ -613,14 +613,14 @@ class PositionSQLRepository(PositionPort):
 
             details = [
                 Deposit(
-                    id=UUID(row['id']),
-                    name=row['name'],
-                    amount=Dezimal(row['amount']),
-                    currency=row['currency'],
-                    expected_interests=Dezimal(row['expected_interests']),
-                    interest_rate=Dezimal(row['interest_rate']),
-                    creation=datetime.fromisoformat(row['creation']),
-                    maturity=datetime.fromisoformat(row['maturity']).date()
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    amount=Dezimal(row["amount"]),
+                    currency=row["currency"],
+                    expected_interests=Dezimal(row["expected_interests"]),
+                    interest_rate=Dezimal(row["interest_rate"]),
+                    creation=datetime.fromisoformat(row["creation"]),
+                    maturity=datetime.fromisoformat(row["maturity"]).date()
                 )
                 for row in cursor
             ]
@@ -646,15 +646,15 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return Crowdlending(
-                id=UUID(row['id']),
+                id=UUID(row["id"]),
                 total=kpis.get(TOTAL),
                 weighted_interest_rate=kpis.get(WEIGHTED_INTEREST_RATE),
-                currency=row['currency'],
-                distribution=json.loads(row['distribution']),
+                currency=row["currency"],
+                distribution=json.loads(row["distribution"]),
                 details=[]
             )
 
-    def get_last_updated(self, entity_id: int) -> Optional[datetime]:
+    def get_last_updated(self, entity_id: UUID) -> Optional[datetime]:
         with self._db_client.read() as cursor:
             cursor.execute("""
                 SELECT MAX(date) as last_date
@@ -663,10 +663,10 @@ class PositionSQLRepository(PositionPort):
             """, (entity_id,))
 
             result = cursor.fetchone()
-            if not result or not result['last_date']:
+            if not result or not result["last_date"]:
                 return None
 
-            return datetime.fromisoformat(result['last_date']).replace(tzinfo=timezone.utc)
+            return datetime.fromisoformat(result["last_date"]).replace(tzinfo=timezone.utc)
 
     def _get_entity_id_from_global(self, global_position_id: str) -> int:
         with self._db_client.read() as cursor:

@@ -11,12 +11,12 @@ from domain.transactions import Transactions
 @dataclass
 class ScrapedData:
     position: Optional[GlobalPosition] = None
-    autoContributions: Optional[AutoContributions] = None
+    auto_contributions: Optional[AutoContributions] = None
     transactions: Optional[Transactions] = None
     historic: Optional[Historic] = None
 
 
 @dataclass
 class VirtuallyScrapedData:
-    positions: Optional[dict[str, GlobalPosition]] = None
+    positions: Optional[list[GlobalPosition]] = None
     transactions: Optional[Transactions] = None

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from flask import request, jsonify
 
 from domain.financial_entity import Feature
@@ -32,7 +34,7 @@ class Controllers:
         if not entity:
             return jsonify({"message": "Source entity not provided"}), 400
 
-        entity = int(entity)
+        entity = UUID(entity)
 
         feature_fields = body.get("features", [])
         try:

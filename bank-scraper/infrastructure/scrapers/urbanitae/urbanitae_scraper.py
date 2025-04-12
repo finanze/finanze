@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.financial_entity import URBANITAE
+from domain.native_entities import URBANITAE
 from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, Account, \
     HistoricalPosition, AccountType
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType

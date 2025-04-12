@@ -10,7 +10,7 @@ from pytz import utc
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
-from domain.financial_entity import SEGO
+from domain.native_entities import SEGO
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
     GlobalPosition, Account, HistoricalPosition, AccountType
 from domain.transactions import Transactions, TxType, ProductType, FactoringTx

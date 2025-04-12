@@ -5,7 +5,7 @@ from dateutil.relativedelta import relativedelta
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.financial_entity import UNICAJA
+from domain.native_entities import UNICAJA
 from domain.global_position import Account, Card, Mortgage, GlobalPosition, CardType, AccountType
 from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 

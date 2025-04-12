@@ -1,4 +1,5 @@
 from application.ports.config_port import ConfigPort
+from application.ports.entity_port import EntityPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_scraper import VirtualScraper
@@ -14,10 +15,12 @@ class VirtualScrapeImpl(VirtualScrape):
                  position_port: PositionPort,
                  transaction_port: TransactionPort,
                  virtual_scraper: VirtualScraper,
+                 entity_port: EntityPort,
                  config_port: ConfigPort):
         self._position_port = position_port
         self._transaction_port = transaction_port
         self._virtual_scraper = virtual_scraper
+        self._entity_port = entity_port
         self._config_port = config_port
 
     async def execute(self) -> ScrapResult:
@@ -36,14 +39,30 @@ class VirtualScrapeImpl(VirtualScrape):
         apply_global_config(config_globals, investment_sheets)
         apply_global_config(config_globals, transaction_sheets)
 
-        global_positions = await self._virtual_scraper.global_positions(investment_sheets)
-        transactions = await self._virtual_scraper.transactions(transaction_sheets, registered_txs)
+        existing_entities = self._entity_port.get_all()
+        existing_entities_by_name = {entity.name: entity for entity in existing_entities}
+
+        global_positions, created_pos_entities = await self._virtual_scraper.global_positions(
+            investment_sheets,
+            existing_entities_by_name)
 
         if global_positions:
-            for entity, position in global_positions.items():
-                self._position_port.save(entity, position)
+            for entity in created_pos_entities:
+                self._entity_port.insert(entity)
+                existing_entities_by_name[entity.name] = entity
+
+            for position in global_positions:
+                self._position_port.save(position)
+
+        transactions, created_tx_entities = await self._virtual_scraper.transactions(
+            transaction_sheets,
+            registered_txs,
+            existing_entities_by_name)
 
         if transactions:
+            for entity in created_tx_entities:
+                self._entity_port.insert(entity)
+
             self._transaction_port.save(transactions)
 
         data = VirtuallyScrapedData(positions=global_positions, transactions=transactions)

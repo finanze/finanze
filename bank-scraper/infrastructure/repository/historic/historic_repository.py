@@ -13,7 +13,7 @@ from infrastructure.repository.transaction.transaction_repository import _map_in
 
 def _map_historic_row(row) -> BaseHistoricEntry:
     entity = FinancialEntity(
-        id=row["entity_id"],
+        id=UUID(row["entity_id"]),
         name=row["entity_name"],
         is_real=row["entity_is_real"]
     )
@@ -22,16 +22,16 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         "id": UUID(row["id"]),
         "name": row["name"],
         "invested": Dezimal(row["invested"]),
-        "returned": Dezimal(row["returned"]) if row["returned"] else None,
+        "returned": Dezimal(row["returned"]) if "returned" in row else None,
         "currency": row["currency"],
         "last_invest_date": datetime.fromisoformat(row["last_invest_date"]),
         "last_tx_date": datetime.fromisoformat(row["last_tx_date"]),
-        "effective_maturity": datetime.fromisoformat(row["effective_maturity"]) if row[
-            "effective_maturity"] else None,
-        "net_return": Dezimal(row["net_return"]) if row["net_return"] else None,
-        "fees": Dezimal(row["fees"]) if row["fees"] else None,
-        "retentions": Dezimal(row["retentions"]) if row["retentions"] else None,
-        "interests": Dezimal(row["interests"]) if row["interests"] else None,
+        "effective_maturity": datetime.fromisoformat(
+            row["effective_maturity"]) if "effective_maturity" in row else None,
+        "net_return": Dezimal(row["net_return"]) if "net_return" in row else None,
+        "fees": Dezimal(row["fees"]) if "fees" in row else None,
+        "retentions": Dezimal(row["retentions"]) if "retentions" in row else None,
+        "interests": Dezimal(row["interests"]) if "interests" in row else None,
         "state": row["state"],
         "entity": entity,
         "product_type": ProductType(row["product_type"]),
@@ -51,7 +51,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
             **common,
             interest_rate=Dezimal(row["interest_rate"]),
             maturity=datetime.fromisoformat(row["maturity"]).date(),
-            extended_maturity=row["extended_maturity"],
+            extended_maturity=row["extended_maturity"] if "extended_maturity" in row else None,
             type=row["type"],
             business_type=row["business_type"]
         )
@@ -171,7 +171,7 @@ class HistoricSQLRepository(HistoricPort):
 
             return Historic(entries=historic_entries)
 
-    def delete_by_entity(self, entity_id: int):
+    def delete_by_entity(self, entity_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 "DELETE FROM investment_historic WHERE entity_id = ?",

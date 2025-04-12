@@ -1,5 +1,6 @@
 import abc
 from datetime import datetime
+from uuid import UUID
 
 from domain.auto_contributions import AutoContributions
 from domain.financial_entity import FinancialEntity
@@ -7,7 +8,7 @@ from domain.financial_entity import FinancialEntity
 
 class AutoContributionsPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, entity_id: int, data: AutoContributions):
+    def save(self, entity_id: UUID, data: AutoContributions):
         raise NotImplementedError
 
     @abc.abstractmethod

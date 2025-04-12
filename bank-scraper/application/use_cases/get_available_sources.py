@@ -1,6 +1,6 @@
 from application.ports.config_port import ConfigPort
 from domain.available_sources import AvailableSources
-from domain.financial_entity import NATIVE_ENTITIES
+from domain.native_entities import NATIVE_ENTITIES
 from domain.use_cases.get_available_sources import GetAvailableSources
 
 

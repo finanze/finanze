@@ -8,7 +8,7 @@ from dateutil.tz import tzlocal
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.financial_entity import WECITY
+from domain.native_entities import WECITY
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
     HistoricalPosition, AccountType
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
