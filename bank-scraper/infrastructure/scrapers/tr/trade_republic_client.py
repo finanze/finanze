@@ -4,7 +4,7 @@ import pathlib
 from datetime import datetime
 from typing import Optional
 
-from cachetools import TTLCache, cached
+from aiocache import cached
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from requests import HTTPError
@@ -72,9 +72,10 @@ class TradeRepublicClient:
                 raise ValueError("Invalid login data")
 
     async def close(self):
-        await self._tr_api._ws.close()
+        if self._tr_api and self._tr_api._ws:
+            await self._tr_api._ws.close()
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    @cached(ttl=120, noself=True)
     async def get_portfolio(self):
         portfolio = Portfolio(self._tr_api)
         await portfolio.portfolio_loop()

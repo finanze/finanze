@@ -18,6 +18,7 @@ from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.repository import AutoContributionsRepository, HistoricRepository, PositionRepository, \
     TransactionRepository, EntityRepository
 from infrastructure.repository.db.setup import initialize_database
+from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.scrapers.f24.f24_scraper import F24Scraper
 from infrastructure.scrapers.mintos.mintos_scraper import MintosScraper
 from infrastructure.scrapers.myinvestor import MyInvestorScraper
@@ -58,6 +59,8 @@ transaction_repository = TransactionRepository(client=db_client)
 historic_repository = HistoricRepository(client=db_client)
 entity_repository = EntityRepository(client=db_client)
 
+transaction_handler = TransactionHandler(client=db_client)
+
 credentials_reader = CredentialsReader()
 
 get_available_sources = GetAvailableSourcesImpl(config_loader)
@@ -69,20 +72,25 @@ scrape = ScrapeImpl(
     historic_repository,
     entity_scrapers,
     config_loader,
-    credentials_reader)
+    credentials_reader,
+    transaction_handler
+)
 update_sheets = UpdateSheetsImpl(
     position_repository,
     auto_contrib_repository,
     transaction_repository,
     historic_repository,
     SheetsExporter(),
-    config_loader)
+    config_loader
+)
 virtual_scrape = VirtualScrapeImpl(
     position_repository,
     transaction_repository,
     virtual_scraper,
     entity_repository,
-    config_loader)
+    config_loader,
+    transaction_handler
+)
 
 controllers = Controllers(get_available_sources, scrape, update_sheets, virtual_scrape)
 

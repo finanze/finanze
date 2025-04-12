@@ -4,8 +4,8 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.native_entities import TRADE_REPUBLIC
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
+from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
 
@@ -36,7 +36,7 @@ def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
     name = raw_tx["title"].strip()
     amount_obj = raw_tx["amount"]
     currency = amount_obj["currency"]
-    net_amount_val = round(amount_obj["value"], 2)
+    net_amount_val = round(Dezimal(amount_obj["value"]), 2)
     net_amount = abs(net_amount_val)
 
     tx_type = TxType.SELL if net_amount_val > 0 else TxType.BUY

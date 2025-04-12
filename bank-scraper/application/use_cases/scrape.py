@@ -6,18 +6,20 @@ from uuid import uuid4, UUID
 
 from dateutil.tz import tzlocal
 
+from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_scraper import EntityScraper
 from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
+from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity, Feature
-from domain.native_entities import NATIVE_ENTITIES
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
+from domain.native_entities import NATIVE_ENTITIES
 from domain.scrap_result import ScrapResultCode, ScrapResult, LoginResult, SCRAP_BAD_LOGIN_CODES
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType
@@ -26,7 +28,8 @@ from domain.use_cases.scrape import Scrape
 DEFAULT_FEATURES = [Feature.POSITION]
 
 
-class ScrapeImpl(Scrape):
+class ScrapeImpl(AtomicUCMixin, Scrape):
+
     def __init__(self,
                  update_cooldown: int,
                  position_port: PositionPort,
@@ -35,7 +38,11 @@ class ScrapeImpl(Scrape):
                  historic_port: HistoricPort,
                  entity_scrapers: dict[FinancialEntity, EntityScraper],
                  config_port: ConfigPort,
-                 credentials_port: CredentialsPort):
+                 credentials_port: CredentialsPort,
+                 transaction_handler_port: TransactionHandlerPort):
+
+        AtomicUCMixin.__init__(self, transaction_handler_port)
+
         self._update_cooldown = update_cooldown
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port

@@ -1,6 +1,8 @@
+from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.position_port import PositionPort
+from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_scraper import VirtualScraper
 from application.use_cases.update_sheets import apply_global_config
@@ -9,14 +11,18 @@ from domain.scraped_data import VirtuallyScrapedData
 from domain.use_cases.virtual_scrape import VirtualScrape
 
 
-class VirtualScrapeImpl(VirtualScrape):
+class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
 
     def __init__(self,
                  position_port: PositionPort,
                  transaction_port: TransactionPort,
                  virtual_scraper: VirtualScraper,
                  entity_port: EntityPort,
-                 config_port: ConfigPort):
+                 config_port: ConfigPort,
+                 transaction_handler_port: TransactionHandlerPort):
+
+        AtomicUCMixin.__init__(self, transaction_handler_port)
+
         self._position_port = position_port
         self._transaction_port = transaction_port
         self._virtual_scraper = virtual_scraper

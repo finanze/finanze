@@ -27,3 +27,4 @@ playwright~=1.49.1
 selenium-wire~=5.1.0
 bs4~=0.0.2
 pycryptodomex~=3.19.1
+aiocache~=0.12.3

@@ -247,7 +247,7 @@ class TransactionSQLRepository(TransactionPort):
                 FROM investment_transactions it
                 JOIN financial_entities e ON it.entity_id = e.id
                 WHERE it.entity_id = ?
-            """, (entity_id,))
+            """, (str(entity_id),))
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
     def _get_account_txs_by_entity(self, entity_id: UUID) -> List[AccountTx]:
@@ -257,7 +257,7 @@ class TransactionSQLRepository(TransactionPort):
                 FROM account_transactions at
                 JOIN financial_entities e ON at.entity_id = e.id
                 WHERE at.entity_id = ?
-            """, (entity_id,))
+            """, (str(entity_id),))
             return [_map_account_row(row) for row in cursor.fetchall()]
 
     def get_refs_by_entity(self, entity_id: UUID) -> Set[str]:
@@ -268,7 +268,7 @@ class TransactionSQLRepository(TransactionPort):
                 UNION
                 SELECT ref FROM account_transactions
                 WHERE entity_id = ?
-            """, (entity_id, entity_id))
+            """, (str(entity_id), str(entity_id)))
             return {row[0] for row in cursor.fetchall()}
 
     def get_by_entity(self, entity_id: UUID) -> Transactions:

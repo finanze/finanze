@@ -1,8 +1,8 @@
 import sqlite3
 from contextlib import contextmanager
-from sqlite3 import IntegrityError
 from types import TracebackType
-from typing import Optional, Sequence, Literal, Any, Generator
+from typing import Optional, Literal, Any, Generator
+from uuid import uuid4
 
 from typing_extensions import TypeAlias, Self
 
@@ -57,19 +57,47 @@ class DBClient:
 
     def __init__(self, connection: UnderlyingConnection):
         self._conn = connection
+        self.savepoint_stack: list[Optional[str]] = []
 
     @contextmanager
     def tx(self) -> Generator[DBCursor, None, None]:
         cursor = self.cursor()
-        cursor.execute('BEGIN TRANSACTION')
         try:
+            if not self.savepoint_stack:
+                # Outer transaction
+                cursor.execute("BEGIN")
+                self.savepoint_stack.append(None)
+            else:
+                # Generate unique savepoint name for nested transaction
+                savepoint_name = f"savepoint_{uuid4().hex}"
+                cursor.execute(f"SAVEPOINT {savepoint_name}")
+                self.savepoint_stack.append(savepoint_name)
             yield cursor
-        except IntegrityError:
-            self.rollback()
-            raise
+
+        except Exception as e:
+            if self.savepoint_stack:
+                current_sp = self.savepoint_stack[-1]
+                if current_sp is not None:
+                    # Rollback to savepoint and release it
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {current_sp}")
+                    cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
+                else:
+                    # Rollback outermost transaction
+                    self.rollback()
+            raise  # Re-raise exception
         else:
-            self.commit()
+            if self.savepoint_stack:
+                current_sp = self.savepoint_stack[-1]
+                if current_sp is not None:
+                    # Release savepoint (commit nested changes)
+                    cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
+                else:
+                    # Commit outermost transaction
+                    self.commit()
         finally:
+            # Cleanup stack and cursor
+            if self.savepoint_stack:
+                self.savepoint_stack.pop()
             cursor.close()
 
     @contextmanager
