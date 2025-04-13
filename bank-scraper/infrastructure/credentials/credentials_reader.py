@@ -1,13 +1,14 @@
 import os
 
-import domain.financial_entity as fe
 import domain.native_entities
 from application.ports.credentials_port import CredentialsPort
+from domain.financial_entity import FinancialEntity
+from domain.native_entities import NATIVE_ENTITIES
 
 
 class CredentialsReader(CredentialsPort):
 
-    def get(self, entity: fe.FinancialEntity) -> tuple:
+    def get(self, entity: FinancialEntity) -> tuple:
         if entity == domain.native_entities.MY_INVESTOR:
             return os.environ["MYI_USERNAME"], os.environ["MYI_PASSWORD"]
 
@@ -31,3 +32,6 @@ class CredentialsReader(CredentialsPort):
 
         elif entity == domain.native_entities.F24:
             return os.environ["F24_USERNAME"], os.environ["F24_PASSWORD"]
+
+    def get_available_entities(self) -> list[FinancialEntity]:
+        return NATIVE_ENTITIES

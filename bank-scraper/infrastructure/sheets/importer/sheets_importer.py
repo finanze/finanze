@@ -111,7 +111,8 @@ class SheetsImporter(VirtualScraper):
             global_positions.append(GlobalPosition(
                 id=uuid4(),
                 entity=entity,
-                investments=investments
+                investments=investments,
+                is_real=False
             ))
 
         return global_positions, set(created_entities.values())

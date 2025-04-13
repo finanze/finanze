@@ -62,7 +62,7 @@ class UrbanitaeScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=URBANITAE,
-            account=[account],
+            accounts=[account],
             investments=investments
         )
 

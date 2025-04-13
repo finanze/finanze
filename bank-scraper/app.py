@@ -34,7 +34,8 @@ log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
 logging.getLogger().setLevel(getLevelName(log_level))
 
-db_client = initialize_database("bank_data_db")
+#db_client = initialize_database("bank_data.db")
+db_client = initialize_database("bank_data_db_old")
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 config_path = os.environ.get("CONFIG_PATH", "config.yml")
@@ -63,7 +64,10 @@ transaction_handler = TransactionHandler(client=db_client)
 
 credentials_reader = CredentialsReader()
 
-get_available_sources = GetAvailableSourcesImpl(config_loader)
+get_available_sources = GetAvailableSourcesImpl(
+    config_loader,
+    credentials_reader
+)
 scrape = ScrapeImpl(
     update_cooldown,
     position_repository,

@@ -64,7 +64,7 @@ class WecityScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=WECITY,
-            account=[account],
+            accounts=[account],
             investments=investments
         )
 

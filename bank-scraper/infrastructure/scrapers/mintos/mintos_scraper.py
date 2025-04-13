@@ -85,7 +85,7 @@ class MintosScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=MINTOS,
-            account=[account_data],
+            accounts=[account_data],
             investments=Investments(
                 crowdlending=Crowdlending(
                     id=uuid4(),

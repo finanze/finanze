@@ -110,7 +110,7 @@ class F24Scraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=F24,
-            account=[savings_account, brokerage_account],
+            accounts=[savings_account, brokerage_account],
             investments=Investments(
                 deposits=deposits,
             )

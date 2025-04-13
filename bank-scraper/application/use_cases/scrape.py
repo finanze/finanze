@@ -58,9 +58,6 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                       entity_id: UUID,
                       features: list[Feature],
                       **kwargs) -> ScrapResult:
-        # scrape_config = self._config_port.load()["scrape"].get("enabledEntities")
-        # if scrape_config and entity_id not in scrape_config:
-        #     return ScrapResult(ScrapResultCode.DISABLED)
 
         entity = next((e for e in NATIVE_ENTITIES if entity_id == e.id), None)
         if not entity:

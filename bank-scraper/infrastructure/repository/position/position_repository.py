@@ -7,7 +7,7 @@ from application.ports.position_port import PositionPort
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.global_position import (
-    GlobalPosition, Account, Card, Mortgage,
+    GlobalPosition, Account, Card, Loan,
     Investments, StockInvestments, StockDetail, CardType, FundDetail, FundInvestments, FactoringDetail,
     FactoringInvestments, RealStateCFDetail, RealStateCFInvestments, Deposits, Deposit, Crowdlending, AccountType
 )
@@ -247,7 +247,7 @@ def _save_investments(cursor, position: GlobalPosition, investments: Investments
         _save_crowdlending(cursor, position, investments.crowdlending)
 
 
-def _save_mortgage(cursor, position: GlobalPosition, mortgage: Mortgage):
+def _save_mortgage(cursor, position: GlobalPosition, mortgage: Loan):
     cursor.execute(
         """
         INSERT INTO mortgage_positions (
@@ -332,7 +332,7 @@ class PositionSQLRepository(PositionPort):
             )
 
             # Save accounts
-            for account in position.account:
+            for account in position.accounts:
                 _save_account(cursor, position, account)
 
             # Save cards
@@ -347,12 +347,13 @@ class PositionSQLRepository(PositionPort):
             if position.investments:
                 _save_investments(cursor, position, position.investments)
 
-    def get_last_grouped_by_entity(self) -> Dict[FinancialEntity, GlobalPosition]:
+    def get_last_grouped_by_entity(self, real: bool) -> Dict[FinancialEntity, GlobalPosition]:
         with self._db_client.read() as cursor:
             cursor.execute("""
                 WITH latest_positions AS (
                     SELECT entity_id, MAX(date) as latest_date
                     FROM global_positions
+                    WHERE is_real = ?
                     GROUP BY entity_id
                 )
                 SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
@@ -360,7 +361,8 @@ class PositionSQLRepository(PositionPort):
                 JOIN latest_positions lp 
                     ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
                 JOIN financial_entities e ON gp.entity_id = e.id
-            """)
+                WHERE gp.is_real = ?
+            """, (real, real))
 
             positions = {}
             for row in cursor.fetchall():
@@ -374,10 +376,11 @@ class PositionSQLRepository(PositionPort):
                     id=UUID(row["id"]),
                     entity=entity,
                     date=datetime.fromisoformat(row["date"]),
-                    account=self._get_account_position(row["id"]),
+                    accounts=self._get_account_position(row["id"]),
                     cards=self._get_card_positions(row["id"]),
                     mortgage=self._get_mortgage_position(row["id"]),
                     investments=self._get_investments(row["id"]),
+                    is_real=row["is_real"]
                 )
                 positions[entity] = position
 
@@ -396,9 +399,10 @@ class PositionSQLRepository(PositionPort):
                     currency=row["currency"],
                     type=AccountType[row["type"]],
                     name=row["name"],
-                    interest=Dezimal(row["interest"]) if "interest" in row else None,
-                    retained=Dezimal(row["retained"]) if "retained" in row else None,
-                    pending_transfers=Dezimal(row["pending_transfers"]) if "pending_transfers" in row else None,
+                    iban=row["iban"],
+                    interest=Dezimal(row["interest"]) if row["interest"] else None,
+                    retained=Dezimal(row["retained"]) if row["retained"] else None,
+                    pending_transfers=Dezimal(row["pending_transfers"]) if row["pending_transfers"] else None
                 ) for row in cursor
             ]
 
@@ -418,7 +422,7 @@ class PositionSQLRepository(PositionPort):
                     currency=row["currency"],
                     ending=row["ending"],
                     type=CardType[row["type"]],
-                    limit=Dezimal(row["card_limit"]) if "card_limit" in row else None,
+                    limit=Dezimal(row["card_limit"]) if row["card_limit"] else None,
                     used=Dezimal(row["used"]),
                     active=bool(row["active"]),
                     related_account=row["related_account"]
@@ -427,7 +431,7 @@ class PositionSQLRepository(PositionPort):
 
             return cards
 
-    def _get_mortgage_position(self, global_position_id: UUID) -> list[Mortgage]:
+    def _get_mortgage_position(self, global_position_id: UUID) -> list[Loan]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM mortgage_positions WHERE global_position_id = ?",
@@ -435,7 +439,7 @@ class PositionSQLRepository(PositionPort):
             )
 
             mortgages = [
-                Mortgage(
+                Loan(
                     id=UUID(row["id"]),
                     currency=row["currency"],
                     name=row["name"],
@@ -554,7 +558,7 @@ class PositionSQLRepository(PositionPort):
                     interest_rate=Dezimal(row["interest_rate"]),
                     net_interest_rate=Dezimal(row["net_interest_rate"]),
                     last_invest_date=datetime.fromisoformat(
-                        row["last_invest_date"]) if "last_invest_date" in row else None,
+                        row["last_invest_date"]) if row["last_invest_date"] else None,
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     type=row["type"],
                     state=row["state"]

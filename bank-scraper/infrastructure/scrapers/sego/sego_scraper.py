@@ -121,7 +121,7 @@ class SegoScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=SEGO,
-            account=[account],
+            accounts=[account],
             investments=Investments(
                 factoring=sego_data,
             ),

@@ -211,7 +211,7 @@ class TradeRepublicScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=TRADE_REPUBLIC,
-            account=[Account(
+            accounts=[Account(
                 id=uuid4(),
                 total=cash_total,
                 currency='EUR',

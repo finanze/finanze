@@ -41,7 +41,7 @@ class MyInvestorScraperV1(EntityScraper):
         investments_data = self.scrape_investments(securities_account_id)
 
         return GlobalPosition(
-            account=account_data,
+            accounts=account_data,
             cards=cards_data,
             investments=investments_data,
             additionalData=PositionAdditionalData(maintenance=maintenance["enMantenimeinto"]),

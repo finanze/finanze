@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.native_entities import UNICAJA
-from domain.global_position import Account, Card, Mortgage, GlobalPosition, CardType, AccountType
+from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType
 from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 
 
@@ -28,62 +28,14 @@ class UnicajaScraper(EntityScraper):
 
         cards = [self._map_base_card(card_data_raw, accounts) for card_data_raw in card_list]
 
-        # debit_card_raw = next((card for card in card_list if card["codtipotarjeta"] == "1"), None)
-        # if debit_card_raw:
-        #     related_account = next((account for account in accounts if account.iban == debit_card_raw["ibancuenta"]),
-        #                            None)
-        #     related_account = None if not related_account else related_account.id
-        #
-        #     description = debit_card_raw["tipotarjeta"]
-        #     alias = debit_card_raw["alias"]
-        #     name = alias if alias else description
-        #
-        #     debit_card_ending = debit_card_raw["numtarjeta"].split(" ")[-1]
-        #
-        #     debit_card_details_raw = self._client.get_card(debit_card_raw["ppp"], debit_card_raw["codtipotarjeta"])
-        #     deferred_debit_amount = Dezimal(debit_card_details_raw["datosCredito"]["importeDispuesto"]["cantidad"])
-        #
-        #     cards += Card(
-        #         id=uuid4(),
-        #         name=name,
-        #         ending=debit_card_ending,
-        #         type=CardType.DEBIT,
-        #         limit=Dezimal(debit_card_raw["limite"]["cantidad"]),  # ??
-        #         used=Dezimal(debit_card_raw["pagadoMesActual"]["cantidad"]) + deferred_debit_amount,
-        #         related_account=related_account
-        #     )
-        #
-        # credit_card_raw = next((card for card in card_list if card["codtipotarjeta"] == "2"), None)
-        # if credit_card_raw:
-        #     related_account = next((account for account in accounts if account.iban == debit_card_raw["ibancuenta"]),
-        #                            None)
-        #     related_account = None if not related_account else related_account.id
-        #
-        #     description = debit_card_raw["tipotarjeta"]
-        #     alias = debit_card_raw["alias"]
-        #     name = alias if alias else description
-        #
-        #     credit_card_ending = debit_card_raw["numtarjeta"].split(" ")[-1]
-        #
-        #     cards += Card(
-        #         id=uuid4(),
-        #         name=name,
-        #         ending=credit_card_ending,
-        #         type=CardType.CREDIT,
-        #         limit=Dezimal(credit_card_raw["limite"]["cantidad"]),
-        #         used=Dezimal(credit_card_raw["limite"]["cantidad"]) - Dezimal(
-        #             credit_card_raw["disponible"]["cantidad"]),
-        #         related_account=related_account
-        #     )
-
         self._client.get_loans()
         mortgage_response = self._client.get_loan(p="2", ppp="001")
         mortgage_data = None
         # When its near invoicing period, the mortgage is not returned
         if mortgage_response:
-            mortgage_data = Mortgage(
+            mortgage_data = Loan(
                 id=uuid4(),
-                name="",
+                name=mortgage_response["loanType"],
                 currency='EUR',
                 current_installment=Dezimal(mortgage_response["currentInstallment"]),
                 loan_amount=Dezimal(mortgage_response["loanAmount"]),
@@ -96,7 +48,7 @@ class UnicajaScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=UNICAJA,
-            account=accounts,
+            accounts=accounts,
             cards=cards,
             mortgage=[mortgage_data],
         )
@@ -154,7 +106,7 @@ class UnicajaScraper(EntityScraper):
 
         limit = Dezimal(card_data_raw["limite"]["cantidad"])
         used = Dezimal(0)
-        currency = card_data_raw["divisa"]
+        currency = card_data_raw["limite"]["moneda"]
 
         if card_type == CardType.DEBIT:
             debit_card_details_raw = self._client.get_card(card_data_raw["ppp"], card_data_raw["codtipotarjeta"])

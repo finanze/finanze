@@ -51,7 +51,7 @@ class Card:
 
 
 @dataclass
-class Mortgage:
+class Loan:
     id: UUID
     currency: str
     current_installment: Dezimal
@@ -194,10 +194,11 @@ class GlobalPosition:
     id: UUID
     entity: FinancialEntity
     date: Optional[datetime] = None
-    account: list[Account] = field(default_factory=list)
+    accounts: list[Account] = field(default_factory=list)
     cards: list[Card] = field(default_factory=list)
-    mortgage: list[Mortgage] = field(default_factory=list)
+    mortgage: list[Loan] = field(default_factory=list)
     investments: Optional[Investments] = None
+    is_real: bool = True
 
     def __post_init__(self):
         if self.date is None:

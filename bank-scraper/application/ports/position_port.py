@@ -13,7 +13,7 @@ class PositionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_grouped_by_entity(self) -> dict[FinancialEntity, GlobalPosition]:
+    def get_last_grouped_by_entity(self, real: bool) -> dict[FinancialEntity, GlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod

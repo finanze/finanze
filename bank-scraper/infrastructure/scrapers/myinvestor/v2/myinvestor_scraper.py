@@ -41,7 +41,7 @@ class MyInvestorScraperV2(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=MY_INVESTOR,
-            account=[account_data],
+            accounts=[account_data],
             cards=cards_data,
             investments=investments_data,
         )

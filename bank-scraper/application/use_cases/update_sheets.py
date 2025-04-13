@@ -58,7 +58,19 @@ class UpdateSheetsImpl(UpdateSheets):
         apply_global_config(config_globals, tx_configs)
         apply_global_config(config_globals, historic_configs)
 
-        global_position_by_entity = self._position_port.get_last_grouped_by_entity()
+        real_global_position_by_entity = self._position_port.get_last_grouped_by_entity(True)
+        manual_global_position_by_entity = self._position_port.get_last_grouped_by_entity(False)
+
+        global_position_by_entity = {}
+        for entity, position in real_global_position_by_entity.items():
+            if entity in manual_global_position_by_entity:
+                global_position_by_entity[entity] += manual_global_position_by_entity[entity]
+                del manual_global_position_by_entity[entity]
+            else:
+                global_position_by_entity[entity] = position
+
+        for entity, position in manual_global_position_by_entity.items():
+            global_position_by_entity[entity] = position
 
         self.update_summary_sheets(global_position_by_entity, summary_configs)
         self.update_investment_sheets(global_position_by_entity, investment_configs)

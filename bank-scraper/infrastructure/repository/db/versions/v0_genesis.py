@@ -16,7 +16,8 @@ CREATE TABLE financial_entities (
 CREATE TABLE global_positions (
     id CHAR(36) PRIMARY KEY,
     date DATETIME NOT NULL,
-    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE
+    entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    is_real BOOLEAN NOT NULL
 );
 
 CREATE INDEX idx_gp_entity_id ON global_positions(entity_id);
@@ -287,6 +288,11 @@ CREATE TABLE investment_historic_txs (
 );
 
 CREATE INDEX idx_ihist_txs_historic_entry_id ON investment_historic_txs(historic_entry_id);
+
+CREATE TABLE entity_credentials (
+    entity_id CHAR(36) NOT NULL PRIMARY KEY REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    credentials JSON NOT NULL
+)
 """
 
 INSERT_FINANCIAL_ENTITIES = """
