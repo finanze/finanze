@@ -272,7 +272,7 @@ CREATE TABLE investment_historic (
     net_interest_rate TEXT,
     interest_rate TEXT,
     maturity DATE,
-    potential_extension INTEGER,
+    extended_maturity DATE,
     type VARCHAR(32),
     business_type VARCHAR(32)
 );

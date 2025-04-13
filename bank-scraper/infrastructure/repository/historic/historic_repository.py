@@ -84,12 +84,12 @@ class HistoricSQLRepository(HistoricPort):
                     "retentions": str(entry.retentions) if entry.retentions else None,
                     "interests": str(entry.interests) if entry.interests else None,
                     "state": entry.state,
-                    "entity_id": entry.entity.id,
+                    "entity_id": str(entry.entity.id),
                     "product_type": entry.product_type.value,
                     "interest_rate": None,
                     "net_interest_rate": None,
                     "maturity": None,
-                    "potential_extension": None,
+                    "extended_maturity": None,
                     "type": None,
                     "business_type": None
                 }
@@ -105,7 +105,7 @@ class HistoricSQLRepository(HistoricPort):
                     base_data.update({
                         "interest_rate": str(entry.interest_rate),
                         "maturity": entry.maturity.isoformat(),
-                        "potential_extension": entry.potential_extension,
+                        "extended_maturity": entry.extended_maturity,
                         "type": entry.type,
                         "business_type": entry.business_type
                     })
@@ -175,5 +175,5 @@ class HistoricSQLRepository(HistoricPort):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 "DELETE FROM investment_historic WHERE entity_id = ?",
-                (entity_id,)
+                (str(entity_id),)
             )

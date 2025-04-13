@@ -123,7 +123,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         if transactions:
             self._transaction_port.save(transactions)
 
-            if transactions.investment and Feature.HISTORIC in features:
+            if Feature.HISTORIC in features:
                 entries = await self.build_historic(entity, specific_scraper)
 
                 self._historic_port.delete_by_entity(entity.id)
