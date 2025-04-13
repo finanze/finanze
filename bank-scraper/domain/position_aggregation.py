@@ -140,7 +140,7 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
         date=self.date,
         accounts=self.accounts + other.accounts,
         cards=self.cards + other.cards,
-        mortgage=self.mortgage + other.mortgage,
+        loans=self.loans + other.loans,
         investments=Investments(
             stocks=_sum_inv(self, 'stocks', other),
             funds=_sum_inv(self, 'funds', other),

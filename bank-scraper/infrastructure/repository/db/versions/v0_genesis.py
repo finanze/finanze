@@ -53,9 +53,10 @@ CREATE TABLE card_positions (
 
 CREATE INDEX idx_cp_global_position_id ON card_positions(global_position_id);
 
-CREATE TABLE mortgage_positions (
+CREATE TABLE loan_positions (
     id CHAR(36) PRIMARY KEY,
     global_position_id CHAR(36) REFERENCES global_positions(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    type VARCHAR(32) NOT NULL,
     currency CHAR(3) NOT NULL,
     name TEXT,
     current_installment TEXT NOT NULL,
@@ -66,7 +67,7 @@ CREATE TABLE mortgage_positions (
     principal_paid TEXT NOT NULL
 );
 
-CREATE INDEX idx_mp_global_position_id ON mortgage_positions(global_position_id);
+CREATE INDEX idx_lp_global_position_id ON loan_positions(global_position_id);
 
 -- - Latest investment position KPIs
 

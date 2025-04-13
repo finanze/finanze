@@ -5,8 +5,8 @@ from dateutil.relativedelta import relativedelta
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
+from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType, LoanType
 from domain.native_entities import UNICAJA
-from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType
 from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 
 
@@ -28,29 +28,16 @@ class UnicajaScraper(EntityScraper):
 
         cards = [self._map_base_card(card_data_raw, accounts) for card_data_raw in card_list]
 
-        self._client.get_loans()
-        mortgage_response = self._client.get_loan(p="2", ppp="001")
-        mortgage_data = None
-        # When its near invoicing period, the mortgage is not returned
-        if mortgage_response:
-            mortgage_data = Loan(
-                id=uuid4(),
-                name=mortgage_response["loanType"],
-                currency='EUR',
-                current_installment=Dezimal(mortgage_response["currentInstallment"]),
-                loan_amount=Dezimal(mortgage_response["loanAmount"]),
-                principal_paid=Dezimal(mortgage_response["principalPaid"]),
-                principal_outstanding=Dezimal(mortgage_response["principalOutstanding"]),
-                interest_rate=Dezimal(mortgage_response["interestRate"]),
-                next_payment_date=datetime.strptime(mortgage_response["nextPaymentDate"], "%Y-%m-%d").date(),
-            )
+        raw_loans = self._client.get_loans()["prestamos"]
+        loans = [self._get_loan(loan_data_raw) for loan_data_raw in raw_loans]
+        loans = [loan for loan in loans if loan is not None]
 
         return GlobalPosition(
             id=uuid4(),
             entity=UNICAJA,
             accounts=accounts,
             cards=cards,
-            mortgage=[mortgage_data],
+            loans=loans,
         )
 
     def _map_account(self, account_data_raw):
@@ -128,3 +115,35 @@ class UnicajaScraper(EntityScraper):
             active=active,
             related_account=related_account
         )
+
+    def _get_loan(self, loan_entry):
+        active = loan_entry["estado"] == "ACTIVO"
+        if not active:
+            return None
+
+        ppp = loan_entry["ppp"]
+        is_mortgage = loan_entry["indPrestamoHipotecario"] == "S"
+        outstanding_amount = Dezimal(loan_entry["saldo"]["cantidad"])
+        currency = loan_entry["saldo"]["moneda"]
+        alias = loan_entry["alias"]
+
+        loan_type = LoanType.MORTGAGE if is_mortgage else LoanType.STANDARD
+
+        loan_response = self._client.get_loan(p="2", ppp=ppp)
+        # When its near invoicing period, the mortgage is not returned
+        if loan_response:
+            name = alias if alias else loan_response["loanType"]
+            return Loan(
+                id=uuid4(),
+                type=loan_type,
+                name=name,
+                currency=currency,
+                current_installment=Dezimal(loan_response["currentInstallment"]),
+                loan_amount=Dezimal(loan_response["loanAmount"]),
+                principal_paid=Dezimal(loan_response["principalPaid"]),
+                principal_outstanding=outstanding_amount,
+                interest_rate=Dezimal(loan_response["interestRate"]),
+                next_payment_date=datetime.strptime(loan_response["nextPaymentDate"], "%Y-%m-%d").date(),
+            )
+
+        return None

@@ -26,10 +26,10 @@ work, be outdated or partially implemented. That's why this documentation is so 
 ### Supported Entities
 
 - `URBANITAE` (wallet & investments)
-- `MY_INVESTOR` (periodic automatic fund contributions, funds, stocks/ETFs, main account position & related cards)
+- `MY_INVESTOR` (periodic automatic fund contributions, funds, stocks/ETFs, checking accounts & related cards)
 - `SEGO` (wallet & factoring)
 - `TRADE_REPUBLIC` (stocks/ETFs/Crypto & account) [requires 2FA]
-- `UNICJA` (main account and related cards & mortgage)
+- `UNICAJA` (checking accounts, related cards & loans)
     - As web login uses Akamai bot protection, setting `UNICAJA_ABCK` is needed.
 - `WECITY` (wallet & investments) [requires 2FA]
 - `MINTOS` (wallet & loan distribution) (experimental)

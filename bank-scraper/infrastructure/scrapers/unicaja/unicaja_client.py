@@ -245,10 +245,10 @@ class UnicajaClient:
     def list_accounts(self):
         return self._get_request("/services/rest/api/productos/listacuentas")
 
-    def get_account_movements(self):
-        account_movs_request = {"ppp": "003", "indOperacion": "I"}
+    def get_account_movements(self, ppp: str):
+        #account_movs_request = {"ppp": ppp, "indOperacion": "I"}
         account_movs_request = {
-            "ppp": "003",
+            "ppp": ppp,
             "saldoUltMov": "283.57",
             "numUltMov": "1097",
             "indOperacion": "P",
@@ -258,7 +258,6 @@ class UnicajaClient:
         )
 
     def get_account_movement(self, ppp: str, nummov: str):
-        # ppp=003&nummov=000001037
         return self._get_request(
             f"/services/rest/api/cuentas/movimientos/detallemovimiento?ppp={ppp}&nummov={nummov}"
         )
@@ -272,17 +271,17 @@ class UnicajaClient:
             "/services/rest/api/tarjetas/detalleTarjeta", card_details_request
         )
 
-    def get_card_config(self):
-        card_config_request = {"ppp": "002"}
+    def get_card_config(self, ppp: str):
+        card_config_request = {"ppp": ppp}
         return self._post_request(
             "/services/rest/api/tarjetas/configuracionUso/datos", card_config_request
         )
 
-    def get_card_movements(self, from_date: Optional[date] = None):
+    def get_card_movements(self, ppp: str, from_date: Optional[date] = None):
         from_date = date.strftime(
             from_date or (date.today() - relativedelta(months=1)), REQUEST_DATE_FORMAT
         )
-        card_movs_request = {"ppp": "002", "fechaDesde": from_date, "impDesde": "0"}
+        card_movs_request = {"ppp": ppp, "fechaDesde": from_date, "impDesde": "0"}
         return self._post_request(
             "/services/rest/api/tarjetas/movimientos/listadoMovimientos/v2",
             card_movs_request,

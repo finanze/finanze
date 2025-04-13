@@ -50,9 +50,15 @@ class Card:
     related_account: Optional[UUID] = None
 
 
+class LoanType(str, Enum):
+    MORTGAGE = 'MORTGAGE'
+    STANDARD = 'STANDARD'
+
+
 @dataclass
 class Loan:
     id: UUID
+    type: LoanType
     currency: str
     current_installment: Dezimal
     interest_rate: Dezimal
@@ -196,7 +202,7 @@ class GlobalPosition:
     date: Optional[datetime] = None
     accounts: list[Account] = field(default_factory=list)
     cards: list[Card] = field(default_factory=list)
-    mortgage: list[Loan] = field(default_factory=list)
+    loans: list[Loan] = field(default_factory=list)
     investments: Optional[Investments] = None
     is_real: bool = True
 

@@ -9,7 +9,8 @@ from domain.financial_entity import FinancialEntity
 from domain.global_position import (
     GlobalPosition, Account, Card, Loan,
     Investments, StockInvestments, StockDetail, CardType, FundDetail, FundInvestments, FactoringDetail,
-    FactoringInvestments, RealStateCFDetail, RealStateCFInvestments, Deposits, Deposit, Crowdlending, AccountType
+    FactoringInvestments, RealStateCFDetail, RealStateCFInvestments, Deposits, Deposit, Crowdlending, AccountType,
+    LoanType
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient
@@ -247,26 +248,27 @@ def _save_investments(cursor, position: GlobalPosition, investments: Investments
         _save_crowdlending(cursor, position, investments.crowdlending)
 
 
-def _save_mortgage(cursor, position: GlobalPosition, mortgage: Loan):
+def _save_loan(cursor, position: GlobalPosition, loan: Loan):
     cursor.execute(
         """
-        INSERT INTO mortgage_positions (
-            id, global_position_id, currency, name, current_installment,
+        INSERT INTO loan_positions (
+            id, global_position_id, type, currency, name, current_installment,
             interest_rate, loan_amount, next_payment_date,
             principal_outstanding, principal_paid
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
-            str(mortgage.id),
+            str(loan.id),
             str(position.id),
-            mortgage.currency,
-            mortgage.name,
-            str(mortgage.current_installment),
-            str(mortgage.interest_rate),
-            str(mortgage.loan_amount),
-            mortgage.next_payment_date.isoformat(),
-            str(mortgage.principal_outstanding),
-            str(mortgage.principal_paid)
+            loan.type,
+            loan.currency,
+            loan.name,
+            str(loan.current_installment),
+            str(loan.interest_rate),
+            str(loan.loan_amount),
+            loan.next_payment_date.isoformat(),
+            str(loan.principal_outstanding),
+            str(loan.principal_paid)
         )
     )
 
@@ -339,9 +341,9 @@ class PositionSQLRepository(PositionPort):
             for card in position.cards:
                 _save_card(cursor, position, card)
 
-            # Save mortgages
-            for mortgage in position.mortgage:
-                _save_mortgage(cursor, position, mortgage)
+            # Save loans
+            for loan in position.loans:
+                _save_loan(cursor, position, loan)
 
             # Save investments
             if position.investments:
@@ -378,7 +380,7 @@ class PositionSQLRepository(PositionPort):
                     date=datetime.fromisoformat(row["date"]),
                     accounts=self._get_account_position(row["id"]),
                     cards=self._get_card_positions(row["id"]),
-                    mortgage=self._get_mortgage_position(row["id"]),
+                    loans=self._get_loans_position(row["id"]),
                     investments=self._get_investments(row["id"]),
                     is_real=row["is_real"]
                 )
@@ -431,16 +433,17 @@ class PositionSQLRepository(PositionPort):
 
             return cards
 
-    def _get_mortgage_position(self, global_position_id: UUID) -> list[Loan]:
+    def _get_loans_position(self, global_position_id: UUID) -> list[Loan]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM mortgage_positions WHERE global_position_id = ?",
+                "SELECT * FROM loan_positions WHERE global_position_id = ?",
                 (str(global_position_id),)
             )
 
-            mortgages = [
+            loans = [
                 Loan(
                     id=UUID(row["id"]),
+                    type=LoanType[row["type"]],
                     currency=row["currency"],
                     name=row["name"],
                     current_installment=Dezimal(row["current_installment"]),
@@ -452,7 +455,7 @@ class PositionSQLRepository(PositionPort):
                 ) for row in cursor
             ]
 
-            return mortgages
+            return loans
 
     def _get_investments(self, global_position_id: UUID) -> Optional[Investments]:
         kpis = self._get_investment_kpis(global_position_id)
