@@ -52,9 +52,6 @@ export:
               - MANAGING_COLLECTION
 
 scrape:
-  enabledEntities:
-    - Unicaja
-
   virtual:
     enabled: true
 

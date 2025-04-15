@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 from uuid import UUID
@@ -20,8 +20,6 @@ class PinDetails:
 class FinancialEntity:
     id: Optional[UUID]
     name: str
-    features: Optional[list[Feature]] = None
-    pin: Optional[PinDetails] = None
     is_real: bool = True
 
     def __str__(self):
@@ -29,3 +27,23 @@ class FinancialEntity:
 
     def __hash__(self):
         return hash(self.name)
+
+
+class CredentialType(str, Enum):
+    ID = "ID",
+    USER = "USER",
+    PASSWORD = "PASSWORD",
+    PIN = "PIN",
+    PHONE = "PHONE",
+    EMAIL = "EMAIL",
+    API_TOKEN = "API_TOKEN"
+
+
+@dataclass(eq=False)
+class NativeFinancialEntity(FinancialEntity):
+    features: list[Feature] = field(default_factory=list)
+    pin: Optional[PinDetails] = None
+    credentials_template: dict[str, CredentialType] = field(default_factory=dict)
+
+
+EntityCredentials = dict[str, str]

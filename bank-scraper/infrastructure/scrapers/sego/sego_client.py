@@ -5,7 +5,7 @@ from typing import Union
 import requests
 from cachetools import TTLCache, cached
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 
 class SegoAPIClient:
@@ -70,21 +70,24 @@ class SegoAPIClient:
             response_body = response.json()
             if response_body["isCodigoEnviado"]:
                 if avoid_new_login:
-                    return {"result": LoginResult.NOT_LOGGED}
+                    return {"result": LoginResultCode.NOT_LOGGED}
 
-                return {"result": LoginResult.CODE_REQUESTED}
+                return {"result": LoginResultCode.CODE_REQUESTED}
 
             if "token" not in response_body:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
             self._headers["Authorization"] = "Bearer " + response_body["token"]
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         elif response.status_code == 400:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
+            if code:
+                return {"result": LoginResultCode.INVALID_CODE}
+            else:
+                return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {response.status_code}"}
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))

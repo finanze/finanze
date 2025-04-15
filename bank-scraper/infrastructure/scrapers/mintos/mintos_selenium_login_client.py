@@ -8,7 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from seleniumwire import webdriver
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
@@ -70,7 +70,7 @@ async def login(log, session, username: str, password: str) -> dict:
 
         session.headers["Cookie"] = user_request.headers["Cookie"]
 
-        return {"result": LoginResult.CREATED}
+        return {"result": LoginResultCode.CREATED}
 
     except Exception as e:
         log.error(f"An error occurred while logging in: {e}")

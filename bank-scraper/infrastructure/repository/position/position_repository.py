@@ -327,10 +327,11 @@ class PositionSQLRepository(PositionPort):
     def save(self, position: GlobalPosition):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "INSERT INTO global_positions (id, date, entity_id) VALUES (?, ?, ?)",
+                "INSERT INTO global_positions (id, date, entity_id, is_real) VALUES (?, ?, ?, ?)",
                 (str(position.id),
                  position.date.isoformat(),
-                 str(position.entity.id))
+                 str(position.entity.id),
+                 position.is_real)
             )
 
             # Save accounts

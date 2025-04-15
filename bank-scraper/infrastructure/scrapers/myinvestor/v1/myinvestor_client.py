@@ -6,7 +6,7 @@ import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
 
@@ -66,17 +66,17 @@ class MyInvestorAPIV1Client:
             try:
                 token = response.json()["payload"]["data"]["accessToken"]
             except KeyError:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
             self._headers["Authorization"] = "Bearer " + token
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         elif response.status_code == 400:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
+            return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {response.status_code}"}
 
     def check_maintenance(self):

@@ -2,7 +2,7 @@ import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import List
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 from dateutil.tz import tzlocal
 
@@ -15,12 +15,14 @@ from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
+from domain import native_entities
 from domain.dezimal import Dezimal
+from domain.exception.exceptions import EntityNotFound
 from domain.financial_entity import FinancialEntity, Feature
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
-from domain.native_entities import NATIVE_ENTITIES
-from domain.scrap_result import ScrapResultCode, ScrapResult, LoginResult, SCRAP_BAD_LOGIN_CODES
+from domain.login import LoginResultCode, LoginParams
+from domain.scrap_result import ScrapResultCode, ScrapResult, SCRAP_BAD_LOGIN_CODES, ScrapRequest
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType
 from domain.use_cases.scrape import Scrape
@@ -55,13 +57,15 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         self._log = logging.getLogger(__name__)
 
     async def execute(self,
-                      entity_id: UUID,
-                      features: list[Feature],
-                      **kwargs) -> ScrapResult:
+                      scrap_request: ScrapRequest) -> ScrapResult:
 
-        entity = next((e for e in NATIVE_ENTITIES if entity_id == e.id), None)
+        entity_id = scrap_request.entity_id
+
+        entity = native_entities.get_native_by_id(entity_id)
         if not entity:
-            return ScrapResult(ScrapResultCode.ENTITY_NOT_FOUND)
+            raise EntityNotFound(entity_id)
+
+        features = scrap_request.features
 
         if features and not all(f in entity.features for f in features):
             return ScrapResult(ScrapResultCode.FEATURE_NOT_SUPPORTED)
@@ -73,21 +77,33 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                 details = {"lastUpdate": last_update.astimezone(tzlocal()).isoformat(), "wait": remaining_seconds}
                 return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
-        login_args = kwargs.get("login", {})
-        credentials = self._credentials_port.get(entity)
+        credentials = self._credentials_port.get(entity.id)
         if not credentials:
             return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
 
+        for cred_name in entity.credentials_template.keys():
+            if cred_name not in credentials:
+                return ScrapResult(ScrapResultCode.INVALID_CREDENTIALS)
+
         specific_scraper = self._entity_scrapers[entity]
-        login_result = await specific_scraper.login(credentials, **login_args)
+
+        login_request = LoginParams(
+            credentials=credentials,
+            two_factor=scrap_request.two_factor,
+            options=scrap_request.options
+        )
+        login_result = await specific_scraper.login(login_request)
         login_result_code = login_result["result"]
         del login_result["result"]
 
-        if login_result_code == LoginResult.CODE_REQUESTED:
+        if login_result_code == LoginResultCode.CODE_REQUESTED:
             return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
 
-        elif login_result_code not in [LoginResult.CREATED, LoginResult.RESUMED]:
+        elif login_result_code not in [LoginResultCode.CREATED, LoginResultCode.RESUMED]:
             return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details=login_result)
+
+        elif login_result_code == LoginResultCode.CREATED:
+            self._credentials_port.update_last_usage(entity.id)
 
         if not features:
             features = DEFAULT_FEATURES

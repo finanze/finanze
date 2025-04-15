@@ -7,11 +7,12 @@ from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions
 from domain.currency_symbols import CURRENCY_SYMBOL_MAP, SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
-from domain.native_entities import MY_INVESTOR
+from domain.financial_entity import EntityCredentials
 from domain.global_position import Account, AccountAdditionalData, Cards, Card, StockDetail, StockInvestments, \
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, PositionAdditionalData, \
     Deposit, Deposits, AccountType
+from domain.native_entities import MY_INVESTOR
 from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.v1.myinvestor_client import MyInvestorAPIV1Client
 
@@ -27,8 +28,8 @@ class MyInvestorScraperV1(EntityScraper):
         self._client = MyInvestorAPIV1Client()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, credentials: tuple, **kwargs) -> dict:
-        username, password = credentials
+    async def login(self, credentials: EntityCredentials, **kwargs) -> dict:
+        username, password = credentials["user"], credentials["password"]
         return self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
@@ -44,7 +45,6 @@ class MyInvestorScraperV1(EntityScraper):
             accounts=account_data,
             cards=cards_data,
             investments=investments_data,
-            additionalData=PositionAdditionalData(maintenance=maintenance["enMantenimeinto"]),
         )
 
     async def auto_contributions(self) -> AutoContributions:

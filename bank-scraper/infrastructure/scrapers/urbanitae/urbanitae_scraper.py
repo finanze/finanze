@@ -6,9 +6,10 @@ from dateutil.relativedelta import relativedelta
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.native_entities import URBANITAE
 from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, Account, \
     HistoricalPosition, AccountType
+from domain.login_result import LoginParams
+from domain.native_entities import URBANITAE
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
 
@@ -23,8 +24,9 @@ class UrbanitaeScraper(EntityScraper):
         self._client = UrbanitaeAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, credentials: tuple, **kwargs) -> dict:
-        username, password = credentials
+    async def login(self, login_params: LoginParams) -> dict:
+        credentials = login_params.credentials
+        username, password = credentials["user"], credentials["password"]
         return self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:

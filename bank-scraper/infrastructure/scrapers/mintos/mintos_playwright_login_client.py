@@ -1,6 +1,6 @@
 from playwright.async_api import async_playwright
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_playwright import RecaptchaSolver
 
@@ -35,7 +35,7 @@ async def login(log, session, username: str, password: str) -> dict:
 
             session.headers["Cookie"] = user_request.headers["cookie"]
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         except Exception as e:
             log.error(f"An error occurred while logging in: {e}")

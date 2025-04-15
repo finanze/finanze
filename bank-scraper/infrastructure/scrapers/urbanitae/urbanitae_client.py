@@ -10,7 +10,7 @@ from Cryptodome.Util.Padding import pad
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -65,18 +65,18 @@ class UrbanitaeAPIClient:
         if response.ok:
             response_body = response.json()
             if "token" not in response_body:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
             self._user_info = response_body
             self._headers["x-auth-token"] = response_body["token"]
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         elif response.status_code == 401:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
+            return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {response.status_code}"}
 
     def _encrypt_password(self, password: str) -> str:

@@ -5,6 +5,7 @@ from uuid import uuid4
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
+from domain.login_result import LoginParams
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
@@ -124,11 +125,16 @@ class TradeRepublicScraper(EntityScraper):
     def __init__(self):
         self._client = TradeRepublicClient()
 
-    async def login(self, credentials: tuple, **kwargs) -> dict:
-        phone, pin = credentials
-        process_id = kwargs.get("processId", None)
-        code = kwargs.get("code", None)
-        avoid_new_login = kwargs.get("avoidNewLogin", False)
+    async def login(self, login_params: LoginParams) -> dict:
+        credentials = login_params.credentials
+        two_factor = login_params.two_factor
+
+        phone, pin = credentials["phone"], credentials["password"]
+        process_id, code = None, None
+        if two_factor:
+            process_id, code = two_factor.process_id, two_factor.code
+
+        avoid_new_login = login_params.options.avoid_new_login
 
         return self._client.login(phone, pin, avoid_new_login, process_id, code)
 

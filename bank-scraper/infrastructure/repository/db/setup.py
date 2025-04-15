@@ -11,16 +11,16 @@ from infrastructure.repository.db.version_registry import versions
 
 
 def initialize_database(path: Union[str, Path]) -> DBClient:
-    #connection = sqlcipher.connect(
-    connection = sqlite3.connect(
+    connection = sqlcipher.connect(
+    #connection = sqlite3.connect(
         database=str(path),
         isolation_level=None,
         check_same_thread=False,
     )
 
-    #sqlcipher_pass = os.environ.get("DB_CIPHER_PASSWORD")
-    #sqlcipher_pass = sqlcipher_pass.replace(r"'", r"''")
-    #connection.execute(f"PRAGMA key='{sqlcipher_pass}';")
+    sqlcipher_pass = os.environ.get("DB_CIPHER_PASSWORD")
+    sqlcipher_pass = sqlcipher_pass.replace(r"'", r"''")
+    connection.execute(f"PRAGMA key='{sqlcipher_pass}';")
 
     connection.execute("PRAGMA foreign_keys = ON")
 

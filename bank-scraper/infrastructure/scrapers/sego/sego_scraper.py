@@ -10,9 +10,10 @@ from pytz import utc
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
-from domain.native_entities import SEGO
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
     GlobalPosition, Account, HistoricalPosition, AccountType
+from domain.login_result import LoginParams
+from domain.native_entities import SEGO
 from domain.transactions import Transactions, TxType, ProductType, FactoringTx
 from infrastructure.scrapers.sego.sego_client import SegoAPIClient
 
@@ -70,10 +71,17 @@ class SegoScraper(EntityScraper):
         self._client = SegoAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, credentials: tuple, **kwargs) -> dict:
-        username, password = credentials
-        code = kwargs.get("code", None)
-        avoid_new_login = kwargs.get("avoidNewLogin", False)
+    async def login(self, login_params: LoginParams) -> dict:
+        credentials = login_params.credentials
+        two_factor = login_params.two_factor
+
+        username, password = credentials["user"], credentials["password"]
+        code = None
+        if two_factor:
+            code = two_factor.code
+
+        avoid_new_login = login_params.options.avoid_new_login
+
         return self._client.login(username, password, avoid_new_login, code)
 
     async def global_position(self) -> GlobalPosition:

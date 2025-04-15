@@ -8,7 +8,7 @@ from uuid import uuid4
 import requests
 from cachetools import TTLCache, cached
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -58,7 +58,7 @@ class WecityAPIClient:
 
         if self._resume_web_session():
             self._log.debug("Web session resumed")
-            return {"result": LoginResult.RESUMED}
+            return {"result": LoginResultCode.RESUMED}
 
         request = {
             "username": username,
@@ -69,25 +69,25 @@ class WecityAPIClient:
 
         if code and process_id:
             if len(code) != 6:
-                return {"result": LoginResult.INVALID_CODE}
+                return {"result": LoginResultCode.INVALID_CODE}
 
             response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
 
             if not response.ok:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
 
             response = response.json()
             response_return = response.get("return", None)
             if not response_return:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
             response_2factor = response_return.get("2factor", None)
             if response_2factor and "check 2fa" in response_2factor.lower():
-                return {"result": LoginResult.INVALID_CODE}
+                return {"result": LoginResultCode.INVALID_CODE}
 
             token = response_return.get("token", None)
             if not token:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
             self._session.headers["x-auth-token"] = token
 
@@ -98,7 +98,7 @@ class WecityAPIClient:
 
             self._update_session_file(token, sess_created_at, sess_expiration)
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         elif not process_id and not code:
             if not avoid_new_login:
@@ -108,24 +108,24 @@ class WecityAPIClient:
                 response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
 
                 if response.status_code == 401:
-                    return {"result": LoginResult.INVALID_CREDENTIALS}
+                    return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
                 if not response.ok:
-                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
+                    return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
 
                 response = response.json()
                 response_return = response.get("return", None)
                 if not response_return:
-                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                    return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
                 response_2factor = response_return.get("2factor", None)
                 if response_2factor and "check 2fa" in response_2factor.lower():
-                    return {"result": LoginResult.CODE_REQUESTED, "processId": process_id}
+                    return {"result": LoginResultCode.CODE_REQUESTED, "processId": process_id}
 
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Unexpected response content"}
 
             else:
-                return {"result": LoginResult.NOT_LOGGED}
+                return {"result": LoginResultCode.NOT_LOGGED}
 
         else:
             raise ValueError("Invalid params")

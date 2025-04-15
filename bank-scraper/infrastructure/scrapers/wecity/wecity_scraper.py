@@ -8,9 +8,10 @@ from dateutil.tz import tzlocal
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.native_entities import WECITY
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
     HistoricalPosition, AccountType
+from domain.login_result import LoginParams
+from domain.native_entities import WECITY
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 
@@ -23,11 +24,16 @@ class WecityScraper(EntityScraper):
         self._client = WecityAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, credentials: tuple, **kwargs) -> dict:
-        username, password = credentials
-        process_id = kwargs.get("processId", None)
-        code = kwargs.get("code", None)
-        avoid_new_login = kwargs.get("avoidNewLogin", False)
+    async def login(self, login_params: LoginParams) -> dict:
+        credentials = login_params.credentials
+        two_factor = login_params.two_factor
+
+        username, password = credentials["user"], credentials["password"]
+        process_id, code = None, None
+        if two_factor:
+            process_id, code = two_factor.process_id, two_factor.code
+
+        avoid_new_login = login_params.options.avoid_new_login
 
         return self._client.login(username, password, avoid_new_login, process_id, code)
 

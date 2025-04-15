@@ -7,7 +7,7 @@ import requests
 import tzlocal
 from requests_toolbelt import MultipartEncoder
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 
 class F24APIClient:
@@ -76,16 +76,16 @@ class F24APIClient:
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
-                    return {"result": LoginResult.INVALID_CREDENTIALS}
+                    return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
                 else:
-                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": error}
+                    return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": error}
 
             else:
                 self._user_info = response_body
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {first_login_response.status_code}"}
 
         user_id = None
@@ -102,23 +102,23 @@ class F24APIClient:
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
-                    return {"result": LoginResult.INVALID_CREDENTIALS}
+                    return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
                 else:
-                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": error}
+                    return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": error}
 
             else:
                 if (response_body["success"]
                         and response_body["logged"]
                         and response_body["SID"]):
-                    return {"result": LoginResult.CREATED}
+                    return {"result": LoginResultCode.CREATED}
 
                 self._log.error(response_body)
-                return {"result": LoginResult.UNEXPECTED_ERROR,
+                return {"result": LoginResultCode.UNEXPECTED_ERROR,
                         "message": "Got unexpected response"}
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {first_login_response.status_code}"}
 
     def get_user_info(self) -> dict:

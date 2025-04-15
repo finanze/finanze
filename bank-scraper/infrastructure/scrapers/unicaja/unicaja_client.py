@@ -10,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil.relativedelta import relativedelta
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
@@ -103,7 +103,7 @@ class UnicajaClient:
 
             self._setup_session(auth_request)
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         except TimeoutException:
             self._log.error("Timed out waiting for autenticacion.")
@@ -129,18 +129,18 @@ class UnicajaClient:
             auth_response_body = auth_response.json()
 
             if "tokenCSRF" not in auth_response_body:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
             self._session.headers["tokenCSRF"] = auth_response_body["tokenCSRF"]
             self._session.headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         elif auth_response.status_code == 400:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
+            return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {auth_response.status_code}"}
 
     def login(self, username: str, password: str, rest_login: bool = True) -> dict:

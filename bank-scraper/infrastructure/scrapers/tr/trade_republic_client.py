@@ -9,7 +9,7 @@ from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from requests import HTTPError
 
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 from infrastructure.scrapers.tr.tr_details import TRDetails
 from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 
@@ -41,7 +41,7 @@ class TradeRepublicClient:
 
         if self._tr_api.resume_websession():
             self._log.info("Web session resumed")
-            return {"result": LoginResult.RESUMED}
+            return {"result": LoginResultCode.RESUMED}
 
         else:
             if code and process_id:
@@ -50,23 +50,23 @@ class TradeRepublicClient:
                     self._tr_api.complete_weblogin(code)
                 except HTTPError as e:
                     if e.response.status_code == 401:
-                        return {"result": LoginResult.INVALID_CREDENTIALS}
+                        return {"result": LoginResultCode.INVALID_CREDENTIALS}
                     elif e.response.status_code == 400:
-                        return {"result": LoginResult.INVALID_CODE}
+                        return {"result": LoginResultCode.INVALID_CODE}
                     else:
                         self._log.error("Unexpected error during login", exc_info=e)
-                        return {"result": LoginResult.UNEXPECTED_ERROR,
+                        return {"result": LoginResultCode.UNEXPECTED_ERROR,
                                 "message": f"Got unexpected error {e.response.status_code} during login"}
 
-                return {"result": LoginResult.CREATED}
+                return {"result": LoginResultCode.CREATED}
 
             elif not code and not process_id:
                 if not avoid_new_login:
                     countdown = self._tr_api.inititate_weblogin()
                     process_id = self._tr_api._process_id
-                    return {"result": LoginResult.CODE_REQUESTED, "countdown": countdown, "processId": process_id}
+                    return {"result": LoginResultCode.CODE_REQUESTED, "countdown": countdown, "processId": process_id}
                 else:
-                    return {"result": LoginResult.NOT_LOGGED}
+                    return {"result": LoginResultCode.NOT_LOGGED}
 
             else:
                 raise ValueError("Invalid login data")

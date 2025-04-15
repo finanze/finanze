@@ -11,3 +11,11 @@ class MissingFieldsError(Exception):
 
 class FeatureNotSupported(Exception):
     pass
+
+
+class EntityNotFound(Exception):
+    pass
+
+
+class InvalidProvidedCredentials(Exception):
+    pass

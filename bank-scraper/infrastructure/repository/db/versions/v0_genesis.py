@@ -292,7 +292,9 @@ CREATE INDEX idx_ihist_txs_historic_entry_id ON investment_historic_txs(historic
 
 CREATE TABLE entity_credentials (
     entity_id CHAR(36) NOT NULL PRIMARY KEY REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    credentials JSON NOT NULL
+    credentials JSON NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at TIMESTAMP DEFAULT NULL
 )
 """
 
