@@ -73,6 +73,11 @@ async def login(log, session, username: str, password: str) -> LoginResult:
         return LoginResult(LoginResultCode.CREATED)
 
     except Exception as e:
+        invalid_credentials_element = driver.find_element(By.XPATH,
+                                                          "//*[contains(text(), 'Invalid username or password')]")
+        if invalid_credentials_element:
+            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+
         log.error(f"An error occurred while logging in: {e}")
         return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 

@@ -8,8 +8,7 @@ services:
       - '8080:8080'
     environment:
       WEB_PORT: 8080
-      TR_COOKIES_PATH: /.tr/cookies.txt
-      WC_COOKIES_PATH: /.wc/cookies.txt
+      DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
       CONFIG_PATH: /config/config.yml
@@ -22,8 +21,6 @@ services:
     env_file:
       - .env
     volumes:
-      - ./.tr/:/.tr/
-      - ./.wc/:/.wc/
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
       - ./config/:/config/

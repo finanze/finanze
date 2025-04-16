@@ -35,8 +35,7 @@ log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
 logging.getLogger().setLevel(getLevelName(log_level))
 
-# db_client = initialize_database("bank_data.db")
-db_client = initialize_database("bank_data_db_old")
+db_client = initialize_database("bank_data.db")
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 config_path = os.environ.get("CONFIG_PATH", "config.yml")
@@ -62,10 +61,13 @@ historic_repository = HistoricRepository(client=db_client)
 entity_repository = EntityRepository(client=db_client)
 sessions_port = SessionsRepository(client=db_client)
 
-if os.environ.get("CREDENTIAL_STORAGE", "DB") == "DB":
+credentials_storage_mode = os.environ.get("CREDENTIAL_STORAGE", "DB")
+if credentials_storage_mode == "DB":
     credentials_port = CredentialsRepository(client=db_client)
-else:
+elif credentials_storage_mode == "ENV":
     credentials_port = CredentialsReader()
+else:
+    raise ValueError(f"Invalid credentials storage mode: {credentials_storage_mode}")
 
 transaction_handler = TransactionHandler(client=db_client)
 

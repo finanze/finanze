@@ -19,7 +19,7 @@ work, be outdated or partially implemented. That's why this documentation is so 
 ## Features
 
 - Scrape financial data from multiple entities
-- Support for various financial products (stocks, funds, real estate, etc.)
+- Support for various financial products (stocks, funds, real estate crowdfunding, etc.)
 - Dynamic and customizable data export to Google Sheets
 - Virtual scraping for simulated data
 
@@ -27,7 +27,7 @@ work, be outdated or partially implemented. That's why this documentation is so 
 
 - `URBANITAE` (wallet & investments)
 - `MY_INVESTOR` (periodic automatic fund contributions, funds, stocks/ETFs, checking accounts & related cards)
-- `SEGO` (wallet & factoring)
+- `SEGO` (wallet & factoring) [requires 2FA]
 - `TRADE_REPUBLIC` (stocks/ETFs/Crypto & account) [requires 2FA]
 - `UNICAJA` (checking accounts, related cards & loans)
     - As web login uses Akamai bot protection, setting `UNICAJA_ABCK` is needed.
@@ -91,10 +91,16 @@ which contains some examples of tables and summary dashboards.
 ## Environment Variables
 
 Checkout example docker-compose.yml for the environment variables that can be used to override the default config, set
-Mongo connection related stuff, Google credentials, entity session caches...
+DB encryption passphrase (`DB_CIPHER_PASSWORD`), Google credentials (`GOOGLE_XX`), entity session caches...
 
-Credentials are stored in the environment variables `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
+## Credentials
+
+There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
+this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
+
+Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
 Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
+This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
 
 Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
 can get the needed environment names.
@@ -108,11 +114,23 @@ can get the needed environment names.
 
 2. Use the provided API endpoints to interact with the scraper:
     - `GET /api/v1/scrape`: Get available entities.
-    - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
-      needed 2FA code if the entity requires it. It will return all scraped data.
+    - `POST /api/v1/entity/login`: Login to a specific entity.
    ```
    {
-        "entity": "TRADE_REPUBLIC",
+        "entity": "e0000000-0000-0000-0000-000000000001",    // MyInvestor
+        "credentials"; {                                     // Credentials object schema defined
+            "user": "12345678G",                             // by "credentials_template" field
+            "password": "MySecretor123"                      // in the available entities endpoint 
+        },
+        "code": "0000",                                      // Only if 2FA is needed
+        "processId": "xxxxxxxxxxx"                           // Same
+    }
+   ```
+    - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
+      needed 2FA code if the entity requires it. It will return all scraped data. Resembles the previous one.
+   ```
+   {
+        "entity": "e0000000-0000-0000-0000-000000000003", // Trade Republic
         "features": ["POSITION", "TRANSACTIONS"],
         "code": "0000",                              // Only if 2FA is needed
         "processId": "xxxxxxxxxxx",                  // Same
@@ -132,5 +150,6 @@ can get the needed environment names.
   with headless mode.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
   heavily
-  modified to allow resumable sessions, fetch transactions and other minor changes, this library has been vital for this
+  modified to allow resumable sessions, some extra data, fetch non-repeatable transactions and other minor changes, this
+  library has been vital for this
   project.

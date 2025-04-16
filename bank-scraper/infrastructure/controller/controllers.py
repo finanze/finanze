@@ -47,14 +47,11 @@ class Controllers:
 
         code = body.get("code", None)
         process_id = body.get("processId", None)
-        avoid_new_login = body.get("avoidNewLogin", False)
-        force_new_session = body.get("forceNewSession", False)
 
         login_request = LoginRequest(
             entity_id=entity,
             credentials=credentials,
-            two_factor=TwoFactor(code=code, process_id=process_id),
-            options=LoginOptions(avoid_new_login=avoid_new_login, force_new_session=force_new_session)
+            two_factor=TwoFactor(code=code, process_id=process_id)
         )
         result = await self._add_entity_credentials.execute(login_request)
 
