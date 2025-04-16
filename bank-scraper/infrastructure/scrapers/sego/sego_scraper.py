@@ -12,7 +12,7 @@ from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.global_position import FactoringDetail, FactoringInvestments, Investments, \
     GlobalPosition, Account, HistoricalPosition, AccountType
-from domain.login_result import LoginParams
+from domain.login import LoginParams, LoginResult
 from domain.native_entities import SEGO
 from domain.transactions import Transactions, TxType, ProductType, FactoringTx
 from infrastructure.scrapers.sego.sego_client import SegoAPIClient
@@ -71,7 +71,7 @@ class SegoScraper(EntityScraper):
         self._client = SegoAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> dict:
+    async def login(self, login_params: LoginParams) -> LoginResult:
         credentials = login_params.credentials
         two_factor = login_params.two_factor
 
@@ -80,9 +80,7 @@ class SegoScraper(EntityScraper):
         if two_factor:
             code = two_factor.code
 
-        avoid_new_login = login_params.options.avoid_new_login
-
-        return self._client.login(username, password, avoid_new_login, code)
+        return self._client.login(username, password, login_params.options, code, login_params.session)
 
     async def global_position(self) -> GlobalPosition:
         raw_wallet = self._client.get_wallet()

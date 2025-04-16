@@ -4,6 +4,8 @@ from typing import Union, Optional
 import requests
 from cachetools import TTLCache, cached
 
+from domain.login import LoginResult
+
 
 class MintosAPIClient:
     BASE_URL = "https://www.mintos.com"
@@ -42,7 +44,7 @@ class MintosAPIClient:
     ) -> Union[dict, requests.Response]:
         return self._execute_request(path, "POST", body=body)
 
-    async def login(self, username: str, password: str) -> dict:
+    async def login(self, username: str, password: str) -> LoginResult:
         from infrastructure.scrapers.mintos.mintos_selenium_login_client import login
         return await login(self._log, self._session, username, password)
 

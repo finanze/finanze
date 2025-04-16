@@ -295,7 +295,14 @@ CREATE TABLE entity_credentials (
     credentials JSON NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_used_at TIMESTAMP DEFAULT NULL
-)
+);
+
+CREATE TABLE entity_sessions (
+    entity_id CHAR(36) NOT NULL PRIMARY KEY REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    created_at TIMESTAMP NOT NULL,
+    expiration TIMESTAMP,
+    payload JSON NOT NULL
+);
 """
 
 INSERT_FINANCIAL_ENTITIES = """

@@ -3,7 +3,7 @@ from uuid import UUID
 from flask import request, jsonify
 
 from domain.financial_entity import Feature
-from domain.login_result import TwoFactor, LoginOptions, LoginRequest
+from domain.login import TwoFactor, LoginOptions, LoginRequest
 from domain.scrap_result import ScrapRequest
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 from domain.use_cases.get_available_entities import GetAvailableEntities
@@ -48,18 +48,23 @@ class Controllers:
         code = body.get("code", None)
         process_id = body.get("processId", None)
         avoid_new_login = body.get("avoidNewLogin", False)
+        force_new_session = body.get("forceNewSession", False)
 
         login_request = LoginRequest(
             entity_id=entity,
             credentials=credentials,
             two_factor=TwoFactor(code=code, process_id=process_id),
-            options=LoginOptions(avoid_new_login=avoid_new_login)
+            options=LoginOptions(avoid_new_login=avoid_new_login, force_new_session=force_new_session)
         )
         result = await self._add_entity_credentials.execute(login_request)
 
-        response = {"code": result.code.name}
+        response = {"code": result.code}
+        if result.message:
+            response["message"] = result.message
         if result.details:
             response["details"] = result.details
+        if result.process_id:
+            response["processId"] = result.process_id
         return jsonify(response), 200
 
     async def scrape(self):
@@ -89,7 +94,7 @@ class Controllers:
         )
         result = await self._scrape.execute(scrape_request)
 
-        response = {"code": result.code.name}
+        response = {"code": result.code}
         if result.details:
             response["details"] = result.details
         if result.data:

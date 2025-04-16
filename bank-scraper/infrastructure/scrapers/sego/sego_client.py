@@ -1,11 +1,27 @@
 import codecs
 import logging
-from typing import Union
+import re
+from datetime import datetime, timezone
+from typing import Union, Optional
 
 import requests
 from cachetools import TTLCache, cached
 
-from domain.login_result import LoginResultCode
+from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
+
+EXPIRATION_DATETIME_REGEX = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d{0,6})\d*(.*)$'
+
+
+def _parse_expiration_datetime(expiration: str) -> Optional[datetime]:
+    match = re.match(EXPIRATION_DATETIME_REGEX, expiration)
+    if match:
+        truncated_date_string = match.group(1) + match.group(2)
+        format_code = "%Y-%m-%dT%H:%M:%S.%f%z"
+        try:
+            return datetime.strptime(truncated_date_string, format_code)
+        except ValueError:
+            return None
+    return None
 
 
 class SegoAPIClient:
@@ -40,12 +56,7 @@ class SegoAPIClient:
     def _post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
-    def login(self,
-              username: str,
-              password: str,
-              avoid_new_login: bool = False,
-              code: str = None) -> dict:
-
+    def _init_session(self):
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Ocp-Apim-Subscription-Key"] = codecs.decode(self.API_KEY, 'rot_13')
@@ -53,6 +64,22 @@ class SegoAPIClient:
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
+
+    def login(self,
+              username: str,
+              password: str,
+              login_options: LoginOptions,
+              code: str = None,
+              session: Optional[EntitySession] = None) -> LoginResult:
+
+        self._init_session()
+
+        now = datetime.now(timezone.utc)
+
+        if session and not login_options.force_new_session and now < session.expiration:
+            self._log.debug("Resuming session")
+            self._inject_session(session)
+            return LoginResult(LoginResultCode.RESUMED)
 
         request = {
             "codigoPlataforma": "web-sego",
@@ -69,26 +96,37 @@ class SegoAPIClient:
         if response.ok:
             response_body = response.json()
             if response_body["isCodigoEnviado"]:
-                if avoid_new_login:
-                    return {"result": LoginResultCode.NOT_LOGGED}
+                if login_options.avoid_new_login:
+                    return LoginResult(LoginResultCode.NOT_LOGGED)
 
-                return {"result": LoginResultCode.CODE_REQUESTED}
+                return LoginResult(LoginResultCode.CODE_REQUESTED)
 
             if "token" not in response_body:
-                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
 
-            self._headers["Authorization"] = "Bearer " + response_body["token"]
-            return {"result": LoginResultCode.CREATED}
+            sess_created_at = datetime.now(timezone.utc)
+            sess_expiration = _parse_expiration_datetime(response_body.get("expirationDate"))
+            session_payload = {"token": response_body["token"]}
+            new_session = EntitySession(creation=sess_created_at,
+                                        expiration=sess_expiration,
+                                        payload=session_payload)
+
+            self._inject_session(new_session)
+
+            return LoginResult(LoginResultCode.CREATED, session=new_session)
 
         elif response.status_code == 400:
             if code:
-                return {"result": LoginResultCode.INVALID_CODE}
+                return LoginResult(LoginResultCode.INVALID_CODE)
             else:
-                return {"result": LoginResultCode.INVALID_CREDENTIALS}
+                return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {response.status_code}")
+
+    def _inject_session(self, session: EntitySession):
+        self._headers["Authorization"] = "Bearer " + session.payload["token"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_user(self):

@@ -27,6 +27,7 @@ from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScrap
 from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
 from infrastructure.scrapers.urbanitae.urbanitae_scraper import UrbanitaeScraper
 from infrastructure.scrapers.wecity.wecity_scraper import WecityScraper
+from infrastructure.sessions.sessions_repository import SessionsRepository
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 
@@ -59,6 +60,7 @@ auto_contrib_repository = AutoContributionsRepository(client=db_client)
 transaction_repository = TransactionRepository(client=db_client)
 historic_repository = HistoricRepository(client=db_client)
 entity_repository = EntityRepository(client=db_client)
+sessions_port = SessionsRepository(client=db_client)
 
 if os.environ.get("CREDENTIAL_STORAGE", "DB") == "DB":
     credentials_port = CredentialsRepository(client=db_client)
@@ -80,6 +82,7 @@ scrape = ScrapeImpl(
     entity_scrapers,
     config_loader,
     credentials_port,
+    sessions_port,
     transaction_handler
 )
 update_sheets = UpdateSheetsImpl(
@@ -101,6 +104,7 @@ virtual_scrape = VirtualScrapeImpl(
 add_entity_credentials = AddEntityCredentialsImpl(
     entity_scrapers,
     credentials_port,
+    sessions_port,
     transaction_handler
 )
 

@@ -17,11 +17,11 @@ export:
       - range: Stocks
         data: stocks
       - range: Real State CF
-        data: realStateCF
+        data: real_state_cf
       - range: Mixed
         data:
           - factoring
-          - realStateCF
+          - real_state_cf
 
     contributions:
       - range: Contributions
@@ -44,7 +44,7 @@ export:
       - range: Factoring Historic
         # "data" config entry is not available for historic, use filters instead
         filters:
-          - field: productType
+          - field: product_type
             values: FACTORING
           - field: state
             values:

@@ -10,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 from dateutil.relativedelta import relativedelta
 
-from domain.login_result import LoginResultCode
+from domain.login import LoginResult, LoginResultCode
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
@@ -45,7 +45,7 @@ class UnicajaClient:
         self._timeout = timeout
         self._log = logging.getLogger(__name__)
 
-    def _legacy_login(self, username: str, password: str) -> dict:
+    def _legacy_login(self, username: str, password: str) -> LoginResult:
 
         from selenium.common import TimeoutException
         from selenium.webdriver import FirefoxOptions
@@ -103,16 +103,17 @@ class UnicajaClient:
 
             self._setup_session(auth_request)
 
-            return {"result": LoginResultCode.CREATED}
+            return LoginResult(LoginResultCode.CREATED)
 
         except TimeoutException:
             self._log.error("Timed out waiting for autenticacion.")
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Timed out waiting for autenticacion.")
 
         finally:
             if driver:
                 driver.quit()
 
-    def _rest_login(self, username: str, password: str) -> dict:
+    def _rest_login(self, username: str, password: str) -> LoginResult:
         user_agent = "Mozilla/5.0 (Linux; Android 5.1.1; Lenovo PB1-750M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
         self._session = requests.Session()
         self._session.headers["User-Agent"] = user_agent
@@ -129,21 +130,21 @@ class UnicajaClient:
             auth_response_body = auth_response.json()
 
             if "tokenCSRF" not in auth_response_body:
-                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
 
             self._session.headers["tokenCSRF"] = auth_response_body["tokenCSRF"]
             self._session.headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-            return {"result": LoginResultCode.CREATED}
+            return LoginResult(LoginResultCode.CREATED)
 
         elif auth_response.status_code == 400:
-            return {"result": LoginResultCode.INVALID_CREDENTIALS}
+            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {auth_response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {auth_response.status_code}")
 
-    def login(self, username: str, password: str, rest_login: bool = True) -> dict:
+    def login(self, username: str, password: str, rest_login: bool = True) -> LoginResult:
         if rest_login:
             return self._rest_login(username, password)
         else:
@@ -246,7 +247,7 @@ class UnicajaClient:
         return self._get_request("/services/rest/api/productos/listacuentas")
 
     def get_account_movements(self, ppp: str):
-        #account_movs_request = {"ppp": ppp, "indOperacion": "I"}
+        # account_movs_request = {"ppp": ppp, "indOperacion": "I"}
         account_movs_request = {
             "ppp": ppp,
             "saldoUltMov": "283.57",

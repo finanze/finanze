@@ -6,7 +6,7 @@ import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.login_result import LoginResultCode
+from domain.login import LoginResult, LoginResultCode
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -44,7 +44,7 @@ class MyInvestorAPIV2Client:
         dict, requests.Response]:
         return self._execute_request(path, "POST", body=body, raw=raw, base_url=base_url)
 
-    def login(self, username: str, password: str) -> dict:
+    def login(self, username: str, password: str) -> LoginResult:
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
@@ -69,18 +69,14 @@ class MyInvestorAPIV2Client:
             try:
                 token = response.json()["payload"]["data"]["accessToken"]
             except KeyError:
-                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
-
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
             self._headers["Authorization"] = "Bearer " + token
-
-            return {"result": LoginResultCode.CREATED}
-
+            return LoginResult(LoginResultCode.CREATED)
         elif response.status_code == 400:
-            return {"result": LoginResultCode.INVALID_CREDENTIALS}
-
+            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
         else:
-            return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {response.status_code}")
 
     def check_maintenance(self):
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]
@@ -215,3 +211,4 @@ class MyInvestorAPIV2Client:
 
     def get_deposits(self):
         return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]
+

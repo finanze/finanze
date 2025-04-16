@@ -5,7 +5,7 @@ from uuid import uuid4
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
-from domain.login_result import LoginParams
+from domain.login import LoginParams, LoginResult
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
@@ -125,7 +125,7 @@ class TradeRepublicScraper(EntityScraper):
     def __init__(self):
         self._client = TradeRepublicClient()
 
-    async def login(self, login_params: LoginParams) -> dict:
+    async def login(self, login_params: LoginParams) -> LoginResult:
         credentials = login_params.credentials
         two_factor = login_params.two_factor
 
@@ -133,10 +133,12 @@ class TradeRepublicScraper(EntityScraper):
         process_id, code = None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
-
-        avoid_new_login = login_params.options.avoid_new_login
-
-        return self._client.login(phone, pin, avoid_new_login, process_id, code)
+        return self._client.login(phone,
+                                  pin,
+                                  login_options=login_params.options,
+                                  process_id=process_id,
+                                  code=code,
+                                  session=login_params.session)
 
     async def _instrument_mapper(self, stock: dict, currency: str):
         isin = stock["instrumentId"]
@@ -194,6 +196,17 @@ class TradeRepublicScraper(EntityScraper):
         currency = portfolio.cash[0]["currencyId"]
         cash_total = Dezimal(portfolio.cash[0]["amount"])
 
+        active_interest = round(Dezimal(self._client.get_active_interest_rate().get("activeInterestRate")) / 100, 4)
+
+        accounts = [Account(
+            id=uuid4(),
+            total=cash_total,
+            interest=active_interest,
+            currency='EUR',
+            iban=iban,
+            type=AccountType.BROKERAGE
+        )]
+
         investments = []
         for position in portfolio.portfolio["positions"]:
             investment = await self._instrument_mapper(position, currency)
@@ -217,13 +230,7 @@ class TradeRepublicScraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=TRADE_REPUBLIC,
-            accounts=[Account(
-                id=uuid4(),
-                total=cash_total,
-                currency='EUR',
-                iban=iban,
-                type=AccountType.BROKERAGE
-            )],
+            accounts=accounts,
             investments=investments_data,
         )
 

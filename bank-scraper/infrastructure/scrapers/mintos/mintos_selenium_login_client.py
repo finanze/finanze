@@ -8,12 +8,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from seleniumwire import webdriver
 
-from domain.login_result import LoginResultCode
+from domain.login import LoginResult, LoginResultCode
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
 
-async def login(log, session, username: str, password: str) -> dict:
+async def login(log, session, username: str, password: str) -> LoginResult:
     driver = None
 
     options = FirefoxOptions()
@@ -70,11 +70,11 @@ async def login(log, session, username: str, password: str) -> dict:
 
         session.headers["Cookie"] = user_request.headers["Cookie"]
 
-        return {"result": LoginResultCode.CREATED}
+        return LoginResult(LoginResultCode.CREATED)
 
     except Exception as e:
         log.error(f"An error occurred while logging in: {e}")
-        raise
+        return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 
     finally:
         if driver:

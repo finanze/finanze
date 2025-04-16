@@ -7,7 +7,7 @@ import requests
 import tzlocal
 from requests_toolbelt import MultipartEncoder
 
-from domain.login_result import LoginResultCode
+from domain.login import LoginResult, LoginResultCode
 
 
 class F24APIClient:
@@ -65,7 +65,7 @@ class F24APIClient:
 
         return self._multi_part("/authentication/ajax-check-login-password", data=data)
 
-    def login(self, username: str, password: str) -> dict:
+    def login(self, username: str, password: str) -> LoginResult:
         self._session = requests.Session()
         self._session.headers["Origin"] = self.BASE_URL
 
@@ -76,17 +76,14 @@ class F24APIClient:
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
-                    return {"result": LoginResultCode.INVALID_CREDENTIALS}
-
+                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 else:
-                    return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": error}
-
+                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=error)
             else:
                 self._user_info = response_body
-
         else:
-            return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {first_login_response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {first_login_response.status_code}")
 
         user_id = None
         accounts = self._user_info["accounts"]
@@ -102,24 +99,19 @@ class F24APIClient:
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
-                    return {"result": LoginResultCode.INVALID_CREDENTIALS}
-
+                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 else:
-                    return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": error}
-
+                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=error)
             else:
                 if (response_body["success"]
                         and response_body["logged"]
                         and response_body["SID"]):
-                    return {"result": LoginResultCode.CREATED}
-
+                    return LoginResult(LoginResultCode.CREATED)
                 self._log.error(response_body)
-                return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                        "message": "Got unexpected response"}
-
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Got unexpected response")
         else:
-            return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {first_login_response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {first_login_response.status_code}")
 
     def get_user_info(self) -> dict:
         return self._user_info
@@ -156,3 +148,4 @@ class F24APIClient:
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
         }
         return self._post_request("/api?cmd=switchToConnectedUser", data=data, headers=headers)
+

@@ -1,75 +1,151 @@
 import logging
-import os
-import pathlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
+import requests
 from aiocache import cached
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from requests import HTTPError
+from requests.cookies import RequestsCookieJar, create_cookie
 
-from domain.login_result import LoginResultCode
+from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
 from infrastructure.scrapers.tr.tr_details import TRDetails
 from infrastructure.scrapers.tr.tr_timeline import TRTimeline
+
+
+def _json_cookie_jar(jar: RequestsCookieJar) -> list:
+    """Converts a RequestsCookieJar to a JSON string (simple version)."""
+    simple_cookies = []
+    for cookie in jar:
+        expires_timestamp = 0
+        if cookie.expires is not None:
+            try:
+                expires_timestamp = int(cookie.expires)
+            except (ValueError, TypeError):
+                expires_timestamp = 0
+
+        cookie_dict = {
+            'name': cookie.name,
+            'value': cookie.value,
+            'domain': cookie.domain,
+            'path': cookie.path,
+            'expires': expires_timestamp,
+            'secure': cookie.secure,
+        }
+        simple_cookies.append(cookie_dict)
+
+    return simple_cookies
+
+
+def _rebuild_cookie_jar(cookie_list: list) -> RequestsCookieJar:
+    """Converts a JSON string (from serialize_cookie_jar) back to a RequestsCookieJar."""
+    new_jar = RequestsCookieJar()
+
+    for cookie_dict in cookie_list:
+        if not all(k in cookie_dict for k in ('name', 'value', 'domain')):
+            continue
+
+        expires_ts = cookie_dict.get('expires')
+        expires_arg = None if expires_ts == 0 else expires_ts
+
+        args = {
+            'name': cookie_dict['name'],
+            'value': cookie_dict['value'],
+            'domain': cookie_dict['domain'],
+            'path': cookie_dict.get('path', '/'),
+            'secure': cookie_dict.get('secure', False),
+            'expires': expires_arg,
+        }
+
+        try:
+            cookie = create_cookie(**args)
+            cookie.domain_specified = bool(cookie.domain)
+            cookie.path_specified = bool(cookie.path)
+            new_jar.set_cookie(cookie)
+        except Exception:
+            pass
+
+    return new_jar
 
 
 class TradeRepublicClient:
 
     def __init__(self):
         self._tr_api = None
-        self._cookies_file = pathlib.Path(os.environ["TR_COOKIES_PATH"])
         self._log = logging.getLogger(__name__)
 
     def login(self,
               phone: str,
               pin: str,
-              avoid_new_login: bool = False,
+              login_options: LoginOptions,
               process_id: str = None,
-              code: str = None) -> dict:
-
-        if not self._cookies_file.parent.exists():
-            self._cookies_file.parent.mkdir(parents=True, exist_ok=True)
+              code: str = None,
+              session: Optional[EntitySession] = None) -> LoginResult:
 
         self._tr_api = TradeRepublicApi(
             phone_no=phone,
             pin=pin,
             locale="en",
-            save_cookies=True,
-            cookies_file=self._cookies_file,
+            save_cookies=False,
         )
 
-        if self._tr_api.resume_websession():
-            self._log.info("Web session resumed")
-            return {"result": LoginResultCode.RESUMED}
+        if session and not login_options.force_new_session:
+            self._inject_session(session)
+            if self._resumable_session():
+                self._log.debug("Resuming session")
+                return LoginResult(LoginResultCode.RESUMED)
+
+        if code and process_id:
+            self._tr_api._process_id = process_id
+            try:
+                self._tr_api.complete_weblogin(code)
+            except HTTPError as e:
+                if e.response.status_code == 401:
+                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+                elif e.response.status_code == 400:
+                    return LoginResult(LoginResultCode.INVALID_CODE)
+                else:
+                    self._log.error("Unexpected error during login", exc_info=e)
+                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                       message=f"Got unexpected error {e.response.status_code} during login")
+
+            sess_created_at = datetime.now(timezone.utc)
+            session_payload = self._export_session()
+            new_session = EntitySession(creation=sess_created_at,
+                                        expiration=None,
+                                        payload=session_payload)
+            return LoginResult(LoginResultCode.CREATED, session=new_session)
+
+        elif not code and not process_id:
+            if not login_options.avoid_new_login:
+                countdown = self._tr_api.inititate_weblogin()
+                process_id = self._tr_api._process_id
+                return LoginResult(LoginResultCode.CODE_REQUESTED,
+                                   process_id=process_id,
+                                   details={"countdown": countdown})
+            else:
+                return LoginResult(LoginResultCode.NOT_LOGGED)
 
         else:
-            if code and process_id:
-                self._tr_api._process_id = process_id
-                try:
-                    self._tr_api.complete_weblogin(code)
-                except HTTPError as e:
-                    if e.response.status_code == 401:
-                        return {"result": LoginResultCode.INVALID_CREDENTIALS}
-                    elif e.response.status_code == 400:
-                        return {"result": LoginResultCode.INVALID_CODE}
-                    else:
-                        self._log.error("Unexpected error during login", exc_info=e)
-                        return {"result": LoginResultCode.UNEXPECTED_ERROR,
-                                "message": f"Got unexpected error {e.response.status_code} during login"}
+            raise ValueError("Invalid login data")
 
-                return {"result": LoginResultCode.CREATED}
+    def _resumable_session(self) -> bool:
+        try:
+            self._tr_api.settings()
+        except requests.exceptions.HTTPError:
+            self._tr_api._weblogin = False
+            return False
+        else:
+            return True
 
-            elif not code and not process_id:
-                if not avoid_new_login:
-                    countdown = self._tr_api.inititate_weblogin()
-                    process_id = self._tr_api._process_id
-                    return {"result": LoginResultCode.CODE_REQUESTED, "countdown": countdown, "processId": process_id}
-                else:
-                    return {"result": LoginResultCode.NOT_LOGGED}
+    def _export_session(self) -> dict:
+        return {"cookies": _json_cookie_jar(self._tr_api._websession.cookies)}
 
-            else:
-                raise ValueError("Invalid login data")
+    def _inject_session(self, session: EntitySession):
+        cookies = _rebuild_cookie_jar(session.payload["cookies"])
+        self._tr_api._websession.cookies = cookies
+        self._tr_api._weblogin = True
 
     async def close(self):
         if self._tr_api and self._tr_api._ws:
@@ -95,3 +171,19 @@ class TradeRepublicClient:
 
     def get_user_info(self):
         return self._tr_api.settings()
+
+    def get_interest_payouts(self, number_of_payouts: int):
+        r = self._tr_api._web_request(f"/api/v1/banking/consumer/interest/payouts?numberOfPayouts={number_of_payouts}")
+        r.raise_for_status()
+        return r.json()
+
+    def get_active_interest_rate(self):
+        r = self._tr_api._web_request("/api/v1/banking/consumer/interest/rate")
+        r.raise_for_status()
+        return r.json()
+
+    def get_interest_payout_summary(self, decimal_separator: str = ",", grouping_separator: str = "."):
+        r = self._tr_api._web_request(
+            f"/api/v1/interest/details-screen?decimalSeparator={decimal_separator}&groupingSeparator={grouping_separator}")
+        r.raise_for_status()
+        return r.json()

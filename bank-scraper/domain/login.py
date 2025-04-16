@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 from uuid import UUID
@@ -19,9 +20,19 @@ class LoginResultCode(str, Enum):
 
 
 @dataclass
+class EntitySession:
+    creation: datetime
+    expiration: Optional[datetime]
+    payload: dict
+
+
+@dataclass
 class LoginResult:
     code: LoginResultCode
+    message: Optional[str] = None
     details: Optional[dict] = None
+    process_id: Optional[str] = None
+    session: Optional[EntitySession] = None
 
 
 @dataclass
@@ -33,6 +44,7 @@ class TwoFactor:
 @dataclass
 class LoginOptions:
     avoid_new_login: bool = False
+    force_new_session: bool = False
 
 
 @dataclass
@@ -48,3 +60,4 @@ class LoginParams:
     credentials: EntityCredentials
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = LoginOptions()
+    session: Optional[EntitySession] = None

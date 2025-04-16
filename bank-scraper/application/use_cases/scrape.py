@@ -13,6 +13,7 @@ from application.ports.credentials_port import CredentialsPort
 from application.ports.entity_scraper import EntityScraper
 from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
+from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from domain import native_entities
@@ -41,6 +42,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                  entity_scrapers: dict[FinancialEntity, EntityScraper],
                  config_port: ConfigPort,
                  credentials_port: CredentialsPort,
+                 sessions_port: SessionsPort,
                  transaction_handler_port: TransactionHandlerPort):
 
         AtomicUCMixin.__init__(self, transaction_handler_port)
@@ -53,6 +55,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         self._entity_scrapers = entity_scrapers
         self._config_port = config_port
         self._credentials_port = credentials_port
+        self._sessions_port = sessions_port
 
         self._log = logging.getLogger(__name__)
 
@@ -87,23 +90,31 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
 
         specific_scraper = self._entity_scrapers[entity]
 
+        stored_session = self._sessions_port.get(entity.id)
         login_request = LoginParams(
             credentials=credentials,
             two_factor=scrap_request.two_factor,
-            options=scrap_request.options
+            options=scrap_request.options,
+            session=stored_session
         )
         login_result = await specific_scraper.login(login_request)
-        login_result_code = login_result["result"]
-        del login_result["result"]
+        login_result_code = login_result.code
+        login_message = login_result.message
 
         if login_result_code == LoginResultCode.CODE_REQUESTED:
-            return ScrapResult(ScrapResultCode.CODE_REQUESTED, details=login_result)
+            return ScrapResult(ScrapResultCode.CODE_REQUESTED,
+                               details={"message": login_message, "processId": login_result.process_id})
 
         elif login_result_code not in [LoginResultCode.CREATED, LoginResultCode.RESUMED]:
-            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details=login_result)
+            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"message": login_message})
 
         elif login_result_code == LoginResultCode.CREATED:
             self._credentials_port.update_last_usage(entity.id)
+
+            session = login_result.session
+            if session:
+                self._sessions_port.delete(entity.id)
+                self._sessions_port.save(entity.id, session)
 
         if not features:
             features = DEFAULT_FEATURES
