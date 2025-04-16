@@ -1,5 +1,7 @@
-from datetime import datetime, timezone
-from uuid import uuid4, UUID
+from datetime import datetime
+from uuid import UUID
+
+from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency
@@ -18,7 +20,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             # Delete existing contributions for this entity
             cursor.execute(
                 "DELETE FROM periodic_contributions WHERE entity_id = ?",
-                (entity_id,)
+                (str(entity_id),)
             )
 
             # Insert new contributions
@@ -26,21 +28,22 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 cursor.execute(
                     """
                     INSERT INTO periodic_contributions (
-                        id, entity_id, isin, alias, amount, currency, since, until, frequency, active, is_real
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        id, entity_id, isin, alias, amount, currency, since, until, frequency, active, is_real, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        str(uuid4()),
-                        entity_id,
+                        str(contrib.id),
+                        str(entity_id),
                         contrib.isin,
                         contrib.alias,
                         str(contrib.amount),
-                        "EUR",
+                        contrib.currency,
                         contrib.since.isoformat(),
                         contrib.until.isoformat() if contrib.until else None,
                         contrib.frequency.name,
                         contrib.active,
-                        True
+                        contrib.is_real,
+                        datetime.now(tzlocal()).isoformat()
                     )
                 )
 
@@ -64,10 +67,11 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
                 entities[entity].append(
                     PeriodicContribution(
-                        id=row["pc_id"],
+                        id=UUID(row["pc_id"]),
                         alias=row["alias"],
                         isin=row["isin"],
                         amount=Dezimal(row["amount"]),
+                        currency=row["currency"],
                         since=datetime.fromisoformat(row["since"]).date(),
                         until=datetime.fromisoformat(row["until"]).date() if "until" in row else None,
                         frequency=ContributionFrequency[row["frequency"]],
@@ -97,7 +101,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                     name=row["name"],
                     is_real=row["is_real"]
                 )
-                last_update = datetime.fromisoformat(row["last_update"]).astimezone(timezone.utc)
+                last_update = datetime.fromisoformat(row["last_update"])
                 result[entity] = last_update
 
             return result

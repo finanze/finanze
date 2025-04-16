@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import List
+
+from dateutil.tz import tzlocal
 
 from infrastructure.repository.db.client import DBClient, DBCursor
 
@@ -48,7 +51,7 @@ class DatabaseUpgrader:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS migrations (
                     version INTEGER PRIMARY KEY,
-                    applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    applied_at TIMESTAMP NOT NULL,
                     name TEXT NOT NULL
                 )
             """)
@@ -111,8 +114,10 @@ class DatabaseUpgrader:
                 # Execute the migration
                 migration.upgrade(cursor)
 
+                applied_at = datetime.now(tzlocal())
+
                 # Record the migration
                 cursor.execute(
-                    "INSERT INTO migrations (version, name) VALUES (?, ?)",
-                    (version, migration.name)
+                    "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
+                    (version, applied_at, migration.name)
                 )

@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import List, Dict
 from uuid import UUID
 
+from dateutil.tz import tzlocal
+
 from application.ports.historic_port import HistoricPort
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
@@ -86,6 +88,7 @@ class HistoricSQLRepository(HistoricPort):
                     "state": entry.state,
                     "entity_id": str(entry.entity.id),
                     "product_type": entry.product_type.value,
+                    "created_at": datetime.now(tzlocal()).isoformat(),
                     "interest_rate": None,
                     "net_interest_rate": None,
                     "maturity": None,
@@ -116,13 +119,13 @@ class HistoricSQLRepository(HistoricPort):
                         last_tx_date, effective_maturity, net_return, fees,
                         retentions, interests, state, entity_id, product_type,
                         interest_rate, net_interest_rate, maturity,
-                        extended_maturity, type, business_type
+                        extended_maturity, type, business_type, created_at
                     ) VALUES (
                         :id, :name, :invested, :returned, :currency, :last_invest_date,
                         :last_tx_date, :effective_maturity, :net_return, :fees,
                         :retentions, :interests, :state, :entity_id, :product_type,
                         :interest_rate, :net_interest_rate, :maturity,
-                        :extended_maturity, :type, :business_type
+                        :extended_maturity, :type, :business_type, :created_at
                     )
                 """, base_data)
 

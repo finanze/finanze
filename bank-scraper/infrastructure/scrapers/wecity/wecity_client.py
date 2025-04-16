@@ -1,10 +1,11 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
 import requests
 from cachetools import TTLCache, cached
+from dateutil.tz import tzlocal
 
 from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
 
@@ -46,7 +47,7 @@ class WecityAPIClient:
               session: Optional[EntitySession] = None) -> LoginResult:
 
         self._init_session()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(tzlocal())
 
         if session and not login_options.force_new_session and now < session.expiration:
             self._log.debug("Resuming session")
@@ -82,8 +83,10 @@ class WecityAPIClient:
             if not token:
                 return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
 
-            sess_created_at = datetime.fromtimestamp(response_return.get("sess_time"), tz=timezone.utc)
-            sess_expiration = datetime.fromtimestamp(response_return.get("sess_expire"), tz=timezone.utc)
+            sess_created_at = datetime.fromtimestamp(response_return.get("sess_time"),
+                                                     tz=tzlocal())  # This is provided with UTC tz
+            sess_expiration = datetime.fromtimestamp(response_return.get("sess_expire"),
+                                                     tz=tzlocal())  # I think this is not UTC, but Spain tz, as it is 2 days + diff
             session_payload = {"token": token}
             new_session = EntitySession(creation=sess_created_at,
                                         expiration=sess_expiration,
@@ -125,10 +128,6 @@ class WecityAPIClient:
 
     def _inject_session(self, session: EntitySession):
         self._session.headers["x-auth-token"] = session.payload["token"]
-
-    # @cached(cache=TTLCache(maxsize=1, ttl=120))
-    # def get_user(self):
-    #    return self._get_request("/ajax/ajax.php?option=checkuser")["data"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_wallet(self):

@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Set, List
 from uuid import UUID
+
+from dateutil.tz import tzlocal
 
 from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
@@ -125,6 +127,7 @@ class TransactionSQLRepository(TransactionPort):
                     "entity_id": str(tx.entity.id),
                     "is_real": tx.is_real,
                     "product_type": tx.product_type.value,
+                    "created_at": datetime.now(tzlocal()).isoformat(),
 
                     "isin": None,
                     "ticker": None,
@@ -175,12 +178,12 @@ class TransactionSQLRepository(TransactionPort):
                     """
                     INSERT INTO investment_transactions (
                         id, ref, name, amount, currency, type, date,
-                        entity_id, is_real, product_type,
+                        entity_id, is_real, product_type, created_at,
                         isin, ticker, market, shares, price, net_amount,
                         fees, retentions, order_date, linked_tx, interests
                     ) VALUES (
                         :id, :ref, :name, :amount, :currency, :type, :date,
-                        :entity_id, :is_real, :product_type,
+                        :entity_id, :is_real, :product_type, :created_at,
                         :isin, :ticker, :market, :shares, :price, :net_amount,
                         :fees, :retentions, :order_date, :linked_tx, :interests
                     )
@@ -195,9 +198,9 @@ class TransactionSQLRepository(TransactionPort):
                     """
                     INSERT INTO account_transactions (
                         id, ref, name, amount, currency, type, date,
-                        entity_id, is_real,
+                        entity_id, is_real, created_at,
                         fees, retentions, interest_rate, avg_balance
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(tx.id),
@@ -209,6 +212,7 @@ class TransactionSQLRepository(TransactionPort):
                         tx.date.isoformat(),
                         str(tx.entity.id),
                         tx.is_real,
+                        datetime.now(tzlocal()).isoformat(),
                         str(tx.fees),
                         str(tx.retentions),
                         str(tx.interest_rate),
@@ -306,7 +310,7 @@ class TransactionSQLRepository(TransactionPort):
                     name=row["name"],
                     is_real=row["is_real"]
                 )
-                last_created = datetime.fromisoformat(row["last_created"]).astimezone(timezone.utc)
+                last_created = datetime.fromisoformat(row["last_created"])
                 result[entity] = last_created
 
             return result

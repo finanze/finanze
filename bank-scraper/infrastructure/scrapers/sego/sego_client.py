@@ -1,11 +1,12 @@
 import codecs
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Union, Optional
 
 import requests
 from cachetools import TTLCache, cached
+from dateutil.tz import tzlocal
 
 from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
 
@@ -74,7 +75,7 @@ class SegoAPIClient:
 
         self._init_session()
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(tzlocal())
 
         if session and not login_options.force_new_session and now < session.expiration:
             self._log.debug("Resuming session")
@@ -104,7 +105,7 @@ class SegoAPIClient:
             if "token" not in response_body:
                 return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
 
-            sess_created_at = datetime.now(timezone.utc)
+            sess_created_at = datetime.now(tzlocal())
             sess_expiration = _parse_expiration_datetime(response_body.get("expirationDate"))
             session_payload = {"token": response_body["token"]}
             new_session = EntitySession(creation=sess_created_at,

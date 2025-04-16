@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, Optional
 from uuid import UUID
 
@@ -674,7 +674,7 @@ class PositionSQLRepository(PositionPort):
             if not result or not result["last_date"]:
                 return None
 
-            return datetime.fromisoformat(result["last_date"]).replace(tzinfo=timezone.utc)
+            return datetime.fromisoformat(result["last_date"])
 
     def _get_entity_id_from_global(self, global_position_id: UUID) -> int:
         with self._db_client.read() as cursor:

@@ -24,6 +24,7 @@ class PeriodicContribution:
     alias: str
     isin: str
     amount: Dezimal
+    currency: str
     since: date
     until: Optional[date]
     frequency: ContributionFrequency

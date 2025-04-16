@@ -204,9 +204,8 @@ class MyInvestorScraperV1(EntityScraper):
                     averageBuyPrice=round(fund["inversionInicial"] / fund["participaciones"], 4),
                     marketValue=round(fund["valorMercado"], 4),
                     currency=SYMBOL_CURRENCY_MAP.get(
-                        fund["divisaValorLiquidativo"], fund["divisaValorLiquidativo"]
+                        fund["divisaValorLiquidativo"], "EUR"
                     ),
-                    currencySymbol=fund["divisaValorLiquidativo"],
                     lastUpdate=datetime.strptime(fund["fechaCotizacion"], OLD_DATE_FORMAT).date(),
                 )
                 for fund in raw_fund_list
@@ -260,6 +259,7 @@ class MyInvestorScraperV1(EntityScraper):
                 alias=get_alias(auto_contribution),
                 isin=auto_contribution["codigoIsin"],
                 amount=Dezimal(round(auto_contribution["importe"], 2)),
+                currency="EUR",
                 since=get_date(auto_contribution["periodicidadAportacionDto"]["fechaDesde"]),
                 until=get_date(auto_contribution["periodicidadAportacionDto"]["fechaHasta"]),
                 frequency=get_frequency(auto_contribution["periodicidadAportacionDto"]["periodicidad"]),
@@ -309,7 +309,7 @@ class MyInvestorScraperV1(EntityScraper):
                     name=order["nombreFondo"].strip(),
                     amount=Dezimal(round(execution_op["efectivoBruto"], 2)),
                     net_amount=Dezimal(round(execution_op["efectivoNeto"], 2)),
-                    currency=SYMBOL_CURRENCY_MAP.get(order["divisa"], order["divisa"]),
+                    currency=SYMBOL_CURRENCY_MAP.get(order["divisa"], "EUR"),
                     type=operation_type,
                     order_date=order_date,
                     entity=MY_INVESTOR,

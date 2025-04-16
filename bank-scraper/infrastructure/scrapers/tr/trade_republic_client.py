@@ -1,9 +1,10 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 import requests
 from aiocache import cached
+from dateutil.tz import tzlocal
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from requests import HTTPError
@@ -15,7 +16,6 @@ from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 
 
 def _json_cookie_jar(jar: RequestsCookieJar) -> list:
-    """Converts a RequestsCookieJar to a JSON string (simple version)."""
     simple_cookies = []
     for cookie in jar:
         expires_timestamp = 0
@@ -39,7 +39,6 @@ def _json_cookie_jar(jar: RequestsCookieJar) -> list:
 
 
 def _rebuild_cookie_jar(cookie_list: list) -> RequestsCookieJar:
-    """Converts a JSON string (from serialize_cookie_jar) back to a RequestsCookieJar."""
     new_jar = RequestsCookieJar()
 
     for cookie_dict in cookie_list:
@@ -110,7 +109,7 @@ class TradeRepublicClient:
                     return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
                                        message=f"Got unexpected error {e.response.status_code} during login")
 
-            sess_created_at = datetime.now(timezone.utc)
+            sess_created_at = datetime.now(tzlocal())
             session_payload = self._export_session()
             new_session = EntitySession(creation=sess_created_at,
                                         expiration=None,

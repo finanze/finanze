@@ -242,9 +242,7 @@ class MyInvestorScraperV2(EntityScraper):
                     initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
                     average_buy_price=round(Dezimal(fund["initialInvestment"]) / Dezimal(fund["shares"]), 4),
                     market_value=round(Dezimal(fund["marketValue"]), 4),
-                    currency=SYMBOL_CURRENCY_MAP.get(
-                        fund["liquidationValueCurrency"], fund["liquidationValueCurrency"]
-                    ),
+                    currency=SYMBOL_CURRENCY_MAP.get(fund["liquidationValueCurrency"], "EUR"),
                 )
                 for fund in fund_investments["investmentList"]
             ]
@@ -299,6 +297,7 @@ class MyInvestorScraperV2(EntityScraper):
                 alias=get_alias(auto_contribution),
                 isin=auto_contribution["isin"],
                 amount=round(Dezimal(auto_contribution["amount"]), 2),
+                currency=SYMBOL_CURRENCY_MAP.get(auto_contribution["currency"], "EUR"),
                 since=get_date(auto_contribution["contributionTimeFrame"]["startDate"]),
                 until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
                 frequency=get_frequency(auto_contribution["contributionTimeFrame"]["recurrence"]),
@@ -445,4 +444,3 @@ class MyInvestorScraperV2(EntityScraper):
             )
 
         return stock_txs
-

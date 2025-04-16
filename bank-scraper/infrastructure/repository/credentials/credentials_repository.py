@@ -1,7 +1,9 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
+
+from dateutil.tz import tzlocal
 
 from application.ports.credentials_port import CredentialsPort
 from domain.financial_entity import EntityCredentials, FinancialEntity
@@ -44,10 +46,13 @@ class CredentialsRepository(CredentialsPort):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 """
-                INSERT INTO entity_credentials (entity_id, credentials, last_used_at)
-                VALUES (?, ?, ?)
+                INSERT INTO entity_credentials (entity_id, credentials, last_used_at, created_at)
+                VALUES (?, ?, ?, ?)
                 """,
-                (str(entity_id), json.dumps(credentials), datetime.now(timezone.utc).isoformat())
+                (str(entity_id),
+                 json.dumps(credentials),
+                 datetime.now(tzlocal()).isoformat(),
+                 datetime.now(tzlocal()).isoformat())
             )
 
     def delete(self, entity_id: UUID):
@@ -65,5 +70,5 @@ class CredentialsRepository(CredentialsPort):
                 SET last_used_at = ?
                 WHERE entity_id = ?
                 """,
-                (datetime.now(timezone.utc).isoformat(), str(entity_id))
+                (datetime.now(tzlocal()).isoformat(), str(entity_id))
             )

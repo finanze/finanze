@@ -187,7 +187,7 @@ CREATE TABLE periodic_contributions (
     frequency VARCHAR(32) NOT NULL,
     active BOOLEAN NOT NULL,
     is_real BOOLEAN NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP NOT NULL
 );
 
 CREATE INDEX idx_pcont_entity_isin ON periodic_contributions(entity_id, isin);
@@ -204,7 +204,7 @@ CREATE TABLE investment_transactions (
     date DATETIME NOT NULL,
     entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     is_real BOOLEAN NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at DATETIME NOT NULL,
     product_type VARCHAR(32),
     
     isin VARCHAR(12) DEFAULT NULL,
@@ -238,7 +238,7 @@ CREATE TABLE account_transactions (
     date DATETIME NOT NULL,
     entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     is_real BOOLEAN NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_at DATETIME NOT NULL,
     
     interest_rate TEXT DEFAULT NULL,
     avg_balance TEXT DEFAULT NULL,
@@ -267,7 +267,7 @@ CREATE TABLE investment_historic (
     state VARCHAR(32),
     entity_id CHAR(36) NOT NULL REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     product_type VARCHAR(32) NOT NULL,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME NOT NULL,
     
     net_interest_rate TEXT,
     interest_rate TEXT,
@@ -293,7 +293,7 @@ CREATE INDEX idx_ihist_txs_historic_entry_id ON investment_historic_txs(historic
 CREATE TABLE entity_credentials (
     entity_id CHAR(36) NOT NULL PRIMARY KEY REFERENCES financial_entities(id) ON DELETE CASCADE ON UPDATE CASCADE,
     credentials JSON NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL,
     last_used_at TIMESTAMP DEFAULT NULL
 );
 
