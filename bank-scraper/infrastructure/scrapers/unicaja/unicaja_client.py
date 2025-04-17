@@ -214,9 +214,9 @@ class UnicajaClient:
             else:
                 return response.text
 
-        self._log.error("Error Status Code:", response.status_code)
         self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        response.raise_for_status()
+        return {}
 
     def _get_request(
             self, path: str, params: dict = None, json: bool = True

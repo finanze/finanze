@@ -13,21 +13,20 @@ DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
 
 class WecityAPIClient:
-    BASE_OLD_URL = "https://www.wecity.com/"
     BASE_URL = "https://api.wecity.com/"
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def _get_request(self, path: str, api_url: bool = False) -> requests.Response:
-        response = self._session.request("GET", (self.BASE_URL if api_url else self.BASE_OLD_URL) + path)
+    def _get_request(self, path: str) -> dict:
+        response = self._session.request("GET", self.BASE_URL + path)
 
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
         self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        response.raise_for_status()
+        return {}
 
     def _init_session(self):
         self._session = requests.Session()
@@ -50,9 +49,10 @@ class WecityAPIClient:
         now = datetime.now(tzlocal())
 
         if session and not login_options.force_new_session and now < session.expiration:
-            self._log.debug("Resuming session")
             self._inject_session(session)
-            return LoginResult(LoginResultCode.RESUMED)
+            if self._resumable_session():
+                self._log.debug("Resuming session")
+                return LoginResult(LoginResultCode.RESUMED)
 
         request = {
             "username": username,
@@ -126,21 +126,29 @@ class WecityAPIClient:
         else:
             raise ValueError("Invalid params")
 
+    def _resumable_session(self) -> bool:
+        try:
+            self._get_request("/customers/me/wallet")
+        except requests.exceptions.HTTPError:
+            return False
+        else:
+            return True
+
     def _inject_session(self, session: EntitySession):
         self._session.headers["x-auth-token"] = session.payload["token"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_wallet(self):
-        return self._get_request("/customers/me/wallet", api_url=True)["return"]
+        return self._get_request("/customers/me/wallet")["return"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_investments(self):
-        return self._get_request("/customers/me/invests-all", api_url=True)["return"]["data"]
+        return self._get_request("/customers/me/invests-all")["return"]["data"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_investment_details(self, investment_id: int):
-        return self._get_request(f"/investments/{investment_id}/general", api_url=True)["return"]
+        return self._get_request(f"/investments/{investment_id}/general")["return"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_transactions(self):
-        return self._get_request("/customers/me/transactions", api_url=True)["return"]
+        return self._get_request("/customers/me/transactions")["return"]

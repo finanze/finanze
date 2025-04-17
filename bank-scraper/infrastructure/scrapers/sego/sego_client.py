@@ -47,9 +47,9 @@ class SegoAPIClient:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
         self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        response.raise_for_status()
+        return {}
 
     def _get_request(self, path: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None)
@@ -78,9 +78,10 @@ class SegoAPIClient:
         now = datetime.now(tzlocal())
 
         if session and not login_options.force_new_session and now < session.expiration:
-            self._log.debug("Resuming session")
             self._inject_session(session)
-            return LoginResult(LoginResultCode.RESUMED)
+            if self._resumable_session():
+                self._log.debug("Resuming session")
+                return LoginResult(LoginResultCode.RESUMED)
 
         request = {
             "codigoPlataforma": "web-sego",
@@ -125,6 +126,14 @@ class SegoAPIClient:
         else:
             return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
                                message=f"Got unexpected response code {response.status_code}")
+
+    def _resumable_session(self) -> bool:
+        try:
+            self._get_request("/core/v1/InformacionBasica")
+        except requests.exceptions.HTTPError:
+            return False
+        else:
+            return True
 
     def _inject_session(self, session: EntitySession):
         self._headers["Authorization"] = "Bearer " + session.payload["token"]

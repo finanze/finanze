@@ -28,9 +28,9 @@ class F24APIClient:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
         self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        response.raise_for_status()
+        return {}
 
     def _post_request(self, path: str, data: str, headers: Optional[dict] = None) -> dict:
         return self._execute_request(path, "POST", data=data, headers=headers)
@@ -148,4 +148,3 @@ class F24APIClient:
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
         }
         return self._post_request("/api?cmd=switchToConnectedUser", data=data, headers=headers)
-

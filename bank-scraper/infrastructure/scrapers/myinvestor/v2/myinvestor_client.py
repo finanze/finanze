@@ -33,9 +33,9 @@ class MyInvestorAPIV2Client:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
         self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        response.raise_for_status()
+        return {}
 
     def _get_request(self, path: str, base_url: str = BASE_URL) -> requests.Response:
         return self._execute_request(path, "GET", body=None, base_url=base_url)
@@ -211,4 +211,3 @@ class MyInvestorAPIV2Client:
 
     def get_deposits(self):
         return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]
-
