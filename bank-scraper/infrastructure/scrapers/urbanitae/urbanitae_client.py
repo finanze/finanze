@@ -144,8 +144,8 @@ class UrbanitaeAPIClient:
         # 	UNKNOWN
         return self._get_request(f"/investor/wallet/transactions{params}")["content"]
 
-    def get_investments(self):
-        params = "?page=0&size=1000&sortField=INVEST_DATE&sortDirection=DESC"
+    def get_investments(self, page: int = 0, limit: int = 1000):
+        params = f"?page={page}&size={limit}&sortField=INVEST_DATE&sortDirection=DESC"
         return self._get_request(f"/investor/summary{params}")["content"]
 
     @cached(cache=TTLCache(maxsize=50, ttl=600))

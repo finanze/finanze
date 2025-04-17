@@ -150,5 +150,13 @@ class WecityAPIClient:
         return self._get_request(f"/investments/{investment_id}/general")["return"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_investment_diary(self, investment_id: int):
+        return self._get_request(f"/investments/{investment_id}/diary")["return"]
+
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_investment_transactions(self, investment_id: int):
+        return self._get_request(f"/investments/{investment_id}/transactions")["return"]
+
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_transactions(self):
         return self._get_request("/customers/me/transactions")["return"]

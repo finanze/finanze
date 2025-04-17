@@ -75,6 +75,12 @@ class UrbanitaeScraper(EntityScraper):
         interest_rate = Dezimal(project_details["fund"]["apreciationProfitability"])
         last_invest_date = datetime.strptime(inv["lastInvestDate"], self.DATETIME_FORMAT)
 
+        project_type = inv["projectType"]
+        business_model = inv["projectBusinessModel"]
+        state = inv["projectPhase"]
+        if state == "FORMALIZED":
+            state = "IN_PROGRESS"
+
         return RealStateCFDetail(
             id=uuid4(),
             name=inv["projectName"],
@@ -84,9 +90,9 @@ class UrbanitaeScraper(EntityScraper):
             last_invest_date=last_invest_date,
             maturity=(last_invest_date + relativedelta(months=months)).date(),
             extended_maturity=None,
-            type=inv["projectType"],
-            business_type=inv["projectBusinessModel"],
-            state=inv["projectPhase"],
+            type=project_type,
+            business_type=business_model,
+            state=state,
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:

@@ -85,8 +85,12 @@ class WecityScraper(EntityScraper):
 
         raw_business_type = opportunity["investment_type_id"]
         business_type = raw_business_type
-        if raw_business_type == 2:
+        if raw_business_type == 1:
+            business_type = "EQUITY"
+        elif raw_business_type == 2:
             business_type = "LENDING"
+        elif raw_business_type == 3:
+            business_type = "DONATION"
 
         raw_project_type = investments_details["opportunity"]["property_type"]["es"]
         project_type = raw_project_type
@@ -94,11 +98,29 @@ class WecityScraper(EntityScraper):
             project_type = "HOUSING"
         elif raw_project_type == "Suelo":
             project_type = "FLOOR"
+        elif raw_project_type == "Oficinas":
+            project_type = "OFFICES"
+        elif raw_project_type == "Hotelero":
+            project_type = "HOTEL"
+        elif raw_project_type == "Local":
+            project_type = "PREMISES"
+        elif raw_project_type == "Loft":
+            project_type = "LOFT"
+        elif raw_project_type == "Renovables":
+            project_type = "RENEWABLES"
+        elif raw_project_type == "Hospital":
+            project_type = "HOSPITAL"
+        elif raw_project_type == "Logístico":
+            project_type = "LOGISTIC"
 
         state_id = opportunity["state_id"]
         state = "-"
-        if state_id == 3:
-            state = "FUNDED"
+        if state_id == 2:
+            state = "UNDER_REVIEW"
+        elif state_id == 1 or state_id == 3 or state_id == 12:
+            state = "IN_PROGRESS"
+        elif state_id == 5:
+            state = "COMPLETED"
 
         last_invest_date = max(
             [tx["date"] for tx in txs if "investment" == tx["category"] and tx["name"] == name],
