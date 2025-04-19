@@ -19,6 +19,21 @@ from infrastructure.scrapers.myinvestor.v2.myinvestor_client import MyInvestorAP
 DATE_FORMAT = "%Y-%m-%d"
 ISO_DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
+FUND_INVESTMENT_TXS = ["INVESTMENT_FUNDS_SUBSCRIPTION", "INVESTMENT_FUNDS_SUBSCRIPTION_SF",
+                       "INTERNAL_TRANSFER_SUBSCRIPTION", "EXTERNAL_TRANSFER_SUBSCRIPTION"]
+FUND_REIMBURSEMENT_TXS = ["INVESTMENT_FUND_REIMBURSEMENT", "INTERNAL_TRANSFER_REIMBURSEMENT",
+                          "EXTERNAL_TRANSFER_REIMBURSEMENT"]
+
+CONTRIBUTION_FREQUENCY = {
+    "ONE_WEEK": ContributionFrequency.WEEKLY,
+    "TWO_WEEKS": ContributionFrequency.BIWEEKLY,
+    "ONE_MONTH": ContributionFrequency.MONTHLY,
+    "TWO_MONTHS": ContributionFrequency.BIMONTHLY,
+    "THREE_MONTHS": ContributionFrequency.QUARTERLY,
+    "SIX_MONTHS": ContributionFrequency.SEMIANNUAL,
+    "ONE_YEAR": ContributionFrequency.YEARLY,
+}
+
 
 class MyInvestorScraperV2(EntityScraper):
 
@@ -263,48 +278,42 @@ class MyInvestorScraperV2(EntityScraper):
             deposits=deposits,
         )
 
-    def scrape_auto_contributions(self) -> AutoContributions:
-        auto_contributions = self._client.get_auto_contributions()
-
-        def get_frequency(frequency) -> ContributionFrequency:
-            return {
-                "ONE_WEEK": ContributionFrequency.WEEKLY,
-                "TWO_WEEKS": ContributionFrequency.BIWEEKLY,
-                "ONE_MONTH": ContributionFrequency.MONTHLY,
-                "TWO_MONTHS": ContributionFrequency.BIMONTHLY,
-                "THREE_MONTHS": ContributionFrequency.QUARTERLY,
-                "SIX_MONTHS": ContributionFrequency.SEMIANNUAL,
-                "ONE_YEAR": ContributionFrequency.YEARLY,
-            }[frequency]
+    def _map_periodic_contribution(self, auto_contribution):
+        raw_frequency = auto_contribution["contributionTimeFrame"]["recurrence"]
+        frequency = CONTRIBUTION_FREQUENCY.get(raw_frequency)
+        if not frequency:
+            self._log.warning(f"Unknown contribution frequency: {raw_frequency}")
+            return None
 
         def get_date(date_str):
             if not date_str:
                 return None
             return datetime.strptime(date_str, DATE_FORMAT).date()
 
-        def get_alias(auto_contribution):
-            alias = auto_contribution["alias"]
-            if alias:
-                return alias
-            fund_name = auto_contribution["fundName"]
-            if fund_name:
-                return fund_name
-            return None
+        fund_name = auto_contribution["fundName"]
+        alias = auto_contribution["alias"]
+        alias = alias if alias else fund_name
+
+        return PeriodicContribution(
+            id=uuid4(),
+            alias=alias,
+            isin=auto_contribution["isin"],
+            amount=round(Dezimal(auto_contribution["amount"]), 2),
+            currency=SYMBOL_CURRENCY_MAP.get(auto_contribution["currency"], "EUR"),
+            since=get_date(auto_contribution["contributionTimeFrame"]["startDate"]),
+            until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
+            frequency=frequency,
+            active=auto_contribution["status"] == "ACTIVE",
+            is_real=True
+        )
+
+    def scrape_auto_contributions(self) -> AutoContributions:
+        auto_contributions = self._client.get_auto_contributions()
 
         periodic_contributions = [
-            PeriodicContribution(
-                id=uuid4(),
-                alias=get_alias(auto_contribution),
-                isin=auto_contribution["isin"],
-                amount=round(Dezimal(auto_contribution["amount"]), 2),
-                currency=SYMBOL_CURRENCY_MAP.get(auto_contribution["currency"], "EUR"),
-                since=get_date(auto_contribution["contributionTimeFrame"]["startDate"]),
-                until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
-                frequency=get_frequency(auto_contribution["contributionTimeFrame"]["recurrence"]),
-                active=auto_contribution["status"] == "ACTIVE",
-                is_real=True
-            )
+            self._map_periodic_contribution(auto_contribution)
             for auto_contribution in auto_contributions
+            if auto_contribution["contributionType"] == "ONE_DATE"
         ]
 
         return AutoContributions(
@@ -331,9 +340,9 @@ class MyInvestorScraperV2(EntityScraper):
             execution_date = datetime.strptime(execution_op["executionDate"], ISO_DATE_TIME_FORMAT)
 
             raw_operation_type = order["operationType"]
-            if raw_operation_type == "INVESTMENT_FUNDS_SUBSCRIPTION":
+            if raw_operation_type in FUND_INVESTMENT_TXS:
                 operation_type = TxType.BUY
-            elif "INVESTMENT_FUND_REIMBURSEMENT" in raw_operation_type:
+            elif raw_operation_type in FUND_REIMBURSEMENT_TXS:
                 operation_type = TxType.SELL
             else:
                 self._log.warning(f"Unknown operation type: {raw_operation_type}")
@@ -395,9 +404,9 @@ class MyInvestorScraperV2(EntityScraper):
             order_date = datetime.strptime(raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT)
 
             raw_operation_type = order["operation"]
-            if "COMPRA" in raw_operation_type:
+            if "COMPRA" in raw_operation_type or raw_operation_type == "PURCHASE_VARIABLE_INCOME_CASH":
                 operation_type = TxType.BUY
-            elif "VENTA" in raw_operation_type:
+            elif "VENTA" in raw_operation_type or raw_operation_type == "SALE_VARIABLE_INCOME_CASH":
                 operation_type = TxType.SELL
             else:
                 self._log.warning(f"Unknown operation type: {raw_operation_type}")
