@@ -48,9 +48,8 @@ def _save_investment_kpis(cursor, position: GlobalPosition, product_type: str, k
 def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlending):
     cursor.execute(
         """
-        INSERT INTO crowdlending_positions (
-            id, global_position_id, currency, distribution
-        ) VALUES (?, ?, ?, ?)
+        INSERT INTO crowdlending_positions (id, global_position_id, currency, distribution)
+        VALUES (?, ?, ?, ?)
         """,
         (
             str(crowdlending.id),
@@ -72,10 +71,9 @@ def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
     for detail in deposits.details:
         cursor.execute(
             """
-            INSERT INTO deposit_positions (
-                id, global_position_id, name, amount, currency,
-                expected_interests, interest_rate, creation, maturity
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO deposit_positions (id, global_position_id, name, amount, currency,
+                                           expected_interests, interest_rate, creation, maturity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -103,17 +101,17 @@ def _save_real_state_cf(cursor, position: GlobalPosition, real_state: RealStateC
     for detail in real_state.details:
         cursor.execute(
             """
-            INSERT INTO real_state_cf_positions (
-                id, global_position_id, name, amount, currency,
-                interest_rate, last_invest_date, maturity, type,
-                business_type, state, extended_maturity
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO real_state_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
+                                                 interest_rate, last_invest_date, maturity, type,
+                                                 business_type, state, extended_maturity)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
                 str(position.id),
                 detail.name,
                 str(detail.amount),
+                str(detail.pending_amount),
                 detail.currency,
                 str(detail.interest_rate),
                 detail.last_invest_date.isoformat(),
@@ -137,11 +135,10 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
     for detail in factoring.details:
         cursor.execute(
             """
-            INSERT INTO factoring_positions (
-                id, global_position_id, name, amount, currency,
-                interest_rate, net_interest_rate, last_invest_date,
-                maturity, type, state
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO factoring_positions (id, global_position_id, name, amount, currency,
+                                             interest_rate, gross_interest_rate, last_invest_date,
+                                             maturity, type, state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -150,7 +147,7 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
                 str(detail.amount),
                 detail.currency,
                 str(detail.interest_rate),
-                str(detail.net_interest_rate),
+                str(detail.gross_interest_rate),
                 detail.last_invest_date.isoformat() if detail.last_invest_date else None,
                 detail.maturity.isoformat(),
                 detail.type,
@@ -170,11 +167,10 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
     for detail in funds.details:
         cursor.execute(
             """
-            INSERT INTO fund_positions (
-                id, global_position_id, name, isin, market,
-                shares, initial_investment, average_buy_price,
-                market_value, currency
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO fund_positions (id, global_position_id, name, isin, market,
+                                        shares, initial_investment, average_buy_price,
+                                        market_value, currency)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -202,11 +198,10 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
     for detail in stocks.details:
         cursor.execute(
             """
-            INSERT INTO stock_positions (
-                id, global_position_id, name, ticker, isin, market,
-                shares, initial_investment, average_buy_price,
-                market_value, currency, type, subtype
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO stock_positions (id, global_position_id, name, ticker, isin, market,
+                                         shares, initial_investment, average_buy_price,
+                                         market_value, currency, type, subtype)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -251,11 +246,10 @@ def _save_investments(cursor, position: GlobalPosition, investments: Investments
 def _save_loan(cursor, position: GlobalPosition, loan: Loan):
     cursor.execute(
         """
-        INSERT INTO loan_positions (
-            id, global_position_id, type, currency, name, current_installment,
-            interest_rate, loan_amount, next_payment_date,
-            principal_outstanding, principal_paid
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
+                                    interest_rate, loan_amount, next_payment_date,
+                                    principal_outstanding, principal_paid)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(loan.id),
@@ -276,10 +270,9 @@ def _save_loan(cursor, position: GlobalPosition, loan: Loan):
 def _save_card(cursor, position: GlobalPosition, card: Card):
     cursor.execute(
         """
-        INSERT INTO card_positions (
-            id, global_position_id, type, name, currency,
-            ending, card_limit, used, active, related_account
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO card_positions (id, global_position_id, type, name, currency,
+                                    ending, card_limit, used, active, related_account)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(card.id),
@@ -299,10 +292,9 @@ def _save_card(cursor, position: GlobalPosition, card: Card):
 def _save_account(cursor, position: GlobalPosition, account: Account):
     cursor.execute(
         """
-        INSERT INTO account_positions (
-            id, global_position_id, type, currency, name, iban, total,
-            interest, retained, pending_transfers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO account_positions (id, global_position_id, type, currency, name, iban, total,
+                                       interest, retained, pending_transfers)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             str(account.id),
@@ -353,19 +345,17 @@ class PositionSQLRepository(PositionPort):
     def get_last_grouped_by_entity(self, real: bool) -> Dict[FinancialEntity, GlobalPosition]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                WITH latest_positions AS (
-                    SELECT entity_id, MAX(date) as latest_date
-                    FROM global_positions
-                    WHERE is_real = ?
-                    GROUP BY entity_id
-                )
-                SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                FROM global_positions gp
-                JOIN latest_positions lp 
-                    ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
-                JOIN financial_entities e ON gp.entity_id = e.id
-                WHERE gp.is_real = ?
-            """, (real, real))
+                           WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
+                                                     FROM global_positions
+                                                     WHERE is_real = ?
+                                                     GROUP BY entity_id)
+                           SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           FROM global_positions gp
+                                    JOIN latest_positions lp
+                                         ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
+                                    JOIN financial_entities e ON gp.entity_id = e.id
+                           WHERE gp.is_real = ?
+                           """, (real, real))
 
             positions = {}
             for row in cursor.fetchall():
@@ -392,8 +382,10 @@ class PositionSQLRepository(PositionPort):
     def _get_account_position(self, global_position_id: UUID) -> list[Account]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT * FROM account_positions WHERE global_position_id = ?
-            """, (str(global_position_id),))
+                           SELECT *
+                           FROM account_positions
+                           WHERE global_position_id = ?
+                           """, (str(global_position_id),))
 
             accounts = [
                 Account(
@@ -560,9 +552,8 @@ class PositionSQLRepository(PositionPort):
                     amount=Dezimal(row["amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
-                    net_interest_rate=Dezimal(row["net_interest_rate"]),
-                    last_invest_date=datetime.fromisoformat(
-                        row["last_invest_date"]) if row["last_invest_date"] else None,
+                    gross_interest_rate=Dezimal(row["gross_interest_rate"]),
+                    last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     type=row["type"],
                     state=row["state"]
@@ -591,6 +582,7 @@ class PositionSQLRepository(PositionPort):
                     id=UUID(row["id"]),
                     name=row["name"],
                     amount=Dezimal(row["amount"]),
+                    pending_amount=Dezimal(row["pending_amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
@@ -665,10 +657,10 @@ class PositionSQLRepository(PositionPort):
     def get_last_updated(self, entity_id: UUID) -> Optional[datetime]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT MAX(date) as last_date
-                FROM global_positions
-                WHERE entity_id = ?
-            """, (str(entity_id),))
+                           SELECT MAX(date) as last_date
+                           FROM global_positions
+                           WHERE entity_id = ?
+                           """, (str(entity_id),))
 
             result = cursor.fetchone()
             if not result or not result["last_date"]:

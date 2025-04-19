@@ -105,8 +105,8 @@ class FactoringDetail(BaseData):
     amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    net_interest_rate: Dezimal
-    last_invest_date: Optional[datetime]
+    gross_interest_rate: Dezimal
+    last_invest_date: datetime
     maturity: date
     type: str
     state: str
@@ -117,13 +117,14 @@ class RealStateCFDetail(BaseData):
     id: UUID
     name: str
     amount: Dezimal
+    pending_amount: Dezimal
     currency: str
     interest_rate: Dezimal
     last_invest_date: datetime
     maturity: date
     type: str
     business_type: str
-    state: Optional[str] = None
+    state: str
     extended_maturity: Optional[date] = None
 
 

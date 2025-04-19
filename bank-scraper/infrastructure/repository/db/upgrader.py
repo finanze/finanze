@@ -49,12 +49,13 @@ class DatabaseUpgrader:
         """
         with self._db_client.tx() as cursor:
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS migrations (
-                    version INTEGER PRIMARY KEY,
-                    applied_at TIMESTAMP NOT NULL,
-                    name TEXT NOT NULL
-                )
-            """)
+                           CREATE TABLE IF NOT EXISTS migrations
+                           (
+                               version    INTEGER PRIMARY KEY,
+                               applied_at TIMESTAMP NOT NULL,
+                               name       TEXT      NOT NULL
+                           )
+                           """)
 
     def _get_current_version(self) -> int:
         """

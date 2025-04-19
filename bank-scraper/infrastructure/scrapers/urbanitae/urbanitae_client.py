@@ -38,7 +38,7 @@ class UrbanitaeAPIClient:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Response Body:", response.text)
+        self._log.error("Error Response Body:" + response.text)
         response.raise_for_status()
         return {}
 
@@ -118,34 +118,36 @@ class UrbanitaeAPIClient:
         )
         params = f"?page={page}&size={limit}&startDate={from_date}&endDate={to_date}"
         # "type"
-        # 	MONEY_IN
-        # 	MONEY_IN_CARD
-        # 	MONEY_IN_WIRE
-        # 	PREFUNDING_INVESTMENT_REFUND
-        # 	INVESTMENT_REFUND
-        # 	INVESTMENT_ERROR
-        # 	RENTS
-        # 	APPRECIATION
-        # 	MGM_ADVOCATE
-        # 	MGM_NEW_INVESTOR
-        # 	MARKETING_REWARD
-        # 	TRANSFER_NOTARY
-        # 	P2P_IN
-        # 	MONEY_OUT_WIRE
-        # 	URBANITAE_FEE
-        # 	CREDIT_CARD_FEE
-        # 	NOTARY_REFUND
-        # 	P2P_OUT
-        # 	INVESTMENT
-        # 	PREFUNDING_INVESTMENT
+        # 	MONEY_IN - INBOUND
+        # 	MONEY_IN_CARD - INBOUND
+        # 	MONEY_IN_WIRE - INBOUND
+        # 	PREFUNDING_INVESTMENT_REFUND - INBOUND
+        # 	INVESTMENT_REFUND - INBOUND
+        # 	INVESTMENT_ERROR - INBOUND
+        # 	RENTS - INBOUND
+        # 	APPRECIATION - INBOUND
+        # 	MGM_ADVOCATE - INBOUND
+        # 	MGM_NEW_INVESTOR - INBOUND
+        # 	MARKETING_REWARD - INBOUND
+        # 	TRANSFER_NOTARY - INBOUND
+        # 	P2P_IN - INBOUND
+        # 	MONEY_OUT_WIRE - OUTBOUND
+        # 	URBANITAE_FEE - OUTBOUND
+        # 	CREDIT_CARD_FEE - OUTBOUND
+        # 	NOTARY_REFUND - OUTBOUND
+        # 	P2P_OUT - OUTBOUND
+        # 	INVESTMENT - OUTBOUND (INVESTMENT)
+        # 	PREFUNDING_INVESTMENT - OUTBOUND (INVESTMENT)
         # 	OVERFUNDING
         # 	OPERATOR
         # 	P2P
         # 	UNKNOWN
         return self._get_request(f"/investor/wallet/transactions{params}")["content"]
 
-    def get_investments(self, page: int = 0, limit: int = 1000):
+    def get_investments(self, page: int = 0, limit: int = 1000, project_phases: list[str] = None):
         params = f"?page={page}&size={limit}&sortField=INVEST_DATE&sortDirection=DESC"
+        if project_phases:
+            params += "&projectPhases=" + ",".join(project_phases)
         return self._get_request(f"/investor/summary{params}")["content"]
 
     @cached(cache=TTLCache(maxsize=50, ttl=600))

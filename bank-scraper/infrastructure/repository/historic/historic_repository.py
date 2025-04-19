@@ -44,7 +44,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         return FactoringEntry(
             **common,
             interest_rate=Dezimal(row["interest_rate"]),
-            net_interest_rate=Dezimal(row["net_interest_rate"]),
+            gross_interest_rate=Dezimal(row["gross_interest_rate"]),
             maturity=datetime.fromisoformat(row["maturity"]).date(),
             type=row["type"]
         )
@@ -76,6 +76,7 @@ class HistoricSQLRepository(HistoricPort):
                     "id": str(entry.id),
                     "name": entry.name,
                     "invested": str(entry.invested),
+                    "repaid": str(entry.repaid) if entry.repaid else None,
                     "returned": str(entry.returned) if entry.returned else None,
                     "currency": entry.currency,
                     "last_invest_date": entry.last_invest_date.isoformat(),
@@ -90,7 +91,7 @@ class HistoricSQLRepository(HistoricPort):
                     "product_type": entry.product_type.value,
                     "created_at": datetime.now(tzlocal()).isoformat(),
                     "interest_rate": None,
-                    "net_interest_rate": None,
+                    "gross_interest_rate": None,
                     "maturity": None,
                     "extended_maturity": None,
                     "type": None,
@@ -100,7 +101,7 @@ class HistoricSQLRepository(HistoricPort):
                 if isinstance(entry, FactoringEntry):
                     base_data.update({
                         "interest_rate": str(entry.interest_rate),
-                        "net_interest_rate": str(entry.net_interest_rate),
+                        "gross_interest_rate": str(entry.gross_interest_rate),
                         "maturity": entry.maturity.isoformat(),
                         "type": entry.type
                     })
@@ -114,20 +115,18 @@ class HistoricSQLRepository(HistoricPort):
                     })
 
                 cursor.execute("""
-                    INSERT INTO investment_historic (
-                        id, name, invested, returned, currency, last_invest_date,
-                        last_tx_date, effective_maturity, net_return, fees,
-                        retentions, interests, state, entity_id, product_type,
-                        interest_rate, net_interest_rate, maturity,
-                        extended_maturity, type, business_type, created_at
-                    ) VALUES (
-                        :id, :name, :invested, :returned, :currency, :last_invest_date,
-                        :last_tx_date, :effective_maturity, :net_return, :fees,
-                        :retentions, :interests, :state, :entity_id, :product_type,
-                        :interest_rate, :net_interest_rate, :maturity,
-                        :extended_maturity, :type, :business_type, :created_at
-                    )
-                """, base_data)
+                               INSERT INTO investment_historic (id, name, invested, repaid, returned, currency,
+                                                                last_invest_date,
+                                                                last_tx_date, effective_maturity, net_return, fees,
+                                                                retentions, interests, state, entity_id, product_type,
+                                                                interest_rate, gross_interest_rate, maturity,
+                                                                extended_maturity, type, business_type, created_at)
+                               VALUES (:id, :name, :invested, :repaid, :returned, :currency, :last_invest_date,
+                                       :last_tx_date, :effective_maturity, :net_return, :fees,
+                                       :retentions, :interests, :state, :entity_id, :product_type,
+                                       :interest_rate, :gross_interest_rate, :maturity,
+                                       :extended_maturity, :type, :business_type, :created_at)
+                               """, base_data)
 
                 for tx in entry.related_txs:
                     cursor.execute("""

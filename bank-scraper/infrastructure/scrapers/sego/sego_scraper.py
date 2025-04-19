@@ -37,15 +37,13 @@ def map_txs(ref: str,
             tx: dict,
             name: str,
             tx_type: TxType,
+            amount: Dezimal,
+            net_amount: Dezimal,
             fee: Dezimal,
             tax: Dezimal,
             interests: Dezimal) -> Optional[FactoringTx]:
     tx_date = tx["date"]
     currency = tx["currency"]
-    base_amount = Dezimal(tx["amount"])
-
-    amount = base_amount + interests
-    net_amount = base_amount + interests - fee - tax
 
     return FactoringTx(
         id=uuid4(),
@@ -105,11 +103,11 @@ class SegoScraper(EntityScraper):
             factoring_investments.append(self._map_investment(investment_movements, investment))
 
         total_invested = sum([investment.amount for investment in factoring_investments])
-        weighted_net_interest_rate = round(
+        weighted_interest_rate = round(
             (
                     sum(
                         [
-                            investment.amount * investment.net_interest_rate
+                            investment.amount * investment.interest_rate
                             for investment in factoring_investments
                         ]
                     )
@@ -120,7 +118,7 @@ class SegoScraper(EntityScraper):
 
         sego_data = FactoringInvestments(
             total=total_invested,
-            weighted_interest_rate=weighted_net_interest_rate,
+            weighted_interest_rate=weighted_interest_rate,
             details=factoring_investments,
         )
 
@@ -171,8 +169,8 @@ class SegoScraper(EntityScraper):
             name=name,
             amount=round(Dezimal(investment["importe"]), 2),
             currency="EUR",
-            interest_rate=round(interest_rate / 100, 4),
-            net_interest_rate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
+            interest_rate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
+            gross_interest_rate=round(interest_rate / 100, 4),
             last_invest_date=last_invest_date,
             maturity=(
                 date.fromisoformat(investment["fechaDevolucion"][:10])
@@ -234,7 +232,9 @@ class SegoScraper(EntityScraper):
     def scrape_factoring_txs(self, registered_txs: set[str]) -> list[FactoringTx]:
         completed_investments = self._client.get_investments(FINISHED_SEGO_STATES)
 
-        txs = self._get_normalized_movements(["TRANSFER"], ["Inversión Factoring", "Devolución Capital"])
+        txs = self._get_normalized_movements(
+            ["TRANSFER"],
+            ["Inversión Factoring", "Devolución Capital", "Ganancias", "Ganancias extraordinarias"])
 
         investment_txs = []
 
@@ -246,29 +246,43 @@ class SegoScraper(EntityScraper):
 
             investment_name = tag_props["operacion"].strip()
             tx_date = tx["date"]
-            raw_tx_type = tx["tipo"].lower()
-            tx_type = TxType.INVESTMENT if "inversión" in raw_tx_type else TxType.MATURITY
+            raw_tx_type = tx["tipo"]
+            if raw_tx_type == "Inversión Factoring":
+                tx_type = TxType.INVESTMENT
+            elif raw_tx_type == "Devolución Capital":
+                tx_type = TxType.REPAYMENT
+            elif raw_tx_type == "Ganancias" or raw_tx_type == "Ganancias extraordinarias":
+                tx_type = TxType.INTEREST
+            else:
+                self._log.warning(f"Unknown transaction type: {raw_tx_type}")
+                continue
 
-            amount = tx["amount"]
+            amount: Dezimal = tx["amount"]
             ref = self._calc_sego_tx_id(investment_name, tx_date, amount, tx_type)
             if ref in registered_txs:
                 continue
 
-            fee, tax, interests = 0, 0, 0
-            if tx_type == TxType.MATURITY:
+            fee, tax, interests = Dezimal(0), Dezimal(0), Dezimal(0)
+            net_amount = amount
+            if tx_type == TxType.INTEREST:
                 matching_investment = next(
                     (investment for investment in completed_investments if
                      investment["nombreOperacion"].strip() == investment_name),
                     None,
                 )
-                fee = round(Dezimal(matching_investment["comision"]), 2)
-                tax = round(Dezimal(matching_investment["retencion"]), 2)
-                interests = round(
-                    Dezimal(
-                        matching_investment["gananciasOrdinarias"] + matching_investment["gananciasExtraOrdinarias"]),
-                    2)
 
-            stored_tx = map_txs(ref, tx, investment_name, tx_type, fee, tax, interests)
+                ordinary_interests = Dezimal(matching_investment["gananciasOrdinarias"])
+                extraordinary_interests = Dezimal(matching_investment["gananciasExtraOrdinarias"])
+                total_interests = ordinary_interests + extraordinary_interests
+                percentage = amount / total_interests
+
+                interests = amount
+                fee = round(percentage * Dezimal(matching_investment["comision"]), 2)
+                tax = round(percentage * Dezimal(matching_investment["retencion"]), 2)
+
+                net_amount = interests - fee - tax
+
+            stored_tx = map_txs(ref, tx, investment_name, tx_type, amount, net_amount, fee, tax, interests)
             investment_txs.append(stored_tx)
 
         return investment_txs

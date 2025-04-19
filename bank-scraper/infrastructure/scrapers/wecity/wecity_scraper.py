@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.entity_scraper import EntityScraper
+from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
     HistoricalPosition, AccountType
@@ -16,6 +17,24 @@ from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 
 DATE_FORMAT = "%Y-%m-%d"
+
+INTEREST_SUBCATEGORIES = ["pago de intereses", "pago intereses de demora", "penalización amortización anticipada"]
+
+
+def _normalize_transactions(raw_txs: list):
+    txs = []
+    for tx in raw_txs:
+        txs.append(
+            {
+                "date": datetime.fromtimestamp(tx["date"]),
+                "category": tx["type"],
+                "sub_category": tx["label"],
+                "name": tx["title"].strip(),
+                "amount": round(abs(Dezimal(tx["amount"])), 2)
+            }
+        )
+
+    return sorted(txs, key=lambda txx: (txx["date"], txx["amount"]))
 
 
 class WecityScraper(EntityScraper):
@@ -49,12 +68,18 @@ class WecityScraper(EntityScraper):
             type=AccountType.VIRTUAL_WALLET
         )
 
-        txs = self.scrape_transactions()
         investments = self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            investment_details.append(self._map_investment(txs, inv_id, inv))
+            pending_amount = Dezimal(inv["amount"]["current"])
+            if inv["opportunity"][
+                "state_id"] == 5 and pending_amount == 0:  # It can be marked as completed (5), but there could be pending principal
+                continue
+
+            raw_related_txs = self._client.get_investment_transactions(inv_id)["movements"]
+            related_txs = _normalize_transactions(raw_related_txs)
+            investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
         total_invested = round(sum([inv.amount for inv in investment_details]), 2)
         weighted_interest_rate = round(
@@ -77,10 +102,11 @@ class WecityScraper(EntityScraper):
             investments=investments
         )
 
-    def _map_investment(self, txs, inv_id, inv):
+    def _map_investment(self, related_txs, inv_id, inv):
         opportunity = inv["opportunity"]
         name = opportunity["name"].strip()
-        amount = Dezimal(inv["amount"]["current"])
+        amount = Dezimal(inv["amount"]["initial"])
+        pending = Dezimal(inv["amount"]["current"])
         investments_details = self._client.get_investment_details(inv_id)
 
         raw_business_type = opportunity["investment_type_id"]
@@ -99,7 +125,7 @@ class WecityScraper(EntityScraper):
         elif raw_project_type == "Suelo":
             project_type = "FLOOR"
         elif raw_project_type == "Oficinas":
-            project_type = "OFFICES"
+            project_type = "COMMERCIAL_OFFICE"
         elif raw_project_type == "Hotelero":
             project_type = "HOTEL"
         elif raw_project_type == "Local":
@@ -117,13 +143,13 @@ class WecityScraper(EntityScraper):
         state = "-"
         if state_id == 2:
             state = "UNDER_REVIEW"
-        elif state_id == 1 or state_id == 3 or state_id == 12:
+        elif state_id == 1 or state_id == 3 or state_id == 12:  # 1 = "Abierta", 3 = "Financiada", 12 = "?"
             state = "IN_PROGRESS"
         elif state_id == 5:
             state = "COMPLETED"
 
         last_invest_date = max(
-            [tx["date"] for tx in txs if "investment" == tx["category"] and tx["name"] == name],
+            [tx["date"] for tx in related_txs if "investment" == tx["category"]],
             default=None)
 
         last_invest_date = last_invest_date.replace(tzinfo=tzlocal())
@@ -147,6 +173,7 @@ class WecityScraper(EntityScraper):
             id=uuid4(),
             name=name,
             amount=round(amount, 2),
+            pending_amount=round(pending, 2),
             currency="EUR",
             interest_rate=round(Dezimal(opportunity["annual_profitability"]) / 100, 4),
             last_invest_date=last_invest_date,
@@ -158,15 +185,26 @@ class WecityScraper(EntityScraper):
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
-        raw_transactions = self.scrape_transactions()
+        raw_transactions = _normalize_transactions(self._client.get_transactions())
 
         txs = []
         for tx in raw_transactions:
-            tx_type_raw = tx["category"]
-            if tx_type_raw not in ["investment"]:
-                continue
-            tx_type = TxType.INVESTMENT if "investment" == tx_type_raw else None
-            if not tx_type:
+            tx_type_raw = tx["category"].lower()
+            tx_subtype_raw = tx["sub_category"].lower()
+
+            if tx_type_raw == "investment":
+                tx_type = TxType.INVESTMENT
+            elif tx_type_raw == "moneyback":
+                if tx_subtype_raw == "devolución de capital":
+                    tx_type = TxType.REPAYMENT
+                elif tx_subtype_raw == "reparto de dividendos":
+                    tx_type = TxType.DIVIDEND
+                elif tx_subtype_raw in INTEREST_SUBCATEGORIES:
+                    tx_type = TxType.INTEREST
+                else:
+                    self._log.debug(f"Skipping tx {tx['name']} with subtype {tx_subtype_raw}")
+                    continue
+            else:
                 self._log.debug(f"Skipping tx {tx['name']} with type {tx_type_raw}")
                 continue
 
@@ -179,6 +217,17 @@ class WecityScraper(EntityScraper):
             if ref in registered_txs:
                 continue
 
+            interests = Dezimal(0)
+            retentions = Dezimal(0)
+            net_amount = amount
+            # We assume there are retentions
+            if tx_type == TxType.INTEREST or tx_type == TxType.DIVIDEND:
+                amount = net_amount / (1 - CAPITAL_GAINS_BASE_TAX)
+                retentions = amount - net_amount
+
+            if tx_type == TxType.INTEREST:
+                interests = amount
+
             txs.append(RealStateCFTx(
                 id=uuid4(),
                 ref=ref,
@@ -190,29 +239,13 @@ class WecityScraper(EntityScraper):
                 entity=WECITY,
                 product_type=ProductType.REAL_STATE_CF,
                 fees=Dezimal(0),
-                retentions=Dezimal(0),
-                interests=Dezimal(0),
-                net_amount=amount,
+                retentions=retentions,
+                interests=interests,
+                net_amount=net_amount,
                 is_real=True
             ))
 
         return Transactions(investment=txs)
-
-    def scrape_transactions(self):
-        raw_txs = self._client.get_transactions()
-
-        txs = []
-        for tx in raw_txs:
-            txs.append(
-                {
-                    "date": datetime.fromtimestamp(tx["date"]),
-                    "category": tx["type"],
-                    "name": tx["title"].strip(),
-                    "amount": round(Dezimal(tx["amount"]), 2)
-                }
-            )
-
-        return sorted(txs, key=lambda txx: (txx["date"], txx["amount"]))
 
     @staticmethod
     def _calc_tx_id(inv_name: str,
@@ -223,12 +256,13 @@ class WecityScraper(EntityScraper):
             f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
 
     async def historical_position(self) -> HistoricalPosition:
-        txs = self.scrape_transactions()
         investments = self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            investment_details.append(self._map_investment(txs, inv_id, inv))
+            raw_related_txs = self._client.get_investment_transactions(inv_id)["movements"]
+            related_txs = _normalize_transactions(raw_related_txs)
+            investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
         return HistoricalPosition(
             investments=Investments(

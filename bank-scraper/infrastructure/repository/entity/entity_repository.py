@@ -23,9 +23,8 @@ class EntitySQLRepository(EntityPort):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 """
-                INSERT INTO financial_entities (
-                    id, name, is_real
-                ) VALUES (?, ?, ?)
+                INSERT INTO financial_entities (id, name, is_real)
+                VALUES (?, ?, ?)
                 """, (str(entity.id), entity.name, entity.is_real)
             )
 

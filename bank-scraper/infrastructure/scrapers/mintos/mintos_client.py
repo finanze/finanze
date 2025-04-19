@@ -30,7 +30,7 @@ class MintosAPIClient:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Response Body:", response.text)
+        self._log.error("Error Response Body:" + response.text)
         response.raise_for_status()
         return {}
 

@@ -176,17 +176,14 @@ class TransactionSQLRepository(TransactionPort):
 
                 cursor.execute(
                     """
-                    INSERT INTO investment_transactions (
-                        id, ref, name, amount, currency, type, date,
-                        entity_id, is_real, product_type, created_at,
-                        isin, ticker, market, shares, price, net_amount,
-                        fees, retentions, order_date, linked_tx, interests
-                    ) VALUES (
-                        :id, :ref, :name, :amount, :currency, :type, :date,
-                        :entity_id, :is_real, :product_type, :created_at,
-                        :isin, :ticker, :market, :shares, :price, :net_amount,
-                        :fees, :retentions, :order_date, :linked_tx, :interests
-                    )
+                    INSERT INTO investment_transactions (id, ref, name, amount, currency, type, date,
+                                                         entity_id, is_real, product_type, created_at,
+                                                         isin, ticker, market, shares, price, net_amount,
+                                                         fees, retentions, order_date, linked_tx, interests)
+                    VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
+                            :entity_id, :is_real, :product_type, :created_at,
+                            :isin, :ticker, :market, :shares, :price, :net_amount,
+                            :fees, :retentions, :order_date, :linked_tx, :interests)
                     """,
                     entry
                 )
@@ -196,11 +193,10 @@ class TransactionSQLRepository(TransactionPort):
             for tx in txs:
                 cursor.execute(
                     """
-                    INSERT INTO account_transactions (
-                        id, ref, name, amount, currency, type, date,
-                        entity_id, is_real, created_at,
-                        fees, retentions, interest_rate, avg_balance
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO account_transactions (id, ref, name, amount, currency, type, date,
+                                                      entity_id, is_real, created_at,
+                                                      fees, retentions, interest_rate, avg_balance)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(tx.id),
@@ -229,50 +225,52 @@ class TransactionSQLRepository(TransactionPort):
     def _get_investment_txs(self) -> List[BaseInvestmentTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                FROM investment_transactions it
-                JOIN financial_entities e ON it.entity_id = e.id
-            """)
+                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           FROM investment_transactions it
+                                    JOIN financial_entities e ON it.entity_id = e.id
+                           """)
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
     def _get_account_txs(self) -> List[AccountTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                FROM account_transactions at
-                JOIN financial_entities e ON at.entity_id = e.id
-            """)
+                           SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           FROM account_transactions at
+                                    JOIN financial_entities e ON at.entity_id = e.id
+                           """)
             return [_map_account_row(row) for row in cursor.fetchall()]
 
     def _get_investment_txs_by_entity(self, entity_id: UUID) -> List[BaseInvestmentTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                FROM investment_transactions it
-                JOIN financial_entities e ON it.entity_id = e.id
-                WHERE it.entity_id = ?
-            """, (str(entity_id),))
+                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           FROM investment_transactions it
+                                    JOIN financial_entities e ON it.entity_id = e.id
+                           WHERE it.entity_id = ?
+                           """, (str(entity_id),))
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
     def _get_account_txs_by_entity(self, entity_id: UUID) -> List[AccountTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                FROM account_transactions at
-                JOIN financial_entities e ON at.entity_id = e.id
-                WHERE at.entity_id = ?
-            """, (str(entity_id),))
+                           SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           FROM account_transactions at
+                                    JOIN financial_entities e ON at.entity_id = e.id
+                           WHERE at.entity_id = ?
+                           """, (str(entity_id),))
             return [_map_account_row(row) for row in cursor.fetchall()]
 
     def get_refs_by_entity(self, entity_id: UUID) -> Set[str]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT ref FROM investment_transactions
-                WHERE entity_id = ?
-                UNION
-                SELECT ref FROM account_transactions
-                WHERE entity_id = ?
-            """, (str(entity_id), str(entity_id)))
+                           SELECT ref
+                           FROM investment_transactions
+                           WHERE entity_id = ?
+                           UNION
+                           SELECT ref
+                           FROM account_transactions
+                           WHERE entity_id = ?
+                           """, (str(entity_id), str(entity_id)))
             return {row[0] for row in cursor.fetchall()}
 
     def get_by_entity(self, entity_id: UUID) -> Transactions:
@@ -284,24 +282,28 @@ class TransactionSQLRepository(TransactionPort):
     def get_refs_by_source_type(self, real: bool) -> Set[str]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT ref FROM investment_transactions WHERE is_real = ?
-                UNION
-                SELECT ref FROM account_transactions WHERE is_real = ?
-            """, (real, real))
+                           SELECT ref
+                           FROM investment_transactions
+                           WHERE is_real = ?
+                           UNION
+                           SELECT ref
+                           FROM account_transactions
+                           WHERE is_real = ?
+                           """, (real, real))
             return {row[0] for row in cursor.fetchall()}
 
     def get_last_created_grouped_by_entity(self) -> Dict[FinancialEntity, datetime]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT e.*, MAX(created_at) AS last_created
-                FROM (
-                    SELECT entity_id, created_at FROM investment_transactions
-                    UNION ALL
-                    SELECT entity_id, created_at FROM account_transactions
-                ) txs
-                JOIN financial_entities e ON txs.entity_id = e.id
-                GROUP BY e.name
-            """)
+                           SELECT e.*, MAX(created_at) AS last_created
+                           FROM (SELECT entity_id, created_at
+                                 FROM investment_transactions
+                                 UNION ALL
+                                 SELECT entity_id, created_at
+                                 FROM account_transactions) txs
+                                    JOIN financial_entities e ON txs.entity_id = e.id
+                           GROUP BY e.name
+                           """)
 
             result = {}
             for row in cursor.fetchall():

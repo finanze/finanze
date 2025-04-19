@@ -28,8 +28,7 @@ class TxType(str, Enum):
     SWAP_TO = "SWAP_TO"
 
     INVESTMENT = "INVESTMENT"
-    MATURITY = "MATURITY"
-
+    REPAYMENT = "REPAYMENT"
     INTEREST = "INTEREST"
 
 

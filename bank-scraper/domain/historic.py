@@ -14,6 +14,7 @@ class BaseHistoricEntry:
     id: UUID
     name: str
     invested: Dezimal
+    repaid: Optional[Dezimal]
     returned: Optional[Dezimal]
     currency: str
     last_invest_date: datetime
@@ -32,7 +33,7 @@ class BaseHistoricEntry:
 @dataclass
 class FactoringEntry(BaseHistoricEntry):
     interest_rate: Dezimal
-    net_interest_rate: Dezimal
+    gross_interest_rate: Dezimal
     maturity: date
     type: str
 

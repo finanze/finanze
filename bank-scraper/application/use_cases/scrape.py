@@ -1,7 +1,7 @@
 import logging
 from dataclasses import asdict
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from uuid import uuid4
 
 from dateutil.tz import tzlocal
@@ -25,10 +25,79 @@ from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
 from domain.login import LoginResultCode, LoginParams
 from domain.scrap_result import ScrapResultCode, ScrapResult, SCRAP_BAD_LOGIN_CODES, ScrapRequest
 from domain.scraped_data import ScrapedData
-from domain.transactions import TxType
+from domain.transactions import TxType, ProductType
 from domain.use_cases.scrape import Scrape
 
 DEFAULT_FEATURES = [Feature.POSITION]
+
+
+def compute_return_values(related_inv_txs):
+    repayment_txs = [tx for tx in related_inv_txs if tx.type == TxType.REPAYMENT]
+    interest_txs = [tx for tx in related_inv_txs if tx.type == TxType.INTEREST]
+    dividend_txs = [tx for tx in related_inv_txs if tx.type == TxType.DIVIDEND]
+
+    returned, repaid, fees, retentions, interests, net_return = (
+        Dezimal(0), Dezimal(0), Dezimal(0), Dezimal(0), Dezimal(0), Dezimal(0))
+    last_return_tx = None
+
+    if repayment_txs:
+        fees += sum([tx.fees for tx in repayment_txs], start=Dezimal(0))
+        retentions += sum([tx.retentions for tx in repayment_txs], start=Dezimal(0))
+        interests += sum([tx.interests for tx in repayment_txs], start=Dezimal(0))
+
+        repaid += sum([tx.amount for tx in repayment_txs], start=Dezimal(0))
+        returned = repaid
+        net_return = repaid
+
+        last_return_tx = max(repayment_txs, key=lambda txx: txx.date)
+        if last_return_tx:
+            last_return_tx = last_return_tx.date
+
+    if interest_txs:
+        interest_fees = sum([tx.fees for tx in interest_txs], start=Dezimal(0))
+        interest_retentions = sum([tx.retentions for tx in interest_txs], start=Dezimal(0))
+        added_interests = sum([tx.interests for tx in interest_txs], start=Dezimal(0))
+
+        fees += interest_fees
+        retentions += interest_retentions
+        interests += added_interests
+
+        net_return += added_interests - interest_fees - interest_retentions
+        returned += added_interests
+
+    if dividend_txs:
+        dividend_fees = sum([tx.fees for tx in dividend_txs], start=Dezimal(0))
+        dividend_retentions = sum([tx.retentions for tx in dividend_txs], start=Dezimal(0))
+
+        total_dividends = sum([tx.amount for tx in dividend_txs], start=Dezimal(0))
+
+        fees += dividend_fees
+        retentions += dividend_retentions
+        interests += total_dividends
+
+        net_return += total_dividends - dividend_fees - dividend_retentions
+        returned += total_dividends
+
+    return fees, interests, net_return, repaid, retentions, returned, last_return_tx
+
+
+def _historic_inv_by_name(historical_position):
+    investments_by_name = {}
+    for key, cat in asdict(historical_position.investments).items():
+        if not cat or "details" not in cat:
+            continue
+        investments = cat["details"]
+        for inv in investments:
+            inv_name = inv["name"]
+            if inv_name in investments_by_name:
+                investments_by_name[inv_name]["amount"] += inv["amount"]
+                investments_by_name[inv_name]["last_invest_date"] = max(
+                    investments_by_name[inv_name]["last_invest_date"],
+                    inv["last_invest_date"])
+            else:
+                investments_by_name[inv_name] = inv
+
+    return investments_by_name
 
 
 class ScrapeImpl(AtomicUCMixin, Scrape):
@@ -162,25 +231,74 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                                    historic=historic)
         return scraped_data
 
+    def _compute_historic_entry(self, entity, inv, txs_by_name) -> Optional[BaseHistoricEntry]:
+        inv_name = inv["name"]
+        related_inv_txs = txs_by_name[inv_name]
+
+        inv_txs = [tx for tx in related_inv_txs if tx.type == TxType.INVESTMENT]
+        product_type = next((tx.product_type for tx in inv_txs), None)
+
+        if product_type == ProductType.REAL_STATE_CF:
+            inv = RealStateCFDetail(**inv)
+        elif product_type == ProductType.FACTORING:
+            inv = FactoringDetail(**inv)
+        else:
+            self._log.warning(f"Skipping investment with unsupported product type {product_type}")
+            return None
+
+        fees, interests, net_return, repaid, retentions, returned, last_return_tx = compute_return_values(
+            related_inv_txs)
+
+        last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
+
+        historic_entry_base = {
+            "id": uuid4(),
+            "name": inv_name,
+            "invested": inv.amount,
+            "repaid": repaid,
+            "returned": returned,
+            "currency": inv.currency,
+            "last_invest_date": inv.last_invest_date,
+            "last_tx_date": last_tx_date,
+            "effective_maturity": last_return_tx,
+            "net_return": net_return,
+            "fees": fees,
+            "retentions": retentions,
+            "interests": interests,
+            "state": inv.state,
+            "entity": entity,
+            "product_type": product_type,
+            "related_txs": related_inv_txs
+        }
+
+        if product_type == ProductType.REAL_STATE_CF:
+            return RealStateCFEntry(
+                **historic_entry_base,
+                interest_rate=Dezimal(inv.interest_rate),
+                maturity=inv.maturity,
+                extended_maturity=inv.extended_maturity,
+                type=inv.type,
+                business_type=inv.business_type
+            )
+
+        elif product_type == ProductType.FACTORING:
+            return FactoringEntry(
+                **historic_entry_base,
+                interest_rate=Dezimal(inv.interest_rate),
+                gross_interest_rate=Dezimal(inv.gross_interest_rate),
+                maturity=inv.maturity,
+                type=inv.type
+            )
+
+        return None
+
     async def build_historic(self,
                              entity: FinancialEntity,
                              specific_scraper: EntityScraper) -> list[BaseHistoricEntry]:
+
         historical_position = await specific_scraper.historical_position()
 
-        investments_by_name = {}
-        for key, cat in asdict(historical_position.investments).items():
-            if not cat or "details" not in cat:
-                continue
-            investments = cat["details"]
-            for inv in investments:
-                inv_name = inv["name"]
-                if inv_name in investments_by_name:
-                    investments_by_name[inv_name]["amount"] += inv["amount"]
-                    investments_by_name[inv_name]["last_invest_date"] = max(
-                        investments_by_name[inv_name]["last_invest_date"],
-                        inv["last_invest_date"])
-                else:
-                    investments_by_name[inv_name] = inv
+        investments_by_name = _historic_inv_by_name(historical_position)
 
         investments = list(investments_by_name.values())
 
@@ -199,72 +317,9 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                 self._log.warning(f"No txs for investment {inv_name}")
                 continue
 
-            related_inv_txs = txs_by_name[inv_name]
-            inv_txs = [tx for tx in related_inv_txs if tx.type == TxType.INVESTMENT]
-            maturity_txs = [tx for tx in related_inv_txs if tx.type == TxType.MATURITY]
-
-            product_type = next((tx.product_type for tx in inv_txs), None)
-
-            if product_type == "REAL_STATE_CF":
-                inv = RealStateCFDetail(**inv)
-            elif product_type == "FACTORING":
-                inv = FactoringDetail(**inv)
-            else:
-                self._log.warning(f"Skipping investment with unsupported product type {product_type}")
+            historic_entry = self._compute_historic_entry(entity, inv, txs_by_name)
+            if historic_entry is None:
                 continue
-
-            returned, fees, retentions, interests, net_return, last_maturity_tx = None, None, None, None, None, None
-            if maturity_txs:
-                returned = sum([tx.amount for tx in maturity_txs])
-                fees = sum([tx.fees for tx in maturity_txs])
-                retentions = sum([tx.retentions for tx in maturity_txs])
-                interests = sum([tx.interests for tx in maturity_txs])
-                net_return = sum([tx.net_amount for tx in maturity_txs])
-
-                last_maturity_tx = max(maturity_txs, key=lambda txx: txx.date)
-                if last_maturity_tx:
-                    last_maturity_tx = last_maturity_tx.date
-
-            last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
-
-            historic_entry_base = {
-                "id": uuid4(),
-                "name": inv_name,
-                "invested": inv.amount,
-                "returned": returned,
-                "currency": inv.currency,
-                "last_invest_date": inv.last_invest_date,
-                "last_tx_date": last_tx_date,
-                "effective_maturity": last_maturity_tx,
-                "net_return": net_return,
-                "fees": fees,
-                "retentions": retentions,
-                "interests": interests,
-                "state": inv.state,
-                "entity": entity,
-                "product_type": product_type,
-                "related_txs": related_inv_txs
-            }
-
-            historic_entry = None
-            if product_type == "REAL_STATE_CF":
-                historic_entry = RealStateCFEntry(
-                    **historic_entry_base,
-                    interest_rate=Dezimal(inv.interest_rate),
-                    maturity=inv.maturity,
-                    extended_maturity=inv.extended_maturity,
-                    type=inv.type,
-                    business_type=inv.business_type
-                )
-
-            elif product_type == "FACTORING":
-                historic_entry = FactoringEntry(
-                    **historic_entry_base,
-                    interest_rate=Dezimal(inv.interest_rate),
-                    net_interest_rate=Dezimal(inv.net_interest_rate),
-                    maturity=inv.maturity,
-                    type=inv.type
-                )
 
             historic_entries.append(historic_entry)
 
