@@ -24,6 +24,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         "id": UUID(row["id"]),
         "name": row["name"],
         "invested": Dezimal(row["invested"]),
+        "repaid": Dezimal(row["repaid"]) if "repaid" in row else None,
         "returned": Dezimal(row["returned"]) if "returned" in row else None,
         "currency": row["currency"],
         "last_invest_date": datetime.fromisoformat(row["last_invest_date"]),
@@ -40,7 +41,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         "related_txs": []
     }
 
-    if row["product_type"] == ProductType.FACTORING.value:
+    if common["product_type"] == ProductType.FACTORING:
         return FactoringEntry(
             **common,
             interest_rate=Dezimal(row["interest_rate"]),
@@ -48,7 +49,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
             maturity=datetime.fromisoformat(row["maturity"]).date(),
             type=row["type"]
         )
-    elif row["product_type"] == ProductType.REAL_STATE_CF.value:
+    elif common["product_type"] == ProductType.REAL_STATE_CF:
         return RealStateCFEntry(
             **common,
             interest_rate=Dezimal(row["interest_rate"]),
@@ -130,17 +131,18 @@ class HistoricSQLRepository(HistoricPort):
 
                 for tx in entry.related_txs:
                     cursor.execute("""
-                        INSERT INTO investment_historic_txs
-                        (tx_id, historic_entry_id) VALUES (?, ?)
-                    """, (str(tx.id), str(entry.id)))
+                                   INSERT INTO investment_historic_txs
+                                       (tx_id, historic_entry_id)
+                                   VALUES (?, ?)
+                                   """, (str(tx.id), str(entry.id)))
 
     def get_all(self, fetch_related_txs: bool = False) -> Historic:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                SELECT h.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                FROM investment_historic h
-                JOIN financial_entities e ON h.entity_id = e.id
-            """)
+                           SELECT h.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           FROM investment_historic h
+                                    JOIN financial_entities e ON h.entity_id = e.id
+                           """)
             entries = cursor.fetchall()
 
             if not entries:

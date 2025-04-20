@@ -1,8 +1,8 @@
+from dataclasses import field
 from enum import Enum
+from pydantic.dataclasses import dataclass
 from typing import Optional, Union
 from uuid import UUID
-
-from pydantic.dataclasses import dataclass
 
 from domain.financial_entity import Feature
 from domain.login import LoginResultCode, TwoFactor, LoginOptions
@@ -14,6 +14,7 @@ class ScrapResultCode(str, Enum):
     COOLDOWN = "COOLDOWN"
     ENTITY_NOT_FOUND = "ENTITY_NOT_FOUND"
     FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED"
+    DISABLED = "DISABLED"
 
     # Login related codes
     CODE_REQUESTED = "CODE_REQUESTED"
@@ -29,7 +30,7 @@ class ScrapRequest:
     entity_id: UUID
     features: list[Feature]
     two_factor: Optional[TwoFactor] = None
-    options: Optional[LoginOptions] = LoginOptions()
+    options: Optional[LoginOptions] = field(default_factory=LoginOptions)
 
 
 @dataclass

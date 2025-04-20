@@ -28,14 +28,17 @@ from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
 from infrastructure.scrapers.urbanitae.urbanitae_scraper import UrbanitaeScraper
 from infrastructure.scrapers.wecity.wecity_scraper import WecityScraper
 from infrastructure.sessions.sessions_repository import SessionsRepository
+from infrastructure.sheets.exporter.default_exporter import NullExporter
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
+from infrastructure.sheets.importer.default_importer import NullImporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 
 log_level = os.environ.get("LOG_LEVEL", "WARNING")
 logging.basicConfig()
 logging.getLogger().setLevel(getLevelName(log_level))
 
-db_client = initialize_database("bank_data.db")
+db_path = os.environ.get("DB_PATH", "finanze_data.db")
+db_client = initialize_database(db_path)
 
 update_cooldown = os.environ.get("UPDATE_COOLDOWN", 60)
 config_path = os.environ.get("CONFIG_PATH", "config.yml")
@@ -53,7 +56,13 @@ entity_scrapers = {
     domain.native_entities.MINTOS: MintosScraper(),
     domain.native_entities.F24: F24Scraper(),
 }
-virtual_scraper = SheetsImporter()
+try:
+    virtual_scraper = SheetsImporter()
+    exporter = SheetsExporter()
+except:
+    virtual_scraper = NullImporter()
+    exporter = NullExporter()
+
 position_repository = PositionRepository(client=db_client)
 auto_contrib_repository = AutoContributionsRepository(client=db_client)
 transaction_repository = TransactionRepository(client=db_client)
@@ -92,7 +101,7 @@ update_sheets = UpdateSheetsImpl(
     auto_contrib_repository,
     transaction_repository,
     historic_repository,
-    SheetsExporter(),
+    exporter,
     config_loader
 )
 virtual_scrape = VirtualScrapeImpl(

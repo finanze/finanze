@@ -1,5 +1,5 @@
 services:
-  bank-scraper:
+  finanze-server:
     restart: unless-stopped
     build: . # Use the Dockerfile in the current directory
     # image: marcosav/bank-scraper:latest
@@ -8,7 +8,8 @@ services:
       - '8080:8080'
     environment:
       WEB_PORT: 8080
-      DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB
+      DB_PATH: /.storage/finanze_data.db
+      # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Use .env
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
       CONFIG_PATH: /config/config.yml
@@ -16,14 +17,15 @@ services:
       # Selenium related envs
       WIRE_ADDRESS: 0.0.0.0
       WIRE_PORT: 8088
-      WIRE_PROXY_SERVER_ADDRESS: bank-scraper
+      WIRE_PROXY_SERVER_ADDRESS: finanze-server
       WEBDRIVER_ADDRESS: http://selenium:4444
     env_file:
-      - .env
+      - .env # Store here your secrets
     volumes:
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
       - ./config/:/config/
+      - ./.storage/:/.storage
       - /etc/timezone:/etc/timezone:ro # Use host's timezone
       - /etc/localtime:/etc/localtime:ro # Use host's localtime
 

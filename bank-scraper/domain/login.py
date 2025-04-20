@@ -1,9 +1,9 @@
+from dataclasses import field
 from datetime import datetime
 from enum import Enum
+from pydantic.dataclasses import dataclass
 from typing import Optional
 from uuid import UUID
-
-from pydantic.dataclasses import dataclass
 
 from domain.financial_entity import EntityCredentials
 
@@ -52,12 +52,12 @@ class LoginRequest:
     entity_id: UUID
     credentials: EntityCredentials
     two_factor: Optional[TwoFactor] = None
-    options: Optional[LoginOptions] = LoginOptions()
+    options: Optional[LoginOptions] = field(default_factory=LoginOptions)
 
 
 @dataclass
 class LoginParams:
     credentials: EntityCredentials
     two_factor: Optional[TwoFactor] = None
-    options: Optional[LoginOptions] = LoginOptions()
+    options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     session: Optional[EntitySession] = None

@@ -19,3 +19,7 @@ class EntityNotFound(Exception):
 
 class InvalidProvidedCredentials(Exception):
     pass
+
+
+class NoAdapterFound(Exception):
+    pass

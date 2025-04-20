@@ -20,7 +20,7 @@ def initialize_database(path: Union[str, Path]) -> DBClient:
     sqlcipher_pass = sqlcipher_pass.replace(r"'", r"''")
     connection.execute(f"PRAGMA key='{sqlcipher_pass}';")
 
-    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA foreign_keys = ON;")
 
     connection.row_factory = sqlcipher.Row
 

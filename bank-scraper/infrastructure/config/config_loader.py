@@ -2,7 +2,7 @@ import logging
 import shutil
 from pathlib import Path
 
-import yaml
+import strictyaml
 from cachetools import TTLCache, cached
 
 from application.ports.config_port import ConfigPort
@@ -20,7 +20,7 @@ class ConfigLoader(ConfigPort):
     @cached(cache=TTLCache(maxsize=1, ttl=30))
     def load(self) -> dict:
         with open(self._config_file, "r") as file:
-            return yaml.safe_load(file)
+            return strictyaml.load(file.read()).data
 
     def check_or_create_default_config(self):
         if not self._config_path.is_file():
