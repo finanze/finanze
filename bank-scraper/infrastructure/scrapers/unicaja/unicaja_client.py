@@ -6,8 +6,8 @@ from datetime import datetime, date
 from typing import Optional
 
 import pyDes
-import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests
 from dateutil.relativedelta import relativedelta
 
 from domain.login import LoginResult, LoginResultCode
@@ -212,7 +212,7 @@ class UnicajaClient:
             if json:
                 return response.json()
             else:
-                return response.text
+                return response.content.decode('windows-1252')
 
         self._log.error("Error Response Body: " + response.text)
         response.raise_for_status()
