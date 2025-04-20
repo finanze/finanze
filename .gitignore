@@ -5,6 +5,5 @@
 !.github
 /config/
 *.log
-/bank_data*
-*.db
 __pycache__
+/.storage
