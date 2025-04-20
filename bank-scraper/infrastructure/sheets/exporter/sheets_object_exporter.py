@@ -1,6 +1,5 @@
 import datetime
 from dataclasses import asdict
-from typing import Union
 
 from dateutil.tz import tzlocal
 
@@ -16,7 +15,7 @@ ENTITY_UPDATED_AT = "entity_updated_at"
 
 def update_sheet(
         sheet,
-        data: Union[object, dict[FinancialEntity, object]],
+        data: object | dict[FinancialEntity, object],
         config: dict,
         last_update: dict[FinancialEntity, datetime] = None):
     sheet_id, sheet_range, field_paths = config["spreadsheetId"], config["range"], config["data"]
@@ -40,7 +39,7 @@ def update_sheet(
 
 
 def map_rows(
-        data: Union[object, dict[FinancialEntity, object]],
+        data: object | dict[FinancialEntity, object],
         cells: list[list[str]],
         field_paths: list[str],
         last_update: dict[FinancialEntity, datetime],
@@ -93,7 +92,7 @@ def map_rows(
 
 
 def map_products(
-        data: Union[object, dict[FinancialEntity, object]],
+        data: object | dict[FinancialEntity, object],
         columns: list[str],
         field_paths: list[str],
         config) -> list[list[str]]:

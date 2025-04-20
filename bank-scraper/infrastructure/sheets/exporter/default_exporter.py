@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Union, Optional
+from typing import Optional
 
 from application.ports.sheets_export_port import SheetsUpdatePort
 from domain.exception.exceptions import NoAdapterFound
@@ -17,7 +17,7 @@ class NullExporter(SheetsUpdatePort):
 
     def update_sheet(
             self,
-            data: Union[object, dict[FinancialEntity, object]],
+            data: object | dict[FinancialEntity, object],
             config: dict,
             last_update: Optional[dict[FinancialEntity, datetime]] = None):
         raise NoAdapterFound("No adapter found for exporter, are credentials set up?")

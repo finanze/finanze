@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Optional
+from typing import Optional
 
 import requests
 from cachetools import TTLCache, cached
@@ -36,12 +36,12 @@ class MintosAPIClient:
 
     def _get_request(
             self, path: str, params: dict = None
-    ) -> Union[dict, str]:
+    ) -> dict | str:
         return self._execute_request(path, "GET", params=params)
 
     def _post_request(
             self, path: str, body: dict
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body)
 
     async def login(self, username: str, password: str) -> LoginResult:

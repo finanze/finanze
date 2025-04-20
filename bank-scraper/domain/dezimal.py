@@ -1,12 +1,12 @@
 from decimal import Decimal, InvalidOperation
-from typing import Union, Any
+from typing import Any
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 from typing_extensions import Self
 
-ValidDezimal = Union[int, float, Decimal, str, 'Dezimal']
-ValidDezimalOperand = Union[int, Decimal, 'Dezimal']
+ValidDezimal = int | float | Decimal | str | 'Dezimal'
+ValidDezimalOperand = int | Decimal | 'Dezimal'
 
 
 class Dezimal:

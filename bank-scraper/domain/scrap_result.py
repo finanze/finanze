@@ -1,8 +1,9 @@
 from dataclasses import field
 from enum import Enum
-from pydantic.dataclasses import dataclass
-from typing import Optional, Union
+from typing import Optional
 from uuid import UUID
+
+from pydantic.dataclasses import dataclass
 
 from domain.financial_entity import Feature
 from domain.login import LoginResultCode, TwoFactor, LoginOptions
@@ -36,7 +37,7 @@ class ScrapRequest:
 @dataclass
 class ScrapResult:
     code: ScrapResultCode
-    data: Optional[Union[ScrapedData, VirtuallyScrapedData]] = None
+    data: Optional[ScrapedData | VirtuallyScrapedData] = None
     details: Optional[dict] = None
 
 

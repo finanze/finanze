@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Union, Optional
+from typing import Optional
 
 from application.ports.sheets_export_port import SheetsUpdatePort
 from domain.financial_entity import FinancialEntity
@@ -22,7 +22,7 @@ class SheetsExporter(SheetsUpdatePort):
 
     def update_sheet(
             self,
-            data: Union[object, dict[FinancialEntity, object]],
+            data: object | dict[FinancialEntity, object],
             config: dict,
             last_update: Optional[dict[FinancialEntity, datetime]] = None):
         update_sheet(self._sheet, data, config, last_update)

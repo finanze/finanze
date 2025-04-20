@@ -3,7 +3,7 @@ import logging
 import os
 import re
 from datetime import datetime, date
-from typing import Optional, Union
+from typing import Optional
 
 import pyDes
 import requests
@@ -200,7 +200,7 @@ class UnicajaClient:
             params: dict,
             json: bool = True,
             raw: bool = False,
-    ) -> Union[dict, str, requests.Response]:
+    ) -> dict | str | requests.Response:
         response = self._session.request(
             method, self.BASE_URL + path, data=body, params=params
         )
@@ -220,12 +220,12 @@ class UnicajaClient:
 
     def _get_request(
             self, path: str, params: dict = None, json: bool = True
-    ) -> Union[dict, str]:
+    ) -> dict | str:
         return self._execute_request(path, "GET", body=None, json=json, params=params)
 
     def _post_request(
             self, path: str, body: object, raw=False
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, json=True, raw=raw, params=None)
 
     def _ck(self):

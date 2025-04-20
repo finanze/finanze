@@ -2,7 +2,7 @@ import codecs
 import logging
 import re
 from datetime import datetime
-from typing import Union, Optional
+from typing import Optional
 
 import requests
 from cachetools import TTLCache, cached
@@ -36,7 +36,7 @@ class SegoAPIClient:
 
     def _execute_request(
             self, path: str, method: str, body: dict, raw: bool = False
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         response = requests.request(
             method, self.BASE_URL + path, json=body, headers=self._headers
         )
@@ -54,7 +54,7 @@ class SegoAPIClient:
     def _get_request(self, path: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None)
 
-    def _post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
+    def _post_request(self, path: str, body: dict, raw: bool = False) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
     def _init_session(self):

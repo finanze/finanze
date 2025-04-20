@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-from typing import Union
 
 from pysqlcipher3 import dbapi2 as sqlcipher
 
@@ -9,7 +8,7 @@ from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
 
 
-def initialize_database(path: Union[str, Path]) -> DBClient:
+def initialize_database(path: str | Path) -> DBClient:
     connection = sqlcipher.connect(
         database=str(path),
         isolation_level=None,
