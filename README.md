@@ -48,16 +48,16 @@ Not all entities support the same features, in general we can group data in the 
   maturity... (deposits are not included here)
 - **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments.
 
-| Entity         | Global Position | Periodic<br>Contributions | Transactions | Investment<br>Historic |
-|----------------|-----------------|---------------------------|--------------|------------------------|
-| Urbanitae      | ✅               | -                         | ✅            | ✅                      |
-| MyInvestor     | ✅               | ✅                         | ✅            | ❌                      |
-| SEGO           | ✅               | -                         | ✅            | ✅                      |
-| Trade Republic | ✅               | ✅                         | ✅            | -                      |
-| Unicaja        | ✅               | -                         | ❌            | -                      |
-| Wecity         | ✅               | -                         | ✅            | ✅                      |
-| Mintos         | ✅               | -                         | ❌            | ❌                      |
-| Freedom24      | ✅               | -                         | ❌            | ❌                      |
+| Entity         | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
+|----------------|-----------------|---------------------------|--------------------------------|------------------------|
+| Urbanitae      | ✅               | -                         | ✅                              | ✅                      |
+| MyInvestor     | ✅               | ✅                         | ✅                              | ❌                      |
+| SEGO           | ✅               | -                         | ✅                              | ✅                      |
+| Trade Republic | ✅               | ✅                         | ✅                              | -                      |
+| Unicaja        | ✅               | -                         | -                              | -                      |
+| Wecity         | ✅               | -                         | ✅                              | ✅                      |
+| Mintos         | ✅               | -                         | ❌                              | ❌                      |
+| Freedom24      | ✅               | -                         | ❌                              | ❌                      |
 
 ### Entity notes
 

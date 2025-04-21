@@ -187,9 +187,20 @@ class TradeRepublicClient:
         r.raise_for_status()
         return r.json()
 
-    async def get_saving_plans(self) -> Optional[dict]:
+    async def get_saving_plans(self) -> dict:
         await self._tr_api.savings_plan_overview()
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
 
+    async def get_instrument_details(self, isin: str) -> dict:
+        await self._tr_api.instrument_details(isin)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_stock_details(self, isin: str) -> dict:
+        await self._tr_api.stock_details(isin)
         subscription_id, _, response = await self._tr_api.recv()
         await self._tr_api.unsubscribe(subscription_id)
         return response

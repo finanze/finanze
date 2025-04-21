@@ -205,24 +205,25 @@ class TradeRepublicScraper(EntityScraper):
         if cash_account:
             iban = cash_account.get("iban")
 
-        portfolio = await self._client.get_portfolio()
-
-        currency = portfolio.cash[0]["currencyId"]
-        cash_total = Dezimal(portfolio.cash[0]["amount"])
-
         active_interest = round(Dezimal(self._client.get_active_interest_rate().get("activeInterestRate")) / 100, 4)
+        raw_portfolio = await self._client.get_portfolio()
 
-        accounts = [Account(
-            id=uuid4(),
-            total=cash_total,
-            interest=active_interest,
-            currency='EUR',
-            iban=iban,
-            type=AccountType.BROKERAGE
-        )]
+        accounts = []
+        currency = None
+        for account in raw_portfolio.cash:
+            currency = account["currencyId"]
+            cash_total = Dezimal(account["amount"])
+            accounts.append(Account(
+                id=uuid4(),
+                total=cash_total,
+                interest=active_interest,
+                currency=currency,
+                iban=iban,
+                type=AccountType.BROKERAGE
+            ))
 
         investments = []
-        for position in portfolio.portfolio["positions"]:
+        for position in raw_portfolio.portfolio["positions"]:
             investment = await self._instrument_mapper(position, currency)
             investments.append(investment)
 
@@ -272,9 +273,10 @@ class TradeRepublicScraper(EntityScraper):
 
         return Transactions(investment=investment_txs, account=account_txs)
 
-    def _map_saving_plan(self, saving_plan: dict) -> Optional[PeriodicContribution]:
+    async def _map_saving_plan(self, saving_plan: dict, currency: str) -> Optional[PeriodicContribution]:
         amount = round(Dezimal(saving_plan["amount"]), 2)
         isin = saving_plan["instrumentId"]
+
         frequency = CONTRIBUTION_FREQUENCY.get(saving_plan["interval"])
         if not frequency:
             self._log.warning(f"Unknown contribution frequency: {frequency}")
@@ -293,12 +295,15 @@ class TradeRepublicScraper(EntityScraper):
             self._log.warning(f"Unknown start date type: {start_date_type}")
             return None
 
+        isin_details = await self._client.get_instrument_details(isin)
+        instrument_name = isin_details.get('shortName')
+
         return PeriodicContribution(
             id=uuid4(),
-            alias=None,
+            alias=instrument_name,
             isin=isin,
             amount=amount,
-            currency="EUR",  # Default instrument currency
+            currency=currency,
             since=since,
             until=None,
             frequency=frequency,
@@ -307,11 +312,14 @@ class TradeRepublicScraper(EntityScraper):
         )
 
     async def auto_contributions(self) -> AutoContributions:
+        portfolio_details = await self._client.get_portfolio()
         saving_plans_response = await self._client.get_saving_plans()
         await self._client.close()
 
+        user_currency = portfolio_details.cash[0]["currencyId"]
+
         saving_plans = saving_plans_response.get("savingsPlans")
 
-        contributions = [self._map_saving_plan(sp) for sp in saving_plans if sp]
+        contributions = [await self._map_saving_plan(sp, user_currency) for sp in saving_plans if sp]
 
         return AutoContributions(contributions)
