@@ -1,4 +1,5 @@
 import datetime
+import logging
 from dataclasses import asdict
 
 from dateutil.tz import tzlocal
@@ -12,6 +13,8 @@ ENTITY_COLUMN = "entity"
 TYPE_COLUMN = "investment_type"
 ENTITY_UPDATED_AT = "entity_updated_at"
 
+_log = logging.getLogger(__name__)
+
 
 def update_sheet(
         sheet,
@@ -20,13 +23,14 @@ def update_sheet(
         last_update: dict[FinancialEntity, datetime] = None):
     sheet_id, sheet_range, field_paths = config["spreadsheetId"], config["range"], config["data"]
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
-    cells = result.get('values', None)
+    cells = result.get('values')
     if not cells:
-        rows = [[NO_HEADERS_FOUND]]
-    else:
-        rows = map_rows(data, cells, field_paths, last_update, config)
-        if not rows:
-            return
+        _log.warning(f"Got empty sheet for {sheet_range}, aborting sheet...")
+        return
+
+    rows = map_rows(data, cells, field_paths, last_update, config)
+    if not rows:
+        return
 
     request = sheet.values().update(
         spreadsheetId=sheet_id,
@@ -43,7 +47,8 @@ def map_rows(
         cells: list[list[str]],
         field_paths: list[str],
         last_update: dict[FinancialEntity, datetime],
-        config) -> list[list[str]]:
+        config) -> list[list[str]] | None:
+    sheet_range = config["range"]
     per_entity_date = False
     last_update_row_index, column_index = next(
         ((index, row.index(LAST_UPDATE_FIELD)) for index, row in enumerate(cells) if LAST_UPDATE_FIELD in row),
@@ -78,10 +83,14 @@ def map_rows(
          row), (None, None))
     if header_row_index is None or columns is None:
         if column_index is not None:
+            _log.warning(
+                f"No headers in {sheet_range} found while trying to export data to Google Sheets, adding warn...")
             set_field_value(cells[last_update_row_index], column_index + 2, NO_HEADERS_FOUND, config)
             return cells
         else:
-            return [[NO_HEADERS_FOUND]]
+            _log.warning(
+                f"No headers in {sheet_range} found while trying to export data to Google Sheets, aborting sheet...")
+            return None
 
     product_rows = map_products(data, columns, field_paths, config)
     return [
