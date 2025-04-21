@@ -1,12 +1,12 @@
 import logging
 from datetime import date
-from typing import Optional, Union
+from typing import Optional
 
 import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.scrap_result import LoginResult
+from domain.login import LoginResult, LoginResultCode
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -22,7 +22,7 @@ class MyInvestorAPIV2Client:
 
     def _execute_request(
             self, path: str, method: str, body: dict, raw: bool = False, base_url: str = BASE_URL
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         response = requests.request(
             method, base_url + path, json=body, headers=self._headers
         )
@@ -33,23 +33,22 @@ class MyInvestorAPIV2Client:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
-        self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        self._log.error("Error Response Body:" + response.text)
+        response.raise_for_status()
+        return {}
 
     def _get_request(self, path: str, base_url: str = BASE_URL) -> requests.Response:
         return self._execute_request(path, "GET", body=None, base_url=base_url)
 
-    def _post_request(self, path: str, body: dict, raw: bool = False, base_url: str = BASE_URL) -> Union[
-        dict, requests.Response]:
+    def _post_request(self, path: str, body: dict, raw: bool = False,
+                      base_url: str = BASE_URL) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw, base_url=base_url)
 
-    def login(self, username: str, password: str) -> dict:
+    def login(self, username: str, password: str) -> LoginResult:
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
         self._headers["x-origin-b2b"] = self.BASE_URL
-        # self._headers["x-myinvestor-app"] = "x-myinvestor-app"
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
@@ -70,18 +69,14 @@ class MyInvestorAPIV2Client:
             try:
                 token = response.json()["payload"]["data"]["accessToken"]
             except KeyError:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
-
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
             self._headers["Authorization"] = "Bearer " + token
-
-            return {"result": LoginResult.CREATED}
-
+            return LoginResult(LoginResultCode.CREATED)
         elif response.status_code == 400:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
-
+            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {response.status_code}")
 
     def check_maintenance(self):
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]

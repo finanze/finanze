@@ -1,46 +1,50 @@
 from datetime import datetime, date
 from typing import Optional
+from uuid import UUID
 
 from pydantic.dataclasses import dataclass
 
+from domain.dezimal import Dezimal
+from domain.financial_entity import FinancialEntity
 from domain.transactions import ProductType, BaseInvestmentTx
 
 
 @dataclass
 class BaseHistoricEntry:
+    id: UUID
     name: str
-    invested: float
-    returned: Optional[float]
+    invested: Dezimal
+    repaid: Optional[Dezimal]
+    returned: Optional[Dezimal]
     currency: str
-    currencySymbol: str
-    lastInvestDate: datetime
-    lastTxDate: datetime
-    effectiveMaturity: Optional[datetime]
-    netReturn: Optional[float]
-    fees: Optional[float]
-    retentions: Optional[float]
-    interests: Optional[float]
+    last_invest_date: datetime
+    last_tx_date: datetime
+    effective_maturity: Optional[datetime]
+    net_return: Optional[Dezimal]
+    fees: Optional[Dezimal]
+    retentions: Optional[Dezimal]
+    interests: Optional[Dezimal]
     state: Optional[str]
-    entity: str
-    productType: ProductType
-    relatedTxs: list[BaseInvestmentTx]
+    entity: FinancialEntity
+    product_type: ProductType
+    related_txs: list[BaseInvestmentTx]
 
 
 @dataclass
 class FactoringEntry(BaseHistoricEntry):
-    interestRate: float
-    netInterestRate: float
+    interest_rate: Dezimal
+    gross_interest_rate: Dezimal
     maturity: date
     type: str
 
 
 @dataclass
 class RealStateCFEntry(BaseHistoricEntry):
-    interestRate: float
-    months: int
-    potentialExtension: Optional[int]
+    interest_rate: Dezimal
+    maturity: date
+    extended_maturity: Optional[date]
     type: str
-    businessType: str
+    business_type: str
 
 
 @dataclass

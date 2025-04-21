@@ -7,6 +7,7 @@ from application.ports.position_port import PositionPort
 from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions
+from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.transactions import Transactions
@@ -57,13 +58,26 @@ class UpdateSheetsImpl(UpdateSheets):
         apply_global_config(config_globals, tx_configs)
         apply_global_config(config_globals, historic_configs)
 
-        global_position = self._position_port.get_last_grouped_by_entity()
+        real_global_position_by_entity = self._position_port.get_last_grouped_by_entity(True)
+        manual_global_position_by_entity = self._position_port.get_last_grouped_by_entity(False)
 
-        self.update_summary_sheets(global_position, summary_configs)
-        self.update_investment_sheets(global_position, investment_configs)
+        global_position_by_entity = {}
+        for entity, position in real_global_position_by_entity.items():
+            if entity in manual_global_position_by_entity:
+                global_position_by_entity[entity] += manual_global_position_by_entity[entity]
+                del manual_global_position_by_entity[entity]
+            else:
+                global_position_by_entity[entity] = position
+
+        for entity, position in manual_global_position_by_entity.items():
+            global_position_by_entity[entity] = position
+
+        self.update_summary_sheets(global_position_by_entity, summary_configs)
+        self.update_investment_sheets(global_position_by_entity, investment_configs)
 
         auto_contributions = self._auto_contr_port.get_all_grouped_by_entity()
         auto_contributions_last_update = self._auto_contr_port.get_last_update_grouped_by_entity()
+
         self.update_contributions(auto_contributions, contrib_configs, auto_contributions_last_update)
 
         transactions = self._transaction_port.get_all()
@@ -73,11 +87,11 @@ class UpdateSheetsImpl(UpdateSheets):
         historic = self._historic_port.get_all()
         self.update_historic(historic, historic_configs)
 
-    def update_summary_sheets(self, global_position: dict[str, GlobalPosition], summary_configs):
+    def update_summary_sheets(self, global_position: dict[FinancialEntity, GlobalPosition], summary_configs):
         for config in summary_configs:
             self._sheets_update_port.update_summary(global_position, config)
 
-    def update_investment_sheets(self, global_position: dict[str, GlobalPosition], inv_configs):
+    def update_investment_sheets(self, global_position: dict[FinancialEntity, GlobalPosition], inv_configs):
         for config in inv_configs:
             fields = config["data"]
             fields = [fields] if isinstance(fields, str) else fields
@@ -85,15 +99,20 @@ class UpdateSheetsImpl(UpdateSheets):
 
             self._sheets_update_port.update_sheet(global_position, config)
 
-    def update_contributions(self, contributions: dict[str, AutoContributions], contrib_configs,
-                             last_update: dict[str, datetime]):
+    def update_contributions(self,
+                             contributions: dict[FinancialEntity, AutoContributions],
+                             contrib_configs,
+                             last_update: dict[FinancialEntity, datetime]):
         for config in contrib_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields
 
             self._sheets_update_port.update_sheet(contributions, config, last_update)
 
-    def update_transactions(self, transactions: Transactions, tx_configs, last_update: dict[str, datetime]):
+    def update_transactions(self,
+                            transactions: Transactions,
+                            tx_configs,
+                            last_update: dict[FinancialEntity, datetime]):
         for config in tx_configs:
             fields = config["data"]
             config["data"] = [fields] if isinstance(fields, str) else fields

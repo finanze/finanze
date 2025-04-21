@@ -1,23 +1,23 @@
 import datetime
 from dataclasses import asdict
-from typing import Union
 
 from dateutil.tz import tzlocal
 
+from domain.financial_entity import FinancialEntity
 from infrastructure.sheets.exporter.sheets_summary_exporter import LAST_UPDATE_FIELD, set_field_value, \
     format_field_value
 
 NO_HEADERS_FOUND = "NO_HEADERS_FOUND"
 ENTITY_COLUMN = "entity"
-TYPE_COLUMN = "investmentType"
-ENTITY_UPDATED_AT = "entityUpdatedAt"
+TYPE_COLUMN = "investment_type"
+ENTITY_UPDATED_AT = "entity_updated_at"
 
 
 def update_sheet(
         sheet,
-        data: Union[dict, object],
+        data: object | dict[FinancialEntity, object],
         config: dict,
-        last_update: dict[str, datetime] = None):
+        last_update: dict[FinancialEntity, datetime] = None):
     sheet_id, sheet_range, field_paths = config["spreadsheetId"], config["range"], config["data"]
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     cells = result.get('values', None)
@@ -39,10 +39,10 @@ def update_sheet(
 
 
 def map_rows(
-        data: Union[dict, object],
+        data: object | dict[FinancialEntity, object],
         cells: list[list[str]],
         field_paths: list[str],
-        last_update: dict[str, datetime],
+        last_update: dict[FinancialEntity, datetime],
         config) -> list[list[str]]:
     per_entity_date = False
     last_update_row_index, column_index = next(
@@ -92,7 +92,7 @@ def map_rows(
 
 
 def map_products(
-        data: Union[dict, object],
+        data: object | dict[FinancialEntity, object],
         columns: list[str],
         field_paths: list[str],
         config) -> list[list[str]]:
@@ -144,11 +144,14 @@ def matches_filters(element, config):
     return match
 
 
-def map_product_row(details, entity, p_type, columns, config) -> list[str]:
+def map_product_row(details, entity: FinancialEntity, p_type, columns, config) -> list[str]:
     rows = []
     details = asdict(details)
     if ENTITY_COLUMN not in details:
-        details[ENTITY_COLUMN] = entity
+        details[ENTITY_COLUMN] = str(entity)
+    else:
+        details[ENTITY_COLUMN] = details[ENTITY_COLUMN]["name"]
+
     if p_type:
         details[TYPE_COLUMN] = format_type_name(p_type)
     for column in columns:
@@ -168,11 +171,11 @@ def format_type_name(value):
         return value.upper()
 
 
-def map_last_update_row(last_update: dict[str, datetime], config):
+def map_last_update_row(last_update: dict[FinancialEntity, datetime], config):
     last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=True)
     last_update_row = [None]
     for k, v in last_update:
-        last_update_row.append(k)
+        last_update_row.append(str(k))
         last_update_date = v.astimezone(tz=tzlocal())
         config_datetime_format = config.get("datetimeFormat")
         if config_datetime_format:

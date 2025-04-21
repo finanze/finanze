@@ -1,12 +1,11 @@
 import logging
 from datetime import date
-from typing import Optional, Union
+from typing import Optional
 
 import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
-
-from domain.scrap_result import LoginResult
+from domain.login_result import LoginResultCode
 
 OLD_DATE_FORMAT = "%d/%m/%Y"
 
@@ -20,7 +19,7 @@ class MyInvestorAPIV1Client:
 
     def _execute_request(
             self, path: str, method: str, body: dict, raw: bool = False
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         response = requests.request(
             method, self.BASE_URL + path, json=body, headers=self._headers
         )
@@ -38,7 +37,7 @@ class MyInvestorAPIV1Client:
     def _get_request(self, path: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None)
 
-    def _post_request(self, path: str, body: dict, raw: bool = False) -> Union[dict, requests.Response]:
+    def _post_request(self, path: str, body: dict, raw: bool = False) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
     def login(self, username: str, password: str) -> dict:
@@ -66,17 +65,17 @@ class MyInvestorAPIV1Client:
             try:
                 token = response.json()["payload"]["data"]["accessToken"]
             except KeyError:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return {"result": LoginResultCode.UNEXPECTED_ERROR, "message": "Token not found in response"}
 
             self._headers["Authorization"] = "Bearer " + token
 
-            return {"result": LoginResult.CREATED}
+            return {"result": LoginResultCode.CREATED}
 
         elif response.status_code == 400:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
+            return {"result": LoginResultCode.INVALID_CREDENTIALS}
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
+            return {"result": LoginResultCode.UNEXPECTED_ERROR,
                     "message": f"Got unexpected response code {response.status_code}"}
 
     def check_maintenance(self):

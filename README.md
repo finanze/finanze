@@ -1,11 +1,11 @@
 # Bank Scraper
 
-This is a Python-based application designed to scrape financial data from various banking and investment
+This is a Python-based application designed to aggregate financial data from various banking and investment
 platforms. It supports multiple entities and features, providing a unified interface to gather and process financial
 information.
 
-This is not actively maintained and was meant only for personal use, so some banks/entities/features/instruments may not
-work, be outdated or partially implemented. That's why this documentation is so scarce.
+Not actively maintained as it was meant only for personal use, so some banks/entities/features/instruments may not
+work, be outdated or partially implemented.
 
 ## Table of Contents
 
@@ -19,31 +19,62 @@ work, be outdated or partially implemented. That's why this documentation is so 
 ## Features
 
 - Scrape financial data from multiple entities
-- Support for various financial products (stocks, funds, real estate, etc.)
+- Support for various financial products (stocks, funds, real estate crowdfunding, etc.)
 - Dynamic and customizable data export to Google Sheets
 - Virtual scraping for simulated data
 
-### Supported Entities
+### Supported Assets by Entity
 
-- `URBANITAE` (wallet & investments)
-- `MY_INVESTOR` (periodic automatic fund contributions, funds, stocks/ETFs, main account position & related cards)
-- `SEGO` (wallet & factoring)
-- `TRADE_REPUBLIC` (stocks/ETFs/Crypto & account) [requires 2FA]
-- `UNICJA` (main account and related cards & mortgage)
-    - As web login uses Akamai bot protection, setting `UNICAJA_ABCK` is needed.
-- `WECITY` (wallet & investments) [requires 2FA]
-- `MINTOS` (wallet & loan distribution) (experimental)
-    - Needs Selenium to resolve reCAPTCHA, checkout [docker-compose.yml](docker-compose.yml).
-- `F24` (savings and brokerage account & deposits)
+| Entity         | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
+|----------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
+| Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
+| MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | WIP        | ❌                   | -      | -     |                     |
+| SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
+| Trade Republic | ✅        | -     | -     | ✅              | -        | -          | -                   | ✅      | ❌     |                     |
+| Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
+| Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
+| Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
+| Freedom24      | ✅        | -     | -     | ❌              | ✅        | -          | -                   | -      | ❌     |                     |
 
 ### Entity Features
 
-Not all entities support the same features. Some or all of the following features are available for each entity:
+Not all entities support the same features, in general we can group data in the following categories:
 
-- `POSITION`: Fetch the current financial position.
-- `AUTO_CONTRIBUTIONS`: Fetch the auto-contributions of the entity.
-- `TRANSACTIONS`: Fetches all the account/investment transactions.
-- `HISTORIC`: Aggregates past positions and txs to create a history of past and current investments.
+- **Global Position**: current financial position including the current state of assets mentioned above, this is
+  supported by all entities.
+- **Periodic Contributions**: automatic periodic contributions made to investments such as Funds (MyInvestor) or
+  Stocks/ETFs (Trade Republic).
+- **Transactions**: all the account/investment related transactions, interest payments, stock of fund operations, asset
+  maturity... (deposits are not included here)
+- **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments.
+
+| Entity         | Global Position | Periodic<br>Contributions | Transactions | Investment<br>Historic |
+|----------------|-----------------|---------------------------|--------------|------------------------|
+| Urbanitae      | ✅               | -                         | ✅            | ✅                      |
+| MyInvestor     | ✅               | ✅                         | ✅            | ❌                      |
+| SEGO           | ✅               | -                         | ✅            | ✅                      |
+| Trade Republic | ✅               | WIP                       | ✅            | -                      |
+| Unicaja        | ✅               | -                         | ❌            | -                      |
+| Wecity         | ✅               | -                         | ✅            | ✅                      |
+| Mintos         | ✅               | -                         | ❌            | ❌                      |
+| Freedom24      | ✅               | -                         | ❌            | ❌                      |
+
+### Entity notes
+
+Some entities require a 2FA to login or get its data, which doesn't allow to background update, this applies to the
+following ones:
+
+- **SEGO** (e-mail)
+- **Trade Republic** (mobile app)
+- **Wecity** (SMS)
+
+Important points to remark:
+
+- **Unicaja** at the moment requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
+  bot
+  protection, good news is that it last for a year approx.
+- **Mintos** is experimental, as it needs Selenium to resolve reCAPTCHA,
+  checkout [docker-compose.yml](docker-compose.yml).
 
 ### Google Sheets export
 
@@ -54,16 +85,18 @@ data. Check [Export & Import Configuration](#export--import-configuration) for m
 
 ### Docker
 
-Two docker images are available, a Selenium one and a light one (ex-selenium). The first one is the default, which
+Two Docker images are available, a Selenium one and a light one (ex-selenium). The first one is the default, which
 currently is
 needed for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO dependencies (like ffmpeg).
 
 Both are available at Docker Hub [marcosav/bank-scraper](https://hub.docker.com/r/marcosav/bank-scraper).
 
-A very basic front end is available
+A very basic front end is available just to handle login, data retrieval and export.
 at [marcosav/bank-scraper-front](https://hub.docker.com/r/marcosav/bank-scraper-front).
 
 ### Development
+
+This project requires `Python 3.11`.
 
 1. Clone the repository:
     ```sh
@@ -71,7 +104,7 @@ at [marcosav/bank-scraper-front](https://hub.docker.com/r/marcosav/bank-scraper-
     cd bank-scraper
     ```
 
-2. Create a virtual environment and activate it:
+2. Create a virtual environment and activate it (recommended Pyenv):
     ```sh
     python3 -m venv venv
     source venv/bin/activate
@@ -90,11 +123,21 @@ which contains some examples of tables and summary dashboards.
 
 ## Environment Variables
 
-Checkout example docker-compose.yml for the environment variables that can be used to override the default config, set
-Mongo connection related stuff, Google credentials, entity session caches...
+Checkout example docker-compose.yml for the environment variables that can be used to override the default config, most
+important ones are::
 
-Credentials are stored in the environment variables `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
+- **Mandatory** `DB_CIPHER_PASSWORD` for DB encryption passphrase
+- `GOOGLE_` prefixed ones, needed for Google credentials, in case of using import/export to Google Sheets
+- Other Selenium related ones.
+
+## Credentials
+
+There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
+this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
+
+Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
 Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
+This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
 
 Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
 can get the needed environment names.
@@ -108,11 +151,23 @@ can get the needed environment names.
 
 2. Use the provided API endpoints to interact with the scraper:
     - `GET /api/v1/scrape`: Get available entities.
-    - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
-      needed 2FA code if the entity requires it. It will return all scraped data.
+    - `POST /api/v1/entity/login`: Login to a specific entity.
    ```
    {
-        "entity": "TRADE_REPUBLIC",
+        "entity": "e0000000-0000-0000-0000-000000000001",    // MyInvestor
+        "credentials": {                                     // Credentials object schema defined
+            "user": "12345678G",                             // by "credentials_template" field
+            "password": "MySecretor123"                      // in the available entities endpoint 
+        },
+        "code": "0000",                                      // Only if 2FA is needed
+        "processId": "xxxxxxxxxxx"                           // Same
+    }
+   ```
+    - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
+      needed 2FA code if the entity requires it. It will return all scraped data. Resembles the previous one.
+   ```
+   {
+        "entity": "e0000000-0000-0000-0000-000000000003", // Trade Republic
         "features": ["POSITION", "TRANSACTIONS"],
         "code": "0000",                              // Only if 2FA is needed
         "processId": "xxxxxxxxxxx",                  // Same
@@ -132,5 +187,7 @@ can get the needed environment names.
   with headless mode.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
   heavily
-  modified to allow resumable sessions, fetch transactions and other minor changes, this library has been vital for this
+  modified to allow resumable sessions, some extra data, fetch non-repeatable transactions and other minor changes, this
+  library has been vital for this
   project.
+- SQLCipher pre-built dependency [rotki/pysqlcipher3](https://github.com/rotki)

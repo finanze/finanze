@@ -3,14 +3,14 @@ import logging
 import os
 import re
 from datetime import datetime, date
-from typing import Optional, Union
+from typing import Optional
 
 import pyDes
-import requests
 from bs4 import BeautifulSoup
+from curl_cffi import requests
 from dateutil.relativedelta import relativedelta
 
-from domain.scrap_result import LoginResult
+from domain.login import LoginResult, LoginResultCode
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
@@ -45,7 +45,7 @@ class UnicajaClient:
         self._timeout = timeout
         self._log = logging.getLogger(__name__)
 
-    def _legacy_login(self, username: str, password: str) -> dict:
+    def _legacy_login(self, username: str, password: str) -> LoginResult:
 
         from selenium.common import TimeoutException
         from selenium.webdriver import FirefoxOptions
@@ -103,16 +103,17 @@ class UnicajaClient:
 
             self._setup_session(auth_request)
 
-            return {"result": LoginResult.CREATED}
+            return LoginResult(LoginResultCode.CREATED)
 
         except TimeoutException:
             self._log.error("Timed out waiting for autenticacion.")
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Timed out waiting for autenticacion.")
 
         finally:
             if driver:
                 driver.quit()
 
-    def _rest_login(self, username: str, password: str) -> dict:
+    def _rest_login(self, username: str, password: str) -> LoginResult:
         user_agent = "Mozilla/5.0 (Linux; Android 5.1.1; Lenovo PB1-750M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
         self._session = requests.Session()
         self._session.headers["User-Agent"] = user_agent
@@ -129,21 +130,21 @@ class UnicajaClient:
             auth_response_body = auth_response.json()
 
             if "tokenCSRF" not in auth_response_body:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Token not found in response"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
 
             self._session.headers["tokenCSRF"] = auth_response_body["tokenCSRF"]
             self._session.headers["Content-Type"] = "application/x-www-form-urlencoded"
 
-            return {"result": LoginResult.CREATED}
+            return LoginResult(LoginResultCode.CREATED)
 
         elif auth_response.status_code == 400:
-            return {"result": LoginResult.INVALID_CREDENTIALS}
+            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return {"result": LoginResult.UNEXPECTED_ERROR,
-                    "message": f"Got unexpected response code {auth_response.status_code}"}
+            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                               message=f"Got unexpected response code {auth_response.status_code}")
 
-    def login(self, username: str, password: str, rest_login: bool = True) -> dict:
+    def login(self, username: str, password: str, rest_login: bool = True) -> LoginResult:
         if rest_login:
             return self._rest_login(username, password)
         else:
@@ -168,15 +169,15 @@ class UnicajaClient:
 
             raise Exception("There was an error during the login process")
         else:
-            tokenCsrf = body["tokenCSRF"]
-            if not tokenCsrf:
+            token_csrf = body["tokenCSRF"]
+            if not token_csrf:
                 raise Exception("Token CSRF not found")
 
         self._session = requests.Session()
 
         headers = {}
 
-        headers["tokenCSRF"] = tokenCsrf
+        headers["tokenCSRF"] = token_csrf
         headers["Cookie"] = request.headers["Cookie"]
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
@@ -199,7 +200,7 @@ class UnicajaClient:
             params: dict,
             json: bool = True,
             raw: bool = False,
-    ) -> Union[dict, str, requests.Response]:
+    ) -> dict | str | requests.Response:
         response = self._session.request(
             method, self.BASE_URL + path, data=body, params=params
         )
@@ -211,20 +212,20 @@ class UnicajaClient:
             if json:
                 return response.json()
             else:
-                return response.text
+                return response.content.decode('windows-1252')
 
-        self._log.error("Error Status Code:", response.status_code)
-        self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        self._log.error("Error Response Body: " + response.text)
+        response.raise_for_status()
+        return {}
 
     def _get_request(
             self, path: str, params: dict = None, json: bool = True
-    ) -> Union[dict, str]:
+    ) -> dict | str:
         return self._execute_request(path, "GET", body=None, json=json, params=params)
 
     def _post_request(
             self, path: str, body: object, raw=False
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, json=True, raw=raw, params=None)
 
     def _ck(self):
@@ -245,10 +246,10 @@ class UnicajaClient:
     def list_accounts(self):
         return self._get_request("/services/rest/api/productos/listacuentas")
 
-    def get_account_movements(self):
-        account_movs_request = {"ppp": "003", "indOperacion": "I"}
+    def get_account_movements(self, ppp: str):
+        # account_movs_request = {"ppp": ppp, "indOperacion": "I"}
         account_movs_request = {
-            "ppp": "003",
+            "ppp": ppp,
             "saldoUltMov": "283.57",
             "numUltMov": "1097",
             "indOperacion": "P",
@@ -258,7 +259,6 @@ class UnicajaClient:
         )
 
     def get_account_movement(self, ppp: str, nummov: str):
-        # ppp=003&nummov=000001037
         return self._get_request(
             f"/services/rest/api/cuentas/movimientos/detallemovimiento?ppp={ppp}&nummov={nummov}"
         )
@@ -272,17 +272,17 @@ class UnicajaClient:
             "/services/rest/api/tarjetas/detalleTarjeta", card_details_request
         )
 
-    def get_card_config(self):
-        card_config_request = {"ppp": "002"}
+    def get_card_config(self, ppp: str):
+        card_config_request = {"ppp": ppp}
         return self._post_request(
             "/services/rest/api/tarjetas/configuracionUso/datos", card_config_request
         )
 
-    def get_card_movements(self, from_date: Optional[date] = None):
+    def get_card_movements(self, ppp: str, from_date: Optional[date] = None):
         from_date = date.strftime(
             from_date or (date.today() - relativedelta(months=1)), REQUEST_DATE_FORMAT
         )
-        card_movs_request = {"ppp": "002", "fechaDesde": from_date, "impDesde": "0"}
+        card_movs_request = {"ppp": ppp, "fechaDesde": from_date, "impDesde": "0"}
         return self._post_request(
             "/services/rest/api/tarjetas/movimientos/listadoMovimientos/v2",
             card_movs_request,

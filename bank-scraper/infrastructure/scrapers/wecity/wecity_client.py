@@ -1,39 +1,32 @@
-import json
 import logging
-import os
-import pathlib
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 import requests
 from cachetools import TTLCache, cached
+from dateutil.tz import tzlocal
 
-from domain.scrap_result import LoginResult
+from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
 
 class WecityAPIClient:
-    BASE_OLD_URL = "https://www.wecity.com/"
     BASE_URL = "https://api.wecity.com/"
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
-        self._session_file = None
 
-        session_file = os.environ.get("WC_SESSION_PATH")
-        if session_file:
-            self._session_file = pathlib.Path(session_file)
-
-    def _get_request(self, path: str, api_url: bool = False) -> requests.Response:
-        response = self._session.request("GET", (self.BASE_URL if api_url else self.BASE_OLD_URL) + path)
+    def _get_request(self, path: str) -> dict:
+        response = self._session.request("GET", self.BASE_URL + path)
 
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
-        self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        self._log.error("Error Response Body: " + response.text)
+        response.raise_for_status()
+        return {}
 
     def _init_session(self):
         self._session = requests.Session()
@@ -44,21 +37,22 @@ class WecityAPIClient:
         )
         self._session.headers["User-Agent"] = agent
 
-        if self._session_file and not self._session_file.parent.exists():
-            self._session_file.parent.mkdir(parents=True, exist_ok=True)
-
     def login(self,
               username: str,
               password: str,
-              avoid_new_login: bool = False,
+              login_options: LoginOptions,
               process_id: str = None,
-              code: str = None) -> dict:
+              code: str = None,
+              session: Optional[EntitySession] = None) -> LoginResult:
 
         self._init_session()
+        now = datetime.now(tzlocal())
 
-        if self._resume_web_session():
-            self._log.debug("Web session resumed")
-            return {"result": LoginResult.RESUMED}
+        if session and not login_options.force_new_session and now < session.expiration:
+            self._inject_session(session)
+            if self._resumable_session():
+                self._log.debug("Resuming session")
+                return LoginResult(LoginResultCode.RESUMED)
 
         request = {
             "username": username,
@@ -69,112 +63,100 @@ class WecityAPIClient:
 
         if code and process_id:
             if len(code) != 6:
-                return {"result": LoginResult.INVALID_CODE}
+                return LoginResult(LoginResultCode.INVALID_CODE)
 
             response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
 
             if not response.ok:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response status code")
 
             response = response.json()
             response_return = response.get("return", None)
             if not response_return:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
 
             response_2factor = response_return.get("2factor", None)
             if response_2factor and "check 2fa" in response_2factor.lower():
-                return {"result": LoginResult.INVALID_CODE}
+                return LoginResult(LoginResultCode.INVALID_CODE)
 
             token = response_return.get("token", None)
             if not token:
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
 
-            self._session.headers["x-auth-token"] = token
+            sess_created_at = datetime.fromtimestamp(response_return.get("sess_time"),
+                                                     tz=tzlocal())  # This is provided with UTC tz
+            sess_expiration = datetime.fromtimestamp(response_return.get("sess_expire"),
+                                                     tz=tzlocal())  # I think this is not UTC, but Spain tz, as it is 2 days + diff
+            session_payload = {"token": token}
+            new_session = EntitySession(creation=sess_created_at,
+                                        expiration=sess_expiration,
+                                        payload=session_payload)
 
-            sess_created_at = response_return.get("sess_time")
-            sess_created_at = datetime.fromtimestamp(sess_created_at, tz=timezone.utc)
-            sess_expiration = response_return.get("sess_expire")
-            sess_expiration = datetime.fromtimestamp(sess_expiration, tz=timezone.utc)
+            self._inject_session(new_session)
 
-            self._update_session_file(token, sess_created_at, sess_expiration)
-
-            return {"result": LoginResult.CREATED}
+            return LoginResult(LoginResultCode.CREATED, session=new_session)
 
         elif not process_id and not code:
-            if not avoid_new_login:
+            if not login_options.avoid_new_login:
                 process_id = str(uuid4())
                 request["browser_id"] = process_id
 
                 response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
 
                 if response.status_code == 401:
-                    return {"result": LoginResult.INVALID_CREDENTIALS}
+                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
                 if not response.ok:
-                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response status code"}
+                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response status code")
 
                 response = response.json()
                 response_return = response.get("return", None)
                 if not response_return:
-                    return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
 
                 response_2factor = response_return.get("2factor", None)
                 if response_2factor and "check 2fa" in response_2factor.lower():
-                    return {"result": LoginResult.CODE_REQUESTED, "processId": process_id}
+                    return LoginResult(LoginResultCode.CODE_REQUESTED, process_id=process_id)
 
-                return {"result": LoginResult.UNEXPECTED_ERROR, "message": "Unexpected response content"}
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
 
             else:
-                return {"result": LoginResult.NOT_LOGGED}
+                return LoginResult(LoginResultCode.NOT_LOGGED)
 
         else:
             raise ValueError("Invalid params")
 
-    def _resume_web_session(self) -> bool:
-        if not self._session_file or not self._session_file.exists():
+    def _resumable_session(self) -> bool:
+        try:
+            self._get_request("/customers/me/wallet")
+        except requests.exceptions.HTTPError:
             return False
-
-        with self._session_file.open("r") as f:
-            session_data = json.load(f)
-            if not session_data:
-                return False
-
-            token = session_data["token"]
-            expiration = datetime.fromisoformat(session_data["expiration"])
-            if datetime.now(timezone.utc) >= expiration:
-                return False
-
-            self._session.headers["x-auth-token"] = token
+        else:
             return True
 
-    def _update_session_file(self, token, creation, expiration):
-        if not self._session_file:
-            return
-
-        with self._session_file.open("w") as f:
-            session_data = {
-                "token": token,
-                "creation": creation.isoformat(),
-                "expiration": expiration.isoformat(),
-            }
-            json.dump(session_data, f)
-
-    # @cached(cache=TTLCache(maxsize=1, ttl=120))
-    # def get_user(self):
-    #    return self._get_request("/ajax/ajax.php?option=checkuser")["data"]
+    def _inject_session(self, session: EntitySession):
+        self._session.headers["x-auth-token"] = session.payload["token"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_wallet(self):
-        return self._get_request("/customers/me/wallet", api_url=True)["return"]
+        return self._get_request("/customers/me/wallet")["return"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_investments(self):
-        return self._get_request("/customers/me/invests-all", api_url=True)["return"]["data"]
+        return self._get_request("/customers/me/invests-all")["return"]["data"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_investment_details(self, investment_id: int):
-        return self._get_request(f"/investments/{investment_id}/general", api_url=True)["return"]
+        return self._get_request(f"/investments/{investment_id}/general")["return"]
+
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_investment_diary(self, investment_id: int):
+        return self._get_request(f"/investments/{investment_id}/diary")["return"]
+
+    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    def get_investment_transactions(self, investment_id: int):
+        return self._get_request(f"/investments/{investment_id}/transactions")["return"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_transactions(self):
-        return self._get_request("/customers/me/transactions", api_url=True)["return"]
+        return self._get_request("/customers/me/transactions")["return"]

@@ -1,8 +1,10 @@
 import logging
-from typing import Union, Optional
+from typing import Optional
 
 import requests
 from cachetools import TTLCache, cached
+
+from domain.login import LoginResult
 
 
 class MintosAPIClient:
@@ -20,7 +22,7 @@ class MintosAPIClient:
             method: str,
             body: Optional[dict] = None,
             params: Optional[dict] = None,
-    ) -> Union[dict, str]:
+    ) -> dict:
         response = self._session.request(
             method, self.BASE_API_URL + path, json=body, params=params
         )
@@ -28,21 +30,21 @@ class MintosAPIClient:
         if response.ok:
             return response.json()
 
-        self._log.error("Error Status Code:", response.status_code)
-        self._log.error("Error Response Body:", response.text)
-        raise Exception("There was an error during the request")
+        self._log.error("Error Response Body:" + response.text)
+        response.raise_for_status()
+        return {}
 
     def _get_request(
             self, path: str, params: dict = None
-    ) -> Union[dict, str]:
+    ) -> dict | str:
         return self._execute_request(path, "GET", params=params)
 
     def _post_request(
             self, path: str, body: dict
-    ) -> Union[dict, requests.Response]:
+    ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body)
 
-    async def login(self, username: str, password: str) -> dict:
+    async def login(self, username: str, password: str) -> LoginResult:
         from infrastructure.scrapers.mintos.mintos_selenium_login_client import login
         return await login(self._log, self._session, username, password)
 

@@ -1,5 +1,5 @@
 services:
-  bank-scraper:
+  finanze-server:
     restart: unless-stopped
     build: . # Use the Dockerfile in the current directory
     # image: marcosav/bank-scraper:latest
@@ -7,13 +7,9 @@ services:
     ports:
       - '8080:8080'
     environment:
-      MONGO_USERNAME: root
-      MONGO_PASSWORD: root
-      MONGO_HOST: mongodb
-      MONGO_PORT: 27017
       WEB_PORT: 8080
-      TR_COOKIES_PATH: /.tr/cookies.txt
-      WC_COOKIES_PATH: /.wc/cookies.txt
+      DB_PATH: /.storage/finanze_data.db
+      # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Use .env
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
       CONFIG_PATH: /config/config.yml
@@ -21,16 +17,15 @@ services:
       # Selenium related envs
       WIRE_ADDRESS: 0.0.0.0
       WIRE_PORT: 8088
-      WIRE_PROXY_SERVER_ADDRESS: bank-scraper
+      WIRE_PROXY_SERVER_ADDRESS: finanze-server
       WEBDRIVER_ADDRESS: http://selenium:4444
     env_file:
-      - .env
+      - .env # Store here your secrets
     volumes:
-      - ./.tr/:/.tr/
-      - ./.wc/:/.wc/
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
       - ./config/:/config/
+      - ./.storage/:/.storage
       - /etc/timezone:/etc/timezone:ro # Use host's timezone
       - /etc/localtime:/etc/localtime:ro # Use host's localtime
 
@@ -41,17 +36,3 @@ services:
       - "4444:4444"
       - "7900:7900"
     shm_size: "2g"
-
-  mongodb:
-    image: mongo:6-jammy
-    restart: unless-stopped
-    ports:
-      - '27117:27017'
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: root
-    volumes:
-      - dbdata6:/data/db
-
-volumes:
-  dbdata6:

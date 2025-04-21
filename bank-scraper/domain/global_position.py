@@ -1,89 +1,112 @@
+from dataclasses import field
 from datetime import datetime, date
 from enum import Enum
 from typing import List, Optional
+from uuid import UUID
 
 from dateutil.tz import tzlocal
 from pydantic.dataclasses import dataclass
 
 from domain.base import BaseData
+from domain.dezimal import Dezimal
+from domain.financial_entity import FinancialEntity
 
 
-@dataclass
-class AccountAdditionalData:
-    averageInterestRate: Optional[float] = None
-    remunerationType: Optional[str] = None
-    pendingTransfers: Optional[float] = None
+class AccountType(str, Enum):
+    CHECKING = 'CHECKING'
+    VIRTUAL_WALLET = 'VIRTUAL_WALLET'
+    BROKERAGE = 'BROKERAGE'
+    SAVINGS = 'SAVINGS'
 
 
 @dataclass
 class Account:
-    total: float
-    interest: Optional[float] = None
-    retained: Optional[float] = None
-    additionalData: Optional[AccountAdditionalData] = None
+    id: UUID
+    total: Dezimal
+    currency: str
+    type: AccountType
+    name: Optional[str] = None
+    iban: Optional[str] = None
+    interest: Optional[Dezimal] = None
+    retained: Optional[Dezimal] = None
+    pending_transfers: Optional[Dezimal] = None
+
+
+class CardType(str, Enum):
+    CREDIT = 'CREDIT'
+    DEBIT = 'DEBIT'
 
 
 @dataclass
 class Card:
-    limit: float
-    used: float
+    id: UUID
+    currency: str
+    type: CardType
+    used: Dezimal
+    active: bool
+    limit: Optional[Dezimal] = None
+    name: Optional[str] = None
+    ending: Optional[str] = None
+    related_account: Optional[UUID] = None
+
+
+class LoanType(str, Enum):
+    MORTGAGE = 'MORTGAGE'
+    STANDARD = 'STANDARD'
 
 
 @dataclass
-class Cards:
-    credit: Card
-    debit: Card
-
-
-@dataclass
-class Mortgage:
-    currentInstallment: float
-    interestRate: float
-    loanAmount: float
-    nextPaymentDate: date
-    principalOutstanding: float
-    principalPaid: float
+class Loan:
+    id: UUID
+    type: LoanType
+    currency: str
+    current_installment: Dezimal
+    interest_rate: Dezimal
+    loan_amount: Dezimal
+    next_payment_date: date
+    principal_outstanding: Dezimal
+    principal_paid: Dezimal
+    name: Optional[str] = None
 
 
 @dataclass
 class StockDetail(BaseData):
+    id: UUID
     name: str
     ticker: str
     isin: str
     market: str
-    shares: float
-    initialInvestment: float
-    averageBuyPrice: float
-    marketValue: float
+    shares: Dezimal
+    initial_investment: Dezimal
+    average_buy_price: Dezimal
+    market_value: Dezimal
     currency: str
-    currencySymbol: str
     type: str
     subtype: Optional[str] = None
 
 
 @dataclass
 class FundDetail(BaseData):
+    id: UUID
     name: str
     isin: str
     market: str
-    shares: float
-    initialInvestment: float
-    averageBuyPrice: float
-    marketValue: float
+    shares: Dezimal
+    initial_investment: Dezimal
+    average_buy_price: Dezimal
+    market_value: Dezimal
     currency: str
-    currencySymbol: str
-    lastUpdate: Optional[date] = None
 
 
 @dataclass
 class FactoringDetail(BaseData):
+    id: UUID
     name: str
-    amount: float
+    amount: Dezimal
     currency: str
-    currencySymbol: str
-    interestRate: float
-    netInterestRate: float
-    lastInvestDate: Optional[datetime]
+    interest_rate: Dezimal
+    gross_interest_rate: Dezimal
+    last_invest_date: datetime
     maturity: date
     type: str
     state: str
@@ -91,69 +114,74 @@ class FactoringDetail(BaseData):
 
 @dataclass
 class RealStateCFDetail(BaseData):
+    id: UUID
     name: str
-    amount: float
+    amount: Dezimal
+    pending_amount: Dezimal
     currency: str
-    currencySymbol: str
-    interestRate: float
-    lastInvestDate: datetime
-    months: int
+    interest_rate: Dezimal
+    last_invest_date: datetime
+    maturity: date
     type: str
-    businessType: str
-    state: Optional[str] = None
-    potentialExtension: Optional[int] = None
+    business_type: str
+    state: str
+    extended_maturity: Optional[date] = None
 
 
 @dataclass
 class StockInvestments:
-    initialInvestment: float
-    marketValue: float
+    investment: Optional[Dezimal]
+    market_value: Optional[Dezimal]
     details: List[StockDetail]
 
 
 @dataclass
 class FundInvestments:
-    initialInvestment: float
-    marketValue: float
+    investment: Optional[Dezimal]
+    market_value: Optional[Dezimal]
     details: List[FundDetail]
 
 
 @dataclass
 class FactoringInvestments:
-    invested: float
-    weightedInterestRate: float
+    total: Optional[Dezimal]
+    weighted_interest_rate: Optional[Dezimal]
     details: List[FactoringDetail]
 
 
 @dataclass
 class RealStateCFInvestments:
-    invested: float
-    weightedInterestRate: float
+    total: Optional[Dezimal]
+    weighted_interest_rate: Optional[Dezimal]
     details: List[RealStateCFDetail]
 
 
 @dataclass
 class Deposit(BaseData):
+    id: UUID
     name: str
-    amount: float
-    totalInterests: float
-    interestRate: float
+    amount: Dezimal
+    currency: str
+    expected_interests: Dezimal
+    interest_rate: Dezimal
     creation: datetime
     maturity: date
 
 
 @dataclass
 class Deposits:
-    total: float
-    totalInterests: float
-    weightedInterestRate: float
+    total: Optional[Dezimal]
+    expected_interests: Optional[Dezimal]
+    weighted_interest_rate: Optional[Dezimal]
     details: List[Deposit]
 
 
 @dataclass
 class Crowdlending:
-    total: float
-    weightedInterestRate: float
+    id: UUID
+    total: Optional[Dezimal]
+    weighted_interest_rate: Optional[Dezimal]
+    currency: str
     distribution: dict
     details: List
 
@@ -163,24 +191,21 @@ class Investments:
     stocks: Optional[StockInvestments] = None
     funds: Optional[FundInvestments] = None
     factoring: Optional[FactoringInvestments] = None
-    realStateCF: Optional[RealStateCFInvestments] = None
+    real_state_cf: Optional[RealStateCFInvestments] = None
     deposits: Optional[Deposits] = None
     crowdlending: Optional[Crowdlending] = None
 
 
 @dataclass
-class PositionAdditionalData:
-    maintenance: Optional[bool] = None
-
-
-@dataclass
 class GlobalPosition:
+    id: UUID
+    entity: FinancialEntity
     date: Optional[datetime] = None
-    account: Optional[Account] = None
-    cards: Optional[Cards] = None
-    mortgage: Optional[Mortgage] = None
+    accounts: list[Account] = field(default_factory=list)
+    cards: list[Card] = field(default_factory=list)
+    loans: list[Loan] = field(default_factory=list)
     investments: Optional[Investments] = None
-    additionalData: Optional[PositionAdditionalData] = None
+    is_real: bool = True
 
     def __post_init__(self):
         if self.date is None:
@@ -190,8 +215,3 @@ class GlobalPosition:
 @dataclass
 class HistoricalPosition:
     investments: Investments
-
-
-class SourceType(str, Enum):
-    REAL = "REAL"
-    VIRTUAL = "VIRTUAL"

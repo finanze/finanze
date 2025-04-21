@@ -1,24 +1,14 @@
-from typing import Optional
-
 from pydantic.dataclasses import dataclass
 
-from domain.financial_entity import Entity, Feature
+from domain.financial_entity import NativeFinancialEntity
 
 
-@dataclass
-class PinDetails:
-    positions: int
-
-
-@dataclass
-class AvailableSourceEntity:
-    id: Entity
-    features: list[Feature]
-    name: str
-    pin: Optional[PinDetails] = None
+@dataclass(eq=False)
+class AvailableFinancialEntity(NativeFinancialEntity):
+    setup: bool = False
 
 
 @dataclass
 class AvailableSources:
     virtual: bool
-    entities: list[AvailableSourceEntity]
+    entities: list[AvailableFinancialEntity]

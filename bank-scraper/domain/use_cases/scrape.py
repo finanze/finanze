@@ -1,13 +1,10 @@
 import abc
 
-from domain.financial_entity import Entity, Feature
-from domain.scrap_result import ScrapResult
+from domain.scrap_result import ScrapResult, ScrapRequest
 
 
 class Scrape(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def execute(self,
-                      entity: Entity,
-                      features: list[Feature],
-                      **kwargs) -> ScrapResult:
+                      scrap_request: ScrapRequest) -> ScrapResult:
         raise NotImplementedError

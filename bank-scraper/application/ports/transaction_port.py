@@ -1,7 +1,8 @@
 import abc
 from datetime import datetime
+from uuid import UUID
 
-from domain.global_position import SourceType
+from domain.financial_entity import FinancialEntity
 from domain.transactions import Transactions
 
 
@@ -15,17 +16,17 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_ids_by_entity(self, entity: str) -> set[str]:
+    def get_refs_by_entity(self, entity_id: UUID) -> set[str]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_entity(self, entity: str) -> Transactions:
+    def get_by_entity(self, entity_id: UUID) -> Transactions:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_ids_by_source_type(self, source_type: SourceType) -> set[str]:
+    def get_refs_by_source_type(self, real: bool) -> set[str]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_created_grouped_by_entity(self) -> dict[str, datetime]:
+    def get_last_created_grouped_by_entity(self) -> dict[FinancialEntity, datetime]:
         raise NotImplementedError
