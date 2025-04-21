@@ -109,7 +109,7 @@ class MyInvestorScraperV2(EntityScraper):
             remuneration_details = self._client.get_account_remuneration(account_id)
             current_interest_rate = round(remuneration_details["taePromotion"] / 100, 4)
             if not current_interest_rate:
-                current_interest_rate = Dezimal(remuneration_details["remunerationPercentage"])
+                current_interest_rate = round(Dezimal(remuneration_details["remunerationPercentage"]) / 100, 4)
             else:
                 current_interest_rate = round(
                     Dezimal(remuneration_details["calculateTaeAverage"]) / 100, 4
