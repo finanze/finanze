@@ -53,7 +53,7 @@ Not all entities support the same features, in general we can group data in the 
 | Urbanitae      | ✅               | -                         | ✅            | ✅                      |
 | MyInvestor     | ✅               | ✅                         | ✅            | ❌                      |
 | SEGO           | ✅               | -                         | ✅            | ✅                      |
-| Trade Republic | ✅               | WIP                       | ✅            | -                      |
+| Trade Republic | ✅               | ✅                         | ✅            | -                      |
 | Unicaja        | ✅               | -                         | ❌            | -                      |
 | Wecity         | ✅               | -                         | ✅            | ✅                      |
 | Mintos         | ✅               | -                         | ❌            | ❌                      |

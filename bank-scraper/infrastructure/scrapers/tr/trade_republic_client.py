@@ -186,3 +186,10 @@ class TradeRepublicClient:
             f"/api/v1/interest/details-screen?decimalSeparator={decimal_separator}&groupingSeparator={grouping_separator}")
         r.raise_for_status()
         return r.json()
+
+    async def get_saving_plans(self) -> Optional[dict]:
+        await self._tr_api.savings_plan_overview()
+
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response

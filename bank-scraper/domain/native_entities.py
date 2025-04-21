@@ -26,7 +26,7 @@ UNICAJA = NativeFinancialEntity(
 TRADE_REPUBLIC = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000003"),
     name="Trade Republic",
-    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
     pin=PinDetails(positions=4),
     credentials_template={
         "phone": CredentialType.PHONE,

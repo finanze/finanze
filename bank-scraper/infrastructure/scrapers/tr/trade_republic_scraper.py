@@ -1,8 +1,11 @@
+import logging
 import re
 from datetime import datetime
+from typing import Optional
 from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
+from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency
 from domain.dezimal import Dezimal
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
 from domain.login import LoginParams, LoginResult
@@ -119,11 +122,22 @@ def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
     )
 
 
+DATE_FORMAT = "%Y-%m-%d"
+
+CONTRIBUTION_FREQUENCY = {
+    "weekly": ContributionFrequency.WEEKLY,
+    "twoPerMonth": ContributionFrequency.BIWEEKLY,
+    "monthly": ContributionFrequency.MONTHLY,
+    "quarterly": ContributionFrequency.QUARTERLY
+}
+
+
 class TradeRepublicScraper(EntityScraper):
     DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
     def __init__(self):
         self._client = TradeRepublicClient()
+        self._log = logging.getLogger(__name__)
 
     async def login(self, login_params: LoginParams) -> LoginResult:
         credentials = login_params.credentials
@@ -257,3 +271,47 @@ class TradeRepublicScraper(EntityScraper):
                 investment_txs.append(map_investment_tx(raw_tx, date))
 
         return Transactions(investment=investment_txs, account=account_txs)
+
+    def _map_saving_plan(self, saving_plan: dict) -> Optional[PeriodicContribution]:
+        amount = round(Dezimal(saving_plan["amount"]), 2)
+        isin = saving_plan["instrumentId"]
+        frequency = CONTRIBUTION_FREQUENCY.get(saving_plan["interval"])
+        if not frequency:
+            self._log.warning(f"Unknown contribution frequency: {frequency}")
+            return None
+
+        active = not saving_plan["paused"]
+        raw_start_date = saving_plan["startDate"]
+        start_date_type = raw_start_date["type"]
+        if start_date_type == "dayOfMonth":
+            since_str = raw_start_date.get("nextExecutionDate")
+            since = datetime.strptime(since_str, DATE_FORMAT).date()
+            if not since:
+                self._log.warning("No start date in saving plan")
+                return None
+        else:
+            self._log.warning(f"Unknown start date type: {start_date_type}")
+            return None
+
+        return PeriodicContribution(
+            id=uuid4(),
+            alias=None,
+            isin=isin,
+            amount=amount,
+            currency="EUR",  # Default instrument currency
+            since=since,
+            until=None,
+            frequency=frequency,
+            active=active,
+            is_real=True
+        )
+
+    async def auto_contributions(self) -> AutoContributions:
+        saving_plans_response = await self._client.get_saving_plans()
+        await self._client.close()
+
+        saving_plans = saving_plans_response.get("savingsPlans")
+
+        contributions = [self._map_saving_plan(sp) for sp in saving_plans if sp]
+
+        return AutoContributions(contributions)

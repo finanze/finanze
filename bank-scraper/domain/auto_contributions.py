@@ -21,7 +21,7 @@ class ContributionFrequency(str, Enum):
 @dataclass
 class PeriodicContribution:
     id: UUID
-    alias: str
+    alias: Optional[str]
     isin: str
     amount: Dezimal
     currency: str

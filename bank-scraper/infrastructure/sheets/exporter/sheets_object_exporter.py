@@ -82,15 +82,9 @@ def map_rows(
         ((index, row) for index, row in enumerate(cells[last_update_row_index + 1:], last_update_row_index + 1) if
          row), (None, None))
     if header_row_index is None or columns is None:
-        if column_index is not None:
-            _log.warning(
-                f"No headers in {sheet_range} found while trying to export data to Google Sheets, adding warn...")
-            set_field_value(cells[last_update_row_index], column_index + 2, NO_HEADERS_FOUND, config)
-            return cells
-        else:
-            _log.warning(
-                f"No headers in {sheet_range} found while trying to export data to Google Sheets, aborting sheet...")
-            return None
+        _log.warning(
+            f"No headers in {sheet_range} found while trying to export data to Google Sheets, aborting sheet...")
+        return None
 
     product_rows = map_products(data, columns, field_paths, config)
     return [
