@@ -82,6 +82,9 @@ class F24APIClient:
             else:
                 self._user_info = response_body
         else:
+            if "maintenance" in first_login_response.text:
+                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Entity portal under maintenance")
+
             return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
                                message=f"Got unexpected response code {first_login_response.status_code}")
 
@@ -148,3 +151,9 @@ class F24APIClient:
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
         }
         return self._post_request("/api?cmd=switchToConnectedUser", data=data, headers=headers)
+
+    def get_connected_users_assets(self):
+        data = {
+            "q": '{"cmd":"getConnectedUsersAssets"}'
+        }
+        return self._multi_part("/api?cmd=getConnectedUsersAssets", data=data).json()

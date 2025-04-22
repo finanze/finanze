@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from uuid import uuid4
 
@@ -39,9 +40,23 @@ def _map_deposits(off_balance_entries: list):
     return deposits
 
 
-def _get_balance(account: dict) -> tuple[Dezimal, str]:
-    currency = account["net_assets"]["tariff_currency"]
-    return round(Dezimal(account["money_detailed"][currency]["avail_money"]), 2), currency
+def _get_balance(account: dict, default_currency: str) -> tuple[Dezimal | None, str | None]:
+    money_entries = account["money_detailed"]
+    highest_amount = Dezimal(0)
+    highest_currency = default_currency
+    for currency, details in money_entries.items():
+        amount = Dezimal(details["Smoney"])
+        if amount > highest_amount:
+            highest_amount = amount
+            highest_currency = currency
+
+    return round(Dezimal(money_entries[highest_currency]["avail_money"]), 2), highest_currency
+
+
+def _parse_interests_from_desc(text: str) -> dict[str, Dezimal]:
+    pattern = r'(\d+(?:\.\d+)?)%\s*([A-Z]{3})'
+    found = re.findall(pattern, text)
+    return {currency: Dezimal(amount) for amount, currency in found}
 
 
 class F24Scraper(EntityScraper):
@@ -66,26 +81,41 @@ class F24Scraper(EntityScraper):
         savings_position = self._client.get_positions(savings_account_id)
         brokerage_position = self._client.get_positions(brokerage_account_id)
 
-        savings_balance, savings_currency = _get_balance(savings_position)
-        brokerage_balance, brokerage_currency = _get_balance(brokerage_position)
+        savings_balance, savings_currency = _get_balance(savings_position, "EUR")
+        brokerage_balance, brokerage_currency = _get_balance(brokerage_position, savings_currency)
 
-        savings_account = Account(
-            id=uuid4(),
-            type=AccountType.SAVINGS,
-            total=savings_balance,
-            currency=savings_currency,
-            retained=None,
-            interest=None
-        )
+        accounts = []
+        if savings_currency:
+            user_assets = self._client.get_connected_users_assets()
+            savings_account = None
+            if user_assets.get("users"):
+                savings_account = next((acc for acc in user_assets["users"] if acc["account_type"] == "savings"), None)
 
-        brokerage_account = Account(
-            id=uuid4(),
-            type=AccountType.BROKERAGE,
-            total=brokerage_balance,
-            currency=brokerage_currency,
-            retained=None,
-            interest=None
-        )
+            d_account_description = savings_account.get("account_type_description")
+            savings_interests = _parse_interests_from_desc(d_account_description)
+
+            savings_currency_interests = Dezimal(0)
+            if savings_currency in savings_interests:
+                savings_currency_interests = round(savings_interests.get(savings_currency) / 100, 4)
+
+            accounts.append(Account(
+                id=uuid4(),
+                type=AccountType.SAVINGS,
+                total=savings_balance,
+                currency=savings_currency,
+                retained=None,
+                interest=savings_currency_interests
+            ))
+
+        if brokerage_currency:
+            accounts.append(Account(
+                id=uuid4(),
+                type=AccountType.BROKERAGE,
+                total=brokerage_balance,
+                currency=brokerage_currency,
+                retained=None,
+                interest=Dezimal(0)
+            ))
 
         deposits = None
         if brokerage_position["offbalance"]:
@@ -111,7 +141,7 @@ class F24Scraper(EntityScraper):
         return GlobalPosition(
             id=uuid4(),
             entity=F24,
-            accounts=[savings_account, brokerage_account],
+            accounts=accounts,
             investments=Investments(
                 deposits=deposits,
             )

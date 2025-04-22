@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import asdict
 from datetime import date, datetime
 from uuid import UUID
@@ -6,7 +7,7 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 from pytz import utc
 
-from application.use_cases.update_sheets import DETAILS_FIELD, ADDITIONAL_DATA_FIELD
+from application.use_cases.update_sheets import DETAILS_FIELD
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
@@ -16,6 +17,8 @@ COUNT_FIELD = "count"
 
 ERROR_VALUE = "ERR"
 
+_log = logging.getLogger(__name__)
+
 
 def update_summary(
         sheet,
@@ -24,7 +27,12 @@ def update_summary(
     sheet_id, sheet_range = config["spreadsheetId"], config["range"]
 
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
-    cells = result.get('values', [[]]) + [[""]]
+    values = result.get('values')
+    if not values:
+        _log.warning(f"Got empty sheet for {sheet_range}, aborting summary export...")
+        return
+
+    cells = values + [[""]]
 
     global_position_by_entity_name = {
         entity.name.lower(): global_position for entity, global_position in global_positions.items()
@@ -82,23 +90,23 @@ def update_entity_summary(
     parent = None
     field_columns = []
     prev_row = None
-    last_row_final_simple_category = False
     last_row_grid_category = False
     parent_list_index = 0
     for row in current_cells:
-        if (not row and (last_row_grid_category or not prev_row)) or last_row_final_simple_category:
+        if not row and (last_row_grid_category or not prev_row):
             prev_row = row.copy()
-            last_row_final_simple_category, last_row_grid_category = False, False
+            last_row_grid_category = False
             field_columns = []
             parent = None
             continue
         prev_row = row.copy()
-        last_row_final_simple_category, last_row_grid_category = False, False
+        last_row_grid_category = False
 
         title = row[0] if row else None
         if title in pos_dict:
             parent = pos_dict[title]
             field_columns = row[1:]
+            parent_list_index = -1
             continue
 
         parent_list = isinstance(parent, list)
@@ -107,72 +115,43 @@ def update_entity_summary(
         else:
             parent_list_index = -1
 
-        if not title:
-            last_row_final_simple_category = True
-            if not row:
-                row.append("")
+        last_row_grid_category = True
+        for column_i in range(len(field_columns)):
+            column = field_columns[column_i]
+            if not column:
+                set_field_value(row, column_i + 1, "", config)
+                continue
 
-            for column_i in range(len(field_columns)):
-                column = field_columns[column_i]
-                if not column:
-                    set_field_value(row, column_i + 1, "", config)
-                    continue
+            if parent is None:
+                continue
 
-                if parent is None:
-                    continue
-
+            if not parent_list and (title not in parent or not parent[title]):
+                value = ""
+            else:
                 if column == COUNT_FIELD:
-                    if DETAILS_FIELD in parent:
-                        value = len(parent.get(DETAILS_FIELD))
+                    if not parent_list and DETAILS_FIELD in parent[title]:
+                        value = len(parent[title].get(DETAILS_FIELD))
                     else:
                         value = ""
                 else:
-                    if parent and isinstance(parent, list) and not title:
-                        parent = parent[0]
-
-                    value = parent.get(column, None)
-                    if value is None:
-                        additional_data = parent.get(ADDITIONAL_DATA_FIELD, None)
-                        if additional_data:
-                            value = additional_data.get(column, ERROR_VALUE)
-
-                set_field_value(row, column_i + 1, value, config)
-
-        else:
-            last_row_grid_category = True
-            for column_i in range(len(field_columns)):
-                column = field_columns[column_i]
-                if not column:
-                    set_field_value(row, column_i + 1, "", config)
-                    continue
-
-                if parent is None:
-                    continue
-
-                if not parent_list and (title not in parent or not parent[title]):
-                    value = ""
-                else:
-                    if column == COUNT_FIELD:
-                        if not parent_list and DETAILS_FIELD in parent[title]:
-                            value = len(parent[title].get(DETAILS_FIELD))
-                        else:
-                            value = ""
-                    else:
-                        complex_column = '.' in column
-                        fields = column.split(".")
-                        obj = parent[title] if not parent_list else parent[parent_list_index - 1]
-                        value = obj.get(fields[0], ERROR_VALUE)
-                        if complex_column:
-                            for field in fields[1:]:
-                                if isinstance(value, dict):
-                                    value = value.get(field, ERROR_VALUE)
-                                    if value == ERROR_VALUE:
-                                        break
-                                else:
-                                    value = ERROR_VALUE
+                    complex_column = '.' in column
+                    fields = column.split(".")
+                    obj = parent[title] if not parent_list else parent[parent_list_index - 1]
+                    value = obj.get(fields[0], ERROR_VALUE)
+                    if complex_column:
+                        for field in fields[1:]:
+                            if isinstance(value, dict):
+                                value = value.get(field, ERROR_VALUE)
+                                if value == ERROR_VALUE:
                                     break
+                            else:
+                                value = ERROR_VALUE
+                                break
 
-                set_field_value(row, column_i + 1, value, config)
+            set_column_i = column_i + 1
+            if len(row) == 0:
+                row.append("")
+            set_field_value(row, set_column_i, value, config)
 
 
 def set_field_value(row: list[str], index: int, value, config):

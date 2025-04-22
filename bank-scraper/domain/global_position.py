@@ -86,6 +86,15 @@ class StockDetail(BaseData):
 
 
 @dataclass
+class FundPortfolio(BaseData):
+    id: UUID
+    name: str
+    currency: str
+    initial_investment: Dezimal
+    market_value: Dezimal
+
+
+@dataclass
 class FundDetail(BaseData):
     id: UUID
     name: str
@@ -96,6 +105,7 @@ class FundDetail(BaseData):
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
+    portfolio: Optional[FundPortfolio] = None
 
 
 @dataclass
@@ -190,6 +200,7 @@ class Crowdlending:
 class Investments:
     stocks: Optional[StockInvestments] = None
     funds: Optional[FundInvestments] = None
+    fund_portfolios: List[FundPortfolio] = field(default_factory=list)
     factoring: Optional[FactoringInvestments] = None
     real_state_cf: Optional[RealStateCFInvestments] = None
     deposits: Optional[Deposits] = None

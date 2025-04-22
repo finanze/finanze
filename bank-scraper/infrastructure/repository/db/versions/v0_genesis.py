@@ -28,7 +28,7 @@ DDL = """
       CREATE TABLE account_positions
       (
           id                 CHAR(36) PRIMARY KEY,
-          global_position_id CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           type               VARCHAR(32) NOT NULL,
           name               TEXT,
           iban               VARCHAR(32),
@@ -44,7 +44,7 @@ DDL = """
       CREATE TABLE card_positions
       (
           id                 CHAR(36) PRIMARY KEY,
-          global_position_id CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           type               VARCHAR(32) NOT NULL,
           name               TEXT,
           currency           CHAR(3)     NOT NULL,
@@ -60,7 +60,7 @@ DDL = """
       CREATE TABLE loan_positions
       (
           id                    CHAR(36) PRIMARY KEY,
-          global_position_id    CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id    CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           type                  VARCHAR(32) NOT NULL,
           currency              CHAR(3)     NOT NULL,
           name                  TEXT,
@@ -109,10 +109,22 @@ DDL = """
 
       CREATE INDEX idx_sp_global_position_id ON stock_positions (global_position_id);
 
+      CREATE TABLE fund_portfolios
+      (
+          id                 CHAR(36) PRIMARY KEY,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          name               TEXT        NOT NULL,
+          currency           CHAR(3)     NOT NULL,
+          initial_investment TEXT        NOT NULL,
+          market_value       TEXT        NOT NULL
+      );
+      
+      CREATE INDEX idx_fpo_global_position_id ON fund_portfolios (global_position_id);
+
       CREATE TABLE fund_positions
       (
           id                 CHAR(36) PRIMARY KEY,
-          global_position_id CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name               TEXT        NOT NULL,
           isin               VARCHAR(12) NOT NULL,
           market             VARCHAR(50) NOT NULL,
@@ -120,15 +132,17 @@ DDL = """
           initial_investment TEXT        NOT NULL,
           average_buy_price  TEXT        NOT NULL,
           market_value       TEXT        NOT NULL,
-          currency           CHAR(3)     NOT NULL
+          currency           CHAR(3)     NOT NULL,
+          portfolio_id       CHAR(36) REFERENCES fund_portfolios (id) ON DELETE CASCADE ON UPDATE CASCADE
       );
 
       CREATE INDEX idx_fp_global_position_id ON fund_positions (global_position_id);
+      CREATE INDEX idx_fp_portfolio_id ON fund_positions (portfolio_id);
 
       CREATE TABLE factoring_positions
       (
           id                  CHAR(36) PRIMARY KEY,
-          global_position_id  CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id  CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name                TEXT        NOT NULL,
           amount              TEXT        NOT NULL,
           currency            CHAR(3)     NOT NULL,
@@ -145,7 +159,7 @@ DDL = """
       CREATE TABLE real_state_cf_positions
       (
           id                 CHAR(36) PRIMARY KEY,
-          global_position_id CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name               TEXT        NOT NULL,
           amount             TEXT        NOT NULL,
           pending_amount     TEXT        NOT NULL,
@@ -164,7 +178,7 @@ DDL = """
       CREATE TABLE deposit_positions
       (
           id                 CHAR(36) PRIMARY KEY,
-          global_position_id CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name               TEXT     NOT NULL,
           amount             TEXT     NOT NULL,
           currency           CHAR(3)  NOT NULL,
@@ -179,7 +193,7 @@ DDL = """
       CREATE TABLE crowdlending_positions
       (
           id                 CHAR(36) PRIMARY KEY,
-          global_position_id CHAR(36) REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           currency           CHAR(3) NOT NULL,
           distribution       JSON    NOT NULL
       );

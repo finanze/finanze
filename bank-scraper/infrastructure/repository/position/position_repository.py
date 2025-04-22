@@ -10,7 +10,7 @@ from domain.global_position import (
     GlobalPosition, Account, Card, Loan,
     Investments, StockInvestments, StockDetail, CardType, FundDetail, FundInvestments, FactoringDetail,
     FactoringInvestments, RealStateCFDetail, RealStateCFInvestments, Deposits, Deposit, Crowdlending, AccountType,
-    LoanType
+    LoanType, FundPortfolio
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient
@@ -163,14 +163,32 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
     _save_investment_kpis(cursor, position, FACTORING, kpis)
 
 
+def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: list[FundPortfolio]):
+    for portfolio in portfolios:
+        cursor.execute(
+            """
+            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(portfolio.id),
+                str(position.id),
+                portfolio.name,
+                portfolio.currency,
+                portfolio.initial_investment,
+                portfolio.market_value
+            )
+        )
+
+
 def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
     for detail in funds.details:
         cursor.execute(
             """
             INSERT INTO fund_positions (id, global_position_id, name, isin, market,
                                         shares, initial_investment, average_buy_price,
-                                        market_value, currency)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        market_value, currency, portfolio_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -182,7 +200,8 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
                 str(detail.initial_investment),
                 str(detail.average_buy_price),
                 str(detail.market_value),
-                detail.currency
+                detail.currency,
+                str(detail.portfolio.id) if detail.portfolio else None
             )
         )
 
@@ -233,6 +252,8 @@ def _save_investments(cursor, position: GlobalPosition, investments: Investments
         _save_stocks(cursor, position, investments.stocks)
     if investments.funds:
         _save_funds(cursor, position, investments.funds)
+    if investments.fund_portfolios:
+        _save_fund_portfolios(cursor, position, investments.fund_portfolios)
     if investments.factoring:
         _save_factoring(cursor, position, investments.factoring)
     if investments.real_state_cf:
@@ -455,6 +476,7 @@ class PositionSQLRepository(PositionPort):
         return Investments(
             stocks=self._get_stock_investments(global_position_id, kpis.get(STOCKS)),
             funds=self._get_fund_investments(global_position_id, kpis.get(FUNDS)),
+            fund_portfolios=self._get_fund_portfolios(global_position_id),
             factoring=self._get_factoring_investments(global_position_id, kpis.get(FACTORING)),
             real_state_cf=self._get_real_state_cf_investments(global_position_id, kpis.get(REAL_STATE_CF)),
             deposits=self._get_deposit_investments(global_position_id, kpis.get(DEPOSITS)),
@@ -507,12 +529,40 @@ class PositionSQLRepository(PositionPort):
                 details=details
             )
 
-    def _get_fund_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[FundInvestments]:
+    def _get_fund_portfolios(self, global_position_id: UUID) -> list[FundPortfolio]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM fund_positions WHERE global_position_id = ?",
+                "SELECT * FROM fund_portfolios WHERE global_position_id = ?",
                 (str(global_position_id),)
             )
+
+            portfolios = []
+            for row in cursor:
+                portfolios.append(FundPortfolio(
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    currency=row["currency"],
+                    initial_investment=Dezimal(row["initial_investment"]),
+                    market_value=Dezimal(row["market_value"]),
+                ))
+
+            return portfolios
+
+    def _get_fund_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[FundInvestments]:
+        with self._db_client.read() as cursor:
+            cursor.execute("""
+                           SELECT f.*,
+                                  p.id                 AS portfolio_id,
+                                  p.name               AS portfolio_name,
+                                  p.currency           AS portfolio_currency,
+                                  p.initial_investment AS portfolio_investment,
+                                  p.market_value       AS portfolio_value
+                           FROM fund_positions f
+                                    LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
+                           WHERE f.global_position_id = ?
+                           """,
+                           (str(global_position_id),)
+                           )
 
             details = [
                 FundDetail(
@@ -524,7 +574,14 @@ class PositionSQLRepository(PositionPort):
                     initial_investment=Dezimal(row["initial_investment"]),
                     average_buy_price=Dezimal(row["average_buy_price"]),
                     market_value=Dezimal(row["market_value"]),
-                    currency=row["currency"]
+                    currency=row["currency"],
+                    portfolio=FundPortfolio(
+                        id=UUID(row["portfolio_id"]),
+                        name=row["portfolio_name"],
+                        currency=row["portfolio_currency"],
+                        initial_investment=Dezimal(row["portfolio_investment"]),
+                        market_value=Dezimal(row["portfolio_value"])
+                    ) if row["portfolio_id"] else None
                 )
                 for row in cursor
             ]
