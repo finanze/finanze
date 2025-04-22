@@ -86,6 +86,15 @@ F24 = NativeFinancialEntity(
     }
 )
 
+INDEXA_CAPITAL = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000009"),
+    name="Indexa Capital",
+    features=[Feature.POSITION],
+    credentials_template={
+        "token": CredentialType.API_TOKEN
+    }
+)
+
 NATIVE_ENTITIES = [
     MY_INVESTOR,
     UNICAJA,
@@ -94,7 +103,8 @@ NATIVE_ENTITIES = [
     WECITY,
     SEGO,
     MINTOS,
-    F24
+    F24,
+    INDEXA_CAPITAL
 ]
 
 

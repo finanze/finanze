@@ -59,6 +59,11 @@ class CredentialsReader(CredentialsPort):
                 "password": os.environ["F24_PASSWORD"]
             }
 
+        elif entity_id == domain.native_entities.INDEXA_CAPITAL.id:
+            return {
+                "token": os.environ["INDEXA_CAPITAL_TOKEN"]
+            }
+
         return None
 
     def get_available_entities(self) -> list[FinancialEntity]:
