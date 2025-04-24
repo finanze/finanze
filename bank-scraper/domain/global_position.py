@@ -17,6 +17,7 @@ class AccountType(str, Enum):
     VIRTUAL_WALLET = 'VIRTUAL_WALLET'
     BROKERAGE = 'BROKERAGE'
     SAVINGS = 'SAVINGS'
+    FUND_PORTFOLIO = 'FUND_PORTFOLIO'
 
 
 @dataclass
@@ -88,10 +89,10 @@ class StockDetail(BaseData):
 @dataclass
 class FundPortfolio(BaseData):
     id: UUID
-    name: str
-    currency: str
-    initial_investment: Dezimal
-    market_value: Dezimal
+    name: Optional[str] = None
+    currency: Optional[str] = None
+    initial_investment: Optional[Dezimal] = None
+    market_value: Optional[Dezimal] = None
 
 
 @dataclass

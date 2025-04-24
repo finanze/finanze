@@ -35,6 +35,9 @@ work, be outdated or partially implemented.
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
 | Freedom24      | ✅        | -     | -     | ❌              | ✅        | -          | -                   | -      | ❌     |                     |
+| Indexa Capital | ✅⚠️      | -     | ✅⚠️   | -              | -        | ✅⚠️        | -                   | -      | -     |                     |
+
+⚠️ = Not tested
 
 ### Entity Features
 
@@ -58,6 +61,7 @@ Not all entities support the same features, in general we can group data in the 
 | Wecity         | ✅               | -                         | ✅                              | ✅                      |
 | Mintos         | ✅               | -                         | ❌                              | ❌                      |
 | Freedom24      | ✅               | -                         | ❌                              | ❌                      |
+| Indexa Capital | ✅⚠️             | -                         | ❌                              | -                      |
 
 ### Entity notes
 
@@ -73,8 +77,8 @@ Important points to remark:
 - **Unicaja** at the moment requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
   bot
   protection, good news is that it last for a year approx.
-- **Mintos** is experimental, as it needs Selenium to resolve reCAPTCHA,
-  checkout [docker-compose.yml](docker-compose.yml).
+- **Mintos** is experimental, as it needs Selenium to resolve reCAPTCHA.
+- **Indexa Capital** is not tested, as I don't have an account.
 
 ### Google Sheets export
 

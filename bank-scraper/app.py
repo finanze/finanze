@@ -20,6 +20,7 @@ from infrastructure.repository.credentials.credentials_repository import Credent
 from infrastructure.repository.db.setup import initialize_database
 from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.scrapers.f24.f24_scraper import F24Scraper
+from infrastructure.scrapers.indexa_capital.indexa_capital_scraper import IndexaCapitalScraper
 from infrastructure.scrapers.mintos.mintos_scraper import MintosScraper
 from infrastructure.scrapers.myinvestor import MyInvestorScraper
 from infrastructure.scrapers.sego.sego_scraper import SegoScraper
@@ -55,6 +56,7 @@ entity_scrapers = {
     domain.native_entities.SEGO: SegoScraper(),
     domain.native_entities.MINTOS: MintosScraper(),
     domain.native_entities.F24: F24Scraper(),
+    domain.native_entities.INDEXA_CAPITAL: IndexaCapitalScraper(),
 }
 try:
     virtual_scraper = SheetsImporter()
