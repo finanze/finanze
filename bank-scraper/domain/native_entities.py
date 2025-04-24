@@ -79,7 +79,7 @@ MINTOS = NativeFinancialEntity(
 F24 = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000008"),
     name="Freedom24",
-    features=[Feature.POSITION],
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD

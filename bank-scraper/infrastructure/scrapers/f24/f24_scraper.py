@@ -6,11 +6,16 @@ from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import Account, GlobalPosition, Investments, \
     Deposits, Deposit, AccountType
-from domain.login import LoginResultCode, LoginParams, LoginResult  # Agregado
+from domain.login import LoginResultCode, LoginParams, LoginResult
 from domain.native_entities import F24
+from domain.transactions import Transactions, AccountTx, TxType
 from infrastructure.scrapers.f24.f24_client import F24APIClient
 
+DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 DATE_FORMAT = "%Y-%m-%d"
+
+INTEREST_YEARLY_PAYMENTS = 365
 
 
 def _map_deposits(off_balance_entries: list):
@@ -57,6 +62,46 @@ def _parse_interests_from_desc(text: str) -> dict[str, Dezimal]:
     pattern = r'(\d+(?:\.\d+)?)%\s*([A-Z]{3})'
     found = re.findall(pattern, text)
     return {currency: Dezimal(amount) for amount, currency in found}
+
+
+def _map_account_txs(raw_trades, registered_txs):
+    account_txs = []
+    for trade in raw_trades:
+        trade_id = str(trade["trade_id"])
+        if trade_id in registered_txs:
+            continue
+
+        profit = round(Dezimal(trade["profit"]), 2)
+        if profit <= Dezimal(0):
+            continue
+
+        trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT)
+        avg_balance = round(Dezimal(trade["sum"]), 2)
+        interest_rate = Dezimal(0)
+        if avg_balance > Dezimal(0):
+            interest_rate = round(profit * INTEREST_YEARLY_PAYMENTS / avg_balance, 4)
+
+        operation_desc = trade.get("operation").strip()
+        pay_d = trade.get("pay_d", trade_date.strftime(DATE_FORMAT))
+        name = f"{pay_d} - {operation_desc}"
+
+        account_tx = AccountTx(
+            id=uuid4(),
+            ref=trade_id,
+            name=name,
+            amount=profit,
+            currency=trade["currency"],
+            fees=trade.get("commission", Dezimal(0)),
+            retentions=Dezimal(0),
+            interest_rate=interest_rate,
+            avg_balance=avg_balance,
+            type=TxType.INTEREST,
+            date=trade_date,
+            entity=F24,
+            is_real=True
+        )
+        account_txs.append(account_tx)
+    return account_txs
 
 
 class F24Scraper(EntityScraper):
@@ -149,6 +194,16 @@ class F24Scraper(EntityScraper):
 
     def _get_positions(self, user_id: str) -> dict:
         return self._client.get_positions(user_id)
+
+    async def transactions(self, registered_txs: set[str]) -> Transactions:
+        savings_account_id = self._users["savings"]["id"]
+        tr_systems_id = self._users["savings"]["trader_systems_id"]
+        self._client.switch_user(tr_systems_id)
+        raw_trades = self._client.get_trades(savings_account_id).get("trades", [])
+
+        account_txs = _map_account_txs(raw_trades, registered_txs)
+
+        return Transactions(investment=[], account=account_txs)
 
     def _setup_users(self):
         user_info_raw = self._client.get_user_info()
