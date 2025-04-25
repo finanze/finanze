@@ -61,7 +61,7 @@ def _map_investment_row(row) -> BaseInvestmentTx:
     if row["product_type"] == ProductType.STOCK_ETF.value:
         return StockTx(
             **common,
-            isin=row["isin"],
+            isin=row["isin"] if "isin" in row else None,
             ticker=row["ticker"],
             market=row["market"],
             shares=Dezimal(row["shares"]),

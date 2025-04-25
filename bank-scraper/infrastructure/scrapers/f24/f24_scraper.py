@@ -2,13 +2,15 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
+from dateutil.tz import tzlocal
+
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import Account, GlobalPosition, Investments, \
     Deposits, Deposit, AccountType
 from domain.login import LoginResultCode, LoginParams, LoginResult
 from domain.native_entities import F24
-from domain.transactions import Transactions, AccountTx, TxType
+from domain.transactions import Transactions, AccountTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.f24.f24_client import F24APIClient
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -75,7 +77,7 @@ def _map_account_txs(raw_trades, registered_txs):
         if profit <= Dezimal(0):
             continue
 
-        trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT)
+        trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(tzlocal())
         avg_balance = round(Dezimal(trade["sum"]), 2)
         interest_rate = Dezimal(0)
         if avg_balance > Dezimal(0):
@@ -199,11 +201,73 @@ class F24Scraper(EntityScraper):
         savings_account_id = self._users["savings"]["id"]
         tr_systems_id = self._users["savings"]["trader_systems_id"]
         self._client.switch_user(tr_systems_id)
-        raw_trades = self._client.get_trades(savings_account_id).get("trades", [])
 
+        raw_trades = self._client.get_trades(savings_account_id).get("trades", [])
         account_txs = _map_account_txs(raw_trades, registered_txs)
 
-        return Transactions(investment=[], account=account_txs)
+        brokerage_account_id = self._users["brokerage"]["id"]
+        b_systems_id = self._users["brokerage"]["trader_systems_id"]
+        self._client.switch_user(b_systems_id)
+
+        raw_trades = self._client.get_trades(brokerage_account_id).get("trades", [])
+        investment_txs = self._map_investment_txs(raw_trades, registered_txs)
+
+        return Transactions(investment=investment_txs, account=account_txs)
+
+    def _map_investment_txs(self, raw_trades, registered_txs):
+        investment_tx = []
+        for trade in raw_trades:
+            trade_id = str(trade["trade_id"])
+            if trade_id in registered_txs:
+                continue
+
+            trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(tzlocal())
+
+            operation = trade.get("operation").strip()
+            if operation == "Sell":
+                tx_type = TxType.SELL
+            elif operation == "Buy":
+                tx_type = TxType.BUY
+            else:
+                continue
+
+            amount = round(Dezimal(trade["sum"]), 2)
+            shares = Dezimal(trade["q"])
+            price = Dezimal(trade["p"])
+            fee = Dezimal(trade.get("commission", 0))
+
+            ticker = trade["ticker"]
+
+            ticker_info = self._client.find_by_ticker(ticker)
+            isin = ticker_info.get("isin")
+            market = ticker_info.get("mkt")
+            name = ticker_info.get("nm", ticker)
+
+            tx = StockTx(
+                id=uuid4(),
+                ref=trade_id,
+                name=name,
+                amount=amount + fee,
+                currency=trade["currency"],
+                type=tx_type,
+                date=trade_date,
+                entity=F24,
+                net_amount=amount,
+                isin=isin,
+                ticker=ticker,
+                shares=Dezimal(shares),
+                price=Dezimal(price),
+                market=market,
+                fees=fee,
+                retentions=Dezimal(0),
+                order_date=None,
+                product_type=ProductType.STOCK_ETF,
+                linked_tx=None,
+                is_real=True
+            )
+            investment_tx.append(tx)
+
+        return investment_tx
 
     def _setup_users(self):
         user_info_raw = self._client.get_user_info()

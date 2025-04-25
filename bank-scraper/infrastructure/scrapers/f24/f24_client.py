@@ -157,3 +157,10 @@ class F24APIClient:
             "q": '{"cmd":"getConnectedUsersAssets"}'
         }
         return self._multi_part("/api?cmd=getConnectedUsersAssets", data=data).json()
+
+    def find_by_ticker(self, ticker: str):
+        data = 'q={"cmd":"tickerFinder","params":{"text":"' + ticker + '","exchanges":"MCX,SPBEX,FORTS,EASTE,FIX,SPBFOR,UFORTS,UFOUND,EU,ATHEX,BIST,KASE,AIX,ITS,HKEX,EUROBOND,CRPT,IMEX"}}'
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+        }
+        return self._post_request("/api", data=data, headers=headers)

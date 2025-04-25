@@ -61,7 +61,7 @@ class AccountTx(BaseTx):
 @dataclass
 class StockTx(BaseInvestmentTx):
     net_amount: Dezimal
-    isin: str
+    isin: Optional[str]
     shares: Dezimal
     price: Dezimal
     fees: Dezimal
