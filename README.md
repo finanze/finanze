@@ -34,7 +34,7 @@ work, be outdated or partially implemented.
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
-| Freedom24      | ✅        | -     | -     | ❌              | ✅        | -          | -                   | -      | ❌     |                     |
+| Freedom24      | ✅        | -     | -     | ❌              | ✅        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅⚠️      | -     | ✅⚠️   | -              | -        | ✅⚠️        | -                   | -      | -     |                     |
 
 ⚠️ = Not tested
@@ -60,7 +60,7 @@ Not all entities support the same features, in general we can group data in the 
 | Unicaja        | ✅               | -                         | -                              | -                      |
 | Wecity         | ✅               | -                         | ✅                              | ✅                      |
 | Mintos         | ✅               | -                         | ❌                              | ❌                      |
-| Freedom24      | ✅               | -                         | ❌                              | ❌                      |
+| Freedom24      | ✅               | -                         | ✅                              | ❌                      |
 | Indexa Capital | ✅⚠️             | -                         | ❌                              | -                      |
 
 ### Entity notes
