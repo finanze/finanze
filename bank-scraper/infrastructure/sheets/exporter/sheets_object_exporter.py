@@ -87,6 +87,8 @@ def map_rows(
         return None
 
     product_rows = map_products(data, columns, field_paths, config)
+    if not product_rows:
+        return None
     return [
         *cells[:header_row_index + 1],
         *product_rows,
