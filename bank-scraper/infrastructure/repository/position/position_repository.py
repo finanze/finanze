@@ -175,8 +175,8 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: list[Fun
                 str(position.id),
                 portfolio.name,
                 portfolio.currency,
-                portfolio.initial_investment,
-                portfolio.market_value
+                str(portfolio.initial_investment),
+                str(portfolio.market_value)
             )
         )
 
@@ -250,10 +250,10 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
 def _save_investments(cursor, position: GlobalPosition, investments: Investments):
     if investments.stocks:
         _save_stocks(cursor, position, investments.stocks)
-    if investments.funds:
-        _save_funds(cursor, position, investments.funds)
     if investments.fund_portfolios:
         _save_fund_portfolios(cursor, position, investments.fund_portfolios)
+    if investments.funds:
+        _save_funds(cursor, position, investments.funds)
     if investments.factoring:
         _save_factoring(cursor, position, investments.factoring)
     if investments.real_state_cf:

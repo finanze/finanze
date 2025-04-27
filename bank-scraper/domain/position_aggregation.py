@@ -153,11 +153,12 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
     )
 
 
-StockInvestments.__add__ = _add_stocks
-FundInvestments.__add__ = _add_funds
-FactoringInvestments.__add__ = _add_factoring
-RealStateCFInvestments.__add__ = _add_real_state_cf
-Deposits.__add__ = _add_deposits
-Crowdlending.__add__ = _add_crowdlending
-Investments.__add__ = _add_investments
-GlobalPosition.__add__ = _add_position
+def add_extensions():
+    StockInvestments.__add__ = _add_stocks
+    FundInvestments.__add__ = _add_funds
+    FactoringInvestments.__add__ = _add_factoring
+    RealStateCFInvestments.__add__ = _add_real_state_cf
+    Deposits.__add__ = _add_deposits
+    Crowdlending.__add__ = _add_crowdlending
+    Investments.__add__ = _add_investments
+    GlobalPosition.__add__ = _add_position

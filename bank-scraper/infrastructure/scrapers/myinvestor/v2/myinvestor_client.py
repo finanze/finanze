@@ -85,7 +85,7 @@ class MyInvestorAPIV2Client:
         return self._get_request("/myinvestor-server/api/v3/customers/self")["payload"]["data"]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_accounts(self):
+    def get_cash_accounts(self):
         return self._get_request("/myinvestor-server/api/v2/cash-accounts/self")["payload"]["data"]
 
     def get_account_remuneration(self, account_id):
@@ -211,3 +211,13 @@ class MyInvestorAPIV2Client:
 
     def get_deposits(self):
         return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]
+
+    def is_portfolio_pledged(self, security_account_id: str):
+        return self._get_request(f"/ms-lending/api/v2/pledged/guarantees/portfolios/{security_account_id}/status")[
+            "payload"][
+            "data"]["isPledged"]
+
+    def is_fund_pledged(self, security_account_id: str, fund_isin: str):
+        return self._get_request(
+            f"/ms-lending/api/v2/pledged/guarantees/securities-accounts/{security_account_id}/funds/{fund_isin}")[
+            "payload"]["data"]["isPledged"]

@@ -18,11 +18,18 @@ class ContributionFrequency(str, Enum):
     YEARLY = "YEARLY"
 
 
+class ContributionTargetType(str, Enum):
+    STOCK_ETF = "STOCK_ETF"
+    FUND = "FUND"
+    FUND_PORTFOLIO = "FUND_PORTFOLIO"
+
+
 @dataclass
 class PeriodicContribution:
     id: UUID
     alias: Optional[str]
-    isin: str
+    target: str
+    target_type: ContributionTargetType
     amount: Dezimal
     currency: str
     since: date

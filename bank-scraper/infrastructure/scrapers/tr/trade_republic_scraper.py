@@ -5,7 +5,8 @@ from typing import Optional
 from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
-from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency
+from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency, \
+    ContributionTargetType
 from domain.dezimal import Dezimal
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
 from domain.login import LoginParams, LoginResult
@@ -301,7 +302,8 @@ class TradeRepublicScraper(EntityScraper):
         return PeriodicContribution(
             id=uuid4(),
             alias=instrument_name,
-            isin=isin,
+            target=isin,
+            target_type=ContributionTargetType.STOCK_ETF,
             amount=amount,
             currency=currency,
             since=since,

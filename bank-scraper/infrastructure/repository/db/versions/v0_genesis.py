@@ -204,21 +204,22 @@ DDL = """
 
       CREATE TABLE periodic_contributions
       (
-          id         CHAR(36)    NOT NULL PRIMARY KEY,
-          entity_id  CHAR(36)    NOT NULL REFERENCES financial_entities (id) ON DELETE CASCADE ON UPDATE CASCADE,
-          isin       VARCHAR(12) NOT NULL,
-          alias      VARCHAR(100),
-          amount     TEXT        NOT NULL,
-          currency   CHAR(3)     NOT NULL,
-          since      DATE        NOT NULL,
-          until      DATE,
-          frequency  VARCHAR(32) NOT NULL,
-          active     BOOLEAN     NOT NULL,
-          is_real    BOOLEAN     NOT NULL,
-          created_at TIMESTAMP   NOT NULL
+          id          CHAR(36)    NOT NULL PRIMARY KEY,
+          entity_id   CHAR(36)    NOT NULL REFERENCES financial_entities (id) ON DELETE CASCADE ON UPDATE CASCADE,
+          target      TEXT        NOT NULL,
+          target_type VARCHAR(32) NOT NULL,
+          alias       VARCHAR(100),
+          amount      TEXT        NOT NULL,
+          currency    CHAR(3)     NOT NULL,
+          since       DATE        NOT NULL,
+          until       DATE,
+          frequency   VARCHAR(32) NOT NULL,
+          active      BOOLEAN     NOT NULL,
+          is_real     BOOLEAN     NOT NULL,
+          created_at  TIMESTAMP   NOT NULL
       );
 
-      CREATE INDEX idx_pcont_entity_isin ON periodic_contributions (entity_id, isin);
+      CREATE INDEX idx_pcont_entity_target ON periodic_contributions (entity_id, target);
 
 -- TRANSACTIONS
 

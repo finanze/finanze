@@ -32,7 +32,7 @@ class UrbanitaeScraper(EntityScraper):
         self._client = UrbanitaeAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> LoginResult:  # modificado retorno
+    async def login(self, login_params: LoginParams) -> LoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         return self._client.login(username, password)

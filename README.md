@@ -28,7 +28,7 @@ work, be outdated or partially implemented.
 | Entity         | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
 |----------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
 | Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | WIP        | ❌                   | -      | -     |                     |
+| MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
 | SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
 | Trade Republic | ✅        | -     | -     | ✅              | -        | -          | -                   | ✅      | ❌     |                     |
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
