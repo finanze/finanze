@@ -1,3 +1,4 @@
+import calendar
 import re
 from datetime import datetime
 from uuid import uuid4
@@ -16,8 +17,6 @@ from infrastructure.scrapers.f24.f24_client import F24APIClient
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 DATE_FORMAT = "%Y-%m-%d"
-
-INTEREST_YEARLY_PAYMENTS = 365
 
 
 def _map_deposits(off_balance_entries: list):
@@ -81,7 +80,10 @@ def _map_account_txs(raw_trades, registered_txs):
         avg_balance = round(Dezimal(trade["sum"]), 2)
         interest_rate = Dezimal(0)
         if avg_balance > Dezimal(0):
-            interest_rate = round(profit * INTEREST_YEARLY_PAYMENTS / avg_balance, 4)
+            pay_d = datetime.strptime(trade.get("pay_d", None), DATE_FORMAT).astimezone(tzlocal())
+            payment_days = (pay_d - trade_date).days + 1
+            year_days = 365 + calendar.isleap(datetime.now().year)
+            interest_rate = round(profit * Dezimal(year_days / payment_days) / avg_balance, 4)
 
         operation_desc = trade.get("operation").strip()
         pay_d = trade.get("pay_d", trade_date.strftime(DATE_FORMAT))
