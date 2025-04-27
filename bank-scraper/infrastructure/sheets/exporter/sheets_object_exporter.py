@@ -161,7 +161,16 @@ def map_product_row(details, entity: FinancialEntity, p_type, columns, config) -
         if column in details:
             rows.append(format_field_value(details[column], config))
         else:
-            rows.append("")
+            complex_column = '.' in column
+            if complex_column:
+                fields = column.split(".")
+                obj = details
+                for field in fields:
+                    obj = obj.get(field) or {}
+                value = format_field_value(obj, config) if obj != {} else ""
+                rows.append(value)
+            else:
+                rows.append("")
 
     return rows
 
