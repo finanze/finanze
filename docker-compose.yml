@@ -2,8 +2,8 @@ services:
   finanze-server:
     restart: unless-stopped
     build: . # Use the Dockerfile in the current directory
-    # image: marcosav/bank-scraper:latest
-    # image: marcosav/bank-scraper:ex-selenium
+    # image: marcosav/finanze:latest
+    # image: marcosav/finanze:ex-selenium
     ports:
       - '8080:8080'
     environment:

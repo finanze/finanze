@@ -1,4 +1,4 @@
-# Bank Scraper
+# Finanze
 
 This is a Python-based application designed to aggregate financial data from various banking and investment
 platforms. It supports multiple entities and features, providing a unified interface to gather and process financial
@@ -93,7 +93,7 @@ Two Docker images are available, a Selenium one and a light one (ex-selenium). T
 currently is
 needed for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO dependencies (like ffmpeg).
 
-Both are available at Docker Hub [marcosav/bank-scraper](https://hub.docker.com/r/marcosav/bank-scraper).
+Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
 
 A very basic front end is available just to handle login, data retrieval and export.
 at [marcosav/bank-scraper-front](https://hub.docker.com/r/marcosav/bank-scraper-front).
@@ -104,8 +104,8 @@ This project requires `Python 3.11`.
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/marcosav/bank-scraper.git
-    cd bank-scraper
+    git clone https://github.com/marcosav/finanze.git
+    cd finanze
     ```
 
 2. Create a virtual environment and activate it (recommended Pyenv):
@@ -187,7 +187,7 @@ can get the needed environment names.
   on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
   project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
   for
-  it [here](bank-scraper/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
+  it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
   with headless mode.
 - Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
   heavily

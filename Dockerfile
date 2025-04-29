@@ -44,9 +44,9 @@ COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
-COPY ./bank-scraper /bank-scraper
-COPY ./resources /bank-scraper/resources
+COPY finanze /finanze
+COPY ./resources /finanze/resources
 
-WORKDIR /bank-scraper
+WORKDIR /finanze
 
 CMD ["python", "app.py"]
