@@ -1,13 +1,13 @@
-import sqlite3
 from contextlib import contextmanager
 from types import TracebackType
 from typing import Optional, Literal, Any, Generator
 from uuid import uuid4
 
+from pysqlcipher3 import dbapi2 as sqlcipher
 from typing_extensions import TypeAlias, Self
 
-UnderlyingCursor: TypeAlias = sqlite3.Cursor
-UnderlyingConnection: TypeAlias = sqlite3.Connection
+UnderlyingCursor: TypeAlias = sqlcipher.Cursor
+UnderlyingConnection: TypeAlias = sqlcipher.Connection
 
 
 class DBCursor:
@@ -55,9 +55,14 @@ class DBCursor:
 
 class DBClient:
 
-    def __init__(self, connection: UnderlyingConnection):
+    def __init__(self, connection: UnderlyingConnection | None = None):
         self._conn = connection
         self.savepoint_stack: list[Optional[str]] = []
+
+    def _get_connection(self) -> UnderlyingConnection:
+        if self._conn is None:
+            raise RuntimeError("There's no active connection.")
+        return self._conn
 
     @contextmanager
     def tx(self) -> Generator[DBCursor, None, None]:
@@ -109,10 +114,17 @@ class DBClient:
             cursor.close()
 
     def commit(self):
-        self._conn.commit()
+        self._get_connection().commit()
 
     def rollback(self):
-        self._conn.rollback()
+        self._get_connection().rollback()
+
+    def close(self):
+        self._get_connection().close()
 
     def cursor(self) -> DBCursor:
-        return DBCursor(self._conn.cursor())
+        return DBCursor(self._get_connection().cursor())
+
+    def set_connection(self, connection: UnderlyingConnection) -> None:
+        self._conn = connection
+        self.savepoint_stack = []

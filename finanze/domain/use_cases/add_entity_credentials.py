@@ -1,11 +1,11 @@
 import abc
 
-from domain.login import LoginResult, LoginRequest
+from domain.entity_login import EntityLoginResult, EntityLoginRequest
 
 
 class AddEntityCredentials(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     async def execute(self,
-                      login_request: LoginRequest) -> LoginResult:
+                      login_request: EntityLoginRequest) -> EntityLoginResult:
         raise NotImplementedError

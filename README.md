@@ -108,7 +108,7 @@ This project requires `Python 3.11`.
     cd finanze
     ```
 
-2. Create a virtual environment and activate it (recommended Pyenv):
+2. Create a virtual environment and activate it (recommended Pyenv for version management):
     ```sh
     python3 -m venv venv
     source venv/bin/activate
@@ -130,7 +130,7 @@ which contains some examples of tables and summary dashboards.
 Checkout example docker-compose.yml for the environment variables that can be used to override the default config, most
 important ones are::
 
-- **Mandatory** `DB_CIPHER_PASSWORD` for DB encryption passphrase
+- `DB_CIPHER_PASSWORD` for DB encryption passphrase, optional, provided via API (see below).
 - `GOOGLE_` prefixed ones, needed for Google credentials, in case of using import/export to Google Sheets
 - Other Selenium related ones.
 
@@ -155,6 +155,12 @@ can get the needed environment names.
 
 2. Use the provided API endpoints to interact with the scraper:
     - `GET /api/v1/scrape`: Get available entities.
+    - `POST /api/v1/login`: Login and unlock database.
+   ```
+   {
+        "password": "xxxxxxxxxxx"
+   }
+   ```
     - `POST /api/v1/entity/login`: Login to a specific entity.
    ```
    {

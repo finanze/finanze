@@ -3,7 +3,7 @@ from uuid import uuid4
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import GlobalPosition, Account, Investments, Crowdlending, AccountType
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import MINTOS
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 
@@ -54,7 +54,7 @@ class MintosScraper(EntityScraper):
     def __init__(self):
         self._client = MintosAPIClient()
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         return await self._client.login(username, password)

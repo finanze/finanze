@@ -10,7 +10,7 @@ from Cryptodome.Util.Padding import pad
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.login import LoginResult, LoginResultCode
+from domain.entity_login import EntityLoginResult, LoginResultCode
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -48,7 +48,7 @@ class UrbanitaeAPIClient:
     def _post_request(self, path: str, body: dict, raw: bool = False) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
-    def login(self, username: str, password: str) -> LoginResult:
+    def login(self, username: str, password: str) -> EntityLoginResult:
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["User-Agent"] = (
@@ -65,19 +65,19 @@ class UrbanitaeAPIClient:
         if response.ok:
             response_body = response.json()
             if "token" not in response_body:
-                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
 
             self._user_info = response_body
             self._headers["x-auth-token"] = response_body["token"]
 
-            return LoginResult(LoginResultCode.CREATED)
+            return EntityLoginResult(LoginResultCode.CREATED)
 
         elif response.status_code == 401:
-            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+            return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                               message=f"Got unexpected response code {response.status_code}")
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                     message=f"Got unexpected response code {response.status_code}")
 
     def _encrypt_password(self, password: str) -> str:
         key = str.encode(codecs.decode(self.PASSWORD_ENCRYPTION_KEY, 'rot_13'))

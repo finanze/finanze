@@ -7,20 +7,16 @@ services:
     ports:
       - '8080:8080'
     environment:
-      WEB_PORT: 8080
-      DB_PATH: /.storage/finanze_data.db
-      # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Use .env
+      # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Provided via API or use .env
       GOOGLE_CREDENTIALS_PATH: /credentials.json
       GOOGLE_TOKEN_PATH: /token.json
-      CONFIG_PATH: /config/config.yml
-      # LOG_LEVEL: DEBUG
       # Selenium related envs
       WIRE_ADDRESS: 0.0.0.0
       WIRE_PORT: 8088
       WIRE_PROXY_SERVER_ADDRESS: finanze-server
       WEBDRIVER_ADDRESS: http://selenium:4444
     env_file:
-      - .env # Store here your secrets
+      - .env
     volumes:
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
@@ -28,6 +24,10 @@ services:
       - ./.storage/:/.storage
       - /etc/timezone:/etc/timezone:ro # Use host's timezone
       - /etc/localtime:/etc/localtime:ro # Use host's localtime
+    command: |
+      --port 8080
+      --data-dir /.storage
+      --log-level DEBUG
 
   selenium:
     image: selenium/standalone-firefox:latest

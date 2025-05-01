@@ -13,7 +13,7 @@ from domain.global_position import Account, Card, StockDetail, StockInvestments,
     FundDetail, \
     FundInvestments, Investments, GlobalPosition, \
     Deposit, Deposits, AccountType, CardType, FundPortfolio
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.myinvestor.v2.myinvestor_client import MyInvestorAPIV2Client
@@ -109,7 +109,7 @@ class MyInvestorScraperV2(EntityScraper):
         self._client = MyInvestorAPIV2Client()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         return self._client.login(username, password)

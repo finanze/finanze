@@ -47,6 +47,4 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY finanze /finanze
 COPY ./resources /finanze/resources
 
-WORKDIR /finanze
-
-CMD ["python", "app.py"]
+ENTRYPOINT ["python", "finanze"]

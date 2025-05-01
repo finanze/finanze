@@ -6,7 +6,7 @@ from dateutil.relativedelta import relativedelta
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType, LoanType
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import UNICAJA
 from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 
@@ -16,7 +16,7 @@ class UnicajaScraper(EntityScraper):
     def __init__(self):
         self._client = UnicajaClient()
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         return self._client.login(username, password)

@@ -3,7 +3,7 @@ import logging
 import requests
 from cachetools import cached, TTLCache
 
-from domain.login import LoginResultCode, LoginResult
+from domain.entity_login import LoginResultCode, EntityLoginResult
 
 
 class IndexaCapitalClient:
@@ -29,17 +29,17 @@ class IndexaCapitalClient:
     def _get_request(self, path: str) -> dict:
         return self._execute_request(path, "GET", body=None)
 
-    def setup(self, token: str) -> LoginResult:
+    def setup(self, token: str) -> EntityLoginResult:
         self._headers["X-AUTH-TOKEN"] = token
 
         response = self._execute_request("/users/me", "GET", raw=True)
         if response.ok:
-            return LoginResult(LoginResultCode.CREATED)
+            return EntityLoginResult(LoginResultCode.CREATED)
         elif response.status_code == 401 or response.status_code == 403:
-            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+            return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
         else:
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                               message=f"Got unexpected response code {response.status_code}")
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                     message=f"Got unexpected response code {response.status_code}")
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_user_info(self) -> dict:

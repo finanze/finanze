@@ -9,7 +9,7 @@ from domain.auto_contributions import AutoContributions, PeriodicContribution, C
     ContributionTargetType
 from domain.dezimal import Dezimal
 from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
@@ -140,7 +140,7 @@ class TradeRepublicScraper(EntityScraper):
         self._client = TradeRepublicClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         two_factor = login_params.two_factor
 

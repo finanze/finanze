@@ -6,7 +6,7 @@ import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.login import LoginResult, LoginResultCode
+from domain.entity_login import EntityLoginResult, LoginResultCode
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -44,7 +44,7 @@ class MyInvestorAPIV2Client:
                       base_url: str = BASE_URL) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw, base_url=base_url)
 
-    def login(self, username: str, password: str) -> LoginResult:
+    def login(self, username: str, password: str) -> EntityLoginResult:
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
@@ -69,14 +69,14 @@ class MyInvestorAPIV2Client:
             try:
                 token = response.json()["payload"]["data"]["accessToken"]
             except KeyError:
-                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
             self._headers["Authorization"] = "Bearer " + token
-            return LoginResult(LoginResultCode.CREATED)
+            return EntityLoginResult(LoginResultCode.CREATED)
         elif response.status_code == 400:
-            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+            return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
         else:
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                               message=f"Got unexpected response code {response.status_code}")
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                     message=f"Got unexpected response code {response.status_code}")
 
     def check_maintenance(self):
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]

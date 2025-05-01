@@ -8,12 +8,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from seleniumwire import webdriver
 
-from domain.login import LoginResult, LoginResultCode
+from domain.entity_login import EntityLoginResult, LoginResultCode
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
 
-async def login(log, session, username: str, password: str) -> LoginResult:
+async def login(log, session, username: str, password: str) -> EntityLoginResult:
     driver = None
 
     options = FirefoxOptions()
@@ -70,16 +70,16 @@ async def login(log, session, username: str, password: str) -> LoginResult:
 
         session.headers["Cookie"] = user_request.headers["Cookie"]
 
-        return LoginResult(LoginResultCode.CREATED)
+        return EntityLoginResult(LoginResultCode.CREATED)
 
     except Exception as e:
         invalid_credentials_element = driver.find_element(By.XPATH,
                                                           "//*[contains(text(), 'Invalid username or password')]")
         if invalid_credentials_element:
-            return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+            return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         log.error(f"An error occurred while logging in: {e}")
-        return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
+        return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 
     finally:
         if driver:

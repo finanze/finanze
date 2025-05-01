@@ -11,7 +11,7 @@ from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
     HistoricalPosition, AccountType
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import WECITY
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
@@ -43,7 +43,7 @@ class WecityScraper(EntityScraper):
         self._client = WecityAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         two_factor = login_params.two_factor
 

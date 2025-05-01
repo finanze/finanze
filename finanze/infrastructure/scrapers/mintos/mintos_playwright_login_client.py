@@ -1,11 +1,11 @@
 from playwright.async_api import async_playwright
 
-from domain.login import LoginResult, LoginResultCode
+from domain.entity_login import EntityLoginResult, LoginResultCode
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_playwright import RecaptchaSolver
 
 
-async def login(log, session, username: str, password: str) -> LoginResult:
+async def login(log, session, username: str, password: str) -> EntityLoginResult:
     async with async_playwright() as p:
         # browser = await p.firefox.connect('ws://localhost:3000/firefox/playwright')
         # Only working in non-headless mode, so mostly no useful
@@ -35,11 +35,11 @@ async def login(log, session, username: str, password: str) -> LoginResult:
 
             session.headers["Cookie"] = user_request.headers["cookie"]
 
-            return LoginResult(LoginResultCode.CREATED)
+            return EntityLoginResult(LoginResultCode.CREATED)
 
         except Exception as e:
             log.error(f"An error occurred while logging in: {e}")
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 
         finally:
             await browser.close()

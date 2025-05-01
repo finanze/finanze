@@ -4,7 +4,7 @@ from typing import Optional
 import requests
 from cachetools import TTLCache, cached
 
-from domain.login import LoginResult
+from domain.entity_login import EntityLoginResult
 
 
 class MintosAPIClient:
@@ -44,7 +44,7 @@ class MintosAPIClient:
     ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body)
 
-    async def login(self, username: str, password: str) -> LoginResult:
+    async def login(self, username: str, password: str) -> EntityLoginResult:
         from infrastructure.scrapers.mintos.mintos_selenium_login_client import login
         return await login(self._log, self._session, username, password)
 

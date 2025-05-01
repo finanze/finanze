@@ -8,7 +8,7 @@ from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
 from domain.exception.exceptions import EntityNotFound, InvalidProvidedCredentials
 from domain.financial_entity import FinancialEntity
-from domain.login import LoginResultCode, LoginResult, LoginRequest, LoginParams, LoginOptions
+from domain.entity_login import LoginResultCode, EntityLoginResult, EntityLoginRequest, EntityLoginParams, LoginOptions
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 
 
@@ -28,7 +28,7 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         self._log = logging.getLogger(__name__)
 
     async def execute(self,
-                      login_request: LoginRequest) -> LoginResult:
+                      login_request: EntityLoginRequest) -> EntityLoginResult:
 
         entity_id = login_request.entity_id
 
@@ -49,7 +49,7 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
             force_new_session=True
         )
 
-        login_request = LoginParams(
+        login_request = EntityLoginParams(
             credentials=credentials,
             two_factor=login_request.two_factor,
             options=login_options,
@@ -66,4 +66,4 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         if session:
             self._sessions_port.save(entity.id, session)
 
-        return LoginResult(LoginResultCode.CREATED)
+        return EntityLoginResult(LoginResultCode.CREATED)

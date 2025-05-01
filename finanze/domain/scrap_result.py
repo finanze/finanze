@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic.dataclasses import dataclass
 
 from domain.financial_entity import Feature
-from domain.login import LoginResultCode, TwoFactor, LoginOptions
+from domain.entity_login import LoginResultCode, TwoFactor, LoginOptions
 from domain.scraped_data import ScrapedData, VirtuallyScrapedData
 
 

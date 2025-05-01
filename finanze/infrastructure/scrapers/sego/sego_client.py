@@ -8,7 +8,7 @@ import requests
 from cachetools import TTLCache, cached
 from dateutil.tz import tzlocal
 
-from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
+from domain.entity_login import LoginResultCode, EntityLoginResult, EntitySession, LoginOptions
 
 EXPIRATION_DATETIME_REGEX = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d{0,6})\d*(.*)$'
 
@@ -71,7 +71,7 @@ class SegoAPIClient:
               password: str,
               login_options: LoginOptions,
               code: str = None,
-              session: Optional[EntitySession] = None) -> LoginResult:
+              session: Optional[EntitySession] = None) -> EntityLoginResult:
 
         self._init_session()
 
@@ -81,7 +81,7 @@ class SegoAPIClient:
             self._inject_session(session)
             if self._resumable_session():
                 self._log.debug("Resuming session")
-                return LoginResult(LoginResultCode.RESUMED)
+                return EntityLoginResult(LoginResultCode.RESUMED)
 
         request = {
             "codigoPlataforma": "web-sego",
@@ -99,12 +99,12 @@ class SegoAPIClient:
             response_body = response.json()
             if response_body["isCodigoEnviado"]:
                 if login_options.avoid_new_login:
-                    return LoginResult(LoginResultCode.NOT_LOGGED)
+                    return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
-                return LoginResult(LoginResultCode.CODE_REQUESTED)
+                return EntityLoginResult(LoginResultCode.CODE_REQUESTED)
 
             if "token" not in response_body:
-                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
 
             sess_created_at = datetime.now(tzlocal())
             sess_expiration = _parse_expiration_datetime(response_body.get("expirationDate"))
@@ -115,17 +115,17 @@ class SegoAPIClient:
 
             self._inject_session(new_session)
 
-            return LoginResult(LoginResultCode.CREATED, session=new_session)
+            return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
         elif response.status_code == 400:
             if code:
-                return LoginResult(LoginResultCode.INVALID_CODE)
+                return EntityLoginResult(LoginResultCode.INVALID_CODE)
             else:
-                return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+                return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                               message=f"Got unexpected response code {response.status_code}")
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                     message=f"Got unexpected response code {response.status_code}")
 
     def _resumable_session(self) -> bool:
         try:

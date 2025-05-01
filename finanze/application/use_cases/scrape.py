@@ -22,13 +22,14 @@ from domain.exception.exceptions import EntityNotFound
 from domain.financial_entity import FinancialEntity, Feature
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
-from domain.login import LoginResultCode, LoginParams
+from domain.entity_login import LoginResultCode, EntityLoginParams
 from domain.scrap_result import ScrapResultCode, ScrapResult, SCRAP_BAD_LOGIN_CODES, ScrapRequest
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType, ProductType
 from domain.use_cases.scrape import Scrape
 
 DEFAULT_FEATURES = [Feature.POSITION]
+DEFAULT_POSITION_UPDATE_COOLDOWN = 60
 
 
 def compute_return_values(related_inv_txs):
@@ -103,7 +104,6 @@ def _historic_inv_by_name(historical_position):
 class ScrapeImpl(AtomicUCMixin, Scrape):
 
     def __init__(self,
-                 update_cooldown: int,
                  position_port: PositionPort,
                  auto_contr_port: AutoContributionsPort,
                  transaction_port: TransactionPort,
@@ -116,7 +116,6 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
 
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
-        self._update_cooldown = update_cooldown
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
         self._transaction_port = transaction_port
@@ -143,9 +142,10 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             return ScrapResult(ScrapResultCode.FEATURE_NOT_SUPPORTED)
 
         if Feature.POSITION in features:
+            update_cooldown = self._get_position_update_cooldown()
             last_update = self._position_port.get_last_updated(entity_id)
-            if last_update and (datetime.now(tzlocal()) - last_update).seconds < self._update_cooldown:
-                remaining_seconds = self._update_cooldown - (datetime.now(tzlocal()) - last_update).seconds
+            if last_update and (datetime.now(tzlocal()) - last_update).seconds < update_cooldown:
+                remaining_seconds = update_cooldown - (datetime.now(tzlocal()) - last_update).seconds
                 details = {"lastUpdate": last_update.astimezone(tzlocal()).isoformat(), "wait": remaining_seconds}
                 return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
@@ -160,7 +160,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         specific_scraper = self._entity_scrapers[entity]
 
         stored_session = self._sessions_port.get(entity.id)
-        login_request = LoginParams(
+        login_request = EntityLoginParams(
             credentials=credentials,
             two_factor=scrap_request.two_factor,
             options=scrap_request.options,
@@ -324,3 +324,6 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             historic_entries.append(historic_entry)
 
         return historic_entries
+
+    def _get_position_update_cooldown(self) -> int:
+        return self._config_port.load().get("updateCooldown", DEFAULT_POSITION_UPDATE_COOLDOWN)

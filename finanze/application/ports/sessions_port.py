@@ -2,7 +2,7 @@ import abc
 from typing import Optional
 from uuid import UUID
 
-from domain.login import EntitySession
+from domain.entity_login import EntitySession
 
 
 class SessionsPort(metaclass=abc.ABCMeta):

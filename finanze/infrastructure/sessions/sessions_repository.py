@@ -4,7 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from application.ports.sessions_port import SessionsPort
-from domain.login import EntitySession
+from domain.entity_login import EntitySession
 from infrastructure.repository.db.client import DBClient
 
 

@@ -10,7 +10,7 @@ from pytr.portfolio import Portfolio
 from requests import HTTPError
 from requests.cookies import RequestsCookieJar, create_cookie
 
-from domain.login import LoginResultCode, LoginResult, EntitySession, LoginOptions
+from domain.entity_login import LoginResultCode, EntityLoginResult, EntitySession, LoginOptions
 from infrastructure.scrapers.tr.tr_details import TRDetails
 from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 
@@ -80,7 +80,7 @@ class TradeRepublicClient:
               login_options: LoginOptions,
               process_id: str = None,
               code: str = None,
-              session: Optional[EntitySession] = None) -> LoginResult:
+              session: Optional[EntitySession] = None) -> EntityLoginResult:
 
         self._tr_api = TradeRepublicApi(
             phone_no=phone,
@@ -93,7 +93,7 @@ class TradeRepublicClient:
             self._inject_session(session)
             if self._resumable_session():
                 self._log.debug("Resuming session")
-                return LoginResult(LoginResultCode.RESUMED)
+                return EntityLoginResult(LoginResultCode.RESUMED)
 
         if code and process_id:
             self._tr_api._process_id = process_id
@@ -101,30 +101,30 @@ class TradeRepublicClient:
                 self._tr_api.complete_weblogin(code)
             except HTTPError as e:
                 if e.response.status_code == 401:
-                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+                    return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 elif e.response.status_code == 400:
-                    return LoginResult(LoginResultCode.INVALID_CODE)
+                    return EntityLoginResult(LoginResultCode.INVALID_CODE)
                 else:
                     self._log.error("Unexpected error during login", exc_info=e)
-                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                       message=f"Got unexpected error {e.response.status_code} during login")
+                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                             message=f"Got unexpected error {e.response.status_code} during login")
 
             sess_created_at = datetime.now(tzlocal())
             session_payload = self._export_session()
             new_session = EntitySession(creation=sess_created_at,
                                         expiration=None,
                                         payload=session_payload)
-            return LoginResult(LoginResultCode.CREATED, session=new_session)
+            return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
         elif not code and not process_id:
             if not login_options.avoid_new_login:
                 countdown = self._tr_api.inititate_weblogin()
                 process_id = self._tr_api._process_id
-                return LoginResult(LoginResultCode.CODE_REQUESTED,
-                                   process_id=process_id,
-                                   details={"countdown": countdown})
+                return EntityLoginResult(LoginResultCode.CODE_REQUESTED,
+                                         process_id=process_id,
+                                         details={"countdown": countdown})
             else:
-                return LoginResult(LoginResultCode.NOT_LOGGED)
+                return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
         else:
             raise ValueError("Invalid login data")

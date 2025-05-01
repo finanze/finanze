@@ -9,7 +9,7 @@ from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import Account, GlobalPosition, Investments, \
     Deposits, Deposit, AccountType
-from domain.login import LoginResultCode, LoginParams, LoginResult
+from domain.entity_login import LoginResultCode, EntityLoginParams, EntityLoginResult
 from domain.native_entities import F24
 from domain.transactions import Transactions, AccountTx, TxType, StockTx, ProductType
 from infrastructure.scrapers.f24.f24_client import F24APIClient
@@ -113,7 +113,7 @@ class F24Scraper(EntityScraper):
     def __init__(self):
         self._client = F24APIClient()
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         login_result = self._client.login(username, password)

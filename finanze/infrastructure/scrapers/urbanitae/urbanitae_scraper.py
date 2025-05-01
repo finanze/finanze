@@ -9,7 +9,7 @@ from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.global_position import Investments, GlobalPosition, RealStateCFInvestments, RealStateCFDetail, Account, \
     HistoricalPosition, AccountType
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import URBANITAE
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
 from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
@@ -32,7 +32,7 @@ class UrbanitaeScraper(EntityScraper):
         self._client = UrbanitaeAPIClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         return self._client.login(username, password)

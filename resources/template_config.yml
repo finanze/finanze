@@ -52,6 +52,8 @@ export:
               - MANAGING_COLLECTION
 
 scrape:
+  updateCooldown: 60
+
   virtual:
     enabled: true
 

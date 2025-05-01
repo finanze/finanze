@@ -7,7 +7,7 @@ import requests
 import tzlocal
 from requests_toolbelt import MultipartEncoder
 
-from domain.login import LoginResult, LoginResultCode
+from domain.entity_login import EntityLoginResult, LoginResultCode
 
 
 class F24APIClient:
@@ -65,7 +65,7 @@ class F24APIClient:
 
         return self._multi_part("/authentication/ajax-check-login-password", data=data)
 
-    def login(self, username: str, password: str) -> LoginResult:
+    def login(self, username: str, password: str) -> EntityLoginResult:
         self._session = requests.Session()
         self._session.headers["Origin"] = self.BASE_URL
 
@@ -76,17 +76,17 @@ class F24APIClient:
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
-                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+                    return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 else:
-                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=error)
+                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=error)
             else:
                 self._user_info = response_body
         else:
             if "maintenance" in first_login_response.text:
-                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Entity portal under maintenance")
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Entity portal under maintenance")
 
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                               message=f"Got unexpected response code {first_login_response.status_code}")
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                     message=f"Got unexpected response code {first_login_response.status_code}")
 
         user_id = None
         accounts = self._user_info["accounts"]
@@ -102,19 +102,19 @@ class F24APIClient:
             if "error" in response_body:
                 error = response_body["error"].strip()
                 if "Incorrect e-mail or password" in error:
-                    return LoginResult(LoginResultCode.INVALID_CREDENTIALS)
+                    return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 else:
-                    return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message=error)
+                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=error)
             else:
                 if (response_body["success"]
                         and response_body["logged"]
                         and response_body["SID"]):
-                    return LoginResult(LoginResultCode.CREATED)
+                    return EntityLoginResult(LoginResultCode.CREATED)
                 self._log.error(response_body)
-                return LoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Got unexpected response")
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Got unexpected response")
         else:
-            return LoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                               message=f"Got unexpected response code {first_login_response.status_code}")
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                     message=f"Got unexpected response code {first_login_response.status_code}")
 
     def get_user_info(self) -> dict:
         return self._user_info

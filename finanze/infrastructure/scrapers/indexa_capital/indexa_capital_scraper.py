@@ -5,7 +5,7 @@ from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.global_position import GlobalPosition, Account, FundInvestments, FundDetail, Investments, AccountType, \
     FundPortfolio
-from domain.login import LoginParams, LoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import INDEXA_CAPITAL
 from infrastructure.scrapers.indexa_capital.indexa_capital_client import IndexaCapitalClient
 
@@ -16,7 +16,7 @@ class IndexaCapitalScraper(EntityScraper):
         self._client = IndexaCapitalClient()
         self._log = logging.getLogger(__name__)
 
-    async def login(self, login_params: LoginParams) -> LoginResult:
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         token = login_params.credentials.get("token")
         return self._client.setup(token)
 
