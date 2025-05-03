@@ -36,9 +36,11 @@ export:
         dateFormat: "%-Y-%-m-%-d"
         filters:
           - field: entity
-            values: TRADE_REPUBLIC
+            values: Trade Republic
       - range: All TXs
-        data: [ investment, account ]
+        data:
+          - investment
+          - account
 
     historic:
       - range: Factoring Historic

@@ -121,6 +121,7 @@ class DBClient:
 
     def close(self):
         self._get_connection().close()
+        self._conn = None
 
     def cursor(self) -> DBCursor:
         return DBCursor(self._get_connection().cursor())

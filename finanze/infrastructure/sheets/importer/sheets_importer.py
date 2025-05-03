@@ -12,6 +12,7 @@ from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition, Deposits, Deposit, FundInvestments, \
     FactoringInvestments, RealStateCFInvestments, StockInvestments, StockDetail, FactoringDetail, RealStateCFDetail, \
     FundDetail, Investments
+from domain.settings import VirtualInvestmentSheetConfig, BaseSheetConfig, VirtualTransactionSheetConfig
 from domain.transactions import Transactions, StockTx, FundTx, RealStateCFTx, \
     FactoringTx, BaseTx
 from infrastructure.sheets.sheets_base_loader import spreadsheets
@@ -58,6 +59,21 @@ def _create_or_get_entity(name, existing_entities: dict[str, FinancialEntity]) -
     return FinancialEntity(id=None, name=name)
 
 
+def _parse_cell(value: str, config: BaseSheetConfig) -> any:
+    try:
+        return parse_number(value)
+    except ValueError:
+        try:
+            return datetime.strptime(value, config.datetimeFormat)
+        except ValueError:
+            try:
+                return datetime.strptime(value, config.dateFormat).date()
+            except ValueError:
+                if not len(value):
+                    return None
+                return value
+
+
 class SheetsImporter(VirtualScraper):
     INV_TYPE_ATTR_MAP = {
         "deposits": (Deposits, Deposit),
@@ -79,13 +95,13 @@ class SheetsImporter(VirtualScraper):
         self._log = logging.getLogger(__name__)
 
     async def global_positions(self,
-                               investment_configs,
+                               investment_configs: list[VirtualInvestmentSheetConfig],
                                existing_entities: dict[str, FinancialEntity]) \
             -> tuple[list[GlobalPosition], set[FinancialEntity]]:
 
         global_positions_dicts = {}
         for config in investment_configs:
-            field = config["data"]
+            field = config.data
             parent_type, detail_type = self.INV_TYPE_ATTR_MAP.get(field, (None, None))
             if not parent_type:
                 raise ValueError(f"Invalid field {field}")
@@ -120,7 +136,7 @@ class SheetsImporter(VirtualScraper):
     def _load_investment_products(self,
                                   cls,
                                   parent_cls,
-                                  config) -> dict[str, any]:
+                                  config: VirtualInvestmentSheetConfig) -> dict[str, any]:
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
@@ -151,7 +167,7 @@ class SheetsImporter(VirtualScraper):
         return per_entity
 
     async def transactions(self,
-                           txs_configs,
+                           txs_configs: list[VirtualTransactionSheetConfig],
                            registered_txs: set[str],
                            existing_entities: dict[str, FinancialEntity]) \
             -> tuple[Optional[Transactions], set[FinancialEntity]]:
@@ -160,7 +176,7 @@ class SheetsImporter(VirtualScraper):
         transactions = Transactions(investment=[], account=[])
 
         for config in txs_configs:
-            field = config["data"]
+            field = config.data
 
             txs, created_entities = self._load_txs(config, existing_entities, all_created_entities)
             all_created_entities.update(created_entities)
@@ -178,7 +194,7 @@ class SheetsImporter(VirtualScraper):
         return transactions, set(all_created_entities.values())
 
     def _load_txs(self,
-                  config,
+                  config: VirtualTransactionSheetConfig,
                   existing_entities: dict[str, FinancialEntity],
                   already_created_entities: dict[str, FinancialEntity]) \
             -> tuple[list[BaseTx], dict[str, FinancialEntity]]:
@@ -216,8 +232,8 @@ class SheetsImporter(VirtualScraper):
 
         return txs, created_entities
 
-    def _parse_sheet_table(self, config, entry_fn):
-        sheet_range, sheet_id = config["range"], config["spreadsheetId"]
+    def _parse_sheet_table(self, config: BaseSheetConfig, entry_fn):
+        sheet_range, sheet_id = config.range, config.spreadsheetId
         cells = self._read_sheet_table(sheet_id, sheet_range)
         if not cells:
             return {}
@@ -235,7 +251,7 @@ class SheetsImporter(VirtualScraper):
             for j, column in enumerate(columns, start_column_index):
                 if not column or j >= len(row):
                     continue
-                parsed = self._parse_cell(row[j], config)
+                parsed = _parse_cell(row[j], config)
                 if parsed is not None:
                     entry_dict[column] = parsed
 
@@ -247,20 +263,6 @@ class SheetsImporter(VirtualScraper):
             except ValidationError as e:
                 self._log.warning(f"Skipping row {row}: {e}")
                 continue
-
-    def _parse_cell(self, value: str, config: dict) -> any:
-        try:
-            return parse_number(value)
-        except ValueError:
-            try:
-                return datetime.strptime(value, config["datetimeFormat"])
-            except ValueError:
-                try:
-                    return datetime.strptime(value, config["dateFormat"]).date()
-                except ValueError:
-                    if not len(value):
-                        return None
-                    return value
 
     def _read_sheet_table(self, sheet_id, cell_range) -> list[list]:
         result = self._sheet.values().get(spreadsheetId=sheet_id, range=cell_range).execute()

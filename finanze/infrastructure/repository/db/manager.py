@@ -6,7 +6,7 @@ from pysqlcipher3 import dbapi2 as sqlcipher
 from pysqlcipher3._sqlite3 import DatabaseError
 
 from application.ports.datasource_initiator import DatasourceInitiator
-from domain.data_init import DatasourceInitParams, DecryptionError, AlreadyUnlockedError
+from domain.data_init import DatasourceInitParams, DecryptionError, AlreadyUnlockedError, AlreadyLockedError
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
@@ -20,6 +20,19 @@ class DBManager(DatasourceInitiator):
         self._lock = Lock()
         self._unlocked = False
         self._path = path
+
+    @property
+    def unlocked(self) -> bool:
+        return self._unlocked
+
+    def lock(self):
+        with self._lock:
+            if not self._unlocked:
+                self._log.info("Database is already locked.")
+                raise AlreadyLockedError()
+
+            self._unlocked = False
+            self._client.close()
 
     def initialize(self, params: DatasourceInitParams):
         self._log.info(f"Attempting to connect and unlock database at {self._path}")
@@ -42,6 +55,8 @@ class DBManager(DatasourceInitiator):
 
                 self._unlocked = True
                 self._client.set_connection(connection)
+
+                self._setup_database_schema()
 
             except DatabaseError as e:
                 self._log.error(f"Failed to unlock database: {e}")
@@ -70,7 +85,7 @@ class DBManager(DatasourceInitiator):
 
         return connection
 
-    def setup_database_schema(self):
+    def _setup_database_schema(self):
         if not self._unlocked:
             raise ValueError("Database must be unlocked before setting up schema.")
 

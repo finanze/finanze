@@ -31,19 +31,19 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
 
     async def execute(self) -> ScrapResult:
         config = self._config_port.load()
-        virtual_scrape_config = config["scrape"]["virtual"]
+        virtual_scrape_config = config.scrape.virtual
 
-        if not virtual_scrape_config["enabled"]:
+        if not virtual_scrape_config.enabled:
             return ScrapResult(ScrapResultCode.DISABLED)
 
-        config_globals = virtual_scrape_config["globals"]
+        config_globals = virtual_scrape_config.globals
 
         registered_txs = self._transaction_port.get_refs_by_source_type(real=False)
 
-        investment_sheets = virtual_scrape_config["investments"]
-        transaction_sheets = virtual_scrape_config["transactions"]
-        apply_global_config(config_globals, investment_sheets)
-        apply_global_config(config_globals, transaction_sheets)
+        investment_sheets = virtual_scrape_config.investments or []
+        transaction_sheets = virtual_scrape_config.transactions or []
+        investment_sheets = apply_global_config(config_globals, investment_sheets)
+        transaction_sheets = apply_global_config(config_globals, transaction_sheets)
 
         existing_entities = self._entity_port.get_all()
         existing_entities_by_name = {entity.name: entity for entity in existing_entities}

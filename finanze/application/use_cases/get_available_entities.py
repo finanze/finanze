@@ -16,9 +16,9 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._credentials_port = credentials_port
 
     async def execute(self) -> AvailableSources:
-        scrape_config = self._config_port.load()["scrape"]
+        scrape_config = self._config_port.load().scrape
 
-        virtual_enabled = scrape_config["virtual"]["enabled"]
+        virtual_enabled = scrape_config.virtual.enabled
 
         logged_entity_ids = {e.id for e in self._credentials_port.get_available_entities()}
 

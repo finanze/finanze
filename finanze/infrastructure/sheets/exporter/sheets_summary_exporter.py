@@ -11,6 +11,7 @@ from application.use_cases.update_sheets import DETAILS_FIELD
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
+from domain.settings import SummarySheetConfig, BaseSheetConfig
 
 LAST_UPDATE_FIELD = "last_update"
 COUNT_FIELD = "count"
@@ -23,8 +24,8 @@ _log = logging.getLogger(__name__)
 def update_summary(
         sheet,
         global_positions: dict[FinancialEntity, GlobalPosition],
-        config: dict):
-    sheet_id, sheet_range = config["spreadsheetId"], config["range"]
+        config: SummarySheetConfig):
+    sheet_id, sheet_range = config.spreadsheetId, config.range
 
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
     values = result.get('values')
@@ -70,7 +71,7 @@ def update_summary(
 def update_entity_summary(
         global_position: GlobalPosition,
         current_cells: list[list[str]],
-        config):
+        config: SummarySheetConfig):
     if not global_position:
         return
 
@@ -78,7 +79,7 @@ def update_entity_summary(
     if LAST_UPDATE_FIELD in header:
         last_update_index = header.index(LAST_UPDATE_FIELD)
         last_update_date = global_position.date.astimezone(tz=tzlocal())
-        config_datetime_format = config.get("datetimeFormat")
+        config_datetime_format = config.datetimeFormat
         if config_datetime_format:
             formated_last_update_date = last_update_date.strftime(config_datetime_format)
         else:
@@ -154,7 +155,7 @@ def update_entity_summary(
             set_field_value(row, set_column_i, value, config)
 
 
-def set_field_value(row: list[str], index: int, value, config):
+def set_field_value(row: list[str], index: int, value, config: BaseSheetConfig):
     value = format_field_value(value, config)
     if len(row) > index:
         row[index] = value
@@ -162,12 +163,12 @@ def set_field_value(row: list[str], index: int, value, config):
         row.append(value)
 
 
-def format_field_value(value, config):
+def format_field_value(value, config: BaseSheetConfig):
     if value is None:
         return ""
 
     if isinstance(value, date) and not isinstance(value, datetime):
-        config_date_format = config.get("dateFormat")
+        config_date_format = config.dateFormat
         if config_date_format:
             return value.strftime(config_date_format)
 
@@ -175,7 +176,7 @@ def format_field_value(value, config):
 
     elif isinstance(value, datetime):
         value = value.replace(tzinfo=utc).astimezone(tzlocal())
-        config_date_format = config.get("datetimeFormat")
+        config_date_format = config.datetimeFormat
         if config_date_format:
             return value.strftime(config_date_format)
 

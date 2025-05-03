@@ -18,18 +18,18 @@ from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from domain import native_entities
 from domain.dezimal import Dezimal
+from domain.entity_login import LoginResultCode, EntityLoginParams
 from domain.exception.exceptions import EntityNotFound
 from domain.financial_entity import FinancialEntity, Feature
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
-from domain.entity_login import LoginResultCode, EntityLoginParams
 from domain.scrap_result import ScrapResultCode, ScrapResult, SCRAP_BAD_LOGIN_CODES, ScrapRequest
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType, ProductType
 from domain.use_cases.scrape import Scrape
 
 DEFAULT_FEATURES = [Feature.POSITION]
-DEFAULT_POSITION_UPDATE_COOLDOWN = 60
+DEFAULT_POSITION_UPDATE_COOLDOWN = 0
 
 
 def compute_return_values(related_inv_txs):
@@ -326,4 +326,4 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         return historic_entries
 
     def _get_position_update_cooldown(self) -> int:
-        return self._config_port.load().get("updateCooldown", DEFAULT_POSITION_UPDATE_COOLDOWN)
+        return self._config_port.load().scrape.updateCooldown or DEFAULT_POSITION_UPDATE_COOLDOWN

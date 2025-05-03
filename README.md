@@ -4,9 +4,6 @@ This is a Python-based application designed to aggregate financial data from var
 platforms. It supports multiple entities and features, providing a unified interface to gather and process financial
 information.
 
-Not actively maintained as it was meant only for personal use, so some banks/entities/features/instruments may not
-work, be outdated or partially implemented.
-
 ## Table of Contents
 
 - [Features](#features)
@@ -155,6 +152,8 @@ can get the needed environment names.
 
 2. Use the provided API endpoints to interact with the scraper:
     - `GET /api/v1/scrape`: Get available entities.
+    - `GET /api/v1/login`: Get current user session status.
+    - `POST /api/v1/logout`: Exit and lock current session.
     - `POST /api/v1/login`: Login and unlock database.
    ```
    {
@@ -184,7 +183,12 @@ can get the needed environment names.
         "avoidNewLogin": false,                      // Avoid new login if session has expired and 2FA is required (optional, defaults to false)
     }
    ```
-    - `POST /api/v1/update-sheets`: Update Google Sheets with the latest data.
+    - `POST /api/v1/export`: Export data (currently only Google Sheets available).
+   ```
+   {
+        "target": "GOOGLE_SHEETS"
+   }
+   ```
     - `POST /api/v1/scrape/virtual`: Perform a virtual scrape.
 
 ## Credits

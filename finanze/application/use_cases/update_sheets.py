@@ -1,4 +1,6 @@
+from dataclasses import asdict
 from datetime import datetime
+from typing import TypeVar
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
@@ -7,22 +9,32 @@ from application.ports.position_port import PositionPort
 from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions
+from domain.export import ExportRequest
 from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
+from domain.settings import SummarySheetConfig, InvestmentSheetConfig, ContributionSheetConfig, TransactionSheetConfig, \
+    HistoricSheetConfig, GlobalsConfig, ProductSheetConfig
 from domain.transactions import Transactions
 from domain.use_cases.update_sheets import UpdateSheets
 
 DETAILS_FIELD = "details"
 ADDITIONAL_DATA_FIELD = "additionalData"
 
+T = TypeVar('T', bound=ProductSheetConfig | SummarySheetConfig)
 
-def apply_global_config(config_globals, entries: list[dict]) -> list[dict]:
-    for key, value in config_globals.items():
-        for entry in entries:
-            if key not in entry:
-                entry[key] = value
-    return entries
+
+def apply_global_config(config_globals: GlobalsConfig, entries: list[T]) -> list[T]:
+    globals_as_dict = asdict(config_globals)
+    updated_entries = []
+    for entry in entries:
+        entry_as_dict = asdict(entry)
+        for key, value in globals_as_dict.items():
+            if key not in entry_as_dict or entry_as_dict[key] is None:
+                entry_as_dict[key] = value
+        updated_entries.append(type(entry)(**entry_as_dict))
+
+    return updated_entries
 
 
 class UpdateSheetsImpl(UpdateSheets):
@@ -41,22 +53,22 @@ class UpdateSheetsImpl(UpdateSheets):
         self._sheets_update_port = sheets_update_port
         self._config_port = config_port
 
-    def execute(self):
+    def execute(self, request: ExportRequest):
         config = self._config_port.load()
-        sheets_export_config = config["export"]["sheets"]
+        sheets_export_config = config.export.sheets
 
-        config_globals = sheets_export_config.get("globals", {})
+        config_globals = sheets_export_config.globals or {}
 
-        summary_configs = sheets_export_config.get("summary", [])
-        investment_configs = sheets_export_config.get("investments", [])
-        contrib_configs = sheets_export_config.get("contributions", [])
-        tx_configs = sheets_export_config.get("transactions", [])
-        historic_configs = sheets_export_config.get("historic", [])
-        apply_global_config(config_globals, summary_configs)
-        apply_global_config(config_globals, investment_configs)
-        apply_global_config(config_globals, contrib_configs)
-        apply_global_config(config_globals, tx_configs)
-        apply_global_config(config_globals, historic_configs)
+        summary_configs = sheets_export_config.summary or []
+        investment_configs = sheets_export_config.investments or []
+        contrib_configs = sheets_export_config.contributions or []
+        tx_configs = sheets_export_config.transactions or []
+        historic_configs = sheets_export_config.historic or []
+        summary_configs = apply_global_config(config_globals, summary_configs)
+        investment_configs = apply_global_config(config_globals, investment_configs)
+        contrib_configs = apply_global_config(config_globals, contrib_configs)
+        tx_configs = apply_global_config(config_globals, tx_configs)
+        historic_configs = apply_global_config(config_globals, historic_configs)
 
         real_global_position_by_entity = self._position_port.get_last_grouped_by_entity(True)
         manual_global_position_by_entity = self._position_port.get_last_grouped_by_entity(False)
@@ -87,40 +99,44 @@ class UpdateSheetsImpl(UpdateSheets):
         historic = self._historic_port.get_all()
         self.update_historic(historic, historic_configs)
 
-    def update_summary_sheets(self, global_position: dict[FinancialEntity, GlobalPosition], summary_configs):
-        for config in summary_configs:
+    def update_summary_sheets(self,
+                              global_position: dict[FinancialEntity, GlobalPosition],
+                              configs: list[SummarySheetConfig]):
+        for config in configs:
             self._sheets_update_port.update_summary(global_position, config)
 
-    def update_investment_sheets(self, global_position: dict[FinancialEntity, GlobalPosition], inv_configs):
-        for config in inv_configs:
-            fields = config["data"]
+    def update_investment_sheets(self,
+                                 global_position: dict[FinancialEntity, GlobalPosition],
+                                 configs: list[InvestmentSheetConfig]):
+        for config in configs:
+            fields = config.data
             fields = [fields] if isinstance(fields, str) else fields
-            config["data"] = [f"investments.{field}.{DETAILS_FIELD}" for field in fields]
+            config.data = [f"investments.{field}.{DETAILS_FIELD}" for field in fields]
 
             self._sheets_update_port.update_sheet(global_position, config)
 
     def update_contributions(self,
                              contributions: dict[FinancialEntity, AutoContributions],
-                             contrib_configs,
+                             configs: list[ContributionSheetConfig],
                              last_update: dict[FinancialEntity, datetime]):
-        for config in contrib_configs:
-            fields = config["data"]
-            config["data"] = [fields] if isinstance(fields, str) else fields
+        for config in configs:
+            fields = config.data
+            config.data = [fields] if isinstance(fields, str) else fields
 
             self._sheets_update_port.update_sheet(contributions, config, last_update)
 
     def update_transactions(self,
                             transactions: Transactions,
-                            tx_configs,
+                            configs: list[TransactionSheetConfig],
                             last_update: dict[FinancialEntity, datetime]):
-        for config in tx_configs:
-            fields = config["data"]
-            config["data"] = [fields] if isinstance(fields, str) else fields
+        for config in configs:
+            fields = config.data
+            config.data = [fields] if isinstance(fields, str) else fields
 
             self._sheets_update_port.update_sheet(transactions, config, last_update)
 
-    def update_historic(self, historic: Historic, historic_configs):
-        for config in historic_configs:
-            config["data"] = ["entries"]
+    def update_historic(self, historic: Historic, configs: list[HistoricSheetConfig]):
+        for config in configs:
+            config.data = ["entries"]
 
             self._sheets_update_port.update_sheet(historic, config)
