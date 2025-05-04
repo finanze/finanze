@@ -5,7 +5,7 @@ from domain.export import ExportRequest
 from domain.use_cases.update_sheets import UpdateSheets
 
 
-def update_sheets(update_sheets: UpdateSheets):
+def export(update_sheets: UpdateSheets):
     body = request.json
     try:
         export_request = ExportRequest(**body)

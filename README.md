@@ -1,8 +1,11 @@
-# Finanze
+<p align="center"><img src="frontend/app/public/finanze.png" alt="Finanze Logo" width="220px"></p>
+<h1 align="center">Finanze</h1>
 
-This is a Python-based application designed to aggregate financial data from various banking and investment
+<p align="center">
+An application designed to aggregate financial data from various banking and investment
 platforms. It supports multiple entities and features, providing a unified interface to gather and process financial
 information.
+</p>
 
 ## Table of Contents
 

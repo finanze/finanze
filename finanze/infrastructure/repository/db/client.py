@@ -6,6 +6,8 @@ from uuid import uuid4
 from pysqlcipher3 import dbapi2 as sqlcipher
 from typing_extensions import TypeAlias, Self
 
+from domain.data_init import DataEncryptedError
+
 UnderlyingCursor: TypeAlias = sqlcipher.Cursor
 UnderlyingConnection: TypeAlias = sqlcipher.Connection
 
@@ -61,7 +63,7 @@ class DBClient:
 
     def _get_connection(self) -> UnderlyingConnection:
         if self._conn is None:
-            raise RuntimeError("There's no active connection.")
+            raise DataEncryptedError()
         return self._conn
 
     @contextmanager
@@ -122,6 +124,13 @@ class DBClient:
     def close(self):
         self._get_connection().close()
         self._conn = None
+
+    def silent_close(self) -> bool:
+        try:
+            self.close()
+            return True
+        except Exception:
+            return False
 
     def cursor(self) -> DBCursor:
         return DBCursor(self._get_connection().cursor())

@@ -3,13 +3,13 @@ import logging
 import os
 from logging import getLevelName
 
-DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "finanze_data")
-DEFAULT_DB_NAME = "finanze_data.db"
+DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "finanze")
+DEFAULT_DB_NAME = "data.db"
 DEFAULT_CONFIG_NAME = "config.yml"
 
 
 def app_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Finanze Backend Server")
+    parser = argparse.ArgumentParser(description="Finanze Server")
 
     parser.add_argument(
         "--data-dir",

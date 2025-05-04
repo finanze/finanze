@@ -10,13 +10,13 @@ from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_scrape import VirtualScrape
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
+from infrastructure.controller.routes.export import export
 from infrastructure.controller.routes.get_available_sources import get_available_sources
 from infrastructure.controller.routes.get_settings import get_settings
 from infrastructure.controller.routes.login_status import login_status
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.scrape import scrape
 from infrastructure.controller.routes.update_settings import update_settings
-from infrastructure.controller.routes.update_sheets import update_sheets
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_scrape import virtual_scrape
 
@@ -69,5 +69,5 @@ def register_routes(app: FlaskApp,
         return await virtual_scrape(virtual_scrape_uc)
 
     @app.route('/api/v1/export', methods=['POST'])
-    def update_sheets_route():
-        return update_sheets(update_sheets_uc)
+    def export_route():
+        return export(update_sheets_uc)

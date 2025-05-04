@@ -13,6 +13,10 @@ class DecryptionError(Exception):
     pass
 
 
+class DataEncryptedError(Exception):
+    pass
+
+
 @dataclass
 class DatasourceInitParams:
     password: str
