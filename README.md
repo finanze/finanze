@@ -154,16 +154,16 @@ can get the needed environment names.
     ```
 
 2. Use the provided API endpoints to interact with the scraper:
-    - `GET /api/v1/scrape`: Get available entities.
     - `GET /api/v1/login`: Get current user session status.
     - `POST /api/v1/logout`: Exit and lock current session.
     - `POST /api/v1/login`: Login and unlock database.
+    - `GET /api/v1/entities`: Get available entities.
    ```
    {
         "password": "xxxxxxxxxxx"
    }
    ```
-    - `POST /api/v1/entity/login`: Login to a specific entity.
+    - `POST /api/v1/entities/login`: Login to a specific entity.
    ```
    {
         "entity": "e0000000-0000-0000-0000-000000000001",    // MyInvestor
@@ -174,6 +174,12 @@ can get the needed environment names.
         "code": "0000",                                      // Only if 2FA is needed
         "processId": "xxxxxxxxxxx"                           // Same
     }
+   ```
+    - `DELETE /api/v1/entities/login`: Disconnect/logout from a specific entity.
+   ```
+   {
+      "id": "e0000000-0000-0000-0000-000000000001"
+   }
    ```
     - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
       needed 2FA code if the entity requires it. It will return all scraped data. Resembles the previous one.

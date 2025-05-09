@@ -13,7 +13,7 @@ from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
 
-async def login(log, session, username: str, password: str) -> EntityLoginResult:
+async def login(log, inject_cookies_fn, username: str, password: str) -> EntityLoginResult:
     driver = None
 
     options = FirefoxOptions()
@@ -68,7 +68,7 @@ async def login(log, session, username: str, password: str) -> EntityLoginResult
 
         user_request = next(x for x in driver.requests if "/webapp-api/user" in x.url)
 
-        session.headers["Cookie"] = user_request.headers["Cookie"]
+        inject_cookies_fn(user_request.headers["Cookie"])
 
         return EntityLoginResult(LoginResultCode.CREATED)
 

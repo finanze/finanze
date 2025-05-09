@@ -20,7 +20,7 @@ from domain import native_entities
 from domain.dezimal import Dezimal
 from domain.entity_login import LoginResultCode, EntityLoginParams
 from domain.exception.exceptions import EntityNotFound
-from domain.financial_entity import FinancialEntity, Feature
+from domain.financial_entity import FinancialEntity, Feature, CredentialType
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
 from domain.scrap_result import ScrapResultCode, ScrapResult, SCRAP_BAD_LOGIN_CODES, ScrapRequest
@@ -153,8 +153,8 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         if not credentials:
             return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
 
-        for cred_name in entity.credentials_template.keys():
-            if cred_name not in credentials:
+        for cred_name, cred_type in entity.credentials_template.items():
+            if cred_type != CredentialType.INTERNAL and cred_type != CredentialType.INTERNAL_TEMP and cred_name not in credentials:
                 return ScrapResult(ScrapResultCode.INVALID_CREDENTIALS)
 
         specific_scraper = self._entity_scrapers[entity]
@@ -173,6 +173,13 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         if login_result_code == LoginResultCode.CODE_REQUESTED:
             return ScrapResult(ScrapResultCode.CODE_REQUESTED,
                                details={"message": login_message, "processId": login_result.process_id})
+
+        elif login_result_code == LoginResultCode.MANUAL_LOGIN:
+            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"credentials": login_result.details})
+
+        elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
+            self._credentials_port.update_expiration(entity.id, datetime.now(tzlocal()))
+            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"message": login_message})
 
         elif login_result_code not in [LoginResultCode.CREATED, LoginResultCode.RESUMED]:
             return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"message": login_message})

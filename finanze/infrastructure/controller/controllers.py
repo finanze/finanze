@@ -1,4 +1,5 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
+from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.get_available_entities import GetAvailableEntities
 from domain.use_cases.get_login_status import GetLoginStatus
 from domain.use_cases.get_settings import GetSettings
@@ -10,6 +11,7 @@ from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_scrape import VirtualScrape
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
+from infrastructure.controller.routes.disconnect_entity import disconnect_entity
 from infrastructure.controller.routes.export import export
 from infrastructure.controller.routes.get_available_sources import get_available_sources
 from infrastructure.controller.routes.get_settings import get_settings
@@ -31,7 +33,8 @@ def register_routes(app: FlaskApp,
                     get_login_status_uc: GetLoginStatus,
                     user_logout_uc: UserLogout,
                     get_settings_uc: GetSettings,
-                    update_settings_uc: UpdateSettings):
+                    update_settings_uc: UpdateSettings,
+                    disconnect_entity_uc: DisconnectEntity):
     @app.route('/api/v1/login', methods=['POST'])
     def user_login_route():
         return user_login(user_login_uc)
@@ -52,17 +55,21 @@ def register_routes(app: FlaskApp,
     def update_settings_route():
         return update_settings(update_settings_uc)
 
-    @app.route('/api/v1/scrape', methods=['GET'])
+    @app.route('/api/v1/entities', methods=['GET'])
     async def get_available_source_route():
         return await get_available_sources(get_available_entities_uc)
+
+    @app.route('/api/v1/entities/login', methods=['POST'])
+    async def add_entity_login_route():
+        return await add_entity_login(add_entity_credentials_uc)
+
+    @app.route('/api/v1/entities/login', methods=['DELETE'])
+    async def disconnect_entity_route():
+        return await disconnect_entity(disconnect_entity_uc)
 
     @app.route('/api/v1/scrape', methods=['POST'])
     async def scrape_route():
         return await scrape(scrape_uc)
-
-    @app.route('/api/v1/entity/login', methods=['POST'])
-    async def add_entity_login_route():
-        return await add_entity_login(add_entity_credentials_uc)
 
     @app.route('/api/v1/scrape/virtual', methods=['POST'])
     async def virtual_scrape_route():

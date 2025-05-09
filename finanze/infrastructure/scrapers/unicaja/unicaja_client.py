@@ -1,6 +1,4 @@
-import json
 import logging
-import os
 import re
 from datetime import datetime, date
 from typing import Optional
@@ -15,9 +13,16 @@ from domain.entity_login import EntityLoginResult, LoginResultCode
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
 
-class UnicajaClient:
-    DEFAULT_TIMEOUT = 10
+def _encrypt_password(key: str, password: str):
+    return (
+        pyDes.des(key, mode=pyDes.CBC, IV="00000000", pad="\0")
+        .encrypt(password)
+        .hex()
+        .upper()
+    )
 
+
+class UnicajaClient:
     BASE_URL = "https://univia.unicajabanco.es"
     AUTH_PATH = "/services/rest/autenticacion"
 
@@ -41,89 +46,23 @@ class UnicajaClient:
         "Comisión por cancelación:": "cancellationFee",
     }
 
-    def __init__(self, timeout=DEFAULT_TIMEOUT):
-        self._timeout = timeout
+    def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def _legacy_login(self, username: str, password: str) -> EntityLoginResult:
+    def login(self, username: str, password: str, abck: str) -> EntityLoginResult:
+        if not abck:
+            return EntityLoginResult(code=LoginResultCode.LOGIN_REQUIRED,
+                                     message="abck is required for automated login, but it was not provided")
 
-        from selenium.common import TimeoutException
-        from selenium.webdriver import FirefoxOptions
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.common.keys import Keys
-        from selenium.webdriver.support import expected_conditions as EC
-        from selenium.webdriver.support.ui import WebDriverWait
-        from seleniumwire import webdriver
-
-        driver = None
-
-        options = FirefoxOptions()
-        options.add_argument("--headless")
-
-        wire_address = os.getenv("WIRE_ADDRESS", '127.0.0.1')
-        wire_port = int(os.getenv("WIRE_PORT", "8088"))
-        proxy_address = os.getenv("WIRE_PROXY_SERVER_ADDRESS", "host.docker.internal")
-        webdriver_address = os.getenv("WEBDRIVER_ADDRESS", "http://localhost:4444")
-
-        options.set_preference('network.proxy.type', 1)
-        options.set_preference('network.proxy.http', proxy_address)
-        options.set_preference('network.proxy.http_port', wire_port)
-        options.set_preference('network.proxy.ssl', proxy_address)
-        options.set_preference('network.proxy.ssl_port', wire_port)
-
-        wire_options = {
-            "auto_config": False,
-            "port": wire_port,
-            'addr': wire_address,
-        }
-
-        try:
-            driver = webdriver.Remote(
-                command_executor=webdriver_address,
-                options=options,
-                seleniumwire_options=wire_options
-            )
-
-            driver.get(self.BASE_URL + "/login")
-
-            wait = WebDriverWait(driver, self._timeout)
-            wait.until(EC.element_to_be_clickable((By.ID, "username")))
-
-            username_input = driver.find_element(By.ID, "username")
-            username_input.send_keys(username)
-
-            password_input = driver.find_element(By.ID, "pwd")
-            password_input.send_keys(password)
-
-            password_input.send_keys(Keys.RETURN)
-
-            driver.wait_for_request(self.AUTH_PATH, timeout=self._timeout)
-
-            auth_request = next(x for x in driver.requests if self.AUTH_PATH in x.url)
-
-            self._setup_session(auth_request)
-
-            return EntityLoginResult(LoginResultCode.CREATED)
-
-        except TimeoutException:
-            self._log.error("Timed out waiting for autenticacion.")
-            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Timed out waiting for autenticacion.")
-
-        finally:
-            if driver:
-                driver.quit()
-
-    def _rest_login(self, username: str, password: str) -> EntityLoginResult:
         user_agent = "Mozilla/5.0 (Linux; Android 5.1.1; Lenovo PB1-750M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
         self._session = requests.Session()
         self._session.headers["User-Agent"] = user_agent
 
         ck = self._ck()
 
-        abck = os.getenv("UNICAJA_ABCK")
         self._session.cookies.set("_abck", abck)
 
-        encoded_password = self._encrypt_password(ck, password)
+        encoded_password = _encrypt_password(ck, password)
         auth_response = self.auth(username, encoded_password)
 
         if auth_response.ok:
@@ -140,57 +79,12 @@ class UnicajaClient:
         elif auth_response.status_code == 400:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
+        elif auth_response.status_code == 403:
+            return EntityLoginResult(LoginResultCode.LOGIN_REQUIRED, message="abck may not be valid anymore")
+
         else:
             return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
                                      message=f"Got unexpected response code {auth_response.status_code}")
-
-    def login(self, username: str, password: str, rest_login: bool = True) -> EntityLoginResult:
-        if rest_login:
-            return self._rest_login(username, password)
-        else:
-            return self._legacy_login(username, password)
-
-    def _encrypt_password(self, key: str, password: str):
-        return (
-            pyDes.des(key, mode=pyDes.CBC, IV="00000000", pad="\0")
-            .encrypt(password)
-            .hex()
-            .upper()
-        )
-
-    def _setup_session(self, request: requests.Request) -> dict:
-        body = self._get_body(request)
-
-        if "codigoError" in body or "mensajeError" in body:
-            self._log.error("Error:", body["codigoError"], body["mensajeError"])
-
-            if body["codigoError"] == "ERROR000":
-                raise Exception("Bad credentials")
-
-            raise Exception("There was an error during the login process")
-        else:
-            token_csrf = body["tokenCSRF"]
-            if not token_csrf:
-                raise Exception("Token CSRF not found")
-
-        self._session = requests.Session()
-
-        headers = {}
-
-        headers["tokenCSRF"] = token_csrf
-        headers["Cookie"] = request.headers["Cookie"]
-        headers["Content-Type"] = "application/x-www-form-urlencoded"
-
-        self._session.headers = headers
-
-    def _get_body(self, request: requests.Request) -> dict:
-        from seleniumwire.utils import decode
-
-        body = decode(
-            request.response.body,
-            request.response.headers.get("Content-Encoding", "identity"),
-        )
-        return json.loads(body.decode("utf-8"))
 
     def _execute_request(
             self,

@@ -5,6 +5,7 @@ from waitress import serve
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_settings import GetSettingsImpl
@@ -137,6 +138,7 @@ class FinanzeServer:
             sessions_port,
             transaction_handler
         )
+        disconnect_entity = DisconnectEntityImpl(credentials_port, sessions_port, transaction_handler)
         get_settings = GetSettingsImpl(self.config_loader)
         update_settings = UpdateSettingsImpl(self.config_loader)
 
@@ -159,8 +161,8 @@ class FinanzeServer:
                         get_login_status,
                         user_logout,
                         get_settings,
-                        update_settings)
-
+                        update_settings,
+                        disconnect_entity)
         self._log.info("Completed.")
 
     def run(self):
