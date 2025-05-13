@@ -9,7 +9,7 @@ from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.transactions import (
     Transactions, StockTx, FundTx, BaseInvestmentTx,
-    AccountTx, ProductType, TxType, FactoringTx, RealStateCFTx
+    AccountTx, ProductType, TxType, FactoringTx, RealStateCFTx, DepositTx
 )
 from infrastructure.repository.db.client import DBClient
 
@@ -33,8 +33,8 @@ def _map_account_row(row) -> AccountTx:
         is_real=bool(row["is_real"]),
         fees=Dezimal(row["fees"]),
         retentions=Dezimal(row["retentions"]),
-        interest_rate=Dezimal(row["interest_rate"]),
-        avg_balance=Dezimal(row["avg_balance"])
+        interest_rate=Dezimal(row["interest_rate"]) if row["interest_rate"] else None,
+        avg_balance=Dezimal(row["avg_balance"]) if row["avg_balance"] else None
     )
 
 
@@ -94,6 +94,14 @@ def _map_investment_row(row) -> BaseInvestmentTx:
         )
     elif row["product_type"] == ProductType.REAL_STATE_CF.value:
         return RealStateCFTx(
+            **common,
+            net_amount=Dezimal(row["net_amount"]),
+            fees=Dezimal(row["fees"]),
+            retentions=Dezimal(row["retentions"]),
+            interests=Dezimal(row["interests"])
+        )
+    elif row["product_type"] == ProductType.DEPOSIT.value:
+        return DepositTx(
             **common,
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
@@ -166,7 +174,7 @@ class TransactionSQLRepository(TransactionPort):
                         "retentions": str(tx.retentions) if tx.retentions else None,
                         "order_date": tx.order_date.isoformat() if tx.order_date else None,
                     })
-                elif isinstance(tx, (FactoringTx, RealStateCFTx)):
+                elif isinstance(tx, (FactoringTx, RealStateCFTx, DepositTx)):
                     entry.update({
                         "net_amount": str(tx.net_amount),
                         "fees": str(tx.fees),
@@ -211,8 +219,8 @@ class TransactionSQLRepository(TransactionPort):
                         datetime.now(tzlocal()).isoformat(),
                         str(tx.fees),
                         str(tx.retentions),
-                        str(tx.interest_rate),
-                        str(tx.avg_balance)
+                        str(tx.interest_rate) if tx.interest_rate else None,
+                        str(tx.avg_balance) if tx.avg_balance else None
                     )
                 )
 

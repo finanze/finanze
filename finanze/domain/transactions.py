@@ -15,6 +15,7 @@ class ProductType(str, Enum):
     STOCK_ETF = "STOCK_ETF"
     FACTORING = "FACTORING"
     REAL_STATE_CF = "REAL_STATE_CF"
+    DEPOSIT = "DEPOSIT"
 
 
 class TxType(str, Enum):
@@ -54,8 +55,8 @@ class BaseInvestmentTx(BaseTx):
 class AccountTx(BaseTx):
     fees: Dezimal
     retentions: Dezimal
-    interest_rate: Dezimal
-    avg_balance: Dezimal
+    interest_rate: Optional[Dezimal] = None
+    avg_balance: Optional[Dezimal] = None
 
 
 @dataclass
@@ -94,6 +95,14 @@ class FactoringTx(BaseInvestmentTx):
 
 @dataclass
 class RealStateCFTx(BaseInvestmentTx):
+    net_amount: Dezimal
+    fees: Dezimal
+    retentions: Dezimal
+    interests: Dezimal
+
+
+@dataclass
+class DepositTx(BaseInvestmentTx):
     net_amount: Dezimal
     fees: Dezimal
     retentions: Dezimal

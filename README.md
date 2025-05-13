@@ -34,7 +34,7 @@ information.
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
-| Freedom24      | ✅        | -     | -     | ❌              | ✅        | -          | -                   | ❌      | ❌     |                     |
+| Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅⚠️      | -     | ✅⚠️   | -              | -        | ✅⚠️        | -                   | -      | -     |                     |
 
 ⚠️ = Not tested
@@ -48,8 +48,9 @@ Not all entities support the same features, in general we can group data in the 
 - **Periodic Contributions**: automatic periodic contributions made to investments such as Funds (MyInvestor) or
   Stocks/ETFs (Trade Republic).
 - **Transactions**: all the account/investment related transactions, interest payments, stock of fund operations, asset
-  maturity... (deposits are not included here)
-- **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments.
+  maturity...
+- **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments (
+  deposits are not included here).
 
 | Entity         | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 |----------------|-----------------|---------------------------|--------------------------------|------------------------|
@@ -74,11 +75,12 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** at the moment requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
-  bot
-  protection, good news is that it last for a year approx.
-- **Mintos** is experimental, as it needs Selenium to resolve reCAPTCHA.
+- **Unicaja** requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
+  bot protection, good news is that it last for a year approx, if you use front to log in you have nothing to worry
+  about.
+- **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
 - **Indexa Capital** is not tested, as I don't have an account.
+- **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its removal.
 
 ### Google Sheets export
 

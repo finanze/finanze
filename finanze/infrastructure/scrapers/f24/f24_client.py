@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 import requests
@@ -8,6 +8,8 @@ import tzlocal
 from requests_toolbelt import MultipartEncoder
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
+
+DATE_FORMAT = "%Y-%m-%d"
 
 
 class F24APIClient:
@@ -144,6 +146,32 @@ class F24APIClient:
             "q": '{"cmd":"getOffBalanceAssets","params":{}}'
         }
         return self._multi_part("/api?cmd=getOffBalanceAssets", data=data).json()
+
+    def get_orders_history(self,
+                           from_date: date,
+                           to_date: Optional[date] = None,
+                           skip: int = 0,
+                           take: int = 1000) -> dict:
+        to_date = date.strftime(to_date or date.today(), DATE_FORMAT)
+
+        data = {
+            "q": """
+            {
+                "cmd": "getOrdersHistory",
+                "params": {
+                    "from": "%s",
+                    "order": 1,
+                    "page": {
+                        "skip": %s,
+                        "take": %s
+                    },
+                    "sort": 0,
+                    "till": "%s"
+                }
+            }
+        """ % (from_date, skip, take, to_date)
+        }
+        return self._multi_part("/api?cmd=getOrdersHistory", data=data).json()
 
     def switch_user(self, trader_systems_id: str):
         data = 'q={"cmd":"switchToConnectedUser","params":{"trader_systems_id":"' + trader_systems_id + '"}}'
