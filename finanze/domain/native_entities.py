@@ -9,6 +9,7 @@ MY_INVESTOR = NativeFinancialEntity(
     is_real=True,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD

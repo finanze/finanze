@@ -7,3 +7,5 @@
 *.log
 __pycache__
 /.storage
+/backend
+/build

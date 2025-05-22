@@ -29,7 +29,6 @@ from domain.transactions import TxType, ProductType
 from domain.use_cases.scrape import Scrape
 
 DEFAULT_FEATURES = [Feature.POSITION]
-DEFAULT_POSITION_UPDATE_COOLDOWN = 0
 
 
 def compute_return_values(related_inv_txs):
@@ -333,4 +332,4 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         return historic_entries
 
     def _get_position_update_cooldown(self) -> int:
-        return self._config_port.load().scrape.updateCooldown or DEFAULT_POSITION_UPDATE_COOLDOWN
+        return self._config_port.load().scrape.updateCooldown

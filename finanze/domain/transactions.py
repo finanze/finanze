@@ -11,6 +11,7 @@ from domain.financial_entity import FinancialEntity
 
 
 class ProductType(str, Enum):
+    ACCOUNT = "ACCOUNT"
     FUND = "FUND"
     STOCK_ETF = "STOCK_ETF"
     FACTORING = "FACTORING"
@@ -44,11 +45,12 @@ class BaseTx(BaseData):
     date: datetime
     entity: FinancialEntity
     is_real: bool
+    product_type: ProductType
 
 
 @dataclass
 class BaseInvestmentTx(BaseTx):
-    product_type: ProductType
+    pass
 
 
 @dataclass
@@ -118,3 +120,20 @@ class Transactions:
         investment = (self.investment or []) + (other.investment or [])
         account = (self.account or []) + (other.account or [])
         return Transactions(investment=investment, account=account)
+
+
+@dataclass
+class TransactionsResult:
+    transactions: list[BaseTx]
+
+
+@dataclass
+class TransactionQueryRequest:
+    page: int = 1
+    limit: int = 10
+    entities: Optional[list[UUID]] = None
+    excluded_entities: Optional[list[UUID]] = None
+    product_types: Optional[list[ProductType]] = None
+    from_date: Optional[datetime] = None
+    to_date: Optional[datetime] = None
+    types: Optional[list[TxType]] = None

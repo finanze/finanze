@@ -139,6 +139,7 @@ def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
         amount=round(amount, 2),
         currency=currency,
         type=TxType.INTEREST,
+        product_type=ProductType.ACCOUNT,
         date=tx_date,
         entity=MY_INVESTOR,
         fees=Dezimal(0),
@@ -157,8 +158,18 @@ class MyInvestorScraperV2(EntityScraper):
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
+        two_factor = login_params.two_factor
+
         username, password = credentials["user"], credentials["password"]
-        return self._client.login(username, password)
+        process_id, code = None, None
+        if two_factor:
+            process_id, code = two_factor.process_id, two_factor.code
+
+        return self._client.login(username,
+                                  password,
+                                  login_options=login_params.options,
+                                  process_id=process_id,
+                                  code=code)
 
     async def global_position(self) -> GlobalPosition:
         # maintenance = self._client.check_maintenance()

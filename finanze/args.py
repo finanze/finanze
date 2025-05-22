@@ -3,6 +3,8 @@ import logging
 import os
 from logging import getLevelName
 
+import appdirs
+
 DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "finanze")
 DEFAULT_DB_NAME = "data.db"
 DEFAULT_CONFIG_NAME = "config.yml"
@@ -15,7 +17,7 @@ def app_args() -> argparse.ArgumentParser:
         "--data-dir",
         help="Directory to store database and configuration files.",
         type=str,
-        default=DEFAULT_DATA_DIR,
+        default=appdirs.user_data_dir("Finanze", False),
     )
     parser.add_argument(
         "--port",

@@ -80,7 +80,8 @@ Important points to remark:
   about.
 - **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
 - **Indexa Capital** is not tested, as I don't have an account.
-- **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its removal.
+- **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
+  removal.
 
 ### Google Sheets export
 
@@ -124,8 +125,8 @@ This project requires `Python 3.11`.
 
 ## Export & Import Configuration
 
-Checkout the default [template_config.yml](resources/template_config.yml) config that will be created on first start,
-which contains some examples of tables and summary dashboards.
+Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export tables
+and summary dashboards.
 
 ## Environment Variables
 

@@ -103,6 +103,7 @@ def _map_account_txs(raw_trades, registered_txs):
             interest_rate=interest_rate,
             avg_balance=avg_balance,
             type=TxType.INTEREST,
+            product_type=ProductType.ACCOUNT,
             date=trade_date,
             entity=F24,
             is_real=True

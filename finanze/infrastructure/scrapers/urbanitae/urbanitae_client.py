@@ -4,15 +4,29 @@ import logging
 from datetime import date, datetime
 from typing import Optional
 
+import pyaes
 import requests
-from Cryptodome.Cipher import AES
-from Cryptodome.Util.Padding import pad
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
+
+
+def _pkcs7_pad(data: bytes, block_size: int) -> bytes:
+    pad_len = block_size - (len(data) % block_size)
+    return data + bytes([pad_len] * pad_len)
+
+
+def _generate_iv(date: datetime) -> bytes:
+    day = str(date.day).zfill(2)
+    month = str(date.month).zfill(2)
+    year = str(date.year)
+
+    iv_string = f"DD{day}MM{month}YYYY{year}"
+
+    return iv_string.encode('utf-8')
 
 
 class UrbanitaeAPIClient:
@@ -81,25 +95,12 @@ class UrbanitaeAPIClient:
 
     def _encrypt_password(self, password: str) -> str:
         key = str.encode(codecs.decode(self.PASSWORD_ENCRYPTION_KEY, 'rot_13'))
-
-        iv = self._generate_iv(datetime.now())
-
-        password = password.encode('utf-8')
-
-        padded_data = pad(password, AES.block_size)
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        encrypted_data = cipher.encrypt(padded_data)
-
+        iv = _generate_iv(datetime.now())
+        password_bytes = password.encode('utf-8')
+        padded_data = _pkcs7_pad(password_bytes, 16)
+        aes = pyaes.AESModeOfOperationCBC(key, iv=iv)
+        encrypted_data = aes.encrypt(padded_data)
         return base64.b64encode(encrypted_data).decode('utf-8')
-
-    def _generate_iv(self, date: datetime) -> bytes:
-        day = str(date.day).zfill(2)
-        month = str(date.month).zfill(2)
-        year = str(date.year)
-
-        iv_string = f"DD{day}MM{month}YYYY{year}"
-
-        return iv_string.encode('utf-8')
 
     def get_user(self):
         return self._user_info

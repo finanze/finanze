@@ -1,4 +1,5 @@
 from dataclasses import field
+from typing import Optional
 
 from pydantic.dataclasses import dataclass
 
@@ -55,7 +56,8 @@ class HistoricSheetConfig(BaseSheetConfig):
 
 @dataclass
 class SheetsConfig:
-    globals: GlobalsConfig
+    enabled: bool
+    globals: GlobalsConfig | None = None
     summary: list[SummarySheetConfig] = field(default_factory=list)
     investments: list[InvestmentSheetConfig] = field(default_factory=list)
     contributions: list[ContributionSheetConfig] = field(default_factory=list)
@@ -65,7 +67,7 @@ class SheetsConfig:
 
 @dataclass
 class ExportConfig:
-    sheets: SheetsConfig
+    sheets: Optional[SheetsConfig] = None
 
 
 @dataclass
@@ -80,8 +82,8 @@ class VirtualTransactionSheetConfig(BaseSheetConfig):
 
 @dataclass
 class VirtualScrapeConfig:
-    enabled: bool
-    globals: GlobalsConfig
+    enabled: bool = False
+    globals: GlobalsConfig | None = None
     investments: list[VirtualInvestmentSheetConfig] | None = None
     transactions: list[VirtualTransactionSheetConfig] | None = None
 
@@ -89,13 +91,13 @@ class VirtualScrapeConfig:
 @dataclass
 class ScrapeConfig:
     virtual: VirtualScrapeConfig
-    updateCooldown: int | None = None
+    updateCooldown: int
 
 
 @dataclass
 class Settings:
-    export: ExportConfig
-    scrape: ScrapeConfig
+    export: ExportConfig = field(default_factory=ExportConfig)
+    scrape: ScrapeConfig = field(default_factory=ScrapeConfig)
 
 
 ProductSheetConfig = (InvestmentSheetConfig
