@@ -17,7 +17,11 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import type { Locale } from "@/i18n"
 
 export function Sidebar() {
@@ -29,10 +33,18 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
 
   const navItems = [
-    { path: "/", label: t.common.dashboard, icon: <LayoutDashboard size={20} /> },
+    {
+      path: "/",
+      label: t.common.dashboard,
+      icon: <LayoutDashboard size={20} />,
+    },
     { path: "/entities", label: t.common.entities, icon: <Bank size={20} /> },
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
-    { path: "/settings", label: t.common.settings, icon: <Settings size={20} /> },
+    {
+      path: "/settings",
+      label: t.common.settings,
+      icon: <Settings size={20} />,
+    },
   ]
 
   const languages: { code: Locale; label: string }[] = [
@@ -62,14 +74,19 @@ export function Sidebar() {
     >
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
         {!collapsed && <h1 className="text-xl font-bold">Finanze</h1>}
-        <Button variant="ghost" size="icon" onClick={toggleSidebar} className="ml-auto">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          className="ml-auto"
+        >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </Button>
       </div>
 
       <nav className="flex-1 py-4">
         <ul className="space-y-1">
-          {navItems.map((item) => (
+          {navItems.map(item => (
             <li key={item.path}>
               <Button
                 variant="ghost"
@@ -95,7 +112,7 @@ export function Sidebar() {
         {!collapsed ? (
           <div className="space-y-2">
             <div className="flex flex-wrap gap-1 mb-2">
-              {languages.map((lang) => (
+              {languages.map(lang => (
                 <Button
                   key={lang.code}
                   variant={locale === lang.code ? "default" : "outline"}
@@ -130,7 +147,7 @@ export function Sidebar() {
               </PopoverTrigger>
               <PopoverContent side="right" className="p-1 w-auto">
                 <div className="flex flex-col gap-1">
-                  {languages.map((lang) => (
+                  {languages.map(lang => (
                     <Button
                       key={lang.code}
                       variant={locale === lang.code ? "default" : "outline"}
@@ -143,7 +160,12 @@ export function Sidebar() {
                 </div>
               </PopoverContent>
             </Popover>
-            <Button variant="ghost" size="icon" className="w-full" onClick={toggleTheme}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-full"
+              onClick={toggleTheme}
+            >
               {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
             </Button>
             <Button

@@ -1,4 +1,10 @@
-import {createContext, type ReactNode, useContext, useEffect, useState} from "react"
+import {
+  createContext,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useState,
+} from "react"
 
 type Theme = "light" | "dark"
 
@@ -9,7 +15,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
-export function ThemeProvider({children}: { children: ReactNode }) {
+export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light")
 
   // Load theme preference from localStorage on mount
@@ -31,7 +37,11 @@ export function ThemeProvider({children}: { children: ReactNode }) {
     localStorage.setItem("theme", newTheme)
   }
 
-  return <ThemeContext.Provider value={{theme, toggleTheme}}>{children}</ThemeContext.Provider>
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  )
 }
 
 export function useTheme() {

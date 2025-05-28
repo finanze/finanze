@@ -1,7 +1,16 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  type ReactNode,
+} from "react"
 import { getPositions, getContributions } from "@/services/api"
 import { EntitiesPosition, PositionQueryRequest } from "@/types/position"
-import { EntityContributions, ContributionQueryRequest } from "@/types/contributions"
+import {
+  EntityContributions,
+  ContributionQueryRequest,
+} from "@/types/contributions"
 import { useAppContext } from "./AppContext"
 
 interface FinancialDataContextType {
@@ -13,11 +22,16 @@ interface FinancialDataContextType {
   refreshEntity: (entityId: string) => Promise<void>
 }
 
-const FinancialDataContext = createContext<FinancialDataContextType | undefined>(undefined)
+const FinancialDataContext = createContext<
+  FinancialDataContextType | undefined
+>(undefined)
 
 export function FinancialDataProvider({ children }: { children: ReactNode }) {
-  const [positionsData, setPositionsData] = useState<EntitiesPosition | null>(null)
-  const [contributions, setContributions] = useState<EntityContributions | null>(null)
+  const [positionsData, setPositionsData] = useState<EntitiesPosition | null>(
+    null,
+  )
+  const [contributions, setContributions] =
+    useState<EntityContributions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const { activeEntities } = useAppContext()
@@ -27,9 +41,12 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
-      let queryParams: PositionQueryRequest | ContributionQueryRequest | undefined = undefined
+      let queryParams:
+        | PositionQueryRequest
+        | ContributionQueryRequest
+        | undefined = undefined
       if (activeEntities && activeEntities.length > 0) {
-        const entityIds = activeEntities.map((entity) => entity.id)
+        const entityIds = activeEntities.map(entity => entity.id)
         queryParams = { entities: entityIds }
       }
 
@@ -53,7 +70,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
-      console.log(`Refreshing financial data for entity: ${entityId} (triggers full refresh)`)
+      console.log(
+        `Refreshing financial data for entity: ${entityId} (triggers full refresh)`,
+      )
       await fetchFinancialData()
     } catch (err) {
       console.error(`Error refreshing entity ${entityId}:`, err)
@@ -86,7 +105,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 export const useFinancialData = () => {
   const context = useContext(FinancialDataContext)
   if (!context) {
-    throw new Error("useFinancialData must be used within a FinancialDataProvider")
+    throw new Error(
+      "useFinancialData must be used within a FinancialDataProvider",
+    )
   }
   return context
 }

@@ -38,7 +38,13 @@ export function Layout({ children }: LayoutProps) {
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
             >
               <Toast
-                variant={toast.type === "error" ? "destructive" : toast.type === "warning" ? "warning" : "default"}
+                variant={
+                  toast.type === "error"
+                    ? "destructive"
+                    : toast.type === "warning"
+                      ? "warning"
+                      : "default"
+                }
                 onClose={hideToast}
                 className={
                   toast.type === "success"
@@ -47,7 +53,11 @@ export function Layout({ children }: LayoutProps) {
                 }
               >
                 <div className="font-medium">
-                  {toast.type === "success" ? "Success" : toast.type === "warning" ? "Warning" : "Error"}
+                  {toast.type === "success"
+                    ? "Success"
+                    : toast.type === "warning"
+                      ? "Warning"
+                      : "Error"}
                 </div>
                 <div className="text-sm mt-1">{toast.message}</div>
               </Toast>

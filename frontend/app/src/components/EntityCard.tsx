@@ -2,7 +2,13 @@ import { useState } from "react"
 
 import type { Entity } from "@/types"
 import { EntityStatus } from "@/types"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/Card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { useI18n } from "@/i18n"
@@ -17,7 +23,13 @@ interface EntityCardProps {
   isLoading: boolean
 }
 
-export function EntityCard({ entity, onSelect, onRelogin, onDisconnect, isLoading }: EntityCardProps) {
+export function EntityCard({
+  entity,
+  onSelect,
+  onRelogin,
+  onDisconnect,
+  isLoading,
+}: EntityCardProps) {
   const { t } = useI18n()
   const [showConfirmation, setShowConfirmation] = useState(false)
 
@@ -38,12 +50,14 @@ export function EntityCard({ entity, onSelect, onRelogin, onDisconnect, isLoadin
     switch (entity.status) {
       case EntityStatus.CONNECTED:
         return {
-          style: "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300",
+          style:
+            "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300",
           text: t.entities.connected,
         }
       case EntityStatus.REQUIRES_LOGIN:
         return {
-          style: "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300",
+          style:
+            "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300",
           text: t.entities.requiresLogin,
         }
       default:
@@ -79,7 +93,8 @@ export function EntityCard({ entity, onSelect, onRelogin, onDisconnect, isLoadin
 
   const badgeInfo = getBadgeInfo()
   const isConnectedOrRequiresLogin =
-    entity.status === EntityStatus.CONNECTED || entity.status === EntityStatus.REQUIRES_LOGIN
+    entity.status === EntityStatus.CONNECTED ||
+    entity.status === EntityStatus.REQUIRES_LOGIN
 
   return (
     <>
@@ -92,7 +107,7 @@ export function EntityCard({ entity, onSelect, onRelogin, onDisconnect, isLoadin
                   src={`entities/${entity.id}.png`}
                   alt={`${entity.name} logo`}
                   className="w-full h-full object-contain"
-                  onError={(e) => {
+                  onError={e => {
                     // If image fails to load, hide it
                     ;(e.target as HTMLImageElement).style.display = "none"
                   }}
@@ -109,14 +124,18 @@ export function EntityCard({ entity, onSelect, onRelogin, onDisconnect, isLoadin
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-1 mt-2">
-            {entity.features.map((feature) => (
+            {entity.features.map(feature => (
               <Badge key={feature} variant="secondary" className="text-xs">
                 {t.features[feature]}
               </Badge>
             ))}
           </div>
           <Button
-            variant={entity.status !== EntityStatus.DISCONNECTED ? "default" : "outline"}
+            variant={
+              entity.status !== EntityStatus.DISCONNECTED
+                ? "default"
+                : "outline"
+            }
             className="w-full mt-4"
             disabled={isLoading}
             onClick={onSelect}
@@ -155,7 +174,10 @@ export function EntityCard({ entity, onSelect, onRelogin, onDisconnect, isLoadin
       <ConfirmationDialog
         isOpen={showConfirmation}
         title={t.entities.confirmDisconnect}
-        message={t.entities.confirmDisconnectMessage.replace("{entity}", entity.name)}
+        message={t.entities.confirmDisconnectMessage.replace(
+          "{entity}",
+          entity.name,
+        )}
         confirmText={t.entities.disconnect}
         cancelText={t.common.cancel}
         onConfirm={confirmDisconnect}

@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  release:
+    types: [ published ]
+
+jobs:
+
+  build-distros:
+    strategy:
+      matrix:
+        os: [ macos-latest, windows-latest, ubuntu-latest ]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.12
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          package_json_file: frontend/app/package.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: frontend/app/.nvmrc
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Package
+        run: |
+          pip3 install -r requirements-packaging.txt
+          pip3 install virtualenv
+          python3 -m virtualenv ~/venv
+          source ~/venv/bin/activate
+          python3 package.py --target full
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+
+  docker-release:
+    needs: build-distros
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Publish selenium image
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: marcosav/finanze
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          platforms: linux/amd64,linux/arm64/v8
+          buildargs: SELENIUM_SUPPORT=true
+          tags: |
+            ${{ github.event.release.tag_name }}-selenium
+            latest-selenium
+
+      - name: Publish no-selenium image
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: marcosav/finanze
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          platforms: linux/amd64,linux/arm64/v8
+          buildargs: SELENIUM_SUPPORT=false
+          tags: |
+            ${{ github.event.release.tag_name }}-no-selenium
+            latest-no-selenium

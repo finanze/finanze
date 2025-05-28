@@ -56,7 +56,7 @@ if args.target in ['frontend', 'full']:
 
     os.chdir(front_dir)
     package_front = subprocess.call(
-        'pnpm run package',
+        'pnpm run dist',
         shell=True
     )
     if package_front != 0:

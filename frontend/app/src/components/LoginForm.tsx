@@ -9,7 +9,8 @@ import { useI18n } from "@/i18n"
 import { CredentialType } from "@/types"
 
 export function LoginForm() {
-  const { selectedEntity, login, isLoading, storedCredentials } = useAppContext()
+  const { selectedEntity, login, isLoading, storedCredentials } =
+    useAppContext()
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const { t } = useI18n()
 
@@ -25,7 +26,7 @@ export function LoginForm() {
   if (!selectedEntity) return null
 
   const handleInputChange = (key: string, value: string) => {
-    setCredentials((prev) => ({ ...prev, [key]: value }))
+    setCredentials(prev => ({ ...prev, [key]: value }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -35,8 +36,11 @@ export function LoginForm() {
 
   // Get credential fields and sort them (password/PIN types last)
   // Filter out INTERNAL and INTERNAL_TEMP credential types
-  const credentialFields = Object.entries(selectedEntity.credentials_template || {}).filter(
-    ([_, type]) => type !== CredentialType.INTERNAL && type !== CredentialType.INTERNAL_TEMP,
+  const credentialFields = Object.entries(
+    selectedEntity.credentials_template || {},
+  ).filter(
+    ([, type]) =>
+      type !== CredentialType.INTERNAL && type !== CredentialType.INTERNAL_TEMP,
   )
 
   // Sort fields to put password and PIN fields last
@@ -44,8 +48,10 @@ export function LoginForm() {
     const [, typeA] = a
     const [, typeB] = b
 
-    const isSecureA = typeA === CredentialType.PASSWORD || typeA === CredentialType.PIN
-    const isSecureB = typeB === CredentialType.PASSWORD || typeB === CredentialType.PIN
+    const isSecureA =
+      typeA === CredentialType.PASSWORD || typeA === CredentialType.PIN
+    const isSecureB =
+      typeB === CredentialType.PASSWORD || typeB === CredentialType.PIN
 
     if (isSecureA && !isSecureB) return 1
     if (!isSecureA && isSecureB) return -1
@@ -70,7 +76,9 @@ export function LoginForm() {
                   : "text"
 
             // Get localized placeholder from i18n
-            const placeholder = t.login.credentials[type as keyof typeof t.login.credentials] || key
+            const placeholder =
+              t.login.credentials[type as keyof typeof t.login.credentials] ||
+              key
 
             return (
               <div key={key} className="space-y-2">
@@ -80,7 +88,7 @@ export function LoginForm() {
                   type={inputType}
                   placeholder={placeholder}
                   value={credentials[key] || ""}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
+                  onChange={e => handleInputChange(key, e.target.value)}
                   required
                 />
               </div>

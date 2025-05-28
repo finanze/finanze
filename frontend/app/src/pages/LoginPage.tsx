@@ -1,7 +1,13 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
@@ -27,7 +33,7 @@ export default function LoginPage() {
       if (!result) {
         setError(t.login.invalidPassword)
       }
-    } catch (err) {
+    } catch {
       setError(t.login.serverError)
     }
   }
@@ -45,8 +51,12 @@ export default function LoginPage() {
             <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4 shadow-md">
               <LockKeyhole className="h-8 w-8 text-primary-foreground" />
             </div>
-            <CardTitle className="text-3xl text-center">{t.login.title}</CardTitle>
-            <CardDescription className="text-center text-base">{t.login.subtitle}</CardDescription>
+            <CardTitle className="text-3xl text-center">
+              {t.login.title}
+            </CardTitle>
+            <CardDescription className="text-center text-base">
+              {t.login.subtitle}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -57,7 +67,7 @@ export default function LoginPage() {
                     id="password"
                     type="password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={e => setPassword(e.target.value)}
                     placeholder={t.login.passwordPlaceholder}
                     required
                     autoFocus

@@ -53,6 +53,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -63,6 +64,7 @@
   from {
     height: 0;
   }
+
   to {
     height: var(--radix-accordion-content-height);
   }
@@ -72,6 +74,7 @@
   from {
     height: var(--radix-accordion-content-height);
   }
+
   to {
     height: 0;
   }
@@ -91,6 +94,7 @@
   100% {
     transform: scale(1);
   }
+
   50% {
     transform: scale(1.05);
   }
@@ -105,34 +109,44 @@
   opacity: 0;
   transform: translateY(10px);
 }
+
 .page-enter-active {
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 300ms, transform 300ms;
+  transition:
+    opacity 300ms,
+    transform 300ms;
 }
+
 .page-exit {
   opacity: 1;
   transform: translateY(0);
 }
+
 .page-exit-active {
   opacity: 0;
   transform: translateY(-10px);
-  transition: opacity 300ms, transform 300ms;
+  transition:
+    opacity 300ms,
+    transform 300ms;
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background-color: hsl(var(--foreground) / 0.2);
   border-radius: 4px;
   opacity: 0;
   transition: opacity 0.3s;
 }
+
 html:hover ::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb:hover {
   opacity: 1;
@@ -143,19 +157,20 @@ html {
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
+
 html:hover {
   scrollbar-color: hsl(var(--foreground) / 0.2) transparent;
 }
 
 #titlebar {
-    user-select: none;
-    app-region: drag;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 25px;
-    display: flex;
-    background: transparent;
-    z-index: 1000;
+  user-select: none;
+  app-region: drag;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 25px;
+  display: flex;
+  background: transparent;
+  z-index: 1000;
 }
