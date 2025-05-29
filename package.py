@@ -55,6 +55,14 @@ if args.target in ['frontend', 'full']:
     front_dir = cwd / 'frontend' / 'app'
 
     os.chdir(front_dir)
+    pinstall_front = subprocess.call(
+        'pnpm install',
+        shell=True
+    )
+    if pinstall_front != 0:
+        logger.error('Frontend installation failed')
+        sys.exit(1)
+
     package_front = subprocess.call(
         'pnpm run dist',
         shell=True

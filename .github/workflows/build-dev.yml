@@ -23,7 +23,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           default_branch: develop
-          dockerfile: frontend/Dockerfile
+          workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
           tags: dev
 
@@ -64,7 +64,7 @@ jobs:
       - name: Setup python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.12
+          python-version: 3.11.9
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -76,10 +76,14 @@ jobs:
         with:
           node-version-file: frontend/app/.nvmrc
 
-      - name: Install Dependencies
-        run: pnpm install
+      - name: Package (Windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          pip3 install -r requirements-packaging.txt
+          python3 package.py --target full
 
-      - name: Package
+      - name: Package (non-Windows)
+        if: ${{ matrix.os != 'windows-latest' }}
         run: |
           pip3 install -r requirements-packaging.txt
           pip3 install virtualenv
