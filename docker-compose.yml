@@ -2,10 +2,10 @@ services:
   finanze-server:
     restart: unless-stopped
     build: . # Use the Dockerfile in the current directory
-    # image: marcosav/finanze:latest
-    # image: marcosav/finanze:ex-selenium
+    # image: marcosav/finanze:latest-selenium
+    # image: marcosav/finanze:latest-no-selenium
     ports:
-      - '8080:8080'
+      - '7592:7592'
     environment:
       # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Provided via API or use .env
       GOOGLE_CREDENTIALS_PATH: /credentials.json
@@ -20,12 +20,11 @@ services:
     volumes:
       - ./credentials.json:/credentials.json
       - ./token.json:/token.json
-      - ./config/:/config/
       - ./.storage/:/.storage
       - /etc/timezone:/etc/timezone:ro # Use host's timezone
       - /etc/localtime:/etc/localtime:ro # Use host's localtime
     command: |
-      --port 8080
+      --port 7592
       --data-dir /.storage
       --log-level DEBUG
 
@@ -36,3 +35,12 @@ services:
       - "4444:4444"
       - "7900:7900"
     shm_size: "2g"
+
+  finanze-front:
+    restart: unless-stopped
+    build: frontend # Use the Dockerfile in the current directory
+    # image: marcosav/finanze-frontend:latest
+    ports:
+      - "8080:80"
+    environment:
+      - FINANZE_BASE_URL=http://localhost:7592

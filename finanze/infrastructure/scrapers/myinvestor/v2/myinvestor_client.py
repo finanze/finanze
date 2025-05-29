@@ -6,7 +6,7 @@ import requests
 from cachetools import cached, TTLCache
 from dateutil.relativedelta import relativedelta
 
-from domain.entity_login import EntityLoginResult, LoginResultCode
+from domain.entity_login import EntityLoginResult, LoginResultCode, LoginOptions
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -44,7 +44,13 @@ class MyInvestorAPIV2Client:
                       base_url: str = BASE_URL) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw, base_url=base_url)
 
-    def login(self, username: str, password: str) -> EntityLoginResult:
+    def login(self,
+              username: str,
+              password: str,
+              login_options: LoginOptions,
+              process_id: str = None,
+              code: str = None) -> EntityLoginResult:
+
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
@@ -62,21 +68,72 @@ class MyInvestorAPIV2Client:
             "platform": None,
             "otpId": None,
             "code": None,
+            "signatureRequestId": None,
         }
-        response = self._post_request("/login/api/v1/auth/token", body=request, raw=True, base_url=self.LOGIN_URL)
 
-        if response.ok:
-            try:
-                token = response.json()["payload"]["data"]["accessToken"]
-            except KeyError:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
-            self._headers["Authorization"] = "Bearer " + token
-            return EntityLoginResult(LoginResultCode.CREATED)
-        elif response.status_code == 400:
-            return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
+        if code and process_id:
+            if len(code) != 6:
+                return EntityLoginResult(LoginResultCode.INVALID_CODE)
+
+            opt_id, signature_request_id = process_id.split("|")
+            request["otpId"] = opt_id
+            request["signatureRequestId"] = signature_request_id
+            request["code"] = code
+
+            response = self._post_request("/login/api/v1/auth/token", body=request, raw=True, base_url=self.LOGIN_URL)
+
+            if response.ok:
+                try:
+                    token = response.json()["payload"]["data"]["accessToken"]
+                except KeyError:
+                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+
+                self._headers["Authorization"] = "Bearer " + token
+
+                return EntityLoginResult(LoginResultCode.CREATED)
+
+            elif response.status_code == 400:
+                return EntityLoginResult(LoginResultCode.INVALID_CODE)
+            else:
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                         message=f"Got unexpected response code {response.status_code}")
+
+        elif not process_id and not code:
+            response = self._post_request("/login/api/v1/auth/token", body=request, raw=True, base_url=self.LOGIN_URL)
+
+            if response.ok:
+                if response.status_code == 202:
+                    if login_options.avoid_new_login:
+                        return EntityLoginResult(LoginResultCode.NOT_LOGGED)
+
+                    try:
+                        data = response.json()["payload"]["data"]
+                        otp_id = data["otpId"]
+                        signature_request_id = data["signatureRequestId"]
+                        process_id = f"{otp_id}|{signature_request_id}"
+                        return EntityLoginResult(LoginResultCode.CODE_REQUESTED, process_id=process_id)
+                    except KeyError:
+                        return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="OTP not found in response")
+
+                else:
+                    try:
+                        token = response.json()["payload"]["data"]["accessToken"]
+                    except KeyError:
+                        return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                                 message="Token not found in response")
+
+                    self._headers["Authorization"] = "Bearer " + token
+
+                    return EntityLoginResult(LoginResultCode.CREATED)
+
+            elif response.status_code == 400:
+                return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
+            else:
+                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
+                                         message=f"Got unexpected response code {response.status_code}")
+
         else:
-            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                     message=f"Got unexpected response code {response.status_code}")
+            raise ValueError("Invalid params")
 
     def check_maintenance(self):
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]

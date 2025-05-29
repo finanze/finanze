@@ -5,8 +5,10 @@ from waitress import serve
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
+from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
@@ -14,6 +16,8 @@ from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_scrape import VirtualScrapeImpl
+from application.use_cases.get_contributions import GetContributionsImpl
+from application.use_cases.get_transactions import GetTransactionsImpl
 from domain.data_init import DatasourceInitParams
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
@@ -137,8 +141,12 @@ class FinanzeServer:
             sessions_port,
             transaction_handler
         )
+        disconnect_entity = DisconnectEntityImpl(credentials_port, sessions_port, transaction_handler)
         get_settings = GetSettingsImpl(self.config_loader)
         update_settings = UpdateSettingsImpl(self.config_loader)
+        get_entities_position = GetPositionImpl(position_repository)
+        get_contributions = GetContributionsImpl(auto_contrib_repository)
+        get_transactions = GetTransactionsImpl(transaction_repository)
 
         self._log.info("Initial component setup completed.")
 
@@ -159,8 +167,11 @@ class FinanzeServer:
                         get_login_status,
                         user_logout,
                         get_settings,
-                        update_settings)
-
+                        update_settings,
+                        disconnect_entity,
+                        get_entities_position,
+                        get_contributions,
+                        get_transactions)
         self._log.info("Completed.")
 
     def run(self):

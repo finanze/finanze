@@ -1,0 +1,184 @@
+import { useNavigate, useLocation } from "react-router-dom"
+import { useI18n } from "@/i18n"
+import { useTheme } from "@/context/ThemeContext"
+import { useAuth } from "@/context/AuthContext"
+import { cn } from "@/lib/utils"
+import {
+  LayoutDashboard,
+  BanknoteIcon as Bank,
+  Settings,
+  LogOut,
+  Sun,
+  Moon,
+  ChevronRight,
+  ChevronLeft,
+  Globe,
+  FileUp,
+} from "lucide-react"
+import { useState } from "react"
+import { Button } from "@/components/ui/Button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import type { Locale } from "@/i18n"
+
+export function Sidebar() {
+  const { t, locale, changeLocale } = useI18n()
+  const { theme, toggleTheme } = useTheme()
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [collapsed, setCollapsed] = useState(false)
+
+  const navItems = [
+    {
+      path: "/",
+      label: t.common.dashboard,
+      icon: <LayoutDashboard size={20} />,
+    },
+    { path: "/entities", label: t.common.entities, icon: <Bank size={20} /> },
+    { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
+    {
+      path: "/settings",
+      label: t.common.settings,
+      icon: <Settings size={20} />,
+    },
+  ]
+
+  const languages: { code: Locale; label: string }[] = [
+    { code: "en-US", label: "EN" },
+    { code: "es-ES", label: "ES" },
+  ]
+
+  const toggleSidebar = () => {
+    setCollapsed(!collapsed)
+  }
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate("/login")
+    } catch (error) {
+      console.error("Logout failed:", error)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        "pt-4 h-screen flex flex-col bg-gray-100 dark:bg-black border-r border-gray-200 dark:border-gray-800 transition-all duration-300",
+        collapsed ? "w-16" : "w-64",
+      )}
+    >
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+        {!collapsed && <h1 className="text-xl font-bold">Finanze</h1>}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleSidebar}
+          className="ml-auto"
+        >
+          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        </Button>
+      </div>
+
+      <nav className="flex-1 py-4">
+        <ul className="space-y-1">
+          {navItems.map(item => (
+            <li key={item.path}>
+              <Button
+                variant="ghost"
+                className={cn(
+                  "w-full justify-start rounded-none h-12",
+                  location.pathname === item.path
+                    ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                    : "hover:bg-gray-200 dark:hover:bg-gray-900",
+                )}
+                onClick={() => navigate(item.path)}
+              >
+                <span className="flex items-center">
+                  {item.icon}
+                  {!collapsed && <span className="ml-3">{item.label}</span>}
+                </span>
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+        {!collapsed ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-1 mb-2">
+              {languages.map(lang => (
+                <Button
+                  key={lang.code}
+                  variant={locale === lang.code ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => changeLocale(lang.code)}
+                >
+                  {lang.label}
+                </Button>
+              ))}
+            </div>
+            <div className="flex gap-1">
+              <Button variant="ghost" className="flex-1" onClick={toggleTheme}>
+                {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+              </Button>
+              <Button
+                variant="ghost"
+                className="flex-1 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={handleLogout}
+              >
+                <LogOut size={18} />
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-full">
+                  <Globe size={20} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="right" className="p-1 w-auto">
+                <div className="flex flex-col gap-1">
+                  {languages.map(lang => (
+                    <Button
+                      key={lang.code}
+                      variant={locale === lang.code ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => changeLocale(lang.code)}
+                    >
+                      {lang.label}
+                    </Button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-full"
+              onClick={toggleTheme}
+            >
+              {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+              onClick={handleLogout}
+            >
+              <LogOut size={20} />
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

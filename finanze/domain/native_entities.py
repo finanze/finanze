@@ -1,12 +1,15 @@
 from typing import Optional
 from uuid import UUID
 
-from domain.financial_entity import NativeFinancialEntity, Feature, PinDetails, CredentialType
+from domain.financial_entity import NativeFinancialEntity, Feature, PinDetails, CredentialType, EntitySetupLoginType
 
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
     name="MyInvestor",
+    is_real=True,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD
@@ -16,17 +19,22 @@ MY_INVESTOR = NativeFinancialEntity(
 UNICAJA = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000002"),
     name="Unicaja",
+    is_real=True,
     features=[Feature.POSITION],
+    setup_login_type=EntitySetupLoginType.MANUAL,
     credentials_template={
         "user": CredentialType.ID,
-        "password": CredentialType.PASSWORD
-    }
+        "password": CredentialType.PASSWORD,
+        "abck": CredentialType.INTERNAL
+    },
 )
 
 TRADE_REPUBLIC = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000003"),
     name="Trade Republic",
+    is_real=True,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=4),
     credentials_template={
         "phone": CredentialType.PHONE,
@@ -37,7 +45,9 @@ TRADE_REPUBLIC = NativeFinancialEntity(
 URBANITAE = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000004"),
     name="Urbanitae",
+    is_real=True,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD
@@ -47,7 +57,9 @@ URBANITAE = NativeFinancialEntity(
 WECITY = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000005"),
     name="Wecity",
+    is_real=True,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.EMAIL,
@@ -58,7 +70,9 @@ WECITY = NativeFinancialEntity(
 SEGO = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000006"),
     name="SEGO",
+    is_real=True,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.EMAIL,
@@ -69,17 +83,22 @@ SEGO = NativeFinancialEntity(
 MINTOS = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000007"),
     name="Mintos",
+    is_real=True,
     features=[Feature.POSITION],
+    setup_login_type=EntitySetupLoginType.MANUAL,
     credentials_template={
         "user": CredentialType.EMAIL,
-        "password": CredentialType.PASSWORD
+        "password": CredentialType.PASSWORD,
+        "cookie": CredentialType.INTERNAL_TEMP
     }
 )
 
 F24 = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000008"),
     name="Freedom24",
+    is_real=True,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD
@@ -89,7 +108,9 @@ F24 = NativeFinancialEntity(
 INDEXA_CAPITAL = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000009"),
     name="Indexa Capital",
+    is_real=True,
     features=[Feature.POSITION],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
         "token": CredentialType.API_TOKEN
     }

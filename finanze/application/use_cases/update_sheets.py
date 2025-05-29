@@ -11,7 +11,7 @@ from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions
 from domain.export import ExportRequest
 from domain.financial_entity import FinancialEntity
-from domain.global_position import GlobalPosition
+from domain.global_position import GlobalPosition, PositionQueryRequest
 from domain.historic import Historic
 from domain.settings import SummarySheetConfig, InvestmentSheetConfig, ContributionSheetConfig, TransactionSheetConfig, \
     HistoricSheetConfig, GlobalsConfig, ProductSheetConfig
@@ -70,8 +70,9 @@ class UpdateSheetsImpl(UpdateSheets):
         tx_configs = apply_global_config(config_globals, tx_configs)
         historic_configs = apply_global_config(config_globals, historic_configs)
 
-        real_global_position_by_entity = self._position_port.get_last_grouped_by_entity(True)
-        manual_global_position_by_entity = self._position_port.get_last_grouped_by_entity(False)
+        real_global_position_by_entity = self._position_port.get_last_grouped_by_entity(PositionQueryRequest(real=True))
+        manual_global_position_by_entity = self._position_port.get_last_grouped_by_entity(
+            PositionQueryRequest(real=False))
 
         global_position_by_entity = {}
         for entity, position in real_global_position_by_entity.items():

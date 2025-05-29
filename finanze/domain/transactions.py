@@ -11,10 +11,12 @@ from domain.financial_entity import FinancialEntity
 
 
 class ProductType(str, Enum):
+    ACCOUNT = "ACCOUNT"
     FUND = "FUND"
     STOCK_ETF = "STOCK_ETF"
     FACTORING = "FACTORING"
     REAL_STATE_CF = "REAL_STATE_CF"
+    DEPOSIT = "DEPOSIT"
 
 
 class TxType(str, Enum):
@@ -43,19 +45,20 @@ class BaseTx(BaseData):
     date: datetime
     entity: FinancialEntity
     is_real: bool
+    product_type: ProductType
 
 
 @dataclass
 class BaseInvestmentTx(BaseTx):
-    product_type: ProductType
+    pass
 
 
 @dataclass
 class AccountTx(BaseTx):
     fees: Dezimal
     retentions: Dezimal
-    interest_rate: Dezimal
-    avg_balance: Dezimal
+    interest_rate: Optional[Dezimal] = None
+    avg_balance: Optional[Dezimal] = None
 
 
 @dataclass
@@ -101,6 +104,14 @@ class RealStateCFTx(BaseInvestmentTx):
 
 
 @dataclass
+class DepositTx(BaseInvestmentTx):
+    net_amount: Dezimal
+    fees: Dezimal
+    retentions: Dezimal
+    interests: Dezimal
+
+
+@dataclass
 class Transactions:
     investment: Optional[list[BaseInvestmentTx]] = None
     account: Optional[list[AccountTx]] = None
@@ -109,3 +120,20 @@ class Transactions:
         investment = (self.investment or []) + (other.investment or [])
         account = (self.account or []) + (other.account or [])
         return Transactions(investment=investment, account=account)
+
+
+@dataclass
+class TransactionsResult:
+    transactions: list[BaseTx]
+
+
+@dataclass
+class TransactionQueryRequest:
+    page: int = 1
+    limit: int = 10
+    entities: Optional[list[UUID]] = None
+    excluded_entities: Optional[list[UUID]] = None
+    product_types: Optional[list[ProductType]] = None
+    from_date: Optional[datetime] = None
+    to_date: Optional[datetime] = None
+    types: Optional[list[TxType]] = None

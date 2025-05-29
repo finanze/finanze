@@ -1,7 +1,9 @@
-from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 from uuid import UUID
+
+from pydantic.dataclasses import dataclass
 
 
 class Feature(str, Enum):
@@ -20,7 +22,7 @@ class PinDetails:
 class FinancialEntity:
     id: Optional[UUID]
     name: str
-    is_real: bool = True
+    is_real: bool
 
     def __str__(self):
         return self.name
@@ -38,12 +40,30 @@ class CredentialType(str, Enum):
     EMAIL = "EMAIL",
     API_TOKEN = "API_TOKEN"
 
+    # Internal usage (cookies, headers..., usually from external login)
+    INTERNAL = "INTERNAL"
+    INTERNAL_TEMP = "INTERNAL_TEMP"
+
+
+class EntitySetupLoginType(str, Enum):
+    MANUAL = "MANUAL",
+    AUTOMATED = "AUTOMATED"
+
 
 @dataclass(eq=False)
 class NativeFinancialEntity(FinancialEntity):
-    features: list[Feature] = field(default_factory=list)
+    setup_login_type: EntitySetupLoginType
+    credentials_template: dict[str, CredentialType]
+    features: list[Feature]
     pin: Optional[PinDetails] = None
-    credentials_template: dict[str, CredentialType] = field(default_factory=dict)
 
 
 EntityCredentials = dict[str, str]
+
+
+@dataclass
+class EntityCredentialsEntry:
+    entity_id: UUID
+    created_at: Optional[datetime] = None
+    last_used_at: Optional[datetime] = None
+    expiration: Optional[datetime] = None

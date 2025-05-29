@@ -5,7 +5,7 @@ from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_playwright import RecaptchaSolver
 
 
-async def login(log, session, username: str, password: str) -> EntityLoginResult:
+async def login(log, inject_cookies_fn, username: str, password: str) -> EntityLoginResult:
     async with async_playwright() as p:
         # browser = await p.firefox.connect('ws://localhost:3000/firefox/playwright')
         # Only working in non-headless mode, so mostly no useful
@@ -33,7 +33,7 @@ async def login(log, session, username: str, password: str) -> EntityLoginResult
                                                         predicate=lambda req: MintosAPIClient.USER_PATH in req.url,
                                                         timeout=10000)
 
-            session.headers["Cookie"] = user_request.headers["cookie"]
+            inject_cookies_fn(user_request.headers["cookie"])
 
             return EntityLoginResult(LoginResultCode.CREATED)
 

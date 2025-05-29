@@ -2,8 +2,9 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
+from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
+from domain.financial_entity import EntitySetupLoginType
 from domain.global_position import GlobalPosition, Account, Investments, Crowdlending, AccountType
-from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import MINTOS
 from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 
@@ -53,11 +54,23 @@ class MintosScraper(EntityScraper):
 
     def __init__(self):
         self._client = MintosAPIClient()
+        if self._client.automated_login:
+            MINTOS.setup_login_type = EntitySetupLoginType.AUTOMATED
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        return await self._client.login(username, password)
+        if self._client.automated_login:
+            return await self._client.login(username, password)
+
+        elif "cookie" not in credentials and not self._client.has_completed_login():
+            if login_params.options.avoid_new_login:
+                return EntityLoginResult(code=LoginResultCode.NOT_LOGGED)
+
+            return EntityLoginResult(code=LoginResultCode.MANUAL_LOGIN, details=credentials)
+
+        cookie_header = credentials.get("cookie")
+        return self._client.complete_login(cookie_header)
 
     async def global_position(self) -> GlobalPosition:
         user_json = self._client.get_user()
