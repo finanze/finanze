@@ -69,7 +69,6 @@ jobs:
           NEW_BRANCH_NAME="release/$NEW_VERSION"
           echo "Creating new branch $NEW_BRANCH_NAME from ${{ github.ref_name }}"
           git checkout -b "$NEW_BRANCH_NAME"
-          git push --set-upstream origin "$NEW_BRANCH_NAME"
           echo "Created and switched to branch $NEW_BRANCH_NAME"
           echo "::set-output name=release_branch_name::$NEW_BRANCH_NAME"
 
