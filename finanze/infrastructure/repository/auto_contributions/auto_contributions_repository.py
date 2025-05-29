@@ -4,8 +4,10 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
-from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency, \
-    ContributionTargetType
+from domain.auto_contributions import (
+    AutoContributions, PeriodicContribution, ContributionFrequency,
+    ContributionTargetType, ContributionQueryRequest
+)
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from infrastructure.repository.db.client import DBClient
@@ -49,20 +51,39 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                     )
                 )
 
-    def get_all_grouped_by_entity(self) -> dict[FinancialEntity, AutoContributions]:
+    def get_all_grouped_by_entity(self, query: ContributionQueryRequest) -> dict[FinancialEntity, AutoContributions]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT e.id as entity_id, e.*, pc.id as pc_id, pc.*
-                           FROM periodic_contributions pc
-                                    JOIN financial_entities e ON pc.entity_id = e.id
-                           """)
+            params = []
+            sql = """
+                  SELECT e.id as entity_id, e.name as entity_name, e.is_real as entity_is_real, pc.id as pc_id, pc.*
+                  FROM periodic_contributions pc
+                           JOIN financial_entities e ON pc.entity_id = e.id
+                  """
+
+            conditions = []
+            if query.real is not None:
+                conditions.append("pc.is_real = ?")
+                params.append(query.real)
+            if query.entities:
+                placeholders = ", ".join("?" for _ in query.entities)
+                conditions.append(f"pc.entity_id IN ({placeholders})")
+                params.extend([str(e) for e in query.entities])
+            if query.excluded_entities:
+                placeholders = ", ".join("?" for _ in query.excluded_entities)
+                conditions.append(f"pc.entity_id NOT IN ({placeholders})")
+                params.extend([str(e) for e in query.excluded_entities])
+
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
+
+            cursor.execute(sql, tuple(params))
 
             entities = {}
             for row in cursor.fetchall():
                 entity = FinancialEntity(
                     id=UUID(row["entity_id"]),
-                    name=row["name"],
-                    is_real=row["is_real"]
+                    name=row["entity_name"],
+                    is_real=row["entity_is_real"]
                 )
                 if entity not in entities:
                     entities[entity] = []

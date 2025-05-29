@@ -8,8 +8,8 @@ from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency, \
     ContributionTargetType
 from domain.dezimal import Dezimal
-from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
@@ -117,6 +117,7 @@ def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
         interest_rate=Dezimal(round(annual_rate / 100, 4)),
         avg_balance=Dezimal(round(avg_balance, 2)),
         type=TxType.INTEREST,
+        product_type=ProductType.ACCOUNT,
         date=date,
         entity=TRADE_REPUBLIC,
         is_real=True

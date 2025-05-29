@@ -42,3 +42,15 @@ class PeriodicContribution:
 @dataclass
 class AutoContributions:
     periodic: list[PeriodicContribution]
+
+
+@dataclass
+class EntityContributions:
+    contributions: dict[str, AutoContributions]
+
+
+@dataclass
+class ContributionQueryRequest:
+    entities: Optional[list[UUID]] = None
+    excluded_entities: Optional[list[UUID]] = None
+    real: Optional[bool] = None

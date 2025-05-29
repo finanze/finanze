@@ -34,7 +34,7 @@ information.
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
-| Freedom24      | ✅        | -     | -     | ❌              | ✅        | -          | -                   | ❌      | ❌     |                     |
+| Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅⚠️      | -     | ✅⚠️   | -              | -        | ✅⚠️        | -                   | -      | -     |                     |
 
 ⚠️ = Not tested
@@ -48,8 +48,9 @@ Not all entities support the same features, in general we can group data in the 
 - **Periodic Contributions**: automatic periodic contributions made to investments such as Funds (MyInvestor) or
   Stocks/ETFs (Trade Republic).
 - **Transactions**: all the account/investment related transactions, interest payments, stock of fund operations, asset
-  maturity... (deposits are not included here)
-- **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments.
+  maturity...
+- **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments (
+  deposits are not included here).
 
 | Entity         | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
 |----------------|-----------------|---------------------------|--------------------------------|------------------------|
@@ -74,11 +75,13 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** at the moment requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
-  bot
-  protection, good news is that it last for a year approx.
-- **Mintos** is experimental, as it needs Selenium to resolve reCAPTCHA.
+- **Unicaja** requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
+  bot protection, good news is that it last for a year approx, if you use front to log in you have nothing to worry
+  about.
+- **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
 - **Indexa Capital** is not tested, as I don't have an account.
+- **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
+  removal.
 
 ### Google Sheets export
 
@@ -89,8 +92,8 @@ data. Check [Export & Import Configuration](#export--import-configuration) for m
 
 ### Docker
 
-Two Docker images are available, a Selenium one and a light one (ex-selenium). The first one is the default, which
-currently is
+Two Docker images are available, a Selenium one (latest-selenium) and a light one (latest-no-selenium). The first one is
+the default, which currently is
 needed for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO dependencies (like ffmpeg).
 
 Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
@@ -122,8 +125,9 @@ This project requires `Python 3.11`.
 
 ## Export & Import Configuration
 
-Checkout the default [template_config.yml](resources/template_config.yml) config that will be created on first start,
-which contains some examples of tables and summary dashboards.
+Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
+tables
+and summary dashboards.
 
 ## Environment Variables
 
@@ -154,16 +158,16 @@ can get the needed environment names.
     ```
 
 2. Use the provided API endpoints to interact with the scraper:
-    - `GET /api/v1/scrape`: Get available entities.
     - `GET /api/v1/login`: Get current user session status.
     - `POST /api/v1/logout`: Exit and lock current session.
     - `POST /api/v1/login`: Login and unlock database.
+    - `GET /api/v1/entities`: Get available entities.
    ```
    {
         "password": "xxxxxxxxxxx"
    }
    ```
-    - `POST /api/v1/entity/login`: Login to a specific entity.
+    - `POST /api/v1/entities/login`: Login to a specific entity.
    ```
    {
         "entity": "e0000000-0000-0000-0000-000000000001",    // MyInvestor
@@ -174,6 +178,12 @@ can get the needed environment names.
         "code": "0000",                                      // Only if 2FA is needed
         "processId": "xxxxxxxxxxx"                           // Same
     }
+   ```
+    - `DELETE /api/v1/entities/login`: Disconnect/logout from a specific entity.
+   ```
+   {
+      "id": "e0000000-0000-0000-0000-000000000001"
+   }
    ```
     - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
       needed 2FA code if the entity requires it. It will return all scraped data. Resembles the previous one.

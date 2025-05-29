@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, date
 from uuid import uuid4
 
@@ -5,8 +6,9 @@ from dateutil.relativedelta import relativedelta
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType, LoanType
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.financial_entity import EntitySetupLoginType
+from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType, LoanType
 from domain.native_entities import UNICAJA
 from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 
@@ -16,10 +18,15 @@ class UnicajaScraper(EntityScraper):
     def __init__(self):
         self._client = UnicajaClient()
 
+        self._abck = os.getenv("UNICAJA_ABCK")
+        if self._abck:
+            UNICAJA.setup_login_type = EntitySetupLoginType.AUTOMATED
+
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        return self._client.login(username, password)
+        abck = self._abck or credentials.get("abck")
+        return self._client.login(username, password, abck)
 
     async def global_position(self) -> GlobalPosition:
         accounts_response = self._client.list_accounts()

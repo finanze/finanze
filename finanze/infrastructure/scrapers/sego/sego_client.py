@@ -92,15 +92,14 @@ class SegoAPIClient:
 
         if code:
             request["codigoSMS"] = code
+        elif login_options.avoid_new_login:
+            return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
         response = self._post_request("/core/v1/Login/Inversor", body=request, raw=True)
 
         if response.ok:
             response_body = response.json()
             if response_body["isCodigoEnviado"]:
-                if login_options.avoid_new_login:
-                    return EntityLoginResult(LoginResultCode.NOT_LOGGED)
-
                 return EntityLoginResult(LoginResultCode.CODE_REQUESTED)
 
             if "token" not in response_body:

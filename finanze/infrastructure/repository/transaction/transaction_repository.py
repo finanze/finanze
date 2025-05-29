@@ -9,7 +9,7 @@ from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.transactions import (
     Transactions, StockTx, FundTx, BaseInvestmentTx,
-    AccountTx, ProductType, TxType, FactoringTx, RealStateCFTx
+    AccountTx, ProductType, TxType, FactoringTx, RealStateCFTx, DepositTx, TransactionQueryRequest, BaseTx
 )
 from infrastructure.repository.db.client import DBClient
 
@@ -31,10 +31,11 @@ def _map_account_row(row) -> AccountTx:
         date=datetime.fromisoformat(row["date"]),
         entity=entity,
         is_real=bool(row["is_real"]),
+        product_type=ProductType.ACCOUNT,
         fees=Dezimal(row["fees"]),
         retentions=Dezimal(row["retentions"]),
-        interest_rate=Dezimal(row["interest_rate"]),
-        avg_balance=Dezimal(row["avg_balance"])
+        interest_rate=Dezimal(row["interest_rate"]) if row["interest_rate"] else None,
+        avg_balance=Dezimal(row["avg_balance"]) if row["avg_balance"] else None
     )
 
 
@@ -100,6 +101,16 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             retentions=Dezimal(row["retentions"]),
             interests=Dezimal(row["interests"])
         )
+    elif row["product_type"] == ProductType.DEPOSIT.value:
+        return DepositTx(
+            **common,
+            net_amount=Dezimal(row["net_amount"]),
+            fees=Dezimal(row["fees"]),
+            retentions=Dezimal(row["retentions"]),
+            interests=Dezimal(row["interests"])
+        )
+    else:
+        raise ValueError(f"Unknown product type: {row['product_type']}")
 
 
 class TransactionSQLRepository(TransactionPort):
@@ -166,7 +177,7 @@ class TransactionSQLRepository(TransactionPort):
                         "retentions": str(tx.retentions) if tx.retentions else None,
                         "order_date": tx.order_date.isoformat() if tx.order_date else None,
                     })
-                elif isinstance(tx, (FactoringTx, RealStateCFTx)):
+                elif isinstance(tx, (FactoringTx, RealStateCFTx, DepositTx)):
                     entry.update({
                         "net_amount": str(tx.net_amount),
                         "fees": str(tx.fees),
@@ -211,8 +222,8 @@ class TransactionSQLRepository(TransactionPort):
                         datetime.now(tzlocal()).isoformat(),
                         str(tx.fees),
                         str(tx.retentions),
-                        str(tx.interest_rate),
-                        str(tx.avg_balance)
+                        str(tx.interest_rate) if tx.interest_rate else None,
+                        str(tx.avg_balance) if tx.avg_balance else None
                     )
                 )
 
@@ -316,3 +327,103 @@ class TransactionSQLRepository(TransactionPort):
                 result[entity] = last_created
 
             return result
+
+    def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
+        params = []
+        base_sql = """
+                   SELECT tx.*, e.name AS entity_name, e.is_real AS entity_is_real
+                   FROM (SELECT id,
+                                ref,
+                                name,
+                                amount,
+                                currency,
+                                type,
+                                date,
+                                entity_id,
+                                is_real,
+                                product_type,
+                                fees,
+                                retentions,
+                                NULL AS interest_rate,
+                                NULL AS avg_balance,
+                                isin,
+                                ticker,
+                                market,
+                                shares,
+                                price,
+                                net_amount,
+                                order_date,
+                                linked_tx,
+                                interests
+                         FROM investment_transactions
+                         UNION ALL
+                         SELECT id,
+                                ref,
+                                name,
+                                amount,
+                                currency,
+                                type,
+                                date,
+                                entity_id,
+                                is_real,
+                                'ACCOUNT' AS product_type,
+                                fees,
+                                retentions,
+                                interest_rate,
+                                avg_balance,
+                                NULL      AS isin,
+                                NULL      AS ticker,
+                                NULL      AS market,
+                                NULL      AS shares,
+                                NULL      AS price,
+                                NULL      AS net_amount,
+                                NULL      AS order_date,
+                                NULL      AS linked_tx,
+                                NULL      AS interests
+                         FROM account_transactions) tx
+                            JOIN financial_entities e ON tx.entity_id = e.id
+                   """
+
+        conditions = []
+        if query.entities:
+            placeholders = ", ".join("?" for _ in query.entities)
+            conditions.append(f"tx.entity_id IN ({placeholders})")
+            params.extend([str(e) for e in query.entities])
+        if query.excluded_entities:
+            placeholders = ", ".join("?" for _ in query.excluded_entities)
+            conditions.append(f"tx.entity_id NOT IN ({placeholders})")
+            params.extend([str(e) for e in query.excluded_entities])
+        if query.product_types:
+            placeholders = ", ".join("?" for _ in query.product_types)
+            conditions.append(f"tx.product_type IN ({placeholders})")
+            params.extend([pt.value for pt in query.product_types])
+        if query.types:
+            placeholders = ", ".join("?" for _ in query.types)
+            conditions.append(f"tx.type IN ({placeholders})")
+            params.extend([t.value for t in query.types])
+        if query.from_date:
+            conditions.append("tx.date >= ?")
+            params.append(query.from_date.isoformat())
+        if query.to_date:
+            conditions.append("tx.date <= ?")
+            params.append(query.to_date.isoformat())
+
+        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"
+        offset = (query.page - 1) * query.limit
+        params.extend([query.limit, offset])
+        sql = f"{base_sql} {where_clause} {order_pagination}"
+
+        with self._db_client.read() as cursor:
+            cursor.execute(sql, tuple(params))
+            rows = cursor.fetchall()
+
+        tx_list = []
+        for row in rows:
+            if row["product_type"] == "ACCOUNT":
+                tx = _map_account_row(row)
+            else:
+                tx = _map_investment_row(row)
+            tx_list.append(tx)
+
+        return tx_list

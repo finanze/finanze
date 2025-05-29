@@ -17,7 +17,8 @@ pydantic==2.11.3
 requests_toolbelt==1.0.0
 tzlocal==5.3.1
 bs4==0.0.2
-pycryptodomex==3.22.0
+pyaes==1.6.1
 aiocache==0.12.3
 rotki-pysqlcipher3==2024.10.1
 curl_cffi==0.10.0
+appdirs==1.4.4

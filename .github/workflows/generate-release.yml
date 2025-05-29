@@ -1,0 +1,81 @@
+name: Generate Release
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  create_release_on_merge:
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      contains(github.event.pull_request.labels.*.name, 'release') &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: 'main'
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.9
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Get current version
+        id: get_version
+        shell: bash
+        run: |
+          # Ensure bump-my-version is available
+          if ! command -v bump-my-version &> /dev/null
+          then
+              echo "bump-my-version could not be found, please ensure it is in requirements-dev.txt and installed."
+              exit 1
+          fi
+          VERSION_NUMBER=$(bump-my-version show current_version)
+          if [ -z "$VERSION_NUMBER" ]; then
+            echo "Error: bump-my-version show current_version returned an empty string."
+            exit 1
+          fi
+          # Ensure version starts with a digit (simple validation)
+          if [[ "$VERSION_NUMBER" =~ ^[0-9] ]]; then
+            VERSION="v$VERSION_NUMBER"
+          else
+            # If it already starts with v (e.g. from a config file), use it as is
+            # Or if it's an unexpected format, this will catch it.
+            VERSION="$VERSION_NUMBER"
+            if [[ ! "$VERSION" =~ ^v[0-9] ]]; then # Double check if it's not vX.Y.Z
+                echo "Warning: Version '$VERSION_NUMBER' from bump-my-version does not look like X.Y.Z. Using as is for tag: $VERSION"
+            fi
+          fi
+          echo "Determined version tag: $VERSION"
+          echo "version_tag=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release and Tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.get_version.outputs.version_tag }}
+          RELEASE_NAME: "Release ${{ steps.get_version.outputs.version_tag }}"
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO_FULL_NAME: ${{ github.repository }}
+        run: |
+          echo "Creating GitHub Release for tag: $TAG"
+          # Create a temporary file for release notes
+          echo "$PR_BODY" > release_notes.md
+          echo "\n\n---\n\nView the full [CHANGELOG.md](https://github.com/$REPO_FULL_NAME/blob/$TAG/CHANGELOG.md) for this release." >> release_notes.md
+
+          gh release create "$TAG" \
+            --target "main" \
+            --title "$RELEASE_NAME" \
+            --notes-file release_notes.md

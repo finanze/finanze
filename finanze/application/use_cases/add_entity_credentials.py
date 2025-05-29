@@ -6,9 +6,9 @@ from application.ports.entity_scraper import EntityScraper
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
-from domain.exception.exceptions import EntityNotFound, InvalidProvidedCredentials
-from domain.financial_entity import FinancialEntity
 from domain.entity_login import LoginResultCode, EntityLoginResult, EntityLoginRequest, EntityLoginParams, LoginOptions
+from domain.exception.exceptions import EntityNotFound, InvalidProvidedCredentials
+from domain.financial_entity import FinancialEntity, CredentialType
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 
 
@@ -38,8 +38,8 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
 
         credentials = login_request.credentials
 
-        for cred_name in entity.credentials_template.keys():
-            if cred_name not in credentials:
+        for cred_name, cred_type in entity.credentials_template.items():
+            if cred_type != CredentialType.INTERNAL and cred_type != CredentialType.INTERNAL_TEMP and cred_name not in credentials:
                 raise InvalidProvidedCredentials()
 
         specific_scraper = self._entity_scrapers[entity]
@@ -59,7 +59,10 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
             return login_result
 
         self._credentials_port.delete(entity.id)
-        self._credentials_port.save(entity.id, credentials)
+
+        credentials_to_store = {k: v for k, v in credentials.items() if
+                                entity.credentials_template[k] != CredentialType.INTERNAL_TEMP}
+        self._credentials_port.save(entity.id, credentials_to_store)
 
         self._sessions_port.delete(entity.id)
         session = login_result.session

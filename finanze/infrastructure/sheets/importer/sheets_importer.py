@@ -52,13 +52,6 @@ AGGR_FIELD_OPERATION = {
 }
 
 
-def _create_or_get_entity(name, existing_entities: dict[str, FinancialEntity]) -> FinancialEntity:
-    if name in existing_entities:
-        return existing_entities[name]
-
-    return FinancialEntity(id=None, name=name)
-
-
 def _parse_cell(value: str, config: BaseSheetConfig) -> any:
     try:
         return parse_number(value)

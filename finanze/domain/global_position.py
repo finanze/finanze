@@ -227,3 +227,15 @@ class GlobalPosition:
 @dataclass
 class HistoricalPosition:
     investments: Investments
+
+
+@dataclass
+class EntitiesPosition:
+    positions: dict[str, GlobalPosition]
+
+
+@dataclass
+class PositionQueryRequest:
+    entities: Optional[list[UUID]] = None
+    excluded_entities: Optional[list[UUID]] = None
+    real: Optional[bool] = None

@@ -10,7 +10,7 @@ from domain.global_position import (
     GlobalPosition, Account, Card, Loan,
     Investments, StockInvestments, StockDetail, CardType, FundDetail, FundInvestments, FactoringDetail,
     FactoringInvestments, RealStateCFDetail, RealStateCFInvestments, Deposits, Deposit, Crowdlending, AccountType,
-    LoanType, FundPortfolio
+    LoanType, FundPortfolio, PositionQueryRequest
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient
@@ -363,20 +363,36 @@ class PositionSQLRepository(PositionPort):
             if position.investments:
                 _save_investments(cursor, position, position.investments)
 
-    def get_last_grouped_by_entity(self, real: bool) -> Dict[FinancialEntity, GlobalPosition]:
+    def get_last_grouped_by_entity(self, query: PositionQueryRequest) -> Dict[FinancialEntity, GlobalPosition]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
-                           WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
-                                                     FROM global_positions
-                                                     WHERE is_real = ?
-                                                     GROUP BY entity_id)
-                           SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                           FROM global_positions gp
-                                    JOIN latest_positions lp
-                                         ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
-                                    JOIN financial_entities e ON gp.entity_id = e.id
-                           WHERE gp.is_real = ?
-                           """, (real, real))
+            params = [query.real, query.real]
+            sql = """
+                  WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
+                                            FROM global_positions
+                                            WHERE is_real = ?
+                                            GROUP BY entity_id)
+                  SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                  FROM global_positions gp
+                           JOIN latest_positions lp
+                                ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
+                           JOIN financial_entities e ON gp.entity_id = e.id
+                  WHERE gp.is_real = ? \
+                  """
+
+            conditions = []
+            if query.entities:
+                placeholders = ", ".join("?" for _ in query.entities)
+                conditions.append(f"gp.entity_id IN ({placeholders})")
+                params.extend([str(e) for e in query.entities])
+            if query.excluded_entities:
+                placeholders = ", ".join("?" for _ in query.excluded_entities)
+                conditions.append(f"gp.entity_id NOT IN ({placeholders})")
+                params.extend([str(e) for e in query.excluded_entities])
+
+            if conditions:
+                sql += " AND " + " AND ".join(conditions)
+
+            cursor.execute(sql, tuple(params))
 
             positions = {}
             for row in cursor.fetchall():

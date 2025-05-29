@@ -329,7 +329,8 @@ DDL = """
           entity_id    CHAR(36)  NOT NULL PRIMARY KEY REFERENCES financial_entities (id) ON DELETE CASCADE ON UPDATE CASCADE,
           credentials  JSON      NOT NULL,
           created_at   TIMESTAMP NOT NULL,
-          last_used_at TIMESTAMP DEFAULT NULL
+          last_used_at TIMESTAMP DEFAULT NULL,
+          expiration   TIMESTAMP DEFAULT NULL
       );
 
       CREATE TABLE entity_sessions
@@ -350,7 +351,8 @@ INSERT_FINANCIAL_ENTITIES = """
                                    ('e0000000-0000-0000-0000-000000000005', 'Wecity', TRUE),
                                    ('e0000000-0000-0000-0000-000000000006', 'SEGO', TRUE),
                                    ('e0000000-0000-0000-0000-000000000007', 'Mintos', TRUE),
-                                   ('e0000000-0000-0000-0000-000000000008', 'Freedom24', TRUE); \
+                                   ('e0000000-0000-0000-0000-000000000008', 'Freedom24', TRUE),
+                                   ('e0000000-0000-0000-0000-000000000009', 'Indexa Capital', TRUE); \
                             """
 
 
