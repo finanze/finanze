@@ -12,11 +12,6 @@ on:
           - major
           - minor
           - patch
-      source_branch:
-        description: 'The source branch to create the release preparation branch from'
-        required: true
-        type: string
-        default: 'develop'
 
 jobs:
   build:
@@ -25,13 +20,12 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_branch }}
           fetch-depth: 0
 
       - name: Validate Source Branch
         shell: bash
         run: |
-          SOURCE_BRANCH="${{ inputs.source_branch }}"
+          SOURCE_BRANCH="${{ github.ref_name }}"
           if [[ "$SOURCE_BRANCH" == "develop" || "$SOURCE_BRANCH" == hotfix/* ]]; then
             echo "Source branch '$SOURCE_BRANCH' is valid."
           else
@@ -55,14 +49,14 @@ jobs:
       - name: Create and Switch to Release Branch
         id: create_branch
         run: |
-          echo "Selected release base branch: ${{ inputs.source_branch }}"
-          echo "Fetching and switching to ${{ inputs.source_branch }}..."
-          git fetch origin ${{ inputs.source_branch }}
-          git checkout ${{ inputs.source_branch }}
-          git pull origin ${{ inputs.source_branch }}
+          echo "Selected release base branch: ${{ github.ref_name }}"
+          echo "Fetching and switching to ${{ github.ref_name }}..."
+          git fetch origin ${{ github.ref_name }}
+          git checkout ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
 
           NEW_BRANCH_NAME="release/${{ inputs.bump-type }}"
-          echo "Creating new branch $NEW_BRANCH_NAME from ${{ inputs.source_branch }}"
+          echo "Creating new branch $NEW_BRANCH_NAME from ${{ github.ref_name }}"
           git checkout -b "$NEW_BRANCH_NAME"
           echo "Created and switched to branch $NEW_BRANCH_NAME"
           echo "::set-output name=release_branch_name::$NEW_BRANCH_NAME"
