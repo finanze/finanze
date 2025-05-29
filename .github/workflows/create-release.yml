@@ -64,6 +64,7 @@ jobs:
           NEW_BRANCH_NAME="release/$NEW_VERSION"
           echo "Creating new branch $NEW_BRANCH_NAME from ${{ github.ref_name }}"
           git checkout -b "$NEW_BRANCH_NAME"
+          git push --set-upstream origin "$NEW_BRANCH_NAME"
           echo "Created and switched to branch $NEW_BRANCH_NAME"
           echo "::set-output name=release_branch_name::$NEW_BRANCH_NAME"
 
@@ -84,7 +85,11 @@ jobs:
           CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           github_changelog_generator -u marcosav -p bank-scraper --since-tag ${{ steps.bump.outputs.previous-version }}
-          git add CHANGELOG.md
+
+      - name: Push Release Branch
+        id: push_branch
+        run: |
+          git push --set-upstream origin ${{ steps.create_branch.outputs.release_branch_name }}
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
