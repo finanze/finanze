@@ -3,6 +3,7 @@ name: Create Release
 permissions:
   contents: write
   pull-requests: write
+  issues: write
 
 on:
   workflow_dispatch:
