@@ -13,6 +13,8 @@ jobs:
 
     runs-on: ${{ matrix.os }}
 
+    permissions: write-all
+
     steps:
       - uses: actions/checkout@v4
 
@@ -52,7 +54,6 @@ jobs:
         run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
 
   docker-release:
-    needs: build-distros
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

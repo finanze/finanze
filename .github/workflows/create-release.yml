@@ -46,6 +46,11 @@ jobs:
       - name: Install Python dependencies
         run: pip3 install -r requirements-dev.txt
 
+      - name: Setup changelog generator
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gem install github_changelog_generator
+
       - name: Create and Switch to Release Branch
         id: create_branch
         run: |
@@ -55,16 +60,12 @@ jobs:
           git checkout ${{ github.ref_name }}
           git pull origin ${{ github.ref_name }}
 
-          NEW_BRANCH_NAME="release/${{ inputs.bump-type }}"
+          NEW_VERSION=$(bump-my-version show --increment ${{ inputs.bump-type }} new_version)
+          NEW_BRANCH_NAME="release/$NEW_VERSION"
           echo "Creating new branch $NEW_BRANCH_NAME from ${{ github.ref_name }}"
           git checkout -b "$NEW_BRANCH_NAME"
           echo "Created and switched to branch $NEW_BRANCH_NAME"
           echo "::set-output name=release_branch_name::$NEW_BRANCH_NAME"
-
-      - name: Setup changelog generator
-        env:
-          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gem install github_changelog_generator
 
       - name: Bump version
         id: bump
