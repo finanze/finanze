@@ -92,8 +92,8 @@ data. Check [Export & Import Configuration](#export--import-configuration) for m
 
 ### Docker
 
-Two Docker images are available, a Selenium one and a light one (ex-selenium). The first one is the default, which
-currently is
+Two Docker images are available, a Selenium one (latest-selenium) and a light one (latest-no-selenium). The first one is
+the default, which currently is
 needed for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO dependencies (like ffmpeg).
 
 Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
@@ -125,7 +125,8 @@ This project requires `Python 3.11`.
 
 ## Export & Import Configuration
 
-Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export tables
+Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
+tables
 and summary dashboards.
 
 ## Environment Variables

@@ -23,7 +23,7 @@ def app_args() -> argparse.ArgumentParser:
         "--port",
         help="Port on which the API server will run.",
         type=int,
-        default=8080,
+        default=7592,
     )
     parser.add_argument(
         "--log-level",

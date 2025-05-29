@@ -28,7 +28,7 @@ const appConfig: AppConfig = {
         : OS.LINUX,
   isDev: isDev,
   ports: {
-    backend: 8080,
+    backend: 7592,
   },
   urls: {
     backend: "http://localhost",
@@ -71,7 +71,7 @@ function startPythonBackend() {
     const devArgs = [
       backendPyPath,
       "--data-dir",
-      "../../../.storage",
+      "../../.storage",
       "--log-level",
       "DEBUG",
     ]

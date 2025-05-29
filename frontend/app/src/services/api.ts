@@ -16,7 +16,9 @@ import {
   TransactionsResult,
 } from "../types/transactions"
 
-let apiBaseUrl = "http://localhost:8080"
+import { BASE_URL } from "@/env"
+
+let apiBaseUrl = BASE_URL
 let apiUrlInitialized = false
 
 const apiUrlInitPromise: Promise<void> = (async () => {

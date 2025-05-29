@@ -359,7 +359,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     if (!window.ipcAPI) {
       console.error("IPC API not available")
-      showToast(t.common.loginError, "error")
+      showToast(t.common.incompatibleLoginPlatform, "error")
       return
     }
 
