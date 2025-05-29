@@ -1,5 +1,9 @@
 name: Create Release
 
+permissions:
+  contents: write
+  pull-requests: write
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,6 +24,7 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@v4
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Validate Source Branch
@@ -107,4 +112,3 @@ jobs:
           base: main
           labels: release
           draft: false
-
