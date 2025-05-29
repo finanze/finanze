@@ -66,13 +66,6 @@ jobs:
           CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gem install github_changelog_generator
 
-      - name: Update CHANGELOG.md
-        env:
-            CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          github_changelog_generator -u marcosav -p bank-scraper --since-tag ${{ steps.bump.outputs.previous-version }}
-          git add CHANGELOG.md
-
       - name: Bump version
         id: bump
         env:
@@ -84,6 +77,13 @@ jobs:
           bump-my-version bump ${{ inputs.bump-type }}
           ([[ $? -gt 0 ]] && echo "bumped=false" || echo "bumped=true") >> $GITHUB_OUTPUT
           echo "current-version=$(bump-my-version show current_version)" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          github_changelog_generator -u marcosav -p bank-scraper --since-tag ${{ steps.bump.outputs.previous-version }}
+          git add CHANGELOG.md
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
