@@ -1,10 +1,23 @@
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
 from cachetools import TTLCache, cached
+from dateutil.tz import tzlocal
 
-from domain.entity_login import EntityLoginResult
+from domain.entity_login import EntityLoginResult, LoginResultCode
+
+
+def _is_selenium_available() -> bool:
+    try:
+        import selenium
+        return True
+    except ImportError:
+        return False
+
+
+SESSION_LIFETIME = 14 * 60  # 15 minutes - 1 minute of tolerance
 
 
 class MintosAPIClient:
@@ -15,6 +28,12 @@ class MintosAPIClient:
     def __init__(self):
         self._session = requests.Session()
         self._log = logging.getLogger(__name__)
+        self._automated_login = _is_selenium_available()
+        self._session_expiration = None
+
+    @property
+    def automated_login(self) -> bool:
+        return self._automated_login
 
     def _execute_request(
             self,
@@ -44,9 +63,28 @@ class MintosAPIClient:
     ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body)
 
+    def has_completed_login(self) -> bool:
+        return ("Cookie" in self._session.headers
+                and self._session_expiration is not None and datetime.now(tzlocal()) <= self._session_expiration)
+
+    def complete_login(self, cookie_header: Optional[str] = None):
+        if cookie_header:
+            self._session.headers["Cookie"] = cookie_header
+            self._session_expiration = datetime.now(tzlocal()) + timedelta(seconds=SESSION_LIFETIME)
+
+        try:
+            self.get_user()
+            return EntityLoginResult(LoginResultCode.CREATED)
+
+        except requests.HTTPError as e:
+            if e.response.status_code == 403:
+                return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
+
+            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR)
+
     async def login(self, username: str, password: str) -> EntityLoginResult:
         from infrastructure.scrapers.mintos.mintos_selenium_login_client import login
-        return await login(self._log, self._session, username, password)
+        return await login(self._log, self.complete_login, username, password)
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_user(self) -> dict:

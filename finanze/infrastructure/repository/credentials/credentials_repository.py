@@ -6,7 +6,7 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 
 from application.ports.credentials_port import CredentialsPort
-from domain.financial_entity import EntityCredentials, FinancialEntity
+from domain.financial_entity import EntityCredentials, EntityCredentialsEntry
 from infrastructure.repository.db.client import DBClient
 
 
@@ -27,17 +27,17 @@ class CredentialsRepository(CredentialsPort):
 
             return None
 
-    def get_available_entities(self) -> list[FinancialEntity]:
+    def get_available_entities(self) -> list[EntityCredentialsEntry]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT e.id, e.name, e.is_real FROM financial_entities e "
-                "JOIN entity_credentials ec ON e.id = ec.entity_id"
+                "SELECT * FROM entity_credentials"
             )
             return [
-                FinancialEntity(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    is_real=row["is_real"]
+                EntityCredentialsEntry(
+                    entity_id=UUID(row["entity_id"]),
+                    created_at=datetime.fromisoformat(row["created_at"]),
+                    last_used_at=datetime.fromisoformat(row["last_used_at"]) if row["last_used_at"] else None,
+                    expiration=datetime.fromisoformat(row["expiration"]) if row["expiration"] else None
                 )
                 for row in cursor.fetchall()
             ]
@@ -71,4 +71,15 @@ class CredentialsRepository(CredentialsPort):
                 WHERE entity_id = ?
                 """,
                 (datetime.now(tzlocal()).isoformat(), str(entity_id))
+            )
+
+    def update_expiration(self, entity_id: UUID, expiration: datetime):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                """
+                UPDATE entity_credentials
+                SET expiration = ?
+                WHERE entity_id = ?
+                """,
+                (expiration.isoformat(), str(entity_id))
             )

@@ -45,6 +45,5 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy application code
 COPY finanze /finanze
-COPY ./resources /finanze/resources
 
 ENTRYPOINT ["python", "finanze"]

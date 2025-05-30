@@ -1,0 +1,29 @@
+{
+  "appId": "org.finanze.app",
+  "productName": "Finanze",
+  "asar": false,
+  "files": ["dist-electron/**/*", "dist/**/*"],
+  "directories": {
+    "output": "release"
+  },
+  "extraResources": [
+    {
+      "from": "../../backend/dist",
+      "to": "bin",
+      "filter": ["**/*"]
+    }
+  ],
+  "mac": {
+    "category": "public.app-category.finance",
+    "icon": "./dist/finanze.icns",
+    "target": ["dmg", "zip"]
+  },
+  "win": {
+    "target": "nsis",
+    "icon": "./dist/finanze.png"
+  },
+  "linux": {
+    "target": "AppImage",
+    "category": "Finance"
+  }
+}

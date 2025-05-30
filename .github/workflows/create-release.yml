@@ -1,0 +1,114 @@
+name: Create Release
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump-type:
+        description: 'Version increase type'
+        required: true
+        default: 'minor'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Validate Source Branch
+        shell: bash
+        run: |
+          SOURCE_BRANCH="${{ github.ref_name }}"
+          if [[ "$SOURCE_BRANCH" == "develop" || "$SOURCE_BRANCH" == hotfix/* ]]; then
+            echo "Source branch '$SOURCE_BRANCH' is valid."
+          else
+            echo "Error: Source branch must be 'develop' or start with 'hotfix/'. Received: '$SOURCE_BRANCH'"
+            exit 1
+          fi
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.3
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.9
+
+      - name: Install Python dependencies
+        run: pip3 install -r requirements-dev.txt
+
+      - name: Setup changelog generator
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gem install github_changelog_generator
+
+      - name: Create and Switch to Release Branch
+        id: create_branch
+        run: |
+          echo "Selected release base branch: ${{ github.ref_name }}"
+          echo "Fetching and switching to ${{ github.ref_name }}..."
+          git fetch origin ${{ github.ref_name }}
+          git checkout ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
+
+          NEW_VERSION=$(bump-my-version show --increment ${{ inputs.bump-type }} new_version)
+          NEW_BRANCH_NAME="release/$NEW_VERSION"
+          echo "Creating new branch $NEW_BRANCH_NAME from ${{ github.ref_name }}"
+          git checkout -b "$NEW_BRANCH_NAME"
+          echo "Created and switched to branch $NEW_BRANCH_NAME"
+          echo "::set-output name=release_branch_name::$NEW_BRANCH_NAME"
+
+      - name: Bump version
+        id: bump
+        env:
+          BUMPVERSION_ALLOW_DIRTY: true
+        shell: bash
+        run: |
+          echo "previous-version=$(bump-my-version show current_version)" >> $GITHUB_OUTPUT
+          
+          bump-my-version bump ${{ inputs.bump-type }}
+          ([[ $? -gt 0 ]] && echo "bumped=false" || echo "bumped=true") >> $GITHUB_OUTPUT
+          echo "current-version=$(bump-my-version show current_version)" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        env:
+          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          github_changelog_generator -u marcosav -p bank-scraper --since-tag ${{ steps.bump.outputs.previous-version }}
+
+      - name: Push Release Branch
+        id: push_branch
+        run: |
+          git push --set-upstream origin ${{ steps.create_branch.outputs.release_branch_name }}
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: prepare release ${{ steps.bump.outputs.current-version }}"
+          title: "Release ${{ steps.bump.outputs.current-version }}"
+          body: |
+            This PR prepares for the release of version ${{ steps.bump.outputs.current-version }}.
+
+            Changes include:
+            - Version bump
+            - Updated CHANGELOG.md
+          branch: ${{ steps.create_branch.outputs.release_branch_name }}
+          base: main
+          labels: release
+          draft: false

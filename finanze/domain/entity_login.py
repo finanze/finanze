@@ -10,14 +10,27 @@ from domain.financial_entity import EntityCredentials
 
 
 class LoginResultCode(str, Enum):
+    # Success
     CREATED = "CREATED"
     RESUMED = "RESUMED"
+
+    # Flow deferral
     CODE_REQUESTED = "CODE_REQUESTED"
+    MANUAL_LOGIN = "MANUAL_LOGIN"
+
+    # Flow not completed (expected)
+    NOT_LOGGED = "NOT_LOGGED"
+
+    # Bad user input
     INVALID_CODE = "INVALID_CODE"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+
+    # Not setup
     NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE"
+
+    # Error
+    LOGIN_REQUIRED = "LOGIN_REQUIRED"
     UNEXPECTED_ERROR = "UNEXPECTED_LOGIN_ERROR"
-    NOT_LOGGED = "NOT_LOGGED"
 
 
 @dataclass
@@ -62,3 +75,9 @@ class EntityLoginParams:
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     session: Optional[EntitySession] = None
+
+
+@dataclass
+class EntityDisconnectRequest:
+    entity_id: UUID
+
