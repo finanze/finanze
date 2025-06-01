@@ -84,6 +84,7 @@ jobs:
             --notes-file release_notes.md
 
   sync_develop_with_main:
+    name: Sync Develop with Main
     needs: create_release_on_merge
     runs-on: ubuntu-latest
     permissions:
@@ -99,12 +100,11 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: sync main back to develop after release ${{ needs.create_release_on_merge.outputs.version_tag }}"
           title: "Sync main to develop after release ${{ needs.create_release_on_merge.outputs.version_tag }}"
           body: |
             This PR syncs changes from the `main` branch back to the `develop` branch
             following the release of `${{ needs.create_release_on_merge.outputs.version_tag }}`.
-          branch: sync/main-to-develop-${{ needs.create_release_on_merge.outputs.version_tag }}
+          branch: main
           base: develop
           labels: chore, sync
           draft: false
