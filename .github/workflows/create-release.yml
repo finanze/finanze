@@ -19,7 +19,7 @@ on:
           - patch
 
 jobs:
-  build:
+  create-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the code
@@ -89,7 +89,7 @@ jobs:
         env:
           CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          github_changelog_generator -u marcosav -p bank-scraper --since-tag ${{ steps.bump.outputs.previous-version }}
+          github_changelog_generator -u marcosav -p bank-scraper --since-tag v${{ steps.bump.outputs.previous-version }}
 
       - name: Push Release Branch
         id: push_branch
