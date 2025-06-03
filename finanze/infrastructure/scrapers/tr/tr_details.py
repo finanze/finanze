@@ -82,8 +82,8 @@ class TRDetails:
                 recv += 1
                 self.instrument = response
             elif (
-                    "instrumentSuitability" in data
-                    and subscription["type"] == "instrumentSuitability"
+                "instrumentSuitability" in data
+                and subscription["type"] == "instrumentSuitability"
             ):
                 recv += 1
                 self.instrument_suitability = response

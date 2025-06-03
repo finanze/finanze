@@ -7,7 +7,6 @@ from domain.user_login import LoginRequest
 
 
 class UserLoginImpl(UserLogin):
-
     def __init__(self, source_initiator: DatasourceInitiator):
         self._source_initiator = source_initiator
         self._log = logging.getLogger(__name__)

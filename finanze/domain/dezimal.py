@@ -5,8 +5,8 @@ from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 from typing_extensions import Self
 
-ValidDezimal = Union[int, float, Decimal, str, 'Dezimal']
-ValidDezimalOperand = Union[int, Decimal, 'Dezimal']
+ValidDezimal = Union[int, float, Decimal, str, "Dezimal"]
+ValidDezimalOperand = Union[int, Decimal, "Dezimal"]
 
 
 class Dezimal:
@@ -24,19 +24,18 @@ class Dezimal:
                 self.val = value.val
 
             else:
-                raise ValueError(f'Invalid type {type(value)}')
+                raise ValueError(f"Invalid type {type(value)}")
 
         except InvalidOperation as e:
             raise ValueError(
-                'Expecting int, float, Decimal or a str.'
-                f'Found {type(value)}.',
+                f"Expecting int, float, Decimal or a str.Found {type(value)}.",
             ) from e
 
     def __str__(self) -> str:
-        return f'{self.val:f}'
+        return f"{self.val:f}"
 
     def __repr__(self) -> str:
-        return f'D({self.val!s})'
+        return f"D({self.val!s})"
 
     def __hash__(self) -> int:
         return hash(self.val)
@@ -134,9 +133,8 @@ class Dezimal:
 
     @classmethod
     def __get_pydantic_core_schema__(
-            cls, _source_type: Any, handler: GetCoreSchemaHandler
+        cls, _source_type: Any, handler: GetCoreSchemaHandler
     ) -> CoreSchema:
-
         def validate(value: ValidDezimal) -> Dezimal:
             if isinstance(value, Dezimal):
                 return value
@@ -154,4 +152,4 @@ def _parse(other: ValidDezimalOperand) -> Decimal:
     elif isinstance(other, int):
         return Decimal(other)
     else:
-        raise ValueError(f'Invalid type {type(other)}')
+        raise ValueError(f"Invalid type {type(other)}")

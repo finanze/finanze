@@ -9,6 +9,7 @@ from infrastructure.repository.db.client import DBClient, DBCursor
 
 class MigrationIntegrityError(Exception):
     """Raised when a migration integrity check fails."""
+
     pass
 
 
@@ -120,5 +121,5 @@ class DatabaseUpgrader:
                 # Record the migration
                 cursor.execute(
                     "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
-                    (version, applied_at, migration.name)
+                    (version, applied_at, migration.name),
                 )

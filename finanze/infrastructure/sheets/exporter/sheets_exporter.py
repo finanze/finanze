@@ -11,19 +11,20 @@ from infrastructure.sheets.sheets_base_loader import spreadsheets
 
 
 class SheetsExporter(SheetsUpdatePort):
-
     def __init__(self):
         self._sheet = spreadsheets()
 
     def update_summary(
-            self,
-            global_positions: dict[FinancialEntity, GlobalPosition],
-            config: SummarySheetConfig):
+        self,
+        global_positions: dict[FinancialEntity, GlobalPosition],
+        config: SummarySheetConfig,
+    ):
         update_summary(self._sheet, global_positions, config)
 
     def update_sheet(
-            self,
-            data: object | dict[FinancialEntity, object],
-            config: ProductSheetConfig,
-            last_update: Optional[dict[FinancialEntity, datetime]] = None):
+        self,
+        data: object | dict[FinancialEntity, object],
+        config: ProductSheetConfig,
+        last_update: Optional[dict[FinancialEntity, datetime]] = None,
+    ):
         update_sheet(self._sheet, data, config, last_update)

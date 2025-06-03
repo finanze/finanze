@@ -36,14 +36,18 @@ class TRTimeline:
         "timelineDetailV2",
     ]
 
-    def __init__(self,
-                 tr: TradeRepublicApi,
-                 since: Optional[datetime] = None,
-                 already_registered_ids: set[str] = None,
-                 requested_data: list = TIMELINE_DATA_TYPES):
+    def __init__(
+        self,
+        tr: TradeRepublicApi,
+        since: Optional[datetime] = None,
+        already_registered_ids: set[str] = None,
+        requested_data: list = TIMELINE_DATA_TYPES,
+    ):
         self._tr = tr
         self._since = since
-        self._already_registered_ids = already_registered_ids if already_registered_ids else set()
+        self._already_registered_ids = (
+            already_registered_ids if already_registered_ids else set()
+        )
         self._requested_data = requested_data
 
         self._log = logging.getLogger(__name__)
@@ -76,17 +80,26 @@ class TRTimeline:
                 await self._tr.subscribe(e.subscription)
                 continue
 
-            if "timelineTransactions" in self._requested_data and subscription.get("type",
-                                                                                   "") == "timelineTransactions":
-                result = await self._process_and_request_next_timeline_transactions(response)
+            if (
+                "timelineTransactions" in self._requested_data
+                and subscription.get("type", "") == "timelineTransactions"
+            ):
+                result = await self._process_and_request_next_timeline_transactions(
+                    response
+                )
                 if result is not None:
                     return result
 
-            elif "timelineActivityLog" in self._requested_data and subscription.get("type",
-                                                                                    "") == "timelineActivityLog":
+            elif (
+                "timelineActivityLog" in self._requested_data
+                and subscription.get("type", "") == "timelineActivityLog"
+            ):
                 await self._process_and_request_next_timeline_activity_log(response)
 
-            elif "timelineDetailV2" in self._requested_data and subscription.get("type", "") == "timelineDetailV2":
+            elif (
+                "timelineDetailV2" in self._requested_data
+                and subscription.get("type", "") == "timelineDetailV2"
+            ):
                 result = await self._process_timeline_detail(response)
                 if result:
                     return result
@@ -114,9 +127,9 @@ class TRTimeline:
         added_last_event = True
         for event in response["items"]:
             event_id = event["id"]
-            if (
-                    event_id not in self._already_registered_ids
-                    and ((not self._since) or datetime.fromisoformat(event["timestamp"][:19]) >= self._since)
+            if event_id not in self._already_registered_ids and (
+                (not self._since)
+                or datetime.fromisoformat(event["timestamp"][:19]) >= self._since
             ):
                 event["source"] = "timelineTransaction"
                 self._timeline_events[event_id] = event
@@ -152,9 +165,9 @@ class TRTimeline:
         added_last_event = False
         for event in response["items"]:
             event_id = event["id"]
-            if (
-                    event_id not in self._already_registered_ids
-                    and ((not self._since) or datetime.fromisoformat(event["timestamp"][:19]) >= self._since)
+            if event_id not in self._already_registered_ids and (
+                (not self._since)
+                or datetime.fromisoformat(event["timestamp"][:19]) >= self._since
             ):
                 if event_id in self._timeline_events:
                     self._log.warning(f"Received duplicate event {event_id}")

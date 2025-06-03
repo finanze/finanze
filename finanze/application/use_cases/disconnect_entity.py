@@ -11,11 +11,12 @@ from domain.use_cases.disconnect_entity import DisconnectEntity
 
 
 class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
-
-    def __init__(self,
-                 credentials_port: CredentialsPort,
-                 sessions_port: SessionsPort,
-                 transaction_handler_port: TransactionHandlerPort):
+    def __init__(
+        self,
+        credentials_port: CredentialsPort,
+        sessions_port: SessionsPort,
+        transaction_handler_port: TransactionHandlerPort,
+    ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
         self._credentials_port = credentials_port

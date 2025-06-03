@@ -4,7 +4,6 @@ from domain.settings import Settings
 
 
 class ConfigPort(metaclass=abc.ABCMeta):
-
     def load(self) -> Settings:
         raise NotImplementedError
 

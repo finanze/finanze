@@ -9,7 +9,6 @@ from infrastructure.controller import exception_handler
 
 
 class FJSONProvider(DefaultJSONProvider):
-
     def default(self, obj):
         if isinstance(obj, Dezimal):
             return float(obj)
@@ -29,4 +28,3 @@ def flask():
     CORS(app)
     exception_handler.register_exception_handlers(app)
     return app
-

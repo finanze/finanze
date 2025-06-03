@@ -22,8 +22,7 @@
     "format": "prettier --write .",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
-    "lint-staged": "lint-staged",
-    "prepare:hooks": "cd ../.. && husky frontend/app/.husky"
+    "lint-staged": "lint-staged"
   },
   "lint-staged": {
     "*": "eslint .",
@@ -58,7 +57,6 @@
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.2.0",
-    "husky": "^9.1.7",
     "lint-staged": "^16.1.0",
     "postcss": "^8.5.3",
     "prettier": "^3.5.3",

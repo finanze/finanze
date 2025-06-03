@@ -21,7 +21,12 @@ class MyInvestorAPIV2Client:
         self._log = logging.getLogger(__name__)
 
     def _execute_request(
-            self, path: str, method: str, body: dict, raw: bool = False, base_url: str = BASE_URL
+        self,
+        path: str,
+        method: str,
+        body: dict,
+        raw: bool = False,
+        base_url: str = BASE_URL,
     ) -> dict | requests.Response:
         response = requests.request(
             method, base_url + path, json=body, headers=self._headers
@@ -40,17 +45,21 @@ class MyInvestorAPIV2Client:
     def _get_request(self, path: str, base_url: str = BASE_URL) -> requests.Response:
         return self._execute_request(path, "GET", body=None, base_url=base_url)
 
-    def _post_request(self, path: str, body: dict, raw: bool = False,
-                      base_url: str = BASE_URL) -> dict | requests.Response:
-        return self._execute_request(path, "POST", body=body, raw=raw, base_url=base_url)
+    def _post_request(
+        self, path: str, body: dict, raw: bool = False, base_url: str = BASE_URL
+    ) -> dict | requests.Response:
+        return self._execute_request(
+            path, "POST", body=body, raw=raw, base_url=base_url
+        )
 
-    def login(self,
-              username: str,
-              password: str,
-              login_options: LoginOptions,
-              process_id: str = None,
-              code: str = None) -> EntityLoginResult:
-
+    def login(
+        self,
+        username: str,
+        password: str,
+        login_options: LoginOptions,
+        process_id: str = None,
+        code: str = None,
+    ) -> EntityLoginResult:
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
@@ -80,13 +89,21 @@ class MyInvestorAPIV2Client:
             request["signatureRequestId"] = signature_request_id
             request["code"] = code
 
-            response = self._post_request("/login/api/v1/auth/token", body=request, raw=True, base_url=self.LOGIN_URL)
+            response = self._post_request(
+                "/login/api/v1/auth/token",
+                body=request,
+                raw=True,
+                base_url=self.LOGIN_URL,
+            )
 
             if response.ok:
                 try:
                     token = response.json()["payload"]["data"]["accessToken"]
                 except KeyError:
-                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message="Token not found in response",
+                    )
 
                 self._headers["Authorization"] = "Bearer " + token
 
@@ -95,11 +112,18 @@ class MyInvestorAPIV2Client:
             elif response.status_code == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
             else:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                         message=f"Got unexpected response code {response.status_code}")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Got unexpected response code {response.status_code}",
+                )
 
         elif not process_id and not code:
-            response = self._post_request("/login/api/v1/auth/token", body=request, raw=True, base_url=self.LOGIN_URL)
+            response = self._post_request(
+                "/login/api/v1/auth/token",
+                body=request,
+                raw=True,
+                base_url=self.LOGIN_URL,
+            )
 
             if response.ok:
                 if response.status_code == 202:
@@ -111,16 +135,23 @@ class MyInvestorAPIV2Client:
                         otp_id = data["otpId"]
                         signature_request_id = data["signatureRequestId"]
                         process_id = f"{otp_id}|{signature_request_id}"
-                        return EntityLoginResult(LoginResultCode.CODE_REQUESTED, process_id=process_id)
+                        return EntityLoginResult(
+                            LoginResultCode.CODE_REQUESTED, process_id=process_id
+                        )
                     except KeyError:
-                        return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="OTP not found in response")
+                        return EntityLoginResult(
+                            LoginResultCode.UNEXPECTED_ERROR,
+                            message="OTP not found in response",
+                        )
 
                 else:
                     try:
                         token = response.json()["payload"]["data"]["accessToken"]
                     except KeyError:
-                        return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                                 message="Token not found in response")
+                        return EntityLoginResult(
+                            LoginResultCode.UNEXPECTED_ERROR,
+                            message="Token not found in response",
+                        )
 
                     self._headers["Authorization"] = "Bearer " + token
 
@@ -129,8 +160,10 @@ class MyInvestorAPIV2Client:
             elif response.status_code == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
             else:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                         message=f"Got unexpected response code {response.status_code}")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message=f"Got unexpected response code {response.status_code}",
+                )
 
         else:
             raise ValueError("Invalid params")
@@ -139,11 +172,15 @@ class MyInvestorAPIV2Client:
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]
 
     def get_user(self):
-        return self._get_request("/myinvestor-server/api/v3/customers/self")["payload"]["data"]
+        return self._get_request("/myinvestor-server/api/v3/customers/self")["payload"][
+            "data"
+        ]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_cash_accounts(self):
-        return self._get_request("/myinvestor-server/api/v2/cash-accounts/self")["payload"]["data"]
+        return self._get_request("/myinvestor-server/api/v2/cash-accounts/self")[
+            "payload"
+        ]["data"]
 
     def get_account_remuneration(self, account_id):
         return self._get_request(
@@ -151,14 +188,14 @@ class MyInvestorAPIV2Client:
         )["payload"]["data"]
 
     def get_account_movements(
-            self,
-            account_id,
-            from_date: Optional[date] = None,
-            to_date: Optional[date] = None,
-            concept: Optional[str] = None,
-            amount_from: Optional[float] = None,
-            amount_to: Optional[float] = None,
-            flow_type: Optional[str] = None
+        self,
+        account_id,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        concept: Optional[str] = None,
+        amount_from: Optional[float] = None,
+        amount_to: Optional[float] = None,
+        flow_type: Optional[str] = None,
     ):
         to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
         from_date = date.strftime(
@@ -183,27 +220,33 @@ class MyInvestorAPIV2Client:
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_security_accounts(self):
-        return self._get_request("/myinvestor-server/api/v2/securities-accounts/self-basic")["payload"]["data"]
+        return self._get_request(
+            "/myinvestor-server/api/v2/securities-accounts/self-basic"
+        )["payload"]["data"]
 
     def get_cards(self, account_id=None):
         params = f"?accountId={account_id}" if account_id else ""
         return self._get_request(f"/ms-cards/api/v1/cards{params}")["payload"]["data"]
 
     def get_card_totals(self, card_id):
-        return self._get_request(f"/ms-cards/api/v1/cards/{card_id}/totals")["payload"]["data"]
+        return self._get_request(f"/ms-cards/api/v1/cards/{card_id}/totals")["payload"][
+            "data"
+        ]
 
     def get_security_account_details(self, security_account_id: str):
-        return self._get_request(f"/myinvestor-server/api/v2/securities-accounts/{security_account_id}")["payload"][
-            "data"]
+        return self._get_request(
+            f"/myinvestor-server/api/v2/securities-accounts/{security_account_id}"
+        )["payload"]["data"]
 
-    def get_stock_orders(self,
-                         securities_account_id: str,
-                         from_date: Optional[date] = None,
-                         to_date: Optional[date] = None,
-                         status: Optional[str] = "COMPLETE",
-                         tx_type: Optional[str] = "ALL",
-                         isin: Optional[str] = None
-                         ):
+    def get_stock_orders(
+        self,
+        securities_account_id: str,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        status: Optional[str] = "COMPLETE",
+        tx_type: Optional[str] = "ALL",
+        isin: Optional[str] = None,
+    ):
         to_date = date.strftime(to_date or date.today(), DATE_FORMAT)
         from_date = date.strftime(
             from_date or (date.today().replace(month=1, day=1)), DATE_FORMAT
@@ -223,18 +266,21 @@ class MyInvestorAPIV2Client:
         return self._get_request(path)["payload"]["data"]
 
     def get_stock_order_details(self, order_id: str):
-        return self._get_request(f"/ms-broker/v2/stock-orders/{order_id}")["payload"]["data"]
+        return self._get_request(f"/ms-broker/v2/stock-orders/{order_id}")["payload"][
+            "data"
+        ]
 
-    def get_fund_orders(self,
-                        securities_account_id: str,
-                        from_date: Optional[date] = None,
-                        to_date: Optional[date] = None,
-                        status: Optional[str] = "COMPLETE",
-                        tx_type: Optional[str] = None,
-                        from_amount: Optional[float] = None,
-                        to_amount: Optional[float] = None,
-                        isin: Optional[str] = None
-                        ):
+    def get_fund_orders(
+        self,
+        securities_account_id: str,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        status: Optional[str] = "COMPLETE",
+        tx_type: Optional[str] = None,
+        from_amount: Optional[float] = None,
+        to_amount: Optional[float] = None,
+        isin: Optional[str] = None,
+    ):
         to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
         from_date = date.strftime(
             from_date or (date.today().replace(month=1, day=1)), GET_DATE_FORMAT
@@ -261,20 +307,25 @@ class MyInvestorAPIV2Client:
 
     def get_fund_order_details(self, order_id: str):
         return self._get_request(
-            f"/myinvestor-server/api/v2/securities-accounts/self/orders/{order_id}")["payload"]["data"]
+            f"/myinvestor-server/api/v2/securities-accounts/self/orders/{order_id}"
+        )["payload"]["data"]
 
     def get_auto_contributions(self):
-        return self._get_request("/myinvestor-server/api/v2/automatic-contributions/self")["payload"]["data"]
+        return self._get_request(
+            "/myinvestor-server/api/v2/automatic-contributions/self"
+        )["payload"]["data"]
 
     def get_deposits(self):
-        return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"]["data"]
+        return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"][
+            "data"
+        ]
 
     def is_portfolio_pledged(self, security_account_id: str):
-        return self._get_request(f"/ms-lending/api/v2/pledged/guarantees/portfolios/{security_account_id}/status")[
-            "payload"][
-            "data"]["isPledged"]
+        return self._get_request(
+            f"/ms-lending/api/v2/pledged/guarantees/portfolios/{security_account_id}/status"
+        )["payload"]["data"]["isPledged"]
 
     def is_fund_pledged(self, security_account_id: str, fund_isin: str):
         return self._get_request(
-            f"/ms-lending/api/v2/pledged/guarantees/securities-accounts/{security_account_id}/funds/{fund_isin}")[
-            "payload"]["data"]["isPledged"]
+            f"/ms-lending/api/v2/pledged/guarantees/securities-accounts/{security_account_id}/funds/{fund_isin}"
+        )["payload"]["data"]["isPledged"]

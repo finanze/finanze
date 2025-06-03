@@ -7,7 +7,6 @@ from domain.financial_entity import EntityCredentials, EntityCredentialsEntry
 
 
 class CredentialsPort(metaclass=abc.ABCMeta):
-
     def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
         raise NotImplementedError
 

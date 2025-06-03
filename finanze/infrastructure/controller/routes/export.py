@@ -9,7 +9,7 @@ def export(update_sheets: UpdateSheets):
     body = request.json
     try:
         export_request = ExportRequest(**body)
-    except ValidationError as e:
+    except ValidationError:
         return "", 400
 
     update_sheets.execute(export_request)

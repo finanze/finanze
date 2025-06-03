@@ -8,9 +8,14 @@ import requests
 from cachetools import TTLCache, cached
 from dateutil.tz import tzlocal
 
-from domain.entity_login import LoginResultCode, EntityLoginResult, EntitySession, LoginOptions
+from domain.entity_login import (
+    LoginResultCode,
+    EntityLoginResult,
+    EntitySession,
+    LoginOptions,
+)
 
-EXPIRATION_DATETIME_REGEX = r'^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d{0,6})\d*(.*)$'
+EXPIRATION_DATETIME_REGEX = r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d{0,6})\d*(.*)$"
 
 
 def _parse_expiration_datetime(expiration: str) -> Optional[datetime]:
@@ -28,14 +33,14 @@ def _parse_expiration_datetime(expiration: str) -> Optional[datetime]:
 class SegoAPIClient:
     BASE_URL = "https://apim-sego-core-prod.azure-api.net"
 
-    API_KEY = '2r73914170s440ooo8r60qrq6s77n41n'
+    API_KEY = "2r73914170s440ooo8r60qrq6s77n41n"
 
     def __init__(self):
         self._headers = {}
         self._log = logging.getLogger(__name__)
 
     def _execute_request(
-            self, path: str, method: str, body: dict, raw: bool = False
+        self, path: str, method: str, body: dict, raw: bool = False
     ) -> dict | requests.Response:
         response = requests.request(
             method, self.BASE_URL + path, json=body, headers=self._headers
@@ -54,25 +59,30 @@ class SegoAPIClient:
     def _get_request(self, path: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None)
 
-    def _post_request(self, path: str, body: dict, raw: bool = False) -> dict | requests.Response:
+    def _post_request(
+        self, path: str, body: dict, raw: bool = False
+    ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
     def _init_session(self):
         self._headers = dict()
         self._headers["Content-Type"] = "application/json"
-        self._headers["Ocp-Apim-Subscription-Key"] = codecs.decode(self.API_KEY, 'rot_13')
+        self._headers["Ocp-Apim-Subscription-Key"] = codecs.decode(
+            self.API_KEY, "rot_13"
+        )
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
 
-    def login(self,
-              username: str,
-              password: str,
-              login_options: LoginOptions,
-              code: str = None,
-              session: Optional[EntitySession] = None) -> EntityLoginResult:
-
+    def login(
+        self,
+        username: str,
+        password: str,
+        login_options: LoginOptions,
+        code: str = None,
+        session: Optional[EntitySession] = None,
+    ) -> EntityLoginResult:
         self._init_session()
 
         now = datetime.now(tzlocal())
@@ -87,7 +97,7 @@ class SegoAPIClient:
             "codigoPlataforma": "web-sego",
             "email": username,
             "password": password,
-            "tipoTfaCodigo": "login"
+            "tipoTfaCodigo": "login",
         }
 
         if code:
@@ -103,14 +113,21 @@ class SegoAPIClient:
                 return EntityLoginResult(LoginResultCode.CODE_REQUESTED)
 
             if "token" not in response_body:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Token not found in response",
+                )
 
             sess_created_at = datetime.now(tzlocal())
-            sess_expiration = _parse_expiration_datetime(response_body.get("expirationDate"))
+            sess_expiration = _parse_expiration_datetime(
+                response_body.get("expirationDate")
+            )
             session_payload = {"token": response_body["token"]}
-            new_session = EntitySession(creation=sess_created_at,
-                                        expiration=sess_expiration,
-                                        payload=session_payload)
+            new_session = EntitySession(
+                creation=sess_created_at,
+                expiration=sess_expiration,
+                payload=session_payload,
+            )
 
             self._inject_session(new_session)
 
@@ -123,8 +140,10 @@ class SegoAPIClient:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                     message=f"Got unexpected response code {response.status_code}")
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=f"Got unexpected response code {response.status_code}",
+            )
 
     def _resumable_session(self) -> bool:
         try:
@@ -159,7 +178,9 @@ class SegoAPIClient:
             "limit": 1000,
             "page": 0,
         }
-        return self._post_request("/factoring/v1/Inversiones/Filter", body=request)["list"]
+        return self._post_request("/factoring/v1/Inversiones/Filter", body=request)[
+            "list"
+        ]
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_pending_investments(self):

@@ -1,2 +1,0 @@
-cd frontend/app
-pnpm run lint-staged

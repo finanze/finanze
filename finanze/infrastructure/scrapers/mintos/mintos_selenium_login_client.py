@@ -13,34 +13,36 @@ from infrastructure.scrapers.mintos.mintos_client import MintosAPIClient
 from infrastructure.scrapers.mintos.recaptcha_solver_selenium import RecaptchaSolver
 
 
-async def login(log, inject_cookies_fn, username: str, password: str) -> EntityLoginResult:
+async def login(
+    log, inject_cookies_fn, username: str, password: str
+) -> EntityLoginResult:
     driver = None
 
     options = FirefoxOptions()
     options.add_argument("--headless")
 
-    wire_address = os.getenv("WIRE_ADDRESS", '127.0.0.1')
+    wire_address = os.getenv("WIRE_ADDRESS", "127.0.0.1")
     wire_port = int(os.getenv("WIRE_PORT", "8088"))
     proxy_address = os.getenv("WIRE_PROXY_SERVER_ADDRESS", "host.docker.internal")
     webdriver_address = os.getenv("WEBDRIVER_ADDRESS", "http://localhost:4444")
 
-    options.set_preference('network.proxy.type', 1)
-    options.set_preference('network.proxy.http', proxy_address)
-    options.set_preference('network.proxy.http_port', wire_port)
-    options.set_preference('network.proxy.ssl', proxy_address)
-    options.set_preference('network.proxy.ssl_port', wire_port)
+    options.set_preference("network.proxy.type", 1)
+    options.set_preference("network.proxy.http", proxy_address)
+    options.set_preference("network.proxy.http_port", wire_port)
+    options.set_preference("network.proxy.ssl", proxy_address)
+    options.set_preference("network.proxy.ssl_port", wire_port)
 
     wire_options = {
         "auto_config": False,
         "port": wire_port,
-        'addr': wire_address,
+        "addr": wire_address,
     }
 
     try:
         driver = webdriver.Remote(
             command_executor=webdriver_address,
             options=options,
-            seleniumwire_options=wire_options
+            seleniumwire_options=wire_options,
         )
 
         driver.get(f"{MintosAPIClient.BASE_URL}/en/login/")
@@ -73,8 +75,9 @@ async def login(log, inject_cookies_fn, username: str, password: str) -> EntityL
         return EntityLoginResult(LoginResultCode.CREATED)
 
     except Exception as e:
-        invalid_credentials_element = driver.find_element(By.XPATH,
-                                                          "//*[contains(text(), 'Invalid username or password')]")
+        invalid_credentials_element = driver.find_element(
+            By.XPATH, "//*[contains(text(), 'Invalid username or password')]"
+        )
         if invalid_credentials_element:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 

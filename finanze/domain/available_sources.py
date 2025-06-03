@@ -6,9 +6,9 @@ from domain.financial_entity import NativeFinancialEntity
 
 
 class FinancialEntityStatus(str, Enum):
-    CONNECTED = "CONNECTED",
-    DISCONNECTED = "DISCONNECTED",
-    REQUIRES_LOGIN = "REQUIRES_LOGIN",
+    CONNECTED = ("CONNECTED",)
+    DISCONNECTED = ("DISCONNECTED",)
+    REQUIRES_LOGIN = ("REQUIRES_LOGIN",)
 
 
 @dataclass(eq=False)

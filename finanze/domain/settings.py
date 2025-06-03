@@ -100,9 +100,11 @@ class Settings:
     scrape: ScrapeConfig = field(default_factory=ScrapeConfig)
 
 
-ProductSheetConfig = (InvestmentSheetConfig
-                      | ContributionSheetConfig
-                      | TransactionSheetConfig
-                      | HistoricSheetConfig
-                      | VirtualInvestmentSheetConfig
-                      | VirtualTransactionSheetConfig)
+ProductSheetConfig = (
+    InvestmentSheetConfig
+    | ContributionSheetConfig
+    | TransactionSheetConfig
+    | HistoricSheetConfig
+    | VirtualInvestmentSheetConfig
+    | VirtualTransactionSheetConfig
+)

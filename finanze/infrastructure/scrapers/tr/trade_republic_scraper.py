@@ -5,11 +5,22 @@ from typing import Optional
 from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
-from domain.auto_contributions import AutoContributions, PeriodicContribution, ContributionFrequency, \
-    ContributionTargetType
+from domain.auto_contributions import (
+    AutoContributions,
+    PeriodicContribution,
+    ContributionFrequency,
+    ContributionTargetType,
+)
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
-from domain.global_position import StockDetail, Investments, Account, GlobalPosition, StockInvestments, AccountType
+from domain.global_position import (
+    StockDetail,
+    Investments,
+    Account,
+    GlobalPosition,
+    StockInvestments,
+    AccountType,
+)
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
@@ -78,7 +89,7 @@ def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
         order_date=None,
         product_type=ProductType.STOCK_ETF,
         linked_tx=None,
-        is_real=True
+        is_real=True,
     )
 
 
@@ -120,7 +131,7 @@ def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
         product_type=ProductType.ACCOUNT,
         date=date,
         entity=TRADE_REPUBLIC,
-        is_real=True
+        is_real=True,
     )
 
 
@@ -130,7 +141,7 @@ CONTRIBUTION_FREQUENCY = {
     "weekly": ContributionFrequency.WEEKLY,
     "twoPerMonth": ContributionFrequency.BIWEEKLY,
     "monthly": ContributionFrequency.MONTHLY,
-    "quarterly": ContributionFrequency.QUARTERLY
+    "quarterly": ContributionFrequency.QUARTERLY,
 }
 
 
@@ -149,12 +160,14 @@ class TradeRepublicScraper(EntityScraper):
         process_id, code = None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
-        return self._client.login(phone,
-                                  pin,
-                                  login_options=login_params.options,
-                                  process_id=process_id,
-                                  code=code,
-                                  session=login_params.session)
+        return self._client.login(
+            phone,
+            pin,
+            login_options=login_params.options,
+            process_id=process_id,
+            code=code,
+            session=login_params.session,
+        )
 
     async def _instrument_mapper(self, stock: dict, currency: str):
         isin = stock["instrumentId"]
@@ -179,8 +192,8 @@ class TradeRepublicScraper(EntityScraper):
         elif type_id == "BOND":
             name = ""
             subtype = details.instrument["bondInfo"]["issuerClassification"]
-            interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
-            maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
+            # interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
+            # maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
 
         if not subtype:
             subtype = type_id
@@ -197,7 +210,7 @@ class TradeRepublicScraper(EntityScraper):
             market_value=market_value,
             currency=currency,
             type=type_id,
-            subtype=subtype
+            subtype=subtype,
         )
 
     async def global_position(self) -> GlobalPosition:
@@ -207,7 +220,11 @@ class TradeRepublicScraper(EntityScraper):
         if cash_account:
             iban = cash_account.get("iban")
 
-        active_interest = round(Dezimal(self._client.get_active_interest_rate().get("activeInterestRate")) / 100, 4)
+        active_interest = round(
+            Dezimal(self._client.get_active_interest_rate().get("activeInterestRate"))
+            / 100,
+            4,
+        )
         raw_portfolio = await self._client.get_portfolio()
 
         accounts = []
@@ -215,14 +232,16 @@ class TradeRepublicScraper(EntityScraper):
         for account in raw_portfolio.cash:
             currency = account["currencyId"]
             cash_total = Dezimal(account["amount"])
-            accounts.append(Account(
-                id=uuid4(),
-                total=cash_total,
-                interest=active_interest,
-                currency=currency,
-                iban=iban,
-                type=AccountType.BROKERAGE
-            ))
+            accounts.append(
+                Account(
+                    id=uuid4(),
+                    total=cash_total,
+                    interest=active_interest,
+                    currency=currency,
+                    iban=iban,
+                    type=AccountType.BROKERAGE,
+                )
+            )
 
         investments = []
         for position in raw_portfolio.portfolio["positions"]:
@@ -252,7 +271,9 @@ class TradeRepublicScraper(EntityScraper):
         )
 
     async def transactions(self, registered_txs: set[str]) -> Transactions:
-        raw_txs = await self._client.get_transactions(already_registered_ids=registered_txs)
+        raw_txs = await self._client.get_transactions(
+            already_registered_ids=registered_txs
+        )
         await self._client.close()
 
         investment_txs = []
@@ -260,10 +281,18 @@ class TradeRepublicScraper(EntityScraper):
         for raw_tx in raw_txs:
             status = raw_tx.get("status", None)
             event_type = raw_tx.get("eventType", None)
-            if not (event_type
-                    and status == "EXECUTED"
-                    and event_type.upper() in ["TRADE_INVOICE", "ORDER_EXECUTED", "INTEREST_PAYOUT",
-                                               "INTEREST_PAYOUT_CREATED", "TRADING_TRADE_EXECUTED"]):
+            if not (
+                event_type
+                and status == "EXECUTED"
+                and event_type.upper()
+                in [
+                    "TRADE_INVOICE",
+                    "ORDER_EXECUTED",
+                    "INTEREST_PAYOUT",
+                    "INTEREST_PAYOUT_CREATED",
+                    "TRADING_TRADE_EXECUTED",
+                ]
+            ):
                 continue
 
             date = datetime.strptime(raw_tx["timestamp"], self.DATETIME_FORMAT)
@@ -275,7 +304,9 @@ class TradeRepublicScraper(EntityScraper):
 
         return Transactions(investment=investment_txs, account=account_txs)
 
-    async def _map_saving_plan(self, saving_plan: dict, currency: str) -> Optional[PeriodicContribution]:
+    async def _map_saving_plan(
+        self, saving_plan: dict, currency: str
+    ) -> Optional[PeriodicContribution]:
         amount = round(Dezimal(saving_plan["amount"]), 2)
         isin = saving_plan["instrumentId"]
 
@@ -298,7 +329,7 @@ class TradeRepublicScraper(EntityScraper):
             return None
 
         isin_details = await self._client.get_instrument_details(isin)
-        instrument_name = isin_details.get('shortName')
+        instrument_name = isin_details.get("shortName")
 
         return PeriodicContribution(
             id=uuid4(),
@@ -311,7 +342,7 @@ class TradeRepublicScraper(EntityScraper):
             until=None,
             frequency=frequency,
             active=active,
-            is_real=True
+            is_real=True,
         )
 
     async def auto_contributions(self) -> AutoContributions:
@@ -323,6 +354,8 @@ class TradeRepublicScraper(EntityScraper):
 
         saving_plans = saving_plans_response.get("savingsPlans")
 
-        contributions = [await self._map_saving_plan(sp, user_currency) for sp in saving_plans if sp]
+        contributions = [
+            await self._map_saving_plan(sp, user_currency) for sp in saving_plans if sp
+        ]
 
         return AutoContributions(contributions)

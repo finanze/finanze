@@ -5,16 +5,17 @@ from dateutil.tz import tzlocal
 
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
-from domain.available_sources import AvailableSources, AvailableFinancialEntity, FinancialEntityStatus
+from domain.available_sources import (
+    AvailableSources,
+    AvailableFinancialEntity,
+    FinancialEntityStatus,
+)
 from domain.native_entities import NATIVE_ENTITIES
 from domain.use_cases.get_available_entities import GetAvailableEntities
 
 
 class GetAvailableEntitiesImpl(GetAvailableEntities):
-
-    def __init__(self,
-                 config_port: ConfigPort,
-                 credentials_port: CredentialsPort):
+    def __init__(self, config_port: ConfigPort, credentials_port: CredentialsPort):
         self._config_port = config_port
         self._credentials_port = credentials_port
 
@@ -41,7 +42,4 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 AvailableFinancialEntity(**asdict(native_entity), status=status)
             )
 
-        return AvailableSources(
-            virtual=virtual_enabled,
-            entities=entities
-        )
+        return AvailableSources(virtual=virtual_enabled, entities=entities)

@@ -6,14 +6,18 @@ from pysqlcipher3 import dbapi2 as sqlcipher
 from pysqlcipher3._sqlite3 import DatabaseError
 
 from application.ports.datasource_initiator import DatasourceInitiator
-from domain.data_init import DatasourceInitParams, DecryptionError, AlreadyUnlockedError, AlreadyLockedError
+from domain.data_init import (
+    DatasourceInitParams,
+    DecryptionError,
+    AlreadyUnlockedError,
+    AlreadyLockedError,
+)
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
 
 
 class DBManager(DatasourceInitiator):
-
     def __init__(self, db_client: DBClient, path: str | Path):
         self._log = logging.getLogger(__name__)
         self._client = db_client
@@ -63,11 +67,15 @@ class DBManager(DatasourceInitiator):
                 if connection:
                     connection.close()
                 if "file is not a database" in str(e) or "encrypted" in str(e):
-                    raise DecryptionError("Failed to decrypt database. Incorrect password or corrupted file.") from e
+                    raise DecryptionError(
+                        "Failed to decrypt database. Incorrect password or corrupted file."
+                    ) from e
                 raise
 
-            except Exception as e:
-                self._log.exception("An unexpected error occurred during database connection/unlock.")
+            except Exception:
+                self._log.exception(
+                    "An unexpected error occurred during database connection/unlock."
+                )
                 if connection:
                     connection.close()
                 raise

@@ -22,13 +22,14 @@ _log = logging.getLogger(__name__)
 
 
 def update_summary(
-        sheet,
-        global_positions: dict[FinancialEntity, GlobalPosition],
-        config: SummarySheetConfig):
+    sheet,
+    global_positions: dict[FinancialEntity, GlobalPosition],
+    config: SummarySheetConfig,
+):
     sheet_id, sheet_range = config.spreadsheetId, config.range
 
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
-    values = result.get('values')
+    values = result.get("values")
     if not values:
         _log.warning(f"Got empty sheet for {sheet_range}, aborting summary export...")
         return
@@ -36,7 +37,8 @@ def update_summary(
     cells = values + [[""]]
 
     global_position_by_entity_name = {
-        entity.name.lower(): global_position for entity, global_position in global_positions.items()
+        entity.name.lower(): global_position
+        for entity, global_position in global_positions.items()
     }
 
     entity = None
@@ -50,9 +52,11 @@ def update_summary(
             if not entity:
                 entity = title.lower()
                 continue
-            update_entity_summary(global_position_by_entity_name.get(entity, {}),
-                                  cells[last_end:row_i + 1 if last_row else row_i],
-                                  config)
+            update_entity_summary(
+                global_position_by_entity_name.get(entity, {}),
+                cells[last_end : row_i + 1 if last_row else row_i],
+                config,
+            )
             entity = title.lower()
             last_end = row_i
 
@@ -69,9 +73,10 @@ def update_summary(
 
 
 def update_entity_summary(
-        global_position: GlobalPosition,
-        current_cells: list[list[str]],
-        config: SummarySheetConfig):
+    global_position: GlobalPosition,
+    current_cells: list[list[str]],
+    config: SummarySheetConfig,
+):
     if not global_position:
         return
 
@@ -81,11 +86,15 @@ def update_entity_summary(
         last_update_date = global_position.date.astimezone(tz=tzlocal())
         config_datetime_format = config.datetimeFormat
         if config_datetime_format:
-            formated_last_update_date = last_update_date.strftime(config_datetime_format)
+            formated_last_update_date = last_update_date.strftime(
+                config_datetime_format
+            )
         else:
             formated_last_update_date = last_update_date.isoformat()
 
-        set_field_value(header, last_update_index + 1, formated_last_update_date, config)
+        set_field_value(
+            header, last_update_index + 1, formated_last_update_date, config
+        )
 
     pos_dict = asdict(global_position)
     parent = None
@@ -135,9 +144,13 @@ def update_entity_summary(
                     else:
                         value = ""
                 else:
-                    complex_column = '.' in column
+                    complex_column = "." in column
                     fields = column.split(".")
-                    obj = parent[title] if not parent_list else parent[parent_list_index - 1]
+                    obj = (
+                        parent[title]
+                        if not parent_list
+                        else parent[parent_list_index - 1]
+                    )
                     value = obj.get(fields[0], ERROR_VALUE)
                     if complex_column:
                         for field in fields[1:]:

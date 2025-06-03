@@ -53,7 +53,7 @@ jobs:
           python-version: 3.11.9
 
       - name: Install Python dependencies
-        run: pip3 install -r requirements-dev.txt
+        run: pip3 install -r requirements-cd.txt
 
       - name: Setup changelog generator
         env:

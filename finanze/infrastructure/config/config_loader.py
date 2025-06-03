@@ -12,7 +12,6 @@ from infrastructure.config.base_config import BASE_CONFIG
 
 
 class ConfigLoader(ConfigPort):
-
     def __init__(self, path: str) -> None:
         self._config_file = path
         self._config_path = Path(path)
@@ -25,22 +24,28 @@ class ConfigLoader(ConfigPort):
             return Settings(**data)
 
     def save(self, new_config: Settings):
-        config_as_dict = asdict(new_config, dict_factory=lambda x: {k: v for (k, v) in x if
-                                                                    (v is not None and v != {} and v != [])})
+        config_as_dict = asdict(
+            new_config,
+            dict_factory=lambda x: {
+                k: v for (k, v) in x if (v is not None and v != {} and v != [])
+            },
+        )
         new_yaml = strictyaml.as_document(config_as_dict).as_yaml()
         with open(self._config_file, "w") as file:
             file.write(new_yaml)
         self._log.debug(f"Config file updated at {self._config_file}")
 
         key = hashkey(self)
-        if hasattr(self.load, 'cache'):
+        if hasattr(self.load, "cache"):
             self.load.cache[key] = new_config
         else:
             self.load.cache_clear()
 
     def check_or_create_default_config(self):
         if not self._config_path.is_file():
-            self._log.warning(f"Config file not found, creating default config at {self._config_file}")
+            self._log.warning(
+                f"Config file not found, creating default config at {self._config_file}"
+            )
             self.save(BASE_CONFIG)
         self.load()
         self._log.debug(f"Config file loaded from {self._config_file}")

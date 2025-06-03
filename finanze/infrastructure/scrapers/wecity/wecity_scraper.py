@@ -9,8 +9,15 @@ from dateutil.tz import tzlocal
 from application.ports.entity_scraper import EntityScraper
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
-from domain.global_position import GlobalPosition, RealStateCFDetail, RealStateCFInvestments, Investments, Account, \
-    HistoricalPosition, AccountType
+from domain.global_position import (
+    GlobalPosition,
+    RealStateCFDetail,
+    RealStateCFInvestments,
+    Investments,
+    Account,
+    HistoricalPosition,
+    AccountType,
+)
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import WECITY
 from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
@@ -18,7 +25,11 @@ from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 
 DATE_FORMAT = "%Y-%m-%d"
 
-INTEREST_SUBCATEGORIES = ["pago de intereses", "pago intereses de demora", "penalización amortización anticipada"]
+INTEREST_SUBCATEGORIES = [
+    "pago de intereses",
+    "pago intereses de demora",
+    "penalización amortización anticipada",
+]
 
 
 def _normalize_transactions(raw_txs: list):
@@ -30,7 +41,7 @@ def _normalize_transactions(raw_txs: list):
                 "category": tx["type"],
                 "sub_category": tx["label"],
                 "name": tx["title"].strip(),
-                "amount": round(abs(Dezimal(tx["amount"])), 2)
+                "amount": round(abs(Dezimal(tx["amount"])), 2),
             }
         )
 
@@ -38,7 +49,6 @@ def _normalize_transactions(raw_txs: list):
 
 
 class WecityScraper(EntityScraper):
-
     def __init__(self):
         self._client = WecityAPIClient()
         self._log = logging.getLogger(__name__)
@@ -52,20 +62,22 @@ class WecityScraper(EntityScraper):
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
 
-        return self._client.login(username,
-                                  password,
-                                  login_options=login_params.options,
-                                  process_id=process_id,
-                                  code=code,
-                                  session=login_params.session)
+        return self._client.login(
+            username,
+            password,
+            login_options=login_params.options,
+            process_id=process_id,
+            code=code,
+            session=login_params.session,
+        )
 
     async def global_position(self) -> GlobalPosition:
         wallet = Dezimal(self._client.get_wallet()["LW"]["balance"])
         account = Account(
             id=uuid4(),
             total=round(wallet, 2),
-            currency='EUR',
-            type=AccountType.VIRTUAL_WALLET
+            currency="EUR",
+            type=AccountType.VIRTUAL_WALLET,
         )
 
         investments = self._client.get_investments()
@@ -73,33 +85,35 @@ class WecityScraper(EntityScraper):
         investment_details = []
         for inv_id, inv in investments.items():
             pending_amount = Dezimal(inv["amount"]["current"])
-            if inv["opportunity"][
-                "state_id"] == 5 and pending_amount == 0:  # It can be marked as completed (5), but there could be pending principal
+            if (
+                inv["opportunity"]["state_id"] == 5 and pending_amount == 0
+            ):  # It can be marked as completed (5), but there could be pending principal
                 continue
 
-            raw_related_txs = self._client.get_investment_transactions(inv_id)["movements"]
+            raw_related_txs = self._client.get_investment_transactions(inv_id)[
+                "movements"
+            ]
             related_txs = _normalize_transactions(raw_related_txs)
             investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
         total_invested = round(sum([inv.amount for inv in investment_details]), 2)
         weighted_interest_rate = round(
-            (sum([inv.amount * inv.interest_rate for inv in investment_details])
-             / sum([inv.amount for inv in investment_details])),
+            (
+                sum([inv.amount * inv.interest_rate for inv in investment_details])
+                / sum([inv.amount for inv in investment_details])
+            ),
             4,
         )
         investments = Investments(
             real_state_cf=RealStateCFInvestments(
                 total=total_invested,
                 weighted_interest_rate=weighted_interest_rate,
-                details=investment_details
+                details=investment_details,
             )
         )
 
         return GlobalPosition(
-            id=uuid4(),
-            entity=WECITY,
-            accounts=[account],
-            investments=investments
+            id=uuid4(), entity=WECITY, accounts=[account], investments=investments
         )
 
     def _map_investment(self, related_txs, inv_id, inv):
@@ -143,14 +157,17 @@ class WecityScraper(EntityScraper):
         state = "-"
         if state_id == 2:
             state = "UNDER_REVIEW"
-        elif state_id == 1 or state_id == 3 or state_id == 12:  # 1 = "Abierta", 3 = "Financiada", 12 = "?"
+        elif (
+            state_id == 1 or state_id == 3 or state_id == 12
+        ):  # 1 = "Abierta", 3 = "Financiada", 12 = "?"
             state = "IN_PROGRESS"
         elif state_id == 5:
             state = "COMPLETED"
 
         last_invest_date = max(
             [tx["date"] for tx in related_txs if "investment" == tx["category"]],
-            default=None)
+            default=None,
+        )
 
         last_invest_date = last_invest_date.replace(tzinfo=tzlocal())
 
@@ -167,7 +184,11 @@ class WecityScraper(EntityScraper):
             extended_period = extended_period["plazo"]
 
         maturity = start_date + relativedelta(months=int(ordinary_period["plazo"]))
-        extended_maturity = (maturity + relativedelta(months=int(extended_period))) if extended_period else None
+        extended_maturity = (
+            (maturity + relativedelta(months=int(extended_period)))
+            if extended_period
+            else None
+        )
 
         return RealStateCFDetail(
             id=uuid4(),
@@ -202,7 +223,9 @@ class WecityScraper(EntityScraper):
                 elif tx_subtype_raw in INTEREST_SUBCATEGORIES:
                     tx_type = TxType.INTEREST
                 else:
-                    self._log.debug(f"Skipping tx {tx['name']} with subtype {tx_subtype_raw}")
+                    self._log.debug(
+                        f"Skipping tx {tx['name']} with subtype {tx_subtype_raw}"
+                    )
                     continue
             else:
                 self._log.debug(f"Skipping tx {tx['name']} with type {tx_type_raw}")
@@ -228,48 +251,50 @@ class WecityScraper(EntityScraper):
             if tx_type == TxType.INTEREST:
                 interests = amount
 
-            txs.append(RealStateCFTx(
-                id=uuid4(),
-                ref=ref,
-                name=name,
-                amount=amount,
-                currency="EUR",
-                type=tx_type,
-                date=tx_date,
-                entity=WECITY,
-                product_type=ProductType.REAL_STATE_CF,
-                fees=Dezimal(0),
-                retentions=retentions,
-                interests=interests,
-                net_amount=net_amount,
-                is_real=True
-            ))
+            txs.append(
+                RealStateCFTx(
+                    id=uuid4(),
+                    ref=ref,
+                    name=name,
+                    amount=amount,
+                    currency="EUR",
+                    type=tx_type,
+                    date=tx_date,
+                    entity=WECITY,
+                    product_type=ProductType.REAL_STATE_CF,
+                    fees=Dezimal(0),
+                    retentions=retentions,
+                    interests=interests,
+                    net_amount=net_amount,
+                    is_real=True,
+                )
+            )
 
         return Transactions(investment=txs)
 
     @staticmethod
-    def _calc_tx_id(inv_name: str,
-                    tx_date: date,
-                    amount: Dezimal,
-                    tx_type: TxType) -> str:
+    def _calc_tx_id(
+        inv_name: str, tx_date: date, amount: Dezimal, tx_type: TxType
+    ) -> str:
         return sha1(
-            f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")).hexdigest()
+            f"W_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")
+        ).hexdigest()
 
     async def historical_position(self) -> HistoricalPosition:
         investments = self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            raw_related_txs = self._client.get_investment_transactions(inv_id)["movements"]
+            raw_related_txs = self._client.get_investment_transactions(inv_id)[
+                "movements"
+            ]
             related_txs = _normalize_transactions(raw_related_txs)
             investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
         return HistoricalPosition(
             investments=Investments(
                 real_state_cf=RealStateCFInvestments(
-                    total=None,
-                    weighted_interest_rate=None,
-                    details=investment_details
+                    total=None, weighted_interest_rate=None, details=investment_details
                 )
             )
         )

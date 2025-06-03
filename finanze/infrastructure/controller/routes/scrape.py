@@ -35,7 +35,7 @@ async def scrape(scrape: Scrape):
         entity_id=entity,
         features=features,
         two_factor=TwoFactor(code=code, process_id=process_id),
-        options=LoginOptions(avoid_new_login=avoid_new_login)
+        options=LoginOptions(avoid_new_login=avoid_new_login),
     )
     result = await scrape.execute(scrape_request)
 

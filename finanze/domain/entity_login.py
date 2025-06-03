@@ -80,4 +80,3 @@ class EntityLoginParams:
 @dataclass
 class EntityDisconnectRequest:
     entity_id: UUID
-

@@ -33,5 +33,5 @@ def main() -> None:
         logging.info("Application exiting.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

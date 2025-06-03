@@ -24,5 +24,5 @@ def user_login(user_login_uc: UserLogin):
     except AlreadyUnlockedError:
         return "", 204
 
-    except Exception as e:
+    except Exception:
         raise InternalServerError("An internal error occurred during unlock.")

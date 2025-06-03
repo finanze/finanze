@@ -5,7 +5,6 @@ from infrastructure.repository.db.client import DBClient
 
 
 class TransactionHandler(TransactionHandlerPort):
-
     def __init__(self, client: DBClient):
         self._db_client = client
 

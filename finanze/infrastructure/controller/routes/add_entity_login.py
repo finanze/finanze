@@ -24,7 +24,7 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
     login_request = EntityLoginRequest(
         entity_id=entity,
         credentials=credentials,
-        two_factor=TwoFactor(code=code, process_id=process_id)
+        two_factor=TwoFactor(code=code, process_id=process_id),
     )
     result = await add_entity_credentials.execute(login_request)
 
