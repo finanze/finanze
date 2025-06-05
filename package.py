@@ -40,14 +40,6 @@ if args.target in ["backend", "full"]:
         logger.error("Backend packaging failed")
         sys.exit(1)
 
-    os.chdir(backend_dir)
-    for path in backend_dir.iterdir():
-        if path.is_file() and path.name.startswith("finanze-server"):
-            new_name = "server"
-            path.rename(new_name)
-            logger.info(f"Renamed {path.name} to {new_name}")
-            break
-
     logger.info("Backend packaging successful.")
 
 # --- Frontend Packaging ---

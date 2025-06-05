@@ -1,12 +1,20 @@
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
-import os from "node:os"
-import { app, BrowserWindow, ipcMain, Menu, shell, Tray } from "electron"
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  shell,
+  Tray,
+} from "electron"
 import isDev from "electron-is-dev"
 import { type ChildProcess, spawn } from "child_process"
 import { createMenu } from "./menu"
 import { type AppConfig, OS } from "./app-config"
 import { promptLogin } from "./loginHandlers"
+import { readdirSync } from "node:fs"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -47,8 +55,6 @@ let mainWindow: BrowserWindow | null = null
 let tray = null
 let pythonProcess: ChildProcess | null = null
 
-if (os.release().startsWith("6.1")) app.disableHardwareAcceleration()
-
 if (appConfig.os === OS.WINDOWS) app.setAppUserModelId(app.getName())
 
 if (!app.requestSingleInstanceLock()) {
@@ -57,14 +63,12 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function startPythonBackend() {
-  const executablePath = appConfig.isDev
-    ? "python"
-    : join(process.resourcesPath, "bin", "server")
-
   const args = ["--port", appConfig.ports.backend.toString()]
+
   if (appConfig.isDev) {
     const backendPyPath = join(__dirname, "..", "..", "..", "..", "finanze")
 
+    const executablePath = "python"
     console.log(
       `Starting dev Python backend: ${executablePath} ${backendPyPath}`,
     )
@@ -78,7 +82,21 @@ function startPythonBackend() {
 
     pythonProcess = spawn(executablePath, [...devArgs, ...args])
   } else {
-    console.log(`Starting Python backend: ${executablePath}`)
+    const binPath = join(process.resourcesPath, "bin")
+    const binnaryFiles = readdirSync(binPath)
+    const serverFile = binnaryFiles.find(file =>
+      file.startsWith("finanze-server-"),
+    )
+
+    if (!serverFile) {
+      throw new Error(
+        `Expected exactly one finanze-server-* file in ${binPath}`,
+      )
+    }
+
+    const executablePath = join(binPath, serverFile)
+
+    console.log(`Starting Python backend: f ${executablePath}`)
 
     pythonProcess = spawn(executablePath, args)
   }
@@ -88,7 +106,7 @@ function startPythonBackend() {
   })
 
   pythonProcess?.stderr?.on("data", data => {
-    console.error(`>> ${data}`)
+    console.log(`>> ${data}`)
   })
 
   pythonProcess.on("close", code => {
@@ -108,6 +126,10 @@ async function createWindow() {
     },
     titleBarStyle: "hidden",
     ...(appConfig.os !== OS.MAC ? { titleBarOverlay: true } : {}),
+  })
+
+  globalShortcut.register("CommandOrControl+Alt+I", () => {
+    mainWindow?.webContents.toggleDevTools()
   })
 
   if (appConfig.isDev) {
