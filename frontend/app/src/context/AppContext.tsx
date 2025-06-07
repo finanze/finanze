@@ -14,6 +14,8 @@ import {
   ScrapeResultCode,
   LoginResultCode,
   EntityStatus,
+  PlatformType,
+  type PlatformInfo,
 } from "@/types"
 import {
   getEntities,
@@ -66,6 +68,7 @@ interface AppContextType {
   settings: AppSettings
   pinError: boolean
   externalLoginInProgress: boolean
+  platform: PlatformType | null
   setView: (view: "entities" | "login" | "features" | "external-login") => void
 
   fetchEntities: () => Promise<void>
@@ -136,6 +139,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pinError, setPinError] = useState(false)
   const [virtualEnabled, setVirtualEnabled] = useState(false)
   const [externalLoginInProgress, setExternalLoginInProgress] = useState(false)
+  const [platform, setPlatform] = useState<PlatformType | null>(null)
   const { t } = useI18n()
   const { isAuthenticated } = useAuth()
 
@@ -150,6 +154,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     active: false,
     features: [],
   })
+
+  useEffect(() => {
+    const getPlatform = async () => {
+      if (window.ipcAPI && window.ipcAPI.platform) {
+        try {
+          const platformInfo: PlatformInfo = await window.ipcAPI.platform()
+          setPlatform(platformInfo.type)
+        } catch (error) {
+          console.error("Failed to get platform info:", error)
+          setPlatform(PlatformType.WEB)
+        }
+      } else {
+        setPlatform(PlatformType.WEB)
+      }
+    }
+    getPlatform()
+  }, [])
 
   const showToast = (
     message: string,
@@ -609,6 +630,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         settings,
         pinError,
         externalLoginInProgress,
+        platform,
         setView,
         fetchEntities,
         selectEntity,

@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
   "main": "dist-electron/main/index.js",
-  "packageManager": "pnpm@10.10.0",
+  "packageManager": "pnpm@10.11.1",
   "keywords": [],
   "author": "marcosav",
   "private": true,
@@ -22,7 +22,7 @@
     "format": "prettier --write .",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
-    "lint-staged": "lint-staged"
+    "lint-staged": "lint-staged --no-stash"
   },
   "lint-staged": {
     "*": "eslint .",

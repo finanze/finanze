@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
+import type { ThemeMode } from "../types"
 import type {
   ExternalLoginRequest,
   LoginHandlerResult,
@@ -6,6 +7,11 @@ import type {
 
 contextBridge.exposeInMainWorld("ipcAPI", {
   apiUrl: () => ipcRenderer.invoke("api-url"),
+
+  platform: () => ipcRenderer.invoke("platform"),
+
+  changeThemeMode: (mode: ThemeMode) =>
+    ipcRenderer.send("theme-mode-change", mode),
 
   showAbout: () => ipcRenderer.send("show-about"),
 

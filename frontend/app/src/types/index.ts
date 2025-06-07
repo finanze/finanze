@@ -55,14 +55,12 @@ export interface ScrapeRequest {
   avoidNewLogin?: boolean
 }
 
-// Login response
 export interface LoginResponse {
   code: LoginResultCode
   processId?: string
   details?: any
 }
 
-// Scrape response
 export interface ScrapeResponse {
   code: ScrapeResultCode
   details?: {
@@ -157,7 +155,6 @@ export interface Settings {
   }
 }
 
-// Export request type for new /export endpoint
 export enum ExportTarget {
   GOOGLE_SHEETS = "GOOGLE_SHEETS",
 }
@@ -166,11 +163,29 @@ export interface ExportRequest {
   target: ExportTarget
 }
 
+export enum PlatformType {
+  WINDOWS = "windows",
+  MAC = "mac",
+  LINUX = "linux",
+  WEB = "web",
+}
+
+export interface PlatformInfo {
+  type: PlatformType
+  arch?: string
+  osVersion?: string
+  electronVersion?: string
+}
+
+export type ThemeMode = "light" | "dark" | "system"
+
 // Electron window interface
 declare global {
   interface Window {
     ipcAPI?: {
       apiUrl: () => Promise<string>
+      platform: () => Promise<PlatformInfo>
+      changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
       requestExternalLogin: (
         id: string,

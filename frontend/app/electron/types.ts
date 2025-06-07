@@ -1,3 +1,12 @@
+export interface PlatformInfo {
+  type: OS
+  arch?: string
+  osVersion?: string
+  electronVersion?: string
+}
+
+export type ThemeMode = "light" | "dark" | "system"
+
 export enum OS {
   MAC = "mac",
   WINDOWS = "windows",

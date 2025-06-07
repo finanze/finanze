@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import { useTheme } from "@/context/ThemeContext"
 import { useAuth } from "@/context/AuthContext"
+import { useAppContext } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -14,6 +15,7 @@ import {
   ChevronLeft,
   Globe,
   FileUp,
+  SunMoon,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/Button"
@@ -23,11 +25,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import type { Locale } from "@/i18n"
+import { PlatformType } from "@/types"
 
 export function Sidebar() {
   const { t, locale, changeLocale } = useI18n()
-  const { theme, toggleTheme } = useTheme()
+  const { theme, setThemeMode } = useTheme()
   const { logout } = useAuth()
+  const { platform } = useAppContext()
   const navigate = useNavigate()
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
@@ -68,8 +72,9 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "pt-4 h-screen flex flex-col bg-gray-100 dark:bg-black border-r border-gray-200 dark:border-gray-800 transition-all duration-300",
+        "h-screen flex flex-col bg-gray-100 dark:bg-black border-r border-gray-200 dark:border-gray-800 transition-all duration-300",
         collapsed ? "w-16" : "w-64",
+        platform === PlatformType.MAC ? "pt-4" : "",
       )}
     >
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
@@ -125,17 +130,39 @@ export function Sidebar() {
               ))}
             </div>
             <div className="flex gap-1">
-              <Button variant="ghost" className="flex-1" onClick={toggleTheme}>
-                {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
+              <Button
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setThemeMode("light")}
+                disabled={theme === "light"}
+              >
+                <Sun size={18} />
               </Button>
               <Button
                 variant="ghost"
-                className="flex-1 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                onClick={handleLogout}
+                className="flex-1"
+                onClick={() => setThemeMode("dark")}
+                disabled={theme === "dark"}
               >
-                <LogOut size={18} />
+                <Moon size={18} />
+              </Button>
+              <Button
+                variant="ghost"
+                className="flex-1"
+                onClick={() => setThemeMode("system")}
+                disabled={theme === "system"}
+              >
+                <SunMoon size={18} />
               </Button>
             </div>
+            <Button
+              variant="ghost"
+              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 justify-start"
+              onClick={handleLogout}
+            >
+              <LogOut size={18} className="mr-2" />
+              {t.common.logout}
+            </Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -160,14 +187,43 @@ export function Sidebar() {
                 </div>
               </PopoverContent>
             </Popover>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-full"
-              onClick={toggleTheme}
-            >
-              {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-full">
+                  {theme === "light" && <Sun size={20} />}
+                  {theme === "dark" && <Moon size={20} />}
+                  {theme === "system" && <SunMoon size={20} />}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="right" className="p-1 w-auto">
+                <div className="flex flex-col gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setThemeMode("light")}
+                    disabled={theme === "light"}
+                  >
+                    <Sun size={18} className="mr-2" /> Light
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setThemeMode("dark")}
+                    disabled={theme === "dark"}
+                  >
+                    <Moon size={18} className="mr-2" /> Dark
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setThemeMode("system")}
+                    disabled={theme === "system"}
+                  >
+                    <SunMoon size={18} className="mr-2" /> System
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button
               variant="ghost"
               size="icon"
