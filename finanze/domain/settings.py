@@ -55,6 +55,12 @@ class HistoricSheetConfig(BaseSheetConfig):
 
 
 @dataclass
+class GoogleCredentials:
+    client_id: str
+    client_secret: str
+
+
+@dataclass
 class SheetsConfig:
     enabled: bool
     globals: GlobalsConfig | None = None
@@ -95,7 +101,18 @@ class ScrapeConfig:
 
 
 @dataclass
+class SheetsIntegrationConfig:
+    credentials: GoogleCredentials
+
+
+@dataclass
+class IntegrationsConfig:
+    sheets: Optional[SheetsIntegrationConfig] = None
+
+
+@dataclass
 class Settings:
+    integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
     scrape: ScrapeConfig = field(default_factory=ScrapeConfig)
 

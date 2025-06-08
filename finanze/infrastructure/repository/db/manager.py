@@ -2,19 +2,20 @@ import logging
 from pathlib import Path
 from threading import Lock
 
-from pysqlcipher3 import dbapi2 as sqlcipher
-from pysqlcipher3._sqlite3 import DatabaseError
-
 from application.ports.datasource_initiator import DatasourceInitiator
 from domain.data_init import (
+    AlreadyLockedError,
+    AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
-    AlreadyUnlockedError,
-    AlreadyLockedError,
 )
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
+from pysqlcipher3 import dbapi2 as sqlcipher
+from pysqlcipher3._sqlite3 import DatabaseError
+
+DEFAULT_DB_NAME = "data.db"
 
 
 class DBManager(DatasourceInitiator):
@@ -23,7 +24,7 @@ class DBManager(DatasourceInitiator):
         self._client = db_client
         self._lock = Lock()
         self._unlocked = False
-        self._path = path
+        self._path = Path(path) / DEFAULT_DB_NAME
 
     @property
     def unlocked(self) -> bool:

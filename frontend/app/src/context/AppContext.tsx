@@ -32,9 +32,17 @@ import { useAuth } from "@/context/AuthContext"
 
 // Types for settings
 export interface AppSettings {
+  integrations?: {
+    sheets?: {
+      credentials?: {
+        client_id?: string
+        client_secret?: string
+      }
+    }
+  }
   export?: {
     sheets?: {
-      enabled: boolean
+      enabled?: boolean
       [key: string]: any
     }
   }
@@ -210,9 +218,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const fetchSettings = async () => {
-    // Don't fetch settings if not authenticated
-    if (!isAuthenticated) return
-
     try {
       setIsLoading(true)
       const data = await getSettings()
@@ -220,24 +225,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSettings(data)
     } catch (error) {
       console.error("Error fetching settings:", error)
-      setSettings(defaultSettings)
+      showToast(t.settings.fetchError, "error")
     } finally {
       setIsLoading(false)
     }
   }
 
   const saveSettingsData = async (settingsData: AppSettings) => {
-    // Don't save settings if not authenticated
-    if (!isAuthenticated) return
-
     try {
       setIsLoading(true)
       await saveSettings(settingsData)
       setSettings(settingsData)
-      showToast("Settings saved successfully", "success")
+      showToast(t.settings.saveSuccess, "success")
     } catch (error) {
       console.error("Error saving settings:", error)
-      showToast("Failed to save settings", "error")
+      showToast(t.settings.saveError, "error")
     } finally {
       setIsLoading(false)
     }

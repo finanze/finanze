@@ -3,18 +3,18 @@ from dataclasses import asdict
 from pathlib import Path
 
 import strictyaml
+from application.ports.config_port import ConfigPort
 from cachetools import TTLCache, cached
 from cachetools.keys import hashkey
-
-from application.ports.config_port import ConfigPort
 from domain.settings import Settings
 from infrastructure.config.base_config import BASE_CONFIG
 
+CONFIG_NAME = "config.yml"
+
 
 class ConfigLoader(ConfigPort):
-    def __init__(self, path: str) -> None:
-        self._config_file = path
-        self._config_path = Path(path)
+    def __init__(self, base_path: str) -> None:
+        self._config_file = str(Path(base_path) / CONFIG_NAME)
         self._log = logging.getLogger(__name__)
 
     @cached(cache=TTLCache(maxsize=1, ttl=30))
@@ -42,7 +42,7 @@ class ConfigLoader(ConfigPort):
             self.load.cache_clear()
 
     def check_or_create_default_config(self):
-        if not self._config_path.is_file():
+        if not Path(self._config_file).is_file():
             self._log.warning(
                 f"Config file not found, creating default config at {self._config_file}"
             )

@@ -1,23 +1,21 @@
 import argparse
 import logging
 
-from waitress import serve
-
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
+from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
+from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_scrape import VirtualScrapeImpl
-from application.use_cases.get_contributions import GetContributionsImpl
-from application.use_cases.get_transactions import GetTransactionsImpl
 from domain.data_init import DatasourceInitParams
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
@@ -25,10 +23,10 @@ from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.repository import (
     AutoContributionsRepository,
+    EntityRepository,
     HistoricRepository,
     PositionRepository,
     TransactionRepository,
-    EntityRepository,
 )
 from infrastructure.repository.credentials.credentials_repository import (
     CredentialsRepository,
@@ -52,6 +50,8 @@ from infrastructure.sheets.exporter.default_exporter import NullExporter
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
 from infrastructure.sheets.importer.default_importer import NullImporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
+from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
+from waitress import serve
 
 
 class FinanzeServer:
@@ -62,9 +62,9 @@ class FinanzeServer:
         self._log.info("Initializing components...")
 
         self.db_client = DBClient()
-        self.db_manager = DBManager(self.db_client, self.args.db_path)
+        self.db_manager = DBManager(self.db_client, self.args.data_dir)
 
-        self.config_loader = ConfigLoader(self.args.config_path)
+        self.config_loader = ConfigLoader(self.args.data_dir)
         self.config_loader.check_or_create_default_config()
 
         self.entity_scrapers = {
@@ -80,8 +80,9 @@ class FinanzeServer:
         }
 
         try:
-            self.virtual_scraper = SheetsImporter()
-            self.exporter = SheetsExporter()
+            sheets_service = SheetsServiceLoader(self.args.data_dir)
+            self.virtual_scraper = SheetsImporter(sheets_service)
+            self.exporter = SheetsExporter(sheets_service)
         except Exception as e:
             self._log.warning(
                 f"Could not initialize Google Sheets integration: {e}. Using null importer/exporter."

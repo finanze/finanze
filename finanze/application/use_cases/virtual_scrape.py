@@ -33,8 +33,16 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
         config = self._config_port.load()
         virtual_scrape_config = config.scrape.virtual
 
-        if not virtual_scrape_config.enabled:
+        sheet_config = config.integrations.sheets
+
+        if (
+            not virtual_scrape_config.enabled
+            or not sheet_config
+            or not sheet_config.credentials
+        ):
             return ScrapResult(ScrapResultCode.DISABLED)
+
+        sheets_credentials = sheet_config.credentials
 
         config_globals = virtual_scrape_config.globals
 
@@ -54,7 +62,7 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
             global_positions,
             created_pos_entities,
         ) = await self._virtual_scraper.global_positions(
-            investment_sheets, existing_entities_by_name
+            sheets_credentials, investment_sheets, existing_entities_by_name
         )
 
         if global_positions:
@@ -66,7 +74,10 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
                 self._position_port.save(position)
 
         transactions, created_tx_entities = await self._virtual_scraper.transactions(
-            transaction_sheets, registered_txs, existing_entities_by_name
+            sheets_credentials,
+            transaction_sheets,
+            registered_txs,
+            existing_entities_by_name,
         )
 
         if transactions:

@@ -4,7 +4,7 @@ from typing import Optional
 
 from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
-from domain.settings import SummarySheetConfig, ProductSheetConfig
+from domain.settings import GoogleCredentials, ProductSheetConfig, SummarySheetConfig
 
 
 class SheetsUpdatePort(metaclass=abc.ABCMeta):
@@ -12,6 +12,7 @@ class SheetsUpdatePort(metaclass=abc.ABCMeta):
     def update_summary(
         self,
         global_positions: dict[FinancialEntity, GlobalPosition],
+        credentials: GoogleCredentials,
         config: SummarySheetConfig,
     ):
         raise NotImplementedError
@@ -20,6 +21,7 @@ class SheetsUpdatePort(metaclass=abc.ABCMeta):
     def update_sheet(
         self,
         data: object | dict[FinancialEntity, object],
+        credentials: GoogleCredentials,
         config: ProductSheetConfig,
         last_update: Optional[dict[FinancialEntity, datetime]] = None,
     ):

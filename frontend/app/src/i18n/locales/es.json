@@ -120,6 +120,13 @@
   },
   "settings": {
     "title": "Configuración",
+    "integrations": "Integraciones",
+    "sheetsIntegration": "Integración con Google Sheets",
+    "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets",
+    "clientId": "ID de Cliente",
+    "clientIdPlaceholder": "Introduce tu ID de Cliente OAuth2 de Google",
+    "clientSecret": "Secreto de Cliente",
+    "clientSecretPlaceholder": "Introduce tu Secreto de Cliente OAuth2 de Google",
     "export": "Exportación",
     "sheets": "Google Sheets",
     "sheetsDescription": "Configura tus ajustes de exportación a Google Sheets",
@@ -166,7 +173,9 @@
       "spreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global cuando la exportación está habilitada",
       "rangeRequired": "El rango es obligatorio. ",
       "dataRequired": "Los datos son obligatorios. ",
-      "virtualSpreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global Virtual"
+      "virtualSpreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global Virtual",
+      "clientIdRequired": "El ID de Cliente es necesario al configurar la integración con Google Sheets",
+      "clientSecretRequired": "El Secreto de Cliente es necesario al configurar la integración con Google Sheets"
     }
   },
   "dashboard": {

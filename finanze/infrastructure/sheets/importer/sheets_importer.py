@@ -4,39 +4,39 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from pydantic import ValidationError
-
 from application.ports.virtual_scraper import VirtualScraper
 from domain.exception.exceptions import MissingFieldsError
 from domain.financial_entity import FinancialEntity
 from domain.global_position import (
-    GlobalPosition,
-    Deposits,
     Deposit,
-    FundInvestments,
-    FactoringInvestments,
-    RealStateCFInvestments,
-    StockInvestments,
-    StockDetail,
+    Deposits,
     FactoringDetail,
-    RealStateCFDetail,
+    FactoringInvestments,
     FundDetail,
+    FundInvestments,
+    GlobalPosition,
     Investments,
+    RealStateCFDetail,
+    RealStateCFInvestments,
+    StockDetail,
+    StockInvestments,
 )
 from domain.settings import (
-    VirtualInvestmentSheetConfig,
     BaseSheetConfig,
+    GoogleCredentials,
+    VirtualInvestmentSheetConfig,
     VirtualTransactionSheetConfig,
 )
 from domain.transactions import (
-    Transactions,
-    StockTx,
+    BaseTx,
+    FactoringTx,
     FundTx,
     RealStateCFTx,
-    FactoringTx,
-    BaseTx,
+    StockTx,
+    Transactions,
 )
-from infrastructure.sheets.sheets_base_loader import spreadsheets
+from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
+from pydantic import ValidationError
 
 
 def parse_number(value: str) -> float:
@@ -108,12 +108,13 @@ class SheetsImporter(VirtualScraper):
         "FACTORING": FactoringTx,
     }
 
-    def __init__(self):
-        self._sheet = spreadsheets()
+    def __init__(self, sheets_service: SheetsServiceLoader):
+        self._sheets_service = sheets_service
         self._log = logging.getLogger(__name__)
 
     async def global_positions(
         self,
+        credentials: GoogleCredentials,
         investment_configs: list[VirtualInvestmentSheetConfig],
         existing_entities: dict[str, FinancialEntity],
     ) -> tuple[list[GlobalPosition], set[FinancialEntity]]:
@@ -125,7 +126,7 @@ class SheetsImporter(VirtualScraper):
                 raise ValueError(f"Invalid field {field}")
 
             per_entity = self._load_investment_products(
-                detail_type, parent_type, config
+                detail_type, parent_type, credentials, config
             )
             for entity in per_entity:
                 if entity not in global_positions_dicts:
@@ -157,7 +158,11 @@ class SheetsImporter(VirtualScraper):
         return global_positions, set(created_entities.values())
 
     def _load_investment_products(
-        self, cls, parent_cls, config: VirtualInvestmentSheetConfig
+        self,
+        cls,
+        parent_cls,
+        credentials: GoogleCredentials,
+        config: VirtualInvestmentSheetConfig,
     ) -> dict[str, any]:
         details_per_entity = {}
 
@@ -170,7 +175,7 @@ class SheetsImporter(VirtualScraper):
 
             details_per_entity[entity] = entity_products
 
-        self._parse_sheet_table(config, process_entry_fn)
+        self._parse_sheet_table(credentials, config, process_entry_fn)
 
         if not details_per_entity:
             return {}
@@ -192,6 +197,7 @@ class SheetsImporter(VirtualScraper):
 
     async def transactions(
         self,
+        credentials: GoogleCredentials,
         txs_configs: list[VirtualTransactionSheetConfig],
         registered_txs: set[str],
         existing_entities: dict[str, FinancialEntity],
@@ -203,7 +209,7 @@ class SheetsImporter(VirtualScraper):
             field = config.data
 
             txs, created_entities = self._load_txs(
-                config, existing_entities, all_created_entities
+                credentials, config, existing_entities, all_created_entities
             )
             all_created_entities.update(created_entities)
             txs = [tx for tx in txs if tx.ref not in registered_txs]
@@ -221,6 +227,7 @@ class SheetsImporter(VirtualScraper):
 
     def _load_txs(
         self,
+        credentials: GoogleCredentials,
         config: VirtualTransactionSheetConfig,
         existing_entities: dict[str, FinancialEntity],
         already_created_entities: dict[str, FinancialEntity],
@@ -258,13 +265,15 @@ class SheetsImporter(VirtualScraper):
             cls = self.TX_PROD_TYPE_ATTR_MAP[prod_type]
             txs.append(cls.from_dict(tx_dict))
 
-        self._parse_sheet_table(config, process_entry_fn)
+        self._parse_sheet_table(credentials, config, process_entry_fn)
 
         return txs, created_entities
 
-    def _parse_sheet_table(self, config: BaseSheetConfig, entry_fn):
+    def _parse_sheet_table(
+        self, credentials: GoogleCredentials, config: BaseSheetConfig, entry_fn
+    ):
         sheet_range, sheet_id = config.range, config.spreadsheetId
-        cells = self._read_sheet_table(sheet_id, sheet_range)
+        cells = self._read_sheet_table(credentials, sheet_id, sheet_range)
         if not cells:
             return {}
 
@@ -299,8 +308,13 @@ class SheetsImporter(VirtualScraper):
                 self._log.warning(f"Skipping row {row}: {e}")
                 continue
 
-    def _read_sheet_table(self, sheet_id, cell_range) -> list[list]:
+    def _read_sheet_table(
+        self, credentials: GoogleCredentials, sheet_id, cell_range
+    ) -> list[list]:
+        sheets_service = self._sheets_service.service(credentials)
         result = (
-            self._sheet.values().get(spreadsheetId=sheet_id, range=cell_range).execute()
+            sheets_service.values()
+            .get(spreadsheetId=sheet_id, range=cell_range)
+            .execute()
         )
         return result.get("values", [])
