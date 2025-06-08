@@ -8,8 +8,6 @@ services:
       - '7592:7592'
     environment:
       # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Provided via API or use .env
-      GOOGLE_CREDENTIALS_PATH: /credentials.json
-      GOOGLE_TOKEN_PATH: /token.json
       # Selenium related envs
       WIRE_ADDRESS: 0.0.0.0
       WIRE_PORT: 8088
@@ -18,8 +16,6 @@ services:
     env_file:
       - .env
     volumes:
-      - ./credentials.json:/credentials.json
-      - ./token.json:/token.json
       - ./.storage/:/.storage
       - /etc/timezone:/etc/timezone:ro # Use host's timezone
       - /etc/localtime:/etc/localtime:ro # Use host's localtime

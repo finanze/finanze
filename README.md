@@ -135,7 +135,6 @@ Checkout example docker-compose.yml for the environment variables that can be us
 important ones are::
 
 - `DB_CIPHER_PASSWORD` for DB encryption passphrase, optional, provided via API (see below).
-- `GOOGLE_` prefixed ones, needed for Google credentials, in case of using import/export to Google Sheets
 - Other Selenium related ones.
 
 ## Credentials
