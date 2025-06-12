@@ -169,22 +169,24 @@ class UnicajaScraper(EntityScraper):
 
         loan_type = LoanType.MORTGAGE if is_mortgage else LoanType.STANDARD
 
-        loan_response = self._client.get_loan(p="2", ppp=ppp)
-        # When its near invoicing period, the mortgage is not returned
+        loan_response = self._client.get_loan(ppp=ppp)
         if loan_response:
-            name = alias if alias else loan_response["loanType"]
+            loan_response = loan_response["detallePrestamo"]
+
+        if loan_response:
+            name = alias if alias else loan_response["tipoPrestamo"]
             return Loan(
                 id=uuid4(),
                 type=loan_type,
                 name=name,
                 currency=currency,
-                current_installment=Dezimal(loan_response["currentInstallment"]),
-                loan_amount=Dezimal(loan_response["loanAmount"]),
-                principal_paid=Dezimal(loan_response["principalPaid"]),
+                current_installment=Dezimal(loan_response["cuotaActual"]["cantidad"]),
+                loan_amount=Dezimal(loan_response["importePrestamo"]["cantidad"]),
+                principal_paid=Dezimal(loan_response["capitalPagado"]["cantidad"]),
                 principal_outstanding=outstanding_amount,
-                interest_rate=Dezimal(loan_response["interestRate"]),
+                interest_rate=Dezimal(loan_response["interes"]) / 100,
                 next_payment_date=datetime.strptime(
-                    loan_response["nextPaymentDate"], "%Y-%m-%d"
+                    loan_response["fechaProxRecibo"], "%Y-%m-%d"
                 ).date(),
             )
 
