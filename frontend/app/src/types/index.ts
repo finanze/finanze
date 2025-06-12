@@ -40,6 +40,16 @@ export type Feature =
   | "TRANSACTIONS"
   | "HISTORIC"
 
+export interface AuthRequest {
+  username: string
+  password: string
+}
+
+export interface LoginStatusResponse {
+  status: "LOCKED" | "UNLOCKED"
+  last_logged?: string
+}
+
 export interface LoginRequest {
   entity: string
   credentials: Record<string, string>

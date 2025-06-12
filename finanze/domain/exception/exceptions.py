@@ -16,6 +16,14 @@ class EntityNotFound(Exception):
     pass
 
 
+class UserNotFound(Exception):
+    pass
+
+
+class UserAlreadyExists(Exception):
+    pass
+
+
 class InvalidProvidedCredentials(Exception):
     pass
 

@@ -10,6 +10,7 @@ from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
+from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.scrape import ScrapeImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
@@ -34,6 +35,7 @@ from infrastructure.repository.credentials.credentials_repository import (
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.scrapers.f24.f24_scraper import F24Scraper
 from infrastructure.scrapers.indexa_capital.indexa_capital_scraper import (
     IndexaCapitalScraper,
@@ -45,12 +47,10 @@ from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScrap
 from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
 from infrastructure.scrapers.urbanitae.urbanitae_scraper import UrbanitaeScraper
 from infrastructure.scrapers.wecity.wecity_scraper import WecityScraper
-from infrastructure.sessions.sessions_repository import SessionsRepository
-from infrastructure.sheets.exporter.default_exporter import NullExporter
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
-from infrastructure.sheets.importer.default_importer import NullImporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
+from infrastructure.user_files.user_data_manager import UserDataManager
 from waitress import serve
 
 
@@ -62,10 +62,11 @@ class FinanzeServer:
         self._log.info("Initializing components...")
 
         self.db_client = DBClient()
-        self.db_manager = DBManager(self.db_client, self.args.data_dir)
+        self.db_manager = DBManager(self.db_client)
+        self.data_manager = UserDataManager(self.args.data_dir)
 
-        self.config_loader = ConfigLoader(self.args.data_dir)
-        self.config_loader.check_or_create_default_config()
+        self.config_loader = ConfigLoader()
+        self.sheets_initiator = SheetsServiceLoader()
 
         self.entity_scrapers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
@@ -79,16 +80,8 @@ class FinanzeServer:
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalScraper(),
         }
 
-        try:
-            sheets_service = SheetsServiceLoader(self.args.data_dir)
-            self.virtual_scraper = SheetsImporter(sheets_service)
-            self.exporter = SheetsExporter(sheets_service)
-        except Exception as e:
-            self._log.warning(
-                f"Could not initialize Google Sheets integration: {e}. Using null importer/exporter."
-            )
-            self.virtual_scraper = NullImporter()
-            self.exporter = NullExporter()
+        self.virtual_scraper = SheetsImporter(self.sheets_initiator)
+        self.exporter = SheetsExporter(self.sheets_initiator)
 
         position_repository = PositionRepository(client=self.db_client)
         auto_contrib_repository = AutoContributionsRepository(client=self.db_client)
@@ -109,9 +102,22 @@ class FinanzeServer:
 
         transaction_handler = TransactionHandler(client=self.db_client)
 
-        user_login = UserLoginImpl(self.db_manager)
-        get_login_status = GetLoginStatusImpl(self.db_manager)
-        user_logout = UserLogoutImpl(self.db_manager)
+        user_login = UserLoginImpl(
+            self.db_manager,
+            self.data_manager,
+            self.config_loader,
+            self.sheets_initiator,
+        )
+        register_user = RegisterUserImpl(
+            self.db_manager,
+            self.data_manager,
+            self.config_loader,
+            self.sheets_initiator,
+        )
+        get_login_status = GetLoginStatusImpl(self.db_manager, self.data_manager)
+        user_logout = UserLogoutImpl(
+            self.db_manager, self.config_loader, self.sheets_initiator
+        )
 
         get_available_entities = GetAvailableEntitiesImpl(
             self.config_loader, credentials_port
@@ -157,9 +163,15 @@ class FinanzeServer:
 
         self._log.info("Initial component setup completed.")
 
-        if args.db_password:
-            self._log.info("Database password provided, initializing database...")
-            self.db_manager.initialize(DatasourceInitParams(args.db_password))
+        if args.logged_username and args.logged_password:
+            self._log.info("User provided, initializing data...")
+            user = self.data_manager.get_user(args.logged_username)
+            if user:
+                self.sheets_initiator.connect(user)
+                self.config_loader.connect(user)
+                self.db_manager.initialize(
+                    DatasourceInitParams(user, args.logged_password)
+                )
 
         self._log.info("Setting up REST API...")
 
@@ -167,6 +179,7 @@ class FinanzeServer:
         register_routes(
             self.flask_app,
             user_login,
+            register_user,
             get_available_entities,
             scrape,
             update_sheets,

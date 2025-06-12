@@ -7,15 +7,25 @@ from application.ports.config_port import ConfigPort
 from cachetools import TTLCache, cached
 from cachetools.keys import hashkey
 from domain.settings import Settings
+from domain.user import User
 from infrastructure.config.base_config import BASE_CONFIG
 
 CONFIG_NAME = "config.yml"
 
 
 class ConfigLoader(ConfigPort):
-    def __init__(self, base_path: str) -> None:
-        self._config_file = str(Path(base_path) / CONFIG_NAME)
+    def __init__(self) -> None:
+        self._config_file = None
         self._log = logging.getLogger(__name__)
+
+    def disconnect(self):
+        self._config_file = None
+        if hasattr(self.load, "cache") and hashkey(self) in self.load.cache:
+            del self.load.cache[hashkey(self)]
+
+    def connect(self, user: User):
+        self._config_file = str(user.path / CONFIG_NAME)
+        self.check_or_create_default_config()
 
     @cached(cache=TTLCache(maxsize=1, ttl=30))
     def load(self) -> Settings:

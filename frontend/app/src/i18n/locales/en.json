@@ -65,10 +65,18 @@
     },
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
+    "welcomeBack": "Welcome back, {username}!",
+    "signupTitle": "Create Finanze account",
+    "signupSubtitle": "Set up your account to manage your finances",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "Enter your username",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter your password",
     "invalidPassword": "Invalid password",
-    "serverError": "An unexpected error occurred. Please try again."
+    "invalidCredentials": "Invalid credentials",
+    "serverError": "An unexpected error occurred. Please try again.",
+    "signup": "Sign Up",
+    "login": "Log In"
   },
   "pinpad": {
     "enterCode": "Enter {length}-Digit Code for"

@@ -1,7 +1,8 @@
-from pathlib import Path
 from threading import Lock
 
+from application.ports.sheets_initiator import SheetsInitiator
 from domain.settings import GoogleCredentials
+from domain.user import User
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -13,13 +14,38 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 TOKEN_FILENAME = "token.json"
 
 
-class SheetsServiceLoader:
-    def __init__(self, base_path: str):
-        self._base_path = Path(base_path)
+def _client_config(credentials: GoogleCredentials) -> dict:
+    client_id, client_secret = credentials.client_id, credentials.client_secret
+    if not client_id or not client_secret:
+        raise ValueError("Google credentials not found")
+
+    return {
+        "installed": {
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost"],
+        }
+    }
+
+
+class SheetsServiceLoader(SheetsInitiator):
+    def __init__(self):
+        self._base_path = None
         self._service = None
         self._lock = Lock()
 
+    def disconnect(self):
+        self._base_path = None
+
+    def connect(self, user: User):
+        self._base_path = user.path
+
     def _load_creds(self, credentials: GoogleCredentials):
+        if not self._base_path:
+            raise ValueError("Base path not set")
+
         token_path = self._base_path / TOKEN_FILENAME
 
         creds = None
@@ -30,7 +56,7 @@ class SheetsServiceLoader:
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                client_config = self._client_config(credentials)
+                client_config = _client_config(credentials)
 
                 flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
                 creds = flow.run_local_server(port=0)
@@ -39,21 +65,6 @@ class SheetsServiceLoader:
                 token.write(creds.to_json())
 
         return creds
-
-    def _client_config(self, credentials: GoogleCredentials) -> dict:
-        client_id, client_secret = credentials.client_id, credentials.client_secret
-        if not client_id or not client_secret:
-            raise ValueError("Google credentials not found")
-
-        return {
-            "installed": {
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "redirect_uris": ["http://localhost"],
-            }
-        }
 
     def service(self, credentials: GoogleCredentials):
         with self._lock:

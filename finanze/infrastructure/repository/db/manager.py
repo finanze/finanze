@@ -15,16 +15,15 @@ from infrastructure.repository.db.version_registry import versions
 from pysqlcipher3 import dbapi2 as sqlcipher
 from pysqlcipher3._sqlite3 import DatabaseError
 
-DEFAULT_DB_NAME = "data.db"
+DB_NAME = "data.db"
 
 
 class DBManager(DatasourceInitiator):
-    def __init__(self, db_client: DBClient, path: str | Path):
+    def __init__(self, db_client: DBClient):
         self._log = logging.getLogger(__name__)
         self._client = db_client
         self._lock = Lock()
         self._unlocked = False
-        self._path = Path(path) / DEFAULT_DB_NAME
 
     @property
     def unlocked(self) -> bool:
@@ -40,7 +39,8 @@ class DBManager(DatasourceInitiator):
             self._client.close()
 
     def initialize(self, params: DatasourceInitParams):
-        self._log.info(f"Attempting to connect and unlock database at {self._path}")
+        user_path = Path(params.user.path) / DB_NAME
+        self._log.info(f"Attempting to connect and unlock database at {user_path}")
 
         with self._lock:
             if self._unlocked:
@@ -51,7 +51,7 @@ class DBManager(DatasourceInitiator):
             connection = None
             try:
                 connection = sqlcipher.connect(
-                    database=str(self._path),
+                    database=str(user_path),
                     isolation_level=None,
                     check_same_thread=False,
                 )

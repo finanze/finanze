@@ -5,13 +5,14 @@ from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_login_status import GetLoginStatus
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
+from domain.use_cases.get_transactions import GetTransactions
+from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.scrape import Scrape
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_sheets import UpdateSheets
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_scrape import VirtualScrape
-from domain.use_cases.get_transactions import GetTransactions
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.contributions import contributions
@@ -22,16 +23,18 @@ from infrastructure.controller.routes.get_settings import get_settings
 from infrastructure.controller.routes.login_status import login_status
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.positions import positions
+from infrastructure.controller.routes.register_user import register_user
 from infrastructure.controller.routes.scrape import scrape
+from infrastructure.controller.routes.transactions import transactions
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_scrape import virtual_scrape
-from infrastructure.controller.routes.transactions import transactions
 
 
 def register_routes(
     app: FlaskApp,
     user_login_uc: UserLogin,
+    register_user_uc: RegisterUser,
     get_available_entities_uc: GetAvailableEntities,
     scrape_uc: Scrape,
     update_sheets_uc: UpdateSheets,
@@ -49,6 +52,10 @@ def register_routes(
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
         return user_login(user_login_uc)
+
+    @app.route("/api/v1/signup", methods=["POST"])
+    def register_user_route():
+        return register_user(register_user_uc)
 
     @app.route("/api/v1/login", methods=["GET"])
     def login_status_route():

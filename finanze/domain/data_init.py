@@ -1,3 +1,4 @@
+from domain.user import User
 from pydantic.dataclasses import dataclass
 
 
@@ -19,4 +20,5 @@ class DataEncryptedError(Exception):
 
 @dataclass
 class DatasourceInitParams:
+    user: User
     password: str

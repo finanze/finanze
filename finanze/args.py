@@ -40,7 +40,8 @@ def parse_args() -> argparse.Namespace:
     os.makedirs(args.data_dir, exist_ok=True)
 
     args.credentials_storage_mode = os.environ.get("CREDENTIAL_STORAGE", "DB")
-    args.db_password = os.environ.get("DB_CIPHER_PASSWORD")
+    args.logged_username = os.environ.get("USERNAME")
+    args.logged_password = os.environ.get("PASSWORD")
 
     logging.basicConfig(level=getLevelName(args.log_level))
     logging.getLogger().setLevel(getLevelName(args.log_level))
