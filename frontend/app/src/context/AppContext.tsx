@@ -58,7 +58,7 @@ export interface AppSettings {
 
 interface AppContextType {
   entities: Entity[]
-  activeEntities: Entity[]
+  inactiveEntities: Entity[]
   isLoading: boolean
   virtualEnabled: boolean
   selectedEntity: Entity | null
@@ -122,7 +122,7 @@ const defaultSettings: AppSettings = {
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
-  const [activeEntities, setActiveEntities] = useState<Entity[]>([])
+  const [inactiveEntities, setInactiveEntities] = useState<Entity[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null)
   const [processId, setProcessId] = useState<string | null>(null)
@@ -608,8 +608,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated])
 
   useEffect(() => {
-    setActiveEntities(
-      entities.filter(entity => entity.status !== EntityStatus.DISCONNECTED),
+    setInactiveEntities(
+      entities.filter(entity => entity.status === EntityStatus.DISCONNECTED),
     )
   }, [entities])
 
@@ -617,7 +617,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         entities,
-        activeEntities,
+        inactiveEntities,
         isLoading,
         virtualEnabled,
         selectedEntity,

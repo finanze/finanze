@@ -34,7 +34,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     useState<EntityContributions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { activeEntities } = useAppContext()
+  const { inactiveEntities } = useAppContext()
 
   const fetchFinancialData = async () => {
     setIsLoading(true)
@@ -45,9 +45,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         | PositionQueryRequest
         | ContributionQueryRequest
         | undefined = undefined
-      if (activeEntities && activeEntities.length > 0) {
-        const entityIds = activeEntities.map(entity => entity.id)
-        queryParams = { entities: entityIds }
+      if (inactiveEntities && inactiveEntities.length > 0) {
+        const entityIds = inactiveEntities.map(entity => entity.id)
+        queryParams = { excluded_entities: entityIds }
       }
 
       const [positionsResponse, contributionsData] = await Promise.all([
@@ -84,7 +84,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchFinancialData()
-  }, [activeEntities])
+  }, [inactiveEntities])
 
   return (
     <FinancialDataContext.Provider

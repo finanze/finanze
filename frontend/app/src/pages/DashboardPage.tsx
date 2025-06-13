@@ -47,7 +47,7 @@ export default function DashboardPage() {
     error: financialDataError,
     refreshData: refreshFinancialData,
   } = useFinancialData()
-  const { settings, activeEntities } = useAppContext()
+  const { settings, inactiveEntities } = useAppContext()
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
@@ -58,11 +58,11 @@ export default function DashboardPage() {
   )
 
   const fetchTransactionsData = async () => {
-    if (activeEntities && activeEntities.length > 0) {
+    if (inactiveEntities && inactiveEntities.length > 0) {
       setTransactionsLoading(true)
       setTransactionsError(null)
       try {
-        const entityIds = activeEntities.map(entity => entity.id)
+        const entityIds = inactiveEntities.map(entity => entity.id)
         const result = await getTransactions({ entities: entityIds, limit: 8 })
         setTransactions(result)
       } catch (err) {
@@ -115,7 +115,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchTransactionsData()
-  }, [activeEntities, t]) // Add t to dependency array if it's not already there and used in fetchTransactionsData
+  }, [inactiveEntities, t]) // Add t to dependency array if it's not already there and used in fetchTransactionsData
 
   const getDaysStatus = (dateString: string) => {
     const today = new Date()
