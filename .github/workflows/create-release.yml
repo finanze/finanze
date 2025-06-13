@@ -42,11 +42,6 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.3
-
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -54,11 +49,6 @@ jobs:
 
       - name: Install Python dependencies
         run: pip3 install -r requirements-cd.txt
-
-      - name: Setup changelog generator
-        env:
-          CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gem install github_changelog_generator
 
       - name: Create and Switch to Release Branch
         id: create_branch
@@ -73,7 +63,6 @@ jobs:
           NEW_BRANCH_NAME="release/$NEW_VERSION"
           echo "Creating new branch $NEW_BRANCH_NAME from ${{ github.ref_name }}"
           git checkout -b "$NEW_BRANCH_NAME"
-          echo "Created and switched to branch $NEW_BRANCH_NAME"
           echo "::set-output name=release_branch_name::$NEW_BRANCH_NAME"
 
       - name: Bump version
@@ -89,29 +78,42 @@ jobs:
           echo "current-version=$(bump-my-version show current_version)" >> $GITHUB_OUTPUT
 
       - name: Update CHANGELOG.md
+        id: update_changelog
         env:
           CHANGELOG_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_VERSION: ${{ steps.bump.outputs.current-version }}
         run: |
-          github_changelog_generator -u marcosav -p bank-scraper --since-tag v${{ steps.bump.outputs.previous-version }}
+          changelog=$(git cliff --unreleased --tag $CURRENT_VERSION)
+          touch CHANGELOG.md
+          git cliff --unreleased --tag $CURRENT_VERSION --prepend CHANGELOG.md
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$changelog" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Push Release Branch
         id: push_branch
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git commit -am "chore: prepare release ${{ steps.bump.outputs.current-version }}"
           git push --set-upstream origin ${{ steps.create_branch.outputs.release_branch_name }}
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: actions/github-script@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: prepare release ${{ steps.bump.outputs.current-version }}"
-          title: "Release ${{ steps.bump.outputs.current-version }}"
-          body: |
-            This PR prepares for the release of version ${{ steps.bump.outputs.current-version }}.
-
-            Changes include:
-            - Version bump
-            - Updated CHANGELOG.md
-          branch: ${{ steps.create_branch.outputs.release_branch_name }}
-          base: main
-          labels: release
-          draft: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Release ${process.env.CURRENT_VERSION}`,
+              body: process.env.CHANGELOG,
+              head: process.env.RELEASE_BRANCH,
+              base: 'main'
+            });
+        env:
+          CURRENT_VERSION: ${{ steps.bump.outputs.current-version }}
+          RELEASE_BRANCH: ${{ steps.create_branch.outputs.release_branch_name }}
+          CHANGELOG: ${{ steps.update_changelog.outputs.changelog }}

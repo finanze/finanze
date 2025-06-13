@@ -10,7 +10,6 @@ jobs:
     if: |
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main' &&
-      contains(github.event.pull_request.labels.*.name, 'release') &&
       startsWith(github.event.pull_request.head.ref, 'release/')
 
     strategy:
@@ -105,7 +104,6 @@ jobs:
     if: |
       github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main' &&
-      contains(github.event.pull_request.labels.*.name, 'release') &&
       startsWith(github.event.pull_request.head.ref, 'release/')
 
     runs-on: ubuntu-latest
