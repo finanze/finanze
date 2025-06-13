@@ -1,7 +1,7 @@
 [project]
 name = "finanze"
 authors = [{ name = "Marcos Alvarez", email = "contact@marcosav.com" }]
-version = "0.0.1"
+version = "0.1.0"
 description = "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -11,4 +11,4 @@ dynamic = ["dependencies", "version"]
 dependencies = { file = ["requirements.txt"] }
 
 [tool.setuptools_scm]
-fallback_version = "0.0.1"
+fallback_version = "0.1.0"
