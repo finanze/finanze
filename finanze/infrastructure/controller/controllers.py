@@ -94,8 +94,8 @@ def register_routes(
         return await virtual_scrape(virtual_scrape_uc)
 
     @app.route("/api/v1/export", methods=["POST"])
-    def export_route():
-        return export(update_sheets_uc)
+    async def export_route():
+        return await export(update_sheets_uc)
 
     @app.route("/api/v1/positions", methods=["GET"])
     def positions_route():

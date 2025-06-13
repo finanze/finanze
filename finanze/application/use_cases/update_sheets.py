@@ -1,3 +1,4 @@
+from asyncio import Lock
 from dataclasses import asdict
 from datetime import datetime
 from typing import TypeVar
@@ -9,6 +10,7 @@ from application.ports.position_port import PositionPort
 from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions, ContributionQueryRequest
+from domain.exception.exceptions import ExecutionConflict
 from domain.export import ExportRequest
 from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition, PositionQueryRequest
@@ -62,7 +64,9 @@ class UpdateSheetsImpl(UpdateSheets):
         self._sheets_update_port = sheets_update_port
         self._config_port = config_port
 
-    def execute(self, request: ExportRequest):
+        self._lock = Lock()
+
+    async def execute(self, request: ExportRequest):
         config = self._config_port.load()
         sheets_export_config = config.export.sheets
         sheet_config = config.integrations.sheets
@@ -75,74 +79,80 @@ class UpdateSheetsImpl(UpdateSheets):
         ):
             raise ValueError("Sheets export is not enabled")
 
-        sheet_credentials = sheet_config.credentials
+        if self._lock.locked():
+            raise ExecutionConflict()
 
-        config_globals = sheets_export_config.globals or {}
+        async with self._lock:
+            sheet_credentials = sheet_config.credentials
 
-        summary_configs = sheets_export_config.summary or []
-        investment_configs = sheets_export_config.investments or []
-        contrib_configs = sheets_export_config.contributions or []
-        tx_configs = sheets_export_config.transactions or []
-        historic_configs = sheets_export_config.historic or []
-        summary_configs = apply_global_config(config_globals, summary_configs)
-        investment_configs = apply_global_config(config_globals, investment_configs)
-        contrib_configs = apply_global_config(config_globals, contrib_configs)
-        tx_configs = apply_global_config(config_globals, tx_configs)
-        historic_configs = apply_global_config(config_globals, historic_configs)
+            config_globals = sheets_export_config.globals or {}
 
-        real_global_position_by_entity = self._position_port.get_last_grouped_by_entity(
-            PositionQueryRequest(real=True)
-        )
-        manual_global_position_by_entity = (
-            self._position_port.get_last_grouped_by_entity(
-                PositionQueryRequest(real=False)
+            summary_configs = sheets_export_config.summary or []
+            investment_configs = sheets_export_config.investments or []
+            contrib_configs = sheets_export_config.contributions or []
+            tx_configs = sheets_export_config.transactions or []
+            historic_configs = sheets_export_config.historic or []
+            summary_configs = apply_global_config(config_globals, summary_configs)
+            investment_configs = apply_global_config(config_globals, investment_configs)
+            contrib_configs = apply_global_config(config_globals, contrib_configs)
+            tx_configs = apply_global_config(config_globals, tx_configs)
+            historic_configs = apply_global_config(config_globals, historic_configs)
+
+            real_global_position_by_entity = (
+                self._position_port.get_last_grouped_by_entity(
+                    PositionQueryRequest(real=True)
+                )
             )
-        )
+            manual_global_position_by_entity = (
+                self._position_port.get_last_grouped_by_entity(
+                    PositionQueryRequest(real=False)
+                )
+            )
 
-        global_position_by_entity = {}
-        for entity, position in real_global_position_by_entity.items():
-            if entity in manual_global_position_by_entity:
-                global_position_by_entity[entity] += manual_global_position_by_entity[
-                    entity
-                ]
-                del manual_global_position_by_entity[entity]
-            else:
+            global_position_by_entity = {}
+            for entity, position in real_global_position_by_entity.items():
+                if entity in manual_global_position_by_entity:
+                    global_position_by_entity[entity] += (
+                        manual_global_position_by_entity[entity]
+                    )
+                    del manual_global_position_by_entity[entity]
+                else:
+                    global_position_by_entity[entity] = position
+
+            for entity, position in manual_global_position_by_entity.items():
                 global_position_by_entity[entity] = position
 
-        for entity, position in manual_global_position_by_entity.items():
-            global_position_by_entity[entity] = position
+            self.update_summary_sheets(
+                global_position_by_entity, summary_configs, sheet_credentials
+            )
+            self.update_investment_sheets(
+                global_position_by_entity, investment_configs, sheet_credentials
+            )
 
-        self.update_summary_sheets(
-            global_position_by_entity, summary_configs, sheet_credentials
-        )
-        self.update_investment_sheets(
-            global_position_by_entity, investment_configs, sheet_credentials
-        )
+            auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
+                ContributionQueryRequest()
+            )
+            auto_contributions_last_update = (
+                self._auto_contr_port.get_last_update_grouped_by_entity()
+            )
 
-        auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
-            ContributionQueryRequest()
-        )
-        auto_contributions_last_update = (
-            self._auto_contr_port.get_last_update_grouped_by_entity()
-        )
+            self.update_contributions(
+                auto_contributions,
+                contrib_configs,
+                auto_contributions_last_update,
+                sheet_credentials,
+            )
 
-        self.update_contributions(
-            auto_contributions,
-            contrib_configs,
-            auto_contributions_last_update,
-            sheet_credentials,
-        )
+            transactions = self._transaction_port.get_all()
+            transactions_last_update = (
+                self._transaction_port.get_last_created_grouped_by_entity()
+            )
+            self.update_transactions(
+                transactions, tx_configs, transactions_last_update, sheet_credentials
+            )
 
-        transactions = self._transaction_port.get_all()
-        transactions_last_update = (
-            self._transaction_port.get_last_created_grouped_by_entity()
-        )
-        self.update_transactions(
-            transactions, tx_configs, transactions_last_update, sheet_credentials
-        )
-
-        historic = self._historic_port.get_all()
-        self.update_historic(historic, historic_configs, sheet_credentials)
+            historic = self._historic_port.get_all()
+            self.update_historic(historic, historic_configs, sheet_credentials)
 
     def update_summary_sheets(
         self,

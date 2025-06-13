@@ -1,5 +1,9 @@
 from domain.data_init import DataEncryptedError
-from domain.exception.exceptions import EntityNotFound, InvalidProvidedCredentials
+from domain.exception.exceptions import (
+    EntityNotFound,
+    ExecutionConflict,
+    InvalidProvidedCredentials,
+)
 from flask import jsonify
 
 
@@ -27,10 +31,15 @@ def handle_value_error(e):
     return jsonify({"code": "INVALID_VALUE", "message": str(e)}), 400
 
 
+def handle_execution_conflict(e):
+    return jsonify({"code": "EXECUTION_CONFLICT"}), 409
+
+
 def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
     app.register_error_handler(DataEncryptedError, handle_data_encrypted)
+    app.register_error_handler(ExecutionConflict, handle_execution_conflict)
     app.register_error_handler(ValueError, handle_value_error)
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)
