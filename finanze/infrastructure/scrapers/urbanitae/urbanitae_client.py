@@ -26,7 +26,7 @@ def _generate_iv(date: datetime) -> bytes:
 
     iv_string = f"DD{day}MM{month}YYYY{year}"
 
-    return iv_string.encode('utf-8')
+    return iv_string.encode("utf-8")
 
 
 class UrbanitaeAPIClient:
@@ -40,7 +40,7 @@ class UrbanitaeAPIClient:
         self._log = logging.getLogger(__name__)
 
     def _execute_request(
-            self, path: str, method: str, body: dict, raw: bool = False
+        self, path: str, method: str, body: dict, raw: bool = False
     ) -> dict | requests.Response:
         response = requests.request(
             method, self.BASE_URL + path, json=body, headers=self._headers
@@ -59,7 +59,9 @@ class UrbanitaeAPIClient:
     def _get_request(self, path: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None)
 
-    def _post_request(self, path: str, body: dict, raw: bool = False) -> dict | requests.Response:
+    def _post_request(
+        self, path: str, body: dict, raw: bool = False
+    ) -> dict | requests.Response:
         return self._execute_request(path, "POST", body=body, raw=raw)
 
     def login(self, username: str, password: str) -> EntityLoginResult:
@@ -70,16 +72,16 @@ class UrbanitaeAPIClient:
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
 
-        request = {
-            "username": username,
-            "password": self._encrypt_password(password)
-        }
+        request = {"username": username, "password": self._encrypt_password(password)}
         response = self._post_request("/session", body=request, raw=True)
 
         if response.ok:
             response_body = response.json()
             if "token" not in response_body:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Token not found in response")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Token not found in response",
+                )
 
             self._user_info = response_body
             self._headers["x-auth-token"] = response_body["token"]
@@ -90,17 +92,19 @@ class UrbanitaeAPIClient:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
-            return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                     message=f"Got unexpected response code {response.status_code}")
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=f"Got unexpected response code {response.status_code}",
+            )
 
     def _encrypt_password(self, password: str) -> str:
-        key = str.encode(codecs.decode(self.PASSWORD_ENCRYPTION_KEY, 'rot_13'))
+        key = str.encode(codecs.decode(self.PASSWORD_ENCRYPTION_KEY, "rot_13"))
         iv = _generate_iv(datetime.now())
-        password_bytes = password.encode('utf-8')
+        password_bytes = password.encode("utf-8")
         padded_data = _pkcs7_pad(password_bytes, 16)
         aes = pyaes.AESModeOfOperationCBC(key, iv=iv)
         encrypted_data = aes.encrypt(padded_data)
-        return base64.b64encode(encrypted_data).decode('utf-8')
+        return base64.b64encode(encrypted_data).decode("utf-8")
 
     def get_user(self):
         return self._user_info
@@ -108,11 +112,13 @@ class UrbanitaeAPIClient:
     def get_wallet(self):
         return self._get_request("/investor/wallet")
 
-    def get_transactions(self,
-                         page: int = 0,
-                         limit: int = 1000,
-                         from_date: Optional[date] = None,
-                         to_date: Optional[date] = None):
+    def get_transactions(
+        self,
+        page: int = 0,
+        limit: int = 1000,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+    ):
         to_date = datetime.strftime(to_date or datetime.today(), DATETIME_FORMAT)
         from_date = datetime.strftime(
             from_date or (datetime.today() - relativedelta(years=5)), DATETIME_FORMAT
@@ -145,7 +151,9 @@ class UrbanitaeAPIClient:
         # 	UNKNOWN
         return self._get_request(f"/investor/wallet/transactions{params}")["content"]
 
-    def get_investments(self, page: int = 0, limit: int = 1000, project_phases: list[str] = None):
+    def get_investments(
+        self, page: int = 0, limit: int = 1000, project_phases: list[str] = None
+    ):
         params = f"?page={page}&size={limit}&sortField=INVEST_DATE&sortDirection=DESC"
         if project_phases:
             params += "&projectPhases=" + ",".join(project_phases)

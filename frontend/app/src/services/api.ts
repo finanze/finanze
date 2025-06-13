@@ -5,6 +5,8 @@ import type {
   ScrapeResponse,
   LoginResponse,
   ExportRequest,
+  AuthRequest,
+  LoginStatusResponse,
 } from "@/types"
 import {
   EntityContributions,
@@ -172,10 +174,7 @@ export async function saveSettings(settings: any) {
   }
 }
 
-// New login endpoints
-export async function checkLoginStatus(): Promise<{
-  status: "LOCKED" | "UNLOCKED"
-}> {
+export async function checkLoginStatus(): Promise<LoginStatusResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/login`)
   if (!response.ok) {
@@ -184,7 +183,9 @@ export async function checkLoginStatus(): Promise<{
   return response.json()
 }
 
-export async function login(password: string): Promise<{ success: boolean }> {
+export async function login(
+  authRequest: AuthRequest,
+): Promise<{ success: boolean }> {
   try {
     const baseUrl = await ensureApiUrlInitialized()
     const response = await fetch(`${baseUrl}/login`, {
@@ -192,7 +193,7 @@ export async function login(password: string): Promise<{ success: boolean }> {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify(authRequest),
     })
 
     if (response.status === 401) {
@@ -341,4 +342,40 @@ export async function getTransactions(
     throw new Error("Failed to fetch transactions")
   }
   return response.json()
+}
+
+export async function signup(
+  authRequest: AuthRequest,
+): Promise<{ success: boolean }> {
+  try {
+    const baseUrl = await ensureApiUrlInitialized()
+    const response = await fetch(`${baseUrl}/signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(authRequest),
+    })
+
+    if (response.status === 409) {
+      return { success: false }
+    }
+
+    if (response.status === 400) {
+      return { success: false }
+    }
+
+    if (response.status === 500) {
+      throw new Error("Server error")
+    }
+
+    if (!response.ok) {
+      throw new Error("Signup failed")
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error("Signup error:", error)
+    throw error
+  }
 }

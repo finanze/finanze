@@ -21,8 +21,7 @@ import {
   Save,
   RefreshCw,
 } from "lucide-react"
-import { useAppContext } from "@/context/AppContext"
-import { getSettings, saveSettings } from "@/services/api"
+import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
@@ -66,11 +65,16 @@ const cleanObject = (obj: any): any => {
 
 export default function SettingsPage() {
   const { t } = useI18n()
-  const { showToast } = useAppContext()
-  const [settings, setSettings] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const {
+    showToast,
+    fetchSettings,
+    settings: storedSettings,
+    saveSettings,
+    isLoading,
+  } = useAppContext()
+  const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState("export")
+  const [activeTab, setActiveTab] = useState("integrations")
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
@@ -88,20 +92,6 @@ export default function SettingsPage() {
     fetchSettings()
   }, [])
 
-  const fetchSettings = async () => {
-    try {
-      setIsLoading(true)
-      const data = await getSettings()
-      setSettings(data)
-      setValidationErrors({})
-    } catch (error) {
-      console.error("Error fetching settings:", error)
-      showToast(t.settings.fetchError, "error")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const toggleSection = (section: string) => {
     setExpandedSections({
       ...expandedSections,
@@ -114,7 +104,7 @@ export default function SettingsPage() {
       ...settings,
       scrape: {
         ...settings.scrape,
-        updateCooldown: value === "" ? null : Number.parseInt(value) || 0,
+        updateCooldown: value === "" ? 60 : Number.parseInt(value) || 60,
       },
     })
   }
@@ -198,9 +188,9 @@ export default function SettingsPage() {
       export: {
         ...settings.export,
         sheets: {
-          ...settings.export.sheets,
+          ...settings.export?.sheets,
           [section]: (
-            settings.export.sheets[
+            settings.export?.sheets?.[
               section as keyof typeof settings.export.sheets
             ] as any[]
           ).filter((_, i) => i !== index),
@@ -263,7 +253,7 @@ export default function SettingsPage() {
   }
 
   const addFilter = (section: string, itemIndex: number) => {
-    const items = settings.export.sheets[
+    const items = settings.export?.sheets?.[
       section as keyof typeof settings.export.sheets
     ] as any[]
     const updatedItems = [...items]
@@ -279,7 +269,7 @@ export default function SettingsPage() {
       export: {
         ...settings.export,
         sheets: {
-          ...settings.export.sheets,
+          ...settings.export?.sheets,
           [section]: updatedItems,
         },
       },
@@ -291,7 +281,7 @@ export default function SettingsPage() {
     itemIndex: number,
     filterIndex: number,
   ) => {
-    const items = settings.export.sheets[
+    const items = settings.export?.sheets?.[
       section as keyof typeof settings.export.sheets
     ] as any[]
     const updatedItems = [...items]
@@ -305,7 +295,7 @@ export default function SettingsPage() {
       export: {
         ...settings.export,
         sheets: {
-          ...settings.export.sheets,
+          ...settings.export?.sheets,
           [section]: updatedItems,
         },
       },
@@ -318,7 +308,7 @@ export default function SettingsPage() {
     field: string,
     value: any,
   ) => {
-    const items = settings.export.sheets[
+    const items = settings.export?.sheets?.[
       section as keyof typeof settings.export.sheets
     ] as any[]
     const updatedItems = [...items]
@@ -341,7 +331,7 @@ export default function SettingsPage() {
       export: {
         ...settings.export,
         sheets: {
-          ...settings.export.sheets,
+          ...settings.export?.sheets,
           [section]: updatedItems,
         },
       },
@@ -395,7 +385,7 @@ export default function SettingsPage() {
     field: string,
     value: any,
   ) => {
-    const items = settings.export.sheets[
+    const items = settings.export?.sheets?.[
       section as keyof typeof settings.export.sheets
     ] as any[]
     const updatedItems = [...items]
@@ -410,7 +400,7 @@ export default function SettingsPage() {
       export: {
         ...settings.export,
         sheets: {
-          ...settings.export.sheets,
+          ...settings.export?.sheets,
           [section]: updatedItems,
         },
       },
@@ -420,6 +410,33 @@ export default function SettingsPage() {
   const validateSettings = () => {
     const errors: Record<string, string[]> = {}
 
+    // Validate integrations credentials
+    const clientId = settings.integrations?.sheets?.credentials?.client_id
+    const clientSecret =
+      settings.integrations?.sheets?.credentials?.client_secret
+
+    if (clientId || clientSecret) {
+      const integrationErrors: string[] = []
+
+      if (!clientId) {
+        integrationErrors.push(
+          t.settings.errors.clientIdRequired ||
+            "Client ID is required when configuring Google Sheets integration",
+        )
+      }
+
+      if (!clientSecret) {
+        integrationErrors.push(
+          t.settings.errors.clientSecretRequired ||
+            "Client Secret is required when configuring Google Sheets integration",
+        )
+      }
+
+      if (integrationErrors.length > 0) {
+        errors.integrations = integrationErrors
+      }
+    }
+
     if (
       settings.export?.sheets?.enabled === true &&
       !settings.export.sheets?.globals?.spreadsheetId
@@ -427,36 +444,39 @@ export default function SettingsPage() {
       errors.globals = [t.settings.errors.spreadsheetIdRequired]
     }
 
-    Object.entries(settings.export.sheets ?? {}).forEach(([section, items]) => {
-      if (
-        section !== "globals" &&
-        section !== "enabled" &&
-        Array.isArray(items)
-      ) {
-        const sectionErrors: string[] = []
+    Object.entries(settings.export?.sheets ?? {}).forEach(
+      ([section, items]) => {
+        if (
+          section !== "globals" &&
+          section !== "enabled" &&
+          Array.isArray(items)
+        ) {
+          const sectionErrors: string[] = []
 
-        items.forEach((item: any, index: number) => {
-          if (!item.range) {
-            if (!sectionErrors[index]) sectionErrors[index] = ""
-            sectionErrors[index] += t.settings.errors.rangeRequired
+          items.forEach((item: any, index: number) => {
+            if (!item.range) {
+              if (!sectionErrors[index]) sectionErrors[index] = ""
+              sectionErrors[index] += t.settings.errors.rangeRequired
+            }
+
+            if (
+              (section === "investments" ||
+                section === "transactions" ||
+                section === "contributions") &&
+              (!item.data ||
+                (Array.isArray(item.data) && item.data.length === 0))
+            ) {
+              if (!sectionErrors[index]) sectionErrors[index] = ""
+              sectionErrors[index] += t.settings.errors.dataRequired
+            }
+          })
+
+          if (sectionErrors.length > 0) {
+            errors[section] = sectionErrors
           }
-
-          if (
-            (section === "investments" ||
-              section === "transactions" ||
-              section === "contributions") &&
-            (!item.data || (Array.isArray(item.data) && item.data.length === 0))
-          ) {
-            if (!sectionErrors[index]) sectionErrors[index] = ""
-            sectionErrors[index] += t.settings.errors.dataRequired
-          }
-        })
-
-        if (sectionErrors.length > 0) {
-          errors[section] = sectionErrors
         }
-      }
-    })
+      },
+    )
 
     if (settings.scrape.virtual.enabled) {
       if (!settings.scrape.virtual?.globals?.spreadsheetId) {
@@ -568,7 +588,6 @@ export default function SettingsPage() {
       }
 
       await saveSettings(cleanedSettings)
-      showToast(t.settings.saveSuccess, "success")
     } catch (error) {
       console.error("Error saving settings:", error)
       showToast(t.settings.saveError, "error")
@@ -1051,15 +1070,122 @@ export default function SettingsPage() {
       </div>
 
       <Tabs
-        defaultValue="export"
+        defaultValue="integrations"
         value={activeTab}
         onValueChange={setActiveTab}
         className="w-full"
       >
-        <TabsList className="grid grid-cols-2 w-[400px]">
+        <TabsList className="grid grid-cols-3 w-[600px]">
+          <TabsTrigger value="integrations">
+            {t.settings.integrations}
+          </TabsTrigger>
           <TabsTrigger value="export">{t.settings.export}</TabsTrigger>
           <TabsTrigger value="scrape">{t.settings.scrape}</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="integrations" className="space-y-4 mt-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
+                <CardDescription>
+                  {t.settings.sheetsIntegrationDescription}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="client-id">{t.settings.clientId}</Label>
+                    <Input
+                      id="client-id"
+                      type="text"
+                      placeholder={t.settings.clientIdPlaceholder}
+                      value={
+                        settings?.integrations?.sheets?.credentials
+                          ?.client_id || ""
+                      }
+                      onChange={e =>
+                        setSettings({
+                          ...settings,
+                          integrations: {
+                            ...settings.integrations,
+                            sheets: {
+                              ...settings.integrations?.sheets,
+                              credentials: {
+                                ...settings.integrations?.sheets?.credentials,
+                                client_id: e.target.value,
+                              },
+                            },
+                          },
+                        })
+                      }
+                      className={
+                        validationErrors.integrations &&
+                        !settings?.integrations?.sheets?.credentials?.client_id
+                          ? "border-red-500"
+                          : ""
+                      }
+                    />
+                    {validationErrors.integrations &&
+                      !settings?.integrations?.sheets?.credentials
+                        ?.client_id && (
+                        <div className="text-red-500 text-sm">
+                          {t.settings.errors.clientIdRequired}
+                        </div>
+                      )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client-secret">
+                      {t.settings.clientSecret}
+                    </Label>
+                    <Input
+                      id="client-secret"
+                      type="password"
+                      placeholder={t.settings.clientSecretPlaceholder}
+                      value={
+                        settings?.integrations?.sheets?.credentials
+                          ?.client_secret || ""
+                      }
+                      onChange={e =>
+                        setSettings({
+                          ...settings,
+                          integrations: {
+                            ...settings.integrations,
+                            sheets: {
+                              ...settings.integrations?.sheets,
+                              credentials: {
+                                ...settings.integrations?.sheets?.credentials,
+                                client_secret: e.target.value,
+                              },
+                            },
+                          },
+                        })
+                      }
+                      className={
+                        validationErrors.integrations &&
+                        !settings?.integrations?.sheets?.credentials
+                          ?.client_secret
+                          ? "border-red-500"
+                          : ""
+                      }
+                    />
+                    {validationErrors.integrations &&
+                      !settings?.integrations?.sheets?.credentials
+                        ?.client_secret && (
+                        <div className="text-red-500 text-sm">
+                          {t.settings.errors.clientSecretRequired}
+                        </div>
+                      )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
 
         <TabsContent value="export" className="space-y-4 mt-4">
           <motion.div

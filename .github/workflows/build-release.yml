@@ -1,12 +1,17 @@
-name: Release
+name: Build Release
 
 on:
-  release:
-    types: [ published ]
+  pull_request:
+    types: [closed]
 
 jobs:
 
-  build-distros:
+  build-app:
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+
     strategy:
       matrix:
         os: [ macos-latest, windows-latest, ubuntu-latest ]
@@ -18,10 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11.9
+      - name: Determine Release Tag
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          echo "RELEASE_TAG=v${BRANCH_NAME#release/}" >> $GITHUB_ENV
+        shell: bash
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
@@ -33,16 +39,57 @@ jobs:
         with:
           node-version-file: frontend/app/.nvmrc
 
-      - name: Install packaging & runtime deps
+      - name: Setup python (non-macOS)
+        if: ${{ matrix.os != 'macos-latest' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11.9
+
+      - name: Setup python (macOS)
+        if: ${{ matrix.os == 'macos-latest' }}
+        shell: bash
         run: |
-          pip3 install -r requirements-packaging.txt -r requirements.txt
+          brew install pyenv pyenv-virtualenv
+
+          export PYENV_ROOT="$HOME/.pyenv"
+          export PATH="$PYENV_ROOT/bin:$PATH"
+          
+          # Initialize pyenv and pyenv-virtualenv for the current shell
+          eval "$(pyenv init --path)" # Ensures pyenv command is found via shims/bin
+          eval "$(pyenv init -)"      # Sets up shims and other integrations
+          eval "$(pyenv virtualenv-init -)" # Defines 'pyenv activate' and other venv functions
+
+          pyenv install --skip-existing 3.11.9
+          
+          # Create virtualenv if it doesn't exist
+          if ! pyenv virtualenvs --bare | grep -q "^finanze$"; then
+            pyenv virtualenv 3.11.9 finanze
+          else
+            echo "Virtualenv 'finanze' already exists."
+          fi
+          
+          # Activate for this script block (confirms setup)
+          pyenv activate finanze
+          
+          # Set for pyenv to use this venv in the current directory context
+          pyenv local finanze
+          
+          # Make pyenv and the virtualenv available to subsequent steps in the job
+          echo "$PYENV_ROOT/bin" >> $GITHUB_PATH
+          echo "$PYENV_ROOT/shims" >> $GITHUB_PATH
+          echo "$PYENV_ROOT/versions/finanze/bin" >> $GITHUB_PATH
+
+      - name: Install packaging & runtime deps
+        shell: bash
+        run: |
+          pip install -r requirements-packaging.txt -r requirements.txt
 
       - name: Setup virtual env (non-Windows)
-        if: ${{ matrix.os != 'windows-latest' }}
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        shell: bash
         run: |
-          pip3 install virtualenv
-          python3 -m virtualenv ~/venv
-          source ~/venv/bin/activate
+          python3 -m venv $HOME/venv
+          echo "$HOME/venv/bin" >> $GITHUB_PATH
 
       - name: Package
         run: |
@@ -51,12 +98,23 @@ jobs:
       - name: Upload Release Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+        run: gh release upload "${{ env.RELEASE_TAG }}" dist/* --clobber
 
   docker-release:
+    if: |
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      startsWith(github.event.pull_request.head.ref, 'release/')
+
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine Release Tag
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          echo "RELEASE_TAG=${BRANCH_NAME#release/}" >> $GITHUB_ENV
+        shell: bash
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
@@ -71,8 +129,7 @@ jobs:
           workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
           tags: |
-            ${{ github.event.release.tag_name }}
-            latest
+            ${{ env.RELEASE_TAG }},latest
 
       - name: Publish selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
@@ -84,8 +141,7 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=true
           tags: |
-            ${{ github.event.release.tag_name }}-selenium
-            latest-selenium
+            ${{ env.RELEASE_TAG }}-selenium,latest-selenium
 
       - name: Publish no-selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
@@ -97,5 +153,4 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=false
           tags: |
-            ${{ github.event.release.tag_name }}-no-selenium
-            latest-no-selenium
+            ${{ env.RELEASE_TAG }}-no-selenium,latest-no-selenium

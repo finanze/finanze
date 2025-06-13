@@ -8,13 +8,20 @@ from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.financial_entity import EntitySetupLoginType
-from domain.global_position import Account, Card, Loan, GlobalPosition, CardType, AccountType, LoanType
+from domain.global_position import (
+    Account,
+    Card,
+    Loan,
+    GlobalPosition,
+    CardType,
+    AccountType,
+    LoanType,
+)
 from domain.native_entities import UNICAJA
 from infrastructure.scrapers.unicaja.unicaja_client import UnicajaClient
 
 
 class UnicajaScraper(EntityScraper):
-
     def __init__(self):
         self._client = UnicajaClient()
 
@@ -31,11 +38,16 @@ class UnicajaScraper(EntityScraper):
     async def global_position(self) -> GlobalPosition:
         accounts_response = self._client.list_accounts()
 
-        accounts = [self._map_account(account_data_raw) for account_data_raw in accounts_response["cuentas"]]
+        accounts = [
+            self._map_account(account_data_raw)
+            for account_data_raw in accounts_response["cuentas"]
+        ]
 
         card_list = self._client.get_cards()["tarjetas"]
 
-        cards = [self._map_base_card(card_data_raw, accounts) for card_data_raw in card_list]
+        cards = [
+            self._map_base_card(card_data_raw, accounts) for card_data_raw in card_list
+        ]
 
         raw_loans = self._client.get_loans()["prestamos"]
         loans = [self._get_loan(loan_data_raw) for loan_data_raw in raw_loans]
@@ -57,18 +69,22 @@ class UnicajaScraper(EntityScraper):
         account_balance = Dezimal(account_data_raw["saldo"]["cantidad"])
         account_currency = account_data_raw["saldo"]["moneda"]
         account_available = Dezimal(account_data_raw["disponible"]["cantidad"])
-        account_allowed_overdraft = Dezimal(account_data_raw["importeExcedido"]["cantidad"])
+        account_allowed_overdraft = Dezimal(
+            account_data_raw["importeExcedido"]["cantidad"]
+        )
         account_pending_payments = round(
             account_balance + account_allowed_overdraft - account_available, 2
         )
         last_week_date = date.today() - relativedelta(weeks=1)
-        account_pending_transfers_raw = self._client.get_transfers_historic(from_date=last_week_date)
+        account_pending_transfers_raw = self._client.get_transfers_historic(
+            from_date=last_week_date
+        )
         account_pending_transfer_amount = Dezimal(0)
         if "noDatos" not in account_pending_transfers_raw:
             account_pending_transfer_amount = sum(
-                Dezimal(transfer["importe"]["cantidad"]) for transfer in account_pending_transfers_raw["transferencias"]
-                if
-                transfer["estadoTransferencia"] == "P"
+                Dezimal(transfer["importe"]["cantidad"])
+                for transfer in account_pending_transfers_raw["transferencias"]
+                if transfer["estadoTransferencia"] == "P"
             )
         account_data = Account(
             id=uuid4(),
@@ -79,13 +95,19 @@ class UnicajaScraper(EntityScraper):
             type=AccountType.CHECKING,
             retained=account_pending_payments,
             interest=Dezimal(0),  # :(
-            pending_transfers=account_pending_transfer_amount
+            pending_transfers=account_pending_transfer_amount,
         )
         return account_data
 
     def _map_base_card(self, card_data_raw, accounts: list[Account]):
-        related_account = next((account for account in accounts if account.iban == card_data_raw["ibancuenta"]),
-                               None)
+        related_account = next(
+            (
+                account
+                for account in accounts
+                if account.iban == card_data_raw["ibancuenta"]
+            ),
+            None,
+        )
         related_account = None if not related_account else related_account.id
 
         description = card_data_raw["tipotarjeta"]
@@ -105,13 +127,22 @@ class UnicajaScraper(EntityScraper):
         currency = card_data_raw["limite"]["moneda"]
 
         if card_type == CardType.DEBIT:
-            debit_card_details_raw = self._client.get_card(card_data_raw["ppp"], card_data_raw["codtipotarjeta"])
-            deferred_debit_amount = Dezimal(debit_card_details_raw["datosCredito"]["importeDispuesto"]["cantidad"])
+            debit_card_details_raw = self._client.get_card(
+                card_data_raw["ppp"], card_data_raw["codtipotarjeta"]
+            )
+            deferred_debit_amount = Dezimal(
+                debit_card_details_raw["datosCredito"]["importeDispuesto"]["cantidad"]
+            )
 
-            used = Dezimal(card_data_raw["pagadoMesActual"]["cantidad"]) + deferred_debit_amount
+            used = (
+                Dezimal(card_data_raw["pagadoMesActual"]["cantidad"])
+                + deferred_debit_amount
+            )
 
         elif card_type == CardType.CREDIT:
-            used = Dezimal(card_data_raw["limite"]["cantidad"]) - Dezimal(card_data_raw["disponible"]["cantidad"])
+            used = Dezimal(card_data_raw["limite"]["cantidad"]) - Dezimal(
+                card_data_raw["disponible"]["cantidad"]
+            )
 
         return Card(
             id=uuid4(),
@@ -122,7 +153,7 @@ class UnicajaScraper(EntityScraper):
             limit=limit,
             used=used,
             active=active,
-            related_account=related_account
+            related_account=related_account,
         )
 
     def _get_loan(self, loan_entry):
@@ -138,21 +169,25 @@ class UnicajaScraper(EntityScraper):
 
         loan_type = LoanType.MORTGAGE if is_mortgage else LoanType.STANDARD
 
-        loan_response = self._client.get_loan(p="2", ppp=ppp)
-        # When its near invoicing period, the mortgage is not returned
+        loan_response = self._client.get_loan(ppp=ppp)
         if loan_response:
-            name = alias if alias else loan_response["loanType"]
+            loan_response = loan_response["detallePrestamo"]
+
+        if loan_response:
+            name = alias if alias else loan_response["tipoPrestamo"]
             return Loan(
                 id=uuid4(),
                 type=loan_type,
                 name=name,
                 currency=currency,
-                current_installment=Dezimal(loan_response["currentInstallment"]),
-                loan_amount=Dezimal(loan_response["loanAmount"]),
-                principal_paid=Dezimal(loan_response["principalPaid"]),
+                current_installment=Dezimal(loan_response["cuotaActual"]["cantidad"]),
+                loan_amount=Dezimal(loan_response["importePrestamo"]["cantidad"]),
+                principal_paid=Dezimal(loan_response["capitalPagado"]["cantidad"]),
                 principal_outstanding=outstanding_amount,
-                interest_rate=Dezimal(loan_response["interestRate"]),
-                next_payment_date=datetime.strptime(loan_response["nextPaymentDate"], "%Y-%m-%d").date(),
+                interest_rate=Dezimal(loan_response["interes"]) / 100,
+                next_payment_date=datetime.strptime(
+                    loan_response["fechaProxRecibo"], "%Y-%m-%d"
+                ).date(),
             )
 
         return None

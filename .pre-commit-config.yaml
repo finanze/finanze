@@ -1,0 +1,15 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.12
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
+        args: [ --check ]
+
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: frontend lint check
+        language: system
+        entry: sh -c "cd frontend/app && pnpm run lint-staged"
+        files: ^frontend/

@@ -5,8 +5,11 @@ from dateutil.tz import tzlocal
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import (
-    AutoContributions, PeriodicContribution, ContributionFrequency,
-    ContributionTargetType, ContributionQueryRequest
+    AutoContributions,
+    PeriodicContribution,
+    ContributionFrequency,
+    ContributionTargetType,
+    ContributionQueryRequest,
 )
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
@@ -14,7 +17,6 @@ from infrastructure.repository.db.client import DBClient
 
 
 class AutoContributionsSQLRepository(AutoContributionsPort):
-
     def __init__(self, client: DBClient):
         self._db_client = client
 
@@ -23,7 +25,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             # Delete existing contributions for this entity
             cursor.execute(
                 "DELETE FROM periodic_contributions WHERE entity_id = ?",
-                (str(entity_id),)
+                (str(entity_id),),
             )
 
             # Insert new contributions
@@ -47,11 +49,13 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         contrib.frequency.name,
                         contrib.active,
                         contrib.is_real,
-                        datetime.now(tzlocal()).isoformat()
-                    )
+                        datetime.now(tzlocal()).isoformat(),
+                    ),
                 )
 
-    def get_all_grouped_by_entity(self, query: ContributionQueryRequest) -> dict[FinancialEntity, AutoContributions]:
+    def get_all_grouped_by_entity(
+        self, query: ContributionQueryRequest
+    ) -> dict[FinancialEntity, AutoContributions]:
         with self._db_client.read() as cursor:
             params = []
             sql = """
@@ -83,7 +87,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 entity = FinancialEntity(
                     id=UUID(row["entity_id"]),
                     name=row["entity_name"],
-                    is_real=row["entity_is_real"]
+                    is_real=row["entity_is_real"],
                 )
                 if entity not in entities:
                     entities[entity] = []
@@ -97,10 +101,12 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         amount=Dezimal(row["amount"]),
                         currency=row["currency"],
                         since=datetime.fromisoformat(row["since"]).date(),
-                        until=datetime.fromisoformat(row["until"]).date() if row["until"] else None,
+                        until=datetime.fromisoformat(row["until"]).date()
+                        if row["until"]
+                        else None,
                         frequency=ContributionFrequency[row["frequency"]],
                         active=bool(row["active"]),
-                        is_real=bool(row["is_real"])
+                        is_real=bool(row["is_real"]),
                     )
                 )
 
@@ -121,9 +127,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             result = {}
             for row in cursor.fetchall():
                 entity = FinancialEntity(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    is_real=row["is_real"]
+                    id=UUID(row["id"]), name=row["name"], is_real=row["is_real"]
                 )
                 last_update = datetime.fromisoformat(row["last_update"])
                 result[entity] = last_update

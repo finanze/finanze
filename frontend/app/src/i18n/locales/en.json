@@ -65,10 +65,18 @@
     },
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
+    "welcomeBack": "Welcome back, {username}!",
+    "signupTitle": "Create Finanze account",
+    "signupSubtitle": "Set up your account to manage your finances",
+    "usernameLabel": "Username",
+    "usernamePlaceholder": "Enter your username",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter your password",
     "invalidPassword": "Invalid password",
-    "serverError": "An unexpected error occurred. Please try again."
+    "invalidCredentials": "Invalid credentials",
+    "serverError": "An unexpected error occurred. Please try again.",
+    "signup": "Sign Up",
+    "login": "Log In"
   },
   "pinpad": {
     "enterCode": "Enter {length}-Digit Code for"
@@ -125,6 +133,13 @@
   },
   "settings": {
     "title": "Settings",
+    "integrations": "Integrations",
+    "sheetsIntegration": "Google Sheets Integration",
+    "sheetsIntegrationDescription": "Configure your Google Sheets API credentials",
+    "clientId": "Client ID",
+    "clientIdPlaceholder": "Enter your Google OAuth2 Client ID",
+    "clientSecret": "Client Secret",
+    "clientSecretPlaceholder": "Enter your Google OAuth2 Client Secret",
     "export": "Export Settings",
     "sheets": "Google Sheets",
     "sheetsDescription": "Configure your Google Sheets export settings",
@@ -171,7 +186,9 @@
       "spreadsheetIdRequired": "Spreadsheet ID is required in Global Settings when export is enabled",
       "rangeRequired": "Range is required. ",
       "dataRequired": "Data is required. ",
-      "virtualSpreadsheetIdRequired": "Spreadsheet ID is required in Virtual Global Settings"
+      "virtualSpreadsheetIdRequired": "Spreadsheet ID is required in Virtual Global Settings",
+      "clientIdRequired": "Client ID is required when configuring Google Sheets integration",
+      "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
     }
   },
   "dashboard": {

@@ -2,24 +2,28 @@ import logging
 from pathlib import Path
 from threading import Lock
 
-from pysqlcipher3 import dbapi2 as sqlcipher
-from pysqlcipher3._sqlite3 import DatabaseError
-
 from application.ports.datasource_initiator import DatasourceInitiator
-from domain.data_init import DatasourceInitParams, DecryptionError, AlreadyUnlockedError, AlreadyLockedError
+from domain.data_init import (
+    AlreadyLockedError,
+    AlreadyUnlockedError,
+    DatasourceInitParams,
+    DecryptionError,
+)
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
+from pysqlcipher3 import dbapi2 as sqlcipher
+from pysqlcipher3._sqlite3 import DatabaseError
+
+DB_NAME = "data.db"
 
 
 class DBManager(DatasourceInitiator):
-
-    def __init__(self, db_client: DBClient, path: str | Path):
+    def __init__(self, db_client: DBClient):
         self._log = logging.getLogger(__name__)
         self._client = db_client
         self._lock = Lock()
         self._unlocked = False
-        self._path = path
 
     @property
     def unlocked(self) -> bool:
@@ -35,7 +39,8 @@ class DBManager(DatasourceInitiator):
             self._client.close()
 
     def initialize(self, params: DatasourceInitParams):
-        self._log.info(f"Attempting to connect and unlock database at {self._path}")
+        user_path = Path(params.user.path) / DB_NAME
+        self._log.info(f"Attempting to connect and unlock database at {user_path}")
 
         with self._lock:
             if self._unlocked:
@@ -46,7 +51,7 @@ class DBManager(DatasourceInitiator):
             connection = None
             try:
                 connection = sqlcipher.connect(
-                    database=str(self._path),
+                    database=str(user_path),
                     isolation_level=None,
                     check_same_thread=False,
                 )
@@ -63,11 +68,15 @@ class DBManager(DatasourceInitiator):
                 if connection:
                     connection.close()
                 if "file is not a database" in str(e) or "encrypted" in str(e):
-                    raise DecryptionError("Failed to decrypt database. Incorrect password or corrupted file.") from e
+                    raise DecryptionError(
+                        "Failed to decrypt database. Incorrect password or corrupted file."
+                    ) from e
                 raise
 
-            except Exception as e:
-                self._log.exception("An unexpected error occurred during database connection/unlock.")
+            except Exception:
+                self._log.exception(
+                    "An unexpected error occurred during database connection/unlock."
+                )
                 if connection:
                     connection.close()
                 raise

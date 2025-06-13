@@ -1,7 +1,6 @@
 websockets==13.1
 pytr==0.3.1
 requests==2.32.3
-beautifulsoup4==4.13.4
 python-dateutil==2.9.0.post0
 pyDes==2.0.1
 google-api-python-client==2.167.0
@@ -22,3 +21,8 @@ aiocache==0.12.3
 rotki-pysqlcipher3==2024.10.1
 curl_cffi==0.10.0
 appdirs==1.4.4
+zstandard==0.23.0
+cryptography==44.0.2
+Brotli==1.1.0
+attrs==25.3.0
+h2==4.2.0

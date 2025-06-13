@@ -11,7 +11,6 @@ from infrastructure.repository.db.client import DBClient
 
 
 class CredentialsRepository(CredentialsPort):
-
     def __init__(self, client: DBClient):
         self._db_client = client
 
@@ -19,7 +18,7 @@ class CredentialsRepository(CredentialsPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT credentials FROM entity_credentials WHERE entity_id = ?",
-                (str(entity_id),)
+                (str(entity_id),),
             )
             row = cursor.fetchone()
             if row:
@@ -29,15 +28,17 @@ class CredentialsRepository(CredentialsPort):
 
     def get_available_entities(self) -> list[EntityCredentialsEntry]:
         with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT * FROM entity_credentials"
-            )
+            cursor.execute("SELECT * FROM entity_credentials")
             return [
                 EntityCredentialsEntry(
                     entity_id=UUID(row["entity_id"]),
                     created_at=datetime.fromisoformat(row["created_at"]),
-                    last_used_at=datetime.fromisoformat(row["last_used_at"]) if row["last_used_at"] else None,
-                    expiration=datetime.fromisoformat(row["expiration"]) if row["expiration"] else None
+                    last_used_at=datetime.fromisoformat(row["last_used_at"])
+                    if row["last_used_at"]
+                    else None,
+                    expiration=datetime.fromisoformat(row["expiration"])
+                    if row["expiration"]
+                    else None,
                 )
                 for row in cursor.fetchall()
             ]
@@ -49,17 +50,18 @@ class CredentialsRepository(CredentialsPort):
                 INSERT INTO entity_credentials (entity_id, credentials, last_used_at, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
-                (str(entity_id),
-                 json.dumps(credentials),
-                 datetime.now(tzlocal()).isoformat(),
-                 datetime.now(tzlocal()).isoformat())
+                (
+                    str(entity_id),
+                    json.dumps(credentials),
+                    datetime.now(tzlocal()).isoformat(),
+                    datetime.now(tzlocal()).isoformat(),
+                ),
             )
 
     def delete(self, entity_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM entity_credentials WHERE entity_id = ?",
-                (str(entity_id),)
+                "DELETE FROM entity_credentials WHERE entity_id = ?", (str(entity_id),)
             )
 
     def update_last_usage(self, entity_id: UUID):
@@ -70,7 +72,7 @@ class CredentialsRepository(CredentialsPort):
                 SET last_used_at = ?
                 WHERE entity_id = ?
                 """,
-                (datetime.now(tzlocal()).isoformat(), str(entity_id))
+                (datetime.now(tzlocal()).isoformat(), str(entity_id)),
             )
 
     def update_expiration(self, entity_id: UUID, expiration: datetime):
@@ -81,5 +83,5 @@ class CredentialsRepository(CredentialsPort):
                 SET expiration = ?
                 WHERE entity_id = ?
                 """,
-                (expiration.isoformat(), str(entity_id))
+                (expiration.isoformat(), str(entity_id)),
             )

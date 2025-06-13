@@ -13,11 +13,11 @@ from domain.financial_entity import FinancialEntity
 
 
 class AccountType(str, Enum):
-    CHECKING = 'CHECKING'
-    VIRTUAL_WALLET = 'VIRTUAL_WALLET'
-    BROKERAGE = 'BROKERAGE'
-    SAVINGS = 'SAVINGS'
-    FUND_PORTFOLIO = 'FUND_PORTFOLIO'
+    CHECKING = "CHECKING"
+    VIRTUAL_WALLET = "VIRTUAL_WALLET"
+    BROKERAGE = "BROKERAGE"
+    SAVINGS = "SAVINGS"
+    FUND_PORTFOLIO = "FUND_PORTFOLIO"
 
 
 @dataclass
@@ -34,8 +34,8 @@ class Account:
 
 
 class CardType(str, Enum):
-    CREDIT = 'CREDIT'
-    DEBIT = 'DEBIT'
+    CREDIT = "CREDIT"
+    DEBIT = "DEBIT"
 
 
 @dataclass
@@ -52,8 +52,8 @@ class Card:
 
 
 class LoanType(str, Enum):
-    MORTGAGE = 'MORTGAGE'
-    STANDARD = 'STANDARD'
+    MORTGAGE = "MORTGAGE"
+    STANDARD = "STANDARD"
 
 
 @dataclass

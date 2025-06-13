@@ -1,7 +1,13 @@
 from typing import Optional
 from uuid import UUID
 
-from domain.financial_entity import NativeFinancialEntity, Feature, PinDetails, CredentialType, EntitySetupLoginType
+from domain.financial_entity import (
+    NativeFinancialEntity,
+    Feature,
+    PinDetails,
+    CredentialType,
+    EntitySetupLoginType,
+)
 
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
@@ -12,8 +18,8 @@ MY_INVESTOR = NativeFinancialEntity(
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.ID,
-        "password": CredentialType.PASSWORD
-    }
+        "password": CredentialType.PASSWORD,
+    },
 )
 
 UNICAJA = NativeFinancialEntity(
@@ -25,7 +31,7 @@ UNICAJA = NativeFinancialEntity(
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD,
-        "abck": CredentialType.INTERNAL
+        "abck": CredentialType.INTERNAL,
     },
 )
 
@@ -39,7 +45,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     credentials_template={
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
-    }
+    },
 )
 
 URBANITAE = NativeFinancialEntity(
@@ -50,8 +56,8 @@ URBANITAE = NativeFinancialEntity(
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
         "user": CredentialType.EMAIL,
-        "password": CredentialType.PASSWORD
-    }
+        "password": CredentialType.PASSWORD,
+    },
 )
 
 WECITY = NativeFinancialEntity(
@@ -63,8 +69,8 @@ WECITY = NativeFinancialEntity(
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.EMAIL,
-        "password": CredentialType.PASSWORD
-    }
+        "password": CredentialType.PASSWORD,
+    },
 )
 
 SEGO = NativeFinancialEntity(
@@ -76,8 +82,8 @@ SEGO = NativeFinancialEntity(
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.EMAIL,
-        "password": CredentialType.PASSWORD
-    }
+        "password": CredentialType.PASSWORD,
+    },
 )
 
 MINTOS = NativeFinancialEntity(
@@ -89,8 +95,8 @@ MINTOS = NativeFinancialEntity(
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
-        "cookie": CredentialType.INTERNAL_TEMP
-    }
+        "cookie": CredentialType.INTERNAL_TEMP,
+    },
 )
 
 F24 = NativeFinancialEntity(
@@ -101,8 +107,8 @@ F24 = NativeFinancialEntity(
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
         "user": CredentialType.EMAIL,
-        "password": CredentialType.PASSWORD
-    }
+        "password": CredentialType.PASSWORD,
+    },
 )
 
 INDEXA_CAPITAL = NativeFinancialEntity(
@@ -111,9 +117,7 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     is_real=True,
     features=[Feature.POSITION],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
-    credentials_template={
-        "token": CredentialType.API_TOKEN
-    }
+    credentials_template={"token": CredentialType.API_TOKEN},
 )
 
 NATIVE_ENTITIES = [
@@ -125,7 +129,7 @@ NATIVE_ENTITIES = [
     SEGO,
     MINTOS,
     F24,
-    INDEXA_CAPITAL
+    INDEXA_CAPITAL,
 ]
 
 

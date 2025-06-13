@@ -7,10 +7,27 @@ from application.ports.position_port import PositionPort
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.global_position import (
-    GlobalPosition, Account, Card, Loan,
-    Investments, StockInvestments, StockDetail, CardType, FundDetail, FundInvestments, FactoringDetail,
-    FactoringInvestments, RealStateCFDetail, RealStateCFInvestments, Deposits, Deposit, Crowdlending, AccountType,
-    LoanType, FundPortfolio, PositionQueryRequest
+    GlobalPosition,
+    Account,
+    Card,
+    Loan,
+    Investments,
+    StockInvestments,
+    StockDetail,
+    CardType,
+    FundDetail,
+    FundInvestments,
+    FactoringDetail,
+    FactoringInvestments,
+    RealStateCFDetail,
+    RealStateCFInvestments,
+    Deposits,
+    Deposit,
+    Crowdlending,
+    AccountType,
+    LoanType,
+    FundPortfolio,
+    PositionQueryRequest,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient
@@ -32,7 +49,9 @@ DEPOSITS = "DEPOSITS"
 CROWDLENDING = "CROWDLENDING"
 
 
-def _save_investment_kpis(cursor, position: GlobalPosition, product_type: str, kpis: KPIs):
+def _save_investment_kpis(
+    cursor, position: GlobalPosition, product_type: str, kpis: KPIs
+):
     for metric, value in kpis.items():
         if value is None:
             continue
@@ -41,7 +60,14 @@ def _save_investment_kpis(cursor, position: GlobalPosition, product_type: str, k
             "INSERT INTO investment_position_kpis "
             "(global_position_id, entity_id, investment_type, metric, value, date) "
             "VALUES (?, ?, ?, ?, ?, ?)",
-            (str(position.id), str(position.entity.id), product_type, metric, str(value), position.date.isoformat())
+            (
+                str(position.id),
+                str(position.entity.id),
+                product_type,
+                metric,
+                str(value),
+                position.date.isoformat(),
+            ),
         )
 
 
@@ -55,13 +81,13 @@ def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlend
             str(crowdlending.id),
             str(position.id),
             crowdlending.currency,
-            json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder)
-        )
+            json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder),
+        ),
     )
 
     kpis = {
         TOTAL: crowdlending.total,
-        WEIGHTED_INTEREST_RATE: crowdlending.weighted_interest_rate
+        WEIGHTED_INTEREST_RATE: crowdlending.weighted_interest_rate,
     }
 
     _save_investment_kpis(cursor, position, CROWDLENDING, kpis)
@@ -84,20 +110,22 @@ def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
                 str(detail.expected_interests),
                 str(detail.interest_rate),
                 detail.creation.isoformat(),
-                detail.maturity.isoformat()
-            )
+                detail.maturity.isoformat(),
+            ),
         )
 
     kpis = {
         TOTAL: deposits.total,
         EXPECTED_INTERESTS: deposits.expected_interests,
-        WEIGHTED_INTEREST_RATE: deposits.weighted_interest_rate
+        WEIGHTED_INTEREST_RATE: deposits.weighted_interest_rate,
     }
 
     _save_investment_kpis(cursor, position, DEPOSITS, kpis)
 
 
-def _save_real_state_cf(cursor, position: GlobalPosition, real_state: RealStateCFInvestments):
+def _save_real_state_cf(
+    cursor, position: GlobalPosition, real_state: RealStateCFInvestments
+):
     for detail in real_state.details:
         cursor.execute(
             """
@@ -119,13 +147,13 @@ def _save_real_state_cf(cursor, position: GlobalPosition, real_state: RealStateC
                 detail.type,
                 detail.business_type,
                 detail.state,
-                detail.extended_maturity
-            )
+                detail.extended_maturity,
+            ),
         )
 
     kpis = {
         TOTAL: real_state.total,
-        WEIGHTED_INTEREST_RATE: real_state.weighted_interest_rate
+        WEIGHTED_INTEREST_RATE: real_state.weighted_interest_rate,
     }
 
     _save_investment_kpis(cursor, position, REAL_STATE_CF, kpis)
@@ -148,22 +176,26 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
                 detail.currency,
                 str(detail.interest_rate),
                 str(detail.gross_interest_rate),
-                detail.last_invest_date.isoformat() if detail.last_invest_date else None,
+                detail.last_invest_date.isoformat()
+                if detail.last_invest_date
+                else None,
                 detail.maturity.isoformat(),
                 detail.type,
-                detail.state
-            )
+                detail.state,
+            ),
         )
 
     kpis = {
         TOTAL: factoring.total,
-        WEIGHTED_INTEREST_RATE: factoring.weighted_interest_rate
+        WEIGHTED_INTEREST_RATE: factoring.weighted_interest_rate,
     }
 
     _save_investment_kpis(cursor, position, FACTORING, kpis)
 
 
-def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: list[FundPortfolio]):
+def _save_fund_portfolios(
+    cursor, position: GlobalPosition, portfolios: list[FundPortfolio]
+):
     for portfolio in portfolios:
         cursor.execute(
             """
@@ -176,8 +208,8 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: list[Fun
                 portfolio.name,
                 portfolio.currency,
                 str(portfolio.initial_investment),
-                str(portfolio.market_value)
-            )
+                str(portfolio.market_value),
+            ),
         )
 
 
@@ -201,14 +233,11 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
                 str(detail.average_buy_price),
                 str(detail.market_value),
                 detail.currency,
-                str(detail.portfolio.id) if detail.portfolio else None
-            )
+                str(detail.portfolio.id) if detail.portfolio else None,
+            ),
         )
 
-    kpis = {
-        INVESTMENT: funds.investment,
-        MARKET_VALUE: funds.market_value
-    }
+    kpis = {INVESTMENT: funds.investment, MARKET_VALUE: funds.market_value}
 
     _save_investment_kpis(cursor, position, FUNDS, kpis)
 
@@ -235,14 +264,11 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
                 str(detail.market_value),
                 detail.currency,
                 detail.type,
-                detail.subtype
-            )
+                detail.subtype,
+            ),
         )
 
-    kpis = {
-        INVESTMENT: stocks.investment,
-        MARKET_VALUE: stocks.market_value
-    }
+    kpis = {INVESTMENT: stocks.investment, MARKET_VALUE: stocks.market_value}
 
     _save_investment_kpis(cursor, position, STOCKS, kpis)
 
@@ -283,8 +309,8 @@ def _save_loan(cursor, position: GlobalPosition, loan: Loan):
             str(loan.loan_amount),
             loan.next_payment_date.isoformat(),
             str(loan.principal_outstanding),
-            str(loan.principal_paid)
-        )
+            str(loan.principal_paid),
+        ),
     )
 
 
@@ -305,8 +331,8 @@ def _save_card(cursor, position: GlobalPosition, card: Card):
             str(card.limit) if card.limit else None,
             str(card.used),
             card.active,
-            str(card.related_account) if card.related_account else None
-        )
+            str(card.related_account) if card.related_account else None,
+        ),
     )
 
 
@@ -327,13 +353,12 @@ def _save_account(cursor, position: GlobalPosition, account: Account):
             str(account.total),
             str(account.interest) if account.interest else None,
             str(account.retained) if account.retained else None,
-            str(account.pending_transfers) if account.pending_transfers else None
-        )
+            str(account.pending_transfers) if account.pending_transfers else None,
+        ),
     )
 
 
 class PositionSQLRepository(PositionPort):
-
     def __init__(self, client: DBClient):
         self._db_client = client
 
@@ -341,10 +366,12 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 "INSERT INTO global_positions (id, date, entity_id, is_real) VALUES (?, ?, ?, ?)",
-                (str(position.id),
-                 position.date.isoformat(),
-                 str(position.entity.id),
-                 position.is_real)
+                (
+                    str(position.id),
+                    position.date.isoformat(),
+                    str(position.entity.id),
+                    position.is_real,
+                ),
             )
 
             # Save accounts
@@ -363,7 +390,9 @@ class PositionSQLRepository(PositionPort):
             if position.investments:
                 _save_investments(cursor, position, position.investments)
 
-    def get_last_grouped_by_entity(self, query: PositionQueryRequest) -> Dict[FinancialEntity, GlobalPosition]:
+    def get_last_grouped_by_entity(
+        self, query: PositionQueryRequest
+    ) -> Dict[FinancialEntity, GlobalPosition]:
         with self._db_client.read() as cursor:
             params = [query.real, query.real]
             sql = """
@@ -399,7 +428,7 @@ class PositionSQLRepository(PositionPort):
                 entity = FinancialEntity(
                     id=UUID(row["entity_id"]),
                     name=row["entity_name"],
-                    is_real=row["entity_is_real"]
+                    is_real=row["entity_is_real"],
                 )
 
                 position = GlobalPosition(
@@ -410,7 +439,7 @@ class PositionSQLRepository(PositionPort):
                     cards=self._get_card_positions(row["id"]),
                     loans=self._get_loans_position(row["id"]),
                     investments=self._get_investments(row["id"]),
-                    is_real=row["is_real"]
+                    is_real=row["is_real"],
                 )
                 positions[entity] = position
 
@@ -418,11 +447,14 @@ class PositionSQLRepository(PositionPort):
 
     def _get_account_position(self, global_position_id: UUID) -> list[Account]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                            SELECT *
                            FROM account_positions
                            WHERE global_position_id = ?
-                           """, (str(global_position_id),))
+                           """,
+                (str(global_position_id),),
+            )
 
             accounts = [
                 Account(
@@ -434,8 +466,11 @@ class PositionSQLRepository(PositionPort):
                     iban=row["iban"],
                     interest=Dezimal(row["interest"]) if row["interest"] else None,
                     retained=Dezimal(row["retained"]) if row["retained"] else None,
-                    pending_transfers=Dezimal(row["pending_transfers"]) if row["pending_transfers"] else None
-                ) for row in cursor
+                    pending_transfers=Dezimal(row["pending_transfers"])
+                    if row["pending_transfers"]
+                    else None,
+                )
+                for row in cursor
             ]
 
             return accounts
@@ -444,7 +479,7 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM card_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             cards = [
@@ -457,8 +492,9 @@ class PositionSQLRepository(PositionPort):
                     limit=Dezimal(row["card_limit"]) if row["card_limit"] else None,
                     used=Dezimal(row["used"]),
                     active=bool(row["active"]),
-                    related_account=row["related_account"]
-                ) for row in cursor
+                    related_account=row["related_account"],
+                )
+                for row in cursor
             ]
 
             return cards
@@ -467,7 +503,7 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM loan_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             loans = [
@@ -479,10 +515,13 @@ class PositionSQLRepository(PositionPort):
                     current_installment=Dezimal(row["current_installment"]),
                     interest_rate=Dezimal(row["interest_rate"]),
                     loan_amount=Dezimal(row["loan_amount"]),
-                    next_payment_date=datetime.fromisoformat(row["next_payment_date"]).date(),
+                    next_payment_date=datetime.fromisoformat(
+                        row["next_payment_date"]
+                    ).date(),
                     principal_outstanding=Dezimal(row["principal_outstanding"]),
-                    principal_paid=Dezimal(row["principal_paid"])
-                ) for row in cursor
+                    principal_paid=Dezimal(row["principal_paid"]),
+                )
+                for row in cursor
             ]
 
             return loans
@@ -493,29 +532,43 @@ class PositionSQLRepository(PositionPort):
             stocks=self._get_stock_investments(global_position_id, kpis.get(STOCKS)),
             funds=self._get_fund_investments(global_position_id, kpis.get(FUNDS)),
             fund_portfolios=self._get_fund_portfolios(global_position_id),
-            factoring=self._get_factoring_investments(global_position_id, kpis.get(FACTORING)),
-            real_state_cf=self._get_real_state_cf_investments(global_position_id, kpis.get(REAL_STATE_CF)),
-            deposits=self._get_deposit_investments(global_position_id, kpis.get(DEPOSITS)),
-            crowdlending=self._get_crowdlending_investments(global_position_id, kpis.get(CROWDLENDING))
+            factoring=self._get_factoring_investments(
+                global_position_id, kpis.get(FACTORING)
+            ),
+            real_state_cf=self._get_real_state_cf_investments(
+                global_position_id, kpis.get(REAL_STATE_CF)
+            ),
+            deposits=self._get_deposit_investments(
+                global_position_id, kpis.get(DEPOSITS)
+            ),
+            crowdlending=self._get_crowdlending_investments(
+                global_position_id, kpis.get(CROWDLENDING)
+            ),
         )
 
-    def _get_investment_kpis(self, global_position_id: UUID) -> Optional[PositionInvestmentKPIs]:
+    def _get_investment_kpis(
+        self, global_position_id: UUID
+    ) -> Optional[PositionInvestmentKPIs]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM investment_position_kpis WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             kpis = {}
             for row in cursor:
-                kpis.setdefault(row["investment_type"], {})[row["metric"]] = Dezimal(row["value"])
+                kpis.setdefault(row["investment_type"], {})[row["metric"]] = Dezimal(
+                    row["value"]
+                )
             return kpis
 
-    def _get_stock_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[StockInvestments]:
+    def _get_stock_investments(
+        self, global_position_id: UUID, kpis: KPIs
+    ) -> Optional[StockInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM stock_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             details = [
@@ -531,7 +584,7 @@ class PositionSQLRepository(PositionPort):
                     market_value=Dezimal(row["market_value"]),
                     currency=row["currency"],
                     type=row["type"],
-                    subtype=row["subtype"]
+                    subtype=row["subtype"],
                 )
                 for row in cursor
             ]
@@ -542,31 +595,36 @@ class PositionSQLRepository(PositionPort):
             return StockInvestments(
                 investment=kpis.get(INVESTMENT) if kpis else None,
                 market_value=kpis.get(MARKET_VALUE) if kpis else None,
-                details=details
+                details=details,
             )
 
     def _get_fund_portfolios(self, global_position_id: UUID) -> list[FundPortfolio]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM fund_portfolios WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             portfolios = []
             for row in cursor:
-                portfolios.append(FundPortfolio(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    currency=row["currency"],
-                    initial_investment=Dezimal(row["initial_investment"]),
-                    market_value=Dezimal(row["market_value"]),
-                ))
+                portfolios.append(
+                    FundPortfolio(
+                        id=UUID(row["id"]),
+                        name=row["name"],
+                        currency=row["currency"],
+                        initial_investment=Dezimal(row["initial_investment"]),
+                        market_value=Dezimal(row["market_value"]),
+                    )
+                )
 
             return portfolios
 
-    def _get_fund_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[FundInvestments]:
+    def _get_fund_investments(
+        self, global_position_id: UUID, kpis: KPIs
+    ) -> Optional[FundInvestments]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                            SELECT f.*,
                                   p.id                 AS portfolio_id,
                                   p.name               AS portfolio_name,
@@ -577,8 +635,8 @@ class PositionSQLRepository(PositionPort):
                                     LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
                            WHERE f.global_position_id = ?
                            """,
-                           (str(global_position_id),)
-                           )
+                (str(global_position_id),),
+            )
 
             details = [
                 FundDetail(
@@ -596,8 +654,10 @@ class PositionSQLRepository(PositionPort):
                         name=row["portfolio_name"],
                         currency=row["portfolio_currency"],
                         initial_investment=Dezimal(row["portfolio_investment"]),
-                        market_value=Dezimal(row["portfolio_value"])
-                    ) if row["portfolio_id"] else None
+                        market_value=Dezimal(row["portfolio_value"]),
+                    )
+                    if row["portfolio_id"]
+                    else None,
                 )
                 for row in cursor
             ]
@@ -608,14 +668,16 @@ class PositionSQLRepository(PositionPort):
             return FundInvestments(
                 investment=kpis.get(INVESTMENT) if kpis else None,
                 market_value=kpis.get(MARKET_VALUE) if kpis else None,
-                details=details
+                details=details,
             )
 
-    def _get_factoring_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[FactoringInvestments]:
+    def _get_factoring_investments(
+        self, global_position_id: UUID, kpis: KPIs
+    ) -> Optional[FactoringInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM factoring_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             details = [
@@ -629,7 +691,7 @@ class PositionSQLRepository(PositionPort):
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     type=row["type"],
-                    state=row["state"]
+                    state=row["state"],
                 )
                 for row in cursor
             ]
@@ -640,14 +702,16 @@ class PositionSQLRepository(PositionPort):
             return FactoringInvestments(
                 total=kpis.get(TOTAL),
                 weighted_interest_rate=kpis.get(WEIGHTED_INTEREST_RATE),
-                details=details
+                details=details,
             )
 
-    def _get_real_state_cf_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[RealStateCFInvestments]:
+    def _get_real_state_cf_investments(
+        self, global_position_id: UUID, kpis: KPIs
+    ) -> Optional[RealStateCFInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM real_state_cf_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             details = [
@@ -663,7 +727,7 @@ class PositionSQLRepository(PositionPort):
                     type=row["type"],
                     business_type=row["business_type"],
                     state=row["state"],
-                    extended_maturity=row["extended_maturity"]
+                    extended_maturity=row["extended_maturity"],
                 )
                 for row in cursor
             ]
@@ -674,14 +738,16 @@ class PositionSQLRepository(PositionPort):
             return RealStateCFInvestments(
                 total=kpis.get(TOTAL),
                 weighted_interest_rate=kpis.get(WEIGHTED_INTEREST_RATE),
-                details=details
+                details=details,
             )
 
-    def _get_deposit_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[Deposits]:
+    def _get_deposit_investments(
+        self, global_position_id: UUID, kpis: KPIs
+    ) -> Optional[Deposits]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM deposit_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
 
             details = [
@@ -693,7 +759,7 @@ class PositionSQLRepository(PositionPort):
                     expected_interests=Dezimal(row["expected_interests"]),
                     interest_rate=Dezimal(row["interest_rate"]),
                     creation=datetime.fromisoformat(row["creation"]),
-                    maturity=datetime.fromisoformat(row["maturity"]).date()
+                    maturity=datetime.fromisoformat(row["maturity"]).date(),
                 )
                 for row in cursor
             ]
@@ -705,14 +771,16 @@ class PositionSQLRepository(PositionPort):
                 total=kpis.get(TOTAL),
                 weighted_interest_rate=kpis.get(WEIGHTED_INTEREST_RATE),
                 expected_interests=kpis.get(EXPECTED_INTERESTS),
-                details=details
+                details=details,
             )
 
-    def _get_crowdlending_investments(self, global_position_id: UUID, kpis: KPIs) -> Optional[Crowdlending]:
+    def _get_crowdlending_investments(
+        self, global_position_id: UUID, kpis: KPIs
+    ) -> Optional[Crowdlending]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM crowdlending_positions WHERE global_position_id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
             row = cursor.fetchone()
             if not row:
@@ -724,16 +792,19 @@ class PositionSQLRepository(PositionPort):
                 weighted_interest_rate=kpis.get(WEIGHTED_INTEREST_RATE),
                 currency=row["currency"],
                 distribution=json.loads(row["distribution"]),
-                details=[]
+                details=[],
             )
 
     def get_last_updated(self, entity_id: UUID) -> Optional[datetime]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
+            cursor.execute(
+                """
                            SELECT MAX(date) as last_date
                            FROM global_positions
                            WHERE entity_id = ?
-                           """, (str(entity_id),))
+                           """,
+                (str(entity_id),),
+            )
 
             result = cursor.fetchone()
             if not result or not result["last_date"]:
@@ -745,6 +816,6 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT entity_id FROM global_positions WHERE id = ?",
-                (str(global_position_id),)
+                (str(global_position_id),),
             )
             return cursor.fetchone()[0]

@@ -12,15 +12,15 @@ from domain.use_cases.virtual_scrape import VirtualScrape
 
 
 class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
-
-    def __init__(self,
-                 position_port: PositionPort,
-                 transaction_port: TransactionPort,
-                 virtual_scraper: VirtualScraper,
-                 entity_port: EntityPort,
-                 config_port: ConfigPort,
-                 transaction_handler_port: TransactionHandlerPort):
-
+    def __init__(
+        self,
+        position_port: PositionPort,
+        transaction_port: TransactionPort,
+        virtual_scraper: VirtualScraper,
+        entity_port: EntityPort,
+        config_port: ConfigPort,
+        transaction_handler_port: TransactionHandlerPort,
+    ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
         self._position_port = position_port
@@ -33,8 +33,16 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
         config = self._config_port.load()
         virtual_scrape_config = config.scrape.virtual
 
-        if not virtual_scrape_config.enabled:
+        sheet_config = config.integrations.sheets
+
+        if (
+            not virtual_scrape_config.enabled
+            or not sheet_config
+            or not sheet_config.credentials
+        ):
             return ScrapResult(ScrapResultCode.DISABLED)
+
+        sheets_credentials = sheet_config.credentials
 
         config_globals = virtual_scrape_config.globals
 
@@ -46,11 +54,16 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
         transaction_sheets = apply_global_config(config_globals, transaction_sheets)
 
         existing_entities = self._entity_port.get_all()
-        existing_entities_by_name = {entity.name: entity for entity in existing_entities}
+        existing_entities_by_name = {
+            entity.name: entity for entity in existing_entities
+        }
 
-        global_positions, created_pos_entities = await self._virtual_scraper.global_positions(
-            investment_sheets,
-            existing_entities_by_name)
+        (
+            global_positions,
+            created_pos_entities,
+        ) = await self._virtual_scraper.global_positions(
+            sheets_credentials, investment_sheets, existing_entities_by_name
+        )
 
         if global_positions:
             for entity in created_pos_entities:
@@ -61,9 +74,11 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
                 self._position_port.save(position)
 
         transactions, created_tx_entities = await self._virtual_scraper.transactions(
+            sheets_credentials,
             transaction_sheets,
             registered_txs,
-            existing_entities_by_name)
+            existing_entities_by_name,
+        )
 
         if transactions:
             for entity in created_tx_entities:
@@ -71,6 +86,8 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
 
             self._transaction_port.save(transactions)
 
-        data = VirtuallyScrapedData(positions=global_positions, transactions=transactions)
+        data = VirtuallyScrapedData(
+            positions=global_positions, transactions=transactions
+        )
 
         return ScrapResult(ScrapResultCode.COMPLETED, data=data)

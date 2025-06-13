@@ -8,7 +8,6 @@ from domain.transactions import Transactions
 
 
 class EntityScraper(metaclass=abc.ABCMeta):
-
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         raise NotImplementedError
 

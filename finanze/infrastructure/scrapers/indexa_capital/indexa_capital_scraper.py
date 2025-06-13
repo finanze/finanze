@@ -3,15 +3,23 @@ from uuid import uuid4
 
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
-from domain.global_position import GlobalPosition, Account, FundInvestments, FundDetail, Investments, AccountType, \
-    FundPortfolio
+from domain.global_position import (
+    GlobalPosition,
+    Account,
+    FundInvestments,
+    FundDetail,
+    Investments,
+    AccountType,
+    FundPortfolio,
+)
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import INDEXA_CAPITAL
-from infrastructure.scrapers.indexa_capital.indexa_capital_client import IndexaCapitalClient
+from infrastructure.scrapers.indexa_capital.indexa_capital_client import (
+    IndexaCapitalClient,
+)
 
 
 class IndexaCapitalScraper(EntityScraper):
-
     def __init__(self):
         self._client = IndexaCapitalClient()
         self._log = logging.getLogger(__name__)
@@ -66,26 +74,30 @@ class IndexaCapitalScraper(EntityScraper):
                     total_initial_investment += initial_investment
                     total_market_value += market_value
 
-                    fund_details.append(FundDetail(
-                        id=uuid4(),
-                        name=instrument.get("name"),
-                        isin=instrument["identifier"],
-                        market=instrument.get("market_code"),
-                        shares=titles,
-                        initial_investment=initial_investment,
-                        average_buy_price=price,
-                        market_value=market_value,
-                        currency=account_currency,
-                        portfolio=FundPortfolio(id=fund_portfolio_id)
-                    ))
+                    fund_details.append(
+                        FundDetail(
+                            id=uuid4(),
+                            name=instrument.get("name"),
+                            isin=instrument["identifier"],
+                            market=instrument.get("market_code"),
+                            shares=titles,
+                            initial_investment=initial_investment,
+                            average_buy_price=price,
+                            market_value=market_value,
+                            currency=account_currency,
+                            portfolio=FundPortfolio(id=fund_portfolio_id),
+                        )
+                    )
 
-            fund_portfolios.append(FundPortfolio(
-                id=fund_portfolio_id,
-                name=account_name,
-                currency=account_currency,
-                initial_investment=total_cash,
-                market_value=total_cash
-            ))
+            fund_portfolios.append(
+                FundPortfolio(
+                    id=fund_portfolio_id,
+                    name=account_name,
+                    currency=account_currency,
+                    initial_investment=total_cash,
+                    market_value=total_cash,
+                )
+            )
 
             account = Account(
                 id=uuid4(),
@@ -94,23 +106,20 @@ class IndexaCapitalScraper(EntityScraper):
                 total=total_cash,
                 currency=account_currency,
                 retained=asset_cash,
-                type=AccountType.FUND_PORTFOLIO
+                type=AccountType.FUND_PORTFOLIO,
             )
             accounts_list.append(account)
 
         funds = FundInvestments(
             investment=total_initial_investment,
             market_value=total_market_value,
-            details=fund_details
+            details=fund_details,
         )
-        investments = Investments(
-            funds=funds,
-            fund_portfolios=fund_portfolios
-        )
+        investments = Investments(funds=funds, fund_portfolios=fund_portfolios)
 
         return GlobalPosition(
             id=uuid4(),
             entity=INDEXA_CAPITAL,
             accounts=accounts_list,
-            investments=investments
+            investments=investments,
         )

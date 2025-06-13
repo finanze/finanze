@@ -14,6 +14,8 @@ import {
   ScrapeResultCode,
   LoginResultCode,
   EntityStatus,
+  PlatformType,
+  type PlatformInfo,
 } from "@/types"
 import {
   getEntities,
@@ -30,9 +32,17 @@ import { useAuth } from "@/context/AuthContext"
 
 // Types for settings
 export interface AppSettings {
+  integrations?: {
+    sheets?: {
+      credentials?: {
+        client_id?: string
+        client_secret?: string
+      }
+    }
+  }
   export?: {
     sheets?: {
-      enabled: boolean
+      enabled?: boolean
       [key: string]: any
     }
   }
@@ -66,6 +76,7 @@ interface AppContextType {
   settings: AppSettings
   pinError: boolean
   externalLoginInProgress: boolean
+  platform: PlatformType | null
   setView: (view: "entities" | "login" | "features" | "external-login") => void
 
   fetchEntities: () => Promise<void>
@@ -136,6 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pinError, setPinError] = useState(false)
   const [virtualEnabled, setVirtualEnabled] = useState(false)
   const [externalLoginInProgress, setExternalLoginInProgress] = useState(false)
+  const [platform, setPlatform] = useState<PlatformType | null>(null)
   const { t } = useI18n()
   const { isAuthenticated } = useAuth()
 
@@ -150,6 +162,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     active: false,
     features: [],
   })
+
+  useEffect(() => {
+    const getPlatform = async () => {
+      if (window.ipcAPI && window.ipcAPI.platform) {
+        try {
+          const platformInfo: PlatformInfo = await window.ipcAPI.platform()
+          setPlatform(platformInfo.type)
+        } catch (error) {
+          console.error("Failed to get platform info:", error)
+          setPlatform(PlatformType.WEB)
+        }
+      } else {
+        setPlatform(PlatformType.WEB)
+      }
+    }
+    getPlatform()
+  }, [])
 
   const showToast = (
     message: string,
@@ -189,9 +218,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const fetchSettings = async () => {
-    // Don't fetch settings if not authenticated
-    if (!isAuthenticated) return
-
     try {
       setIsLoading(true)
       const data = await getSettings()
@@ -199,24 +225,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setSettings(data)
     } catch (error) {
       console.error("Error fetching settings:", error)
-      setSettings(defaultSettings)
+      showToast(t.settings.fetchError, "error")
     } finally {
       setIsLoading(false)
     }
   }
 
   const saveSettingsData = async (settingsData: AppSettings) => {
-    // Don't save settings if not authenticated
-    if (!isAuthenticated) return
-
     try {
       setIsLoading(true)
       await saveSettings(settingsData)
       setSettings(settingsData)
-      showToast("Settings saved successfully", "success")
+      showToast(t.settings.saveSuccess, "success")
     } catch (error) {
       console.error("Error saving settings:", error)
-      showToast("Failed to save settings", "error")
+      showToast(t.settings.saveError, "error")
     } finally {
       setIsLoading(false)
     }
@@ -609,6 +632,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         settings,
         pinError,
         externalLoginInProgress,
+        platform,
         setView,
         fetchEntities,
         selectEntity,

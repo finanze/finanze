@@ -1,18 +1,21 @@
-from flask import request, jsonify
-from werkzeug.exceptions import InternalServerError, Unauthorized
-
-from domain.data_init import DecryptionError, AlreadyUnlockedError
+from domain.data_init import AlreadyUnlockedError, DecryptionError
+from domain.exception.exceptions import UserNotFound
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
+from flask import jsonify, request
+from werkzeug.exceptions import Unauthorized
 
 
 def user_login(user_login_uc: UserLogin):
     body = request.json
+    username = body.get("username")
     password = body.get("password")
+    if not username:
+        return jsonify({"message": "Username not provided"}), 400
     if not password:
         return jsonify({"message": "Password not provided"}), 400
 
-    login_request = LoginRequest(password=password)
+    login_request = LoginRequest(username=username, password=password)
 
     try:
         user_login_uc.execute(login_request)
@@ -21,8 +24,8 @@ def user_login(user_login_uc: UserLogin):
     except DecryptionError as e:
         raise Unauthorized(str(e))
 
+    except UserNotFound:
+        return jsonify({"message": "Username not found"}), 404
+
     except AlreadyUnlockedError:
         return "", 204
-
-    except Exception as e:
-        raise InternalServerError("An internal error occurred during unlock.")

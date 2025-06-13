@@ -10,7 +10,12 @@ from pytr.portfolio import Portfolio
 from requests import HTTPError
 from requests.cookies import RequestsCookieJar, create_cookie
 
-from domain.entity_login import LoginResultCode, EntityLoginResult, EntitySession, LoginOptions
+from domain.entity_login import (
+    LoginResultCode,
+    EntityLoginResult,
+    EntitySession,
+    LoginOptions,
+)
 from infrastructure.scrapers.tr.tr_details import TRDetails
 from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 
@@ -26,12 +31,12 @@ def _json_cookie_jar(jar: RequestsCookieJar) -> list:
                 expires_timestamp = 0
 
         cookie_dict = {
-            'name': cookie.name,
-            'value': cookie.value,
-            'domain': cookie.domain,
-            'path': cookie.path,
-            'expires': expires_timestamp,
-            'secure': cookie.secure,
+            "name": cookie.name,
+            "value": cookie.value,
+            "domain": cookie.domain,
+            "path": cookie.path,
+            "expires": expires_timestamp,
+            "secure": cookie.secure,
         }
         simple_cookies.append(cookie_dict)
 
@@ -42,19 +47,19 @@ def _rebuild_cookie_jar(cookie_list: list) -> RequestsCookieJar:
     new_jar = RequestsCookieJar()
 
     for cookie_dict in cookie_list:
-        if not all(k in cookie_dict for k in ('name', 'value', 'domain')):
+        if not all(k in cookie_dict for k in ("name", "value", "domain")):
             continue
 
-        expires_ts = cookie_dict.get('expires')
+        expires_ts = cookie_dict.get("expires")
         expires_arg = None if expires_ts == 0 else expires_ts
 
         args = {
-            'name': cookie_dict['name'],
-            'value': cookie_dict['value'],
-            'domain': cookie_dict['domain'],
-            'path': cookie_dict.get('path', '/'),
-            'secure': cookie_dict.get('secure', False),
-            'expires': expires_arg,
+            "name": cookie_dict["name"],
+            "value": cookie_dict["value"],
+            "domain": cookie_dict["domain"],
+            "path": cookie_dict.get("path", "/"),
+            "secure": cookie_dict.get("secure", False),
+            "expires": expires_arg,
         }
 
         try:
@@ -69,19 +74,19 @@ def _rebuild_cookie_jar(cookie_list: list) -> RequestsCookieJar:
 
 
 class TradeRepublicClient:
-
     def __init__(self):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
 
-    def login(self,
-              phone: str,
-              pin: str,
-              login_options: LoginOptions,
-              process_id: str = None,
-              code: str = None,
-              session: Optional[EntitySession] = None) -> EntityLoginResult:
-
+    def login(
+        self,
+        phone: str,
+        pin: str,
+        login_options: LoginOptions,
+        process_id: str = None,
+        code: str = None,
+        session: Optional[EntitySession] = None,
+    ) -> EntityLoginResult:
         self._tr_api = TradeRepublicApi(
             phone_no=phone,
             pin=pin,
@@ -106,23 +111,27 @@ class TradeRepublicClient:
                     return EntityLoginResult(LoginResultCode.INVALID_CODE)
                 else:
                     self._log.error("Unexpected error during login", exc_info=e)
-                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR,
-                                             message=f"Got unexpected error {e.response.status_code} during login")
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message=f"Got unexpected error {e.response.status_code} during login",
+                    )
 
             sess_created_at = datetime.now(tzlocal())
             session_payload = self._export_session()
-            new_session = EntitySession(creation=sess_created_at,
-                                        expiration=None,
-                                        payload=session_payload)
+            new_session = EntitySession(
+                creation=sess_created_at, expiration=None, payload=session_payload
+            )
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
         elif not code and not process_id:
             if not login_options.avoid_new_login:
                 countdown = self._tr_api.inititate_weblogin()
                 process_id = self._tr_api._process_id
-                return EntityLoginResult(LoginResultCode.CODE_REQUESTED,
-                                         process_id=process_id,
-                                         details={"countdown": countdown})
+                return EntityLoginResult(
+                    LoginResultCode.CODE_REQUESTED,
+                    process_id=process_id,
+                    details={"countdown": countdown},
+                )
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
@@ -156,23 +165,31 @@ class TradeRepublicClient:
         await portfolio.portfolio_loop()
         return portfolio
 
-    async def get_details(self, isin: str, types: list = ["stockDetails", "instrument"]):
+    async def get_details(
+        self, isin: str, types: list = ["stockDetails", "instrument"]
+    ):
         details = TRDetails(self._tr_api, isin)
         await details.fetch(types)
         return details
 
-    async def get_transactions(self, since: Optional[datetime] = None, already_registered_ids: set[str] = None):
-        dl = TRTimeline(self._tr_api,
-                        since=since,
-                        requested_data=["timelineTransactions", "timelineDetailV2"],
-                        already_registered_ids=already_registered_ids)
+    async def get_transactions(
+        self, since: Optional[datetime] = None, already_registered_ids: set[str] = None
+    ):
+        dl = TRTimeline(
+            self._tr_api,
+            since=since,
+            requested_data=["timelineTransactions", "timelineDetailV2"],
+            already_registered_ids=already_registered_ids,
+        )
         return await dl.fetch()
 
     def get_user_info(self):
         return self._tr_api.settings()
 
     def get_interest_payouts(self, number_of_payouts: int):
-        r = self._tr_api._web_request(f"/api/v1/banking/consumer/interest/payouts?numberOfPayouts={number_of_payouts}")
+        r = self._tr_api._web_request(
+            f"/api/v1/banking/consumer/interest/payouts?numberOfPayouts={number_of_payouts}"
+        )
         r.raise_for_status()
         return r.json()
 
@@ -181,9 +198,12 @@ class TradeRepublicClient:
         r.raise_for_status()
         return r.json()
 
-    def get_interest_payout_summary(self, decimal_separator: str = ",", grouping_separator: str = "."):
+    def get_interest_payout_summary(
+        self, decimal_separator: str = ",", grouping_separator: str = "."
+    ):
         r = self._tr_api._web_request(
-            f"/api/v1/interest/details-screen?decimalSeparator={decimal_separator}&groupingSeparator={grouping_separator}")
+            f"/api/v1/interest/details-screen?decimalSeparator={decimal_separator}&groupingSeparator={grouping_separator}"
+        )
         r.raise_for_status()
         return r.json()
 

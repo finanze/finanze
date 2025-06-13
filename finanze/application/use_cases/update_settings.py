@@ -4,7 +4,6 @@ from domain.use_cases.update_settings import UpdateSettings
 
 
 class UpdateSettingsImpl(UpdateSettings):
-
     def __init__(self, config_port: ConfigPort):
         self._config_port = config_port
 

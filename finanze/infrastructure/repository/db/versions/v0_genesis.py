@@ -357,15 +357,23 @@ INSERT_FINANCIAL_ENTITIES = """
 
 
 class V0Genesis(DBVersionMigration):
-
     @property
     def name(self):
-        return 'v0 Genesis'
+        return "v0 Genesis"
 
     def upgrade(self, cursor: DBCursor):
-        ddl_without_comments = '\n'.join(
-            [line for line in DDL.split('\n') if not line.startswith('--') and line.strip() != ''])
-        statements = [statement.strip() for statement in ddl_without_comments.split(';') if statement.strip()]
+        ddl_without_comments = "\n".join(
+            [
+                line
+                for line in DDL.split("\n")
+                if not line.startswith("--") and line.strip() != ""
+            ]
+        )
+        statements = [
+            statement.strip()
+            for statement in ddl_without_comments.split(";")
+            if statement.strip()
+        ]
         for statement in statements:
             cursor.execute(statement)
 

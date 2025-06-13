@@ -23,7 +23,12 @@ from domain.exception.exceptions import EntityNotFound
 from domain.financial_entity import FinancialEntity, Feature, CredentialType
 from domain.global_position import RealStateCFDetail, FactoringDetail
 from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
-from domain.scrap_result import ScrapResultCode, ScrapResult, SCRAP_BAD_LOGIN_CODES, ScrapRequest
+from domain.scrap_result import (
+    ScrapResultCode,
+    ScrapResult,
+    SCRAP_BAD_LOGIN_CODES,
+    ScrapRequest,
+)
 from domain.scraped_data import ScrapedData
 from domain.transactions import TxType, ProductType
 from domain.use_cases.scrape import Scrape
@@ -37,7 +42,13 @@ def compute_return_values(related_inv_txs):
     dividend_txs = [tx for tx in related_inv_txs if tx.type == TxType.DIVIDEND]
 
     returned, repaid, fees, retentions, interests, net_return = (
-        Dezimal(0), Dezimal(0), Dezimal(0), Dezimal(0), Dezimal(0), Dezimal(0))
+        Dezimal(0),
+        Dezimal(0),
+        Dezimal(0),
+        Dezimal(0),
+        Dezimal(0),
+        Dezimal(0),
+    )
     last_return_tx = None
 
     if repayment_txs:
@@ -55,7 +66,9 @@ def compute_return_values(related_inv_txs):
 
     if interest_txs:
         interest_fees = sum([tx.fees for tx in interest_txs], start=Dezimal(0))
-        interest_retentions = sum([tx.retentions for tx in interest_txs], start=Dezimal(0))
+        interest_retentions = sum(
+            [tx.retentions for tx in interest_txs], start=Dezimal(0)
+        )
         added_interests = sum([tx.interests for tx in interest_txs], start=Dezimal(0))
 
         fees += interest_fees
@@ -67,7 +80,9 @@ def compute_return_values(related_inv_txs):
 
     if dividend_txs:
         dividend_fees = sum([tx.fees for tx in dividend_txs], start=Dezimal(0))
-        dividend_retentions = sum([tx.retentions for tx in dividend_txs], start=Dezimal(0))
+        dividend_retentions = sum(
+            [tx.retentions for tx in dividend_txs], start=Dezimal(0)
+        )
 
         total_dividends = sum([tx.amount for tx in dividend_txs], start=Dezimal(0))
 
@@ -93,7 +108,8 @@ def _historic_inv_by_name(historical_position):
                 investments_by_name[inv_name]["amount"] += inv["amount"]
                 investments_by_name[inv_name]["last_invest_date"] = max(
                     investments_by_name[inv_name]["last_invest_date"],
-                    inv["last_invest_date"])
+                    inv["last_invest_date"],
+                )
             else:
                 investments_by_name[inv_name] = inv
 
@@ -101,18 +117,18 @@ def _historic_inv_by_name(historical_position):
 
 
 class ScrapeImpl(AtomicUCMixin, Scrape):
-
-    def __init__(self,
-                 position_port: PositionPort,
-                 auto_contr_port: AutoContributionsPort,
-                 transaction_port: TransactionPort,
-                 historic_port: HistoricPort,
-                 entity_scrapers: dict[FinancialEntity, EntityScraper],
-                 config_port: ConfigPort,
-                 credentials_port: CredentialsPort,
-                 sessions_port: SessionsPort,
-                 transaction_handler_port: TransactionHandlerPort):
-
+    def __init__(
+        self,
+        position_port: PositionPort,
+        auto_contr_port: AutoContributionsPort,
+        transaction_port: TransactionPort,
+        historic_port: HistoricPort,
+        entity_scrapers: dict[FinancialEntity, EntityScraper],
+        config_port: ConfigPort,
+        credentials_port: CredentialsPort,
+        sessions_port: SessionsPort,
+        transaction_handler_port: TransactionHandlerPort,
+    ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
         self._position_port = position_port
@@ -126,9 +142,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
 
         self._log = logging.getLogger(__name__)
 
-    async def execute(self,
-                      scrap_request: ScrapRequest) -> ScrapResult:
-
+    async def execute(self, scrap_request: ScrapRequest) -> ScrapResult:
         entity_id = scrap_request.entity_id
 
         entity = native_entities.get_native_by_id(entity_id)
@@ -143,9 +157,17 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         if Feature.POSITION in features:
             update_cooldown = self._get_position_update_cooldown()
             last_update = self._position_port.get_last_updated(entity_id)
-            if last_update and (datetime.now(tzlocal()) - last_update).seconds < update_cooldown:
-                remaining_seconds = update_cooldown - (datetime.now(tzlocal()) - last_update).seconds
-                details = {"lastUpdate": last_update.astimezone(tzlocal()).isoformat(), "wait": remaining_seconds}
+            if (
+                last_update
+                and (datetime.now(tzlocal()) - last_update).seconds < update_cooldown
+            ):
+                remaining_seconds = (
+                    update_cooldown - (datetime.now(tzlocal()) - last_update).seconds
+                )
+                details = {
+                    "lastUpdate": last_update.astimezone(tzlocal()).isoformat(),
+                    "wait": remaining_seconds,
+                }
                 return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
         credentials = self._credentials_port.get(entity.id)
@@ -153,7 +175,11 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
 
         for cred_name, cred_type in entity.credentials_template.items():
-            if cred_type != CredentialType.INTERNAL and cred_type != CredentialType.INTERNAL_TEMP and cred_name not in credentials:
+            if (
+                cred_type != CredentialType.INTERNAL
+                and cred_type != CredentialType.INTERNAL_TEMP
+                and cred_name not in credentials
+            ):
                 return ScrapResult(ScrapResultCode.INVALID_CREDENTIALS)
 
         specific_scraper = self._entity_scrapers[entity]
@@ -163,25 +189,42 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             credentials=credentials,
             two_factor=scrap_request.two_factor,
             options=scrap_request.options,
-            session=stored_session
+            session=stored_session,
         )
         login_result = await specific_scraper.login(login_request)
         login_result_code = login_result.code
         login_message = login_result.message
 
         if login_result_code == LoginResultCode.CODE_REQUESTED:
-            return ScrapResult(ScrapResultCode.CODE_REQUESTED,
-                               details={"message": login_message, "processId": login_result.process_id})
+            return ScrapResult(
+                ScrapResultCode.CODE_REQUESTED,
+                details={
+                    "message": login_message,
+                    "processId": login_result.process_id,
+                },
+            )
 
         elif login_result_code == LoginResultCode.MANUAL_LOGIN:
-            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"credentials": login_result.details})
+            return ScrapResult(
+                SCRAP_BAD_LOGIN_CODES[login_result_code],
+                details={"credentials": login_result.details},
+            )
 
         elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
             self._credentials_port.update_expiration(entity.id, datetime.now(tzlocal()))
-            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"message": login_message})
+            return ScrapResult(
+                SCRAP_BAD_LOGIN_CODES[login_result_code],
+                details={"message": login_message},
+            )
 
-        elif login_result_code not in [LoginResultCode.CREATED, LoginResultCode.RESUMED]:
-            return ScrapResult(SCRAP_BAD_LOGIN_CODES[login_result_code], details={"message": login_message})
+        elif login_result_code not in [
+            LoginResultCode.CREATED,
+            LoginResultCode.RESUMED,
+        ]:
+            return ScrapResult(
+                SCRAP_BAD_LOGIN_CODES[login_result_code],
+                details={"message": login_message},
+            )
 
         elif login_result_code == LoginResultCode.CREATED:
             self._credentials_port.update_last_usage(entity.id)
@@ -198,10 +241,9 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
 
         return ScrapResult(ScrapResultCode.COMPLETED, data=scraped_data)
 
-    async def get_data(self,
-                       entity: FinancialEntity,
-                       features: List[Feature],
-                       specific_scraper) -> ScrapedData:
+    async def get_data(
+        self, entity: FinancialEntity, features: List[Feature], specific_scraper
+    ) -> ScrapedData:
         position = None
         if Feature.POSITION in features:
             position = await specific_scraper.global_position()
@@ -231,13 +273,17 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                 self._historic_port.delete_by_entity(entity.id)
                 self._historic_port.save(entries)
 
-        scraped_data = ScrapedData(position=position,
-                                   auto_contributions=auto_contributions,
-                                   transactions=transactions,
-                                   historic=historic)
+        scraped_data = ScrapedData(
+            position=position,
+            auto_contributions=auto_contributions,
+            transactions=transactions,
+            historic=historic,
+        )
         return scraped_data
 
-    def _compute_historic_entry(self, entity, inv, txs_by_name) -> Optional[BaseHistoricEntry]:
+    def _compute_historic_entry(
+        self, entity, inv, txs_by_name
+    ) -> Optional[BaseHistoricEntry]:
         inv_name = inv["name"]
         related_inv_txs = txs_by_name[inv_name]
 
@@ -249,11 +295,14 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         elif product_type == ProductType.FACTORING:
             inv = FactoringDetail(**inv)
         else:
-            self._log.warning(f"Skipping investment with unsupported product type {product_type}")
+            self._log.warning(
+                f"Skipping investment with unsupported product type {product_type}"
+            )
             return None
 
-        fees, interests, net_return, repaid, retentions, returned, last_return_tx = compute_return_values(
-            related_inv_txs)
+        fees, interests, net_return, repaid, retentions, returned, last_return_tx = (
+            compute_return_values(related_inv_txs)
+        )
 
         last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
 
@@ -274,7 +323,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             "state": inv.state,
             "entity": entity,
             "product_type": product_type,
-            "related_txs": related_inv_txs
+            "related_txs": related_inv_txs,
         }
 
         if product_type == ProductType.REAL_STATE_CF:
@@ -284,7 +333,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                 maturity=inv.maturity,
                 extended_maturity=inv.extended_maturity,
                 type=inv.type,
-                business_type=inv.business_type
+                business_type=inv.business_type,
             )
 
         elif product_type == ProductType.FACTORING:
@@ -293,15 +342,14 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
                 interest_rate=Dezimal(inv.interest_rate),
                 gross_interest_rate=Dezimal(inv.gross_interest_rate),
                 maturity=inv.maturity,
-                type=inv.type
+                type=inv.type,
             )
 
         return None
 
-    async def build_historic(self,
-                             entity: FinancialEntity,
-                             specific_scraper: EntityScraper) -> list[BaseHistoricEntry]:
-
+    async def build_historic(
+        self, entity: FinancialEntity, specific_scraper: EntityScraper
+    ) -> list[BaseHistoricEntry]:
         historical_position = await specific_scraper.historical_position()
 
         investments_by_name = _historic_inv_by_name(historical_position)

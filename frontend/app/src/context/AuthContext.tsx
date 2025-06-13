@@ -9,13 +9,16 @@ import {
   checkLoginStatus,
   login as apiLogin,
   logout as apiLogout,
+  signup as apiSignup,
 } from "@/services/api"
 
 interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   isInitializing: boolean
-  login: (password: string) => Promise<boolean>
+  lastLoggedUser: string | null
+  login: (username: string, password: string) => Promise<boolean>
+  signup: (username: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
 }
 
@@ -25,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
+  const [lastLoggedUser, setLastLoggedUser] = useState<string | null>(null)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -32,8 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       while (true) {
         try {
-          const { status } = await checkLoginStatus()
+          const { status, last_logged } = await checkLoginStatus()
           setIsAuthenticated(status === "UNLOCKED")
+          setLastLoggedUser(last_logged || null)
           setIsInitializing(false)
           return
         } catch {
@@ -45,14 +50,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth()
   }, [])
 
-  const login = async (password: string): Promise<boolean> => {
+  const login = async (
+    username: string,
+    password: string,
+  ): Promise<boolean> => {
     setIsLoading(true)
     try {
-      const { success } = await apiLogin(password)
+      const { success } = await apiLogin({ username, password })
       setIsAuthenticated(success)
+      if (success) {
+        setLastLoggedUser(username)
+      }
       return success
     } catch (error) {
       console.error("Login error:", error)
+      return false
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const signup = async (
+    username: string,
+    password: string,
+  ): Promise<boolean> => {
+    setIsLoading(true)
+    try {
+      const { success } = await apiSignup({ username, password })
+      if (success) {
+        // Signup automatically logs the user in, so set auth state
+        setIsAuthenticated(true)
+        setLastLoggedUser(username)
+      }
+      return success
+    } catch (error) {
+      console.error("Signup error:", error)
       return false
     } finally {
       setIsLoading(false)
@@ -73,7 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, isInitializing, login, logout }}
+      value={{
+        isAuthenticated,
+        isLoading,
+        isInitializing,
+        lastLoggedUser,
+        login,
+        signup,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>

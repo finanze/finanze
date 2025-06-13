@@ -12,7 +12,9 @@ class AutoContributionsPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all_grouped_by_entity(self, query: ContributionQueryRequest) -> dict[FinancialEntity, AutoContributions]:
+    def get_all_grouped_by_entity(
+        self, query: ContributionQueryRequest
+    ) -> dict[FinancialEntity, AutoContributions]:
         raise NotImplementedError
 
     @abc.abstractmethod

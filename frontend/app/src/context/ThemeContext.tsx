@@ -1,3 +1,4 @@
+import { ThemeMode } from "@/types"
 import {
   createContext,
   type ReactNode,
@@ -9,36 +10,56 @@ import {
 type Theme = "light" | "dark"
 
 interface ThemeContextType {
-  theme: Theme
-  toggleTheme: () => void
+  theme: ThemeMode
+  setThemeMode: (mode: ThemeMode) => void
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light")
+  const [theme, setTheme] = useState<ThemeMode>("dark")
 
-  // Load theme preference from localStorage on mount
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("theme") as Theme
-    if (savedTheme) {
-      setTheme(savedTheme)
-      document.documentElement.classList.toggle("dark", savedTheme === "dark")
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      setTheme("dark")
-      document.documentElement.classList.add("dark")
+  const resolveTheme: () => Theme = () => {
+    const system = window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light"
+    let targetTheme = system
+
+    if (!window.ipcAPI) {
+      const savedTheme = localStorage.getItem("theme") as ThemeMode
+      if (savedTheme != "system") {
+        targetTheme = savedTheme
+      }
     }
+
+    return targetTheme as Theme
+  }
+
+  useEffect(() => {
+    const resolvedTheme = resolveTheme()
+    setTheme(resolvedTheme)
+    document.documentElement.classList.toggle("dark", resolvedTheme === "dark")
   }, [])
 
-  const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light"
-    setTheme(newTheme)
-    document.documentElement.classList.toggle("dark", newTheme === "dark")
-    localStorage.setItem("theme", newTheme)
+  const setThemeMode = (mode: ThemeMode) => {
+    if (!window.ipcAPI) {
+      localStorage.setItem("theme", mode)
+    }
+    window.ipcAPI?.changeThemeMode(mode)
+    setTheme(mode)
+
+    setTimeout(() => {
+      if (mode === "system") {
+        mode = window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+      }
+      document.documentElement.classList.toggle("dark", mode === "dark")
+    }, 80)
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, setThemeMode }}>
       {children}
     </ThemeContext.Provider>
   )

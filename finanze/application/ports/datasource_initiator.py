@@ -4,7 +4,6 @@ from domain.data_init import DatasourceInitParams
 
 
 class DatasourceInitiator(metaclass=abc.ABCMeta):
-
     @property
     def unlocked(self) -> bool:
         raise NotImplementedError

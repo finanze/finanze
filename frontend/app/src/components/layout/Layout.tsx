@@ -1,21 +1,28 @@
 import type React from "react"
-
 import { Sidebar } from "./Sidebar"
 import { Toast } from "@/components/ui/Toast"
 import { useAppContext } from "@/context/AppContext"
 import { motion, AnimatePresence } from "framer-motion"
+import { PlatformType } from "@/types"
 
 interface LayoutProps {
   children: React.ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { toast, hideToast } = useAppContext()
+  const { toast, hideToast, platform } = useAppContext()
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
       <Sidebar />
-      <main className="flex-1 overflow-auto">
+      {/* Titlebar control buttons */}
+      <main
+        className={`flex-1 overflow-auto ${
+          platform === PlatformType.WINDOWS || platform === PlatformType.LINUX
+            ? "pt-4"
+            : ""
+        }`}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={window.location.pathname}

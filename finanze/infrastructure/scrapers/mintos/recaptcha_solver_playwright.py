@@ -9,7 +9,6 @@ from pydub import AudioSegment
 
 
 class RecaptchaSolver:
-
     def __init__(self, page: Page, timeout=10):
         self._page = page
         self._timeout = timeout * 1000
@@ -18,10 +17,14 @@ class RecaptchaSolver:
     async def solve_captcha(self):
         try:
             # Switch to the main CAPTCHA iframe
-            captcha_frame = self._page.frame_locator("//iframe[contains(@title, 'reCAPTCHA')]")
+            captcha_frame = self._page.frame_locator(
+                "//iframe[contains(@title, 'reCAPTCHA')]"
+            )
 
             # Click on the CAPTCHA checkbox
-            await captcha_frame.locator('#recaptcha-anchor').click(timeout=self._timeout)
+            await captcha_frame.locator("#recaptcha-anchor").click(
+                timeout=self._timeout
+            )
 
             # Check if already solved
             if await self.is_solved():
@@ -43,10 +46,14 @@ class RecaptchaSolver:
             )
 
             # Click audio button
-            await challenge_frame.locator('#recaptcha-audio-button').click(timeout=self._timeout)
+            await challenge_frame.locator("#recaptcha-audio-button").click(
+                timeout=self._timeout
+            )
 
             # Get audio URL
-            audio_src = await challenge_frame.locator('#audio-source').get_attribute('src')
+            audio_src = await challenge_frame.locator("#audio-source").get_attribute(
+                "src"
+            )
             self._log.debug(f"Audio source URL: {audio_src}")
 
             # Download and process audio
@@ -69,8 +76,8 @@ class RecaptchaSolver:
             self._log.debug(f"Recognized text: {captcha_text}")
 
             # Enter text and submit
-            await challenge_frame.locator('#audio-response').fill(captcha_text)
-            await challenge_frame.locator('#audio-response').press('Enter')
+            await challenge_frame.locator("#audio-response").fill(captcha_text)
+            await challenge_frame.locator("#audio-response").press("Enter")
 
             # Wait for verification
             await self._page.wait_for_timeout(1000)
@@ -84,17 +91,19 @@ class RecaptchaSolver:
 
     async def is_solved(self):
         try:
-            captcha_frame = self._page.frame_locator("//iframe[contains(@title, 'reCAPTCHA')]")
-            checkbox = captcha_frame.locator('#recaptcha-anchor')
+            captcha_frame = self._page.frame_locator(
+                "//iframe[contains(@title, 'reCAPTCHA')]"
+            )
+            checkbox = captcha_frame.locator("#recaptcha-anchor")
 
             # Check aria-checked state
-            aria_checked = await checkbox.get_attribute('aria-checked')
-            if aria_checked == 'true':
+            aria_checked = await checkbox.get_attribute("aria-checked")
+            if aria_checked == "true":
                 return True
 
             # Check class list
-            class_list = await checkbox.get_attribute('class')
-            return 'recaptcha-checkbox-checked' in class_list
+            class_list = await checkbox.get_attribute("class")
+            return "recaptcha-checkbox-checked" in class_list
 
         except PlaywrightTimeoutError:
             return False
@@ -102,6 +111,6 @@ class RecaptchaSolver:
     async def download_audio(self, url, path):
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
-                with open(path, 'wb') as f:
+                with open(path, "wb") as f:
                     f.write(await response.read())
         self._log.debug("Downloaded audio asynchronously.")

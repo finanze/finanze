@@ -11,10 +11,23 @@ from dateutil.tz import tzlocal
 from application.ports.entity_scraper import EntityScraper
 from domain.dezimal import Dezimal
 from domain.entity_login import LoginResultCode, EntityLoginParams, EntityLoginResult
-from domain.global_position import Account, GlobalPosition, Investments, \
-    Deposits, Deposit, AccountType
+from domain.global_position import (
+    Account,
+    GlobalPosition,
+    Investments,
+    Deposits,
+    Deposit,
+    AccountType,
+)
 from domain.native_entities import F24
-from domain.transactions import Transactions, AccountTx, TxType, StockTx, ProductType, DepositTx
+from domain.transactions import (
+    Transactions,
+    AccountTx,
+    TxType,
+    StockTx,
+    ProductType,
+    DepositTx,
+)
 from infrastructure.scrapers.f24.f24_client import F24APIClient
 
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -41,7 +54,7 @@ def _map_deposits(off_balance_entries: list):
             expected_interests=expected_profit,
             interest_rate=round(Dezimal(details["rate"]) / 100, 6),
             creation=datetime.strptime(details["startDate"], DATE_FORMAT),
-            maturity=datetime.strptime(details["endDate"], DATE_FORMAT).date()
+            maturity=datetime.strptime(details["endDate"], DATE_FORMAT).date(),
         )
 
         deposits.append(deposit)
@@ -49,7 +62,9 @@ def _map_deposits(off_balance_entries: list):
     return deposits
 
 
-def _get_balance(account: dict, default_currency: str) -> tuple[Dezimal | None, str | None]:
+def _get_balance(
+    account: dict, default_currency: str
+) -> tuple[Dezimal | None, str | None]:
     money_entries = account["money_detailed"]
     highest_amount = Dezimal(0)
     highest_currency = default_currency
@@ -59,11 +74,13 @@ def _get_balance(account: dict, default_currency: str) -> tuple[Dezimal | None, 
             highest_amount = amount
             highest_currency = currency
 
-    return round(Dezimal(money_entries[highest_currency]["avail_money"]), 2), highest_currency
+    return round(
+        Dezimal(money_entries[highest_currency]["avail_money"]), 2
+    ), highest_currency
 
 
 def _parse_interests_from_desc(text: str) -> dict[str, Dezimal]:
-    pattern = r'(\d+(?:\.\d+)?)%\s*([A-Z]{3})'
+    pattern = r"(\d+(?:\.\d+)?)%\s*([A-Z]{3})"
     found = re.findall(pattern, text)
     return {currency: Dezimal(amount) for amount, currency in found}
 
@@ -79,14 +96,20 @@ def _map_account_txs(raw_trades, registered_txs):
         if profit <= Dezimal(0):
             continue
 
-        trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(tzlocal())
+        trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(
+            tzlocal()
+        )
         avg_balance = round(Dezimal(trade["sum"]), 2)
         interest_rate = Dezimal(0)
         if avg_balance > Dezimal(0):
-            pay_d = datetime.strptime(trade.get("pay_d", None), DATE_FORMAT).astimezone(tzlocal())
+            pay_d = datetime.strptime(trade.get("pay_d", None), DATE_FORMAT).astimezone(
+                tzlocal()
+            )
             payment_days = (pay_d - trade_date).days + 1
             year_days = 365 + calendar.isleap(datetime.now().year)
-            interest_rate = round(profit * Dezimal(year_days / payment_days) / avg_balance, 4)
+            interest_rate = round(
+                profit * Dezimal(year_days / payment_days) / avg_balance, 4
+            )
 
         operation_desc = trade.get("operation").strip()
         pay_d = trade.get("pay_d", trade_date.strftime(DATE_FORMAT))
@@ -106,7 +129,7 @@ def _map_account_txs(raw_trades, registered_txs):
             product_type=ProductType.ACCOUNT,
             date=trade_date,
             entity=F24,
-            is_real=True
+            is_real=True,
         )
         account_txs.append(account_tx)
     return account_txs
@@ -116,8 +139,9 @@ def _get_ref(tx_id: str, tx_type: TxType) -> str:
     return sha1(f"{tx_id}-{tx_type}".encode("UTF-8")).hexdigest()
 
 
-def _map_deposit_tx(tx_id, tx_type, name, amount, interest, tx_date, currency, registered_txs) \
-        -> Optional[DepositTx]:
+def _map_deposit_tx(
+    tx_id, tx_type, name, amount, interest, tx_date, currency, registered_txs
+) -> Optional[DepositTx]:
     ref = _get_ref(tx_id, tx_type)
     if ref in registered_txs:
         return None
@@ -136,12 +160,11 @@ def _map_deposit_tx(tx_id, tx_type, name, amount, interest, tx_date, currency, r
         retentions=Dezimal(0),
         interests=interest,
         net_amount=amount,
-        is_real=True
+        is_real=True,
     )
 
 
 class F24Scraper(EntityScraper):
-
     def __init__(self):
         self._client = F24APIClient()
 
@@ -175,14 +198,23 @@ class F24Scraper(EntityScraper):
 
         brokerage_balance, brokerage_currency = None, None
         if brokerage_position:
-            brokerage_balance, brokerage_currency = _get_balance(brokerage_position, savings_currency)
+            brokerage_balance, brokerage_currency = _get_balance(
+                brokerage_position, savings_currency
+            )
 
         accounts = []
         if savings_currency and savings_position:
             user_assets = self._client.get_connected_users_assets()
             savings_account = None
             if user_assets.get("users"):
-                savings_account = next((acc for acc in user_assets["users"] if acc["account_type"] == "savings"), None)
+                savings_account = next(
+                    (
+                        acc
+                        for acc in user_assets["users"]
+                        if acc["account_type"] == "savings"
+                    ),
+                    None,
+                )
 
             d_account_description = savings_account.get("account_type_description")
             if d_account_description:
@@ -190,26 +222,32 @@ class F24Scraper(EntityScraper):
 
                 savings_currency_interests = Dezimal(0)
                 if savings_currency in savings_interests:
-                    savings_currency_interests = round(savings_interests.get(savings_currency) / 100, 4)
+                    savings_currency_interests = round(
+                        savings_interests.get(savings_currency) / 100, 4
+                    )
 
-                accounts.append(Account(
-                    id=uuid4(),
-                    type=AccountType.SAVINGS,
-                    total=savings_balance,
-                    currency=savings_currency,
-                    retained=None,
-                    interest=savings_currency_interests
-                ))
+                accounts.append(
+                    Account(
+                        id=uuid4(),
+                        type=AccountType.SAVINGS,
+                        total=savings_balance,
+                        currency=savings_currency,
+                        retained=None,
+                        interest=savings_currency_interests,
+                    )
+                )
 
         if brokerage_currency and brokerage_position:
-            accounts.append(Account(
-                id=uuid4(),
-                type=AccountType.BROKERAGE,
-                total=brokerage_balance,
-                currency=brokerage_currency,
-                retained=None,
-                interest=Dezimal(0)
-            ))
+            accounts.append(
+                Account(
+                    id=uuid4(),
+                    type=AccountType.BROKERAGE,
+                    total=brokerage_balance,
+                    currency=brokerage_currency,
+                    retained=None,
+                    interest=Dezimal(0),
+                )
+            )
 
         deposits = None
         if brokerage_position and brokerage_position["offbalance"]:
@@ -218,10 +256,14 @@ class F24Scraper(EntityScraper):
             deposit_details = _map_deposits(off_balance_entries["accounts"])
 
             total_invested = round(sum([inv.amount for inv in deposit_details]), 2)
-            total_interests = round(sum([inv.expected_interests for inv in deposit_details]), 2)
+            total_interests = round(
+                sum([inv.expected_interests for inv in deposit_details]), 2
+            )
             weighted_interest_rate = round(
-                (sum([inv.amount * inv.interest_rate for inv in deposit_details])
-                 / sum([inv.amount for inv in deposit_details])),
+                (
+                    sum([inv.amount * inv.interest_rate for inv in deposit_details])
+                    / sum([inv.amount for inv in deposit_details])
+                ),
                 6,
             )
 
@@ -229,7 +271,7 @@ class F24Scraper(EntityScraper):
                 total=total_invested,
                 expected_interests=total_interests,
                 weighted_interest_rate=weighted_interest_rate,
-                details=deposit_details
+                details=deposit_details,
             )
 
         return GlobalPosition(
@@ -238,7 +280,7 @@ class F24Scraper(EntityScraper):
             accounts=accounts,
             investments=Investments(
                 deposits=deposits,
-            )
+            ),
         )
 
     def _get_positions(self, user_id: str) -> dict:
@@ -265,7 +307,9 @@ class F24Scraper(EntityScraper):
         return Transactions(investment=investment_txs, account=account_txs)
 
     def _get_deposit_interest_txs(self, registered_txs) -> list[DepositTx]:
-        raw_order_history = self._client.get_orders_history(from_date=date.fromisocalendar(2000, 1, 1))
+        raw_order_history = self._client.get_orders_history(
+            from_date=date.fromisocalendar(2000, 1, 1)
+        )
         txs = []
         raw_txs = raw_order_history.get("orders", {})
         raw_txs = raw_txs.get("order", [])
@@ -276,7 +320,9 @@ class F24Scraper(EntityScraper):
                 continue
 
             trades = order["trade"]
-            matching_trade = next((trade for trade in trades if trade["profit"] > 0), None)
+            matching_trade = next(
+                (trade for trade in trades if trade["profit"] > 0), None
+            )
             if not matching_trade:
                 continue
 
@@ -292,13 +338,23 @@ class F24Scraper(EntityScraper):
                 continue
 
             placed_amount = Dezimal(order["StartCash"])
-            placement_date = datetime.fromisoformat(order["stat_d"]).replace(tzinfo=tzlocal())
+            placement_date = datetime.fromisoformat(order["stat_d"]).replace(
+                tzinfo=tzlocal()
+            )
             name = order["order_nb"]
             pay_date = datetime.strptime(pay_date[:10], DATE_FORMAT).date()
 
             tx_type = TxType.INVESTMENT
-            tx = _map_deposit_tx(tx_id, tx_type, name, placed_amount, Dezimal(0), placement_date, currency,
-                                 registered_txs)
+            tx = _map_deposit_tx(
+                tx_id,
+                tx_type,
+                name,
+                placed_amount,
+                Dezimal(0),
+                placement_date,
+                currency,
+                registered_txs,
+            )
             if tx:
                 txs.append(tx)
 
@@ -306,15 +362,32 @@ class F24Scraper(EntityScraper):
                 continue
 
             tx_type = TxType.REPAYMENT
-            tx = _map_deposit_tx(tx_id, tx_type, name, placed_amount, Dezimal(0), pay_date, currency,
-                                 registered_txs)
+            tx = _map_deposit_tx(
+                tx_id,
+                tx_type,
+                name,
+                placed_amount,
+                Dezimal(0),
+                pay_date,
+                currency,
+                registered_txs,
+            )
             if tx:
                 txs.append(tx)
 
             tx_type = TxType.INTEREST
             gross_return = Dezimal(order["EndCash"])
             interest = gross_return - placed_amount
-            tx = _map_deposit_tx(tx_id, tx_type, name, interest, interest, pay_date, currency, registered_txs)
+            tx = _map_deposit_tx(
+                tx_id,
+                tx_type,
+                name,
+                interest,
+                interest,
+                pay_date,
+                currency,
+                registered_txs,
+            )
             if tx:
                 txs.append(tx)
 
@@ -327,7 +400,9 @@ class F24Scraper(EntityScraper):
             if trade_id in registered_txs:
                 continue
 
-            trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(tzlocal())
+            trade_date = datetime.strptime(trade["date"], DATE_TIME_FORMAT).astimezone(
+                tzlocal()
+            )
 
             operation = trade.get("operation").strip()
             if operation == "Sell":
@@ -369,7 +444,7 @@ class F24Scraper(EntityScraper):
                 order_date=None,
                 product_type=ProductType.STOCK_ETF,
                 linked_tx=None,
-                is_real=True
+                is_real=True,
             )
             investment_tx.append(tx)
 

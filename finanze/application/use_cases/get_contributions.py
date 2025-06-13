@@ -4,7 +4,6 @@ from domain.use_cases.get_contributions import GetContributions
 
 
 class GetContributionsImpl(GetContributions):
-
     def __init__(self, auto_contributions_port: AutoContributionsPort):
         self._auto_contributions_port = auto_contributions_port
 

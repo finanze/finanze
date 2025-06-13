@@ -7,8 +7,6 @@ __pycache__
 /backend
 /build
 /dist
-token.json
-credentials.json
 
 .DS_Store
 .idea

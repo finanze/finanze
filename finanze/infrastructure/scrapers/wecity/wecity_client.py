@@ -7,7 +7,12 @@ import requests
 from cachetools import TTLCache, cached
 from dateutil.tz import tzlocal
 
-from domain.entity_login import LoginResultCode, EntityLoginResult, EntitySession, LoginOptions
+from domain.entity_login import (
+    LoginResultCode,
+    EntityLoginResult,
+    EntitySession,
+    LoginOptions,
+)
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -37,14 +42,15 @@ class WecityAPIClient:
         )
         self._session.headers["User-Agent"] = agent
 
-    def login(self,
-              username: str,
-              password: str,
-              login_options: LoginOptions,
-              process_id: str = None,
-              code: str = None,
-              session: Optional[EntitySession] = None) -> EntityLoginResult:
-
+    def login(
+        self,
+        username: str,
+        password: str,
+        login_options: LoginOptions,
+        process_id: str = None,
+        code: str = None,
+        session: Optional[EntitySession] = None,
+    ) -> EntityLoginResult:
         self._init_session()
         now = datetime.now(tzlocal())
 
@@ -58,22 +64,30 @@ class WecityAPIClient:
             "username": username,
             "password": password,
             "2facode": code or "",
-            "browser_id": process_id
+            "browser_id": process_id,
         }
 
         if code and process_id:
             if len(code) != 6:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
 
-            response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
+            response = self._session.request(
+                "POST", self.BASE_URL + "/users/login", json=request
+            )
 
             if not response.ok:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response status code")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Unexpected response status code",
+                )
 
             response = response.json()
             response_return = response.get("return", None)
             if not response_return:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Unexpected response content",
+                )
 
             response_2factor = response_return.get("2factor", None)
             if response_2factor and "check 2fa" in response_2factor.lower():
@@ -81,16 +95,23 @@ class WecityAPIClient:
 
             token = response_return.get("token", None)
             if not token:
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Unexpected response content",
+                )
 
-            sess_created_at = datetime.fromtimestamp(response_return.get("sess_time"),
-                                                     tz=tzlocal())  # This is provided with UTC tz
-            sess_expiration = datetime.fromtimestamp(response_return.get("sess_expire"),
-                                                     tz=tzlocal())  # I think this is not UTC, but Spain tz, as it is 2 days + diff
+            sess_created_at = datetime.fromtimestamp(
+                response_return.get("sess_time"), tz=tzlocal()
+            )  # This is provided with UTC tz
+            sess_expiration = datetime.fromtimestamp(
+                response_return.get("sess_expire"), tz=tzlocal()
+            )  # I think this is not UTC, but Spain tz, as it is 2 days + diff
             session_payload = {"token": token}
-            new_session = EntitySession(creation=sess_created_at,
-                                        expiration=sess_expiration,
-                                        payload=session_payload)
+            new_session = EntitySession(
+                creation=sess_created_at,
+                expiration=sess_expiration,
+                payload=session_payload,
+            )
 
             self._inject_session(new_session)
 
@@ -101,24 +122,37 @@ class WecityAPIClient:
                 process_id = str(uuid4())
                 request["browser_id"] = process_id
 
-                response = self._session.request("POST", self.BASE_URL + "/users/login", json=request)
+                response = self._session.request(
+                    "POST", self.BASE_URL + "/users/login", json=request
+                )
 
                 if response.status_code == 401:
                     return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
                 if not response.ok:
-                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response status code")
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message="Unexpected response status code",
+                    )
 
                 response = response.json()
                 response_return = response.get("return", None)
                 if not response_return:
-                    return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message="Unexpected response content",
+                    )
 
                 response_2factor = response_return.get("2factor", None)
                 if response_2factor and "check 2fa" in response_2factor.lower():
-                    return EntityLoginResult(LoginResultCode.CODE_REQUESTED, process_id=process_id)
+                    return EntityLoginResult(
+                        LoginResultCode.CODE_REQUESTED, process_id=process_id
+                    )
 
-                return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message="Unexpected response content")
+                return EntityLoginResult(
+                    LoginResultCode.UNEXPECTED_ERROR,
+                    message="Unexpected response content",
+                )
 
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)

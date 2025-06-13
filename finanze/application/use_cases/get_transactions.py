@@ -4,7 +4,6 @@ from domain.use_cases.get_transactions import GetTransactions
 
 
 class GetTransactionsImpl(GetTransactions):
-
     def __init__(self, transaction_port: TransactionPort):
         self._transaction_port = transaction_port
 

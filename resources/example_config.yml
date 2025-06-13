@@ -1,3 +1,9 @@
+integrations:
+  sheets:
+    credentials:
+      client_id: "1254368-test.apps.googleusercontent.com"
+      client_secret: "random_secret_client_secret"
+
 export:
   sheets:
     globals:

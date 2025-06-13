@@ -2,9 +2,9 @@ from application.ports.transaction_handler_port import TransactionHandlerPort
 
 
 class AtomicUCMixin:
-
-    def __init__(self,
-                 transaction_handler_port: TransactionHandlerPort, *args, **kwargs):
+    def __init__(
+        self, transaction_handler_port: TransactionHandlerPort, *args, **kwargs
+    ):
         self._transaction_handler_port = transaction_handler_port
         super().__init__(*args, **kwargs)
 
@@ -20,5 +20,5 @@ class AtomicUCMixin:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if 'execute' in cls.__dict__:
+        if "execute" in cls.__dict__:
             cls._wrap_execute()

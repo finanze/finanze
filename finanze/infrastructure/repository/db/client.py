@@ -13,7 +13,6 @@ UnderlyingConnection: TypeAlias = sqlcipher.Connection
 
 
 class DBCursor:
-
     def __init__(self, cursor: UnderlyingCursor) -> None:
         self._cursor = cursor
 
@@ -21,10 +20,10 @@ class DBCursor:
         return self
 
     def __exit__(
-            self,
-            exctype: Optional[BaseException],
-            value: Optional[BaseException],
-            traceback: Optional[TracebackType],
+        self,
+        exctype: Optional[BaseException],
+        value: Optional[BaseException],
+        traceback: Optional[TracebackType],
     ) -> Literal[False]:
         self.close()
         return False
@@ -56,7 +55,6 @@ class DBCursor:
 
 
 class DBClient:
-
     def __init__(self, connection: UnderlyingConnection | None = None):
         self._conn = connection
         self.savepoint_stack: list[Optional[str]] = []
@@ -81,7 +79,7 @@ class DBClient:
                 self.savepoint_stack.append(savepoint_name)
             yield cursor
 
-        except Exception as e:
+        except Exception:
             if self.savepoint_stack:
                 current_sp = self.savepoint_stack[-1]
                 if current_sp is not None:

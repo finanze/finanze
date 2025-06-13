@@ -6,8 +6,6 @@ from logging import getLevelName
 import appdirs
 
 DEFAULT_DATA_DIR = os.path.join(os.getcwd(), "finanze")
-DEFAULT_DB_NAME = "data.db"
-DEFAULT_CONFIG_NAME = "config.yml"
 
 
 def app_args() -> argparse.ArgumentParser:
@@ -41,17 +39,14 @@ def parse_args() -> argparse.Namespace:
 
     os.makedirs(args.data_dir, exist_ok=True)
 
-    args.db_path = os.path.join(args.data_dir, DEFAULT_DB_NAME)
-    args.config_path = os.path.join(args.data_dir, DEFAULT_CONFIG_NAME)
     args.credentials_storage_mode = os.environ.get("CREDENTIAL_STORAGE", "DB")
-    args.db_password = os.environ.get("DB_CIPHER_PASSWORD")
+    args.logged_username = os.environ.get("USERNAME")
+    args.logged_password = os.environ.get("PASSWORD")
 
     logging.basicConfig(level=getLevelName(args.log_level))
     logging.getLogger().setLevel(getLevelName(args.log_level))
 
     logging.info(f"Logging level set to: {args.log_level}")
     logging.info(f"Using data directory: {args.data_dir}")
-    logging.info(f"Database path: {args.db_path}")
-    logging.info(f"Config path: {args.config_path}")
 
     return args

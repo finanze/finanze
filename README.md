@@ -10,10 +10,8 @@ information.
 ## Table of Contents
 
 - [Features](#features)
-- [Setup](#setup)
-- [Configuration](#configuration)
-- [Environment Variables](#environment-variables)
 - [Usage](#usage)
+- [Development](#development)
 - [Credits](#credits)
 
 ## Features
@@ -86,9 +84,29 @@ Important points to remark:
 ### Google Sheets export
 
 This project allows to create complex dashboards and tables in Google Sheets, aggregating and formatting the scraped
-data. Check [Export & Import Configuration](#export--import-configuration) for more info.
+data. Check [Export & Import Configuration](#export--import-configuration) for more technical info.
 
-## Setup
+## Usage
+
+### Download
+
+Download the latest version of the app from the [Releases](https://github.com/marcosav/bank-scraper/releases) for your
+OS.
+
+### Note for macOS
+
+When opening the app for the first time, you may encounter a security warning/error. To bypass this follow the steps
+below:
+
+1. Remove the quarantine attribute from the application using the following command in the terminal:
+
+```sh
+xattr -d com.apple.quarantine Finanze.app
+```
+
+2. Open the application as usual.
+
+## Development
 
 ### Docker
 
@@ -98,10 +116,9 @@ needed for Mintos, as it contains Selenium and reCAPTCHA resolution related Pyth
 
 Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
 
-A very basic front end is available just to handle login, data retrieval and export.
-at [marcosav/bank-scraper-front](https://hub.docker.com/r/marcosav/bank-scraper-front).
+Frontend is available at [marcosav/finanze-frontend](https://hub.docker.com/r/marcosav/finanze-frontend).
 
-### Development
+### Setup
 
 This project requires `Python 3.11`.
 
@@ -123,50 +140,31 @@ This project requires `Python 3.11`.
     pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA
     ```
 
-## Export & Import Configuration
-
-Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
-tables
-and summary dashboards.
-
-## Environment Variables
-
-Checkout example docker-compose.yml for the environment variables that can be used to override the default config, most
-important ones are::
-
-- `DB_CIPHER_PASSWORD` for DB encryption passphrase, optional, provided via API (see below).
-- `GOOGLE_` prefixed ones, needed for Google credentials, in case of using import/export to Google Sheets
-- Other Selenium related ones.
-
-## Credentials
-
-There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
-this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
-
-Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
-Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
-This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
-
-Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
-can get the needed environment names.
-
-## Usage
+### Backend Usage
 
 1. Start the application:
     ```sh
     python app.py
     ```
 
-2. Use the provided API endpoints to interact with the scraper:
+2. These are some API endpoints to interact with the application:
     - `GET /api/v1/login`: Get current user session status.
     - `POST /api/v1/logout`: Exit and lock current session.
     - `POST /api/v1/login`: Login and unlock database.
-    - `GET /api/v1/entities`: Get available entities.
    ```
    {
+        "username": "xxxxxxxxxxx",
         "password": "xxxxxxxxxxx"
    }
    ```
+    - `POST /api/v1/signup`: Register a user.
+   ```
+   {
+        "username": "xxxxxxxxxxx",
+        "password": "xxxxxxxxxxx"
+   }
+   ```
+    - `GET /api/v1/entities`: Get available entities.
     - `POST /api/v1/entities/login`: Login to a specific entity.
    ```
    {
@@ -203,6 +201,33 @@ can get the needed environment names.
    }
    ```
     - `POST /api/v1/scrape/virtual`: Perform a virtual scrape.
+
+### Export & Import Configuration
+
+Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
+tables
+and summary dashboards.
+
+### Environment Variables
+
+Checkout example docker-compose.yml for the environment variables that can be used to override the default config, most
+important ones are::
+
+- `USERNAME` and `PASSWORD` optional, to auto start session on load.
+- `MULTI_USER` optional, to allow multiple user sign up (only recommended for local development).
+- Other Selenium related ones.
+
+### Credentials
+
+There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
+this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
+
+Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
+Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
+This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
+
+Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
+can get the needed environment names.
 
 ## Credits
 

@@ -8,28 +8,60 @@ from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
 
 from application.ports.entity_scraper import EntityScraper
-from domain.auto_contributions import PeriodicContribution, ContributionFrequency, AutoContributions, \
-    ContributionTargetType
+from domain.auto_contributions import (
+    PeriodicContribution,
+    ContributionFrequency,
+    AutoContributions,
+    ContributionTargetType,
+)
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
-from domain.global_position import Account, Card, StockDetail, StockInvestments, \
-    FundDetail, \
-    FundInvestments, Investments, GlobalPosition, \
-    Deposit, Deposits, AccountType, CardType, FundPortfolio
+from domain.global_position import (
+    Account,
+    Card,
+    StockDetail,
+    StockInvestments,
+    FundDetail,
+    FundInvestments,
+    Investments,
+    GlobalPosition,
+    Deposit,
+    Deposits,
+    AccountType,
+    CardType,
+    FundPortfolio,
+)
 from domain.native_entities import MY_INVESTOR
-from domain.transactions import Transactions, FundTx, TxType, StockTx, ProductType, DepositTx, AccountTx
-from infrastructure.scrapers.myinvestor.v2.myinvestor_client import MyInvestorAPIV2Client
+from domain.transactions import (
+    Transactions,
+    FundTx,
+    TxType,
+    StockTx,
+    ProductType,
+    DepositTx,
+    AccountTx,
+)
+from infrastructure.scrapers.myinvestor.v2.myinvestor_client import (
+    MyInvestorAPIV2Client,
+)
 
 DATE_FORMAT = "%Y-%m-%d"
 ISO_DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 # IIC_SWITCH_REGISTRATION and IIC_SWITCH_DEREGISTRATION
-FUND_INVESTMENT_TXS = ["INVESTMENT_FUNDS_SUBSCRIPTION", "INVESTMENT_FUNDS_SUBSCRIPTION_SF",
-                       "INTERNAL_TRANSFER_SUBSCRIPTION", "EXTERNAL_TRANSFER_SUBSCRIPTION"]
-FUND_REIMBURSEMENT_TXS = ["INVESTMENT_FUND_REIMBURSEMENT", "INTERNAL_TRANSFER_REIMBURSEMENT",
-                          "EXTERNAL_TRANSFER_REIMBURSEMENT"]
+FUND_INVESTMENT_TXS = [
+    "INVESTMENT_FUNDS_SUBSCRIPTION",
+    "INVESTMENT_FUNDS_SUBSCRIPTION_SF",
+    "INTERNAL_TRANSFER_SUBSCRIPTION",
+    "EXTERNAL_TRANSFER_SUBSCRIPTION",
+]
+FUND_REIMBURSEMENT_TXS = [
+    "INVESTMENT_FUND_REIMBURSEMENT",
+    "INTERNAL_TRANSFER_REIMBURSEMENT",
+    "EXTERNAL_TRANSFER_REIMBURSEMENT",
+]
 
 CONTRIBUTION_FREQUENCY = {
     "ONE_WEEK": ContributionFrequency.WEEKLY,
@@ -43,7 +75,7 @@ CONTRIBUTION_FREQUENCY = {
 
 ACCOUNT_TYPE_MAP = {
     "CASH_ACCOUNT": AccountType.CHECKING,
-    "CASH_PORTFOLIO": AccountType.FUND_PORTFOLIO
+    "CASH_PORTFOLIO": AccountType.FUND_PORTFOLIO,
 }
 
 BEGINNING = date.fromisocalendar(2018, 1, 1)
@@ -64,7 +96,9 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
                 market=stock["marketCode"],
                 shares=Dezimal(stock["shares"]),
                 initial_investment=round(Dezimal(stock["initialInvestment"]), 4),
-                average_buy_price=round(Dezimal(stock["initialInvestment"]) / Dezimal(stock["shares"]), 4),
+                average_buy_price=round(
+                    Dezimal(stock["initialInvestment"]) / Dezimal(stock["shares"]), 4
+                ),
                 market_value=round(Dezimal(stock["marketValue"]), 4),
                 currency=stock["liquidationValueCurrency"],
                 type=stock["brokerProductType"],
@@ -73,10 +107,14 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
             for stock in broker_investments["investmentList"]
         ]
 
-        total_broker_investment = sum([stock.initial_investment for stock in stock_list])
+        total_broker_investment = sum(
+            [stock.initial_investment for stock in stock_list]
+        )
     stock_data = StockInvestments(
         investment=round(total_broker_investment, 2),
-        market_value=round(Dezimal(broker_investments["totalAmount"]), 4) if broker_investments else 0,
+        market_value=round(Dezimal(broker_investments["totalAmount"]), 4)
+        if broker_investments
+        else 0,
         details=stock_list,
     )
     return stock_data
@@ -94,10 +132,12 @@ def _get_fund_investments(fund_investments, portfolio_id=None):
                 market=fund["marketCode"],
                 shares=fund["shares"],
                 initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
-                average_buy_price=round(Dezimal(fund["initialInvestment"]) / Dezimal(fund["shares"]), 4),  # averageCost
+                average_buy_price=round(
+                    Dezimal(fund["initialInvestment"]) / Dezimal(fund["shares"]), 4
+                ),  # averageCost
                 market_value=round(Dezimal(fund["marketValue"]), 4),
                 currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
-                portfolio=FundPortfolio(id=portfolio_id) if portfolio_id else None
+                portfolio=FundPortfolio(id=portfolio_id) if portfolio_id else None,
             )
             for fund in fund_investments["investmentList"]
         ]
@@ -105,14 +145,17 @@ def _get_fund_investments(fund_investments, portfolio_id=None):
         total_fund_investment = sum([fund.initial_investment for fund in fund_list])
     fund_data = FundInvestments(
         investment=round(total_fund_investment, 2),
-        market_value=round(Dezimal(fund_investments["totalAmount"]), 4) if fund_investments else 0,
+        market_value=round(Dezimal(fund_investments["totalAmount"]), 4)
+        if fund_investments
+        else 0,
         details=fund_list,
     )
     return fund_data
 
 
-def _map_deposit_tx(ref, tx_type, name, amount, net, retentions, interest, tx_date, currency) -> Optional[
-    DepositTx]:
+def _map_deposit_tx(
+    ref, tx_type, name, amount, net, retentions, interest, tx_date, currency
+) -> Optional[DepositTx]:
     return DepositTx(
         id=uuid4(),
         ref=ref,
@@ -127,7 +170,7 @@ def _map_deposit_tx(ref, tx_type, name, amount, net, retentions, interest, tx_da
         retentions=round(retentions, 2),
         interests=round(interest, 2),
         net_amount=round(net, 2),
-        is_real=True
+        is_real=True,
     )
 
 
@@ -146,12 +189,11 @@ def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
         retentions=round(retentions, 2),
         interest_rate=None,
         avg_balance=None,
-        is_real=True
+        is_real=True,
     )
 
 
 class MyInvestorScraperV2(EntityScraper):
-
     def __init__(self):
         self._client = MyInvestorAPIV2Client()
         self._log = logging.getLogger(__name__)
@@ -165,11 +207,13 @@ class MyInvestorScraperV2(EntityScraper):
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
 
-        return self._client.login(username,
-                                  password,
-                                  login_options=login_params.options,
-                                  process_id=process_id,
-                                  code=code)
+        return self._client.login(
+            username,
+            password,
+            login_options=login_params.options,
+            process_id=process_id,
+            code=code,
+        )
 
     async def global_position(self) -> GlobalPosition:
         # maintenance = self._client.check_maintenance()
@@ -195,16 +239,23 @@ class MyInvestorScraperV2(EntityScraper):
     async def transactions(self, registered_txs: set[str]) -> Transactions:
         accounts = self._get_active_owned_accounts()
 
-        target_accounts = [account for account in accounts if
-                           account["accountType"] in ["CASH_ACCOUNT", "CASH_PORTFOLIO"]]
+        target_accounts = [
+            account
+            for account in accounts
+            if account["accountType"] in ["CASH_ACCOUNT", "CASH_PORTFOLIO"]
+        ]
 
         investment_txs = []
         account_txs = []
 
         for account in target_accounts:
             account_id = account["accountId"]
-            related_security_account_id = self._get_related_security_account(account_id)["accountId"]
-            investment_txs += self._get_investment_txs(registered_txs, related_security_account_id)
+            related_security_account_id = self._get_related_security_account(
+                account_id
+            )["accountId"]
+            investment_txs += self._get_investment_txs(
+                registered_txs, related_security_account_id
+            )
 
             account_related_txs = self._classify_account_txs(account_id, registered_txs)
             investment_txs += account_related_txs["deposit"]
@@ -222,7 +273,9 @@ class MyInvestorScraperV2(EntityScraper):
             traceback.print_exc()
 
         try:
-            stock_txs = self.scrape_stock_txs(related_security_account_id, registered_txs)
+            stock_txs = self.scrape_stock_txs(
+                related_security_account_id, registered_txs
+            )
         except Exception as e:
             self._log.error(f"Error getting stock txs: {e}")
             traceback.print_exc()
@@ -244,7 +297,7 @@ class MyInvestorScraperV2(EntityScraper):
         accounts = self._client.get_cash_accounts()
 
         for account in accounts:
-            active = account.get("status") == "ACTIVE" or account.get("active") == True
+            active = account.get("status") == "ACTIVE" or account.get("active")
             if not active:
                 continue
 
@@ -252,7 +305,7 @@ class MyInvestorScraperV2(EntityScraper):
                 continue
 
             holders = account["holders"]
-            user_is_owner = any([holder.get("me") == True for holder in holders])
+            user_is_owner = any([holder.get("me") for holder in holders])
             if not user_is_owner:
                 continue
 
@@ -269,7 +322,9 @@ class MyInvestorScraperV2(EntityScraper):
         from_date += timedelta(days=1)
         while from_date > BEGINNING:
             from_date -= ACCOUNT_TX_FETCH_STEP
-            raw_txs = self._client.get_account_movements(account_id, from_date, to_date)["flowList"]
+            raw_txs = self._client.get_account_movements(
+                account_id, from_date, to_date
+            )["flowList"]
 
             for tx in raw_txs:
                 ref = tx["reference"]
@@ -281,7 +336,9 @@ class MyInvestorScraperV2(EntityScraper):
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
-                tx_date = datetime.fromtimestamp(tx["operationDate"] / 1000).replace(tzinfo=tzlocal())
+                tx_date = datetime.fromtimestamp(tx["operationDate"] / 1000).replace(
+                    tzinfo=tzlocal()
+                )
                 currency = tx["currency"]
                 name = tx["concept"]
                 amount = abs(Dezimal(tx["amount"]))
@@ -293,29 +350,67 @@ class MyInvestorScraperV2(EntityScraper):
                             continue
 
                         deposit_amount = Dezimal(related_deposit_data["amount"])
-                        net_interest = Dezimal(related_deposit_data["netInterestAmount"])
+                        net_interest = Dezimal(
+                            related_deposit_data["netInterestAmount"]
+                        )
                         interest = Dezimal(related_deposit_data["grossInterestAmount"])
                         retentions = interest - net_interest
 
                         deposit_txs.append(
-                            _map_deposit_tx(ref, TxType.REPAYMENT, name, deposit_amount, deposit_amount, Dezimal(0),
-                                            interest, tx_date, currency))
+                            _map_deposit_tx(
+                                ref,
+                                TxType.REPAYMENT,
+                                name,
+                                deposit_amount,
+                                deposit_amount,
+                                Dezimal(0),
+                                interest,
+                                tx_date,
+                                currency,
+                            )
+                        )
 
                         deposit_txs.append(
-                            _map_deposit_tx(ref + "_INT", TxType.INTEREST, name, interest, net_interest,
-                                            retentions, interest, tx_date, currency))
+                            _map_deposit_tx(
+                                ref + "_INT",
+                                TxType.INTEREST,
+                                name,
+                                interest,
+                                net_interest,
+                                retentions,
+                                interest,
+                                tx_date,
+                                currency,
+                            )
+                        )
 
                     elif raw_tx_type == "CARGO P/DEPOSITO":
                         deposit_txs.append(
-                            _map_deposit_tx(ref, TxType.INVESTMENT, name, amount, amount, Dezimal(0), Dezimal(0),
-                                            tx_date, currency))
+                            _map_deposit_tx(
+                                ref,
+                                TxType.INVESTMENT,
+                                name,
+                                amount,
+                                amount,
+                                Dezimal(0),
+                                Dezimal(0),
+                                tx_date,
+                                currency,
+                            )
+                        )
 
                 elif tx_class == "LIQUIDACION INTERESES CUENTA":
-                    if raw_tx_type == "LIQUIDAC. INTERESES":  # Old one, retention is already deducted
+                    if (
+                        raw_tx_type == "LIQUIDAC. INTERESES"
+                    ):  # Old one, retention is already deducted
                         net_amount = amount
                         amount = net_amount / (1 - CAPITAL_GAINS_BASE_TAX)
                         retentions = amount - net_amount
-                        interest_txs.append(_map_account_tx(ref, name, amount, currency, tx_date, retentions))
+                        interest_txs.append(
+                            _map_account_tx(
+                                ref, name, amount, currency, tx_date, retentions
+                            )
+                        )
 
                 elif tx_class == "ME":
                     if raw_tx_type == "RETE.LIQUIDA":
@@ -323,7 +418,11 @@ class MyInvestorScraperV2(EntityScraper):
                 elif tx_class == "0":
                     if raw_tx_type == "INTERESES S/F":
                         retentions = amount * CAPITAL_GAINS_BASE_TAX
-                        interest_txs.append(_map_account_tx(ref, name, amount, currency, tx_date, retentions))
+                        interest_txs.append(
+                            _map_account_tx(
+                                ref, name, amount, currency, tx_date, retentions
+                            )
+                        )
 
             to_date -= ACCOUNT_TX_FETCH_STEP
 
@@ -345,16 +444,20 @@ class MyInvestorScraperV2(EntityScraper):
             total = Dezimal(account["enabledBalance"])
             retained = Dezimal(account["withheldBalance"])
 
-            entry = (account, Account(
-                id=uuid4(),
-                total=total,
-                currency='EUR',
-                name=alias,
-                iban=iban,
-                type=account_type,
-                retained=retained,
-                interest=current_interest_rate
-            ), security_account)
+            entry = (
+                account,
+                Account(
+                    id=uuid4(),
+                    total=total,
+                    currency="EUR",
+                    name=alias,
+                    iban=iban,
+                    type=account_type,
+                    retained=retained,
+                    interest=current_interest_rate,
+                ),
+                security_account,
+            )
 
             accounts_with_security.append(entry)
 
@@ -366,7 +469,9 @@ class MyInvestorScraperV2(EntityScraper):
             remuneration_details = self._client.get_account_remuneration(account_id)
             current_interest_rate = round(remuneration_details["taePromotion"] / 100, 4)
             if not current_interest_rate:
-                current_interest_rate = round(Dezimal(remuneration_details["remunerationPercentage"]) / 100, 4)
+                current_interest_rate = round(
+                    Dezimal(remuneration_details["remunerationPercentage"]) / 100, 4
+                )
             else:
                 current_interest_rate = round(
                     Dezimal(remuneration_details["calculateTaeAverage"]) / 100, 4
@@ -385,39 +490,45 @@ class MyInvestorScraperV2(EntityScraper):
             credit_card = next(
                 (card for card in raw_cards if card["cardType"] == "CREDIT"), None
             )
-            debit_card = next((card for card in raw_cards if card["cardType"] == "DEBIT"), None)
+            debit_card = next(
+                (card for card in raw_cards if card["cardType"] == "DEBIT"), None
+            )
 
             if credit_card:
                 credit_card_tx = self._client.get_card_totals(credit_card["cardId"])
                 credit_pan = credit_card["pan"].split(" ")[-1]
                 credit_active = credit_card["status"] == "ACTIVATE"
 
-                cards.append(Card(
-                    id=uuid4(),
-                    ending=credit_pan,
-                    currency='EUR',
-                    type=CardType.CREDIT,
-                    limit=Dezimal(credit_card_tx["limit"]),
-                    used=abs(Dezimal(credit_card_tx["consumedMonth"])),
-                    active=credit_active,
-                    related_account=account.id
-                ))
+                cards.append(
+                    Card(
+                        id=uuid4(),
+                        ending=credit_pan,
+                        currency="EUR",
+                        type=CardType.CREDIT,
+                        limit=Dezimal(credit_card_tx["limit"]),
+                        used=abs(Dezimal(credit_card_tx["consumedMonth"])),
+                        active=credit_active,
+                        related_account=account.id,
+                    )
+                )
 
             if debit_card:
                 debit_pan = debit_card["pan"].split(" ")[-1]
                 debit_card_tx = self._client.get_card_totals(debit_card["cardId"])
                 debit_active = debit_card["status"] == "ACTIVATE"
 
-                cards.append(Card(
-                    id=uuid4(),
-                    ending=debit_pan,
-                    currency='EUR',
-                    type=CardType.DEBIT,
-                    limit=Dezimal(debit_card_tx["disposable"]),
-                    used=abs(Dezimal(debit_card_tx["consumedMonth"])),
-                    active=debit_active,
-                    related_account=account.id
-                ))
+                cards.append(
+                    Card(
+                        id=uuid4(),
+                        ending=debit_pan,
+                        currency="EUR",
+                        type=CardType.DEBIT,
+                        limit=Dezimal(debit_card_tx["disposable"]),
+                        used=abs(Dezimal(debit_card_tx["consumedMonth"])),
+                        active=debit_active,
+                        related_account=account.id,
+                    )
+                )
 
         return cards
 
@@ -431,11 +542,15 @@ class MyInvestorScraperV2(EntityScraper):
                 id=uuid4(),
                 name=deposit["depositName"],
                 amount=round(Dezimal(deposit["amount"]), 2),
-                currency='EUR',
+                currency="EUR",
                 expected_interests=round(Dezimal(deposit["grossInterest"]), 2),
                 interest_rate=round(Dezimal(deposit["tae"]) / 100, 4),
-                maturity=datetime.strptime(deposit["expirationDate"], ISO_DATE_TIME_FORMAT).date(),
-                creation=datetime.strptime(deposit["creationDate"], ISO_DATE_TIME_FORMAT),
+                maturity=datetime.strptime(
+                    deposit["expirationDate"], ISO_DATE_TIME_FORMAT
+                ).date(),
+                creation=datetime.strptime(
+                    deposit["creationDate"], ISO_DATE_TIME_FORMAT
+                ),
             )
             for deposit in deposits_raw
         ]
@@ -443,10 +558,20 @@ class MyInvestorScraperV2(EntityScraper):
         total_amount = sum([Dezimal(deposit["amount"]) for deposit in deposits_raw])
         return Deposits(
             total=total_amount,
-            expected_interests=sum([Dezimal(deposit["grossInterest"]) for deposit in deposits_raw]),
+            expected_interests=sum(
+                [Dezimal(deposit["grossInterest"]) for deposit in deposits_raw]
+            ),
             weighted_interest_rate=round(
-                (sum([Dezimal(deposit["amount"]) * Dezimal(deposit["tae"]) for deposit in deposits_raw])
-                 / total_amount) / 100,
+                (
+                    sum(
+                        [
+                            Dezimal(deposit["amount"]) * Dezimal(deposit["tae"])
+                            for deposit in deposits_raw
+                        ]
+                    )
+                    / total_amount
+                )
+                / 100,
                 4,
             ),
             details=deposit_list,
@@ -456,10 +581,17 @@ class MyInvestorScraperV2(EntityScraper):
         deposits = self.scrape_deposits()
 
         main_security_account = next(
-            (security_account for raw_account, _, security_account in account_entries if
-             raw_account["accountType"] == "CASH_ACCOUNT"), None)
+            (
+                security_account
+                for raw_account, _, security_account in account_entries
+                if raw_account["accountType"] == "CASH_ACCOUNT"
+            ),
+            None,
+        )
 
-        security_account_details = self._client.get_security_account_details(main_security_account["accountId"])
+        security_account_details = self._client.get_security_account_details(
+            main_security_account["accountId"]
+        )
         investments = security_account_details["securitiesAccountInvestments"]
 
         broker_investments = investments.get("BROKER")
@@ -473,21 +605,31 @@ class MyInvestorScraperV2(EntityScraper):
             if raw_account["accountType"] != "CASH_PORTFOLIO":
                 continue
 
-            portfolio_account_details = self._client.get_security_account_details(security_account["accountId"])
-            portfolio_account_investments = portfolio_account_details["securitiesAccountInvestments"]
+            portfolio_account_details = self._client.get_security_account_details(
+                security_account["accountId"]
+            )
+            portfolio_account_investments = portfolio_account_details[
+                "securitiesAccountInvestments"
+            ]
 
             portfolio_id = uuid4()
 
-            portfolio_fund_investments = portfolio_account_investments.get("INDEXED_FUND")
-            portfolio_fund_data = _get_fund_investments(portfolio_fund_investments, portfolio_id)
+            portfolio_fund_investments = portfolio_account_investments.get(
+                "INDEXED_FUND"
+            )
+            portfolio_fund_data = _get_fund_investments(
+                portfolio_fund_investments, portfolio_id
+            )
 
-            portfolio_cash_accounts.append(FundPortfolio(
-                id=portfolio_id,
-                name=portfolio_account_details["portfolioName"],
-                currency="EUR",
-                initial_investment=portfolio_fund_data.investment,
-                market_value=portfolio_fund_data.market_value
-            ))
+            portfolio_cash_accounts.append(
+                FundPortfolio(
+                    id=portfolio_id,
+                    name=portfolio_account_details["portfolioName"],
+                    currency="EUR",
+                    initial_investment=portfolio_fund_data.investment,
+                    market_value=portfolio_fund_data.market_value,
+                )
+            )
 
             fund_data = fund_data + portfolio_fund_data
 
@@ -495,7 +637,7 @@ class MyInvestorScraperV2(EntityScraper):
             stocks=stock_data,
             funds=fund_data,
             fund_portfolios=portfolio_cash_accounts,
-            deposits=deposits
+            deposits=deposits,
         )
 
     def _map_periodic_contribution(self, auto_contribution):
@@ -518,7 +660,11 @@ class MyInvestorScraperV2(EntityScraper):
         alias = alias or fund_name or target_account_alias
 
         target = isin or target_account
-        target_type = ContributionTargetType.FUND if fund_name else ContributionTargetType.FUND_PORTFOLIO
+        target_type = (
+            ContributionTargetType.FUND
+            if fund_name
+            else ContributionTargetType.FUND_PORTFOLIO
+        )
 
         return PeriodicContribution(
             id=uuid4(),
@@ -531,7 +677,7 @@ class MyInvestorScraperV2(EntityScraper):
             until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
             frequency=frequency,
             active=auto_contribution["status"] == "ACTIVE",
-            is_real=True
+            is_real=True,
         )
 
     def scrape_auto_contributions(self) -> AutoContributions:
@@ -543,13 +689,14 @@ class MyInvestorScraperV2(EntityScraper):
             if auto_contribution["contributionType"] == "ONE_DATE"
         ]
 
-        return AutoContributions(
-            periodic=periodic_contributions
-        )
+        return AutoContributions(periodic=periodic_contributions)
 
-    def scrape_fund_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[FundTx]:
-        raw_fund_orders = self._client.get_fund_orders(securities_account_id=securities_account_id,
-                                                       from_date=BEGINNING)
+    def scrape_fund_txs(
+        self, securities_account_id: str, registered_txs: set[str]
+    ) -> list[FundTx]:
+        raw_fund_orders = self._client.get_fund_orders(
+            securities_account_id=securities_account_id, from_date=BEGINNING
+        )
 
         fund_txs = []
         for order in raw_fund_orders:
@@ -564,23 +711,31 @@ class MyInvestorScraperV2(EntityScraper):
             elif raw_operation_type in FUND_REIMBURSEMENT_TXS:
                 operation_type = TxType.SELL
             else:
-                self._log.warning(f"Unknown operation type {raw_operation_type} for tx {ref}")
+                self._log.warning(
+                    f"Unknown operation type {raw_operation_type} for tx {ref}"
+                )
                 continue
 
             raw_order_details = self._client.get_fund_order_details(ref)
-            order_date = datetime.strptime(raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT)
+            order_date = datetime.strptime(
+                raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
+            )
             execution_op = None
             linked_ops = raw_order_details["relatedOperations"]
             if linked_ops:
                 execution_op = linked_ops[0]
-            execution_date = datetime.strptime(execution_op["executionDate"], ISO_DATE_TIME_FORMAT)
+            execution_date = datetime.strptime(
+                execution_op["executionDate"], ISO_DATE_TIME_FORMAT
+            )
 
             fund_txs.append(
                 FundTx(
                     id=uuid4(),
                     ref=ref,
                     name=order["fundName"].strip(),
-                    amount=round(Dezimal(execution_op["grossAmountOperationFundCurrency"]), 2),
+                    amount=round(
+                        Dezimal(execution_op["grossAmountOperationFundCurrency"]), 2
+                    ),
                     net_amount=round(Dezimal(execution_op["netAmountFundCurrency"]), 2),
                     currency=order["currency"],
                     type=operation_type,
@@ -594,33 +749,44 @@ class MyInvestorScraperV2(EntityScraper):
                     retentions=Dezimal(0),
                     date=execution_date,
                     product_type=ProductType.FUND,
-                    is_real=True
+                    is_real=True,
                 )
             )
 
         return fund_txs
 
-    def scrape_stock_txs(self, securities_account_id: str, registered_txs: set[str]) -> list[StockTx]:
+    def scrape_stock_txs(
+        self, securities_account_id: str, registered_txs: set[str]
+    ) -> list[StockTx]:
         raw_stock_orders = []
 
         # Both v1 & v2 stock order history endpoint are failing for some dates, we retry since current year
         try:
-            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                              from_date=BEGINNING,
-                                                              to_date=date.today().replace(year=date.today().year - 1,
-                                                                                           month=9, day=1),
-                                                              status=None)
+            raw_stock_orders += self._client.get_stock_orders(
+                securities_account_id=securities_account_id,
+                from_date=BEGINNING,
+                to_date=date.today().replace(
+                    year=date.today().year - 1, month=9, day=1
+                ),
+                status=None,
+            )
 
-            raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                              from_date=date.today().replace(year=2024, month=9, day=1),
-                                                              to_date=date.fromisocalendar(date.today().year, 1, 1),
-                                                              status=None)
+            raw_stock_orders += self._client.get_stock_orders(
+                securities_account_id=securities_account_id,
+                from_date=date.today().replace(year=2024, month=9, day=1),
+                to_date=date.fromisocalendar(date.today().year, 1, 1),
+                status=None,
+            )
         except Exception:
-            self._log.error("Error getting stock orders for past years, retrying since this year")
+            self._log.error(
+                "Error getting stock orders for past years, retrying since this year"
+            )
 
-        raw_stock_orders += self._client.get_stock_orders(securities_account_id=securities_account_id,
-                                                          from_date=date.fromisocalendar(date.today().year, 1, 2),
-                                                          status=None)
+        raw_stock_orders += self._client.get_stock_orders(
+            securities_account_id=securities_account_id,
+            from_date=date.fromisocalendar(date.today().year, 1, 2),
+            status=None,
+        )
 
         stock_txs = []
         for order in raw_stock_orders:
@@ -630,21 +796,33 @@ class MyInvestorScraperV2(EntityScraper):
                 continue
 
             raw_operation_type = order["operation"]
-            if "COMPRA" in raw_operation_type or raw_operation_type == "PURCHASE_VARIABLE_INCOME_CASH":
+            if (
+                "COMPRA" in raw_operation_type
+                or raw_operation_type == "PURCHASE_VARIABLE_INCOME_CASH"
+            ):
                 operation_type = TxType.BUY
-            elif "VENTA" in raw_operation_type or raw_operation_type == "SALE_VARIABLE_INCOME_CASH":
+            elif (
+                "VENTA" in raw_operation_type
+                or raw_operation_type == "SALE_VARIABLE_INCOME_CASH"
+            ):
                 operation_type = TxType.SELL
             else:
-                self._log.warning(f"Unknown operation type {raw_operation_type} for tx {ref}")
+                self._log.warning(
+                    f"Unknown operation type {raw_operation_type} for tx {ref}"
+                )
                 continue
 
             raw_order_details = self._client.get_stock_order_details(ref)
-            order_date = datetime.strptime(raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT)
+            order_date = datetime.strptime(
+                raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
+            )
 
             if not raw_order_details.get("executedShares"):
                 continue
 
-            amount = round(Dezimal(raw_order_details["grossAmountOperationCurrency"]), 2)
+            amount = round(
+                Dezimal(raw_order_details["grossAmountOperationCurrency"]), 2
+            )
             net_amount = round(Dezimal(raw_order_details["netAmountCurrency"]), 2)
 
             fees = Dezimal(0)
@@ -652,9 +830,13 @@ class MyInvestorScraperV2(EntityScraper):
                 # Financial Tx Tax not included in "comisionCorretaje", "comisionMiembroMercado" and "costeCanon"
                 fees = net_amount - amount
             elif operation_type == TxType.SELL:
-                fees = Dezimal(raw_order_details["tradeCommissions"]) + Dezimal(raw_order_details["otherCommissions"])
+                fees = Dezimal(raw_order_details["tradeCommissions"]) + Dezimal(
+                    raw_order_details["otherCommissions"]
+                )
 
-            execution_date = datetime.strptime(raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT)
+            execution_date = datetime.strptime(
+                raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT
+            )
 
             stock_txs.append(
                 StockTx(
@@ -677,7 +859,7 @@ class MyInvestorScraperV2(EntityScraper):
                     date=execution_date,
                     product_type=ProductType.STOCK_ETF,
                     is_real=True,
-                    linked_tx=None
+                    linked_tx=None,
                 )
             )
 
