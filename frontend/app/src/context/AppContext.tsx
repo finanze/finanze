@@ -53,7 +53,9 @@ export interface AppSettings {
       [key: string]: any
     }
   }
-  mainCurrency: string
+  general: {
+    defaultCurrency: string
+  }
 }
 
 interface AppContextType {
@@ -117,7 +119,9 @@ const defaultSettings: AppSettings = {
       enabled: false,
     },
   },
-  mainCurrency: "EUR",
+  general: {
+    defaultCurrency: "EUR",
+  },
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -221,7 +225,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       const data = await getSettings()
-      data.mainCurrency = "EUR"
       setSettings(data)
     } catch (error) {
       console.error("Error fetching settings:", error)

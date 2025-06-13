@@ -439,7 +439,7 @@ export default function DashboardPage() {
                 formattedValue: formatCurrency(
                   deposit.amount,
                   locale,
-                  settings?.mainCurrency,
+                  settings?.general?.defaultCurrency,
                   deposit.currency,
                 ),
                 roi: deposit.interest_rate * 100,
@@ -464,7 +464,7 @@ export default function DashboardPage() {
                 formattedValue: formatCurrency(
                   project.amount,
                   locale,
-                  settings?.mainCurrency,
+                  settings?.general?.defaultCurrency,
                   project.currency,
                 ),
                 roi: project.interest_rate * 100,
@@ -489,7 +489,7 @@ export default function DashboardPage() {
                 formattedValue: formatCurrency(
                   factoring.amount,
                   locale,
-                  settings?.mainCurrency,
+                  settings?.general?.defaultCurrency,
                   factoring.currency,
                 ),
                 roi: factoring.interest_rate * 100,
@@ -534,7 +534,7 @@ export default function DashboardPage() {
               formattedValue: formatCurrency(
                 value,
                 locale,
-                settings?.mainCurrency,
+                settings?.general?.defaultCurrency,
                 stock.currency,
               ),
               type: "STOCK_ETF",
@@ -563,7 +563,7 @@ export default function DashboardPage() {
               formattedValue: formatCurrency(
                 value,
                 locale,
-                settings?.mainCurrency,
+                settings?.general?.defaultCurrency,
                 fund.currency,
               ),
               type: "FUND",
@@ -602,7 +602,7 @@ export default function DashboardPage() {
         formattedAmount: formatCurrency(
           tx.amount,
           locale,
-          settings?.mainCurrency,
+          settings?.general?.defaultCurrency,
           tx.currency,
         ),
         type: tx.type,
@@ -790,7 +790,7 @@ export default function DashboardPage() {
             <li
               key={`legend-item-${index}`}
               className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings?.mainCurrency)} (${assetPercentage}%)`}
+              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings?.general?.defaultCurrency)} (${assetPercentage}%)`}
             >
               <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                 {icon}
@@ -801,7 +801,11 @@ export default function DashboardPage() {
               </span>
               <div className="text-right flex space-x-1">
                 <span className="font-bold block whitespace-nowrap">
-                  {formatCurrency(assetValue, locale, settings?.mainCurrency)}
+                  {formatCurrency(
+                    assetValue,
+                    locale,
+                    settings?.general?.defaultCurrency,
+                  )}
                 </span>
                 <span className="text-muted-foreground block whitespace-nowrap text-[10px]">
                   ({assetPercentage}%)
@@ -933,7 +937,7 @@ export default function DashboardPage() {
                               props: any,
                             ) => [
                               // eslint-disable-next-line react/prop-types -- props are not typed
-                              `${formatCurrency(value, locale, settings?.mainCurrency)} (${props.payload.percentage}%)`,
+                              `${formatCurrency(value, locale, settings?.general?.defaultCurrency)} (${props.payload.percentage}%)`,
                               t.enums &&
                               t.enums.productType &&
                               (t.enums.productType as any)[name]
@@ -997,7 +1001,7 @@ export default function DashboardPage() {
                       {formatCurrency(
                         totalAssets,
                         locale,
-                        settings?.mainCurrency,
+                        settings?.general?.defaultCurrency,
                       )}
                     </p>
                     {totalInvestedAmount > 0 &&
@@ -1025,7 +1029,7 @@ export default function DashboardPage() {
                     {formatCurrency(
                       totalInvestedAmount,
                       locale,
-                      settings?.mainCurrency,
+                      settings?.general?.defaultCurrency,
                     )}
                   </p>
                 </CardContent>

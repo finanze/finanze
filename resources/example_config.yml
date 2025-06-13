@@ -1,3 +1,6 @@
+general:
+  defaultCurrency: EUR
+
 integrations:
   sheets:
     credentials:

@@ -1,10 +1,10 @@
 export const formatCurrency = (
   value: number,
   locale: string,
-  mainCurrency: string,
+  defaultCurrency: string,
   currencyCode?: string,
 ): string => {
-  const displayCurrency = currencyCode || mainCurrency
+  const displayCurrency = currencyCode || defaultCurrency
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: displayCurrency,
