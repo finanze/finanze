@@ -25,7 +25,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from pytr.api import TradeRepublicError, TradeRepublicApi
+from pytr.api import TradeRepublicApi, TradeRepublicError
 from pytr.utils import preview
 
 
@@ -212,12 +212,12 @@ class TRTimeline:
 
         self._log.info("All timeline details requested")
 
-    async def _process_timeline_detail(self, response):
+    async def _process_timeline_detail(self, response) -> Optional[list]:
         self._received_detail += 1
         if response["id"] not in self._timeline_events:
             self._log.warning(f"Received unexpected detail {response['id']}")
             self._log.debug(f"{response}")
-            return
+            return None
 
         event = self._timeline_events[response["id"]]
         event["details"] = response
@@ -233,3 +233,5 @@ class TRTimeline:
         if self._received_detail == self._requested_detail:
             self._log.info("Received all details")
             return self.events
+
+        return None

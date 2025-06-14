@@ -26,6 +26,7 @@ from domain.global_position import FactoringDetail, RealStateCFDetail
 from domain.historic import BaseHistoricEntry, FactoringEntry, RealStateCFEntry
 from domain.scrap_result import (
     SCRAP_BAD_LOGIN_CODES,
+    ScrapeOptions,
     ScrapRequest,
     ScrapResult,
     ScrapResultCode,
@@ -204,7 +205,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             login_request = EntityLoginParams(
                 credentials=credentials,
                 two_factor=scrap_request.two_factor,
-                options=scrap_request.options,
+                options=scrap_request.login_options,
                 session=stored_session,
             )
             login_result = await specific_scraper.login(login_request)
@@ -255,12 +256,18 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
             if not features:
                 features = DEFAULT_FEATURES
 
-            scraped_data = await self.get_data(entity, features, specific_scraper)
+            scraped_data = await self.get_data(
+                entity, features, specific_scraper, scrap_request.scrape_options
+            )
 
             return ScrapResult(ScrapResultCode.COMPLETED, data=scraped_data)
 
     async def get_data(
-        self, entity: FinancialEntity, features: List[Feature], specific_scraper
+        self,
+        entity: FinancialEntity,
+        features: List[Feature],
+        specific_scraper: EntityScraper,
+        options: ScrapeOptions,
     ) -> ScrapedData:
         position = None
         if Feature.POSITION in features:
@@ -273,7 +280,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         transactions = None
         if Feature.TRANSACTIONS in features:
             registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
-            transactions = await specific_scraper.transactions(registered_txs)
+            transactions = await specific_scraper.transactions(registered_txs, options)
 
         if position:
             self._position_port.save(position)

@@ -1,32 +1,32 @@
 import calendar
 import json
 import re
-from datetime import datetime, date
+from datetime import date, datetime
 from hashlib import sha1
 from typing import Optional
 from uuid import uuid4
 
-from dateutil.tz import tzlocal
-
 from application.ports.entity_scraper import EntityScraper
+from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
-from domain.entity_login import LoginResultCode, EntityLoginParams, EntityLoginResult
+from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from domain.global_position import (
     Account,
+    AccountType,
+    Deposit,
+    Deposits,
     GlobalPosition,
     Investments,
-    Deposits,
-    Deposit,
-    AccountType,
 )
 from domain.native_entities import F24
+from domain.scrap_result import ScrapeOptions
 from domain.transactions import (
-    Transactions,
     AccountTx,
-    TxType,
-    StockTx,
-    ProductType,
     DepositTx,
+    ProductType,
+    StockTx,
+    Transactions,
+    TxType,
 )
 from infrastructure.scrapers.f24.f24_client import F24APIClient
 
@@ -286,7 +286,9 @@ class F24Scraper(EntityScraper):
     def _get_positions(self, user_id: str) -> dict:
         return self._client.get_positions(user_id)
 
-    async def transactions(self, registered_txs: set[str]) -> Transactions:
+    async def transactions(
+        self, registered_txs: set[str], options: ScrapeOptions
+    ) -> Transactions:
         savings_account_id = self._users["savings"]["id"]
         tr_systems_id = self._users["savings"]["trader_systems_id"]
         self._client.switch_user(tr_systems_id)

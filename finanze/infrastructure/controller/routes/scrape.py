@@ -1,11 +1,10 @@
 from uuid import UUID
 
-from flask import request, jsonify
-
+from domain.entity_login import LoginOptions, TwoFactor
 from domain.financial_entity import Feature
-from domain.entity_login import TwoFactor, LoginOptions
-from domain.scrap_result import ScrapRequest
+from domain.scrap_result import ScrapeOptions, ScrapRequest
 from domain.use_cases.scrape import Scrape
+from flask import jsonify, request
 
 
 def _map_features(features: list[str]) -> list[Feature]:
@@ -30,12 +29,14 @@ async def scrape(scrape: Scrape):
     code = body.get("code", None)
     process_id = body.get("processId", None)
     avoid_new_login = body.get("avoidNewLogin", False)
+    deep = body.get("deep", False)
 
     scrape_request = ScrapRequest(
         entity_id=entity,
         features=features,
         two_factor=TwoFactor(code=code, process_id=process_id),
-        options=LoginOptions(avoid_new_login=avoid_new_login),
+        scrape_options=ScrapeOptions(deep=deep),
+        login_options=LoginOptions(avoid_new_login=avoid_new_login),
     )
     result = await scrape.execute(scrape_request)
 

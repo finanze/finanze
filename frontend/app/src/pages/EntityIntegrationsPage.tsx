@@ -329,19 +329,26 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
+            className="min-h-[calc(100vh-18rem)] flex flex-col"
           >
-            <Button variant="ghost" onClick={handleBack} className="mb-4">
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              className="mb-4 self-start"
+            >
               ← {t.common.back}
             </Button>
             {isLoading ? (
-              <div className="flex flex-col justify-center items-center h-64">
+              <div className="flex-1 flex flex-col justify-center items-center">
                 <LoadingSpinner size="lg" />
                 <p className="mt-4 text-gray-500 dark:text-gray-400">
                   {t.common.loading}
                 </p>
               </div>
             ) : (
-              <FeatureSelector />
+              <div className="flex-1 flex justify-center items-center">
+                <FeatureSelector />
+              </div>
             )}
           </motion.div>
         )}

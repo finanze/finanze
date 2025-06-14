@@ -7,22 +7,23 @@ from uuid import uuid4
 from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import (
     AutoContributions,
-    PeriodicContribution,
     ContributionFrequency,
     ContributionTargetType,
+    PeriodicContribution,
 )
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.global_position import (
-    StockDetail,
-    Investments,
     Account,
-    GlobalPosition,
-    StockInvestments,
     AccountType,
+    GlobalPosition,
+    Investments,
+    StockDetail,
+    StockInvestments,
 )
 from domain.native_entities import TRADE_REPUBLIC
-from domain.transactions import Transactions, StockTx, ProductType, TxType, AccountTx
+from domain.scrap_result import ScrapeOptions
+from domain.transactions import AccountTx, ProductType, StockTx, Transactions, TxType
 from infrastructure.scrapers.tr.trade_republic_client import TradeRepublicClient
 
 
@@ -270,15 +271,20 @@ class TradeRepublicScraper(EntityScraper):
             investments=investments_data,
         )
 
-    async def transactions(self, registered_txs: set[str]) -> Transactions:
+    async def transactions(
+        self, registered_txs: set[str], options: ScrapeOptions
+    ) -> Transactions:
         raw_txs = await self._client.get_transactions(
-            already_registered_ids=registered_txs
+            already_registered_ids=registered_txs, force_all=options.deep
         )
         await self._client.close()
 
         investment_txs = []
         account_txs = []
         for raw_tx in raw_txs:
+            if raw_tx["id"] in registered_txs:
+                continue
+
             status = raw_tx.get("status", None)
             event_type = raw_tx.get("eventType", None)
             if not (

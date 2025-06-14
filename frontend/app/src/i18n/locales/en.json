@@ -127,9 +127,12 @@
     "AUTO_CONTRIBUTIONS": "Auto Contributions",
     "TRANSACTIONS": "Transactions",
     "HISTORIC": "Historic Data",
-    "selectFeatures": "Select Features to Fetch from",
-    "selectAll": "Select All Features",
-    "fetchSelected": "Fetch Selected Data"
+    "selectFeatures": "Select features to fetch from",
+    "selectAll": "Select all",
+    "fetchSelected": "Fetch selected data",
+    "deepScrape": "Force full fetch",
+    "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "advancedOptions": "Advanced options"
   },
   "settings": {
     "title": "Settings",

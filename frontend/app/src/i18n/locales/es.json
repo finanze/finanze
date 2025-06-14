@@ -122,9 +122,12 @@
     "AUTO_CONTRIBUTIONS": "Contribuciones Automáticas",
     "TRANSACTIONS": "Transacciones",
     "HISTORIC": "Datos Históricos",
-    "selectFeatures": "Seleccionar Características para Obtener de",
-    "selectAll": "Seleccionar Todas",
-    "fetchSelected": "Obtener Datos Seleccionados"
+    "selectFeatures": "Seleccionar que descargar de",
+    "selectAll": "Seleccionar todas",
+    "fetchSelected": "Obtener fatos seleccionados",
+    "deepScrape": "Forzar extracción completa",
+    "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
+    "advancedOptions": "Opciones avanzadas"
   },
   "settings": {
     "title": "Configuración",

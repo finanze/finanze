@@ -2,23 +2,23 @@ import logging
 from datetime import datetime
 from uuid import uuid4
 
-from dateutil.relativedelta import relativedelta
-
 from application.ports.entity_scraper import EntityScraper
+from dateutil.relativedelta import relativedelta
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
-from domain.global_position import (
-    Investments,
-    GlobalPosition,
-    RealStateCFInvestments,
-    RealStateCFDetail,
-    Account,
-    HistoricalPosition,
-    AccountType,
-)
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.global_position import (
+    Account,
+    AccountType,
+    GlobalPosition,
+    HistoricalPosition,
+    Investments,
+    RealStateCFDetail,
+    RealStateCFInvestments,
+)
 from domain.native_entities import URBANITAE
-from domain.transactions import Transactions, RealStateCFTx, TxType, ProductType
+from domain.scrap_result import ScrapeOptions
+from domain.transactions import ProductType, RealStateCFTx, Transactions, TxType
 from infrastructure.scrapers.urbanitae.urbanitae_client import UrbanitaeAPIClient
 
 FUNDED_PHASES = ["FUNDED", "POST_PREFUNDING", "FORMALIZED"]
@@ -127,7 +127,9 @@ class UrbanitaeScraper(EntityScraper):
             state=state,
         )
 
-    async def transactions(self, registered_txs: set[str]) -> Transactions:
+    async def transactions(
+        self, registered_txs: set[str], options: ScrapeOptions
+    ) -> Transactions:
         raw_txs = []
         page = 0
         while True:
