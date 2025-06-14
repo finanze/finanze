@@ -1,4 +1,6 @@
 from asyncio import Lock
+from datetime import datetime
+from uuid import uuid4
 
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.config_port import ConfigPort
@@ -6,12 +8,15 @@ from application.ports.entity_port import EntityPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
+from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.ports.virtual_scraper import VirtualScraper
 from application.use_cases.update_sheets import apply_global_config
+from dateutil.tz import tzlocal
 from domain.exception.exceptions import ExecutionConflict
 from domain.scrap_result import ScrapResult, ScrapResultCode
 from domain.scraped_data import VirtuallyScrapedData
 from domain.use_cases.virtual_scrape import VirtualScrape
+from domain.virtual_scrape import VirtualDataImport, VirtualDataSource
 
 
 class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
@@ -22,6 +27,7 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
         virtual_scraper: VirtualScraper,
         entity_port: EntityPort,
         config_port: ConfigPort,
+        virtual_import_registry: VirtualImportRegistry,
         transaction_handler_port: TransactionHandlerPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
@@ -31,6 +37,7 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
         self._virtual_scraper = virtual_scraper
         self._entity_port = entity_port
         self._config_port = config_port
+        self._virtual_import_registry = virtual_import_registry
 
         self._lock = Lock()
 
@@ -79,8 +86,18 @@ class VirtualScrapeImpl(AtomicUCMixin, VirtualScrape):
                     self._entity_port.insert(entity)
                     existing_entities_by_name[entity.name] = entity
 
+                import_id = uuid4()
+                import_date = datetime.now(tzlocal())
                 for position in global_positions:
                     self._position_port.save(position)
+                    self._virtual_import_registry.insert(
+                        VirtualDataImport(
+                            import_id=import_id,
+                            global_position_id=position.id,
+                            source=VirtualDataSource.SHEETS,
+                            date=import_date,
+                        )
+                    )
 
             (
                 transactions,

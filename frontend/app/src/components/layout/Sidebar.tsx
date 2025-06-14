@@ -17,7 +17,7 @@ import {
   FileUp,
   SunMoon,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
 import {
   Popover,
@@ -34,7 +34,25 @@ export function Sidebar() {
   const { platform } = useAppContext()
   const navigate = useNavigate()
   const location = useLocation()
-  const [collapsed, setCollapsed] = useState(false)
+
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth < 768
+    }
+    return false
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      const isNarrowView = window.innerWidth < 768
+      if (isNarrowView && !collapsed) {
+        setCollapsed(true)
+      }
+    }
+
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [collapsed])
 
   const navItems = [
     {

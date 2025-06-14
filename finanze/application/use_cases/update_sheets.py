@@ -13,7 +13,7 @@ from domain.auto_contributions import AutoContributions, ContributionQueryReques
 from domain.exception.exceptions import ExecutionConflict
 from domain.export import ExportRequest
 from domain.financial_entity import FinancialEntity
-from domain.global_position import GlobalPosition, PositionQueryRequest
+from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.settings import (
     ContributionSheetConfig,
@@ -98,29 +98,7 @@ class UpdateSheetsImpl(UpdateSheets):
             tx_configs = apply_global_config(config_globals, tx_configs)
             historic_configs = apply_global_config(config_globals, historic_configs)
 
-            real_global_position_by_entity = (
-                self._position_port.get_last_grouped_by_entity(
-                    PositionQueryRequest(real=True)
-                )
-            )
-            manual_global_position_by_entity = (
-                self._position_port.get_last_grouped_by_entity(
-                    PositionQueryRequest(real=False)
-                )
-            )
-
-            global_position_by_entity = {}
-            for entity, position in real_global_position_by_entity.items():
-                if entity in manual_global_position_by_entity:
-                    global_position_by_entity[entity] += (
-                        manual_global_position_by_entity[entity]
-                    )
-                    del manual_global_position_by_entity[entity]
-                else:
-                    global_position_by_entity[entity] = position
-
-            for entity, position in manual_global_position_by_entity.items():
-                global_position_by_entity[entity] = position
+            global_position_by_entity = self._position_port.get_last_grouped_by_entity()
 
             self.update_summary_sheets(
                 global_position_by_entity, summary_configs, sheet_credentials

@@ -7,30 +7,30 @@ from application.ports.position_port import PositionPort
 from domain.dezimal import Dezimal
 from domain.financial_entity import FinancialEntity
 from domain.global_position import (
-    GlobalPosition,
     Account,
+    AccountType,
     Card,
-    Loan,
-    Investments,
-    StockInvestments,
-    StockDetail,
     CardType,
-    FundDetail,
-    FundInvestments,
+    Crowdlending,
+    Deposit,
+    Deposits,
     FactoringDetail,
     FactoringInvestments,
+    FundDetail,
+    FundInvestments,
+    FundPortfolio,
+    GlobalPosition,
+    Investments,
+    Loan,
+    LoanType,
+    PositionQueryRequest,
     RealStateCFDetail,
     RealStateCFInvestments,
-    Deposits,
-    Deposit,
-    Crowdlending,
-    AccountType,
-    LoanType,
-    FundPortfolio,
-    PositionQueryRequest,
+    StockDetail,
+    StockInvestments,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
-from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.db.client import DBClient, DBCursor
 
 KPIs = Optional[dict[str, Dezimal]]
 PositionInvestmentKPIs = dict[str, KPIs]
@@ -391,29 +391,55 @@ class PositionSQLRepository(PositionPort):
                 _save_investments(cursor, position, position.investments)
 
     def get_last_grouped_by_entity(
-        self, query: PositionQueryRequest
+        self, query: Optional[PositionQueryRequest] = None
+    ) -> Dict[FinancialEntity, GlobalPosition]:
+        real_global_position_by_entity, manual_global_position_by_entity = {}, {}
+
+        if not query or query.real is None or query.real:
+            real_global_position_by_entity = self._get_real_grouped_by_entity(query)
+        if not query or query.real is None or not query.real:
+            manual_global_position_by_entity = self._get_non_real_grouped_by_entity(
+                query
+            )
+
+        global_position_by_entity = {}
+        for entity, position in real_global_position_by_entity.items():
+            if entity in manual_global_position_by_entity:
+                manual = manual_global_position_by_entity[entity]
+                global_position_by_entity[entity] = position + manual
+                del manual_global_position_by_entity[entity]
+            else:
+                global_position_by_entity[entity] = position
+
+        for entity, position in manual_global_position_by_entity.items():
+            global_position_by_entity[entity] = position
+
+        return global_position_by_entity
+
+    def _get_real_grouped_by_entity(
+        self, query: Optional[PositionQueryRequest]
     ) -> Dict[FinancialEntity, GlobalPosition]:
         with self._db_client.read() as cursor:
-            params = [query.real, query.real]
             sql = """
                   WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
                                             FROM global_positions
-                                            WHERE is_real = ?
+                                            WHERE is_real = TRUE
                                             GROUP BY entity_id)
                   SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
                   FROM global_positions gp
                            JOIN latest_positions lp
                                 ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
                            JOIN financial_entities e ON gp.entity_id = e.id
-                  WHERE gp.is_real = ? \
+                  WHERE gp.is_real = TRUE \
                   """
 
+            params = []
             conditions = []
-            if query.entities:
+            if query and query.entities:
                 placeholders = ", ".join("?" for _ in query.entities)
                 conditions.append(f"gp.entity_id IN ({placeholders})")
                 params.extend([str(e) for e in query.entities])
-            if query.excluded_entities:
+            if query and query.excluded_entities:
                 placeholders = ", ".join("?" for _ in query.excluded_entities)
                 conditions.append(f"gp.entity_id NOT IN ({placeholders})")
                 params.extend([str(e) for e in query.excluded_entities])
@@ -423,27 +449,74 @@ class PositionSQLRepository(PositionPort):
 
             cursor.execute(sql, tuple(params))
 
-            positions = {}
-            for row in cursor.fetchall():
-                entity = FinancialEntity(
-                    id=UUID(row["entity_id"]),
-                    name=row["entity_name"],
-                    is_real=row["entity_is_real"],
-                )
+            return self._map_position_rows(cursor)
 
-                position = GlobalPosition(
-                    id=UUID(row["id"]),
-                    entity=entity,
-                    date=datetime.fromisoformat(row["date"]),
-                    accounts=self._get_account_position(row["id"]),
-                    cards=self._get_card_positions(row["id"]),
-                    loans=self._get_loans_position(row["id"]),
-                    investments=self._get_investments(row["id"]),
-                    is_real=row["is_real"],
-                )
-                positions[entity] = position
+    def _map_position_rows(self, cursor: DBCursor):
+        positions = {}
+        for row in cursor.fetchall():
+            entity = FinancialEntity(
+                id=UUID(row["entity_id"]),
+                name=row["entity_name"],
+                is_real=row["entity_is_real"],
+            )
 
-            return positions
+            position = GlobalPosition(
+                id=UUID(row["id"]),
+                entity=entity,
+                date=datetime.fromisoformat(row["date"]),
+                accounts=self._get_account_position(row["id"]),
+                cards=self._get_card_positions(row["id"]),
+                loans=self._get_loans_position(row["id"]),
+                investments=self._get_investments(row["id"]),
+                is_real=row["is_real"],
+            )
+            positions[entity] = position
+        return positions
+
+    def _get_non_real_grouped_by_entity(
+        self, query: Optional[PositionQueryRequest]
+    ) -> Dict[FinancialEntity, GlobalPosition]:
+        with self._db_client.read() as cursor:
+            sql = """
+                  WITH latest_import_details AS (SELECT import_id
+                                                 FROM virtual_data_imports
+                                                 ORDER BY date DESC
+                                                 LIMIT 1),
+                       last_imported_position_ids AS (SELECT vdi.global_position_id
+                                                      FROM virtual_data_imports vdi
+                                                               JOIN latest_import_details lid
+                                                                    ON vdi.import_id = lid.import_id),
+                       latest_positions AS (SELECT entity_id, MAX(date) as latest_date
+                                            FROM global_positions gp
+                                                     INNER JOIN last_imported_position_ids lp
+                                                                ON gp.id = lp.global_position_id
+                                            WHERE gp.is_real = FALSE
+                                            GROUP BY gp.entity_id)
+                  SELECT gp.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                  FROM global_positions gp
+                           JOIN latest_positions lp
+                                ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
+                           JOIN financial_entities e ON gp.entity_id = e.id
+                  WHERE gp.is_real = FALSE \
+                  """
+
+            params = []
+            conditions = []
+            if query and query.entities:
+                placeholders = ", ".join("?" for _ in query.entities)
+                conditions.append(f"gp.entity_id IN ({placeholders})")
+                params.extend([str(e) for e in query.entities])
+            if query and query.excluded_entities:
+                placeholders = ", ".join("?" for _ in query.excluded_entities)
+                conditions.append(f"gp.entity_id NOT IN ({placeholders})")
+                params.extend([str(e) for e in query.excluded_entities])
+
+            if conditions:
+                sql += " AND " + " AND ".join(conditions)
+
+            cursor.execute(sql, tuple(params))
+
+            return self._map_position_rows(cursor)
 
     def _get_account_position(self, global_position_id: UUID) -> list[Account]:
         with self._db_client.read() as cursor:

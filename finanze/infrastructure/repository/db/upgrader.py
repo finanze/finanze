@@ -1,9 +1,9 @@
+import logging
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List
 
 from dateutil.tz import tzlocal
-
 from infrastructure.repository.db.client import DBClient, DBCursor
 
 
@@ -42,6 +42,9 @@ class DatabaseUpgrader:
     def __init__(self, db_client: DBClient, versions: List[DBVersionMigration]):
         self._db_client = db_client
         self._versions = versions
+
+        self._log = logging.getLogger(__name__)
+
         self._ensure_migrations_table()
 
     def _ensure_migrations_table(self):
@@ -114,6 +117,7 @@ class DatabaseUpgrader:
             with self._db_client.tx() as cursor:
                 migration = self._versions[version]
                 # Execute the migration
+                self._log.info(f"Applying migration: {migration.name}")
                 migration.upgrade(cursor)
 
                 applied_at = datetime.now(tzlocal())

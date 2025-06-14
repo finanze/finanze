@@ -36,6 +36,9 @@ from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
+from infrastructure.repository.virtual.virtual_import_repository import (
+    VirtualImportRepository,
+)
 from infrastructure.scrapers.f24.f24_scraper import F24Scraper
 from infrastructure.scrapers.indexa_capital.indexa_capital_scraper import (
     IndexaCapitalScraper,
@@ -89,6 +92,7 @@ class FinanzeServer:
         historic_repository = HistoricRepository(client=self.db_client)
         entity_repository = EntityRepository(client=self.db_client)
         sessions_port = SessionsRepository(client=self.db_client)
+        virtual_import_repository = VirtualImportRepository(client=self.db_client)
 
         credentials_storage_mode = self.args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -147,6 +151,7 @@ class FinanzeServer:
             self.virtual_scraper,
             entity_repository,
             self.config_loader,
+            virtual_import_repository,
             transaction_handler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
@@ -171,6 +176,10 @@ class FinanzeServer:
                 self.config_loader.connect(user)
                 self.db_manager.initialize(
                     DatasourceInitParams(user, args.logged_password)
+                )
+            else:
+                self._log.warning(
+                    f"User {args.logged_username} not found in the data directory."
                 )
 
         self._log.info("Setting up REST API...")
