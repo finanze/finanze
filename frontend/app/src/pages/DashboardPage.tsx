@@ -62,8 +62,11 @@ export default function DashboardPage() {
       setTransactionsLoading(true)
       setTransactionsError(null)
       try {
-        const entityIds = inactiveEntities.map(entity => entity.id)
-        const result = await getTransactions({ entities: entityIds, limit: 8 })
+        const excludedEntityIds = inactiveEntities.map(entity => entity.id)
+        const result = await getTransactions({
+          excluded_entities: excludedEntityIds,
+          limit: 8,
+        })
         setTransactions(result)
       } catch (err) {
         console.error("Error fetching transactions:", err)
@@ -607,9 +610,15 @@ export default function DashboardPage() {
         ),
         type: tx.type,
         product_type: tx.product_type,
-        displayType: ["SELL", "REPAYMENT"].includes(tx.type)
-          ? "expense"
-          : "income",
+        displayType: [
+          TxType.BUY,
+          TxType.INVESTMENT,
+          TxType.SUBSCRIPTION,
+          TxType.SWAP_FROM,
+          TxType.SWAP_TO,
+        ].includes(tx.type)
+          ? "out"
+          : "in",
         entity: tx.entity.name,
       }))
       .slice(0, 10) // Keep overall limit for recent transactions
@@ -1460,14 +1469,12 @@ export default function DashboardPage() {
                                     <div className="text-right flex-shrink-0 pl-2">
                                       <p
                                         className={`text-sm font-semibold ${
-                                          tx.displayType === "income"
+                                          tx.displayType === "in"
                                             ? "text-green-600 dark:text-green-400"
-                                            : "text-red-600 dark:text-red-400"
+                                            : undefined
                                         }`}
                                       >
-                                        {tx.displayType === "income"
-                                          ? "+"
-                                          : "-"}
+                                        {tx.displayType === "in" ? "+" : ""}
                                         {tx.formattedAmount}
                                       </p>
                                     </div>
