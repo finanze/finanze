@@ -7,6 +7,13 @@ platforms. It supports multiple entities and features, providing a unified inter
 information.
 </p>
 
+<h2 align="center"></h2>
+
+<p align="middle">
+  <img src="resources/dashboard.png" width="49%" />
+  <img src="resources/entitiespage.png" width="49%" /> 
+</p>
+
 ## Table of Contents
 
 - [Features](#features)
