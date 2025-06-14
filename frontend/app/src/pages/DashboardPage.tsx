@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react"
+import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { useI18n } from "@/i18n"
@@ -86,39 +86,95 @@ export default function DashboardPage() {
   const [showLeftScroll, setShowLeftScroll] = useState(false)
   const [showRightScroll, setShowRightScroll] = useState(true)
 
-  const [assetDistributionCardSmall, setAssetDistributionCardSmall] =
-    useState(false)
+  const [assetDistributionCardSmall, setAssetDistributionCardSmall] = useState(
+    () => {
+      if (typeof window !== "undefined") {
+        return window.innerWidth < 768
+      }
+      return false
+    },
+  )
+
+  const [chartRenderKey, setChartRenderKey] = useState(0)
 
   const hasData =
     positionsData !== null &&
     positionsData.positions &&
     Object.keys(positionsData.positions).length > 0
 
-  useEffect(() => {
-    const assetDistributionCardElement = assetDistributionCardRef.current
+  useLayoutEffect(() => {
+    if (hasData) {
+      const checkInitialSize = () => {
+        const assetDistributionCardElement = assetDistributionCardRef.current
+        if (assetDistributionCardElement) {
+          const cardWidth = assetDistributionCardElement.clientWidth
+          const shouldBeSmall = cardWidth < 500
+          setAssetDistributionCardSmall(shouldBeSmall)
+          if (shouldBeSmall) {
+            setChartRenderKey(prev => prev + 1)
+          }
+        } else {
+          requestAnimationFrame(checkInitialSize)
+        }
+      }
 
+      checkInitialSize()
+    }
+  }, [hasData])
+
+  useEffect(() => {
     const checkScreenSize = () => {
+      const assetDistributionCardElement = assetDistributionCardRef.current
       if (assetDistributionCardElement) {
-        setAssetDistributionCardSmall(
-          assetDistributionCardElement.clientWidth < 600,
-        )
+        const cardWidth = assetDistributionCardElement.clientWidth
+        const shouldBeSmall = cardWidth < 500
+        if (shouldBeSmall !== assetDistributionCardSmall) {
+          setAssetDistributionCardSmall(shouldBeSmall)
+          setChartRenderKey(prev => prev + 1)
+        }
       }
     }
 
+    const timeoutId = setTimeout(checkScreenSize, 0)
+
+    const assetDistributionCardElement = assetDistributionCardRef.current
     if (assetDistributionCardElement) {
-      checkScreenSize()
       const resizeObserver = new ResizeObserver(checkScreenSize)
       resizeObserver.observe(assetDistributionCardElement)
 
       return () => {
+        clearTimeout(timeoutId)
         resizeObserver.unobserve(assetDistributionCardElement)
       }
     }
-  }, [hasData, assetDistributionCardRef.current])
+
+    return () => {
+      clearTimeout(timeoutId)
+    }
+  }, [hasData, assetDistributionCardSmall])
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      const assetDistributionCardElement = assetDistributionCardRef.current
+      if (assetDistributionCardElement) {
+        const cardWidth = assetDistributionCardElement.clientWidth
+        const shouldBeSmall = cardWidth < 500
+        if (shouldBeSmall !== assetDistributionCardSmall) {
+          setAssetDistributionCardSmall(shouldBeSmall)
+          setChartRenderKey(prev => prev + 1)
+        }
+      }
+    }
+
+    window.addEventListener("resize", handleWindowResize)
+    return () => {
+      window.removeEventListener("resize", handleWindowResize)
+    }
+  }, [assetDistributionCardSmall])
 
   useEffect(() => {
     fetchTransactionsData()
-  }, [inactiveEntities, t]) // Add t to dependency array if it's not already there and used in fetchTransactionsData
+  }, [inactiveEntities, t])
 
   const getDaysStatus = (dateString: string) => {
     const today = new Date()
@@ -350,7 +406,6 @@ export default function DashboardPage() {
     let totalInvested = 0
 
     Object.values(positionsData.positions).forEach(entityPosition => {
-      // Accounts are considered as cash, their invested amount is their current value
       if (entityPosition.accounts) {
         entityPosition.accounts.forEach(account => {
           totalInvested += account.total || 0
@@ -528,7 +583,7 @@ export default function DashboardPage() {
           entityPosition.investments.stocks.details.forEach(stock => {
             const value = stock.market_value || 0
             allPositionsRaw.push({
-              symbol: stock.ticker || "", // Changed: Use ticker or empty string, remove ISIN fallback
+              symbol: stock.ticker || "",
               name: stock.name,
               shares: stock.shares || 0,
               price: stock.average_buy_price || 0,
@@ -556,9 +611,9 @@ export default function DashboardPage() {
           entityPosition.investments.funds.details.forEach(fund => {
             const value = fund.market_value || 0
             allPositionsRaw.push({
-              symbol: "", // Changed: Set symbol to empty string for funds
+              symbol: "",
               name: fund.name,
-              portfolioName: fund.portfolio?.name || null, // Added portfolioName
+              portfolioName: fund.portfolio?.name || null,
               shares: fund.shares || 0,
               price: fund.average_buy_price || 0,
               value: value,
@@ -588,11 +643,11 @@ export default function DashboardPage() {
           : 0,
     }))
 
-    return enrichedPositions.sort((a, b) => b.value - a.value).slice(0, 10) // Keep top 10 for display
+    return enrichedPositions.sort((a, b) => b.value - a.value).slice(0, 10)
   }
 
   const getRecentTransactions = () => {
-    if (!transactions || !transactions.transactions) return {} // Return an object for grouped transactions
+    if (!transactions || !transactions.transactions) return {}
 
     const groupedTxs: Record<string, any[]> = {}
 
@@ -621,7 +676,7 @@ export default function DashboardPage() {
           : "in",
         entity: tx.entity.name,
       }))
-      .slice(0, 10) // Keep overall limit for recent transactions
+      .slice(0, 10)
       .forEach(tx => {
         const dateKey = formatDate(tx.date, locale)
         if (!groupedTxs[dateKey]) {
@@ -630,11 +685,8 @@ export default function DashboardPage() {
         groupedTxs[dateKey].push(tx)
       })
 
-    // Sort dates in descending order
     const sortedDates = Object.keys(groupedTxs).sort((a, b) => {
-      // Assuming dateKey is in a format that can be converted to Date
-      // Adjust parsing if formatDate produces a different format
-      const dateA = new Date(a.split("/").reverse().join("-")) // Example: dd/mm/yyyy to yyyy-mm-dd
+      const dateA = new Date(a.split("/").reverse().join("-"))
       const dateB = new Date(b.split("/").reverse().join("-"))
       return dateB.getTime() - dateA.getTime()
     })
@@ -682,7 +734,7 @@ export default function DashboardPage() {
     .filter(p => p.type === "FUND")
     .map((p, index) => ({
       ...p,
-      id: `fund-${p.name}-${p.entity}-${p.portfolioName || "default"}-${index}`, // Enhanced ID
+      id: `fund-${p.name}-${p.entity}-${p.portfolioName || "default"}-${index}`,
     }))
 
   const stockItems = stockAndFundPositions
@@ -692,7 +744,6 @@ export default function DashboardPage() {
       id: `${p.symbol}-stock-${index}-${p.entity}`,
     }))
 
-  // Generate a stable color map for fund portfolios
   const fundPortfolioColorMap = useMemo(() => {
     const uniqueNames = Array.from(
       new Set(
@@ -726,7 +777,6 @@ export default function DashboardPage() {
     return mapping
   }, [fundItems])
 
-  // Define base color lists for items
   const ITEM_FUND_COLORS = [
     "bg-sky-500",
     "bg-sky-400",
@@ -766,14 +816,12 @@ export default function DashboardPage() {
     "bg-amber-400",
   ]
 
-  // Helper function to shuffle an array
   const shuffle = <T,>(arr: T[]): T[] =>
     arr
       .map(value => ({ value, sort: Math.random() }))
       .sort((a, b) => a.sort - b.sort)
       .map(({ value }) => value)
 
-  // Memoize the shuffled color lists to ensure they are generated only once
   const shuffledFundItemColors = useMemo(() => shuffle(ITEM_FUND_COLORS), [])
   const shuffledStockItemColors = useMemo(() => shuffle(ITEM_STOCK_COLORS), [])
 
@@ -787,8 +835,6 @@ export default function DashboardPage() {
     const { payload } = props
     return (
       <ul className="space-y-1.5 text-xs scrollbar-thin pr-0.5">
-        {" "}
-        {/* Removed max-h and overflow-y */}
         {payload.map((entry: any, index: number) => {
           const assetType = entry.payload.payload.type
           const assetValue = entry.payload.payload.value
@@ -921,7 +967,9 @@ export default function DashboardPage() {
                       }
                     >
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        <PieChart
+                          key={`pie-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                        >
                           <Pie
                             data={assetDistribution}
                             cx={assetDistributionCardSmall ? "50%" : "40%"}
