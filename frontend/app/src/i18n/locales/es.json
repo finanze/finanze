@@ -44,6 +44,11 @@
     "search": "Buscar...",
     "incompatibleLoginPlatform": "Usa la app de escritorio para iniciar sesión manualmente."
   },
+  "toast": {
+    "success": "Operación exitosa",
+    "warning": "Advertencia",
+    "error": "Error"
+  },
   "login": {
     "enterCredentials": "Ingrese Credenciales para",
     "externalLogin": "Inicio de Sesión Externo para",
@@ -91,7 +96,7 @@
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente."
   },
   "entities": {
-    "title": "Integraciones de Entidades",
+    "title": "Integraciones",
     "connected": "Conectado",
     "requiresLogin": "Requiere Inicio de Sesión",
     "login": "Iniciar Sesión de Nuevo",

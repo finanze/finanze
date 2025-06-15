@@ -4,6 +4,7 @@ import { Toast } from "@/components/ui/Toast"
 import { useAppContext } from "@/context/AppContext"
 import { motion, AnimatePresence } from "framer-motion"
 import { PlatformType } from "@/types"
+import { useI18n } from "@/i18n"
 
 interface LayoutProps {
   children: React.ReactNode
@@ -11,6 +12,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { toast, hideToast, platform } = useAppContext()
+  const { t } = useI18n()
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
@@ -47,24 +49,19 @@ export function Layout({ children }: LayoutProps) {
               <Toast
                 variant={
                   toast.type === "error"
-                    ? "destructive"
+                    ? "error"
                     : toast.type === "warning"
                       ? "warning"
-                      : "default"
+                      : "success"
                 }
                 onClose={hideToast}
-                className={
-                  toast.type === "success"
-                    ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
-                    : undefined
-                }
               >
                 <div className="font-medium">
                   {toast.type === "success"
-                    ? "Success"
+                    ? t.toast.success
                     : toast.type === "warning"
-                      ? "Warning"
-                      : "Error"}
+                      ? t.toast.warning
+                      : t.toast.error}
                 </div>
                 <div className="text-sm mt-1">{toast.message}</div>
               </Toast>

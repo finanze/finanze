@@ -49,6 +49,11 @@
     "search": "Search...",
     "incompatibleLoginPlatform": "Use desktop app in order to do manual log in."
   },
+  "toast": {
+    "success": "Success",
+    "warning": "Warning",
+    "error": "Error"
+  },
   "login": {
     "enterCredentials": "Enter Credentials for",
     "externalLogin": "External Login for",
@@ -96,7 +101,7 @@
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again."
   },
   "entities": {
-    "title": "Entity Integrations",
+    "title": "Integrations",
     "connected": "Connected",
     "requiresLogin": "Requires Login",
     "login": "Login Again",
