@@ -4,15 +4,14 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
+from application.ports.entity_scraper import EntityScraper
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
-
-from application.ports.entity_scraper import EntityScraper
 from domain.auto_contributions import (
-    PeriodicContribution,
-    ContributionFrequency,
     AutoContributions,
+    ContributionFrequency,
     ContributionTargetType,
+    PeriodicContribution,
 )
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
@@ -20,28 +19,29 @@ from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.global_position import (
     Account,
+    AccountType,
     Card,
-    StockDetail,
-    StockInvestments,
-    FundDetail,
-    FundInvestments,
-    Investments,
-    GlobalPosition,
+    CardType,
     Deposit,
     Deposits,
-    AccountType,
-    CardType,
+    FundDetail,
+    FundInvestments,
     FundPortfolio,
+    GlobalPosition,
+    Investments,
+    StockDetail,
+    StockInvestments,
 )
 from domain.native_entities import MY_INVESTOR
+from domain.scrap_result import ScrapeOptions
 from domain.transactions import (
-    Transactions,
-    FundTx,
-    TxType,
-    StockTx,
-    ProductType,
-    DepositTx,
     AccountTx,
+    DepositTx,
+    FundTx,
+    ProductType,
+    StockTx,
+    Transactions,
+    TxType,
 )
 from infrastructure.scrapers.myinvestor.v2.myinvestor_client import (
     MyInvestorAPIV2Client,
@@ -236,7 +236,9 @@ class MyInvestorScraperV2(EntityScraper):
     async def auto_contributions(self) -> AutoContributions:
         return self.scrape_auto_contributions()
 
-    async def transactions(self, registered_txs: set[str]) -> Transactions:
+    async def transactions(
+        self, registered_txs: set[str], options: ScrapeOptions
+    ) -> Transactions:
         accounts = self._get_active_owned_accounts()
 
         target_accounts = [
@@ -257,7 +259,9 @@ class MyInvestorScraperV2(EntityScraper):
                 registered_txs, related_security_account_id
             )
 
-            account_related_txs = self._classify_account_txs(account_id, registered_txs)
+            account_related_txs = self._classify_account_txs(
+                account_id, registered_txs, options.deep
+            )
             investment_txs += account_related_txs["deposit"]
             account_txs += account_related_txs["interests"]
 

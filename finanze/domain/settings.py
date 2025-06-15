@@ -111,7 +111,13 @@ class IntegrationsConfig:
 
 
 @dataclass
+class GeneralConfig:
+    defaultCurrency: str = "EUR"
+
+
+@dataclass
 class Settings:
+    general: GeneralConfig = field(default_factory=GeneralConfig)
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
     scrape: ScrapeConfig = field(default_factory=ScrapeConfig)

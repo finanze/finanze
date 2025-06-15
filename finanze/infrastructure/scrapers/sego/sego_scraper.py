@@ -5,24 +5,24 @@ from hashlib import sha1
 from typing import Optional
 from uuid import uuid4
 
-from pytz import utc
-
 from application.ports.entity_scraper import EntityScraper
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.global_position import (
+    Account,
+    AccountType,
     FactoringDetail,
     FactoringInvestments,
-    Investments,
     GlobalPosition,
-    Account,
     HistoricalPosition,
-    AccountType,
+    Investments,
 )
-from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.native_entities import SEGO
-from domain.transactions import Transactions, TxType, ProductType, FactoringTx
+from domain.scrap_result import ScrapeOptions
+from domain.transactions import FactoringTx, ProductType, Transactions, TxType
 from infrastructure.scrapers.sego.sego_client import SegoAPIClient
+from pytz import utc
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M"
 TAG_TIME_FORMAT = "%H:%M:%S"
@@ -255,7 +255,9 @@ class SegoScraper(EntityScraper):
 
         return sorted(normalized_movs, key=lambda m: m["date"])
 
-    async def transactions(self, registered_txs: set[str]) -> Transactions:
+    async def transactions(
+        self, registered_txs: set[str], options: ScrapeOptions
+    ) -> Transactions:
         factoring_txs = self.scrape_factoring_txs(registered_txs)
 
         return Transactions(investment=factoring_txs)

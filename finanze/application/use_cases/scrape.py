@@ -1,10 +1,10 @@
+import asyncio
 import logging
+from asyncio import Lock
 from dataclasses import asdict
 from datetime import datetime
 from typing import List, Optional
-from uuid import uuid4
-
-from dateutil.tz import tzlocal
+from uuid import UUID, uuid4
 
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.auto_contributions_port import AutoContributionsPort
@@ -16,21 +16,23 @@ from application.ports.position_port import PositionPort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
+from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.dezimal import Dezimal
-from domain.entity_login import LoginResultCode, EntityLoginParams
-from domain.exception.exceptions import EntityNotFound
-from domain.financial_entity import FinancialEntity, Feature, CredentialType
-from domain.global_position import RealStateCFDetail, FactoringDetail
-from domain.historic import RealStateCFEntry, FactoringEntry, BaseHistoricEntry
+from domain.entity_login import EntityLoginParams, LoginResultCode
+from domain.exception.exceptions import EntityNotFound, ExecutionConflict
+from domain.financial_entity import CredentialType, Feature, FinancialEntity
+from domain.global_position import FactoringDetail, RealStateCFDetail
+from domain.historic import BaseHistoricEntry, FactoringEntry, RealStateCFEntry
 from domain.scrap_result import (
-    ScrapResultCode,
-    ScrapResult,
     SCRAP_BAD_LOGIN_CODES,
+    ScrapeOptions,
     ScrapRequest,
+    ScrapResult,
+    ScrapResultCode,
 )
 from domain.scraped_data import ScrapedData
-from domain.transactions import TxType, ProductType
+from domain.transactions import ProductType, TxType
 from domain.use_cases.scrape import Scrape
 
 DEFAULT_FEATURES = [Feature.POSITION]
@@ -140,7 +142,14 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
 
+        self._locks: dict[UUID, Lock] = {}
+
         self._log = logging.getLogger(__name__)
+
+    def _get_lock(self, entity_id: UUID) -> Lock:
+        if entity_id not in self._locks:
+            self._locks[entity_id] = asyncio.Lock()
+        return self._locks[entity_id]
 
     async def execute(self, scrap_request: ScrapRequest) -> ScrapResult:
         entity_id = scrap_request.entity_id
@@ -154,95 +163,111 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         if features and not all(f in entity.features for f in features):
             return ScrapResult(ScrapResultCode.FEATURE_NOT_SUPPORTED)
 
-        if Feature.POSITION in features:
-            update_cooldown = self._get_position_update_cooldown()
-            last_update = self._position_port.get_last_updated(entity_id)
-            if (
-                last_update
-                and (datetime.now(tzlocal()) - last_update).seconds < update_cooldown
-            ):
-                remaining_seconds = (
-                    update_cooldown - (datetime.now(tzlocal()) - last_update).seconds
+        lock = self._get_lock(entity_id)
+
+        if lock.locked():
+            raise ExecutionConflict()
+
+        async with lock:
+            if Feature.POSITION in features:
+                update_cooldown = self._get_position_update_cooldown()
+                last_update = self._position_port.get_last_updated(entity_id)
+                if (
+                    last_update
+                    and (datetime.now(tzlocal()) - last_update).seconds
+                    < update_cooldown
+                ):
+                    remaining_seconds = (
+                        update_cooldown
+                        - (datetime.now(tzlocal()) - last_update).seconds
+                    )
+                    details = {
+                        "lastUpdate": last_update.astimezone(tzlocal()).isoformat(),
+                        "wait": remaining_seconds,
+                    }
+                    return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
+
+            credentials = self._credentials_port.get(entity.id)
+            if not credentials:
+                return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
+
+            for cred_name, cred_type in entity.credentials_template.items():
+                if (
+                    cred_type != CredentialType.INTERNAL
+                    and cred_type != CredentialType.INTERNAL_TEMP
+                    and cred_name not in credentials
+                ):
+                    return ScrapResult(ScrapResultCode.INVALID_CREDENTIALS)
+
+            specific_scraper = self._entity_scrapers[entity]
+
+            stored_session = self._sessions_port.get(entity.id)
+            login_request = EntityLoginParams(
+                credentials=credentials,
+                two_factor=scrap_request.two_factor,
+                options=scrap_request.login_options,
+                session=stored_session,
+            )
+            login_result = await specific_scraper.login(login_request)
+            login_result_code = login_result.code
+            login_message = login_result.message
+
+            if login_result_code == LoginResultCode.CODE_REQUESTED:
+                return ScrapResult(
+                    ScrapResultCode.CODE_REQUESTED,
+                    details={
+                        "message": login_message,
+                        "processId": login_result.process_id,
+                    },
                 )
-                details = {
-                    "lastUpdate": last_update.astimezone(tzlocal()).isoformat(),
-                    "wait": remaining_seconds,
-                }
-                return ScrapResult(ScrapResultCode.COOLDOWN, details=details)
 
-        credentials = self._credentials_port.get(entity.id)
-        if not credentials:
-            return ScrapResult(ScrapResultCode.NO_CREDENTIALS_AVAILABLE)
+            elif login_result_code == LoginResultCode.MANUAL_LOGIN:
+                return ScrapResult(
+                    SCRAP_BAD_LOGIN_CODES[login_result_code],
+                    details={"credentials": login_result.details},
+                )
 
-        for cred_name, cred_type in entity.credentials_template.items():
-            if (
-                cred_type != CredentialType.INTERNAL
-                and cred_type != CredentialType.INTERNAL_TEMP
-                and cred_name not in credentials
-            ):
-                return ScrapResult(ScrapResultCode.INVALID_CREDENTIALS)
+            elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
+                self._credentials_port.update_expiration(
+                    entity.id, datetime.now(tzlocal())
+                )
+                return ScrapResult(
+                    SCRAP_BAD_LOGIN_CODES[login_result_code],
+                    details={"message": login_message},
+                )
 
-        specific_scraper = self._entity_scrapers[entity]
+            elif login_result_code not in [
+                LoginResultCode.CREATED,
+                LoginResultCode.RESUMED,
+            ]:
+                return ScrapResult(
+                    SCRAP_BAD_LOGIN_CODES[login_result_code],
+                    details={"message": login_message},
+                )
 
-        stored_session = self._sessions_port.get(entity.id)
-        login_request = EntityLoginParams(
-            credentials=credentials,
-            two_factor=scrap_request.two_factor,
-            options=scrap_request.options,
-            session=stored_session,
-        )
-        login_result = await specific_scraper.login(login_request)
-        login_result_code = login_result.code
-        login_message = login_result.message
+            elif login_result_code == LoginResultCode.CREATED:
+                self._credentials_port.update_last_usage(entity.id)
 
-        if login_result_code == LoginResultCode.CODE_REQUESTED:
-            return ScrapResult(
-                ScrapResultCode.CODE_REQUESTED,
-                details={
-                    "message": login_message,
-                    "processId": login_result.process_id,
-                },
+                session = login_result.session
+                if session:
+                    self._sessions_port.delete(entity.id)
+                    self._sessions_port.save(entity.id, session)
+
+            if not features:
+                features = DEFAULT_FEATURES
+
+            scraped_data = await self.get_data(
+                entity, features, specific_scraper, scrap_request.scrape_options
             )
 
-        elif login_result_code == LoginResultCode.MANUAL_LOGIN:
-            return ScrapResult(
-                SCRAP_BAD_LOGIN_CODES[login_result_code],
-                details={"credentials": login_result.details},
-            )
-
-        elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
-            self._credentials_port.update_expiration(entity.id, datetime.now(tzlocal()))
-            return ScrapResult(
-                SCRAP_BAD_LOGIN_CODES[login_result_code],
-                details={"message": login_message},
-            )
-
-        elif login_result_code not in [
-            LoginResultCode.CREATED,
-            LoginResultCode.RESUMED,
-        ]:
-            return ScrapResult(
-                SCRAP_BAD_LOGIN_CODES[login_result_code],
-                details={"message": login_message},
-            )
-
-        elif login_result_code == LoginResultCode.CREATED:
-            self._credentials_port.update_last_usage(entity.id)
-
-            session = login_result.session
-            if session:
-                self._sessions_port.delete(entity.id)
-                self._sessions_port.save(entity.id, session)
-
-        if not features:
-            features = DEFAULT_FEATURES
-
-        scraped_data = await self.get_data(entity, features, specific_scraper)
-
-        return ScrapResult(ScrapResultCode.COMPLETED, data=scraped_data)
+            return ScrapResult(ScrapResultCode.COMPLETED, data=scraped_data)
 
     async def get_data(
-        self, entity: FinancialEntity, features: List[Feature], specific_scraper
+        self,
+        entity: FinancialEntity,
+        features: List[Feature],
+        specific_scraper: EntityScraper,
+        options: ScrapeOptions,
     ) -> ScrapedData:
         position = None
         if Feature.POSITION in features:
@@ -255,7 +280,7 @@ class ScrapeImpl(AtomicUCMixin, Scrape):
         transactions = None
         if Feature.TRANSACTIONS in features:
             registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
-            transactions = await specific_scraper.transactions(registered_txs)
+            transactions = await specific_scraper.transactions(registered_txs, options)
 
         if position:
             self._position_port.save(position)

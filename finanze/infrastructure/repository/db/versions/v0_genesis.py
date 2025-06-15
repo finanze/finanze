@@ -1,8 +1,8 @@
 from infrastructure.repository.db.client import DBCursor
+from infrastructure.repository.db.query_mixin import QueryMixin
 from infrastructure.repository.db.upgrader import DBVersionMigration
 
 DDL = """
-
       -- FINANCIAL ENTITY
 
       CREATE TABLE financial_entities
@@ -12,7 +12,7 @@ DDL = """
           is_real BOOLEAN     NOT NULL
       );
 
--- POSITION
+      -- POSITION
 
       CREATE TABLE global_positions
       (
@@ -74,7 +74,7 @@ DDL = """
 
       CREATE INDEX idx_lp_global_position_id ON loan_positions (global_position_id);
 
--- - Latest investment position KPIs
+      -- Latest investment position KPIs
 
       CREATE TABLE investment_position_kpis
       (
@@ -200,7 +200,7 @@ DDL = """
 
       CREATE INDEX idx_clp_global_position_id ON crowdlending_positions (global_position_id);
 
--- CONTRIBUTIONS
+      -- CONTRIBUTIONS
 
       CREATE TABLE periodic_contributions
       (
@@ -221,7 +221,7 @@ DDL = """
 
       CREATE INDEX idx_pcont_entity_target ON periodic_contributions (entity_id, target);
 
--- TRANSACTIONS
+      -- TRANSACTIONS
 
       CREATE TABLE investment_transactions
       (
@@ -339,7 +339,7 @@ DDL = """
           created_at TIMESTAMP NOT NULL,
           expiration TIMESTAMP,
           payload    JSON      NOT NULL
-      ); \
+      );
       """
 
 INSERT_FINANCIAL_ENTITIES = """
@@ -352,28 +352,17 @@ INSERT_FINANCIAL_ENTITIES = """
                                    ('e0000000-0000-0000-0000-000000000006', 'SEGO', TRUE),
                                    ('e0000000-0000-0000-0000-000000000007', 'Mintos', TRUE),
                                    ('e0000000-0000-0000-0000-000000000008', 'Freedom24', TRUE),
-                                   ('e0000000-0000-0000-0000-000000000009', 'Indexa Capital', TRUE); \
+                                   ('e0000000-0000-0000-0000-000000000009', 'Indexa Capital', TRUE);
                             """
 
 
-class V0Genesis(DBVersionMigration):
+class V0Genesis(DBVersionMigration, QueryMixin):
     @property
     def name(self):
         return "v0 Genesis"
 
     def upgrade(self, cursor: DBCursor):
-        ddl_without_comments = "\n".join(
-            [
-                line
-                for line in DDL.split("\n")
-                if not line.startswith("--") and line.strip() != ""
-            ]
-        )
-        statements = [
-            statement.strip()
-            for statement in ddl_without_comments.split(";")
-            if statement.strip()
-        ]
+        statements = self.parse_block(DDL)
         for statement in statements:
             cursor.execute(statement)
 

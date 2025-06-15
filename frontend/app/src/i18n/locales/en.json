@@ -49,6 +49,11 @@
     "search": "Search...",
     "incompatibleLoginPlatform": "Use desktop app in order to do manual log in."
   },
+  "toast": {
+    "success": "Success",
+    "warning": "Warning",
+    "error": "Error"
+  },
   "login": {
     "enterCredentials": "Enter Credentials for",
     "externalLogin": "External Login for",
@@ -96,7 +101,7 @@
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again."
   },
   "entities": {
-    "title": "Entity Integrations",
+    "title": "Integrations",
     "connected": "Connected",
     "requiresLogin": "Requires Login",
     "login": "Login Again",
@@ -127,9 +132,12 @@
     "AUTO_CONTRIBUTIONS": "Auto Contributions",
     "TRANSACTIONS": "Transactions",
     "HISTORIC": "Historic Data",
-    "selectFeatures": "Select Features to Fetch from",
-    "selectAll": "Select All Features",
-    "fetchSelected": "Fetch Selected Data"
+    "selectFeatures": "Select features to fetch from",
+    "selectAll": "Select all",
+    "fetchSelected": "Fetch selected data",
+    "deepScrape": "Force full fetch",
+    "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
+    "advancedOptions": "Advanced options"
   },
   "settings": {
     "title": "Settings",
@@ -197,9 +205,11 @@
     "summary": "Financial Summary",
     "recentTransactions": "Recent Transactions",
     "maturity": "Maturity",
-    "assetDistribution": "Asset Distribution",
-    "ongoingProjects": "Ongoing Projects",
-    "noOngoingProjects": "No ongoing projects at the moment.",
+    "assetDistribution": "Distribution",
+    "assetDistributionByType": "By type",
+    "assetDistributionByEntity": "By source",
+    "ongoingProjects": "Ongoing investments",
+    "noOngoingProjects": "No ongoing investments at the moment.",
     "stockPositions": "Stocks & Funds",
     "variableIncomeTitle": "Stocks & Funds",
     "accountsOverview": "Accounts Overview",

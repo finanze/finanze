@@ -5,19 +5,18 @@ from typing import Optional
 import requests
 from aiocache import cached
 from dateutil.tz import tzlocal
+from domain.entity_login import (
+    EntityLoginResult,
+    EntitySession,
+    LoginOptions,
+    LoginResultCode,
+)
+from infrastructure.scrapers.tr.tr_details import TRDetails
+from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 from pytr.api import TradeRepublicApi
 from pytr.portfolio import Portfolio
 from requests import HTTPError
 from requests.cookies import RequestsCookieJar, create_cookie
-
-from domain.entity_login import (
-    LoginResultCode,
-    EntityLoginResult,
-    EntitySession,
-    LoginOptions,
-)
-from infrastructure.scrapers.tr.tr_details import TRDetails
-from infrastructure.scrapers.tr.tr_timeline import TRTimeline
 
 
 def _json_cookie_jar(jar: RequestsCookieJar) -> list:
@@ -173,13 +172,16 @@ class TradeRepublicClient:
         return details
 
     async def get_transactions(
-        self, since: Optional[datetime] = None, already_registered_ids: set[str] = None
+        self,
+        since: Optional[datetime] = None,
+        already_registered_ids: set[str] = None,
+        force_all: bool = False,
     ):
         dl = TRTimeline(
             self._tr_api,
             since=since,
             requested_data=["timelineTransactions", "timelineDetailV2"],
-            already_registered_ids=already_registered_ids,
+            already_registered_ids=None if force_all else already_registered_ids,
         )
         return await dl.fetch()
 

@@ -63,6 +63,7 @@ export interface ScrapeRequest {
   code?: string
   processId?: string
   avoidNewLogin?: boolean
+  deep?: boolean
 }
 
 export interface LoginResponse {

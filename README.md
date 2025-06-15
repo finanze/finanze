@@ -7,6 +7,13 @@ platforms. It supports multiple entities and features, providing a unified inter
 information.
 </p>
 
+<h2 align="center"></h2>
+
+<p align="middle">
+  <img src="resources/dashboard.png" width="49%" />
+  <img src="resources/entitiespage.png" width="49%" /> 
+</p>
+
 ## Table of Contents
 
 - [Features](#features)
@@ -90,7 +97,7 @@ data. Check [Export & Import Configuration](#export--import-configuration) for m
 
 ### Download
 
-Download the latest version of the app from the [Releases](https://github.com/marcosav/bank-scraper/releases) for your
+Download the latest version of the app from the [Releases](https://github.com/finanze/finanze/releases) for your
 OS.
 
 ### Note for macOS
@@ -124,7 +131,7 @@ This project requires `Python 3.11`.
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/marcosav/finanze.git
+    git clone https://github.com/finanze/finanze.git
     cd finanze
     ```
 

@@ -175,7 +175,7 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
             deposits=_sum_inv(self, "deposits", other),
             crowdlending=_sum_inv(self, "crowdlending", other),
         ),
-        is_real=self.is_real,
+        is_real=self.is_real and other.is_real,
     )
 
 

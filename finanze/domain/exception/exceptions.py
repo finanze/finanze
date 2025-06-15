@@ -30,3 +30,7 @@ class InvalidProvidedCredentials(Exception):
 
 class NoAdapterFound(Exception):
     pass
+
+
+class ExecutionConflict(Exception):
+    pass

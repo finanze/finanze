@@ -3,11 +3,10 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from pydantic.dataclasses import dataclass
-
-from domain.entity_login import LoginResultCode, TwoFactor, LoginOptions
+from domain.entity_login import LoginOptions, LoginResultCode, TwoFactor
 from domain.financial_entity import Feature
 from domain.scraped_data import ScrapedData, VirtuallyScrapedData
+from pydantic.dataclasses import dataclass
 
 
 class ScrapResultCode(str, Enum):
@@ -36,11 +35,17 @@ class ScrapResultCode(str, Enum):
 
 
 @dataclass
+class ScrapeOptions:
+    deep: bool = False
+
+
+@dataclass
 class ScrapRequest:
     entity_id: UUID
     features: list[Feature]
     two_factor: Optional[TwoFactor] = None
-    options: Optional[LoginOptions] = field(default_factory=LoginOptions)
+    login_options: Optional[LoginOptions] = field(default_factory=LoginOptions)
+    scrape_options: Optional[ScrapeOptions] = field(default_factory=ScrapeOptions)
 
 
 @dataclass

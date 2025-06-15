@@ -44,6 +44,11 @@
     "search": "Buscar...",
     "incompatibleLoginPlatform": "Usa la app de escritorio para iniciar sesión manualmente."
   },
+  "toast": {
+    "success": "Operación exitosa",
+    "warning": "Advertencia",
+    "error": "Error"
+  },
   "login": {
     "enterCredentials": "Ingrese Credenciales para",
     "externalLogin": "Inicio de Sesión Externo para",
@@ -91,7 +96,7 @@
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente."
   },
   "entities": {
-    "title": "Integraciones de Entidades",
+    "title": "Integraciones",
     "connected": "Conectado",
     "requiresLogin": "Requiere Inicio de Sesión",
     "login": "Iniciar Sesión de Nuevo",
@@ -122,9 +127,12 @@
     "AUTO_CONTRIBUTIONS": "Contribuciones Automáticas",
     "TRANSACTIONS": "Transacciones",
     "HISTORIC": "Datos Históricos",
-    "selectFeatures": "Seleccionar Características para Obtener de",
-    "selectAll": "Seleccionar Todas",
-    "fetchSelected": "Obtener Datos Seleccionados"
+    "selectFeatures": "Seleccionar que descargar de",
+    "selectAll": "Seleccionar todas",
+    "fetchSelected": "Obtener fatos seleccionados",
+    "deepScrape": "Forzar extracción completa",
+    "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
+    "advancedOptions": "Opciones avanzadas"
   },
   "settings": {
     "title": "Configuración",
@@ -192,9 +200,11 @@
     "summary": "Resumen Financiero",
     "recentTransactions": "Transacciones Recientes",
     "maturity": "Vencimiento",
-    "assetDistribution": "Distribución de Activos",
-    "ongoingProjects": "Proyectos en Curso",
-    "noOngoingProjects": "No hay proyectos en curso en este momento.",
+    "assetDistribution": "Distribución",
+    "assetDistributionByType": "Por tipo",
+    "assetDistributionByEntity": "Por entidad",
+    "ongoingProjects": "Inversiones en curso",
+    "noOngoingProjects": "No hay inversiones en curso en este momento.",
     "stockPositions": "Acciones y Fondos",
     "variableIncomeTitle": "Acciones y Fondos",
     "accountsOverview": "Resumen de Cuentas",

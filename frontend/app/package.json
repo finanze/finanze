@@ -1,6 +1,6 @@
 {
   "name": "finanze",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
   "main": "dist-electron/main/index.js",
   "packageManager": "pnpm@10.11.1",

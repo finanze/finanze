@@ -53,12 +53,14 @@ export interface AppSettings {
       [key: string]: any
     }
   }
-  mainCurrency: string
+  general: {
+    defaultCurrency: string
+  }
 }
 
 interface AppContextType {
   entities: Entity[]
-  activeEntities: Entity[]
+  inactiveEntities: Entity[]
   isLoading: boolean
   virtualEnabled: boolean
   selectedEntity: Entity | null
@@ -101,6 +103,9 @@ interface AppContextType {
     credentials?: Record<string, string>,
   ) => Promise<void>
   disconnectEntity: (entityId: string) => Promise<void>
+  setOnScrapeCompleted: (
+    callback: ((entityId: string) => Promise<void>) | null,
+  ) => void
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -117,12 +122,14 @@ const defaultSettings: AppSettings = {
       enabled: false,
     },
   },
-  mainCurrency: "EUR",
+  general: {
+    defaultCurrency: "EUR",
+  },
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
-  const [activeEntities, setActiveEntities] = useState<Entity[]>([])
+  const [inactiveEntities, setInactiveEntities] = useState<Entity[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null)
   const [processId, setProcessId] = useState<string | null>(null)
@@ -163,6 +170,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     features: [],
   })
 
+  // Callback to be called when scraping is completed
+  const onScrapeCompletedRef = useRef<
+    ((entityId: string) => Promise<void>) | null
+  >(null)
   useEffect(() => {
     const getPlatform = async () => {
       if (window.ipcAPI && window.ipcAPI.platform) {
@@ -201,6 +212,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPinError(false)
   }
 
+  const setOnScrapeCompleted = (
+    callback: ((entityId: string) => Promise<void>) | null,
+  ) => {
+    onScrapeCompletedRef.current = callback
+  }
+
   const fetchEntities = async () => {
     // Don't fetch entities if not authenticated
     if (!isAuthenticated) return
@@ -221,7 +238,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       const data = await getSettings()
-      data.mainCurrency = "EUR"
       setSettings(data)
     } catch (error) {
       console.error("Error fetching settings:", error)
@@ -503,6 +519,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setView("entities")
       } else if (response.code === ScrapeResultCode.COMPLETED) {
         showToast(`${t.common.fetchSuccess}: ${entity.name}`, "success")
+
+        // Call the callback to refresh financial data for the scraped entity
+        if (onScrapeCompletedRef.current) {
+          try {
+            await onScrapeCompletedRef.current(entity.id)
+          } catch (error) {
+            console.error(
+              "Error refreshing financial data after scrape:",
+              error,
+            )
+          }
+        }
+
         resetState()
         // Return to entities view after successful scrape
         setView("entities")
@@ -608,8 +637,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated])
 
   useEffect(() => {
-    setActiveEntities(
-      entities.filter(entity => entity.status !== EntityStatus.DISCONNECTED),
+    setInactiveEntities(
+      entities.filter(entity => entity.status === EntityStatus.DISCONNECTED),
     )
   }, [entities])
 
@@ -617,7 +646,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         entities,
-        activeEntities,
+        inactiveEntities,
         isLoading,
         virtualEnabled,
         selectedEntity,
@@ -649,6 +678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearPinError,
         startExternalLogin,
         disconnectEntity: disconnectEntityHandler,
+        setOnScrapeCompleted,
       }}
     >
       {children}

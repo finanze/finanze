@@ -34,7 +34,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     useState<EntityContributions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { activeEntities } = useAppContext()
+  const { inactiveEntities, setOnScrapeCompleted } = useAppContext()
 
   const fetchFinancialData = async () => {
     setIsLoading(true)
@@ -45,9 +45,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         | PositionQueryRequest
         | ContributionQueryRequest
         | undefined = undefined
-      if (activeEntities && activeEntities.length > 0) {
-        const entityIds = activeEntities.map(entity => entity.id)
-        queryParams = { entities: entityIds }
+      if (inactiveEntities && inactiveEntities.length > 0) {
+        const entityIds = inactiveEntities.map(entity => entity.id)
+        queryParams = { excluded_entities: entityIds }
       }
 
       const [positionsResponse, contributionsData] = await Promise.all([
@@ -70,10 +70,42 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
-      console.log(
-        `Refreshing financial data for entity: ${entityId} (triggers full refresh)`,
-      )
-      await fetchFinancialData()
+      console.log(`Refreshing financial data for entity: ${entityId}`)
+
+      // Fetch data only for the specific entity
+      const queryParams = { entities: [entityId] }
+
+      const [positionsResponse, contributionsData] = await Promise.all([
+        getPositions(queryParams as PositionQueryRequest),
+        getContributions(queryParams as ContributionQueryRequest),
+      ])
+
+      // Update only the specific entity's data in the existing state
+      setPositionsData(prevPositions => {
+        if (!prevPositions) return positionsResponse
+
+        return {
+          ...prevPositions,
+          positions: {
+            ...prevPositions.positions,
+            ...positionsResponse.positions,
+          },
+        }
+      })
+
+      setContributions(prevContributions => {
+        if (!prevContributions) return contributionsData
+
+        return {
+          ...prevContributions,
+          contributions: {
+            ...prevContributions.contributions,
+            ...contributionsData.contributions,
+          },
+        }
+      })
+
+      console.log(`Successfully refreshed entity ${entityId}`)
     } catch (err) {
       console.error(`Error refreshing entity ${entityId}:`, err)
       setError(`Failed to refresh entity. Please try again.`)
@@ -84,7 +116,15 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchFinancialData()
-  }, [activeEntities])
+  }, [inactiveEntities])
+
+  // Register the refreshEntity callback with AppContext
+  useEffect(() => {
+    setOnScrapeCompleted(refreshEntity)
+    return () => {
+      setOnScrapeCompleted(null)
+    }
+  }, [refreshEntity, setOnScrapeCompleted])
 
   return (
     <FinancialDataContext.Provider
