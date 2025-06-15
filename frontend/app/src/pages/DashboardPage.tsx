@@ -9,6 +9,7 @@ import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
 import {
   getIconForProjectType,
   getPieSliceColorForAssetType,
@@ -37,6 +38,16 @@ import {
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import { EntityRefreshDropdown } from "@/components/EntityRefreshDropdown"
+import {
+  getAssetDistribution,
+  getEntityDistribution,
+  getTotalAssets,
+  getTotalInvestedAmount,
+  getOngoingProjects,
+  getStockAndFundPositions,
+  getRecentTransactions,
+  getDaysStatus,
+} from "@/utils/financialDataUtils"
 
 export default function DashboardPage() {
   const { t, locale } = useI18n()
@@ -176,559 +187,26 @@ export default function DashboardPage() {
     fetchTransactionsData()
   }, [inactiveEntities, t])
 
-  const getDaysStatus = (dateString: string) => {
-    const today = new Date()
-    const maturityDate = new Date(dateString)
-    const diffTime = maturityDate.getTime() - today.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-
-    if (diffDays >= 0) {
-      return {
-        days: diffDays,
-        isDelayed: false,
-        statusText: `${diffDays}${t.dashboard.daysLeft}`,
-      }
-    } else {
-      const absDiffDays = Math.abs(diffDays)
-      return {
-        days: absDiffDays,
-        isDelayed: true,
-        statusText: `${absDiffDays}${t.dashboard.daysDelay}`,
-      }
-    }
-  }
-
-  const getAssetDistribution = () => {
-    if (!positionsData || !positionsData.positions) return []
-
-    const assetTypes: Record<
-      string,
-      { type: string; value: number; percentage: number; change: number }
-    > = {}
-    let totalValue = 0
-
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition.accounts && entityPosition.accounts.length > 0) {
-        const accountsTotal = entityPosition.accounts.reduce(
-          (sum, account) => sum + (account.total || 0),
-          0,
-        )
-        if (accountsTotal > 0) {
-          if (!assetTypes["CASH"]) {
-            assetTypes["CASH"] = {
-              type: "CASH",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["CASH"].value += accountsTotal
-          totalValue += accountsTotal
-        }
-      }
-
-      if (entityPosition.investments) {
-        if (
-          entityPosition.investments.funds &&
-          entityPosition.investments.funds.market_value
-        ) {
-          if (!assetTypes["FUND"]) {
-            assetTypes["FUND"] = {
-              type: "FUND",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["FUND"].value +=
-            entityPosition.investments.funds.market_value
-          totalValue += entityPosition.investments.funds.market_value
-        }
-
-        if (
-          entityPosition.investments.stocks &&
-          entityPosition.investments.stocks.market_value
-        ) {
-          if (!assetTypes["STOCK_ETF"]) {
-            assetTypes["STOCK_ETF"] = {
-              type: "STOCK_ETF",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["STOCK_ETF"].value +=
-            entityPosition.investments.stocks.market_value
-          totalValue += entityPosition.investments.stocks.market_value
-        }
-
-        if (
-          entityPosition.investments.deposits &&
-          entityPosition.investments.deposits.total
-        ) {
-          if (!assetTypes["DEPOSIT"]) {
-            assetTypes["DEPOSIT"] = {
-              type: "DEPOSIT",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["DEPOSIT"].value +=
-            entityPosition.investments.deposits.total
-          totalValue += entityPosition.investments.deposits.total
-        }
-
-        if (
-          entityPosition.investments.real_state_cf &&
-          entityPosition.investments.real_state_cf.total
-        ) {
-          if (!assetTypes["REAL_STATE_CF"]) {
-            assetTypes["REAL_STATE_CF"] = {
-              type: "REAL_STATE_CF",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["REAL_STATE_CF"].value +=
-            entityPosition.investments.real_state_cf.total
-          totalValue += entityPosition.investments.real_state_cf.total
-        }
-
-        if (
-          entityPosition.investments.factoring &&
-          entityPosition.investments.factoring.total
-        ) {
-          if (!assetTypes["FACTORING"]) {
-            assetTypes["FACTORING"] = {
-              type: "FACTORING",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["FACTORING"].value +=
-            entityPosition.investments.factoring.total
-          totalValue += entityPosition.investments.factoring.total
-        }
-
-        if (
-          entityPosition.investments.crowdlending &&
-          entityPosition.investments.crowdlending.total
-        ) {
-          if (!assetTypes["CROWDLENDING"]) {
-            assetTypes["CROWDLENDING"] = {
-              type: "CROWDLENDING",
-              value: 0,
-              percentage: 0,
-              change: 0,
-            }
-          }
-          assetTypes["CROWDLENDING"].value +=
-            entityPosition.investments.crowdlending.total
-          totalValue += entityPosition.investments.crowdlending.total
-        }
-      }
-    })
-
-    Object.values(assetTypes).forEach(asset => {
-      asset.percentage =
-        totalValue > 0 ? Math.round((asset.value / totalValue) * 100) : 0
-    })
-
-    return Object.values(assetTypes).sort((a, b) => b.value - a.value)
-  }
-
-  const getTotalAssets = (): number => {
-    if (!positionsData || !positionsData.positions) return 0
-
-    let total = 0
-
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition.accounts) {
-        entityPosition.accounts.forEach(account => {
-          total += account.total || 0
-        })
-      }
-
-      if (entityPosition.investments) {
-        if (
-          entityPosition.investments.funds &&
-          entityPosition.investments.funds.market_value
-        ) {
-          total += entityPosition.investments.funds.market_value
-        }
-
-        if (
-          entityPosition.investments.stocks &&
-          entityPosition.investments.stocks.market_value
-        ) {
-          total += entityPosition.investments.stocks.market_value
-        }
-
-        if (
-          entityPosition.investments.deposits &&
-          entityPosition.investments.deposits.total
-        ) {
-          total += entityPosition.investments.deposits.total
-        }
-
-        if (
-          entityPosition.investments.real_state_cf &&
-          entityPosition.investments.real_state_cf.total
-        ) {
-          total += entityPosition.investments.real_state_cf.total
-        }
-
-        if (
-          entityPosition.investments.factoring &&
-          entityPosition.investments.factoring.total
-        ) {
-          total += entityPosition.investments.factoring.total
-        }
-
-        if (
-          entityPosition.investments.crowdlending &&
-          entityPosition.investments.crowdlending.total
-        ) {
-          total += entityPosition.investments.crowdlending.total
-        }
-      }
-    })
-
-    return total
-  }
-
-  const getTotalInvestedAmount = (): number => {
-    if (!positionsData || !positionsData.positions) return 0
-
-    let totalInvested = 0
-
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition.accounts) {
-        entityPosition.accounts.forEach(account => {
-          totalInvested += account.total || 0
-        })
-      }
-
-      if (entityPosition.investments) {
-        if (
-          entityPosition.investments.funds &&
-          entityPosition.investments.funds.details
-        ) {
-          entityPosition.investments.funds.details.forEach(fund => {
-            totalInvested += fund.initial_investment || fund.market_value || 0
-          })
-        }
-
-        if (
-          entityPosition.investments.stocks &&
-          entityPosition.investments.stocks.details
-        ) {
-          entityPosition.investments.stocks.details.forEach(stock => {
-            totalInvested +=
-              stock.initial_investment ||
-              (stock.shares && stock.average_buy_price
-                ? stock.shares * stock.average_buy_price
-                : stock.market_value || 0)
-          })
-        }
-
-        if (
-          entityPosition.investments.deposits &&
-          entityPosition.investments.deposits.details
-        ) {
-          entityPosition.investments.deposits.details.forEach(deposit => {
-            totalInvested += deposit.amount || 0
-          })
-        }
-
-        if (
-          entityPosition.investments.real_state_cf &&
-          entityPosition.investments.real_state_cf.details
-        ) {
-          entityPosition.investments.real_state_cf.details.forEach(project => {
-            totalInvested += project.amount || 0
-          })
-        }
-
-        if (
-          entityPosition.investments.factoring &&
-          entityPosition.investments.factoring.details
-        ) {
-          entityPosition.investments.factoring.details.forEach(factoring => {
-            totalInvested += factoring.amount || 0
-          })
-        }
-
-        if (
-          entityPosition.investments.crowdlending &&
-          entityPosition.investments.crowdlending.details
-        ) {
-          entityPosition.investments.crowdlending.details.forEach(loan => {
-            totalInvested += loan.amount || 0
-          })
-        }
-      }
-    })
-
-    return totalInvested
-  }
-
-  const getOngoingProjects = () => {
-    if (!positionsData || !positionsData.positions) return []
-
-    const projects: any[] = []
-
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition.investments) {
-        if (
-          entityPosition.investments.deposits &&
-          entityPosition.investments.deposits.details
-        ) {
-          entityPosition.investments.deposits.details.forEach(deposit => {
-            if (deposit.maturity) {
-              projects.push({
-                name: deposit.name || "Deposit",
-                type: "DEPOSIT",
-                value: deposit.amount,
-                currency: deposit.currency,
-                formattedValue: formatCurrency(
-                  deposit.amount,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                  deposit.currency,
-                ),
-                roi: deposit.interest_rate * 100,
-                maturity: deposit.maturity,
-                entity: entityPosition.entity?.name || "Unknown",
-              })
-            }
-          })
-        }
-
-        if (
-          entityPosition.investments.real_state_cf &&
-          entityPosition.investments.real_state_cf.details
-        ) {
-          entityPosition.investments.real_state_cf.details.forEach(project => {
-            if (project.maturity) {
-              projects.push({
-                name: project.name,
-                type: "REAL_STATE_CF",
-                value: project.amount,
-                currency: project.currency,
-                formattedValue: formatCurrency(
-                  project.amount,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                  project.currency,
-                ),
-                roi: project.interest_rate * 100,
-                maturity: project.maturity,
-                entity: entityPosition.entity?.name || "Unknown",
-              })
-            }
-          })
-        }
-
-        if (
-          entityPosition.investments.factoring &&
-          entityPosition.investments.factoring.details
-        ) {
-          entityPosition.investments.factoring.details.forEach(factoring => {
-            if (factoring.maturity) {
-              projects.push({
-                name: factoring.name,
-                type: "FACTORING",
-                value: factoring.amount,
-                currency: factoring.currency,
-                formattedValue: formatCurrency(
-                  factoring.amount,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                  factoring.currency,
-                ),
-                roi: factoring.interest_rate * 100,
-                maturity: factoring.maturity,
-                entity: entityPosition.entity?.name || "Unknown",
-              })
-            }
-          })
-        }
-      }
-    })
-
-    return projects
-      .sort(
-        (a, b) =>
-          new Date(a.maturity).getTime() - new Date(b.maturity).getTime(),
-      )
-      .slice(0, 12)
-  }
-
-  const getStockAndFundPositions = () => {
-    if (!positionsData || !positionsData.positions) return []
-
-    const allPositionsRaw: any[] = []
-    let totalVariableRentValue = 0
-
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition.investments) {
-        if (
-          entityPosition.investments.stocks &&
-          entityPosition.investments.stocks.details
-        ) {
-          entityPosition.investments.stocks.details.forEach(stock => {
-            const value = stock.market_value || 0
-            allPositionsRaw.push({
-              symbol: stock.ticker || "",
-              name: stock.name,
-              shares: stock.shares || 0,
-              price: stock.average_buy_price || 0,
-              value: value,
-              currency: stock.currency,
-              formattedValue: formatCurrency(
-                value,
-                locale,
-                settings?.general?.defaultCurrency,
-                stock.currency,
-              ),
-              type: "STOCK_ETF",
-              change:
-                (value / (stock.initial_investment || value || 1) - 1) * 100,
-              entity: entityPosition.entity?.name,
-            })
-            totalVariableRentValue += value
-          })
-        }
-
-        if (
-          entityPosition.investments.funds &&
-          entityPosition.investments.funds.details
-        ) {
-          entityPosition.investments.funds.details.forEach(fund => {
-            const value = fund.market_value || 0
-            allPositionsRaw.push({
-              symbol: "",
-              name: fund.name,
-              portfolioName: fund.portfolio?.name || null,
-              shares: fund.shares || 0,
-              price: fund.average_buy_price || 0,
-              value: value,
-              currency: fund.currency,
-              formattedValue: formatCurrency(
-                value,
-                locale,
-                settings?.general?.defaultCurrency,
-                fund.currency,
-              ),
-              type: "FUND",
-              change:
-                (value / (fund.initial_investment || value || 1) - 1) * 100,
-              entity: entityPosition.entity?.name,
-            })
-            totalVariableRentValue += value
-          })
-        }
-      }
-    })
-
-    const enrichedPositions = allPositionsRaw.map(pos => ({
-      ...pos,
-      percentageOfTotalVariableRent:
-        totalVariableRentValue > 0
-          ? (pos.value / totalVariableRentValue) * 100
-          : 0,
-    }))
-
-    return enrichedPositions.sort((a, b) => b.value - a.value).slice(0, 10)
-  }
-
-  const getRecentTransactions = () => {
-    if (!transactions || !transactions.transactions) return {}
-
-    const groupedTxs: Record<string, any[]> = {}
-
-    transactions.transactions
-      .map(tx => ({
-        date: tx.date,
-        description: tx.name,
-        amount: tx.amount,
-        currency: tx.currency,
-        formattedAmount: formatCurrency(
-          tx.amount,
-          locale,
-          settings?.general?.defaultCurrency,
-          tx.currency,
-        ),
-        type: tx.type,
-        product_type: tx.product_type,
-        displayType: [
-          TxType.BUY,
-          TxType.INVESTMENT,
-          TxType.SUBSCRIPTION,
-          TxType.SWAP_FROM,
-          TxType.SWAP_TO,
-        ].includes(tx.type)
-          ? "out"
-          : "in",
-        entity: tx.entity.name,
-      }))
-      .slice(0, 10)
-      .forEach(tx => {
-        const dateKey = formatDate(tx.date, locale)
-        if (!groupedTxs[dateKey]) {
-          groupedTxs[dateKey] = []
-        }
-        groupedTxs[dateKey].push(tx)
-      })
-
-    const sortedDates = Object.keys(groupedTxs).sort((a, b) => {
-      const dateA = new Date(a.split("/").reverse().join("-"))
-      const dateB = new Date(b.split("/").reverse().join("-"))
-      return dateB.getTime() - dateA.getTime()
-    })
-
-    const sortedGroupedTxs: Record<string, any[]> = {}
-    sortedDates.forEach(date => {
-      sortedGroupedTxs[date] = groupedTxs[date]
-    })
-
-    return sortedGroupedTxs
-  }
-
-  const handleScroll = () => {
-    if (projectsContainerRef.current) {
-      const { scrollLeft, scrollWidth, clientWidth } =
-        projectsContainerRef.current
-      setShowLeftScroll(scrollLeft > 0)
-      setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10)
-    }
-  }
-
-  const scrollProjects = (direction: "left" | "right") => {
-    if (projectsContainerRef.current) {
-      const scrollAmount = 300
-      const newScrollLeft =
-        direction === "left"
-          ? projectsContainerRef.current.scrollLeft - scrollAmount
-          : projectsContainerRef.current.scrollLeft + scrollAmount
-
-      projectsContainerRef.current.scrollTo({
-        left: newScrollLeft,
-        behavior: "smooth",
-      })
-    }
-  }
-
-  const assetDistribution = getAssetDistribution()
-  const totalAssets = getTotalAssets()
-  const ongoingProjects = getOngoingProjects()
-  const stockAndFundPositions = getStockAndFundPositions()
-  const recentTransactions = getRecentTransactions()
-  const totalInvestedAmount = getTotalInvestedAmount()
+  // Get aggregated data using utility functions
+  const assetDistribution = getAssetDistribution(positionsData)
+  const entityDistribution = getEntityDistribution(positionsData)
+  const totalAssets = getTotalAssets(positionsData)
+  const ongoingProjects = getOngoingProjects(
+    positionsData,
+    locale,
+    settings?.general?.defaultCurrency,
+  )
+  const stockAndFundPositions = getStockAndFundPositions(
+    positionsData,
+    locale,
+    settings?.general?.defaultCurrency,
+  )
+  const recentTransactions = getRecentTransactions(
+    transactions,
+    locale,
+    settings?.general?.defaultCurrency,
+  )
+  const totalInvestedAmount = getTotalInvestedAmount(positionsData)
 
   const fundItems = stockAndFundPositions
     .filter(p => p.type === "FUND")
@@ -816,6 +294,29 @@ export default function DashboardPage() {
     "bg-amber-400",
   ]
 
+  const ENTITY_COLORS = [
+    "#8b5cf6", // violet-500
+    "#06b6d4", // cyan-500
+    "#10b981", // emerald-500
+    "#f59e0b", // amber-500
+    "#ef4444", // red-500
+    "#3b82f6", // blue-500
+    "#84cc16", // lime-500
+    "#f97316", // orange-500
+    "#ec4899", // pink-500
+    "#8b5cf6", // violet-500
+    "#14b8a6", // teal-500
+    "#a855f7", // purple-500
+  ]
+
+  const entityColorMap = useMemo(() => {
+    const mapping = new Map<string, string>()
+    entityDistribution.forEach((entity, index) => {
+      mapping.set(entity.id, ENTITY_COLORS[index % ENTITY_COLORS.length])
+    })
+    return mapping
+  }, [entityDistribution])
+
   const shuffle = <T,>(arr: T[]): T[] =>
     arr
       .map(value => ({ value, sort: Math.random() }))
@@ -829,6 +330,30 @@ export default function DashboardPage() {
     const colors =
       type === "FUND" ? shuffledFundItemColors : shuffledStockItemColors
     return colors[index % colors.length]
+  }
+
+  const handleScroll = () => {
+    if (projectsContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } =
+        projectsContainerRef.current
+      setShowLeftScroll(scrollLeft > 0)
+      setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10)
+    }
+  }
+
+  const scrollProjects = (direction: "left" | "right") => {
+    if (projectsContainerRef.current) {
+      const scrollAmount = 300
+      const newScrollLeft =
+        direction === "left"
+          ? projectsContainerRef.current.scrollLeft - scrollAmount
+          : projectsContainerRef.current.scrollLeft + scrollAmount
+
+      projectsContainerRef.current.scrollTo({
+        left: newScrollLeft,
+        behavior: "smooth",
+      })
+    }
   }
 
   const CustomLegend = (props: any) => {
@@ -856,14 +381,58 @@ export default function DashboardPage() {
               </span>
               <div className="text-right flex space-x-1">
                 <span className="font-bold block whitespace-nowrap">
+                  {assetPercentage}%
+                </span>
+                <span className="text-muted-foreground block whitespace-nowrap text-[10px]">
+                  (
                   {formatCurrency(
                     assetValue,
                     locale,
                     settings?.general?.defaultCurrency,
                   )}
+                  )
+                </span>
+              </div>
+            </li>
+          )
+        })}
+      </ul>
+    )
+  }
+
+  const CustomEntityLegend = (props: any) => {
+    const { payload } = props
+    return (
+      <ul className="space-y-1.5 text-xs scrollbar-thin pr-0.5">
+        {payload.map((entry: any, index: number) => {
+          const entityName = entry.payload.payload.name
+          const entityValue = entry.payload.payload.value
+          const entityPercentage = entry.payload.payload.percentage
+          const entityId = entry.payload.payload.id
+
+          return (
+            <li
+              key={`entity-legend-item-${index}`}
+              className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+              title={`${entityName}: ${formatCurrency(entityValue, locale, settings?.general?.defaultCurrency)} (${entityPercentage}%)`}
+            >
+              <span
+                className="flex-shrink-0 w-4 h-4 rounded-full"
+                style={{ backgroundColor: entityColorMap.get(entityId) }}
+              />
+              <span className="truncate flex-grow min-w-0">{entityName}</span>
+              <div className="text-right flex space-x-1">
+                <span className="font-bold block whitespace-nowrap">
+                  {entityPercentage}%
                 </span>
                 <span className="text-muted-foreground block whitespace-nowrap text-[10px]">
-                  ({assetPercentage}%)
+                  (
+                  {formatCurrency(
+                    entityValue,
+                    locale,
+                    settings?.general?.defaultCurrency,
+                  )}
+                  )
                 </span>
               </div>
             </li>
@@ -906,7 +475,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t.common.dashboard}</h1>
         <div className="flex gap-2">
@@ -960,81 +529,187 @@ export default function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent ref={assetDistributionCardRef}>
-                  {assetDistribution.length > 0 ? (
-                    <div
-                      className={
-                        assetDistributionCardSmall ? "h-[450px]" : "h-[300px]"
-                      }
-                    >
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart
-                          key={`pie-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                  <Tabs defaultValue="by-asset" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="by-asset">
+                        {t.dashboard.assetDistributionByType}
+                      </TabsTrigger>
+                      <TabsTrigger value="by-entity">
+                        {t.dashboard.assetDistributionByEntity}
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="by-asset" className="mt-4">
+                      {assetDistribution.length > 0 ? (
+                        <div
+                          className={
+                            assetDistributionCardSmall
+                              ? "h-[450px]"
+                              : "h-[300px]"
+                          }
                         >
-                          <Pie
-                            data={assetDistribution}
-                            cx={assetDistributionCardSmall ? "50%" : "40%"}
-                            cy={assetDistributionCardSmall ? "40%" : "50%"}
-                            labelLine={false}
-                            outerRadius={assetDistributionCardSmall ? 100 : 120}
-                            fill="#8884d8"
-                            dataKey="value"
-                            nameKey="type"
-                          >
-                            {assetDistribution.map((entry, index) => (
-                              <Cell
-                                key={`cell-${index}`}
-                                fill={getPieSliceColorForAssetType(entry.type)}
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart
+                              key={`pie-asset-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                            >
+                              <Pie
+                                data={assetDistribution}
+                                cx={assetDistributionCardSmall ? "50%" : "40%"}
+                                cy={assetDistributionCardSmall ? "40%" : "50%"}
+                                labelLine={false}
+                                outerRadius={
+                                  assetDistributionCardSmall ? 100 : 120
+                                }
+                                fill="#8884d8"
+                                dataKey="value"
+                                nameKey="type"
+                              >
+                                {assetDistribution.map((entry, index) => (
+                                  <Cell
+                                    key={`cell-${index}`}
+                                    fill={getPieSliceColorForAssetType(
+                                      entry.type,
+                                    )}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(
+                                  value: number,
+                                  name: string,
+                                  props: any,
+                                ) => [
+                                  // eslint-disable-next-line react/prop-types -- props are not typed
+                                  `${formatCurrency(value, locale, settings?.general?.defaultCurrency)} (${props.payload.percentage}%)`,
+                                  t.enums &&
+                                  t.enums.productType &&
+                                  (t.enums.productType as any)[name]
+                                    ? (t.enums.productType as any)[name]
+                                    : name.toLowerCase().replace(/_/g, " "),
+                                ]}
                               />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            formatter={(
-                              value: number,
-                              name: string,
-                              props: any,
-                            ) => [
-                              // eslint-disable-next-line react/prop-types -- props are not typed
-                              `${formatCurrency(value, locale, settings?.general?.defaultCurrency)} (${props.payload.percentage}%)`,
-                              t.enums &&
-                              t.enums.productType &&
-                              (t.enums.productType as any)[name]
-                                ? (t.enums.productType as any)[name]
-                                : name.toLowerCase().replace(/_/g, " "),
-                            ]}
-                          />
-                          <Legend
-                            layout="vertical"
-                            verticalAlign={
-                              assetDistributionCardSmall ? "bottom" : "middle"
-                            }
-                            align={
-                              assetDistributionCardSmall ? "center" : "right"
-                            }
-                            wrapperStyle={
-                              assetDistributionCardSmall
-                                ? {
-                                    maxHeight: "200px",
-                                    overflowY: "auto",
-                                    paddingTop: "25px",
-                                    width: "95%",
-                                    margin: "0 auto",
-                                  }
-                                : {
-                                    paddingRight: "20px",
-                                    maxHeight: "260px",
-                                    overflowY: "auto",
-                                  }
-                            }
-                            content={<CustomLegend />}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {t.common.noDataAvailable}
-                    </p>
-                  )}
+                              <Legend
+                                layout="vertical"
+                                verticalAlign={
+                                  assetDistributionCardSmall
+                                    ? "bottom"
+                                    : "middle"
+                                }
+                                align={
+                                  assetDistributionCardSmall
+                                    ? "center"
+                                    : "right"
+                                }
+                                wrapperStyle={
+                                  assetDistributionCardSmall
+                                    ? {
+                                        maxHeight: "200px",
+                                        overflowY: "auto",
+                                        paddingTop: "25px",
+                                        width: "95%",
+                                        margin: "0 auto",
+                                      }
+                                    : {
+                                        paddingRight: "20px",
+                                        maxHeight: "260px",
+                                        overflowY: "auto",
+                                      }
+                                }
+                                content={<CustomLegend />}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {t.common.noDataAvailable}
+                        </p>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="by-entity" className="mt-4">
+                      {entityDistribution.length > 0 ? (
+                        <div
+                          className={
+                            assetDistributionCardSmall
+                              ? "h-[450px]"
+                              : "h-[300px]"
+                          }
+                        >
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart
+                              key={`pie-entity-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                            >
+                              <Pie
+                                data={entityDistribution}
+                                cx={assetDistributionCardSmall ? "50%" : "40%"}
+                                cy={assetDistributionCardSmall ? "40%" : "50%"}
+                                labelLine={false}
+                                outerRadius={
+                                  assetDistributionCardSmall ? 100 : 120
+                                }
+                                fill="#8884d8"
+                                dataKey="value"
+                                nameKey="name"
+                              >
+                                {entityDistribution.map((entry, index) => (
+                                  <Cell
+                                    key={`entity-cell-${index}`}
+                                    fill={entityColorMap.get(entry.id)}
+                                  />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(
+                                  value: number,
+                                  name: string,
+                                  props: any,
+                                ) => [
+                                  // eslint-disable-next-line react/prop-types -- props are not typed
+                                  `${formatCurrency(value, locale, settings?.general?.defaultCurrency)} (${props.payload.percentage}%)`,
+                                  // eslint-disable-next-line react/prop-types -- props are not typed
+                                  props.payload.name,
+                                ]}
+                              />
+                              <Legend
+                                layout="vertical"
+                                verticalAlign={
+                                  assetDistributionCardSmall
+                                    ? "bottom"
+                                    : "middle"
+                                }
+                                align={
+                                  assetDistributionCardSmall
+                                    ? "center"
+                                    : "right"
+                                }
+                                wrapperStyle={
+                                  assetDistributionCardSmall
+                                    ? {
+                                        maxHeight: "200px",
+                                        overflowY: "auto",
+                                        paddingTop: "25px",
+                                        width: "95%",
+                                        margin: "0 auto",
+                                      }
+                                    : {
+                                        paddingRight: "20px",
+                                        maxHeight: "260px",
+                                        overflowY: "auto",
+                                      }
+                                }
+                                content={<CustomEntityLegend />}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          {t.common.noDataAvailable}
+                        </p>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </CardContent>
               </Card>
             </motion.div>
@@ -1144,7 +819,7 @@ export default function DashboardPage() {
                     onScroll={handleScroll}
                   >
                     {ongoingProjects.map((project, index) => {
-                      const status = getDaysStatus(project.maturity)
+                      const status = getDaysStatus(project.maturity, t)
                       return (
                         <Card
                           key={index}
@@ -1251,7 +926,7 @@ export default function DashboardPage() {
                     {t.dashboard.stocksAndFunds.title}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col space-x-3 p-4 overflow-hidden min-h-[350px] max-h-[650px]">
+                <CardContent className="flex-grow flex flex-col space-y-3 p-4 overflow-hidden min-h-[350px] max-h-[650px]">
                   {fundItems.length > 0 || stockItems.length > 0 ? (
                     <div className="flex flex-grow space-x-3 overflow-hidden">
                       <div className="flex-grow space-y-2 overflow-y-auto scrollbar-thin pr-2">
@@ -1269,9 +944,9 @@ export default function DashboardPage() {
                                   className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "FUND")}`}
                                 ></div>
                                 <div className="flex-grow min-w-0">
-                                  {/* Line 1: Name, Portfolio Badge, Value */}
+                                  {/* Line 1: Name + Value */}
                                   <div className="flex justify-between items-center">
-                                    <div className="flex items-center flex-grow min-w-0 mr-2">
+                                    <div className="flex items-center flex-1 min-w-0 mr-2">
                                       <span
                                         className="font-medium truncate text-base"
                                         title={item.name}
@@ -1326,7 +1001,7 @@ export default function DashboardPage() {
                         ) : null}
 
                         {stockItems.length > 0 ? (
-                          <div>
+                          <div className="pb-2">
                             <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
                               {t.dashboard.stocksAndFunds.stocksEtfs}
                             </h3>
