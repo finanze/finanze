@@ -101,7 +101,7 @@ export function Sidebar() {
           variant="ghost"
           size="icon"
           onClick={toggleSidebar}
-          className="ml-auto"
+          className={collapsed ? "mx-auto" : "ml-auto"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </Button>
@@ -114,7 +114,8 @@ export function Sidebar() {
               <Button
                 variant="ghost"
                 className={cn(
-                  "w-full justify-start rounded-none h-12",
+                  "w-full rounded-none h-12",
+                  collapsed ? "justify-center" : "justify-start",
                   location.pathname === item.path
                     ? "bg-gray-200 dark:bg-gray-900 text-primary"
                     : "hover:bg-gray-200 dark:hover:bg-gray-900",

@@ -1075,13 +1075,28 @@ export default function SettingsPage() {
         onValueChange={setActiveTab}
         className="w-full"
       >
-        <TabsList className="grid grid-cols-3 w-[600px]">
-          <TabsTrigger value="integrations">
-            {t.settings.integrations}
-          </TabsTrigger>
-          <TabsTrigger value="export">{t.settings.export}</TabsTrigger>
-          <TabsTrigger value="scrape">{t.settings.scrape}</TabsTrigger>
-        </TabsList>
+        <div className="flex justify-center w-full">
+          <TabsList className="grid grid-cols-3 w-full max-w-[600px] h-auto min-h-[3rem]">
+            <TabsTrigger
+              value="integrations"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+            >
+              {t.settings.integrations}
+            </TabsTrigger>
+            <TabsTrigger
+              value="export"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+            >
+              {t.settings.export}
+            </TabsTrigger>
+            <TabsTrigger
+              value="scrape"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+            >
+              {t.settings.scrape}
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="integrations" className="space-y-4 mt-4">
           <motion.div

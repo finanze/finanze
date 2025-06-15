@@ -103,6 +103,9 @@ interface AppContextType {
     credentials?: Record<string, string>,
   ) => Promise<void>
   disconnectEntity: (entityId: string) => Promise<void>
+  setOnScrapeCompleted: (
+    callback: ((entityId: string) => Promise<void>) | null,
+  ) => void
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -167,6 +170,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     features: [],
   })
 
+  // Callback to be called when scraping is completed
+  const onScrapeCompletedRef = useRef<
+    ((entityId: string) => Promise<void>) | null
+  >(null)
   useEffect(() => {
     const getPlatform = async () => {
       if (window.ipcAPI && window.ipcAPI.platform) {
@@ -203,6 +210,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const clearPinError = () => {
     setPinError(false)
+  }
+
+  const setOnScrapeCompleted = (
+    callback: ((entityId: string) => Promise<void>) | null,
+  ) => {
+    onScrapeCompletedRef.current = callback
   }
 
   const fetchEntities = async () => {
@@ -506,6 +519,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setView("entities")
       } else if (response.code === ScrapeResultCode.COMPLETED) {
         showToast(`${t.common.fetchSuccess}: ${entity.name}`, "success")
+
+        // Call the callback to refresh financial data for the scraped entity
+        if (onScrapeCompletedRef.current) {
+          try {
+            await onScrapeCompletedRef.current(entity.id)
+          } catch (error) {
+            console.error(
+              "Error refreshing financial data after scrape:",
+              error,
+            )
+          }
+        }
+
         resetState()
         // Return to entities view after successful scrape
         setView("entities")
@@ -652,6 +678,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         clearPinError,
         startExternalLogin,
         disconnectEntity: disconnectEntityHandler,
+        setOnScrapeCompleted,
       }}
     >
       {children}
