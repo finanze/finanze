@@ -4,9 +4,15 @@ export enum EntityStatus {
   REQUIRES_LOGIN = "REQUIRES_LOGIN",
 }
 
+export enum EntityType {
+  FINCIAL_INSTITUTION = "FINCIAL_INSTITUTION",
+  CRYPTO_WALLET = "CRYPTO_WALLET",
+}
+
 export interface Entity {
   id: string
   name: string
+  type: EntityType
   is_real: boolean
   status: EntityStatus
   features: Feature[]
@@ -57,7 +63,7 @@ export interface LoginRequest {
   processId?: string
 }
 
-export interface ScrapeRequest {
+export interface FetchRequest {
   entity: string
   features: Feature[]
   code?: string
@@ -72,8 +78,8 @@ export interface LoginResponse {
   details?: any
 }
 
-export interface ScrapeResponse {
-  code: ScrapeResultCode
+export interface FetchResponse {
+  code: FetchResultCode
   details?: {
     countdown?: number
     processId?: string
@@ -111,7 +117,7 @@ export enum LoginResultCode {
   UNEXPECTED_ERROR = "UNEXPECTED_LOGIN_ERROR",
 }
 
-export enum ScrapeResultCode {
+export enum FetchResultCode {
   // Success
   COMPLETED = "COMPLETED",
 
@@ -151,7 +157,7 @@ export interface Settings {
       historic: any[]
     }
   }
-  scrape: {
+  fetch: {
     updateCooldown: number
     virtual: {
       enabled: boolean

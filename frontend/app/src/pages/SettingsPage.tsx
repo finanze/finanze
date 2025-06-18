@@ -102,8 +102,8 @@ export default function SettingsPage() {
   const handleUpdateCooldown = (value: string) => {
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         updateCooldown: value === "" ? 60 : Number.parseInt(value) || 60,
       },
     })
@@ -125,10 +125,10 @@ export default function SettingsPage() {
   const handleVirtualToggle = (enabled: boolean) => {
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           enabled,
         },
       },
@@ -208,13 +208,13 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...(settings.scrape || {}),
+      fetch: {
+        ...(settings.fetch || {}),
         virtual: {
-          ...(settings.scrape?.virtual || {}),
+          ...(settings.fetch?.virtual || {}),
           [section]: [
-            ...((settings.scrape?.virtual?.[
-              section as keyof typeof settings.scrape.virtual
+            ...((settings.fetch?.virtual?.[
+              section as keyof typeof settings.fetch.virtual
             ] as any[]) || []),
             newItem,
           ],
@@ -238,13 +238,13 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           [section]: (
-            settings.scrape.virtual[
-              section as keyof typeof settings.scrape.virtual
+            settings.fetch.virtual[
+              section as keyof typeof settings.fetch.virtual
             ] as any[]
           ).filter((_, i) => i !== index),
         },
@@ -344,8 +344,8 @@ export default function SettingsPage() {
     field: string,
     value: any,
   ) => {
-    const items = settings.scrape.virtual[
-      section as keyof typeof settings.scrape.virtual
+    const items = settings.fetch.virtual[
+      section as keyof typeof settings.fetch.virtual
     ] as any[]
     const updatedItems = [...items]
 
@@ -368,10 +368,10 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           [section]: updatedItems,
         },
       },
@@ -478,12 +478,12 @@ export default function SettingsPage() {
       },
     )
 
-    if (settings.scrape.virtual.enabled) {
-      if (!settings.scrape.virtual?.globals?.spreadsheetId) {
+    if (settings.fetch.virtual.enabled) {
+      if (!settings.fetch.virtual?.globals?.spreadsheetId) {
         errors.virtualGlobals = [t.settings.errors.virtualSpreadsheetIdRequired]
       }
 
-      Object.entries(settings.scrape.virtual).forEach(([section, items]) => {
+      Object.entries(settings.fetch.virtual).forEach(([section, items]) => {
         if (
           section !== "globals" &&
           section !== "enabled" &&
@@ -578,9 +578,9 @@ export default function SettingsPage() {
 
       const cleanedSettings = cleanObject(processedSettings)
 
-      if (cleanedSettings.scrape && cleanedSettings.scrape.virtual) {
-        cleanedSettings.scrape.virtual.enabled =
-          !!cleanedSettings.scrape.virtual.enabled
+      if (cleanedSettings.fetch && cleanedSettings.fetch.virtual) {
+        cleanedSettings.fetch.virtual.enabled =
+          !!cleanedSettings.fetch.virtual.enabled
       }
       if (cleanedSettings.export && cleanedSettings.export.sheets) {
         cleanedSettings.export.sheets.enabled =
@@ -1377,7 +1377,7 @@ export default function SettingsPage() {
                   <Input
                     id="updateCooldown"
                     type="number"
-                    value={settings.scrape?.updateCooldown ?? 60}
+                    value={settings.fetch?.updateCooldown ?? 60}
                     onChange={e => handleUpdateCooldown(e.target.value)}
                     placeholder="0"
                   />
@@ -1397,12 +1397,12 @@ export default function SettingsPage() {
                   <Label htmlFor="virtual-enabled">{t.settings.enabled}</Label>
                   <Switch
                     id="virtual-enabled"
-                    checked={settings.scrape?.virtual?.enabled === true}
+                    checked={settings.fetch?.virtual?.enabled === true}
                     onCheckedChange={handleVirtualToggle}
                   />
                 </div>
 
-                {settings.scrape.virtual.enabled === true && (
+                {settings.fetch.virtual.enabled === true && (
                   <div className="space-y-6 pt-4 border-t border-gray-200 dark:border-gray-800">
                     <div className="space-y-4">
                       <h3 className="text-lg font-medium">
@@ -1416,18 +1416,18 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-spreadsheetId"
                             value={
-                              settings.scrape?.virtual?.globals
-                                ?.spreadsheetId || ""
+                              settings.fetch?.virtual?.globals?.spreadsheetId ||
+                              ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       spreadsheetId: e.target.value || null,
                                     },
@@ -1455,18 +1455,18 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-datetimeFormat"
                             value={
-                              settings.scrape?.virtual?.globals
+                              settings.fetch?.virtual?.globals
                                 ?.datetimeFormat || ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       datetimeFormat: e.target.value || null,
                                     },
@@ -1484,18 +1484,17 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-dateFormat"
                             value={
-                              settings.scrape?.virtual?.globals?.dateFormat ||
-                              ""
+                              settings.fetch?.virtual?.globals?.dateFormat || ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       dateFormat: e.target.value || null,
                                     },
@@ -1511,11 +1510,11 @@ export default function SettingsPage() {
 
                     {renderVirtualConfigSection(
                       "investments",
-                      settings.scrape?.virtual?.investments || [],
+                      settings.fetch?.virtual?.investments || [],
                     )}
                     {renderVirtualConfigSection(
                       "transactions",
-                      settings.scrape?.virtual?.transactions || [],
+                      settings.fetch?.virtual?.transactions || [],
                     )}
                   </div>
                 )}

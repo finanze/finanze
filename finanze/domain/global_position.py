@@ -1,15 +1,14 @@
 from dataclasses import field
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
 from dateutil.tz import tzlocal
-from pydantic.dataclasses import dataclass
-
 from domain.base import BaseData
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
+from pydantic.dataclasses import dataclass
 
 
 class AccountType(str, Enum):
@@ -141,6 +140,7 @@ class RealStateCFDetail(BaseData):
 
 @dataclass
 class StockInvestments:
+    currency: str
     investment: Optional[Dezimal]
     market_value: Optional[Dezimal]
     details: List[StockDetail]
@@ -148,6 +148,7 @@ class StockInvestments:
 
 @dataclass
 class FundInvestments:
+    currency: str
     investment: Optional[Dezimal]
     market_value: Optional[Dezimal]
     details: List[FundDetail]
@@ -155,6 +156,7 @@ class FundInvestments:
 
 @dataclass
 class FactoringInvestments:
+    currency: str
     total: Optional[Dezimal]
     weighted_interest_rate: Optional[Dezimal]
     details: List[FactoringDetail]
@@ -162,6 +164,7 @@ class FactoringInvestments:
 
 @dataclass
 class RealStateCFInvestments:
+    currency: str
     total: Optional[Dezimal]
     weighted_interest_rate: Optional[Dezimal]
     details: List[RealStateCFDetail]
@@ -181,6 +184,7 @@ class Deposit(BaseData):
 
 @dataclass
 class Deposits:
+    currency: str
     total: Optional[Dezimal]
     expected_interests: Optional[Dezimal]
     weighted_interest_rate: Optional[Dezimal]
@@ -197,6 +201,49 @@ class Crowdlending:
     details: List
 
 
+class CryptoCurrency(str, Enum):
+    BITCOIN = "BITCOIN"
+    ETHEREUM = "ETHEREUM"
+    LITECOIN = "LITECOIN"
+    TRON = "TRON"
+
+
+@dataclass
+class CryptoCurrencyToken(BaseData):
+    id: UUID
+    token_id: str
+    name: str
+    symbol: str
+    amount: Dezimal
+    initial_investment: Optional[Dezimal]
+    average_buy_price: Optional[Dezimal]
+    market_value: Dezimal
+    currency: str
+    type: Optional[str]
+
+
+@dataclass
+class CryptoCurrencyWallet(BaseData):
+    id: UUID
+    address: str
+    name: str
+    symbol: str
+    amount: Dezimal
+    initial_investment: Optional[Dezimal]
+    average_buy_price: Optional[Dezimal]
+    market_value: Dezimal
+    currency: str
+    crypto: CryptoCurrency
+    tokens: list[CryptoCurrencyToken]
+
+
+@dataclass
+class CryptoCurrencies:
+    currency: str
+    market_value: Optional[Dezimal]
+    details: List[CryptoCurrencyWallet]
+
+
 @dataclass
 class Investments:
     stocks: Optional[StockInvestments] = None
@@ -206,12 +253,13 @@ class Investments:
     real_state_cf: Optional[RealStateCFInvestments] = None
     deposits: Optional[Deposits] = None
     crowdlending: Optional[Crowdlending] = None
+    cryptocurrencies: Optional[CryptoCurrencies] = None
 
 
 @dataclass
 class GlobalPosition:
     id: UUID
-    entity: FinancialEntity
+    entity: Entity
     date: Optional[datetime] = None
     accounts: list[Account] = field(default_factory=list)
     cards: list[Card] = field(default_factory=list)

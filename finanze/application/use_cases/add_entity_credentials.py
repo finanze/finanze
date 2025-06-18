@@ -2,33 +2,33 @@ import logging
 
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.credentials_port import CredentialsPort
-from application.ports.entity_scraper import EntityScraper
+from application.ports.entity_fetcher import EntityFetcher
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
+from domain.entity import CredentialType, Entity, EntityType
 from domain.entity_login import (
-    LoginResultCode,
-    EntityLoginResult,
-    EntityLoginRequest,
     EntityLoginParams,
+    EntityLoginRequest,
+    EntityLoginResult,
     LoginOptions,
+    LoginResultCode,
 )
 from domain.exception.exceptions import EntityNotFound, InvalidProvidedCredentials
-from domain.financial_entity import FinancialEntity, CredentialType
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 
 
 class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
     def __init__(
         self,
-        entity_scrapers: dict[FinancialEntity, EntityScraper],
+        entity_fetchers: dict[Entity, EntityFetcher],
         credentials_port: CredentialsPort,
         sessions_port: SessionsPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
-        self._entity_scrapers = entity_scrapers
+        self._entity_fetchers = entity_fetchers
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
 
@@ -41,6 +41,9 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         if not entity:
             raise EntityNotFound(entity_id)
 
+        if entity.type != EntityType.FINANCIAL_INSTITUTION:
+            raise ValueError(f"Invalid entity type: {entity.type}")
+
         credentials = login_request.credentials
 
         for cred_name, cred_type in entity.credentials_template.items():
@@ -51,7 +54,7 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
             ):
                 raise InvalidProvidedCredentials()
 
-        specific_scraper = self._entity_scrapers[entity]
+        specific_fetcher = self._entity_fetchers[entity]
 
         login_options = LoginOptions(avoid_new_login=False, force_new_session=True)
 
@@ -60,7 +63,7 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
             two_factor=login_request.two_factor,
             options=login_options,
         )
-        login_result = await specific_scraper.login(login_request)
+        login_result = await specific_fetcher.login(login_request)
         if login_result.code != LoginResultCode.CREATED:
             return login_result
 

@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from application.ports.virtual_scraper import VirtualScraper
+from application.ports.virtual_fetch import VirtualFetcher
+from domain.entity import Entity, EntityType
 from domain.exception.exceptions import MissingFieldsError
-from domain.financial_entity import FinancialEntity
 from domain.global_position import (
     Deposit,
     Deposits,
@@ -92,7 +92,7 @@ def _parse_cell(value: str, config: BaseSheetConfig) -> any:
                 return value
 
 
-class SheetsImporter(VirtualScraper):
+class SheetsImporter(VirtualFetcher):
     INV_TYPE_ATTR_MAP = {
         "deposits": (Deposits, Deposit),
         "funds": (FundInvestments, FundDetail),
@@ -116,8 +116,8 @@ class SheetsImporter(VirtualScraper):
         self,
         credentials: GoogleCredentials,
         investment_configs: list[VirtualInvestmentSheetConfig],
-        existing_entities: dict[str, FinancialEntity],
-    ) -> tuple[list[GlobalPosition], set[FinancialEntity]]:
+        existing_entities: dict[str, Entity],
+    ) -> tuple[list[GlobalPosition], set[Entity]]:
         global_positions_dicts = {}
         for config in investment_configs:
             field = config.data
@@ -143,8 +143,11 @@ class SheetsImporter(VirtualScraper):
                 entity = existing_entities[entity]
             else:
                 if entity not in created_entities:
-                    created_entities[entity] = FinancialEntity(
-                        id=uuid4(), name=entity, is_real=False
+                    created_entities[entity] = Entity(
+                        id=uuid4(),
+                        name=entity,
+                        type=EntityType.FINANCIAL_INSTITUTION,
+                        is_real=False,
                     )
                 entity = created_entities[entity]
 
@@ -191,6 +194,7 @@ class SheetsImporter(VirtualScraper):
                     )
 
             parent_obj_dict["details"] = entity_products
+            parent_obj_dict["currency"] = entity_products[0].currency
             per_entity[entity] = parent_cls(**parent_obj_dict)
 
         return per_entity
@@ -200,8 +204,8 @@ class SheetsImporter(VirtualScraper):
         credentials: GoogleCredentials,
         txs_configs: list[VirtualTransactionSheetConfig],
         registered_txs: set[str],
-        existing_entities: dict[str, FinancialEntity],
-    ) -> tuple[Optional[Transactions], set[FinancialEntity]]:
+        existing_entities: dict[str, Entity],
+    ) -> tuple[Optional[Transactions], set[Entity]]:
         all_created_entities = {}
         transactions = Transactions(investment=[], account=[])
 
@@ -229,9 +233,9 @@ class SheetsImporter(VirtualScraper):
         self,
         credentials: GoogleCredentials,
         config: VirtualTransactionSheetConfig,
-        existing_entities: dict[str, FinancialEntity],
-        already_created_entities: dict[str, FinancialEntity],
-    ) -> tuple[list[BaseTx], dict[str, FinancialEntity]]:
+        existing_entities: dict[str, Entity],
+        already_created_entities: dict[str, Entity],
+    ) -> tuple[list[BaseTx], dict[str, Entity]]:
         txs = []
         created_entities = {}
 
@@ -256,8 +260,11 @@ class SheetsImporter(VirtualScraper):
 
             else:
                 if entity_name not in created_entities:
-                    created_entities[entity_name] = FinancialEntity(
-                        id=uuid4(), name=entity_name, is_real=False
+                    created_entities[entity_name] = Entity(
+                        id=uuid4(),
+                        name=entity_name,
+                        type=EntityType.FINANCIAL_INSTITUTION,
+                        is_real=False,
                     )
 
                 tx_dict["entity"] = created_entities[entity_name]

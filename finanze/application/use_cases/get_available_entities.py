@@ -1,13 +1,12 @@
 from dataclasses import asdict
 from datetime import datetime
 
-from dateutil.tz import tzlocal
-
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
+from dateutil.tz import tzlocal
 from domain.available_sources import (
-    AvailableSources,
     AvailableFinancialEntity,
+    AvailableSources,
     FinancialEntityStatus,
 )
 from domain.native_entities import NATIVE_ENTITIES
@@ -20,9 +19,9 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._credentials_port = credentials_port
 
     async def execute(self) -> AvailableSources:
-        scrape_config = self._config_port.load().scrape
+        fetch_config = self._config_port.load().fetch
 
-        virtual_enabled = scrape_config.virtual.enabled
+        virtual_enabled = fetch_config.virtual.enabled
 
         logged_entities = self._credentials_port.get_available_entities()
         logged_entity_ids = {e.entity_id: e.expiration for e in logged_entities}

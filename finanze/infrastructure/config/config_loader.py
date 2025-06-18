@@ -9,6 +9,7 @@ from cachetools.keys import hashkey
 from domain.settings import Settings
 from domain.user import User
 from infrastructure.config.base_config import BASE_CONFIG
+from infrastructure.config.config_migrator import ConfigMigrator
 
 CONFIG_NAME = "config.yml"
 
@@ -17,6 +18,7 @@ class ConfigLoader(ConfigPort):
     def __init__(self) -> None:
         self._config_file = None
         self._log = logging.getLogger(__name__)
+        self._migrator = ConfigMigrator()
 
     def disconnect(self):
         self._config_file = None
@@ -31,7 +33,11 @@ class ConfigLoader(ConfigPort):
     def load(self) -> Settings:
         with open(self._config_file, "r") as file:
             data = strictyaml.load(file.read()).data
-            return Settings(**data)
+            migrated_data, was_migrated = self._migrator.migrate(data)
+            settings = Settings(**migrated_data)
+            if was_migrated:
+                self.save(settings)
+            return settings
 
     def save(self, new_config: Settings):
         config_as_dict = asdict(

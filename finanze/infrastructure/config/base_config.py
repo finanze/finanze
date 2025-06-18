@@ -1,6 +1,9 @@
-from domain.settings import GeneralConfig, ScrapeConfig, Settings, VirtualScrapeConfig
+from domain.settings import FetchConfig, GeneralConfig, Settings, VirtualFetchConfig
+
+CURRENT_VERSION = 2
 
 BASE_CONFIG = Settings(
+    version=CURRENT_VERSION,
     general=GeneralConfig(defaultCurrency="EUR"),
-    scrape=ScrapeConfig(updateCooldown=60, virtual=VirtualScrapeConfig()),
+    fetch=FetchConfig(updateCooldown=60, virtual=VirtualFetchConfig()),
 )

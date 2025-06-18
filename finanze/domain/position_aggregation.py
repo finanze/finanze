@@ -1,13 +1,13 @@
 from domain.dezimal import Dezimal
 from domain.global_position import (
+    Crowdlending,
+    Deposits,
+    FactoringInvestments,
+    FundInvestments,
     GlobalPosition,
     Investments,
-    StockInvestments,
-    FundInvestments,
-    FactoringInvestments,
     RealStateCFInvestments,
-    Deposits,
-    Crowdlending,
+    StockInvestments,
 )
 
 
@@ -19,6 +19,7 @@ def _add_weighted_interest_rate(
 
 def _add_stocks(self: StockInvestments, other: StockInvestments) -> StockInvestments:
     return StockInvestments(
+        currency=self.currency,
         investment=(self.investment + other.investment)
         if self.investment and other.investment
         else None,
@@ -31,6 +32,7 @@ def _add_stocks(self: StockInvestments, other: StockInvestments) -> StockInvestm
 
 def _add_funds(self: FundInvestments, other: FundInvestments) -> FundInvestments:
     return FundInvestments(
+        currency=self.currency,
         investment=(self.investment + other.investment)
         if self.investment and other.investment
         else None,
@@ -45,6 +47,7 @@ def _add_factoring(
     self: FactoringInvestments, other: FactoringInvestments
 ) -> FactoringInvestments:
     return FactoringInvestments(
+        currency=self.currency,
         total=(self.total + other.total) if self.total and other.total else None,
         weighted_interest_rate=(
             _add_weighted_interest_rate(
@@ -64,6 +67,7 @@ def _add_real_state_cf(
     self: RealStateCFInvestments, other: RealStateCFInvestments
 ) -> RealStateCFInvestments:
     return RealStateCFInvestments(
+        currency=self.currency,
         total=(self.total + other.total) if self.total and other.total else None,
         weighted_interest_rate=(
             _add_weighted_interest_rate(
@@ -81,6 +85,7 @@ def _add_real_state_cf(
 
 def _add_deposits(self: Deposits, other: Deposits) -> Deposits:
     return Deposits(
+        currency=self.currency,
         total=(self.total + other.total) if self.total and other.total else None,
         expected_interests=(self.expected_interests + other.expected_interests)
         if self.expected_interests and other.expected_interests

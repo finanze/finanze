@@ -87,7 +87,7 @@ class VirtualTransactionSheetConfig(BaseSheetConfig):
 
 
 @dataclass
-class VirtualScrapeConfig:
+class VirtualFetchConfig:
     enabled: bool = False
     globals: GlobalsConfig | None = None
     investments: list[VirtualInvestmentSheetConfig] | None = None
@@ -95,8 +95,8 @@ class VirtualScrapeConfig:
 
 
 @dataclass
-class ScrapeConfig:
-    virtual: VirtualScrapeConfig
+class FetchConfig:
+    virtual: VirtualFetchConfig
     updateCooldown: int
 
 
@@ -117,10 +117,11 @@ class GeneralConfig:
 
 @dataclass
 class Settings:
+    version: int
     general: GeneralConfig = field(default_factory=GeneralConfig)
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
-    scrape: ScrapeConfig = field(default_factory=ScrapeConfig)
+    fetch: FetchConfig = field(default_factory=FetchConfig)
 
 
 ProductSheetConfig = (

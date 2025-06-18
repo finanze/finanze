@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from domain.auto_contributions import AutoContributions, ContributionQueryRequest
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 
 
 class AutoContributionsPort(metaclass=abc.ABCMeta):
@@ -14,9 +14,9 @@ class AutoContributionsPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_all_grouped_by_entity(
         self, query: ContributionQueryRequest
-    ) -> dict[FinancialEntity, AutoContributions]:
+    ) -> dict[Entity, AutoContributions]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_update_grouped_by_entity(self) -> dict[FinancialEntity, datetime]:
+    def get_last_update_grouped_by_entity(self) -> dict[Entity, datetime]:
         raise NotImplementedError

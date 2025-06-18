@@ -6,18 +6,31 @@ from application.use_cases.add_entity_credentials import AddEntityCredentialsImp
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_contributions import GetContributionsImpl
+from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.register_user import RegisterUserImpl
-from application.use_cases.scrape import ScrapeImpl
+from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
-from application.use_cases.virtual_scrape import VirtualScrapeImpl
+from application.use_cases.virtual_fetch import VirtualFetchImpl
 from domain.data_init import DatasourceInitParams
+from infrastructure.client.currency.exchange_rate_client import ExchangeRateClient
+from infrastructure.client.entity.f24.f24_fetcher import F24Fetcher
+from infrastructure.client.entity.indexa_capital.indexa_capital_fetcher import (
+    IndexaCapitalFetcher,
+)
+from infrastructure.client.entity.mintos.mintos_fetcher import MintosFetcher
+from infrastructure.client.entity.myinvestor import MyInvestorScraper
+from infrastructure.client.entity.sego.sego_fetcher import SegoFetcher
+from infrastructure.client.entity.tr.trade_republic_fetcher import TradeRepublicFetcher
+from infrastructure.client.entity.unicaja.unicaja_fetcher import UnicajaFetcher
+from infrastructure.client.entity.urbanitae.urbanitae_fetcher import UrbanitaeFetcher
+from infrastructure.client.entity.wecity.wecity_fetcher import WecityFetcher
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
@@ -39,17 +52,6 @@ from infrastructure.repository.sessions.sessions_repository import SessionsRepos
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
 )
-from infrastructure.scrapers.f24.f24_scraper import F24Scraper
-from infrastructure.scrapers.indexa_capital.indexa_capital_scraper import (
-    IndexaCapitalScraper,
-)
-from infrastructure.scrapers.mintos.mintos_scraper import MintosScraper
-from infrastructure.scrapers.myinvestor import MyInvestorScraper
-from infrastructure.scrapers.sego.sego_scraper import SegoScraper
-from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScraper
-from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
-from infrastructure.scrapers.urbanitae.urbanitae_scraper import UrbanitaeScraper
-from infrastructure.scrapers.wecity.wecity_scraper import WecityScraper
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
@@ -71,19 +73,19 @@ class FinanzeServer:
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
 
-        self.entity_scrapers = {
+        self.entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
-            domain.native_entities.TRADE_REPUBLIC: TradeRepublicScraper(),
-            domain.native_entities.UNICAJA: UnicajaScraper(),
-            domain.native_entities.URBANITAE: UrbanitaeScraper(),
-            domain.native_entities.WECITY: WecityScraper(),
-            domain.native_entities.SEGO: SegoScraper(),
-            domain.native_entities.MINTOS: MintosScraper(),
-            domain.native_entities.F24: F24Scraper(),
-            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalScraper(),
+            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
+            domain.native_entities.UNICAJA: UnicajaFetcher(),
+            domain.native_entities.URBANITAE: UrbanitaeFetcher(),
+            domain.native_entities.WECITY: WecityFetcher(),
+            domain.native_entities.SEGO: SegoFetcher(),
+            domain.native_entities.MINTOS: MintosFetcher(),
+            domain.native_entities.F24: F24Fetcher(),
+            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
         }
 
-        self.virtual_scraper = SheetsImporter(self.sheets_initiator)
+        self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
         self.exporter = SheetsExporter(self.sheets_initiator)
 
         position_repository = PositionRepository(client=self.db_client)
@@ -93,6 +95,7 @@ class FinanzeServer:
         entity_repository = EntityRepository(client=self.db_client)
         sessions_port = SessionsRepository(client=self.db_client)
         virtual_import_repository = VirtualImportRepository(client=self.db_client)
+        exchange_rate_client = ExchangeRateClient()
 
         credentials_storage_mode = self.args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -126,12 +129,12 @@ class FinanzeServer:
         get_available_entities = GetAvailableEntitiesImpl(
             self.config_loader, credentials_port
         )
-        scrape = ScrapeImpl(
+        fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
             auto_contrib_repository,
             transaction_repository,
             historic_repository,
-            self.entity_scrapers,
+            self.entity_fetchers,
             self.config_loader,
             credentials_port,
             sessions_port,
@@ -145,17 +148,17 @@ class FinanzeServer:
             self.exporter,
             self.config_loader,
         )
-        virtual_scrape = VirtualScrapeImpl(
+        virtual_fetch = VirtualFetchImpl(
             position_repository,
             transaction_repository,
-            self.virtual_scraper,
+            self.virtual_fetcher,
             entity_repository,
             self.config_loader,
             virtual_import_repository,
             transaction_handler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
-            self.entity_scrapers, credentials_port, sessions_port, transaction_handler
+            self.entity_fetchers, credentials_port, sessions_port, transaction_handler
         )
         disconnect_entity = DisconnectEntityImpl(
             credentials_port, sessions_port, transaction_handler
@@ -165,6 +168,7 @@ class FinanzeServer:
         get_entities_position = GetPositionImpl(position_repository)
         get_contributions = GetContributionsImpl(auto_contrib_repository)
         get_transactions = GetTransactionsImpl(transaction_repository)
+        get_exchange_rates = GetExchangeRatesImpl(exchange_rate_client)
 
         self._log.info("Initial component setup completed.")
 
@@ -190,9 +194,9 @@ class FinanzeServer:
             user_login,
             register_user,
             get_available_entities,
-            scrape,
+            fetch_financial_data,
             update_sheets,
-            virtual_scrape,
+            virtual_fetch,
             add_entity_credentials,
             get_login_status,
             user_logout,
@@ -202,6 +206,7 @@ class FinanzeServer:
             get_entities_position,
             get_contributions,
             get_transactions,
+            get_exchange_rates,
         )
         self._log.info("Completed.")
 

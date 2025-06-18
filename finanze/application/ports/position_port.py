@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Dict, Optional
 from uuid import UUID
 
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from domain.global_position import GlobalPosition, PositionQueryRequest
 
 
@@ -15,7 +15,7 @@ class PositionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_last_grouped_by_entity(
         self, query: Optional[PositionQueryRequest] = None
-    ) -> Dict[FinancialEntity, GlobalPosition]:
+    ) -> Dict[Entity, GlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod

@@ -1,6 +1,6 @@
 import abc
 
-from domain.virtual_scrape import VirtualDataImport
+from domain.virtual_fetch import VirtualDataImport
 
 
 class VirtualImportRegistry(metaclass=abc.ABCMeta):

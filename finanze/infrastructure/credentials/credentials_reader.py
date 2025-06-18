@@ -5,7 +5,7 @@ from uuid import UUID
 
 import domain.native_entities
 from application.ports.credentials_port import CredentialsPort
-from domain.financial_entity import EntityCredentials, EntityCredentialsEntry
+from domain.entity import EntityCredentials, FinancialEntityCredentialsEntry
 from domain.native_entities import NATIVE_ENTITIES
 
 
@@ -61,8 +61,8 @@ class CredentialsReader(CredentialsPort):
 
         return None
 
-    def get_available_entities(self) -> list[EntityCredentialsEntry]:
-        return [EntityCredentialsEntry(e.id) for e in NATIVE_ENTITIES]
+    def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
+        return [FinancialEntityCredentialsEntry(e.id) for e in NATIVE_ENTITIES]
 
     def save(self, entity_id: UUID, credentials: EntityCredentials):
         pass
@@ -73,5 +73,5 @@ class CredentialsReader(CredentialsPort):
     def update_last_usage(self, entity_id: UUID):
         pass
 
-    def update_expiration(self, entity_id: UUID, expiration: datetime):
+    def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
         pass

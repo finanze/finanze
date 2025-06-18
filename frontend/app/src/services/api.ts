@@ -1,8 +1,8 @@
 import type {
   EntitiesResponse,
   LoginRequest,
-  ScrapeRequest,
-  ScrapeResponse,
+  FetchRequest,
+  FetchResponse,
   LoginResponse,
   ExportRequest,
   AuthRequest,
@@ -97,11 +97,11 @@ export async function disconnectEntity(entityId: string): Promise<void> {
   }
 }
 
-export async function scrapeEntity(
-  request: ScrapeRequest,
-): Promise<ScrapeResponse> {
+export async function fetchFinancialEntity(
+  request: FetchRequest,
+): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/scrape`, {
+  const response = await fetch(`${baseUrl}/fetch/financial`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -113,15 +113,15 @@ export async function scrapeEntity(
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Scrape failed")
+    throw new Error("Fetch failed")
   }
 
   return data
 }
 
-export async function virtualScrape(): Promise<ScrapeResponse> {
+export async function virtualFetch(): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/scrape/virtual`, {
+  const response = await fetch(`${baseUrl}/fetch/virtual`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

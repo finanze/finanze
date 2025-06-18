@@ -1,8 +1,14 @@
 from enum import Enum
+from typing import Optional
 
+from domain.entity import (
+    CredentialType,
+    Entity,
+    EntitySetupLoginType,
+    Feature,
+    PinDetails,
+)
 from pydantic.dataclasses import dataclass
-
-from domain.financial_entity import NativeFinancialEntity
 
 
 class FinancialEntityStatus(str, Enum):
@@ -12,7 +18,11 @@ class FinancialEntityStatus(str, Enum):
 
 
 @dataclass(eq=False)
-class AvailableFinancialEntity(NativeFinancialEntity):
+class AvailableFinancialEntity(Entity):
+    features: list[Feature]
+    setup_login_type: Optional[EntitySetupLoginType] = None
+    credentials_template: Optional[dict[str, CredentialType]] = None
+    pin: Optional[PinDetails] = None
     status: FinancialEntityStatus = FinancialEntityStatus.DISCONNECTED
 
 

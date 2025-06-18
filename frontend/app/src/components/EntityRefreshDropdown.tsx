@@ -20,7 +20,7 @@ export function EntityRefreshDropdown() {
 
   const connectedEntities =
     entities?.filter(
-      entity => entity.status === EntityStatus.CONNECTED && entity.is_real,
+      entity => entity.status !== EntityStatus.DISCONNECTED && entity.is_real,
     ) || []
 
   const handleRefreshEntity = async (entity: Entity, e: React.MouseEvent) => {

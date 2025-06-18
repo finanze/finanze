@@ -9,7 +9,7 @@ from pytz import utc
 
 from application.use_cases.update_sheets import DETAILS_FIELD
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from domain.global_position import GlobalPosition
 from domain.settings import SummarySheetConfig, BaseSheetConfig
 
@@ -23,7 +23,7 @@ _log = logging.getLogger(__name__)
 
 def update_summary(
     sheet,
-    global_positions: dict[FinancialEntity, GlobalPosition],
+    global_positions: dict[Entity, GlobalPosition],
     config: SummarySheetConfig,
 ):
     sheet_id, sheet_range = config.spreadsheetId, config.range

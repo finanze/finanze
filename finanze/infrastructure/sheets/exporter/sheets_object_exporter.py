@@ -4,7 +4,7 @@ from dataclasses import asdict
 
 from dateutil.tz import tzlocal
 
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from domain.settings import BaseSheetConfig, ProductSheetConfig
 from infrastructure.sheets.exporter.sheets_summary_exporter import (
     LAST_UPDATE_FIELD,
@@ -22,9 +22,9 @@ _log = logging.getLogger(__name__)
 
 def update_sheet(
     sheet,
-    data: object | dict[FinancialEntity, object],
+    data: object | dict[Entity, object],
     config: ProductSheetConfig,
-    last_update: dict[FinancialEntity, datetime] = None,
+    last_update: dict[Entity, datetime] = None,
 ):
     sheet_id, sheet_range, field_paths = config.spreadsheetId, config.range, config.data
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
@@ -48,10 +48,10 @@ def update_sheet(
 
 
 def map_rows(
-    data: object | dict[FinancialEntity, object],
+    data: object | dict[Entity, object],
     cells: list[list[str]],
     field_paths: list[str],
-    last_update: dict[FinancialEntity, datetime],
+    last_update: dict[Entity, datetime],
     config: ProductSheetConfig,
 ) -> list[list[str]] | None:
     sheet_range = config.range
@@ -131,7 +131,7 @@ def map_rows(
 
 
 def map_products(
-    data: object | dict[FinancialEntity, object],
+    data: object | dict[Entity, object],
     columns: list[str],
     field_paths: list[str],
     config: ProductSheetConfig,
@@ -193,7 +193,7 @@ def matches_filters(element, config: ProductSheetConfig):
 
 
 def map_product_row(
-    details, entity: FinancialEntity, p_type, columns, config: ProductSheetConfig
+    details, entity: Entity, p_type, columns, config: ProductSheetConfig
 ) -> list[str]:
     rows = []
     details = asdict(details)
@@ -230,9 +230,7 @@ def format_type_name(value):
         return value.upper()
 
 
-def map_last_update_row(
-    last_update: dict[FinancialEntity, datetime], config: BaseSheetConfig
-):
+def map_last_update_row(last_update: dict[Entity, datetime], config: BaseSheetConfig):
     last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=True)
     last_update_row = [None]
     for k, v in last_update:

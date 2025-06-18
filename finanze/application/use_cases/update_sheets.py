@@ -12,7 +12,7 @@ from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions, ContributionQueryRequest
 from domain.exception.exceptions import ExecutionConflict
 from domain.export import ExportRequest
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.settings import (
@@ -134,7 +134,7 @@ class UpdateSheetsImpl(UpdateSheets):
 
     def update_summary_sheets(
         self,
-        global_position: dict[FinancialEntity, GlobalPosition],
+        global_position: dict[Entity, GlobalPosition],
         configs: list[SummarySheetConfig],
         credentials: GoogleCredentials,
     ):
@@ -145,7 +145,7 @@ class UpdateSheetsImpl(UpdateSheets):
 
     def update_investment_sheets(
         self,
-        global_position: dict[FinancialEntity, GlobalPosition],
+        global_position: dict[Entity, GlobalPosition],
         configs: list[InvestmentSheetConfig],
         credentials: GoogleCredentials,
     ):
@@ -158,9 +158,9 @@ class UpdateSheetsImpl(UpdateSheets):
 
     def update_contributions(
         self,
-        contributions: dict[FinancialEntity, AutoContributions],
+        contributions: dict[Entity, AutoContributions],
         configs: list[ContributionSheetConfig],
-        last_update: dict[FinancialEntity, datetime],
+        last_update: dict[Entity, datetime],
         credentials: GoogleCredentials,
     ):
         for config in configs:
@@ -175,7 +175,7 @@ class UpdateSheetsImpl(UpdateSheets):
         self,
         transactions: Transactions,
         configs: list[TransactionSheetConfig],
-        last_update: dict[FinancialEntity, datetime],
+        last_update: dict[Entity, datetime],
         credentials: GoogleCredentials,
     ):
         for config in configs:

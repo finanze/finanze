@@ -11,7 +11,7 @@ import {
   ExportTarget,
   type Entity,
   type Feature,
-  ScrapeResultCode,
+  FetchResultCode,
   LoginResultCode,
   EntityStatus,
   PlatformType,
@@ -20,8 +20,8 @@ import {
 import {
   getEntities,
   loginEntity,
-  scrapeEntity,
-  virtualScrape,
+  fetchFinancialEntity,
+  virtualFetch,
   updateSheets,
   getSettings,
   saveSettings,
@@ -46,7 +46,7 @@ export interface AppSettings {
       [key: string]: any
     }
   }
-  scrape: {
+  fetch: {
     updateCooldown: number
     virtual: {
       enabled: boolean
@@ -116,7 +116,7 @@ const defaultSettings: AppSettings = {
       enabled: false,
     },
   },
-  scrape: {
+  fetch: {
     updateCooldown: 60,
     virtual: {
       enabled: false,
@@ -485,19 +485,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       setPinError(false)
 
-      const response = await scrapeEntity({
+      const response = await fetchFinancialEntity({
         entity: entity.id,
         features: features,
         processId: processId || undefined,
         ...options,
       })
 
-      if (response.code === ScrapeResultCode.CODE_REQUESTED) {
+      if (response.code === FetchResultCode.CODE_REQUESTED) {
         setPinRequired(true)
         setProcessId(response.details?.processId || null)
         setPinLength(entity.pin?.positions || 4)
         setCurrentAction("scrape")
-      } else if (response.code === ScrapeResultCode.MANUAL_LOGIN) {
+      } else if (response.code === FetchResultCode.MANUAL_LOGIN) {
         if (response.details?.credentials) {
           scrapeManualLogin.current = {
             active: true,
@@ -510,14 +510,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
           showToast(t.common.fetchError, "error")
           resetState()
         }
-      } else if (response.code === ScrapeResultCode.LOGIN_REQUIRED) {
+      } else if (response.code === FetchResultCode.LOGIN_REQUIRED) {
         // Handle LOGIN_REQUIRED - show a warning toast
         showToast(t.errors.LOGIN_REQUIRED_SCRAPE, "warning")
         // Update entity status to REQUIRES_LOGIN
         updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
         resetState()
         setView("entities")
-      } else if (response.code === ScrapeResultCode.COMPLETED) {
+      } else if (response.code === FetchResultCode.COMPLETED) {
         showToast(`${t.common.fetchSuccess}: ${entity.name}`, "success")
 
         // Call the callback to refresh financial data for the scraped entity
@@ -535,7 +535,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         resetState()
         // Return to entities view after successful scrape
         setView("entities")
-      } else if (response.code === ScrapeResultCode.INVALID_CODE) {
+      } else if (response.code === FetchResultCode.INVALID_CODE) {
         // Handle invalid PIN but stay in the PIN view
         setPinError(true)
         handleScrapeError(response.code)
@@ -554,7 +554,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const runVirtualScrape = async () => {
     try {
-      const response = await virtualScrape()
+      const response = await virtualFetch()
 
       if (response.code === "COMPLETED") {
         showToast(t.common.virtualScrapeSuccess, "success")
