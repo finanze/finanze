@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2] - 2025-06-18
+
+### 🐛 Bug Fixes
+
+- Wecity interest txs, show net in txs in front and fix features not being selected when 2FA
+
 ## [0.1.1] - 2025-06-15
 
 ### 🚀 Features
