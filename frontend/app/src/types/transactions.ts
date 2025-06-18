@@ -106,9 +106,11 @@ export interface Transactions {
   account?: AccountTx[]
 }
 
+type Tx = AccountTx & StockTx & FundTx & FactoringTx & RealStateCFTx & DepositTx
+
 // Transaction query result
 export interface TransactionsResult {
-  transactions: BaseTx[]
+  transactions: Tx[]
 }
 
 // Transaction query request

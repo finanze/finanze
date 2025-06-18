@@ -27,7 +27,6 @@ export function PinPad() {
   }, [])
 
   useEffect(() => {
-    // Clear pin if there was an error
     if (pinError) {
       setPin([])
       clearPinError()
@@ -64,7 +63,6 @@ export function PinPad() {
     // Don't reset PIN - we'll handle it based on response
   }
 
-  // Replace {length} with the actual pinLength
   const enterCodeText = t.pinpad.enterCode.replace(
     "{length}",
     pinLength.toString(),
