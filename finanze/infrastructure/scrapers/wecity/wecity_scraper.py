@@ -26,10 +26,14 @@ from infrastructure.scrapers.wecity.wecity_client import WecityAPIClient
 DATE_FORMAT = "%Y-%m-%d"
 
 INTEREST_SUBCATEGORIES = [
-    "pago de intereses",
-    "pago intereses de demora",
+    "intereses ordinarios",
+    "intereses de demora",
     "penalización amortización anticipada",
 ]
+
+
+def _is_interest(subtype: str) -> bool:
+    return any(sub in subtype for sub in INTEREST_SUBCATEGORIES)
 
 
 def _normalize_transactions(raw_txs: list):
@@ -222,7 +226,7 @@ class WecityScraper(EntityScraper):
                     tx_type = TxType.REPAYMENT
                 elif tx_subtype_raw == "reparto de dividendos":
                     tx_type = TxType.DIVIDEND
-                elif tx_subtype_raw in INTEREST_SUBCATEGORIES:
+                elif _is_interest(tx_subtype_raw):
                     tx_type = TxType.INTEREST
                 else:
                     self._log.debug(
@@ -258,16 +262,16 @@ class WecityScraper(EntityScraper):
                     id=uuid4(),
                     ref=ref,
                     name=name,
-                    amount=amount,
+                    amount=round(amount, 2),
                     currency="EUR",
                     type=tx_type,
                     date=tx_date,
                     entity=WECITY,
                     product_type=ProductType.REAL_STATE_CF,
                     fees=Dezimal(0),
-                    retentions=retentions,
-                    interests=interests,
-                    net_amount=net_amount,
+                    retentions=round(retentions, 2),
+                    interests=round(interests, 2),
+                    net_amount=round(net_amount, 2),
                     is_real=True,
                 )
             )

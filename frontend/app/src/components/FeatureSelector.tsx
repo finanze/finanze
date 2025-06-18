@@ -24,8 +24,13 @@ import { useI18n } from "@/i18n"
 import { motion } from "framer-motion"
 
 export function FeatureSelector() {
-  const { selectedEntity, scrape, isLoading } = useAppContext()
-  const [selectedFeatures, setSelectedFeatures] = useState<Feature[]>([])
+  const {
+    selectedEntity,
+    scrape,
+    isLoading,
+    selectedFeatures,
+    setSelectedFeatures,
+  } = useAppContext()
   const [deepScrape, setDeepScrape] = useState(false)
   const { t } = useI18n()
 
