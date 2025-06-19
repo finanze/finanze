@@ -68,6 +68,7 @@ interface AppContextType {
   pinRequired: boolean
   pinLength: number
   selectedFeatures: Feature[]
+  setSelectedFeatures: (features: Feature[]) => void
   currentAction: "login" | "scrape" | null
   storedCredentials: Record<string, string> | null
   toast: {
@@ -654,6 +655,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         pinRequired,
         pinLength,
         selectedFeatures,
+        setSelectedFeatures,
         currentAction,
         storedCredentials,
         toast,

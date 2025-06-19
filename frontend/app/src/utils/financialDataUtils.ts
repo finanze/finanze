@@ -646,7 +646,7 @@ export const getRecentTransactions = (
       amount: tx.amount,
       currency: tx.currency,
       formattedAmount: formatCurrency(
-        tx.amount,
+        tx.net_amount ?? tx.amount,
         locale,
         defaultCurrency || "EUR",
         tx.currency,
