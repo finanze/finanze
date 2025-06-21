@@ -4,17 +4,31 @@ export enum EntityStatus {
   REQUIRES_LOGIN = "REQUIRES_LOGIN",
 }
 
+export enum EntityType {
+  FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION",
+  CRYPTO_WALLET = "CRYPTO_WALLET",
+}
+
+export interface CryptoWalletConnection {
+  id: string
+  entity_id: string
+  address: string
+  name: string
+}
+
 export interface Entity {
   id: string
   name: string
+  type: EntityType
   is_real: boolean
-  status: EntityStatus
+  status?: EntityStatus
   features: Feature[]
-  credentials_template: Record<string, string>
-  setup_login_type: EntitySetupLoginType
+  credentials_template?: Record<string, string>
+  setup_login_type?: EntitySetupLoginType
   pin?: {
     positions: number
   }
+  connected?: CryptoWalletConnection[]
 }
 
 export enum EntitySetupLoginType {
@@ -57,8 +71,8 @@ export interface LoginRequest {
   processId?: string
 }
 
-export interface ScrapeRequest {
-  entity: string
+export interface FetchRequest {
+  entity?: string
   features: Feature[]
   code?: string
   processId?: string
@@ -72,8 +86,8 @@ export interface LoginResponse {
   details?: any
 }
 
-export interface ScrapeResponse {
-  code: ScrapeResultCode
+export interface FetchResponse {
+  code: FetchResultCode
   details?: {
     countdown?: number
     processId?: string
@@ -111,7 +125,7 @@ export enum LoginResultCode {
   UNEXPECTED_ERROR = "UNEXPECTED_LOGIN_ERROR",
 }
 
-export enum ScrapeResultCode {
+export enum FetchResultCode {
   // Success
   COMPLETED = "COMPLETED",
 
@@ -144,14 +158,13 @@ export interface Settings {
         datetimeFormat: string
         dateFormat: string
       }
-      summary: any[]
-      investments: any[]
+      position: any[]
       contributions: any[]
       transactions: any[]
       historic: any[]
     }
   }
-  scrape: {
+  fetch: {
     updateCooldown: number
     virtual: {
       enabled: boolean
@@ -189,6 +202,23 @@ export interface PlatformInfo {
 }
 
 export type ThemeMode = "light" | "dark" | "system"
+
+export interface ExchangeRates {
+  [baseCurrency: string]: {
+    [targetCurrency: string]: number
+  }
+}
+
+export interface CreateCryptoWalletRequest {
+  entityId: string
+  name: string
+  address: string
+}
+
+export interface UpdateCryptoWalletConnectionRequest {
+  id: string
+  name: string
+}
 
 // Electron window interface
 declare global {

@@ -29,12 +29,7 @@ class BaseSheetConfig:
 
 
 @dataclass
-class SummarySheetConfig(BaseSheetConfig):
-    pass
-
-
-@dataclass
-class InvestmentSheetConfig(BaseSheetConfig):
+class PositionSheetConfig(BaseSheetConfig):
     data: DataField = field(default_factory=list)
 
 
@@ -64,8 +59,7 @@ class GoogleCredentials:
 class SheetsConfig:
     enabled: bool
     globals: GlobalsConfig | None = None
-    summary: list[SummarySheetConfig] = field(default_factory=list)
-    investments: list[InvestmentSheetConfig] = field(default_factory=list)
+    position: list[PositionSheetConfig] = field(default_factory=list)
     contributions: list[ContributionSheetConfig] = field(default_factory=list)
     transactions: list[TransactionSheetConfig] = field(default_factory=list)
     historic: list[HistoricSheetConfig] = field(default_factory=list)
@@ -87,7 +81,7 @@ class VirtualTransactionSheetConfig(BaseSheetConfig):
 
 
 @dataclass
-class VirtualScrapeConfig:
+class VirtualFetchConfig:
     enabled: bool = False
     globals: GlobalsConfig | None = None
     investments: list[VirtualInvestmentSheetConfig] | None = None
@@ -95,8 +89,8 @@ class VirtualScrapeConfig:
 
 
 @dataclass
-class ScrapeConfig:
-    virtual: VirtualScrapeConfig
+class FetchConfig:
+    virtual: VirtualFetchConfig
     updateCooldown: int
 
 
@@ -120,11 +114,11 @@ class Settings:
     general: GeneralConfig = field(default_factory=GeneralConfig)
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
-    scrape: ScrapeConfig = field(default_factory=ScrapeConfig)
+    fetch: FetchConfig = field(default_factory=FetchConfig)
 
 
 ProductSheetConfig = (
-    InvestmentSheetConfig
+    PositionSheetConfig
     | ContributionSheetConfig
     | TransactionSheetConfig
     | HistoricSheetConfig

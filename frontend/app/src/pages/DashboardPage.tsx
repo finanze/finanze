@@ -58,7 +58,7 @@ export default function DashboardPage() {
     error: financialDataError,
     refreshData: refreshFinancialData,
   } = useFinancialData()
-  const { settings, inactiveEntities } = useAppContext()
+  const { settings, inactiveEntities, exchangeRates } = useAppContext()
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
@@ -188,25 +188,42 @@ export default function DashboardPage() {
   }, [inactiveEntities, t])
 
   // Get aggregated data using utility functions
-  const assetDistribution = getAssetDistribution(positionsData)
-  const entityDistribution = getEntityDistribution(positionsData)
-  const totalAssets = getTotalAssets(positionsData)
+  const targetCurrency = settings.general.defaultCurrency
+  const assetDistribution = getAssetDistribution(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+  )
+  const entityDistribution = getEntityDistribution(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+  )
+  const totalAssets = getTotalAssets(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+  )
   const ongoingProjects = getOngoingProjects(
     positionsData,
     locale,
-    settings?.general?.defaultCurrency,
+    settings.general.defaultCurrency,
   )
   const stockAndFundPositions = getStockAndFundPositions(
     positionsData,
     locale,
-    settings?.general?.defaultCurrency,
+    settings.general.defaultCurrency,
   )
   const recentTransactions = getRecentTransactions(
     transactions,
     locale,
-    settings?.general?.defaultCurrency,
+    settings.general.defaultCurrency,
   )
-  const totalInvestedAmount = getTotalInvestedAmount(positionsData)
+  const totalInvestedAmount = getTotalInvestedAmount(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+  )
 
   const fundItems = stockAndFundPositions
     .filter(p => p.type === "FUND")
@@ -370,7 +387,7 @@ export default function DashboardPage() {
             <li
               key={`legend-item-${index}`}
               className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings?.general?.defaultCurrency)} (${assetPercentage}%)`}
+              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)`}
             >
               <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                 {icon}
@@ -388,7 +405,7 @@ export default function DashboardPage() {
                   {formatCurrency(
                     assetValue,
                     locale,
-                    settings?.general?.defaultCurrency,
+                    settings.general.defaultCurrency,
                   )}
                   )
                 </span>
@@ -414,7 +431,7 @@ export default function DashboardPage() {
             <li
               key={`entity-legend-item-${index}`}
               className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-              title={`${entityName}: ${formatCurrency(entityValue, locale, settings?.general?.defaultCurrency)} (${entityPercentage}%)`}
+              title={`${entityName}: ${formatCurrency(entityValue, locale, settings.general.defaultCurrency)} (${entityPercentage}%)`}
             >
               <span
                 className="flex-shrink-0 w-4 h-4 rounded-full"
@@ -430,7 +447,7 @@ export default function DashboardPage() {
                   {formatCurrency(
                     entityValue,
                     locale,
-                    settings?.general?.defaultCurrency,
+                    settings.general.defaultCurrency,
                   )}
                   )
                 </span>
@@ -580,7 +597,7 @@ export default function DashboardPage() {
                                   props: any,
                                 ) => [
                                   // eslint-disable-next-line react/prop-types -- props are not typed
-                                  `${formatCurrency(value, locale, settings?.general?.defaultCurrency)} (${props.payload.percentage}%)`,
+                                  `${formatCurrency(value, locale, settings.general.defaultCurrency)} (${props.payload.percentage}%)`,
                                   t.enums &&
                                   t.enums.productType &&
                                   (t.enums.productType as any)[name]
@@ -666,7 +683,7 @@ export default function DashboardPage() {
                                   props: any,
                                 ) => [
                                   // eslint-disable-next-line react/prop-types -- props are not typed
-                                  `${formatCurrency(value, locale, settings?.general?.defaultCurrency)} (${props.payload.percentage}%)`,
+                                  `${formatCurrency(value, locale, settings.general.defaultCurrency)} (${props.payload.percentage}%)`,
                                   // eslint-disable-next-line react/prop-types -- props are not typed
                                   props.payload.name,
                                 ]}
@@ -733,7 +750,7 @@ export default function DashboardPage() {
                       {formatCurrency(
                         totalAssets,
                         locale,
-                        settings?.general?.defaultCurrency,
+                        settings.general.defaultCurrency,
                       )}
                     </p>
                     {totalInvestedAmount > 0 &&
@@ -761,7 +778,7 @@ export default function DashboardPage() {
                     {formatCurrency(
                       totalInvestedAmount,
                       locale,
-                      settings?.general?.defaultCurrency,
+                      settings.general.defaultCurrency,
                     )}
                   </p>
                 </CardContent>

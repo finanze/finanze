@@ -11,6 +11,7 @@ import {
   BarChart3,
   Building,
   Coins,
+  Bitcoin,
   TrendingUp,
   PiggyBank,
 } from "lucide-react"
@@ -26,6 +27,7 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   DEPOSIT: "#8b5cf6", // Equivalent to text-purple-500
   CASH: "#6b7280", // Equivalent to text-gray-500
   CROWDLENDING: "#ec4899", // Equivalent to text-pink-500
+  CRYPTO: "#f97316", // Equivalent to text-orange-500
 }
 
 // Helper function to get color for pie chart slice based on asset type
@@ -64,6 +66,8 @@ export function getIconForAssetType(type: string): JSX.Element {
       return <Banknote className="h-4 w-4 text-gray-500" />
     case "CROWDLENDING":
       return <Coins className="h-4 w-4 text-pink-500" />
+    case "CRYPTO":
+      return <Bitcoin className="h-4 w-4 text-orange-500" />
     default:
       return <Coins className="h-4 w-4 text-gray-500" />
   }

@@ -1,12 +1,15 @@
 import type {
   EntitiesResponse,
   LoginRequest,
-  ScrapeRequest,
-  ScrapeResponse,
+  FetchRequest,
+  FetchResponse,
   LoginResponse,
   ExportRequest,
   AuthRequest,
   LoginStatusResponse,
+  ExchangeRates,
+  CreateCryptoWalletRequest,
+  UpdateCryptoWalletConnectionRequest,
 } from "@/types"
 import {
   EntityContributions,
@@ -97,11 +100,11 @@ export async function disconnectEntity(entityId: string): Promise<void> {
   }
 }
 
-export async function scrapeEntity(
-  request: ScrapeRequest,
-): Promise<ScrapeResponse> {
+export async function fetchFinancialEntity(
+  request: FetchRequest,
+): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/scrape`, {
+  const response = await fetch(`${baseUrl}/fetch/financial`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -113,15 +116,37 @@ export async function scrapeEntity(
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Scrape failed")
+    throw new Error("Fetch failed")
   }
 
   return data
 }
 
-export async function virtualScrape(): Promise<ScrapeResponse> {
+export async function fetchCryptoEntity(
+  request: FetchRequest,
+): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/scrape/virtual`, {
+  const response = await fetch(`${baseUrl}/fetch/crypto`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  // Even if the response is not OK, we want to get the error code
+  const data = await response.json()
+
+  if (!response.ok && !data.code) {
+    throw new Error("Fetch failed")
+  }
+
+  return data
+}
+
+export async function virtualFetch(): Promise<FetchResponse> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/fetch/virtual`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -132,7 +157,7 @@ export async function virtualScrape(): Promise<ScrapeResponse> {
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Virtual scrape failed")
+    throw new Error("Virtual fetch failed")
   }
 
   return data
@@ -377,5 +402,59 @@ export async function signup(
   } catch (error) {
     console.error("Signup error:", error)
     throw error
+  }
+}
+
+export async function getExchangeRates(): Promise<ExchangeRates> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/exchange-rates`)
+  if (!response.ok) {
+    throw new Error("Failed to fetch exchange rates")
+  }
+  return response.json()
+}
+
+export async function createCryptoWallet(
+  request: CreateCryptoWalletRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/crypto-wallet`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    throw new Error("Failed to create crypto wallet")
+  }
+}
+
+export async function updateCryptoWallet(
+  request: UpdateCryptoWalletConnectionRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/crypto-wallet`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    throw new Error("Failed to update crypto wallet")
+  }
+}
+
+export async function deleteCryptoWallet(id: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/crypto-wallet/${id}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    throw new Error("Failed to delete crypto wallet")
   }
 }

@@ -1,3 +1,6 @@
+import { ExchangeRates } from "@/types"
+import { convertCurrency } from "@/utils/financialDataUtils"
+
 export const formatCurrency = (
   value: number,
   locale: string,
@@ -33,4 +36,20 @@ export const formatDate = (dateString: string, locale: string): string => {
     month: "short",
     day: "numeric",
   }).format(new Date(dateString))
+}
+
+export const formatConvertedCurrency = (
+  value: number,
+  locale: string,
+  fromCurrency: string,
+  toCurrency: string,
+  exchangeRates: ExchangeRates | null,
+): string => {
+  const convertedValue = convertCurrency(
+    value,
+    fromCurrency,
+    toCurrency,
+    exchangeRates,
+  )
+  return formatCurrency(convertedValue, locale, fromCurrency, toCurrency)
 }

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { Switch } from "@/components/ui/Switch"
+import { MultiSelect, MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
 import {
   PlusCircle,
@@ -74,12 +75,11 @@ export default function SettingsPage() {
   } = useAppContext()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState("integrations")
+  const [activeTab, setActiveTab] = useState("general")
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
-    summary: true,
-    investments: false,
+    position: false,
     contributions: false,
     transactions: false,
     historic: false,
@@ -87,6 +87,18 @@ export default function SettingsPage() {
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
+
+  // Create position data options from translations
+  const getPositionDataOptions = (): MultiSelectOption[] => {
+    const options: MultiSelectOption[] = []
+    const positionDataOptions = (t.settings as any).positionDataOptions || {}
+
+    Object.entries(positionDataOptions).forEach(([value, label]) => {
+      options.push({ value, label: label as string })
+    })
+
+    return options
+  }
 
   useEffect(() => {
     fetchSettings()
@@ -102,8 +114,8 @@ export default function SettingsPage() {
   const handleUpdateCooldown = (value: string) => {
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         updateCooldown: value === "" ? 60 : Number.parseInt(value) || 60,
       },
     })
@@ -125,12 +137,22 @@ export default function SettingsPage() {
   const handleVirtualToggle = (enabled: boolean) => {
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           enabled,
         },
+      },
+    })
+  }
+
+  const handleCurrencyChange = (currency: string) => {
+    setSettings({
+      ...settings,
+      general: {
+        ...settings.general,
+        defaultCurrency: currency,
       },
     })
   }
@@ -139,7 +161,7 @@ export default function SettingsPage() {
     const newItem: any = { range: "" }
 
     if (
-      section === "investments" ||
+      section === "position" ||
       section === "transactions" ||
       section === "contributions"
     ) {
@@ -148,7 +170,7 @@ export default function SettingsPage() {
 
     if (
       section === "historic" ||
-      section === "investments" ||
+      section === "position" ||
       section === "contributions"
     ) {
       newItem.filters = []
@@ -202,19 +224,19 @@ export default function SettingsPage() {
   const addVirtualConfigItem = (section: string) => {
     const newItem: any = { range: "" }
 
-    if (section === "investments" || section === "transactions") {
+    if (section === "position" || section === "transactions") {
       newItem.data = ""
     }
 
     setSettings({
       ...settings,
-      scrape: {
-        ...(settings.scrape || {}),
+      fetch: {
+        ...(settings.fetch || {}),
         virtual: {
-          ...(settings.scrape?.virtual || {}),
+          ...(settings.fetch?.virtual || {}),
           [section]: [
-            ...((settings.scrape?.virtual?.[
-              section as keyof typeof settings.scrape.virtual
+            ...((settings.fetch?.virtual?.[
+              section as keyof typeof settings.fetch.virtual
             ] as any[]) || []),
             newItem,
           ],
@@ -238,13 +260,13 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           [section]: (
-            settings.scrape.virtual[
-              section as keyof typeof settings.scrape.virtual
+            settings.fetch.virtual[
+              section as keyof typeof settings.fetch.virtual
             ] as any[]
           ).filter((_, i) => i !== index),
         },
@@ -344,8 +366,8 @@ export default function SettingsPage() {
     field: string,
     value: any,
   ) => {
-    const items = settings.scrape.virtual[
-      section as keyof typeof settings.scrape.virtual
+    const items = settings.fetch.virtual[
+      section as keyof typeof settings.fetch.virtual
     ] as any[]
     const updatedItems = [...items]
 
@@ -368,10 +390,10 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           [section]: updatedItems,
         },
       },
@@ -460,7 +482,7 @@ export default function SettingsPage() {
             }
 
             if (
-              (section === "investments" ||
+              (section === "position" ||
                 section === "transactions" ||
                 section === "contributions") &&
               (!item.data ||
@@ -478,12 +500,12 @@ export default function SettingsPage() {
       },
     )
 
-    if (settings.scrape.virtual.enabled) {
-      if (!settings.scrape.virtual?.globals?.spreadsheetId) {
+    if (settings.fetch.virtual.enabled) {
+      if (!settings.fetch.virtual?.globals?.spreadsheetId) {
         errors.virtualGlobals = [t.settings.errors.virtualSpreadsheetIdRequired]
       }
 
-      Object.entries(settings.scrape.virtual).forEach(([section, items]) => {
+      Object.entries(settings.fetch.virtual).forEach(([section, items]) => {
         if (
           section !== "globals" &&
           section !== "enabled" &&
@@ -528,7 +550,12 @@ export default function SettingsPage() {
           Array.isArray(items)
         ) {
           ;(items as any[]).forEach(item => {
-            if (item.data && typeof item.data === "string") {
+            // Skip processing data for position section as it's already an array from MultiSelect
+            if (
+              section !== "position" &&
+              item.data &&
+              typeof item.data === "string"
+            ) {
               if (item.data.includes(",")) {
                 item.data = item.data
                   .split(",")
@@ -578,9 +605,9 @@ export default function SettingsPage() {
 
       const cleanedSettings = cleanObject(processedSettings)
 
-      if (cleanedSettings.scrape && cleanedSettings.scrape.virtual) {
-        cleanedSettings.scrape.virtual.enabled =
-          !!cleanedSettings.scrape.virtual.enabled
+      if (cleanedSettings.fetch && cleanedSettings.fetch.virtual) {
+        cleanedSettings.fetch.virtual.enabled =
+          !!cleanedSettings.fetch.virtual.enabled
       }
       if (cleanedSettings.export && cleanedSettings.export.sheets) {
         cleanedSettings.export.sheets.enabled =
@@ -600,7 +627,7 @@ export default function SettingsPage() {
     const canHaveFilters =
       section === "transactions" ||
       section === "historic" ||
-      section === "investments" ||
+      section === "position" ||
       section === "contributions"
 
     return (
@@ -704,42 +731,67 @@ export default function SettingsPage() {
                         />
                       </div>
 
-                      {(section === "investments" ||
+                      {(section === "position" ||
                         section === "transactions" ||
                         section === "contributions") && (
                         <div className="space-y-2 md:col-span-2">
                           <Label>{t.settings.data} *</Label>
-                          <Input
-                            value={
-                              isArray(item.data)
-                                ? item.data.join(", ")
-                                : item.data || ""
-                            }
-                            onChange={e =>
-                              updateConfigItem(
-                                section,
-                                index,
-                                "data",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t.settings.dataPlaceholder}
-                            required
-                            className={
-                              validationErrors[section] &&
-                              validationErrors[section][index] &&
-                              (!item.data ||
-                                (Array.isArray(item.data) &&
-                                  item.data.length === 0))
-                                ? "border-red-500"
-                                : ""
-                            }
-                          />
+                          {section === "position" ? (
+                            <MultiSelect
+                              options={getPositionDataOptions()}
+                              value={isArray(item.data) ? item.data : []}
+                              onChange={selectedValues =>
+                                updateConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  selectedValues,
+                                )
+                              }
+                              placeholder={t.settings.selectDataTypes}
+                              className={
+                                validationErrors[section] &&
+                                validationErrors[section][index] &&
+                                (!item.data ||
+                                  (Array.isArray(item.data) &&
+                                    item.data.length === 0))
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          ) : (
+                            <Input
+                              value={
+                                isArray(item.data)
+                                  ? item.data.join(", ")
+                                  : item.data || ""
+                              }
+                              onChange={e =>
+                                updateConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={t.settings.dataPlaceholder}
+                              required
+                              className={
+                                validationErrors[section] &&
+                                validationErrors[section][index] &&
+                                (!item.data ||
+                                  (Array.isArray(item.data) &&
+                                    item.data.length === 0))
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          )}
                         </div>
                       )}
 
                       {(section === "transactions" ||
-                        section === "investments") && (
+                        section === "position") && (
                         <>
                           <div className="space-y-2">
                             <Label>{t.settings.dateFormat}</Label>
@@ -1070,13 +1122,19 @@ export default function SettingsPage() {
       </div>
 
       <Tabs
-        defaultValue="integrations"
+        defaultValue="general"
         value={activeTab}
         onValueChange={setActiveTab}
         className="w-full"
       >
         <div className="flex justify-center w-full">
-          <TabsList className="grid grid-cols-3 w-full max-w-[600px] h-auto min-h-[3rem]">
+          <TabsList className="grid grid-cols-4 w-full max-w-[800px] h-auto min-h-[3rem]">
+            <TabsTrigger
+              value="general"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+            >
+              {t.settings.general}
+            </TabsTrigger>
             <TabsTrigger
               value="integrations"
               className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
@@ -1097,6 +1155,43 @@ export default function SettingsPage() {
             </TabsTrigger>
           </TabsList>
         </div>
+
+        <TabsContent value="general" className="space-y-4 mt-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.general}</CardTitle>
+                <CardDescription>
+                  {t.settings.generalDescription}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="default-currency">
+                      {t.settings.defaultCurrency}
+                    </Label>
+                    <div className="relative">
+                      <select
+                        id="default-currency"
+                        value={settings.general?.defaultCurrency || "EUR"}
+                        onChange={e => handleCurrencyChange(e.target.value)}
+                        className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                      >
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="USD">USD - US Dollar</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </TabsContent>
 
         <TabsContent value="integrations" className="space-y-4 mt-4">
           <motion.div
@@ -1330,12 +1425,8 @@ export default function SettingsPage() {
                     </div>
 
                     {renderConfigSection(
-                      "summary",
-                      settings.export?.sheets?.summary ?? [],
-                    )}
-                    {renderConfigSection(
-                      "investments",
-                      settings.export?.sheets?.investments ?? [],
+                      "position",
+                      settings.export?.sheets?.position ?? [],
                     )}
                     {renderConfigSection(
                       "contributions",
@@ -1377,7 +1468,7 @@ export default function SettingsPage() {
                   <Input
                     id="updateCooldown"
                     type="number"
-                    value={settings.scrape?.updateCooldown ?? 60}
+                    value={settings.fetch?.updateCooldown ?? 60}
                     onChange={e => handleUpdateCooldown(e.target.value)}
                     placeholder="0"
                   />
@@ -1397,12 +1488,12 @@ export default function SettingsPage() {
                   <Label htmlFor="virtual-enabled">{t.settings.enabled}</Label>
                   <Switch
                     id="virtual-enabled"
-                    checked={settings.scrape?.virtual?.enabled === true}
+                    checked={settings.fetch?.virtual?.enabled === true}
                     onCheckedChange={handleVirtualToggle}
                   />
                 </div>
 
-                {settings.scrape.virtual.enabled === true && (
+                {settings.fetch.virtual.enabled === true && (
                   <div className="space-y-6 pt-4 border-t border-gray-200 dark:border-gray-800">
                     <div className="space-y-4">
                       <h3 className="text-lg font-medium">
@@ -1416,18 +1507,18 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-spreadsheetId"
                             value={
-                              settings.scrape?.virtual?.globals
-                                ?.spreadsheetId || ""
+                              settings.fetch?.virtual?.globals?.spreadsheetId ||
+                              ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       spreadsheetId: e.target.value || null,
                                     },
@@ -1455,18 +1546,18 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-datetimeFormat"
                             value={
-                              settings.scrape?.virtual?.globals
+                              settings.fetch?.virtual?.globals
                                 ?.datetimeFormat || ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       datetimeFormat: e.target.value || null,
                                     },
@@ -1484,18 +1575,17 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-dateFormat"
                             value={
-                              settings.scrape?.virtual?.globals?.dateFormat ||
-                              ""
+                              settings.fetch?.virtual?.globals?.dateFormat || ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       dateFormat: e.target.value || null,
                                     },
@@ -1511,11 +1601,11 @@ export default function SettingsPage() {
 
                     {renderVirtualConfigSection(
                       "investments",
-                      settings.scrape?.virtual?.investments || [],
+                      settings.fetch?.virtual?.investments || [],
                     )}
                     {renderVirtualConfigSection(
                       "transactions",
-                      settings.scrape?.virtual?.transactions || [],
+                      settings.fetch?.virtual?.transactions || [],
                     )}
                   </div>
                 )}

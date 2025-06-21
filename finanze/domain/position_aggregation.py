@@ -1,13 +1,14 @@
 from domain.dezimal import Dezimal
 from domain.global_position import (
+    Crowdlending,
+    CryptoCurrencies,
+    Deposits,
+    FactoringInvestments,
+    FundInvestments,
     GlobalPosition,
     Investments,
-    StockInvestments,
-    FundInvestments,
-    FactoringInvestments,
     RealStateCFInvestments,
-    Deposits,
-    Crowdlending,
+    StockInvestments,
 )
 
 
@@ -19,24 +20,12 @@ def _add_weighted_interest_rate(
 
 def _add_stocks(self: StockInvestments, other: StockInvestments) -> StockInvestments:
     return StockInvestments(
-        investment=(self.investment + other.investment)
-        if self.investment and other.investment
-        else None,
-        market_value=(self.market_value + other.market_value)
-        if self.market_value and other.market_value
-        else None,
         details=self.details + other.details,
     )
 
 
 def _add_funds(self: FundInvestments, other: FundInvestments) -> FundInvestments:
     return FundInvestments(
-        investment=(self.investment + other.investment)
-        if self.investment and other.investment
-        else None,
-        market_value=(self.market_value + other.market_value)
-        if self.market_value and other.market_value
-        else None,
         details=self.details + other.details,
     )
 
@@ -45,17 +34,6 @@ def _add_factoring(
     self: FactoringInvestments, other: FactoringInvestments
 ) -> FactoringInvestments:
     return FactoringInvestments(
-        total=(self.total + other.total) if self.total and other.total else None,
-        weighted_interest_rate=(
-            _add_weighted_interest_rate(
-                self.total,
-                self.weighted_interest_rate,
-                other.total,
-                other.weighted_interest_rate,
-            )
-        )
-        if self.weighted_interest_rate and other.weighted_interest_rate
-        else None,
         details=self.details + other.details,
     )
 
@@ -64,37 +42,12 @@ def _add_real_state_cf(
     self: RealStateCFInvestments, other: RealStateCFInvestments
 ) -> RealStateCFInvestments:
     return RealStateCFInvestments(
-        total=(self.total + other.total) if self.total and other.total else None,
-        weighted_interest_rate=(
-            _add_weighted_interest_rate(
-                self.total,
-                self.weighted_interest_rate,
-                other.total,
-                other.weighted_interest_rate,
-            )
-        )
-        if self.weighted_interest_rate and other.weighted_interest_rate
-        else None,
         details=self.details + other.details,
     )
 
 
 def _add_deposits(self: Deposits, other: Deposits) -> Deposits:
     return Deposits(
-        total=(self.total + other.total) if self.total and other.total else None,
-        expected_interests=(self.expected_interests + other.expected_interests)
-        if self.expected_interests and other.expected_interests
-        else None,
-        weighted_interest_rate=(
-            _add_weighted_interest_rate(
-                self.total,
-                self.weighted_interest_rate,
-                other.total,
-                other.weighted_interest_rate,
-            )
-        )
-        if self.weighted_interest_rate and other.weighted_interest_rate
-        else None,
         details=self.details + other.details,
     )
 
@@ -119,6 +72,14 @@ def _add_crowdlending(self: Crowdlending, other: Crowdlending) -> Crowdlending:
     )
 
 
+def _add_crypto_currencies(
+    self: CryptoCurrencies, other: CryptoCurrencies
+) -> CryptoCurrencies:
+    return CryptoCurrencies(
+        details=self.details + other.details,
+    )
+
+
 def _add_investments(self: Investments, other: Investments) -> Investments:
     if other is None:
         return self
@@ -137,6 +98,9 @@ def _add_investments(self: Investments, other: Investments) -> Investments:
         else None,
         crowdlending=(self.crowdlending + other.crowdlending)
         if self.crowdlending and other.crowdlending
+        else None,
+        crypto_currencies=(self.crypto_currencies + other.crypto_currencies)
+        if self.crypto_currencies and other.crypto_currencies
         else None,
     )
 
@@ -174,6 +138,7 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
             real_state_cf=_sum_inv(self, "real_state_cf", other),
             deposits=_sum_inv(self, "deposits", other),
             crowdlending=_sum_inv(self, "crowdlending", other),
+            crypto_currencies=_sum_inv(self, "crypto_currencies", other),
         ),
         is_real=self.is_real and other.is_real,
     )
@@ -186,5 +151,6 @@ def add_extensions():
     RealStateCFInvestments.__add__ = _add_real_state_cf
     Deposits.__add__ = _add_deposits
     Crowdlending.__add__ = _add_crowdlending
+    CryptoCurrencies.__add__ = _add_crypto_currencies
     Investments.__add__ = _add_investments
     GlobalPosition.__add__ = _add_position

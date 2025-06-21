@@ -3,6 +3,7 @@ from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
     InvalidProvidedCredentials,
+    TooManyRequests,
 )
 from flask import jsonify
 
@@ -35,11 +36,15 @@ def handle_execution_conflict(e):
     return jsonify({"code": "EXECUTION_CONFLICT"}), 409
 
 
+def handle_too_many_requests(e):
+    return "", 429
+
+
 def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
     app.register_error_handler(DataEncryptedError, handle_data_encrypted)
     app.register_error_handler(ExecutionConflict, handle_execution_conflict)
-    app.register_error_handler(ValueError, handle_value_error)
+    app.register_error_handler(TooManyRequests, handle_too_many_requests)
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)

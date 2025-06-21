@@ -1,5 +1,5 @@
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from domain.virtual_scrape import VirtualDataImport
+from domain.virtual_fetch import VirtualDataImport
 from infrastructure.repository.db.client import DBClient
 
 

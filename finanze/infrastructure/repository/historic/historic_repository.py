@@ -1,18 +1,17 @@
 from datetime import datetime
-from typing import List, Dict
+from typing import Dict, List
 from uuid import UUID
 
-from dateutil.tz import tzlocal
-
 from application.ports.historic_port import HistoricPort
+from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from domain.historic import (
-    Historic,
     BaseHistoricEntry,
     FactoringEntry,
-    RealStateCFEntry,
+    Historic,
     ProductType,
+    RealStateCFEntry,
 )
 from domain.transactions import BaseInvestmentTx
 from infrastructure.repository.db.client import DBClient
@@ -22,9 +21,10 @@ from infrastructure.repository.transaction.transaction_repository import (
 
 
 def _map_historic_row(row) -> BaseHistoricEntry:
-    entity = FinancialEntity(
+    entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
+        type=row["entity_type"],
         is_real=row["entity_is_real"],
     )
 
@@ -160,9 +160,9 @@ class HistoricSQLRepository(HistoricPort):
     def get_all(self, fetch_related_txs: bool = False) -> Historic:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                           SELECT h.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           SELECT h.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
                            FROM investment_historic h
-                                    JOIN financial_entities e ON h.entity_id = e.id
+                                    JOIN entities e ON h.entity_id = e.id
                            """)
             entries = cursor.fetchall()
 

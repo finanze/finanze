@@ -118,26 +118,18 @@ export interface RealStateCFDetail {
 }
 
 export interface StockInvestments {
-  investment?: number | null
-  market_value?: number | null
   details: StockDetail[]
 }
 
 export interface FundInvestments {
-  investment?: number | null
-  market_value?: number | null
   details: FundDetail[]
 }
 
 export interface FactoringInvestments {
-  total?: number | null
-  weighted_interest_rate?: number | null
   details: FactoringDetail[]
 }
 
 export interface RealStateCFInvestments {
-  total?: number | null
-  weighted_interest_rate?: number | null
   details: RealStateCFDetail[]
 }
 
@@ -153,19 +145,49 @@ export interface Deposit {
 }
 
 export interface Deposits {
-  total?: number | null
-  expected_interests?: number | null
-  weighted_interest_rate?: number | null
   details: Deposit[]
 }
 
 export interface Crowdlending {
   id: string
-  total?: number | null
-  weighted_interest_rate?: number | null
+  total: number
+  weighted_interest_rate: number
   currency: string
   distribution: any
   details: any[]
+}
+
+export interface CryptoCurrencyToken {
+  id: string
+  token_id: string
+  name: string
+  symbol: string
+  token: string
+  amount: number
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  market_value?: number | null
+  currency?: string | null
+  type?: string | null
+}
+
+export interface CryptoCurrencyWallet {
+  id: string
+  wallet_connection_id: string
+  address: string
+  name: string
+  symbol: string
+  crypto: string
+  amount: number
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  market_value?: number | null
+  currency?: string | null
+  tokens?: CryptoCurrencyToken[] | null
+}
+
+export interface CryptoCurrencies {
+  details: CryptoCurrencyWallet[]
 }
 
 export interface Investments {
@@ -176,6 +198,7 @@ export interface Investments {
   real_state_cf?: RealStateCFInvestments | null
   deposits?: Deposits | null
   crowdlending?: Crowdlending | null
+  crypto_currencies?: CryptoCurrencies | null
 }
 
 export interface EntitySummary {

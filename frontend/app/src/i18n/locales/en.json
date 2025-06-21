@@ -46,8 +46,14 @@
     "accounts": "Accounts",
     "investments": "Investments",
     "assets": "Assets",
+    "crypto": "Crypto",
     "search": "Search...",
-    "incompatibleLoginPlatform": "Use desktop app in order to do manual log in."
+    "copy": "Copy",
+    "copied": "Copied",
+    "incompatibleLoginPlatform": "Use desktop app in order to do manual log in.",
+    "selectOptions": "Select options...",
+    "searchOptions": "Search options...",
+    "noOptionsFound": "No options found"
   },
   "toast": {
     "success": "Success",
@@ -125,7 +131,10 @@
     "disconnect": "Disconnect",
     "confirmDisconnect": "Confirm Disconnect",
     "confirmDisconnectMessage": "Are you sure you want to disconnect {entity}? You will need to log in again to access its data.",
-    "refreshEntity": "Update entity data"
+    "refreshEntity": "Update entity data",
+    "financialInstitutions": "Financial Institutions",
+    "cryptoWallets": "Crypto Wallets",
+    "manualDataEntry": "User data"
   },
   "features": {
     "POSITION": "Positions",
@@ -141,6 +150,9 @@
   },
   "settings": {
     "title": "Settings",
+    "general": "General",
+    "generalDescription": "Configure general application settings",
+    "defaultCurrency": "Main Currency",
     "integrations": "Integrations",
     "sheetsIntegration": "Google Sheets Integration",
     "sheetsIntegrationDescription": "Configure your Google Sheets API credentials",
@@ -152,16 +164,16 @@
     "sheets": "Google Sheets",
     "sheetsDescription": "Configure your Google Sheets export settings",
     "globals": "Global Settings",
-    "summary": "Summary",
     "investments": "Investments",
+    "position": "Position",
     "contributions": "Contributions",
     "transactions": "Transactions",
     "historic": "Historic Data",
-    "scrape": "Scrape Settings",
-    "scrapeSettings": "Scrape Settings",
+    "scrape": "Fetch Settings",
+    "scrapeSettings": "Fetch Settings",
     "scrapeDescription": "Configure general scraping settings",
-    "virtual": "User Entered Data",
-    "virtualDescription": "Configure settings for manually entered data",
+    "virtual": "Virtual data",
+    "virtualDescription": "Configure settings for virtual data",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "save": "Save Settings",
@@ -175,6 +187,7 @@
     "rangePlaceholder": "Enter range",
     "data": "Data",
     "dataPlaceholder": "Enter data type(s)",
+    "selectDataTypes": "Select data types...",
     "dateFormat": "Date Format",
     "dateFormatPlaceholder": "%d/%m/%Y",
     "datetimeFormat": "Datetime Format",
@@ -190,6 +203,19 @@
     "configuration": "Configuration",
     "requiredField": "This field is required",
     "saving": "Saving...",
+    "positionDataOptions": {
+      "investments.stocks.details": "Stocks",
+      "investments.funds.details": "Funds",
+      "investments.fund_portfolios.details": "Fund Portfolios",
+      "investments.factoring.details": "Factoring",
+      "investments.real_state_cf.details": "Real State CF",
+      "investments.deposits.details": "Deposits",
+      "investments.crowdlending.details": "Crowdlending",
+      "investments.crypto_currencies.details": "Cryptocurrencies",
+      "accounts": "Accounts",
+      "cards": "Cards",
+      "loans": "Loans"
+    },
     "errors": {
       "spreadsheetIdRequired": "Spreadsheet ID is required in Global Settings when export is enabled",
       "rangeRequired": "Range is required. ",
@@ -285,7 +311,40 @@
       "REAL_STATE_CF": "RE Crowdfunding",
       "DEPOSIT": "Deposit",
       "CASH": "Cash",
-      "CROWDLENDING": "Crowdlending"
+      "CROWDLENDING": "Crowdlending",
+      "CRYPTO": "Crypto"
     }
+  },
+  "walletForm": {
+    "title": "Add Wallet",
+    "description": "Add a new wallet for {{entityName}}",
+    "fields": {
+      "name": "Wallet Name",
+      "address": "Wallet Address"
+    },
+    "placeholders": {
+      "name": "e.g. My Bitcoin Wallet",
+      "address": "Enter wallet address"
+    },
+    "submit": "Add Wallet",
+    "errors": {
+      "nameRequired": "Wallet name is required",
+      "addressRequired": "Wallet address is required",
+      "addressTooShort": "Wallet address seems too short",
+      "generic": "Failed to add wallet"
+    }
+  },
+  "walletManagement": {
+    "title": "Manage Wallets",
+    "subtitle": "Connected wallets for {{entityName}}",
+    "addWallet": "Add Wallet",
+    "noWallets": "No wallets connected",
+    "noWalletsDescription": "Start by adding your first wallet to this crypto entity",
+    "addFirstWallet": "Add Your First Wallet",
+    "tokens": "Tokens",
+    "totalValue": "Total Value",
+    "deleteWalletConfirm": "Are you sure you want to delete the wallet \"{{walletName}}\"? This action cannot be undone.",
+    "editWalletName": "Edit Wallet Name",
+    "walletNamePlaceholder": "Enter wallet name"
   }
 }

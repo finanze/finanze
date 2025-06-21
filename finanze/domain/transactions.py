@@ -7,7 +7,7 @@ from pydantic.dataclasses import dataclass
 
 from domain.base import BaseData
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 
 
 class ProductType(str, Enum):
@@ -43,7 +43,7 @@ class BaseTx(BaseData):
     currency: str
     type: TxType
     date: datetime
-    entity: FinancialEntity
+    entity: Entity
     is_real: bool
     product_type: ProductType
 

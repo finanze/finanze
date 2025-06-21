@@ -34,3 +34,11 @@ class NoAdapterFound(Exception):
 
 class ExecutionConflict(Exception):
     pass
+
+
+class AddressNotFound(Exception):
+    pass
+
+
+class TooManyRequests(Exception):
+    pass

@@ -10,9 +10,9 @@ from application.ports.position_port import PositionPort
 from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions, ContributionQueryRequest
+from domain.entity import Entity
 from domain.exception.exceptions import ExecutionConflict
 from domain.export import ExportRequest
-from domain.financial_entity import FinancialEntity
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.settings import (
@@ -20,18 +20,16 @@ from domain.settings import (
     GlobalsConfig,
     GoogleCredentials,
     HistoricSheetConfig,
-    InvestmentSheetConfig,
+    PositionSheetConfig,
     ProductSheetConfig,
-    SummarySheetConfig,
     TransactionSheetConfig,
 )
 from domain.transactions import Transactions
 from domain.use_cases.update_sheets import UpdateSheets
 
-DETAILS_FIELD = "details"
 ADDITIONAL_DATA_FIELD = "additionalData"
 
-T = TypeVar("T", bound=ProductSheetConfig | SummarySheetConfig)
+T = TypeVar("T", bound=ProductSheetConfig)
 
 
 def apply_global_config(config_globals: GlobalsConfig, entries: list[T]) -> list[T]:
@@ -87,24 +85,19 @@ class UpdateSheetsImpl(UpdateSheets):
 
             config_globals = sheets_export_config.globals or {}
 
-            summary_configs = sheets_export_config.summary or []
-            investment_configs = sheets_export_config.investments or []
+            position_configs = sheets_export_config.position or []
             contrib_configs = sheets_export_config.contributions or []
             tx_configs = sheets_export_config.transactions or []
             historic_configs = sheets_export_config.historic or []
-            summary_configs = apply_global_config(config_globals, summary_configs)
-            investment_configs = apply_global_config(config_globals, investment_configs)
+            position_configs = apply_global_config(config_globals, position_configs)
             contrib_configs = apply_global_config(config_globals, contrib_configs)
             tx_configs = apply_global_config(config_globals, tx_configs)
             historic_configs = apply_global_config(config_globals, historic_configs)
 
             global_position_by_entity = self._position_port.get_last_grouped_by_entity()
 
-            self.update_summary_sheets(
-                global_position_by_entity, summary_configs, sheet_credentials
-            )
-            self.update_investment_sheets(
-                global_position_by_entity, investment_configs, sheet_credentials
+            self.update_position_sheets(
+                global_position_by_entity, position_configs, sheet_credentials
             )
 
             auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
@@ -132,35 +125,24 @@ class UpdateSheetsImpl(UpdateSheets):
             historic = self._historic_port.get_all()
             self.update_historic(historic, historic_configs, sheet_credentials)
 
-    def update_summary_sheets(
+    def update_position_sheets(
         self,
-        global_position: dict[FinancialEntity, GlobalPosition],
-        configs: list[SummarySheetConfig],
-        credentials: GoogleCredentials,
-    ):
-        for config in configs:
-            self._sheets_update_port.update_summary(
-                global_position, credentials, config
-            )
-
-    def update_investment_sheets(
-        self,
-        global_position: dict[FinancialEntity, GlobalPosition],
-        configs: list[InvestmentSheetConfig],
+        global_position: dict[Entity, GlobalPosition],
+        configs: list[PositionSheetConfig],
         credentials: GoogleCredentials,
     ):
         for config in configs:
             fields = config.data
             fields = [fields] if isinstance(fields, str) else fields
-            config.data = [f"investments.{field}.{DETAILS_FIELD}" for field in fields]
+            config.data = fields
 
             self._sheets_update_port.update_sheet(global_position, credentials, config)
 
     def update_contributions(
         self,
-        contributions: dict[FinancialEntity, AutoContributions],
+        contributions: dict[Entity, AutoContributions],
         configs: list[ContributionSheetConfig],
-        last_update: dict[FinancialEntity, datetime],
+        last_update: dict[Entity, datetime],
         credentials: GoogleCredentials,
     ):
         for config in configs:
@@ -175,7 +157,7 @@ class UpdateSheetsImpl(UpdateSheets):
         self,
         transactions: Transactions,
         configs: list[TransactionSheetConfig],
-        last_update: dict[FinancialEntity, datetime],
+        last_update: dict[Entity, datetime],
         credentials: GoogleCredentials,
     ):
         for config in configs:
