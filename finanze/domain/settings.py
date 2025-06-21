@@ -29,12 +29,7 @@ class BaseSheetConfig:
 
 
 @dataclass
-class SummarySheetConfig(BaseSheetConfig):
-    pass
-
-
-@dataclass
-class InvestmentSheetConfig(BaseSheetConfig):
+class PositionSheetConfig(BaseSheetConfig):
     data: DataField = field(default_factory=list)
 
 
@@ -64,8 +59,7 @@ class GoogleCredentials:
 class SheetsConfig:
     enabled: bool
     globals: GlobalsConfig | None = None
-    summary: list[SummarySheetConfig] = field(default_factory=list)
-    investments: list[InvestmentSheetConfig] = field(default_factory=list)
+    position: list[PositionSheetConfig] = field(default_factory=list)
     contributions: list[ContributionSheetConfig] = field(default_factory=list)
     transactions: list[TransactionSheetConfig] = field(default_factory=list)
     historic: list[HistoricSheetConfig] = field(default_factory=list)
@@ -117,7 +111,6 @@ class GeneralConfig:
 
 @dataclass
 class Settings:
-    version: int
     general: GeneralConfig = field(default_factory=GeneralConfig)
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
@@ -125,7 +118,7 @@ class Settings:
 
 
 ProductSheetConfig = (
-    InvestmentSheetConfig
+    PositionSheetConfig
     | ContributionSheetConfig
     | TransactionSheetConfig
     | HistoricSheetConfig

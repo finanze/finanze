@@ -1,17 +1,16 @@
-import datetime
+import json
 import logging
 from dataclasses import asdict
+from datetime import date, datetime
+from uuid import UUID
 
 from dateutil.tz import tzlocal
-
+from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.settings import BaseSheetConfig, ProductSheetConfig
-from infrastructure.sheets.exporter.sheets_summary_exporter import (
-    LAST_UPDATE_FIELD,
-    set_field_value,
-    format_field_value,
-)
+from pytz import utc
 
+LAST_UPDATE_FIELD = "last_update"
 NO_HEADERS_FOUND = "NO_HEADERS_FOUND"
 ENTITY_COLUMN = "entity"
 TYPE_COLUMN = "investment_type"
@@ -84,7 +83,7 @@ def map_rows(
                 *entity_last_update_row,
             ]
         else:
-            last_update_date = datetime.datetime.now(tzlocal())
+            last_update_date = datetime.now(tzlocal())
             config_datetime_format = config.datetimeFormat
             if config_datetime_format:
                 formated_last_update_date = last_update_date.strftime(
@@ -246,3 +245,42 @@ def map_last_update_row(last_update: dict[Entity, datetime], config: BaseSheetCo
         last_update_row.append(formated_last_update_date)
     last_update_row.extend(["" for _ in range(10)])
     return last_update_row
+
+
+def set_field_value(row: list[str], index: int, value, config: BaseSheetConfig):
+    value = format_field_value(value, config)
+    if len(row) > index:
+        row[index] = value
+    else:
+        row.append(value)
+
+
+def format_field_value(value, config: BaseSheetConfig):
+    if value is None:
+        return ""
+
+    if isinstance(value, date) and not isinstance(value, datetime):
+        config_date_format = config.dateFormat
+        if config_date_format:
+            return value.strftime(config_date_format)
+
+        return value.isoformat()[:10]
+
+    elif isinstance(value, datetime):
+        value = value.replace(tzinfo=utc).astimezone(tzlocal())
+        config_date_format = config.datetimeFormat
+        if config_date_format:
+            return value.strftime(config_date_format)
+
+        return value.isoformat()
+
+    elif isinstance(value, dict) or isinstance(value, list):
+        return json.dumps(value, default=str)
+
+    elif isinstance(value, Dezimal):
+        return float(value)
+
+    elif isinstance(value, UUID):
+        return str(value)
+
+    return value

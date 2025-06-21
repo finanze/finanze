@@ -166,5 +166,10 @@ NATIVE_ENTITIES = [
 ]
 
 
-def get_native_by_id(entity_id: UUID) -> Optional[NativeFinancialEntity]:
-    return next((e for e in NATIVE_ENTITIES if entity_id == e.id), None)
+def get_native_by_id(
+    entity_id: UUID, entity_type: EntityType
+) -> Optional[NativeFinancialEntity | NativeCryptoWalletEntity]:
+    return next(
+        (e for e in NATIVE_ENTITIES if entity_id == e.id and entity_type == e.type),
+        None,
+    )

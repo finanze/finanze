@@ -2,7 +2,7 @@ import logging
 
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.credentials_port import CredentialsPort
-from application.ports.entity_fetcher import EntityFetcher
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
@@ -21,7 +21,7 @@ from domain.use_cases.add_entity_credentials import AddEntityCredentials
 class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
     def __init__(
         self,
-        entity_fetchers: dict[Entity, EntityFetcher],
+        entity_fetchers: dict[Entity, FinancialEntityFetcher],
         credentials_port: CredentialsPort,
         sessions_port: SessionsPort,
         transaction_handler_port: TransactionHandlerPort,
@@ -37,7 +37,9 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
     async def execute(self, login_request: EntityLoginRequest) -> EntityLoginResult:
         entity_id = login_request.entity_id
 
-        entity = native_entities.get_native_by_id(entity_id)
+        entity = native_entities.get_native_by_id(
+            entity_id, EntityType.FINANCIAL_INSTITUTION
+        )
         if not entity:
             raise EntityNotFound(entity_id)
 

@@ -36,8 +36,7 @@ export default function ExportPage() {
 
   // Count how many sections are configured
   const sectionCounts = {
-    summary: sheetsConfig?.summary?.length || 0,
-    investments: sheetsConfig?.investments?.length || 0,
+    position: sheetsConfig?.position?.length || 0,
     contributions: sheetsConfig?.contributions?.length || 0,
     transactions: sheetsConfig?.transactions?.length || 0,
     historic: sheetsConfig?.historic?.length || 0,

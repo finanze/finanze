@@ -16,23 +16,21 @@ export:
       datetimeFormat: "%d/%m/%Y %H:%M:%S"
       dateFormat: "%d/%m/%Y"
 
-    summary:
-      - spreadsheetId: oneSpecificSheetId
-        range: Summary
-      - range: Basic Summary
-
-    investments:
+    position:
       - spreadsheetId: anotherSpecificSheetId
         range: Funds
-        data: funds
+        data: investments.funds.details
       - range: Stocks
-        data: stocks
+        data: investments.stocks.details
       - range: Real State CF
-        data: real_state_cf
+        data: investments.real_state_cf.details
       - range: Mixed
         data:
-          - factoring
-          - real_state_cf
+          - investments.factoring.details
+          - investments.real_state_cf.details
+      - range: Accounts
+        data:
+          - accounts
 
     contributions:
       - range: Contributions

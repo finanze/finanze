@@ -7,8 +7,8 @@ from pydantic.dataclasses import dataclass
 
 
 class Feature(str, Enum):
-    POSITION = ("POSITION",)
-    AUTO_CONTRIBUTIONS = ("AUTO_CONTRIBUTIONS",)
+    POSITION = "POSITION"
+    AUTO_CONTRIBUTIONS = "AUTO_CONTRIBUTIONS"
     TRANSACTIONS = "TRANSACTIONS"
     HISTORIC = "HISTORIC"
 
@@ -38,12 +38,12 @@ class Entity:
 
 
 class CredentialType(str, Enum):
-    ID = ("ID",)
-    USER = ("USER",)
-    PASSWORD = ("PASSWORD",)
-    PIN = ("PIN",)
-    PHONE = ("PHONE",)
-    EMAIL = ("EMAIL",)
+    ID = "ID"
+    USER = "USER"
+    PASSWORD = "PASSWORD"
+    PIN = "PIN"
+    PHONE = "PHONE"
+    EMAIL = "EMAIL"
     API_TOKEN = "API_TOKEN"
 
     # Internal usage (cookies, headers..., usually from external login)
@@ -52,7 +52,7 @@ class CredentialType(str, Enum):
 
 
 class EntitySetupLoginType(str, Enum):
-    MANUAL = ("MANUAL",)
+    MANUAL = "MANUAL"
     AUTOMATED = "AUTOMATED"
 
 

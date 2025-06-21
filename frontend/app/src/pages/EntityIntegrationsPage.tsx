@@ -1,6 +1,8 @@
 import { useAppContext } from "@/context/AppContext"
 import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
+import { AddWalletForm } from "@/components/AddWalletForm"
+import { ManageWalletsView } from "@/components/ManageWalletsView"
 import { PinPad } from "@/components/PinPad"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
@@ -9,15 +11,10 @@ import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import {
-  RefreshCw,
-  Settings,
-  ExternalLink,
-  FileSpreadsheet,
-} from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import { EntitySetupLoginType, EntityStatus } from "@/types"
+import { RefreshCw, ExternalLink, FileSpreadsheet } from "lucide-react"
+import { EntitySetupLoginType, EntityStatus, EntityType } from "@/types"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { createCryptoWallet } from "@/services/api"
 
 export default function EntityIntegrationsPage() {
   const {
@@ -37,26 +34,74 @@ export default function EntityIntegrationsPage() {
   } = useAppContext()
 
   const { t } = useI18n()
-  const navigate = useNavigate()
   const [showVirtualConfirm, setShowVirtualConfirm] = useState(false)
   const [isVirtualScraping, setIsVirtualScraping] = useState(false)
+  const [showAddWallet, setShowAddWallet] = useState(false)
+  const [isAddingWallet, setIsAddingWallet] = useState(false)
+  const [showManageWallets, setShowManageWallets] = useState(false)
+
+  // Helper function to determine if a crypto wallet entity is connected
+  const isCryptoWalletConnected = (entity: any) => {
+    return (
+      entity.type === EntityType.CRYPTO_WALLET &&
+      entity.connected &&
+      entity.connected.length > 0
+    )
+  }
+
+  // Helper function to determine if an entity is connected
+  const isEntityConnected = (entity: any) => {
+    if (entity.type === EntityType.CRYPTO_WALLET) {
+      return isCryptoWalletConnected(entity)
+    }
+    return (
+      entity.status === EntityStatus.CONNECTED ||
+      entity.status === EntityStatus.REQUIRES_LOGIN
+    )
+  }
+
+  // Helper function to determine if an entity is disconnected
+  const isEntityDisconnected = (entity: any) => {
+    if (entity.type === EntityType.CRYPTO_WALLET) {
+      return !isCryptoWalletConnected(entity)
+    }
+    return entity.status === EntityStatus.DISCONNECTED
+  }
 
   const connectedEntities =
-    entities?.filter(
-      entity =>
-        entity.status === EntityStatus.CONNECTED ||
-        entity.status === EntityStatus.REQUIRES_LOGIN,
-    ) || []
+    entities?.filter(entity => isEntityConnected(entity)) || []
 
   const unconnectedEntities =
-    entities?.filter(entity => entity.status === EntityStatus.DISCONNECTED) ||
-    []
+    entities?.filter(entity => isEntityDisconnected(entity)) || []
+
+  // Categorize connected entities by type
+  const connectedFinancialEntities = connectedEntities.filter(
+    entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+  )
+  const connectedCryptoEntities = connectedEntities.filter(
+    entity => entity.type === EntityType.CRYPTO_WALLET,
+  )
+
+  // Categorize unconnected entities by type
+  const unconnectedFinancialEntities = unconnectedEntities.filter(
+    entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+  )
+  const unconnectedCryptoEntities = unconnectedEntities.filter(
+    entity => entity.type === EntityType.CRYPTO_WALLET,
+  )
 
   const handleEntitySelect = (entity: any) => {
     selectEntity(entity)
 
     if (!entity.is_real) {
       setShowVirtualConfirm(true)
+    } else if (entity.type === EntityType.CRYPTO_WALLET) {
+      // For crypto wallets, if connected go to features, if not connected show add wallet form
+      if (isCryptoWalletConnected(entity)) {
+        setView("features")
+      } else {
+        setShowAddWallet(true)
+      }
     } else if (entity.status === EntityStatus.DISCONNECTED) {
       handleLogin(entity)
     } else if (entity.status === EntityStatus.REQUIRES_LOGIN) {
@@ -67,12 +112,18 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleRelogin = (entity: any) => {
-    selectEntity(entity)
-    handleLogin(entity)
+    // Only handle relogin for financial institutions
+    if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+      selectEntity(entity)
+      handleLogin(entity)
+    }
   }
 
   const handleDisconnect = async (entity: any) => {
-    await disconnectEntity(entity.id)
+    // Only handle disconnect for financial institutions
+    if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+      await disconnectEntity(entity.id)
+    }
   }
 
   const handleLogin = (entity: any) => {
@@ -101,8 +152,56 @@ export default function EntityIntegrationsPage() {
     setShowVirtualConfirm(false)
   }
 
+  const handleManage = (entity: any) => {
+    // Only handle manage for crypto wallets
+    if (
+      entity.type === EntityType.CRYPTO_WALLET &&
+      isCryptoWalletConnected(entity)
+    ) {
+      selectEntity(entity)
+      setShowManageWallets(true)
+    }
+  }
+
   const handleBack = () => {
     setView("entities")
+    setShowAddWallet(false)
+    setShowManageWallets(false)
+  }
+
+  const handleAddWallet = async (name: string, address: string) => {
+    if (!selectedEntity) return
+
+    setIsAddingWallet(true)
+    try {
+      await createCryptoWallet({
+        entityId: selectedEntity.id,
+        name,
+        address,
+      })
+
+      await fetchEntities()
+
+      setShowAddWallet(false)
+      setView("entities")
+    } finally {
+      setIsAddingWallet(false)
+    }
+  }
+
+  const handleCancelAddWallet = () => {
+    setShowAddWallet(false)
+    setView("entities")
+  }
+
+  const handleBackFromManageWallets = () => {
+    setShowManageWallets(false)
+    setView("entities")
+  }
+
+  const handleAddWalletFromManage = () => {
+    setShowManageWallets(false)
+    setShowAddWallet(true)
   }
 
   const container = {
@@ -121,7 +220,7 @@ export default function EntityIntegrationsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t.entities.title}</h1>
         {view === "entities" && (
@@ -165,97 +264,137 @@ export default function EntityIntegrationsPage() {
             className="space-y-8"
           >
             {(connectedEntities.length > 0 || virtualEnabled) && (
-              <motion.div variants={item} className="space-y-4">
+              <motion.div variants={item} className="space-y-6">
                 <h2 className="text-xl font-semibold">
                   {t.entities.connected}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {connectedEntities.map(entity => (
-                    <EntityCard
-                      key={entity.id}
-                      entity={entity}
-                      onSelect={() => handleEntitySelect(entity)}
-                      onRelogin={() => handleRelogin(entity)}
-                      onDisconnect={() => handleDisconnect(entity)}
-                      isLoading={isLoading}
-                    />
-                  ))}
-                  {virtualEnabled && (
-                    <Card
-                      className="cursor-pointer transition-all hover:shadow-md border-green-500"
-                      onClick={() => setShowVirtualConfirm(true)}
-                    >
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center">
-                          <FileSpreadsheet className="h-5 w-5 mr-2" />
-                          {t.entities.userEntered}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                          {t.entities.userEnteredDescription}
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={e => {
-                            e.stopPropagation()
-                            setShowVirtualConfirm(true)
-                          }}
-                        >
-                          {t.entities.importData}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
+
+                {/* Financial Institutions */}
+                {connectedFinancialEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                      {t.entities.financialInstitutions}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {connectedFinancialEntities.map(entity => (
+                        <EntityCard
+                          key={entity.id}
+                          entity={entity}
+                          onSelect={() => handleEntitySelect(entity)}
+                          onRelogin={() => handleRelogin(entity)}
+                          onDisconnect={() => handleDisconnect(entity)}
+                          onManage={() => handleManage(entity)}
+                          isLoading={isLoading}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Crypto Wallets */}
+                {connectedCryptoEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                      {t.entities.cryptoWallets}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {connectedCryptoEntities.map(entity => (
+                        <EntityCard
+                          key={entity.id}
+                          entity={entity}
+                          onSelect={() => handleEntitySelect(entity)}
+                          onRelogin={() => handleRelogin(entity)}
+                          onDisconnect={() => handleDisconnect(entity)}
+                          onManage={() => handleManage(entity)}
+                          isLoading={isLoading}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* User Entered (Virtual) */}
+                {virtualEnabled && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                      {t.entities.manualDataEntry}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <Card className="transition-all hover:shadow-md border-green-500 flex flex-col h-full">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center justify-center">
+                            <FileSpreadsheet className="h-5 w-5 mr-2" />
+                            {t.entities.userEntered}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            {t.entities.userEnteredDescription}
+                          </p>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => setShowVirtualConfirm(true)}
+                          >
+                            {t.entities.importData}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
             {unconnectedEntities.length > 0 && (
-              <motion.div variants={item} className="space-y-4">
+              <motion.div variants={item} className="space-y-6">
                 <h2 className="text-xl font-semibold">
                   {t.entities.available}
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {unconnectedEntities.map(entity => (
-                    <EntityCard
-                      key={entity.id}
-                      entity={entity}
-                      onSelect={() => handleEntitySelect(entity)}
-                      onRelogin={() => handleRelogin(entity)}
-                      onDisconnect={() => handleDisconnect(entity)}
-                      isLoading={isLoading}
-                    />
-                  ))}
-                  {!virtualEnabled && (
-                    <Card className="cursor-pointer transition-all hover:shadow-md border-gray-300 opacity-80">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center">
-                          <FileSpreadsheet className="h-5 w-5 mr-2" />
-                          {t.entities.userEntered}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                          {t.entities.userEnteredAvailableDescription}
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={e => {
-                            e.stopPropagation()
-                            navigate("/settings")
-                          }}
-                          disabled={isLoading}
-                        >
-                          <Settings className="mr-2 h-4 w-4" />
-                          {t.entities.setupUserEntered}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
+
+                {/* Financial Institutions */}
+                {unconnectedFinancialEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                      {t.entities.financialInstitutions}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {unconnectedFinancialEntities.map(entity => (
+                        <EntityCard
+                          key={entity.id}
+                          entity={entity}
+                          onSelect={() => handleEntitySelect(entity)}
+                          onRelogin={() => handleRelogin(entity)}
+                          onDisconnect={() => handleDisconnect(entity)}
+                          onManage={() => handleManage(entity)}
+                          isLoading={isLoading}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Crypto Wallets */}
+                {unconnectedCryptoEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                      {t.entities.cryptoWallets}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {unconnectedCryptoEntities.map(entity => (
+                        <EntityCard
+                          key={entity.id}
+                          entity={entity}
+                          onSelect={() => handleEntitySelect(entity)}
+                          onRelogin={() => handleRelogin(entity)}
+                          onDisconnect={() => handleDisconnect(entity)}
+                          onManage={() => handleManage(entity)}
+                          isLoading={isLoading}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </motion.div>
@@ -373,6 +512,61 @@ export default function EntityIntegrationsPage() {
             ) : (
               <PinPad />
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add Wallet Modal */}
+      <AnimatePresence>
+        {showAddWallet && selectedEntity && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="max-w-md w-full mx-4"
+            >
+              <AddWalletForm
+                entity={selectedEntity}
+                onSubmit={handleAddWallet}
+                onCancel={handleCancelAddWallet}
+                isLoading={isAddingWallet}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Manage Wallets Modal */}
+      <AnimatePresence>
+        {showManageWallets && selectedEntity && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] overflow-hidden"
+            >
+              <div className="h-full overflow-y-auto p-6">
+                <ManageWalletsView
+                  entityId={selectedEntity.id}
+                  onBack={handleBackFromManageWallets}
+                  onAddWallet={handleAddWalletFromManage}
+                  onWalletUpdated={fetchEntities}
+                  onClose={handleBackFromManageWallets}
+                />
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

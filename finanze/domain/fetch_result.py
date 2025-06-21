@@ -41,7 +41,7 @@ class FetchOptions:
 
 @dataclass
 class FetchRequest:
-    entity_id: UUID
+    entity_id: Optional[UUID]
     features: list[Feature]
     two_factor: Optional[TwoFactor] = None
     login_options: Optional[LoginOptions] = field(default_factory=LoginOptions)
@@ -51,7 +51,7 @@ class FetchRequest:
 @dataclass
 class FetchResult:
     code: FetchResultCode
-    data: Optional[FetchedData | VirtuallyFetchedData] = None
+    data: Optional[FetchedData | VirtuallyFetchedData | list[FetchedData]] = None
     details: Optional[dict] = None
 
 

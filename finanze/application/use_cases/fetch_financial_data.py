@@ -10,7 +10,7 @@ from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
-from application.ports.entity_fetcher import EntityFetcher
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.historic_port import HistoricPort
 from application.ports.position_port import PositionPort
 from application.ports.sessions_port import SessionsPort
@@ -22,8 +22,6 @@ from domain.dezimal import Dezimal
 from domain.entity import CredentialType, Entity, EntityType, Feature
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
-from domain.global_position import FactoringDetail, RealStateCFDetail
-from domain.historic import BaseHistoricEntry, FactoringEntry, RealStateCFEntry
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
     FetchOptions,
@@ -32,6 +30,8 @@ from domain.fetch_result import (
     FetchResultCode,
 )
 from domain.fetched_data import FetchedData
+from domain.global_position import FactoringDetail, RealStateCFDetail
+from domain.historic import BaseHistoricEntry, FactoringEntry, RealStateCFEntry
 from domain.transactions import ProductType, TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
@@ -125,7 +125,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         auto_contr_port: AutoContributionsPort,
         transaction_port: TransactionPort,
         historic_port: HistoricPort,
-        entity_fetchers: dict[Entity, EntityFetcher],
+        entity_fetchers: dict[Entity, FinancialEntityFetcher],
         config_port: ConfigPort,
         credentials_port: CredentialsPort,
         sessions_port: SessionsPort,
@@ -154,12 +154,11 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
     async def execute(self, fetch_request: FetchRequest) -> FetchResult:
         entity_id = fetch_request.entity_id
 
-        entity = native_entities.get_native_by_id(entity_id)
+        entity = native_entities.get_native_by_id(
+            entity_id, EntityType.FINANCIAL_INSTITUTION
+        )
         if not entity:
             raise EntityNotFound(entity_id)
-
-        if entity.type != EntityType.FINANCIAL_INSTITUTION:
-            raise ValueError(f"Invalid entity type: {entity.type}")
 
         features = fetch_request.features
 
@@ -270,7 +269,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         self,
         entity: Entity,
         features: List[Feature],
-        specific_fetcher: EntityFetcher,
+        specific_fetcher: FinancialEntityFetcher,
         options: FetchOptions,
     ) -> FetchedData:
         position = None
@@ -377,7 +376,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         return None
 
     async def build_historic(
-        self, entity: Entity, specific_fetcher: EntityFetcher
+        self, entity: Entity, specific_fetcher: FinancialEntityFetcher
     ) -> list[BaseHistoricEntry]:
         historical_position = await specific_fetcher.historical_position()
 

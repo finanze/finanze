@@ -1,5 +1,8 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
+from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
+from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.disconnect_entity import DisconnectEntity
+from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 from domain.use_cases.get_available_entities import GetAvailableEntities
 from domain.use_cases.get_contributions import GetContributions
@@ -9,6 +12,7 @@ from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
 from domain.use_cases.get_transactions import GetTransactions
 from domain.use_cases.register_user import RegisterUser
+from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_sheets import UpdateSheets
 from domain.use_cases.user_login import UserLogin
@@ -16,10 +20,13 @@ from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_fetch import VirtualFetch
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
+from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
 from infrastructure.controller.routes.contributions import contributions
+from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
 from infrastructure.controller.routes.exchange_rates import exchange_rates
 from infrastructure.controller.routes.export import export
+from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
 from infrastructure.controller.routes.fetch_financial_data import fetch_financial_data
 from infrastructure.controller.routes.get_available_sources import get_available_sources
 from infrastructure.controller.routes.get_settings import get_settings
@@ -28,6 +35,7 @@ from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
 from infrastructure.controller.routes.transactions import transactions
+from infrastructure.controller.routes.update_crypto_wallet import update_crypto_wallet
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
@@ -39,6 +47,7 @@ def register_routes(
     register_user_uc: RegisterUser,
     get_available_entities_uc: GetAvailableEntities,
     fetch_financial_data_uc: FetchFinancialData,
+    fetch_crypto_data_uc: FetchCryptoData,
     update_sheets_uc: UpdateSheets,
     virtual_fetch_uc: VirtualFetch,
     add_entity_credentials_uc: AddEntityCredentials,
@@ -51,6 +60,9 @@ def register_routes(
     get_contributions_uc: GetContributions,
     get_transactions_uc: GetTransactions,
     get_exchange_rates_uc: GetExchangeRates,
+    connect_crypto_wallet_uc: ConnectCryptoWallet,
+    update_crypto_wallet_uc: UpdateCryptoWalletConnection,
+    delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -92,6 +104,10 @@ def register_routes(
     async def fetch_financial_data_route():
         return await fetch_financial_data(fetch_financial_data_uc)
 
+    @app.route("/api/v1/fetch/crypto", methods=["POST"])
+    async def fetch_crypto_data_route():
+        return await fetch_crypto_data(fetch_crypto_data_uc)
+
     @app.route("/api/v1/fetch/virtual", methods=["POST"])
     async def virtual_fetch_route():
         return await virtual_fetch(virtual_fetch_uc)
@@ -115,3 +131,15 @@ def register_routes(
     @app.route("/api/v1/exchange-rates", methods=["GET"])
     def exchange_rates_route():
         return exchange_rates(get_exchange_rates_uc)
+
+    @app.route("/api/v1/crypto-wallet", methods=["POST"])
+    def connect_crypto_wallet_route():
+        return connect_crypto_wallet(connect_crypto_wallet_uc)
+
+    @app.route("/api/v1/crypto-wallet", methods=["PUT"])
+    def update_crypto_wallet_route():
+        return update_crypto_wallet(update_crypto_wallet_uc)
+
+    @app.route("/api/v1/crypto-wallet/<wallet_connection_id>", methods=["DELETE"])
+    def delete_crypto_wallet_route(wallet_connection_id: str):
+        return delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)

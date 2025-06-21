@@ -5,8 +5,15 @@ export enum EntityStatus {
 }
 
 export enum EntityType {
-  FINCIAL_INSTITUTION = "FINCIAL_INSTITUTION",
+  FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION",
   CRYPTO_WALLET = "CRYPTO_WALLET",
+}
+
+export interface CryptoWalletConnection {
+  id: string
+  entity_id: string
+  address: string
+  name: string
 }
 
 export interface Entity {
@@ -14,13 +21,14 @@ export interface Entity {
   name: string
   type: EntityType
   is_real: boolean
-  status: EntityStatus
+  status?: EntityStatus
   features: Feature[]
-  credentials_template: Record<string, string>
-  setup_login_type: EntitySetupLoginType
+  credentials_template?: Record<string, string>
+  setup_login_type?: EntitySetupLoginType
   pin?: {
     positions: number
   }
+  connected?: CryptoWalletConnection[]
 }
 
 export enum EntitySetupLoginType {
@@ -64,7 +72,7 @@ export interface LoginRequest {
 }
 
 export interface FetchRequest {
-  entity: string
+  entity?: string
   features: Feature[]
   code?: string
   processId?: string
@@ -150,8 +158,7 @@ export interface Settings {
         datetimeFormat: string
         dateFormat: string
       }
-      summary: any[]
-      investments: any[]
+      position: any[]
       contributions: any[]
       transactions: any[]
       historic: any[]
@@ -195,6 +202,23 @@ export interface PlatformInfo {
 }
 
 export type ThemeMode = "light" | "dark" | "system"
+
+export interface ExchangeRates {
+  [baseCurrency: string]: {
+    [targetCurrency: string]: number
+  }
+}
+
+export interface CreateCryptoWalletRequest {
+  entityId: string
+  name: string
+  address: string
+}
+
+export interface UpdateCryptoWalletConnectionRequest {
+  id: string
+  name: string
+}
 
 // Electron window interface
 declare global {

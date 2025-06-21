@@ -5,6 +5,7 @@ from application.ports.credentials_port import CredentialsPort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
+from domain.entity import EntityType
 from domain.entity_login import EntityDisconnectRequest
 from domain.exception.exceptions import EntityNotFound
 from domain.use_cases.disconnect_entity import DisconnectEntity
@@ -27,7 +28,9 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
     async def execute(self, request: EntityDisconnectRequest):
         entity_id = request.entity_id
 
-        entity = native_entities.get_native_by_id(entity_id)
+        entity = native_entities.get_native_by_id(
+            entity_id, EntityType.FINANCIAL_INSTITUTION
+        )
         if not entity:
             raise EntityNotFound(entity_id)
 

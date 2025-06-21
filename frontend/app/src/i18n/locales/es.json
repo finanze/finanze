@@ -41,8 +41,14 @@
     "never": "Nunca",
     "noDataAvailable": "No hay datos disponibles",
     "retry": "Reintentar",
+    "crypto": "Crypto",
     "search": "Buscar...",
-    "incompatibleLoginPlatform": "Usa la app de escritorio para iniciar sesión manualmente."
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "incompatibleLoginPlatform": "Usa la app de escritorio para iniciar sesión manualmente.",
+    "selectOptions": "Seleccionar opciones...",
+    "searchOptions": "Buscar opciones...",
+    "noOptionsFound": "No se encontraron opciones"
   },
   "toast": {
     "success": "Operación exitosa",
@@ -120,7 +126,10 @@
     "disconnect": "Desconectar",
     "confirmDisconnect": "Confirmar Desconexión",
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos.",
-    "refreshEntity": "Actualizar datos de entidades"
+    "refreshEntity": "Actualizar datos de entidades",
+    "financialInstitutions": "Instituciones Financieras",
+    "cryptoWallets": "Carteras Crypto",
+    "manualDataEntry": "Datos de usuario"
   },
   "features": {
     "POSITION": "Posiciones",
@@ -136,6 +145,9 @@
   },
   "settings": {
     "title": "Configuración",
+    "general": "General",
+    "generalDescription": "Configura los ajustes generales de la aplicación",
+    "defaultCurrency": "Moneda principal",
     "integrations": "Integraciones",
     "sheetsIntegration": "Integración con Google Sheets",
     "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets",
@@ -147,8 +159,8 @@
     "sheets": "Google Sheets",
     "sheetsDescription": "Configura tus ajustes de exportación a Google Sheets",
     "globals": "Configuración Global",
-    "summary": "Resumen",
     "investments": "Inversiones",
+    "position": "Position",
     "contributions": "Contribuciones",
     "transactions": "Transacciones",
     "historic": "Datos Históricos",
@@ -170,6 +182,7 @@
     "rangePlaceholder": "Ingresa el rango",
     "data": "Datos",
     "dataPlaceholder": "Ingresa tipo(s) de datos",
+    "selectDataTypes": "Seleccionar tipos de datos...",
     "dateFormat": "Formato de Fecha",
     "dateFormatPlaceholder": "%d/%m/%Y",
     "datetimeFormat": "Formato de Fecha y Hora",
@@ -185,6 +198,19 @@
     "configuration": "Configuración",
     "requiredField": "Este campo es obligatorio",
     "saving": "Guardando...",
+    "positionDataOptions": {
+      "investments.stocks.details": "Acciones/ETFs",
+      "investments.funds.details": "Fondos",
+      "investments.fund_portfolios.details": "Carteras de fondos",
+      "investments.factoring.details": "Factoring",
+      "investments.real_state_cf.details": "Real State CF",
+      "investments.deposits.details": "Depósitos",
+      "investments.crowdlending.details": "Crowdlending",
+      "investments.crypto_currencies.details": "Criptomonedas",
+      "accounts": "Cuentas",
+      "cards": "Tarjetas",
+      "loans": "Préstamos"
+    },
     "errors": {
       "spreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global cuando la exportación está habilitada",
       "rangeRequired": "El rango es obligatorio. ",
@@ -281,7 +307,40 @@
       "REAL_STATE_CF": "Crowdfunding Inmobiliario",
       "DEPOSIT": "Depósitos",
       "CASH": "Efectivo",
-      "CROWDLENDING": "Crowdlending"
+      "CROWDLENDING": "Crowdlending",
+      "CRYPTO": "Criptomonedas"
     }
+  },
+  "walletForm": {
+    "title": "Agregar Cartera",
+    "description": "Agregar una nueva cartera para {{entityName}}",
+    "fields": {
+      "name": "Nombre de la Cartera",
+      "address": "Dirección de la Cartera"
+    },
+    "placeholders": {
+      "name": "ej. Mi Cartera Bitcoin",
+      "address": "Introduce la dirección de la cartera"
+    },
+    "submit": "Agregar Cartera",
+    "errors": {
+      "nameRequired": "El nombre de la cartera es obligatorio",
+      "addressRequired": "La dirección de la cartera es obligatoria",
+      "addressTooShort": "La dirección de la cartera parece demasiado corta",
+      "generic": "Error al agregar cartera"
+    }
+  },
+  "walletManagement": {
+    "title": "Gestionar carteras",
+    "subtitle": "Carteras conectadas para {{entityName}}",
+    "addWallet": "Agregar cartera",
+    "noWallets": "No hay carteras conectadas",
+    "noWalletsDescription": "Comienza agregando tu primera cartera a esta entidad cripto",
+    "addFirstWallet": "Agregar tu primera cartera",
+    "tokens": "Tokens",
+    "totalValue": "Valor total",
+    "deleteWalletConfirm": "¿Estás seguro de que quieres eliminar la cartera \"{{walletName}}\"? Esta acción no se puede deshacer.",
+    "editWalletName": "Editar nombre de cartera",
+    "walletNamePlaceholder": "Ingrese el nombre de la cartera"
   }
 }

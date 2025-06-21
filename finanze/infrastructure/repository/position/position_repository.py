@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
 from uuid import UUID
 
 from application.ports.position_port import PositionPort
@@ -16,6 +16,7 @@ from domain.global_position import (
     CryptoCurrency,
     CryptoCurrencyToken,
     CryptoCurrencyWallet,
+    CryptoToken,
     Deposit,
     Deposits,
     FactoringDetail,
@@ -36,78 +37,31 @@ from domain.global_position import (
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient, DBCursor
 
-KPIs = Optional[dict[str, Tuple[Dezimal, str | None]]]
-PositionInvestmentKPIs = dict[str, KPIs]
-
-MARKET_VALUE = "MARKET_VALUE"
-INVESTMENT = "INVESTMENT"
-WEIGHTED_INTEREST_RATE = "WEIGHTED_INTEREST_RATE"
-TOTAL = "TOTAL"
-EXPECTED_INTERESTS = "EXPECTED_INTERESTS"
-
-STOCKS = "STOCKS"
-FUNDS = "FUNDS"
-FACTORING = "FACTORING"
-REAL_STATE_CF = "REAL_STATE_CF"
-DEPOSITS = "DEPOSITS"
-CROWDLENDING = "CROWDLENDING"
-CRYPTOCURRENCIES = "CRYPTOCURRENCIES"
-
-
-def _save_investment_kpis(
-    cursor, position: GlobalPosition, product_type: str, kpis: KPIs
-):
-    for metric, kpi in kpis.items():
-        if kpi is None:
-            continue
-
-        value, currency = kpi
-
-        cursor.execute(
-            "INSERT INTO investment_position_kpis "
-            "(global_position_id, entity_id, investment_type, metric, value, currency, date) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                str(position.id),
-                str(position.entity.id),
-                product_type,
-                metric,
-                str(value),
-                currency,
-                position.date.isoformat(),
-            ),
-        )
-
 
 def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlending):
     cursor.execute(
         """
-        INSERT INTO crowdlending_positions (id, global_position_id, currency, distribution)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO crowdlending_positions (id, global_position_id, total, weighted_interest_rate, currency, distribution)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             str(crowdlending.id),
             str(position.id),
+            str(crowdlending.total),
+            str(crowdlending.weighted_interest_rate),
             crowdlending.currency,
             json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder),
         ),
     )
 
-    kpis = {
-        TOTAL: (crowdlending.total, crowdlending.currency),
-        WEIGHTED_INTEREST_RATE: (crowdlending.weighted_interest_rate, None),
-    }
 
-    _save_investment_kpis(cursor, position, CROWDLENDING, kpis)
-
-
-def _save_cryptocurrency_tokens(cursor, wallet_detail: CryptoCurrencyWallet):
+def _save_crypto_currency_token_positions(cursor, wallet_detail: CryptoCurrencyWallet):
     for token_detail in wallet_detail.tokens:
         cursor.execute(
             """
-            INSERT INTO cryptocurrency_tokens (id, wallet_id, token_id, name, symbol, amount,
+            INSERT INTO crypto_currency_token_positions (id, wallet_id, token_id, name, symbol, token, amount,
                                                initial_investment, average_buy_price, market_value, currency, type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(token_detail.id),
@@ -115,6 +69,7 @@ def _save_cryptocurrency_tokens(cursor, wallet_detail: CryptoCurrencyWallet):
                 token_detail.token_id,
                 token_detail.name,
                 token_detail.symbol,
+                token_detail.token,
                 str(token_detail.amount),
                 str(token_detail.initial_investment)
                 if token_detail.initial_investment
@@ -129,21 +84,21 @@ def _save_cryptocurrency_tokens(cursor, wallet_detail: CryptoCurrencyWallet):
         )
 
 
-def _save_cryptocurrencies(
+def _save_crypto_currencies(
     cursor, position: GlobalPosition, cryptocurrencies: CryptoCurrencies
 ):
     for wallet_detail in cryptocurrencies.details:
         cursor.execute(
             """
-            INSERT INTO cryptocurrency_wallets (id, global_position_id, address, name, symbol, amount,
-                                                initial_investment, average_buy_price, market_value, currency, crypto)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO crypto_currency_wallet_positions (id, global_position_id, wallet_connection_id, symbol, amount,
+                                                          initial_investment, average_buy_price, market_value, currency,
+                                                          crypto)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(wallet_detail.id),
                 str(position.id),
-                wallet_detail.address,
-                wallet_detail.name,
+                str(wallet_detail.wallet_connection_id),
                 wallet_detail.symbol,
                 str(wallet_detail.amount),
                 str(wallet_detail.initial_investment)
@@ -157,10 +112,7 @@ def _save_cryptocurrencies(
                 wallet_detail.crypto.value,
             ),
         )
-        _save_cryptocurrency_tokens(cursor, wallet_detail)
-
-    kpis = {MARKET_VALUE: (cryptocurrencies.market_value, cryptocurrencies.currency)}
-    _save_investment_kpis(cursor, position, CRYPTOCURRENCIES, kpis)
+        _save_crypto_currency_token_positions(cursor, wallet_detail)
 
 
 def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
@@ -183,14 +135,6 @@ def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
                 detail.maturity.isoformat(),
             ),
         )
-
-    kpis = {
-        TOTAL: (deposits.total, deposits.currency),
-        EXPECTED_INTERESTS: (deposits.expected_interests, deposits.currency),
-        WEIGHTED_INTEREST_RATE: (deposits.weighted_interest_rate, None),
-    }
-
-    _save_investment_kpis(cursor, position, DEPOSITS, kpis)
 
 
 def _save_real_state_cf(
@@ -221,13 +165,6 @@ def _save_real_state_cf(
             ),
         )
 
-    kpis = {
-        TOTAL: (real_state.total, real_state.currency),
-        WEIGHTED_INTEREST_RATE: (real_state.weighted_interest_rate, None),
-    }
-
-    _save_investment_kpis(cursor, position, REAL_STATE_CF, kpis)
-
 
 def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvestments):
     for detail in factoring.details:
@@ -254,13 +191,6 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
                 detail.state,
             ),
         )
-
-    kpis = {
-        TOTAL: (factoring.total, factoring.currency),
-        WEIGHTED_INTEREST_RATE: (factoring.weighted_interest_rate, None),
-    }
-
-    _save_investment_kpis(cursor, position, FACTORING, kpis)
 
 
 def _save_fund_portfolios(
@@ -307,13 +237,6 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
             ),
         )
 
-    kpis = {
-        INVESTMENT: (funds.investment, funds.currency),
-        MARKET_VALUE: (funds.market_value, funds.currency),
-    }
-
-    _save_investment_kpis(cursor, position, FUNDS, kpis)
-
 
 def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
     for detail in stocks.details:
@@ -341,13 +264,6 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
             ),
         )
 
-    kpis = {
-        INVESTMENT: (stocks.investment, stocks.currency),
-        MARKET_VALUE: (stocks.market_value, stocks.currency),
-    }
-
-    _save_investment_kpis(cursor, position, STOCKS, kpis)
-
 
 def _save_investments(cursor, position: GlobalPosition, investments: Investments):
     if investments.stocks:
@@ -364,8 +280,8 @@ def _save_investments(cursor, position: GlobalPosition, investments: Investments
         _save_deposits(cursor, position, investments.deposits)
     if investments.crowdlending:
         _save_crowdlending(cursor, position, investments.crowdlending)
-    if investments.cryptocurrencies:
-        _save_cryptocurrencies(cursor, position, investments.cryptocurrencies)
+    if investments.crypto_currencies:
+        _save_crypto_currencies(cursor, position, investments.crypto_currencies)
 
 
 def _save_loan(cursor, position: GlobalPosition, loan: Loan):
@@ -434,20 +350,6 @@ def _save_account(cursor, position: GlobalPosition, account: Account):
             str(account.pending_transfers) if account.pending_transfers else None,
         ),
     )
-
-
-def _get_kpi_currency(kpis: KPIs, key: str) -> Optional[str]:
-    try:
-        return kpis.get(key)[1]
-    except Exception:
-        return None
-
-
-def _get_kpi_value(kpis: KPIs, key: str) -> Optional[Dezimal]:
-    try:
-        return kpis.get(key)[0] if kpis else None
-    except Exception:
-        return None
 
 
 class PositionSQLRepository(PositionPort):
@@ -701,47 +603,19 @@ class PositionSQLRepository(PositionPort):
             return loans
 
     def _get_investments(self, global_position_id: UUID) -> Optional[Investments]:
-        kpis = self._get_investment_kpis(global_position_id)
         return Investments(
-            stocks=self._get_stock_investments(global_position_id, kpis.get(STOCKS)),
-            funds=self._get_fund_investments(global_position_id, kpis.get(FUNDS)),
+            stocks=self._get_stock_investments(global_position_id),
+            funds=self._get_fund_investments(global_position_id),
             fund_portfolios=self._get_fund_portfolios(global_position_id),
-            factoring=self._get_factoring_investments(
-                global_position_id, kpis.get(FACTORING)
-            ),
-            real_state_cf=self._get_real_state_cf_investments(
-                global_position_id, kpis.get(REAL_STATE_CF)
-            ),
-            deposits=self._get_deposit_investments(
-                global_position_id, kpis.get(DEPOSITS)
-            ),
-            crowdlending=self._get_crowdlending_investments(
-                global_position_id, kpis.get(CROWDLENDING)
-            ),
-            cryptocurrencies=self._get_cryptocurrency_investments(
-                global_position_id, kpis.get(CRYPTOCURRENCIES)
-            ),
+            factoring=self._get_factoring_investments(global_position_id),
+            real_state_cf=self._get_real_state_cf_investments(global_position_id),
+            deposits=self._get_deposit_investments(global_position_id),
+            crowdlending=self._get_crowdlending_investments(global_position_id),
+            crypto_currencies=self._get_cryptocurrency_investments(global_position_id),
         )
 
-    def _get_investment_kpis(
-        self, global_position_id: UUID
-    ) -> Optional[PositionInvestmentKPIs]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                "SELECT * FROM investment_position_kpis WHERE global_position_id = ?",
-                (str(global_position_id),),
-            )
-
-            kpis = {}
-            for row in cursor:
-                kpis.setdefault(row["investment_type"], {})[row["metric"]] = (
-                    Dezimal(row["value"]),
-                    row["currency"] if row["currency"] else None,
-                )
-            return kpis
-
     def _get_stock_investments(
-        self, global_position_id: UUID, kpis: KPIs
+        self, global_position_id: UUID
     ) -> Optional[StockInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -771,9 +645,6 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return StockInvestments(
-                currency=_get_kpi_currency(kpis, INVESTMENT),
-                investment=_get_kpi_value(kpis, INVESTMENT),
-                market_value=_get_kpi_value(kpis, MARKET_VALUE),
                 details=details,
             )
 
@@ -799,7 +670,7 @@ class PositionSQLRepository(PositionPort):
             return portfolios
 
     def _get_fund_investments(
-        self, global_position_id: UUID, kpis: KPIs
+        self, global_position_id: UUID
     ) -> Optional[FundInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -845,14 +716,11 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return FundInvestments(
-                currency=_get_kpi_currency(kpis, INVESTMENT),
-                investment=_get_kpi_value(kpis, INVESTMENT),
-                market_value=_get_kpi_value(kpis, MARKET_VALUE),
                 details=details,
             )
 
     def _get_factoring_investments(
-        self, global_position_id: UUID, kpis: KPIs
+        self, global_position_id: UUID
     ) -> Optional[FactoringInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -880,14 +748,11 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return FactoringInvestments(
-                currency=_get_kpi_currency(kpis, TOTAL),
-                total=_get_kpi_value(kpis, TOTAL),
-                weighted_interest_rate=_get_kpi_value(kpis, WEIGHTED_INTEREST_RATE),
                 details=details,
             )
 
     def _get_real_state_cf_investments(
-        self, global_position_id: UUID, kpis: KPIs
+        self, global_position_id: UUID
     ) -> Optional[RealStateCFInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -917,15 +782,10 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return RealStateCFInvestments(
-                currency=_get_kpi_currency(kpis, TOTAL),
-                total=_get_kpi_value(kpis, TOTAL),
-                weighted_interest_rate=_get_kpi_value(kpis, WEIGHTED_INTEREST_RATE),
                 details=details,
             )
 
-    def _get_deposit_investments(
-        self, global_position_id: UUID, kpis: KPIs
-    ) -> Optional[Deposits]:
+    def _get_deposit_investments(self, global_position_id: UUID) -> Optional[Deposits]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM deposit_positions WHERE global_position_id = ?",
@@ -950,15 +810,11 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return Deposits(
-                currency=_get_kpi_currency(kpis, TOTAL),
-                total=_get_kpi_value(kpis, TOTAL),
-                weighted_interest_rate=_get_kpi_value(kpis, WEIGHTED_INTEREST_RATE),
-                expected_interests=_get_kpi_value(kpis, EXPECTED_INTERESTS),
                 details=details,
             )
 
     def _get_crowdlending_investments(
-        self, global_position_id: UUID, kpis: KPIs
+        self, global_position_id: UUID
     ) -> Optional[Crowdlending]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -971,17 +827,19 @@ class PositionSQLRepository(PositionPort):
 
             return Crowdlending(
                 id=UUID(row["id"]),
-                total=_get_kpi_value(kpis, TOTAL),
-                weighted_interest_rate=_get_kpi_value(kpis, WEIGHTED_INTEREST_RATE),
+                total=Dezimal(row["total"]),
+                weighted_interest_rate=Dezimal(row["weighted_interest_rate"]),
                 currency=row["currency"],
                 distribution=json.loads(row["distribution"]),
                 details=[],
             )
 
-    def _get_cryptocurrency_tokens(self, wallet_id: UUID) -> list[CryptoCurrencyToken]:
+    def _get_crypto_currency_token_positions(
+        self, wallet_id: UUID
+    ) -> list[CryptoCurrencyToken]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM cryptocurrency_tokens WHERE wallet_id = ?",
+                "SELECT * FROM crypto_currency_token_positions WHERE wallet_id = ?",
                 (str(wallet_id),),
             )
             return [
@@ -990,6 +848,7 @@ class PositionSQLRepository(PositionPort):
                     token_id=row["token_id"],
                     name=row["name"],
                     symbol=row["symbol"],
+                    token=CryptoToken(row["token"]),
                     amount=Dezimal(row["amount"]),
                     initial_investment=Dezimal(row["initial_investment"])
                     if row["initial_investment"]
@@ -1005,20 +864,26 @@ class PositionSQLRepository(PositionPort):
             ]
 
     def _get_cryptocurrency_investments(
-        self, global_position_id: UUID, kpis: KPIs
+        self, global_position_id: UUID
     ) -> Optional[CryptoCurrencies]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM cryptocurrency_wallets WHERE global_position_id = ?",
+                """
+                SELECT p.*, c.address, c.name
+                FROM crypto_currency_wallet_positions p
+                         JOIN crypto_wallet_connections c ON p.wallet_connection_id = c.id
+                WHERE global_position_id = ?
+                """,
                 (str(global_position_id),),
             )
             wallets = []
             for row in cursor:
                 wallet_id = UUID(row["id"])
-                tokens = self._get_cryptocurrency_tokens(wallet_id)
+                tokens = self._get_crypto_currency_token_positions(wallet_id)
                 wallets.append(
                     CryptoCurrencyWallet(
                         id=wallet_id,
+                        wallet_connection_id=UUID(row["wallet_connection_id"]),
                         address=row["address"],
                         name=row["name"],
                         symbol=row["symbol"],
@@ -1040,8 +905,6 @@ class PositionSQLRepository(PositionPort):
                 return None
 
             return CryptoCurrencies(
-                currency=_get_kpi_currency(kpis, MARKET_VALUE),
-                market_value=_get_kpi_value(kpis, MARKET_VALUE),
                 details=wallets,
             )
 

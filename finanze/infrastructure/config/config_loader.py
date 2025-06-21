@@ -8,7 +8,7 @@ from cachetools import TTLCache, cached
 from cachetools.keys import hashkey
 from domain.settings import Settings
 from domain.user import User
-from infrastructure.config.base_config import BASE_CONFIG
+from infrastructure.config.base_config import BASE_CONFIG, CURRENT_VERSION
 from infrastructure.config.config_migrator import ConfigMigrator
 
 CONFIG_NAME = "config.yml"
@@ -46,6 +46,7 @@ class ConfigLoader(ConfigPort):
                 k: v for (k, v) in x if (v is not None and v != {} and v != [])
             },
         )
+        config_as_dict["version"] = CURRENT_VERSION
         new_yaml = strictyaml.as_document(config_as_dict).as_yaml()
         with open(self._config_file, "w") as file:
             file.write(new_yaml)
