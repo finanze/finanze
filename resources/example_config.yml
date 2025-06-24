@@ -62,7 +62,7 @@ export:
               - COLLECTED
               - MANAGING_COLLECTION
 
-scrape:
+fetch:
   updateCooldown: 60
 
   virtual:
