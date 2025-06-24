@@ -12,12 +12,13 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { formatTimeAgo } from "@/lib/timeUtils"
 
 export function EntityRefreshDropdown() {
-  const { entities, scrape } = useAppContext()
+  const { entities, scrape, fetchingEntityState, setFetchingEntityState } =
+    useAppContext()
   const { positionsData } = useFinancialData()
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
-  const [refreshingEntityIds, setRefreshingEntityIds] = useState<string[]>([])
-  const [refreshingCrypto, setRefreshingCrypto] = useState(false)
+
+  const { fetchingEntityIds } = fetchingEntityState
 
   const connectedEntities =
     entities?.filter(
@@ -28,8 +29,17 @@ export function EntityRefreshDropdown() {
   const financialEntities = connectedEntities.filter(
     entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
   )
+  // Only include crypto entities that have connected wallets
   const cryptoEntities = connectedEntities.filter(
-    entity => entity.type === EntityType.CRYPTO_WALLET,
+    entity =>
+      entity.type === EntityType.CRYPTO_WALLET &&
+      entity.connected &&
+      entity.connected.length > 0,
+  )
+
+  // Check if any crypto entities are being fetched
+  const isCryptoFetching = cryptoEntities.some(entity =>
+    fetchingEntityIds.includes(entity.id),
   )
 
   const handleRefreshEntity = async (entity: Entity, e: React.MouseEvent) => {
@@ -38,13 +48,21 @@ export function EntityRefreshDropdown() {
     if (!entity) return
 
     try {
-      setRefreshingEntityIds(prev => [...prev, entity.id])
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: [...prev.fetchingEntityIds, entity.id],
+      }))
 
       const features = entity.features || []
       const options = { avoidNewLogin: true }
       await scrape(entity, features, options)
     } finally {
-      setRefreshingEntityIds(prev => prev.filter(id => id !== entity.id))
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: prev.fetchingEntityIds.filter(
+          id => id !== entity.id,
+        ),
+      }))
     }
   }
 
@@ -54,7 +72,14 @@ export function EntityRefreshDropdown() {
     if (cryptoEntities.length === 0) return
 
     try {
-      setRefreshingCrypto(true)
+      // Add all connected crypto entities to fetchingEntityIds
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: [
+          ...prev.fetchingEntityIds,
+          ...cryptoEntities.map(entity => entity.id),
+        ],
+      }))
 
       // Get all unique features from crypto entities
       const allFeatures = [
@@ -64,7 +89,13 @@ export function EntityRefreshDropdown() {
       // Pass null as entity to scrape all crypto entities
       await scrape(null, allFeatures, options)
     } finally {
-      setRefreshingCrypto(false)
+      // Remove all crypto entities from fetchingEntityIds
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: prev.fetchingEntityIds.filter(
+          id => !cryptoEntities.some(entity => entity.id === id),
+        ),
+      }))
     }
   }
 
@@ -155,7 +186,7 @@ export function EntityRefreshDropdown() {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        {refreshingEntityIds.length > 0 || refreshingCrypto ? (
+        {fetchingEntityIds.length > 0 ? (
           <LoadingSpinner size="sm" />
         ) : (
           <Database className="h-4 w-4" />
@@ -205,7 +236,7 @@ export function EntityRefreshDropdown() {
                             </p>
                           )}
                         </div>
-                        {refreshingEntityIds.includes(entity.id) ? (
+                        {fetchingEntityIds.includes(entity.id) ? (
                           <div className="p-1.5">
                             <LoadingSpinner
                               size="sm"
@@ -227,11 +258,15 @@ export function EntityRefreshDropdown() {
                     // Crypto group
                     const { lastUpdatedAt, cryptoEntities: cryptoItems } = item
 
-                    // Format crypto entities display
+                    // Format crypto entities display - only show entities with connected wallets
+                    const activeCryptoEntities = cryptoItems.filter(
+                      entity => entity.connected && entity.connected.length > 0,
+                    )
+
                     const cryptoDisplay =
-                      cryptoItems.length <= 2
-                        ? cryptoItems.map(e => e.name).join(", ")
-                        : `${cryptoItems[0].name}, +${cryptoItems.length - 1}`
+                      activeCryptoEntities.length <= 2
+                        ? activeCryptoEntities.map(e => e.name).join(", ")
+                        : `${activeCryptoEntities[0].name}, +${activeCryptoEntities.length - 1}`
 
                     return (
                       <div
@@ -261,7 +296,7 @@ export function EntityRefreshDropdown() {
                             </p>
                           )}
                         </div>
-                        {refreshingCrypto ? (
+                        {isCryptoFetching ? (
                           <div className="p-1.5">
                             <LoadingSpinner
                               size="sm"

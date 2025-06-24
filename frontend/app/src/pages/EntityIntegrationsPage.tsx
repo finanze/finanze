@@ -11,7 +11,14 @@ import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { RefreshCw, ExternalLink, FileSpreadsheet } from "lucide-react"
+import {
+  RefreshCw,
+  ExternalLink,
+  FileSpreadsheet,
+  Landmark,
+  Wallet,
+  User,
+} from "lucide-react"
 import { EntitySetupLoginType, EntityStatus, EntityType } from "@/types"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { createCryptoWallet } from "@/services/api"
@@ -231,11 +238,7 @@ export default function EntityIntegrationsPage() {
               onClick={fetchEntities}
               disabled={isLoading}
             >
-              {isLoading ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
+              <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         )}
@@ -272,7 +275,8 @@ export default function EntityIntegrationsPage() {
                 {/* Financial Institutions */}
                 {connectedFinancialEntities.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Landmark className="h-5 w-5 mr-2" />
                       {t.entities.financialInstitutions}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -284,7 +288,6 @@ export default function EntityIntegrationsPage() {
                           onRelogin={() => handleRelogin(entity)}
                           onDisconnect={() => handleDisconnect(entity)}
                           onManage={() => handleManage(entity)}
-                          isLoading={isLoading}
                         />
                       ))}
                     </div>
@@ -294,7 +297,8 @@ export default function EntityIntegrationsPage() {
                 {/* Crypto Wallets */}
                 {connectedCryptoEntities.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Wallet className="h-5 w-5 mr-2" />
                       {t.entities.cryptoWallets}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -306,7 +310,6 @@ export default function EntityIntegrationsPage() {
                           onRelogin={() => handleRelogin(entity)}
                           onDisconnect={() => handleDisconnect(entity)}
                           onManage={() => handleManage(entity)}
-                          isLoading={isLoading}
                         />
                       ))}
                     </div>
@@ -316,7 +319,8 @@ export default function EntityIntegrationsPage() {
                 {/* User Entered (Virtual) */}
                 {virtualEnabled && (
                   <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <User className="h-5 w-5 mr-2" />
                       {t.entities.manualDataEntry}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -355,7 +359,8 @@ export default function EntityIntegrationsPage() {
                 {/* Financial Institutions */}
                 {unconnectedFinancialEntities.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Landmark className="h-5 w-5 mr-2" />
                       {t.entities.financialInstitutions}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -367,7 +372,6 @@ export default function EntityIntegrationsPage() {
                           onRelogin={() => handleRelogin(entity)}
                           onDisconnect={() => handleDisconnect(entity)}
                           onManage={() => handleManage(entity)}
-                          isLoading={isLoading}
                         />
                       ))}
                     </div>
@@ -377,7 +381,8 @@ export default function EntityIntegrationsPage() {
                 {/* Crypto Wallets */}
                 {unconnectedCryptoEntities.length > 0 && (
                   <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Wallet className="h-5 w-5 mr-2" />
                       {t.entities.cryptoWallets}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -389,7 +394,6 @@ export default function EntityIntegrationsPage() {
                           onRelogin={() => handleRelogin(entity)}
                           onDisconnect={() => handleDisconnect(entity)}
                           onManage={() => handleManage(entity)}
-                          isLoading={isLoading}
                         />
                       ))}
                     </div>
@@ -477,18 +481,9 @@ export default function EntityIntegrationsPage() {
             >
               ← {t.common.back}
             </Button>
-            {isLoading ? (
-              <div className="flex-1 flex flex-col justify-center items-center">
-                <LoadingSpinner size="lg" />
-                <p className="mt-4 text-gray-500 dark:text-gray-400">
-                  {t.common.loading}
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 flex justify-center items-center">
-                <FeatureSelector />
-              </div>
-            )}
+            <div className="flex-1 flex justify-center items-center">
+              <FeatureSelector />
+            </div>
           </motion.div>
         )}
 
@@ -498,8 +493,13 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
+            className="min-h-[calc(100vh-18rem)] flex flex-col"
           >
-            <Button variant="ghost" onClick={handleBack} className="mb-4">
+            <Button
+              variant="ghost"
+              onClick={handleBack}
+              className="mb-4 self-start"
+            >
               ← {t.common.back}
             </Button>
             {isLoading ? (
@@ -510,7 +510,9 @@ export default function EntityIntegrationsPage() {
                 </p>
               </div>
             ) : (
-              <PinPad />
+              <div className="flex-1 flex justify-center items-center">
+                <PinPad />
+              </div>
             )}
           </motion.div>
         )}

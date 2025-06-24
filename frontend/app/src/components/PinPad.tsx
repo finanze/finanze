@@ -17,9 +17,16 @@ export function PinPad() {
     selectedFeatures,
     pinError,
     clearPinError,
+    fetchingEntityState,
   } = useAppContext()
   const [pin, setPin] = useState<string[]>([])
   const { t } = useI18n()
+
+  if (!selectedEntity) return null
+
+  const isEntityFetching = fetchingEntityState.fetchingEntityIds.includes(
+    selectedEntity.id,
+  )
 
   useEffect(() => {
     // Reset PIN when component mounts
@@ -138,10 +145,11 @@ export function PinPad() {
 
         <Button
           className="w-full mt-6"
-          disabled={pin.length < pinLength}
+          disabled={pin.length < pinLength || isEntityFetching}
           onClick={handleSubmit}
         >
-          <ArrowRight className="mr-2 h-4 w-4" /> {t.common.submit}
+          <ArrowRight className="mr-2 h-4 w-4" />
+          {isEntityFetching ? t.common.fetching : t.common.submit}
         </Button>
       </CardContent>
     </Card>

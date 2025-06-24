@@ -5,8 +5,17 @@ import { EntityStatus, EntityType } from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { useAppContext } from "@/context/AppContext"
 import { useI18n } from "@/i18n"
-import { RefreshCw, Trash2, Settings, Wallet, Download } from "lucide-react"
+import {
+  RefreshCw,
+  Trash2,
+  Settings,
+  Wallet,
+  Download,
+  LogIn,
+} from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 
 interface EntityCardProps {
@@ -15,7 +24,6 @@ interface EntityCardProps {
   onRelogin: () => void
   onDisconnect: () => void
   onManage?: () => void
-  isLoading: boolean
 }
 
 export function EntityCard({
@@ -24,10 +32,15 @@ export function EntityCard({
   onRelogin,
   onDisconnect,
   onManage,
-  isLoading,
 }: EntityCardProps) {
   const { t } = useI18n()
+  const { fetchingEntityState } = useAppContext()
   const [showConfirmation, setShowConfirmation] = useState(false)
+
+  const { fetchingEntityIds } = fetchingEntityState
+
+  // Check if this entity is currently being fetched
+  const entityFetching = fetchingEntityIds.includes(entity.id)
 
   // Helper function to determine if a crypto wallet entity is connected
   const isCryptoWalletConnected = () => {
@@ -124,8 +137,8 @@ export function EntityCard({
     <>
       <Card className={`transition-all hover:shadow-md ${getCardStyle()}`}>
         <CardHeader className="pb-2">
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center">
+          <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center min-w-0">
               <div className="w-10 h-10 mr-3 flex-shrink-0 overflow-hidden rounded-md">
                 <img
                   src={`entities/${entity.id}.png`}
@@ -137,10 +150,13 @@ export function EntityCard({
                   }}
                 />
               </div>
-              <span>{entity.name}</span>
+              <span className="truncate">{entity.name}</span>
             </div>
             {badgeInfo && (
-              <Badge variant="outline" className={badgeInfo.style}>
+              <Badge
+                variant="outline"
+                className={`${badgeInfo.style} flex-shrink-0`}
+              >
                 {badgeInfo.text}
               </Badge>
             )}
@@ -198,24 +214,49 @@ export function EntityCard({
             <Button
               variant={
                 effectiveStatus === EntityStatus.REQUIRES_LOGIN
-                  ? "default"
+                  ? "ghost"
                   : "outline"
               }
               size="sm"
               className={`w-full mt-4 h-9 ${
                 effectiveStatus === EntityStatus.REQUIRES_LOGIN
-                  ? "bg-gray-900 hover:bg-gray-800 text-white font-bold border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:border-gray-600"
+                  ? "text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
                   : "text-gray-700 dark:text-gray-300 font-medium border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
               }`}
-              disabled={isLoading}
+              disabled={entityFetching}
               onClick={onSelect}
             >
-              {getButtonText()}
+              {entityFetching ? (
+                <>
+                  <LoadingSpinner size="sm" />
+                  <span className="ml-2">{t.common.fetching}</span>
+                </>
+              ) : effectiveStatus === EntityStatus.REQUIRES_LOGIN ? (
+                <>
+                  <LogIn className="mr-2 h-4 w-4" />
+                  {getButtonText()}
+                </>
+              ) : (
+                getButtonText()
+              )}
+            </Button>
+          )}
+
+          {/* Show loading fetch button for connected entities when fetching */}
+          {effectiveStatus === EntityStatus.CONNECTED && entityFetching && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+              disabled={true}
+            >
+              <LoadingSpinner size="sm" />
+              <span className="ml-2">{t.common.fetching}</span>
             </Button>
           )}
 
           {/* Button row for connected entities - buttons surrounding the fetch button */}
-          {effectiveStatus === EntityStatus.CONNECTED && (
+          {effectiveStatus === EntityStatus.CONNECTED && !entityFetching && (
             <div className="flex flex-wrap gap-2 mt-4">
               {/* Financial institution buttons */}
               {isFinancialInstitution && (
@@ -225,9 +266,9 @@ export function EntityCard({
                     size="sm"
                     className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                     onClick={onRelogin}
-                    disabled={isLoading}
+                    disabled={entityFetching}
                   >
-                    <RefreshCw size={14} className="mr-1" />
+                    <RefreshCw className="mr-1 h-4 w-4 flex-shrink-0" />
                     {t.entities.relogin}
                   </Button>
 
@@ -235,11 +276,22 @@ export function EntityCard({
                     variant="ghost"
                     size="sm"
                     className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                    disabled={isLoading}
+                    disabled={entityFetching}
                     onClick={onSelect}
                   >
-                    <Download className="mr-2 h-4 w-4" />
-                    {getButtonText()}
+                    {entityFetching ? (
+                      <>
+                        <LoadingSpinner size="sm" />
+                        <span className="ml-2 flex-shrink-0">
+                          {t.common.fetching}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                        {getButtonText()}
+                      </>
+                    )}
                   </Button>
 
                   <Button
@@ -247,9 +299,9 @@ export function EntityCard({
                     size="sm"
                     className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                     onClick={handleDisconnect}
-                    disabled={isLoading}
+                    disabled={entityFetching}
                   >
-                    <Trash2 size={14} className="mr-1" />
+                    <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
                     {t.entities.disconnect}
                   </Button>
                 </>
@@ -263,9 +315,9 @@ export function EntityCard({
                     size="sm"
                     className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                     onClick={onManage}
-                    disabled={isLoading || !onManage}
+                    disabled={entityFetching || !onManage}
                   >
-                    <Settings size={14} className="mr-1" />
+                    <Settings className="mr-1 h-4 w-4 flex-shrink-0" />
                     Manage
                   </Button>
 
@@ -273,11 +325,22 @@ export function EntityCard({
                     variant="ghost"
                     size="sm"
                     className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                    disabled={isLoading}
+                    disabled={entityFetching}
                     onClick={onSelect}
                   >
-                    <Download className="mr-2 h-4 w-4" />
-                    {getButtonText()}
+                    {entityFetching ? (
+                      <>
+                        <LoadingSpinner size="sm" />
+                        <span className="ml-2 flex-shrink-0">
+                          {t.common.fetching}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                        {getButtonText()}
+                      </>
+                    )}
                   </Button>
                 </>
               )}

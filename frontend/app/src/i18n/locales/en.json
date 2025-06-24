@@ -3,6 +3,7 @@
     "back": "Back",
     "submit": "Submit",
     "loading": "Loading...",
+    "fetching": "Fetching...",
     "saving": "Saving...",
     "refresh": "Refresh",
     "export": "Export to Sheets",
@@ -216,6 +217,22 @@
       "cards": "Cards",
       "loans": "Loans"
     },
+    "contributionsDataOptions": {
+      "periodic": "Periodic"
+    },
+    "transactionsDataOptions": {
+      "investment": "Investment",
+      "account": "Account"
+    },
+    "investmentsDataOptions": {
+      "stocks": "Stocks",
+      "funds": "Funds",
+      "fund_portfolios": "Fund Portfolios",
+      "factoring": "Factoring",
+      "real_state_cf": "Real State CF",
+      "deposits": "Deposits",
+      "crypto_currencies": "Cryptocurrencies"
+    },
     "errors": {
       "spreadsheetIdRequired": "Spreadsheet ID is required in Global Settings when export is enabled",
       "rangeRequired": "Range is required. ",
@@ -252,7 +269,7 @@
     "totalAssets": "Total Assets",
     "investedAmount": "Invested",
     "stocksAndFunds": {
-      "title": "Stocks and Funds",
+      "title": "Detailed assets",
       "funds": "Funds",
       "stocksEtfs": "Stocks/ETFs"
     },
@@ -263,6 +280,14 @@
     "totalValue": "Total Value",
     "shareOfTotal": "Share of Total",
     "ofPortfolioShareShort": "of total",
+    "stake": "Stake",
+    "symbol": "Symbol",
+    "portfolio": "Portfolio",
+    "change": "Change",
+    "type": "Type",
+    "entities": "Entities",
+    "mainCrypto": "Main Crypto",
+    "token": "Token",
     "noTransactions": "No transactions found",
     "noInvestments": "You don't have investments"
   },
@@ -331,7 +356,9 @@
       "nameRequired": "Wallet name is required",
       "addressRequired": "Wallet address is required",
       "addressTooShort": "Wallet address seems too short",
-      "generic": "Failed to add wallet"
+      "generic": "Failed to add wallet",
+      "ADDRESS_ALREADY_EXISTS": "This wallet address is already connected to your account",
+      "TOO_MANY_REQUESTS": "Too many requests. Please wait a moment before trying again"
     }
   },
   "walletManagement": {

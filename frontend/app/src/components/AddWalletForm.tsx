@@ -12,6 +12,7 @@ import {
 import { Loader2, ArrowLeft } from "lucide-react"
 import { Entity } from "@/types"
 import { useI18n } from "@/i18n"
+import { ApiErrorException } from "@/utils/apiErrors"
 
 interface AddWalletFormProps {
   entity: Entity
@@ -63,9 +64,12 @@ export function AddWalletForm({
       await onSubmit(formData.name.trim(), formData.address.trim())
     } catch (error) {
       console.error("Add wallet error:", error)
-      setSubmitError(
-        error instanceof Error ? error.message : t.walletForm.errors.generic,
-      )
+
+      const translatedError =
+        t.walletForm.errors[
+          (error as ApiErrorException).code as keyof typeof t.walletForm.errors
+        ]
+      setSubmitError(translatedError || t.walletForm.errors.generic)
     }
   }
 

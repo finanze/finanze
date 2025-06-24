@@ -20,6 +20,7 @@ import {
   TransactionQueryRequest,
   TransactionsResult,
 } from "../types/transactions"
+import { handleApiError } from "@/utils/apiErrors"
 
 import { BASE_URL } from "@/env"
 
@@ -58,7 +59,7 @@ export async function getEntities(): Promise<EntitiesResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/entities`)
   if (!response.ok) {
-    throw new Error("Failed to fetch entities")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -96,7 +97,7 @@ export async function disconnectEntity(entityId: string): Promise<void> {
   })
 
   if (!response.ok) {
-    throw new Error("Failed to disconnect entity")
+    await handleApiError(response)
   }
 }
 
@@ -171,7 +172,7 @@ export async function updateSheets(request: ExportRequest): Promise<void> {
     body: JSON.stringify(request),
   })
   if (!response.ok) {
-    throw new Error("Failed to update sheets")
+    await handleApiError(response)
   }
 }
 
@@ -179,7 +180,7 @@ export async function getSettings() {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/settings`)
   if (!response.ok) {
-    throw new Error("Failed to fetch settings")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -195,7 +196,7 @@ export async function saveSettings(settings: any) {
   })
 
   if (!response.ok) {
-    throw new Error("Failed to save settings")
+    await handleApiError(response)
   }
 }
 
@@ -203,7 +204,7 @@ export async function checkLoginStatus(): Promise<LoginStatusResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/login`)
   if (!response.ok) {
-    throw new Error("Failed to check login status")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -247,7 +248,7 @@ export async function logout(): Promise<void> {
   })
 
   if (!response.ok) {
-    throw new Error("Logout failed")
+    await handleApiError(response)
   }
 }
 
@@ -279,7 +280,7 @@ export async function getContributions(
 
   const response = await fetch(`${baseUrl}/contributions${queryString}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch contributions")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -312,7 +313,7 @@ export async function getPositions(
 
   const response = await fetch(`${baseUrl}/positions${queryString}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch positions")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -364,7 +365,7 @@ export async function getTransactions(
 
   const response = await fetch(`${baseUrl}/transactions${queryString}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch transactions")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -409,7 +410,7 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/exchange-rates`)
   if (!response.ok) {
-    throw new Error("Failed to fetch exchange rates")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -427,7 +428,7 @@ export async function createCryptoWallet(
   })
 
   if (!response.ok) {
-    throw new Error("Failed to create crypto wallet")
+    await handleApiError(response)
   }
 }
 
@@ -444,7 +445,7 @@ export async function updateCryptoWallet(
   })
 
   if (!response.ok) {
-    throw new Error("Failed to update crypto wallet")
+    await handleApiError(response)
   }
 }
 
@@ -455,6 +456,6 @@ export async function deleteCryptoWallet(id: string): Promise<void> {
   })
 
   if (!response.ok) {
-    throw new Error("Failed to delete crypto wallet")
+    await handleApiError(response)
   }
 }

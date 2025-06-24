@@ -1,5 +1,6 @@
 from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
+    AddressAlreadyExists,
     EntityNotFound,
     ExecutionConflict,
     InvalidProvidedCredentials,
@@ -33,11 +34,15 @@ def handle_value_error(e):
 
 
 def handle_execution_conflict(e):
-    return jsonify({"code": "EXECUTION_CONFLICT"}), 409
+    return jsonify({"code": "ALREADY_EXECUTING"}), 409
 
 
 def handle_too_many_requests(e):
-    return "", 429
+    return jsonify({"code": "TOO_MANY_REQUESTS"}), 429
+
+
+def handle_address_already_exists(e):
+    return jsonify({"code": "ADDRESS_ALREADY_EXISTS"}), 409
 
 
 def register_exception_handlers(app):
@@ -46,5 +51,6 @@ def register_exception_handlers(app):
     app.register_error_handler(DataEncryptedError, handle_data_encrypted)
     app.register_error_handler(ExecutionConflict, handle_execution_conflict)
     app.register_error_handler(TooManyRequests, handle_too_many_requests)
+    app.register_error_handler(AddressAlreadyExists, handle_address_already_exists)
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)

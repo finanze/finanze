@@ -8,7 +8,6 @@ import {
 } from "react"
 import {
   CredentialType,
-  ExportTarget,
   type Entity,
   type Feature,
   FetchResultCode,
@@ -25,7 +24,6 @@ import {
   fetchFinancialEntity,
   fetchCryptoEntity,
   virtualFetch,
-  updateSheets,
   getSettings,
   saveSettings,
   disconnectEntity,
@@ -33,8 +31,6 @@ import {
 } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
-
-// Types for settings
 export interface AppSettings {
   integrations?: {
     sheets?: {
@@ -62,6 +58,15 @@ export interface AppSettings {
   }
 }
 
+export interface ExportState {
+  isExporting: boolean
+  lastExportTime: number | null
+}
+
+export interface FetchingEntityState {
+  fetchingEntityIds: string[]
+}
+
 interface AppContextType {
   entities: Entity[]
   inactiveEntities: Entity[]
@@ -87,6 +92,16 @@ interface AppContextType {
   exchangeRates: ExchangeRates | null
   exchangeRatesLoading: boolean
   exchangeRatesError: string | null
+  exportState: ExportState
+  setExportState: (
+    state: ExportState | ((prev: ExportState) => ExportState),
+  ) => void
+  fetchingEntityState: FetchingEntityState
+  setFetchingEntityState: (
+    state:
+      | FetchingEntityState
+      | ((prev: FetchingEntityState) => FetchingEntityState),
+  ) => void
   setView: (view: "entities" | "login" | "features" | "external-login") => void
 
   fetchEntities: () => Promise<void>
@@ -98,7 +113,6 @@ interface AppContextType {
     options?: object,
   ) => Promise<void>
   runVirtualScrape: () => Promise<void>
-  exportToSheets: () => Promise<void>
   resetState: () => void
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
@@ -169,13 +183,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
     null,
   )
+  const [exportState, setExportState] = useState<ExportState>({
+    isExporting: false,
+    lastExportTime: null,
+  })
+  const [fetchingEntityState, setFetchingEntityState] =
+    useState<FetchingEntityState>({
+      fetchingEntityIds: [],
+    })
   const { t } = useI18n()
   const { isAuthenticated } = useAuth()
 
-  // Use a ref to track if initial fetch has been done
   const initialFetchDone = useRef(false)
 
-  // Use a ref to track if we're in the middle of a scrape-triggered manual login
   const scrapeManualLogin = useRef<{
     active: boolean
     features: Feature[]
@@ -184,7 +204,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     features: [],
   })
 
-  // Callback to be called when scraping is completed
   const onScrapeCompletedRef = useRef<
     ((entityId: string) => Promise<void>) | null
   >(null)
@@ -215,7 +234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setToast(null)
       },
       type === "success" ? 3000 : 5000,
-    ) // 3s for success, 5s for warnings and errors
+    )
   }
 
   const hideToast = () => {
@@ -233,7 +252,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const fetchEntities = async () => {
-    // Don't fetch entities if not authenticated
     if (!isAuthenticated) return
 
     try {
@@ -263,15 +281,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const saveSettingsData = async (settingsData: AppSettings) => {
     try {
-      setIsLoading(true)
       await saveSettings(settingsData)
       setSettings(settingsData)
       showToast(t.settings.saveSuccess, "success")
     } catch (error) {
       console.error("Error saving settings:", error)
       showToast(t.settings.saveError, "error")
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -285,7 +300,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setExchangeRates(rates)
     } catch (error) {
       console.error("Error fetching exchange rates:", error)
-      setExchangeRatesError("Failed to fetch exchange rates")
+      setExchangeRatesError(t.common.fetchError)
     } finally {
       setExchangeRatesLoading(false)
     }
@@ -312,16 +327,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     showToast(errorMessage, "error")
   }
 
-  // Setup external login completion handler
   useEffect(() => {
     if (typeof window !== "undefined" && window.ipcAPI) {
-      // Set up the event listener and get the cleanup function
       const cleanupListener = window.ipcAPI.onCompletedExternalLogin(
         (id, result) => {
           console.debug("External login completed:", id)
           setExternalLoginInProgress(false)
 
-          // Make sure we have a selected entity
           if (!selectedEntity) {
             console.error("No selected entity when external login completed")
             showToast(t.common.loginError, "error")
@@ -331,13 +343,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
 
           if (result.success) {
-            // Check if this was triggered during scraping
             if (scrapeManualLogin.current.active) {
-              // Handle completion of manual login during scraping
               handleScrapeManualLoginCompletion(result.credentials)
             } else {
-              // Regular login flow
-              // Filter out INTERNAL and INTERNAL_TEMP credentials
               const visibleCredentials = Object.fromEntries(
                 Object.entries(selectedEntity.credentials_template!).filter(
                   ([, type]) =>
@@ -346,22 +354,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 ),
               )
 
-              // Check if all required credentials are provided
               const allCredentialsProvided = Object.keys(
                 visibleCredentials,
               ).every(key => result.credentials[key])
 
               if (allCredentialsProvided) {
-                // If all credentials are provided, proceed with login
                 login(result.credentials)
               } else {
-                // If some credentials are missing, show the login form with pre-filled values
                 setStoredCredentials(result.credentials)
                 setView("login")
               }
             }
           } else {
-            // If login failed, show error and reset
             showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
             resetState()
             setView("entities")
@@ -369,12 +373,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         },
       )
 
-      // Return the cleanup function
       return cleanupListener
     }
-  }, [selectedEntity]) // Add selectedEntity as a dependency to re-establish the listener when it changes
+  }, [selectedEntity])
 
-  // Handle completion of manual login during scraping
   const handleScrapeManualLoginCompletion = async (
     credentials: Record<string, string>,
   ) => {
@@ -383,7 +385,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
 
-      // First, call login endpoint to set up the backend
       const loginResponse = await loginEntity({
         entity: selectedEntity.id,
         credentials,
@@ -393,16 +394,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loginResponse.code === LoginResultCode.CREATED ||
         loginResponse.code === LoginResultCode.RESUMED
       ) {
-        // Login successful, now continue with scraping
         const features = scrapeManualLogin.current.features
 
-        // Reset the scrapeManualLogin ref
         scrapeManualLogin.current = { active: false, features: [] }
 
-        // Continue with scraping
         await scrape(selectedEntity, features)
       } else {
-        // Handle login error
         handleLoginError(loginResponse.code)
         resetState()
         setView("entities")
@@ -421,7 +418,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     entityOverride?: Entity,
     credentials?: Record<string, string>,
   ) => {
-    // Use the provided entity or fall back to the selected entity
     const entityToUse = entityOverride || selectedEntity
 
     if (!entityToUse) {
@@ -450,7 +446,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         resetState()
         setView("entities")
       }
-      // If successful, we wait for the onCompletedExternalLogin callback
     } catch (error) {
       console.error("External login error:", error)
       setExternalLoginInProgress(false)
@@ -467,7 +462,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       setPinError(false)
 
-      // If this is the first login attempt, store credentials
       if (!storedCredentials) {
         setStoredCredentials(credentials)
       }
@@ -485,18 +479,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPinLength(selectedEntity.pin?.positions || 4)
         setCurrentAction("login")
       } else if (response.code === "CREATED" || response.code === "RESUMED") {
-        // Login successful
         updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
         showToast(`${t.common.loginSuccess}: ${selectedEntity.name}`, "success")
         resetState()
-        // Return to entities view after successful login
         setView("entities")
       } else if (response.code === "INVALID_CODE") {
-        // Handle invalid PIN but stay in the PIN view
         setPinError(true)
         handleLoginError(response.code)
       } else {
-        // Handle other response codes
         handleLoginError(response.code || "UNEXPECTED_ERROR")
         resetState()
       }
@@ -514,8 +504,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     options: object = {},
   ) => {
     try {
-      setIsLoading(true)
       setPinError(false)
+
+      if (entity) {
+        setFetchingEntityState(prev => ({
+          ...prev,
+          fetchingEntityIds: [...prev.fetchingEntityIds, entity.id],
+        }))
+      }
 
       const response =
         entity?.type === EntityType.FINANCIAL_INSTITUTION
@@ -550,9 +546,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           resetState()
         }
       } else if (response.code === FetchResultCode.LOGIN_REQUIRED) {
-        // Handle LOGIN_REQUIRED - show a warning toast
         showToast(t.errors.LOGIN_REQUIRED_SCRAPE, "warning")
-        // Update entity status to REQUIRES_LOGIN
         if (entity) {
           updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
         }
@@ -564,7 +558,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : `${t.common.fetchSuccess}: ${t.common.crypto}`
         showToast(successMessage, "success")
 
-        // Call the callback to refresh financial data for the scraped entity
         if (onScrapeCompletedRef.current) {
           try {
             await onScrapeCompletedRef.current(entity?.id || "crypto")
@@ -577,14 +570,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         resetState()
-        // Return to entities view after successful scrape
         setView("entities")
       } else if (response.code === FetchResultCode.INVALID_CODE) {
-        // Handle invalid PIN but stay in the PIN view
         setPinError(true)
         handleScrapeError(response.code)
       } else {
-        // Handle other response codes
         handleScrapeError(response.code || "UNEXPECTED_ERROR")
         resetState()
       }
@@ -592,7 +582,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       showToast(t.common.fetchError, "error")
       resetState()
     } finally {
-      setIsLoading(false)
+      if (entity) {
+        setFetchingEntityState(prev => ({
+          ...prev,
+          fetchingEntityIds: prev.fetchingEntityIds.filter(
+            id => id !== entity.id,
+          ),
+        }))
+      }
     }
   }
 
@@ -607,19 +604,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       showToast(t.common.virtualScrapeError, "error")
-    }
-  }
-
-  const exportToSheets = async () => {
-    try {
-      setIsLoading(true)
-      await updateSheets({ target: ExportTarget.GOOGLE_SHEETS })
-
-      showToast(t.common.exportSuccess, "success")
-    } catch {
-      showToast(t.common.exportError, "error")
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -654,11 +638,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsLoading(true)
       await disconnectEntity(entityId)
 
-      // Update entity status to DISCONNECTED
       updateEntityStatus(entityId, EntityStatus.DISCONNECTED)
       showToast(t.common.disconnectSuccess, "success")
 
-      // If the currently selected entity is the one being disconnected, reset the selection
       if (selectedEntity && selectedEntity.id === entityId) {
         setSelectedEntity(null)
         resetState()
@@ -671,7 +653,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // Fetch entities and settings on component mount and when authentication status changes
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
@@ -711,13 +692,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         exchangeRates,
         exchangeRatesLoading,
         exchangeRatesError,
+        exportState,
+        setExportState,
+        fetchingEntityState,
+        setFetchingEntityState,
         setView,
         fetchEntities,
         selectEntity,
         login,
         scrape,
         runVirtualScrape,
-        exportToSheets,
         resetState,
         updateEntityStatus,
         showToast,

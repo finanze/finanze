@@ -10,7 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-latest, ubuntu-latest, windows-latest ]
+        os: [ macos-latest, macos-13, ubuntu-latest, windows-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -29,13 +29,13 @@ jobs:
           node-version-file: frontend/app/.nvmrc
 
       - name: Setup python (non-macOS)
-        if: ${{ matrix.os != 'macos-latest' }}
+        if: ${{ !startsWith(matrix.os, 'macos-') }}
         uses: actions/setup-python@v5
         with:
           python-version: 3.11.9
 
       - name: Setup python (macOS)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ startsWith(matrix.os, 'macos-') }}
         shell: bash
         run: |
           brew install pyenv pyenv-virtualenv
@@ -87,7 +87,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release_on_${{ matrix.os }}
+          name: finanze-dev-${{ matrix.os }}
           path: dist/
 
   build-docker:

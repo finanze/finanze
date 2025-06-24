@@ -145,8 +145,7 @@ export function ManageWalletsView({
   }
 
   const getTokenIcon = (tokenSymbol: string) => {
-    const iconPath = `/entities/tokens/${tokenSymbol.toUpperCase()}.png`
-    return iconPath
+    return `entities/tokens/${tokenSymbol.toUpperCase()}.png`
   }
 
   const handleEditWallet = (wallet: CryptoCurrencyWallet) => {
@@ -444,7 +443,7 @@ export function ManageWalletsView({
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 flex items-center justify-center">
                         <img
-                          src={`/entities/${entity.id}.png`}
+                          src={`entities/${entity.id}.png`}
                           alt={wallet.crypto}
                           className="w-8 h-8 object-contain"
                           onError={e => {

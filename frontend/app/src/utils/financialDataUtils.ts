@@ -81,8 +81,9 @@ export interface CryptoPosition {
   formattedValue: string
   type: string
   change: number
-  entity: string
-  percentageOfTotalCrypto: number
+  entities: string[] // Changed from single entity to array of entities
+  showEntityBadge: boolean
+  percentageOfTotalVariableRent: number
   id: string
   tokens?: {
     symbol: string
@@ -622,11 +623,36 @@ export const getEntityDistribution = (
     }
   })
 
-  // Calculate percentages
-  Object.values(entities).forEach(entity => {
-    entity.percentage =
-      totalValue > 0 ? Math.round((entity.value / totalValue) * 100) : 0
-  })
+  // Calculate percentages with proper rounding to ensure they sum to 100%
+  if (totalValue > 0) {
+    const entityList = Object.values(entities)
+    let remainingPercentage = 100
+
+    // Calculate exact percentages first
+    const exactPercentages = entityList.map(entity => ({
+      entity,
+      exactPercentage: (entity.value / totalValue) * 100,
+    }))
+
+    // Sort by exact percentage descending to allocate largest percentages first
+    exactPercentages.sort((a, b) => b.exactPercentage - a.exactPercentage)
+
+    // Assign rounded percentages, keeping track of remainder
+    exactPercentages.forEach((item, index) => {
+      if (index === exactPercentages.length - 1) {
+        // Last item gets the remaining percentage to ensure sum is 100%
+        item.entity.percentage = remainingPercentage
+      } else {
+        const roundedPercentage = Math.round(item.exactPercentage)
+        item.entity.percentage = roundedPercentage
+        remainingPercentage -= roundedPercentage
+      }
+    })
+  } else {
+    Object.values(entities).forEach(entity => {
+      entity.percentage = 0
+    })
+  }
 
   return Object.values(entities).sort((a, b) => b.value - a.value)
 }
@@ -1135,12 +1161,95 @@ export const getStockAndFundPositions = (
   positionsData: EntitiesPosition | null,
   locale: string,
   defaultCurrency: string,
+  exchangeRates?: ExchangeRates | null,
 ): StockFundPosition[] => {
   if (!positionsData || !positionsData.positions) return []
 
   const allPositionsRaw: any[] = []
   let totalVariableRentValue = 0
 
+  // First pass: calculate total variable rent value (stocks + funds + crypto)
+  Object.values(positionsData.positions).forEach(entityPosition => {
+    if (entityPosition.investments) {
+      // Add stocks value
+      if (
+        entityPosition.investments.stocks &&
+        entityPosition.investments.stocks.details
+      ) {
+        entityPosition.investments.stocks.details.forEach(stock => {
+          const stockValue = stock.market_value || 0
+          const convertedStockValue = exchangeRates
+            ? convertCurrency(
+                stockValue,
+                stock.currency,
+                defaultCurrency,
+                exchangeRates,
+              )
+            : stockValue
+          totalVariableRentValue += convertedStockValue
+        })
+      }
+
+      // Add funds value
+      if (
+        entityPosition.investments.funds &&
+        entityPosition.investments.funds.details
+      ) {
+        entityPosition.investments.funds.details.forEach(fund => {
+          const fundValue = fund.market_value || 0
+          const convertedFundValue = exchangeRates
+            ? convertCurrency(
+                fundValue,
+                fund.currency,
+                defaultCurrency,
+                exchangeRates,
+              )
+            : fundValue
+          totalVariableRentValue += convertedFundValue
+        })
+      }
+
+      // Add crypto value
+      if (
+        entityPosition.investments.crypto_currencies &&
+        entityPosition.investments.crypto_currencies.details
+      ) {
+        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
+          const walletValue = wallet.market_value || 0
+          const convertedWalletValue =
+            exchangeRates && wallet.currency
+              ? convertCurrency(
+                  walletValue,
+                  wallet.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+              : walletValue
+          totalVariableRentValue += convertedWalletValue
+
+          // Include tokens if they exist
+          if (wallet.tokens) {
+            wallet.tokens.forEach(token => {
+              if (token.market_value && token.market_value > 0) {
+                const convertedTokenValue =
+                  exchangeRates && token.currency
+                    ? convertCurrency(
+                        token.market_value,
+                        token.currency,
+                        defaultCurrency,
+                        exchangeRates,
+                      )
+                    : token.market_value
+                totalVariableRentValue += convertedTokenValue
+              }
+            })
+          }
+        })
+      }
+    }
+  })
+
+  // Second pass: collect stock and fund positions
   Object.values(positionsData.positions).forEach(entityPosition => {
     if (entityPosition.investments) {
       if (
@@ -1167,7 +1276,6 @@ export const getStockAndFundPositions = (
               (value / (stock.initial_investment || value || 1) - 1) * 100,
             entity: entityPosition.entity?.name,
           })
-          totalVariableRentValue += value
         })
       }
 
@@ -1195,7 +1303,6 @@ export const getStockAndFundPositions = (
             change: (value / (fund.initial_investment || value || 1) - 1) * 100,
             entity: entityPosition.entity?.name,
           })
-          totalVariableRentValue += value
         })
       }
     }
@@ -1213,7 +1320,336 @@ export const getStockAndFundPositions = (
         : `${pos.symbol}-stock-${index}-${pos.entity}`,
   }))
 
-  return enrichedPositions.sort((a, b) => b.value - a.value).slice(0, 10)
+  // Ensure percentages sum to exactly the portion they represent
+  const sortedPositions = enrichedPositions
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10)
+
+  // Adjust percentages to account for rounding and ensure consistency
+  if (sortedPositions.length > 0) {
+    const totalStockFundValue = sortedPositions.reduce((sum, pos) => {
+      const convertedValue = exchangeRates
+        ? convertCurrency(
+            pos.value,
+            pos.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
+        : pos.value
+      return sum + convertedValue
+    }, 0)
+
+    if (totalStockFundValue > 0 && totalVariableRentValue > 0) {
+      let remainingPercentage =
+        (totalStockFundValue / totalVariableRentValue) * 100
+
+      sortedPositions.forEach((pos, index) => {
+        const convertedValue = exchangeRates
+          ? convertCurrency(
+              pos.value,
+              pos.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : pos.value
+
+        if (index === sortedPositions.length - 1) {
+          // Last item gets the remaining percentage
+          pos.percentageOfTotalVariableRent = Math.max(0, remainingPercentage)
+        } else {
+          const exactPercentage =
+            (convertedValue / totalVariableRentValue) * 100
+          const roundedPercentage = Math.round(exactPercentage * 100) / 100 // Round to 2 decimal places
+          pos.percentageOfTotalVariableRent = roundedPercentage
+          remainingPercentage -= roundedPercentage
+        }
+      })
+    }
+  }
+
+  return sortedPositions
+}
+
+/**
+ * Get crypto positions with percentage calculated against total variable rent (stocks + funds + crypto)
+ */
+export const getCryptoPositions = (
+  positionsData: EntitiesPosition | null,
+  locale: string,
+  defaultCurrency: string,
+  exchangeRates?: ExchangeRates | null,
+): CryptoPosition[] => {
+  if (!positionsData || !positionsData.positions) return []
+
+  const cryptoAggregation: Record<string, any> = {}
+  let totalVariableRentValue = 0
+
+  // First pass: calculate total variable rent value (stocks + funds + crypto)
+  Object.values(positionsData.positions).forEach(entityPosition => {
+    if (entityPosition.investments) {
+      // Add stocks value
+      if (
+        entityPosition.investments.stocks &&
+        entityPosition.investments.stocks.details
+      ) {
+        entityPosition.investments.stocks.details.forEach(stock => {
+          const stockValue = stock.market_value || 0
+          const convertedStockValue = exchangeRates
+            ? convertCurrency(
+                stockValue,
+                stock.currency,
+                defaultCurrency,
+                exchangeRates,
+              )
+            : stockValue
+          totalVariableRentValue += convertedStockValue
+        })
+      }
+
+      // Add funds value
+      if (
+        entityPosition.investments.funds &&
+        entityPosition.investments.funds.details
+      ) {
+        entityPosition.investments.funds.details.forEach(fund => {
+          const fundValue = fund.market_value || 0
+          const convertedFundValue = exchangeRates
+            ? convertCurrency(
+                fundValue,
+                fund.currency,
+                defaultCurrency,
+                exchangeRates,
+              )
+            : fundValue
+          totalVariableRentValue += convertedFundValue
+        })
+      }
+
+      // Add crypto value
+      if (
+        entityPosition.investments.crypto_currencies &&
+        entityPosition.investments.crypto_currencies.details
+      ) {
+        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
+          const walletValue = wallet.market_value || 0
+          const convertedWalletValue =
+            exchangeRates && wallet.currency
+              ? convertCurrency(
+                  walletValue,
+                  wallet.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+              : walletValue
+          totalVariableRentValue += convertedWalletValue
+
+          // Include tokens if they exist
+          if (wallet.tokens) {
+            wallet.tokens.forEach(token => {
+              if (token.market_value && token.market_value > 0) {
+                const convertedTokenValue =
+                  exchangeRates && token.currency
+                    ? convertCurrency(
+                        token.market_value,
+                        token.currency,
+                        defaultCurrency,
+                        exchangeRates,
+                      )
+                    : token.market_value
+                totalVariableRentValue += convertedTokenValue
+              }
+            })
+          }
+        })
+      }
+    }
+  })
+
+  // Second pass: aggregate crypto positions
+  Object.values(positionsData.positions).forEach(entityPosition => {
+    if (
+      entityPosition.investments &&
+      entityPosition.investments.crypto_currencies &&
+      entityPosition.investments.crypto_currencies.details
+    ) {
+      entityPosition.investments.crypto_currencies.details.forEach(wallet => {
+        const entityName = entityPosition.entity?.name || "Unknown"
+
+        // Process main wallet crypto - each entity gets separate entry
+        if (wallet.market_value && wallet.market_value > 0) {
+          const symbol = wallet.symbol || wallet.crypto || "Unknown"
+          const key = `${symbol}-${entityName}` // Use symbol-entity for main cryptos
+
+          // Convert wallet value to default currency
+          const convertedValue =
+            exchangeRates && wallet.currency
+              ? convertCurrency(
+                  wallet.market_value,
+                  wallet.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+              : wallet.market_value
+
+          const convertedInitialInvestment =
+            wallet.initial_investment && exchangeRates && wallet.currency
+              ? convertCurrency(
+                  wallet.initial_investment,
+                  wallet.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+              : wallet.initial_investment || convertedValue
+
+          if (!cryptoAggregation[key]) {
+            cryptoAggregation[key] = {
+              symbol: symbol,
+              name: wallet.name,
+              amount: 0,
+              value: 0,
+              currency: defaultCurrency, // Always use defaultCurrency for display
+              type: "CRYPTO",
+              entities: new Set([entityName]),
+              initialInvestment: 0,
+              addresses: new Set(),
+            }
+          }
+
+          cryptoAggregation[key].amount += wallet.amount || 0
+          cryptoAggregation[key].value += convertedValue
+          cryptoAggregation[key].initialInvestment += convertedInitialInvestment
+          cryptoAggregation[key].addresses.add(wallet.address)
+        }
+
+        // Process tokens - aggregate across entities
+        if (wallet.tokens) {
+          wallet.tokens.forEach(token => {
+            if (token.market_value && token.market_value > 0) {
+              const symbol = token.symbol || "Unknown"
+              const key = symbol // Only use symbol as key for tokens
+
+              // Convert token value to default currency
+              const convertedValue =
+                exchangeRates && token.currency
+                  ? convertCurrency(
+                      token.market_value,
+                      token.currency,
+                      defaultCurrency,
+                      exchangeRates,
+                    )
+                  : token.market_value
+
+              const convertedInitialInvestment =
+                token.initial_investment && exchangeRates && token.currency
+                  ? convertCurrency(
+                      token.initial_investment,
+                      token.currency,
+                      defaultCurrency,
+                      exchangeRates,
+                    )
+                  : token.initial_investment || convertedValue
+
+              if (!cryptoAggregation[key]) {
+                cryptoAggregation[key] = {
+                  symbol: symbol,
+                  name: token.name,
+                  amount: 0,
+                  value: 0,
+                  currency: defaultCurrency, // Always use defaultCurrency for display
+                  type: "CRYPTO_TOKEN",
+                  entities: new Set(),
+                  initialInvestment: 0,
+                  addresses: new Set(),
+                }
+              }
+
+              cryptoAggregation[key].amount += token.amount || 0
+              cryptoAggregation[key].value += convertedValue
+              cryptoAggregation[key].initialInvestment +=
+                convertedInitialInvestment
+              cryptoAggregation[key].entities.add(entityName)
+              cryptoAggregation[key].addresses.add(wallet.address)
+            }
+          })
+        }
+      })
+    }
+  })
+
+  // Convert aggregated data to final format
+  const allCryptoPositions = Object.keys(cryptoAggregation).map(
+    (key, index) => {
+      const crypto = cryptoAggregation[key]
+      const value = crypto.value
+      const change =
+        crypto.initialInvestment > 0
+          ? (value / crypto.initialInvestment - 1) * 100
+          : 0
+
+      const entitiesArray = Array.from(crypto.entities) as string[]
+      const isToken = crypto.type === "CRYPTO_TOKEN"
+
+      // For tokens: use token name and show entity badges
+      // For main crypto: use entity name and no badges
+      const displayName = isToken ? crypto.name : entitiesArray[0] // For main crypto, use the entity name
+
+      return {
+        symbol: crypto.symbol,
+        name: displayName,
+        address: Array.from(crypto.addresses).join(", "), // Join multiple addresses
+        amount: crypto.amount,
+        price: crypto.amount > 0 ? value / crypto.amount : 0,
+        value: value,
+        currency: defaultCurrency, // Always use defaultCurrency for crypto display
+        formattedValue: formatCurrency(
+          value,
+          locale,
+          defaultCurrency,
+          defaultCurrency, // Force display in defaultCurrency
+        ),
+        type: crypto.type,
+        change: change,
+        entities: entitiesArray, // Array of entities where this crypto is held
+        showEntityBadge: isToken, // Only show entity badges for tokens
+        percentageOfTotalVariableRent:
+          totalVariableRentValue > 0
+            ? (value / totalVariableRentValue) * 100
+            : 0,
+        id: `crypto-${crypto.symbol}-${entitiesArray.join("-")}-${index}`,
+      }
+    },
+  )
+
+  const sortedCryptoPositions = allCryptoPositions
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10)
+
+  // Ensure crypto percentages are accurate and consistent with the bar display
+  if (sortedCryptoPositions.length > 0) {
+    const totalCryptoValue = sortedCryptoPositions.reduce(
+      (sum, pos) => sum + pos.value,
+      0,
+    )
+
+    if (totalCryptoValue > 0 && totalVariableRentValue > 0) {
+      let remainingPercentage =
+        (totalCryptoValue / totalVariableRentValue) * 100
+
+      sortedCryptoPositions.forEach((pos, index) => {
+        if (index === sortedCryptoPositions.length - 1) {
+          // Last item gets the remaining percentage
+          pos.percentageOfTotalVariableRent = Math.max(0, remainingPercentage)
+        } else {
+          const exactPercentage = (pos.value / totalVariableRentValue) * 100
+          const roundedPercentage = Math.round(exactPercentage * 100) / 100 // Round to 2 decimal places
+          pos.percentageOfTotalVariableRent = roundedPercentage
+          remainingPercentage -= roundedPercentage
+        }
+      })
+    }
+  }
+
+  return sortedCryptoPositions
 }
 
 /**

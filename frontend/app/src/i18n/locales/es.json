@@ -3,6 +3,7 @@
     "back": "Volver",
     "submit": "Enviar",
     "loading": "Cargando...",
+    "fetching": "Obteniendo...",
     "saving": "Guardando...",
     "refresh": "Actualizar",
     "export": "Exportar a Sheets",
@@ -122,7 +123,7 @@
     "virtualConnectedDescription": "Ejecuta una extracción virtual para generar datos de prueba sin conectarte a entidades bancarias reales.",
     "virtualAvailableDescription": "Ejecuta una extracción virtual para generar datos de prueba sin conectarte a entidades bancarias reales.",
     "configureInSettings": "Configurar en Ajustes",
-    "relogin": "Reiniciar sesión",
+    "relogin": "Reloguearse",
     "disconnect": "Desconectar",
     "confirmDisconnect": "Confirmar Desconexión",
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos.",
@@ -211,6 +212,22 @@
       "cards": "Tarjetas",
       "loans": "Préstamos"
     },
+    "contributionsDataOptions": {
+      "periodic": "Periódicas"
+    },
+    "transactionsDataOptions": {
+      "investment": "Inversión",
+      "account": "Cuenta"
+    },
+    "investmentsDataOptions": {
+      "stocks": "Acciones",
+      "funds": "Fondos",
+      "fund_portfolios": "Carteras de Fondos",
+      "factoring": "Factoring",
+      "real_state_cf": "Real State CF",
+      "deposits": "Depósitos",
+      "crypto_currencies": "Criptomonedas"
+    },
     "errors": {
       "spreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global cuando la exportación está habilitada",
       "rangeRequired": "El rango es obligatorio. ",
@@ -248,7 +265,7 @@
     "totalAssets": "Activos Totales",
     "investedAmount": "Invertido",
     "stocksAndFunds": {
-      "title": "Acciones y Fondos",
+      "title": "Desglose de activos",
       "funds": "Fondos",
       "stocksEtfs": "Acciones / ETFs"
     },
@@ -259,6 +276,14 @@
     "totalValue": "Valor Total",
     "shareOfTotal": "Cuota del Total",
     "ofPortfolioShareShort": "del total",
+    "stake": "Participación",
+    "symbol": "Símbolo",
+    "portfolio": "Cartera",
+    "change": "Cambio",
+    "type": "Tipo",
+    "entities": "Entidades",
+    "mainCrypto": "Cripto Principal",
+    "token": "Token",
     "noTransactions": "No se han encontrado transacciones",
     "noInvestments": "No tienes inversiones"
   },
@@ -327,7 +352,9 @@
       "nameRequired": "El nombre de la cartera es obligatorio",
       "addressRequired": "La dirección de la cartera es obligatoria",
       "addressTooShort": "La dirección de la cartera parece demasiado corta",
-      "generic": "Error al agregar cartera"
+      "generic": "Error al agregar cartera",
+      "ADDRESS_ALREADY_EXISTS": "Esta dirección de cartera ya está conectada a tu cuenta",
+      "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Por favor espera un momento antes de intentar de nuevo"
     }
   },
   "walletManagement": {

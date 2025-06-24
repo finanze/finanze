@@ -27,7 +27,7 @@ export function FeatureSelector() {
   const {
     selectedEntity,
     scrape,
-    isLoading,
+    fetchingEntityState,
     selectedFeatures,
     setSelectedFeatures,
   } = useAppContext()
@@ -35,6 +35,10 @@ export function FeatureSelector() {
   const { t } = useI18n()
 
   if (!selectedEntity) return null
+
+  const isEntityFetching = fetchingEntityState.fetchingEntityIds.includes(
+    selectedEntity.id,
+  )
 
   const availableFeatures = selectedEntity.features
 
@@ -141,11 +145,11 @@ export function FeatureSelector() {
 
           <Button
             className="w-full mt-4"
-            disabled={selectedFeatures.length === 0 || isLoading}
+            disabled={selectedFeatures.length === 0 || isEntityFetching}
             onClick={handleSubmit}
           >
             <Send className="mr-2 h-4 w-4" />
-            {isLoading ? t.common.loading : t.features.fetchSelected}
+            {isEntityFetching ? t.common.loading : t.features.fetchSelected}
           </Button>
         </div>
       </CardContent>

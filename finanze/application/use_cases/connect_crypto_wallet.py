@@ -5,7 +5,7 @@ from domain import native_entities
 from domain.crypto import ConnectCryptoWallet as ConnectCryptoWalletRequest
 from domain.crypto import CryptoWalletConnection
 from domain.entity import EntityType
-from domain.exception.exceptions import EntityNotFound
+from domain.exception.exceptions import AddressAlreadyExists, EntityNotFound
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 
 
@@ -27,7 +27,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             request.address
         )
         if existing_wallet:
-            raise ValueError(f"Wallet with address {request.address} already exists")
+            raise AddressAlreadyExists(
+                f"Wallet with address {request.address} already exists"
+            )
 
         wallet = CryptoWalletConnection(
             id=uuid4(),

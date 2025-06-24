@@ -14,20 +14,36 @@ import { FileSpreadsheet, FileUp, Check, PackageSearch } from "lucide-react"
 import { motion } from "framer-motion"
 import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
+import { updateSheets } from "@/services/api"
+import { ExportTarget } from "@/types"
 
 export default function ExportPage() {
   const { t } = useI18n()
-  const { exportToSheets, isLoading, settings } = useAppContext()
+  const { settings, exportState, setExportState, showToast } = useAppContext()
   const [successAnimation, setSuccessAnimation] = useState(false)
 
-  const handleExport = () => {
-    exportToSheets().then(() => {
+  const handleExport = async () => {
+    try {
+      setExportState(prev => ({ ...prev, isExporting: true }))
+      await updateSheets({ target: ExportTarget.GOOGLE_SHEETS })
+
       // Show success animation
       setSuccessAnimation(true)
+      showToast(t.common.exportSuccess, "success")
+      setExportState(prev => ({
+        ...prev,
+        isExporting: false,
+        lastExportTime: Date.now(),
+      }))
+
       setTimeout(() => {
         setSuccessAnimation(false)
       }, 2000)
-    })
+    } catch (error) {
+      console.error("Export error:", error)
+      showToast(t.common.exportError, "error")
+      setExportState(prev => ({ ...prev, isExporting: false }))
+    }
   }
 
   const sheetsConfig = settings?.export?.sheets
@@ -110,10 +126,12 @@ export default function ExportPage() {
                 <div className="pt-2">
                   <Button
                     onClick={handleExport}
-                    disabled={isLoading || successAnimation}
+                    disabled={exportState.isExporting || successAnimation}
                     className="w-full relative"
                   >
-                    {isLoading && <LoadingSpinner className="h-5 w-5 mr-2" />}
+                    {exportState.isExporting && (
+                      <LoadingSpinner className="h-5 w-5 mr-2" />
+                    )}
                     {successAnimation ? (
                       <motion.div
                         initial={{ scale: 0.5, opacity: 0 }}
