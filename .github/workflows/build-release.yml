@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-latest, windows-latest, ubuntu-latest ]
+        os: [ macos-latest, macos-13, windows-latest, ubuntu-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -40,13 +40,13 @@ jobs:
           node-version-file: frontend/app/.nvmrc
 
       - name: Setup python (non-macOS)
-        if: ${{ matrix.os != 'macos-latest' }}
+        if: ${{ !startsWith(matrix.os, 'macos-') }}
         uses: actions/setup-python@v5
         with:
           python-version: 3.11.9
 
       - name: Setup python (macOS)
-        if: ${{ matrix.os == 'macos-latest' }}
+        if: ${{ !startsWith(matrix.os, 'macos-') }}
         shell: bash
         run: |
           brew install pyenv pyenv-virtualenv
