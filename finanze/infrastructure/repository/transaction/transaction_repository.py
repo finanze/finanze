@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Set
+from typing import List, Set
 from uuid import UUID
 
 from application.ports.transaction_port import TransactionPort
@@ -336,32 +336,6 @@ class TransactionSQLRepository(TransactionPort):
                 (real, real),
             )
             return {row[0] for row in cursor.fetchall()}
-
-    def get_last_created_grouped_by_entity(self) -> Dict[Entity, datetime]:
-        with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT e.*, MAX(created_at) AS last_created
-                           FROM (SELECT entity_id, created_at
-                                 FROM investment_transactions
-                                 UNION ALL
-                                 SELECT entity_id, created_at
-                                 FROM account_transactions) txs
-                                    JOIN entities e ON txs.entity_id = e.id
-                           GROUP BY e.name
-                           """)
-
-            result = {}
-            for row in cursor.fetchall():
-                entity = Entity(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    type=row["type"],
-                    is_real=row["is_real"],
-                )
-                last_created = datetime.fromisoformat(row["last_created"])
-                result[entity] = last_created
-
-            return result
 
     def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
         params = []

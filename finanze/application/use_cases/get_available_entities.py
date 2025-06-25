@@ -4,6 +4,7 @@ from datetime import datetime
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.last_fetches_port import LastFetchesPort
 from dateutil.tz import tzlocal
 from domain.available_sources import (
     AvailableFinancialEntity,
@@ -21,10 +22,12 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         config_port: ConfigPort,
         credentials_port: CredentialsPort,
         crypto_wallet_connections_port: CryptoWalletConnectionPort,
+        last_fetches_port: LastFetchesPort,
     ):
         self._config_port = config_port
         self._credentials_port = credentials_port
         self._crypto_wallet_connections_port = crypto_wallet_connections_port
+        self._last_fetches_port = last_fetches_port
 
     async def execute(self) -> AvailableSources:
         fetch_config = self._config_port.load().fetch
@@ -52,9 +55,17 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     native_entity.id
                 )
 
+            last_fetch_records = self._last_fetches_port.get_by_entity_id(
+                native_entity.id
+            )
+            last_fetch = {r.feature: r.date for r in last_fetch_records}
+
             entities.append(
                 AvailableFinancialEntity(
-                    **asdict(native_entity), status=status, connected=wallets
+                    **asdict(native_entity),
+                    status=status,
+                    connected=wallets,
+                    last_fetch=last_fetch,
                 )
             )
 

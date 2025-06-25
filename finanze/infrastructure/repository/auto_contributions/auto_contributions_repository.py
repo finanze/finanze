@@ -114,25 +114,3 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 entity: AutoContributions(periodic=contribs)
                 for entity, contribs in entities.items()
             }
-
-    def get_last_update_grouped_by_entity(self) -> dict[Entity, datetime]:
-        with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT e.*, MAX(pc.created_at) AS last_update
-                           FROM periodic_contributions pc
-                                    JOIN entities e ON pc.entity_id = e.id
-                           GROUP BY entity_id
-                           """)
-
-            result = {}
-            for row in cursor.fetchall():
-                entity = Entity(
-                    id=UUID(row["id"]),
-                    name=row["name"],
-                    type=row["type"],
-                    is_real=row["is_real"],
-                )
-                last_update = datetime.fromisoformat(row["last_update"])
-                result[entity] = last_update
-
-            return result

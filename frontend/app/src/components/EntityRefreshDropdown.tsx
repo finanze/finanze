@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
 import { useAppContext } from "@/context/AppContext"
-import { useFinancialData } from "@/context/FinancialDataContext"
 import { useI18n } from "@/i18n"
 import { Entity, EntityStatus, EntityType } from "@/types"
 import { Database, RefreshCw, History, ChevronDown } from "lucide-react"
@@ -14,7 +13,6 @@ import { formatTimeAgo } from "@/lib/timeUtils"
 export function EntityRefreshDropdown() {
   const { entities, scrape, fetchingEntityState, setFetchingEntityState } =
     useAppContext()
-  const { positionsData } = useFinancialData()
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
 
@@ -107,8 +105,21 @@ export function EntityRefreshDropdown() {
     return diffDays > 7
   }
 
+  const getEntityLastFetchDate = (entity: Entity): Date | null => {
+    if (!entity.last_fetch) return null
+
+    const fetchDates = Object.values(entity.last_fetch)
+      .filter(dateStr => dateStr && dateStr.trim() !== "")
+      .map(dateStr => new Date(dateStr))
+      .filter(date => !isNaN(date.getTime()))
+
+    return fetchDates.length > 0
+      ? new Date(Math.max(...fetchDates.map(date => date.getTime())))
+      : null
+  }
+
   const entitiesWithLastUpdate = useMemo(() => {
-    if (!connectedEntities || !positionsData?.positions) {
+    if (!connectedEntities) {
       return []
     }
 
@@ -117,10 +128,7 @@ export function EntityRefreshDropdown() {
     // Add individual financial entities
     const financialEntitiesWithUpdate = financialEntities
       .map(entity => {
-        const globalPosition = positionsData.positions[entity.id]
-        const lastUpdatedAt = globalPosition
-          ? new Date(globalPosition.date)
-          : null
+        const lastUpdatedAt = getEntityLastFetchDate(entity)
         return { type: "entity" as const, entity, lastUpdatedAt }
       })
       .sort((a, b) => {
@@ -138,10 +146,7 @@ export function EntityRefreshDropdown() {
     if (cryptoEntities.length > 0) {
       // Find the most recent update among all crypto entities
       const cryptoLastUpdates = cryptoEntities
-        .map(entity => {
-          const globalPosition = positionsData.positions[entity.id]
-          return globalPosition ? new Date(globalPosition.date) : null
-        })
+        .map(entity => getEntityLastFetchDate(entity))
         .filter(Boolean)
 
       const lastCryptoUpdate =
@@ -171,7 +176,7 @@ export function EntityRefreshDropdown() {
       if (a.type === "crypto" && b.type === "entity") return 1
       return 0
     })
-  }, [connectedEntities, positionsData, financialEntities, cryptoEntities])
+  }, [connectedEntities, financialEntities, cryptoEntities])
 
   if (entitiesWithLastUpdate.length === 0) {
     return null

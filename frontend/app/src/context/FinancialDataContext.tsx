@@ -35,7 +35,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     useState<EntityContributions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { inactiveEntities, entities, setOnScrapeCompleted } = useAppContext()
+  const { inactiveEntities, entities, setOnScrapeCompleted, fetchEntities } =
+    useAppContext()
 
   const fetchFinancialData = async () => {
     setIsLoading(true)
@@ -127,6 +128,17 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       console.log(
         `Successfully refreshed ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}`,
       )
+
+      // Refresh entities to get updated last_fetch data
+      try {
+        await fetchEntities()
+        console.log("Entities refreshed to update last_fetch data")
+      } catch (error) {
+        console.error(
+          "Error refreshing entities after financial data refresh:",
+          error,
+        )
+      }
     } catch (err) {
       console.error(
         `Error refreshing ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}:`,

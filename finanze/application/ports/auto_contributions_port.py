@@ -1,5 +1,4 @@
 import abc
-from datetime import datetime
 from uuid import UUID
 
 from domain.auto_contributions import AutoContributions, ContributionQueryRequest
@@ -15,8 +14,4 @@ class AutoContributionsPort(metaclass=abc.ABCMeta):
     def get_all_grouped_by_entity(
         self, query: ContributionQueryRequest
     ) -> dict[Entity, AutoContributions]:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def get_last_update_grouped_by_entity(self) -> dict[Entity, datetime]:
         raise NotImplementedError

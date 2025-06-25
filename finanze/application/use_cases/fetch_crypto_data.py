@@ -2,6 +2,8 @@ import asyncio
 import logging
 from asyncio import Lock
 from dataclasses import asdict
+from datetime import datetime
+from typing import List
 from uuid import UUID, uuid4
 
 from application.mixins.atomic_use_case import AtomicUCMixin
@@ -9,13 +11,16 @@ from application.ports.config_port import ConfigPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_price_provider import CryptoPriceProvider
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.crypto import CryptoFetchRequest
 from domain.dezimal import Dezimal
-from domain.entity import Entity, EntityType
+from domain.entity import Entity, EntityType, Feature
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
+from domain.fetch_record import FetchRecord
 from domain.fetch_result import FetchOptions, FetchRequest, FetchResult, FetchResultCode
 from domain.fetched_data import FetchedData
 from domain.global_position import (
@@ -38,6 +43,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
         crypto_wallet_connection_port: CryptoWalletConnectionPort,
         crypto_price_provider: CryptoPriceProvider,
         config_port: ConfigPort,
+        last_fetches_port: LastFetchesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
@@ -46,6 +52,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
         self._entity_fetchers = entity_fetchers
         self._crypto_wallet_connection_port = crypto_wallet_connection_port
         self._crypto_price_provider = crypto_price_provider
+        self._last_fetches_port = last_fetches_port
         self._config_port = config_port
 
         self._locks: dict[UUID, Lock] = {}
@@ -75,7 +82,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
 
         fetched_data = []
         for entity in entities:
-            lock = self._get_lock(entity_id)
+            lock = self._get_lock(entity.id)
 
             if lock.locked():
                 raise ExecutionConflict()
@@ -86,6 +93,8 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
                 fetched_data.append(
                     self.get_data(entity, specific_fetcher, fetch_request.fetch_options)
                 )
+
+                self._update_last_fetch(entity.id, [Feature.POSITION])
 
         return FetchResult(FetchResultCode.COMPLETED, data=fetched_data)
 
@@ -160,3 +169,10 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             * self._crypto_price_provider.get_price(crypto_symbol, TARGET_FIAT),
             2,
         )
+
+    def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
+        now = datetime.now(tzlocal())
+        records = []
+        for feature in features:
+            records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
+        self._last_fetches_port.save(records)

@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional
 
@@ -21,6 +22,7 @@ class FinancialEntityStatus(str, Enum):
 @dataclass(eq=False)
 class AvailableFinancialEntity(Entity):
     features: list[Feature]
+    last_fetch: dict[Feature, datetime]
     setup_login_type: Optional[EntitySetupLoginType] = None
     credentials_template: Optional[dict[str, CredentialType]] = None
     pin: Optional[PinDetails] = None

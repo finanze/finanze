@@ -29,6 +29,7 @@ export interface Entity {
     positions: number
   }
   connected?: CryptoWalletConnection[]
+  last_fetch: Record<Feature, string>
 }
 
 export enum EntitySetupLoginType {

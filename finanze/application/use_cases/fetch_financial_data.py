@@ -12,6 +12,7 @@ from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.historic_port import HistoricPort
+from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
@@ -22,6 +23,7 @@ from domain.dezimal import Dezimal
 from domain.entity import CredentialType, Entity, EntityType, Feature
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
+from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
     FetchOptions,
@@ -129,6 +131,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         config_port: ConfigPort,
         credentials_port: CredentialsPort,
         sessions_port: SessionsPort,
+        last_fetches_port: LastFetchesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
@@ -141,6 +144,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         self._config_port = config_port
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
+        self._last_fetches_port = last_fetches_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -262,6 +266,8 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             fetched_data = await self.get_data(
                 entity, features, specific_fetcher, fetch_request.fetch_options
             )
+
+            self._update_last_fetch(entity_id, features)
 
             return FetchResult(FetchResultCode.COMPLETED, data=fetched_data)
 
@@ -409,3 +415,10 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
 
     def _get_position_update_cooldown(self) -> int:
         return self._config_port.load().fetch.updateCooldown
+
+    def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
+        now = datetime.now(tzlocal())
+        records = []
+        for feature in features:
+            records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
+        self._last_fetches_port.save(records)

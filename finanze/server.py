@@ -70,6 +70,9 @@ from infrastructure.repository.crypto_wallets.crypto_wallet_connection_repositor
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.fetch.last_fetches_repository import (
+    LastFetchesRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
@@ -122,11 +125,12 @@ class FinanzeServer:
         transaction_repository = TransactionRepository(client=self.db_client)
         historic_repository = HistoricRepository(client=self.db_client)
         entity_repository = EntityRepository(client=self.db_client)
-        sessions_port = SessionsRepository(client=self.db_client)
+        sessions_repository = SessionsRepository(client=self.db_client)
         virtual_import_repository = VirtualImportRepository(client=self.db_client)
         crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
             client=self.db_client
         )
+        last_fetches_repository = LastFetchesRepository(client=self.db_client)
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
 
@@ -160,7 +164,10 @@ class FinanzeServer:
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
-            self.config_loader, credentials_port, crypto_wallet_connections_repository
+            self.config_loader,
+            credentials_port,
+            crypto_wallet_connections_repository,
+            last_fetches_repository,
         )
         fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
@@ -170,7 +177,8 @@ class FinanzeServer:
             self.financial_entity_fetchers,
             self.config_loader,
             credentials_port,
-            sessions_port,
+            sessions_repository,
+            last_fetches_repository,
             transaction_handler,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
@@ -179,6 +187,7 @@ class FinanzeServer:
             crypto_wallet_connections_repository,
             crypto_price_client,
             self.config_loader,
+            last_fetches_repository,
             transaction_handler,
         )
         update_sheets = UpdateSheetsImpl(
@@ -187,6 +196,7 @@ class FinanzeServer:
             transaction_repository,
             historic_repository,
             self.exporter,
+            last_fetches_repository,
             self.config_loader,
         )
         virtual_fetch = VirtualFetchImpl(
@@ -201,11 +211,11 @@ class FinanzeServer:
         add_entity_credentials = AddEntityCredentialsImpl(
             self.financial_entity_fetchers,
             credentials_port,
-            sessions_port,
+            sessions_repository,
             transaction_handler,
         )
         disconnect_entity = DisconnectEntityImpl(
-            credentials_port, sessions_port, transaction_handler
+            credentials_port, sessions_repository, transaction_handler
         )
         get_settings = GetSettingsImpl(self.config_loader)
         update_settings = UpdateSettingsImpl(self.config_loader)

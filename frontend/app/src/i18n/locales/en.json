@@ -177,7 +177,7 @@
     "virtualDescription": "Configure settings for virtual data",
     "enabled": "Enabled",
     "disabled": "Disabled",
-    "save": "Save Settings",
+    "save": "Save",
     "saveSuccess": "Settings saved successfully",
     "saveError": "Failed to save settings",
     "fetchError": "Failed to fetch settings",

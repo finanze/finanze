@@ -114,6 +114,27 @@ export default function DashboardPage() {
   const [chartRenderKey, setChartRenderKey] = useState(0)
 
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const [clickedItem, setClickedItem] = useState<string | null>(null)
+
+  const isPopoverOpen = (itemId: string) => {
+    return hoveredItem === itemId || clickedItem === itemId
+  }
+
+  const handlePopoverClick = (itemId: string) => {
+    setClickedItem(prev => {
+      if (prev === itemId) {
+        return null
+      }
+      return itemId
+    })
+  }
+
+  const handleMouseEnter = (itemId: string) => {
+    setHoveredItem(itemId)
+    if (clickedItem && clickedItem !== itemId) {
+      setClickedItem(null)
+    }
+  }
 
   const hasData =
     positionsData !== null &&
@@ -194,7 +215,6 @@ export default function DashboardPage() {
     fetchTransactionsData()
   }, [inactiveEntities, t])
 
-  // Get aggregated data using utility functions
   const targetCurrency = settings.general.defaultCurrency
   const assetDistribution = getAssetDistribution(
     positionsData,
@@ -351,18 +371,18 @@ export default function DashboardPage() {
   ]
 
   const ENTITY_COLORS = [
-    "#8b5cf6", // violet-500
-    "#06b6d4", // cyan-500
-    "#10b981", // emerald-500
-    "#f59e0b", // amber-500
-    "#ef4444", // red-500
-    "#3b82f6", // blue-500
-    "#84cc16", // lime-500
-    "#f97316", // orange-500
-    "#ec4899", // pink-500
-    "#8b5cf6", // violet-500
-    "#14b8a6", // teal-500
-    "#a855f7", // purple-500
+    "#8b5cf6",
+    "#06b6d4",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#3b82f6",
+    "#84cc16",
+    "#f97316",
+    "#ec4899",
+    "#8b5cf6",
+    "#14b8a6",
+    "#a855f7",
   ]
 
   const entityColorMap = useMemo(() => {
@@ -1161,9 +1181,12 @@ export default function DashboardPage() {
                                 item.percentageOfTotalVariableRent > 0 && (
                                   <Popover
                                     key={`bar-fund-${item.id}`}
-                                    open={hoveredItem === `fund-${item.id}`}
+                                    open={isPopoverOpen(`fund-${item.id}`)}
                                     onOpenChange={open => {
-                                      if (!open) setHoveredItem(null)
+                                      if (!open) {
+                                        setHoveredItem(null)
+                                        setClickedItem(null)
+                                      }
                                     }}
                                   >
                                     <PopoverTrigger asChild>
@@ -1173,10 +1196,13 @@ export default function DashboardPage() {
                                           height: `${item.percentageOfTotalVariableRent}%`,
                                         }}
                                         onMouseEnter={() =>
-                                          setHoveredItem(`fund-${item.id}`)
+                                          handleMouseEnter(`fund-${item.id}`)
                                         }
                                         onMouseLeave={() =>
                                           setHoveredItem(null)
+                                        }
+                                        onClick={() =>
+                                          handlePopoverClick(`fund-${item.id}`)
                                         }
                                       ></div>
                                     </PopoverTrigger>
@@ -1184,7 +1210,7 @@ export default function DashboardPage() {
                                       className="w-80"
                                       side="left"
                                       onMouseEnter={() =>
-                                        setHoveredItem(`fund-${item.id}`)
+                                        handleMouseEnter(`fund-${item.id}`)
                                       }
                                       onMouseLeave={() => setHoveredItem(null)}
                                     >
@@ -1274,9 +1300,12 @@ export default function DashboardPage() {
                                 item.percentageOfTotalVariableRent > 0 && (
                                   <Popover
                                     key={`bar-stock-${item.id}`}
-                                    open={hoveredItem === `stock-${item.id}`}
+                                    open={isPopoverOpen(`stock-${item.id}`)}
                                     onOpenChange={open => {
-                                      if (!open) setHoveredItem(null)
+                                      if (!open) {
+                                        setHoveredItem(null)
+                                        setClickedItem(null)
+                                      }
                                     }}
                                   >
                                     <PopoverTrigger asChild>
@@ -1286,10 +1315,13 @@ export default function DashboardPage() {
                                           height: `${item.percentageOfTotalVariableRent}%`,
                                         }}
                                         onMouseEnter={() =>
-                                          setHoveredItem(`stock-${item.id}`)
+                                          handleMouseEnter(`stock-${item.id}`)
                                         }
                                         onMouseLeave={() =>
                                           setHoveredItem(null)
+                                        }
+                                        onClick={() =>
+                                          handlePopoverClick(`stock-${item.id}`)
                                         }
                                       ></div>
                                     </PopoverTrigger>
@@ -1297,7 +1329,7 @@ export default function DashboardPage() {
                                       className="w-80"
                                       side="left"
                                       onMouseEnter={() =>
-                                        setHoveredItem(`stock-${item.id}`)
+                                        handleMouseEnter(`stock-${item.id}`)
                                       }
                                       onMouseLeave={() => setHoveredItem(null)}
                                     >
@@ -1388,9 +1420,12 @@ export default function DashboardPage() {
                                 item.percentageOfTotalVariableRent > 0 && (
                                   <Popover
                                     key={`bar-crypto-${item.id}`}
-                                    open={hoveredItem === `crypto-${item.id}`}
+                                    open={isPopoverOpen(`crypto-${item.id}`)}
                                     onOpenChange={open => {
-                                      if (!open) setHoveredItem(null)
+                                      if (!open) {
+                                        setHoveredItem(null)
+                                        setClickedItem(null)
+                                      }
                                     }}
                                   >
                                     <PopoverTrigger asChild>
@@ -1400,10 +1435,15 @@ export default function DashboardPage() {
                                           height: `${item.percentageOfTotalVariableRent}%`,
                                         }}
                                         onMouseEnter={() =>
-                                          setHoveredItem(`crypto-${item.id}`)
+                                          handleMouseEnter(`crypto-${item.id}`)
                                         }
                                         onMouseLeave={() =>
                                           setHoveredItem(null)
+                                        }
+                                        onClick={() =>
+                                          handlePopoverClick(
+                                            `crypto-${item.id}`,
+                                          )
                                         }
                                       ></div>
                                     </PopoverTrigger>
@@ -1411,7 +1451,7 @@ export default function DashboardPage() {
                                       className="w-80"
                                       side="left"
                                       onMouseEnter={() =>
-                                        setHoveredItem(`crypto-${item.id}`)
+                                        handleMouseEnter(`crypto-${item.id}`)
                                       }
                                       onMouseLeave={() => setHoveredItem(null)}
                                     >
