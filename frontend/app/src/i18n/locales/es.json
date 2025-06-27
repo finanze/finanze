@@ -199,34 +199,12 @@
     "configuration": "Configuración",
     "requiredField": "Este campo es obligatorio",
     "saving": "Guardando...",
-    "positionDataOptions": {
-      "investments.stocks.details": "Acciones/ETFs",
-      "investments.funds.details": "Fondos",
-      "investments.fund_portfolios.details": "Carteras de fondos",
-      "investments.factoring.details": "Factoring",
-      "investments.real_state_cf.details": "Real State CF",
-      "investments.deposits.details": "Depósitos",
-      "investments.crowdlending.details": "Crowdlending",
-      "investments.crypto_currencies.details": "Criptomonedas",
-      "accounts": "Cuentas",
-      "cards": "Tarjetas",
-      "loans": "Préstamos"
-    },
     "contributionsDataOptions": {
       "periodic": "Periódicas"
     },
     "transactionsDataOptions": {
       "investment": "Inversión",
       "account": "Cuenta"
-    },
-    "investmentsDataOptions": {
-      "stocks": "Acciones",
-      "funds": "Fondos",
-      "fund_portfolios": "Carteras de Fondos",
-      "factoring": "Factoring",
-      "real_state_cf": "Real State CF",
-      "deposits": "Depósitos",
-      "crypto_currencies": "Criptomonedas"
     },
     "errors": {
       "spreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global cuando la exportación está habilitada",
@@ -326,7 +304,10 @@
     },
     "productType": {
       "ACCOUNT": "Cuenta",
+      "CARD": "Tarjeta",
+      "LOAN": "Préstamo",
       "FUND": "Fondos",
+      "FUND_PORTFOLIO": "Cartera de Fondos",
       "STOCK_ETF": "Acciones/ETFs",
       "FACTORING": "Factoring",
       "REAL_STATE_CF": "Crowdfunding Inmobiliario",

@@ -6,7 +6,8 @@ from pydantic.dataclasses import dataclass
 
 from domain.dezimal import Dezimal
 from domain.entity import Entity
-from domain.transactions import ProductType, BaseInvestmentTx
+from domain.transactions import BaseInvestmentTx
+from domain.global_position import ProductType
 
 
 @dataclass

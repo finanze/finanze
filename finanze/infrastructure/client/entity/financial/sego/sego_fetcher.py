@@ -9,18 +9,19 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     FactoringDetail,
     FactoringInvestments,
     GlobalPosition,
     HistoricalPosition,
-    Investments,
+    ProductType,
 )
 from domain.native_entities import SEGO
-from domain.fetch_result import FetchOptions
-from domain.transactions import FactoringTx, ProductType, Transactions, TxType
+from domain.transactions import FactoringTx, Transactions, TxType
 from infrastructure.client.entity.financial.sego.sego_client import SegoAPIClient
 from pytz import utc
 
@@ -121,36 +122,14 @@ class SegoFetcher(FinancialEntityFetcher):
                 self._map_investment(investment_movements, investment)
             )
 
-        total_invested = sum(
-            [investment.amount for investment in factoring_investments]
-        )
-        weighted_interest_rate = round(
-            (
-                sum(
-                    [
-                        investment.amount * investment.interest_rate
-                        for investment in factoring_investments
-                    ]
-                )
-                / total_invested
+        products = {
+            ProductType.ACCOUNT: Accounts([account]),
+            ProductType.FACTORING: FactoringInvestments(
+                factoring_investments,
             ),
-            4,
-        )
+        }
 
-        sego_data = FactoringInvestments(
-            total=total_invested,
-            weighted_interest_rate=weighted_interest_rate,
-            details=factoring_investments,
-        )
-
-        return GlobalPosition(
-            id=uuid4(),
-            entity=SEGO,
-            accounts=[account],
-            investments=Investments(
-                factoring=sego_data,
-            ),
-        )
+        return GlobalPosition(id=uuid4(), entity=SEGO, products=products)
 
     def _map_investment(self, investment_movements, investment) -> FactoringDetail:
         raw_proj_type = investment["tipoOperacionCodigo"]
@@ -368,11 +347,5 @@ class SegoFetcher(FinancialEntityFetcher):
             )
 
         return HistoricalPosition(
-            investments=Investments(
-                factoring=FactoringInvestments(
-                    total=Dezimal(0),
-                    weighted_interest_rate=Dezimal(0),
-                    details=factoring_investments,
-                )
-            )
+            {ProductType.FACTORING: FactoringInvestments(factoring_investments)}
         )

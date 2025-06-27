@@ -13,17 +13,18 @@ from domain.auto_contributions import (
 )
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     GlobalPosition,
-    Investments,
+    ProductType,
     StockDetail,
     StockInvestments,
 )
 from domain.native_entities import TRADE_REPUBLIC
-from domain.fetch_result import FetchOptions
-from domain.transactions import AccountTx, ProductType, StockTx, Transactions, TxType
+from domain.transactions import AccountTx, StockTx, Transactions, TxType
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
 )
@@ -253,24 +254,15 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         await self._client.close()
 
-        initial_investment = round(
-            sum(map(lambda x: x.initial_investment, investments)), 2
-        )
-        market_value = round(sum(map(lambda x: x.market_value, investments)), 4)
-
-        investments_data = Investments(
-            stocks=StockInvestments(
-                investment=initial_investment,
-                market_value=market_value,
-                details=investments,
-            )
-        )
+        products = {
+            ProductType.ACCOUNT: Accounts(accounts),
+            ProductType.STOCK_ETF: StockInvestments(investments),
+        }
 
         return GlobalPosition(
             id=uuid4(),
             entity=TRADE_REPUBLIC,
-            accounts=accounts,
-            investments=investments_data,
+            products=products,
         )
 
     async def transactions(

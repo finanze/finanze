@@ -17,28 +17,31 @@ from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     Card,
+    Cards,
     CardType,
     Deposit,
     Deposits,
     FundDetail,
     FundInvestments,
     FundPortfolio,
+    FundPortfolios,
     GlobalPosition,
-    Investments,
+    ProductPositions,
+    ProductType,
     StockDetail,
     StockInvestments,
 )
 from domain.native_entities import MY_INVESTOR
-from domain.fetch_result import FetchOptions
 from domain.transactions import (
     AccountTx,
     DepositTx,
     FundTx,
-    ProductType,
     StockTx,
     Transactions,
     TxType,
@@ -85,7 +88,6 @@ ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 
 def _get_stock_investments(broker_investments) -> StockInvestments:
     stock_list = []
-    total_broker_investment = Dezimal(0)
     if broker_investments:
         stock_list = [
             StockDetail(
@@ -107,22 +109,11 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
             for stock in broker_investments["investmentList"]
         ]
 
-        total_broker_investment = sum(
-            [stock.initial_investment for stock in stock_list]
-        )
-    stock_data = StockInvestments(
-        investment=round(total_broker_investment, 2),
-        market_value=round(Dezimal(broker_investments["totalAmount"]), 4)
-        if broker_investments
-        else 0,
-        details=stock_list,
-    )
-    return stock_data
+    return StockInvestments(stock_list)
 
 
-def _get_fund_investments(fund_investments, portfolio_id=None):
+def _get_fund_investments(fund_investments, portfolio_id=None) -> FundInvestments:
     fund_list = []
-    total_fund_investment = Dezimal(0)
     if fund_investments:
         fund_list = [
             FundDetail(
@@ -142,15 +133,7 @@ def _get_fund_investments(fund_investments, portfolio_id=None):
             for fund in fund_investments["investmentList"]
         ]
 
-        total_fund_investment = sum([fund.initial_investment for fund in fund_list])
-    fund_data = FundInvestments(
-        investment=round(total_fund_investment, 2),
-        market_value=round(Dezimal(fund_investments["totalAmount"]), 4)
-        if fund_investments
-        else 0,
-        details=fund_list,
-    )
-    return fund_data
+    return FundInvestments(fund_list)
 
 
 def _map_deposit_tx(
@@ -223,14 +206,15 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         cards_data = self.fetch_cards(account_entries)
 
-        investments_data = self.fetch_investments(account_entries)
+        product_positions = self.fetch_investments(account_entries)
+
+        product_positions[ProductType.ACCOUNT] = Accounts(accounts)
+        product_positions[ProductType.CARD] = Cards(cards_data)
 
         return GlobalPosition(
             id=uuid4(),
             entity=MY_INVESTOR,
-            accounts=accounts,
-            cards=cards_data,
-            investments=investments_data,
+            products=product_positions,
         )
 
     async def auto_contributions(self) -> AutoContributions:
@@ -536,7 +520,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return cards
 
-    def fetch_deposits(self):
+    def fetch_deposits(self) -> Optional[Deposits]:
         deposits_raw = self._client.get_deposits()
         if not deposits_raw:
             return None
@@ -559,29 +543,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             for deposit in deposits_raw
         ]
 
-        total_amount = sum([Dezimal(deposit["amount"]) for deposit in deposits_raw])
-        return Deposits(
-            total=total_amount,
-            expected_interests=sum(
-                [Dezimal(deposit["grossInterest"]) for deposit in deposits_raw]
-            ),
-            weighted_interest_rate=round(
-                (
-                    sum(
-                        [
-                            Dezimal(deposit["amount"]) * Dezimal(deposit["tae"])
-                            for deposit in deposits_raw
-                        ]
-                    )
-                    / total_amount
-                )
-                / 100,
-                4,
-            ),
-            details=deposit_list,
-        )
+        return Deposits(deposit_list)
 
-    def fetch_investments(self, account_entries: list[tuple]) -> Investments:
+    def fetch_investments(self, account_entries: list[tuple]) -> ProductPositions:
         deposits = self.fetch_deposits()
 
         main_security_account = next(
@@ -625,24 +589,27 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 portfolio_fund_investments, portfolio_id
             )
 
+            market_value = Dezimal(portfolio_account_details["marketValue"])
+            total_invested = Dezimal(portfolio_account_details["totalInvested"])
+
             portfolio_cash_accounts.append(
                 FundPortfolio(
                     id=portfolio_id,
                     name=portfolio_account_details["portfolioName"],
                     currency="EUR",
-                    initial_investment=portfolio_fund_data.investment,
-                    market_value=portfolio_fund_data.market_value,
+                    initial_investment=total_invested,
+                    market_value=market_value,
                 )
             )
 
             fund_data = fund_data + portfolio_fund_data
 
-        return Investments(
-            stocks=stock_data,
-            funds=fund_data,
-            fund_portfolios=portfolio_cash_accounts,
-            deposits=deposits,
-        )
+        return {
+            ProductType.STOCK_ETF: stock_data,
+            ProductType.FUND: fund_data,
+            ProductType.FUND_PORTFOLIO: FundPortfolios(portfolio_cash_accounts),
+            ProductType.DEPOSIT: deposits,
+        }
 
     def _map_periodic_contribution(self, auto_contribution):
         raw_frequency = auto_contribution["contributionTimeFrame"]["recurrence"]

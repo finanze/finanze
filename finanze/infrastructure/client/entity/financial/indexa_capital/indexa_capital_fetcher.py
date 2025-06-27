@@ -6,12 +6,14 @@ from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     FundDetail,
     FundInvestments,
     FundPortfolio,
+    FundPortfolios,
     GlobalPosition,
-    Investments,
+    ProductType,
 )
 from domain.native_entities import INDEXA_CAPITAL
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_client import (
@@ -110,16 +112,12 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
             )
             accounts_list.append(account)
 
-        funds = FundInvestments(
-            investment=total_initial_investment,
-            market_value=total_market_value,
-            details=fund_details,
-        )
-        investments = Investments(funds=funds, fund_portfolios=fund_portfolios)
+        products = {
+            ProductType.ACCOUNT: Accounts(accounts_list),
+            ProductType.FUND: FundInvestments(
+                fund_details,
+            ),
+            ProductType.FUND_PORTFOLIO: FundPortfolios(fund_portfolios),
+        }
 
-        return GlobalPosition(
-            id=uuid4(),
-            entity=INDEXA_CAPITAL,
-            accounts=accounts_list,
-            investments=investments,
-        )
+        return GlobalPosition(id=uuid4(), entity=INDEXA_CAPITAL, products=products)

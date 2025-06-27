@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import { motion } from "framer-motion"
 import { Entity } from "@/types"
-import { CryptoCurrencyWallet } from "@/types/position"
+import { CryptoCurrencyWallet, ProductType } from "@/types/position"
 import { deleteCryptoWallet, updateCryptoWallet } from "@/services/api"
 
 interface ManageWalletsViewProps {
@@ -62,9 +62,10 @@ export function ManageWalletsView({
   useEffect(() => {
     if (entity) {
       // Get wallets from positions data
+      const cryptoProduct =
+        positionsData?.positions[entity.id]?.products[ProductType.CRYPTO]
       const positionWallets =
-        positionsData?.positions[entity.id]?.investments?.crypto_currencies
-          ?.details || []
+        (cryptoProduct as { entries: CryptoCurrencyWallet[] })?.entries || []
 
       // Get connected wallets from entity connections
       const connectedWallets = entity.connected || []

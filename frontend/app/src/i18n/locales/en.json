@@ -204,34 +204,12 @@
     "configuration": "Configuration",
     "requiredField": "This field is required",
     "saving": "Saving...",
-    "positionDataOptions": {
-      "investments.stocks.details": "Stocks",
-      "investments.funds.details": "Funds",
-      "investments.fund_portfolios.details": "Fund Portfolios",
-      "investments.factoring.details": "Factoring",
-      "investments.real_state_cf.details": "Real State CF",
-      "investments.deposits.details": "Deposits",
-      "investments.crowdlending.details": "Crowdlending",
-      "investments.crypto_currencies.details": "Cryptocurrencies",
-      "accounts": "Accounts",
-      "cards": "Cards",
-      "loans": "Loans"
-    },
     "contributionsDataOptions": {
       "periodic": "Periodic"
     },
     "transactionsDataOptions": {
       "investment": "Investment",
       "account": "Account"
-    },
-    "investmentsDataOptions": {
-      "stocks": "Stocks",
-      "funds": "Funds",
-      "fund_portfolios": "Fund Portfolios",
-      "factoring": "Factoring",
-      "real_state_cf": "Real State CF",
-      "deposits": "Deposits",
-      "crypto_currencies": "Cryptocurrencies"
     },
     "errors": {
       "spreadsheetIdRequired": "Spreadsheet ID is required in Global Settings when export is enabled",
@@ -330,7 +308,10 @@
     },
     "productType": {
       "ACCOUNT": "Account",
+      "CARD": "Card",
+      "LOAN": "Loan",
       "FUND": "Fund",
+      "FUND_PORTFOLIO": "Fund Portfolio",
       "STOCK_ETF": "Stock/ETF",
       "FACTORING": "Factoring",
       "REAL_STATE_CF": "RE Crowdfunding",

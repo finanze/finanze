@@ -19,18 +19,21 @@ export:
     position:
       - spreadsheetId: anotherSpecificSheetId
         range: Funds
-        data: investments.funds.details
+        data:
+          - FUND
       - range: Stocks
-        data: investments.stocks.details
+        data:
+          - STOCK
       - range: Real State CF
-        data: investments.real_state_cf.details
+        data:
+          - REAL_STATE_CF
       - range: Mixed
         data:
-          - investments.factoring.details
-          - investments.real_state_cf.details
+          - FACTORING
+          - REAL_STATE_CF
       - range: Accounts
         data:
-          - accounts
+          - ACCOUNT
 
     contributions:
       - range: Contributions
@@ -73,10 +76,10 @@ fetch:
       datetimeFormat: "%d/%m/%Y %H:%M:%S"
       dateFormat: "%d/%m/%Y"
 
-    investments:
+    position:
       - spreadsheetId: oneSpecificSheetId
         range: Deposits
-        data: deposits
+        data: DEPOSIT
         datetimeFormat: "%d/%m/%Y %H:%M:%S"
         dateFormat: "%d/%m/%Y"
 

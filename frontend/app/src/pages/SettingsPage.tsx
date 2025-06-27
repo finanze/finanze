@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { ProductType } from "@/types/position"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
 
@@ -83,19 +84,36 @@ export default function SettingsPage() {
     contributions: false,
     transactions: false,
     historic: false,
-    virtualInvestments: false,
+    virtualPosition: false,
     virtualTransactions: false,
   })
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
 
+  const availablePositionOptions = [
+    ProductType.ACCOUNT,
+    ProductType.CARD,
+    ProductType.LOAN,
+    ProductType.FUND,
+    ProductType.STOCK_ETF,
+    ProductType.FACTORING,
+    ProductType.CRYPTO,
+    ProductType.DEPOSIT,
+    ProductType.REAL_STATE_CF,
+  ]
+
   const getPositionDataOptions = (): MultiSelectOption[] => {
     const options: MultiSelectOption[] = []
-    const positionDataOptions = (t.settings as any).positionDataOptions || {}
+    const productTypeOptions = (t.enums as any).productType || {}
 
-    Object.entries(positionDataOptions).forEach(([value, label]) => {
-      options.push({ value, label: label as string })
+    availablePositionOptions.forEach(productType => {
+      if (productTypeOptions[productType]) {
+        options.push({
+          value: productType,
+          label: productTypeOptions[productType] as string,
+        })
+      }
     })
 
     return options
@@ -119,19 +137,6 @@ export default function SettingsPage() {
       (t.settings as any).transactionsDataOptions || {}
 
     Object.entries(transactionsDataOptions).forEach(([value, label]) => {
-      options.push({ value, label: label as string })
-    })
-
-    return options
-  }
-
-  // Create investments data options from translations
-  const getInvestmentsDataOptions = (): MultiSelectOption[] => {
-    const options: MultiSelectOption[] = []
-    const investmentsDataOptions =
-      (t.settings as any).investmentsDataOptions || {}
-
-    Object.entries(investmentsDataOptions).forEach(([value, label]) => {
       options.push({ value, label: label as string })
     })
 
@@ -262,7 +267,7 @@ export default function SettingsPage() {
   const addVirtualConfigItem = (section: string) => {
     const newItem: any = { range: "" }
 
-    if (section === "investments" || section === "transactions") {
+    if (section === "position" || section === "transactions") {
       newItem.data = ""
     }
 
@@ -558,7 +563,7 @@ export default function SettingsPage() {
             }
 
             if (
-              (section === "investments" || section === "transactions") &&
+              (section === "position" || section === "transactions") &&
               !item.data
             ) {
               if (!sectionErrors[index]) sectionErrors[index] = ""
@@ -1006,7 +1011,7 @@ export default function SettingsPage() {
 
   const renderVirtualConfigSection = (section: string, items: any[]) => {
     const virtualKey = `virtual_${section}`
-    const virtualSectionKey = `virtual${section.charAt(0).toUpperCase() + section.slice(1)}` // e.g., "virtualInvestments"
+    const virtualSectionKey = `virtual${section.charAt(0).toUpperCase() + section.slice(1)}`
 
     return (
       <div className="space-y-2">
@@ -1109,13 +1114,13 @@ export default function SettingsPage() {
                         />
                       </div>
 
-                      {(section === "investments" ||
+                      {(section === "position" ||
                         section === "transactions") && (
                         <div className="space-y-2 md:col-span-2">
                           <Label>{t.settings.data} *</Label>
-                          {section === "investments" ? (
+                          {section === "position" ? (
                             <MultiSelect
-                              options={getInvestmentsDataOptions()}
+                              options={getPositionDataOptions()}
                               value={item.data ? [item.data] : []}
                               onChange={selectedValues => {
                                 // For single-value mode: if multiple values, keep only the newest one
@@ -1214,7 +1219,7 @@ export default function SettingsPage() {
                         </div>
                       )}
 
-                      {(section === "investments" ||
+                      {(section === "position" ||
                         section === "transactions") && (
                         <>
                           <div className="space-y-2">
@@ -1777,8 +1782,8 @@ export default function SettingsPage() {
                     </div>
 
                     {renderVirtualConfigSection(
-                      "investments",
-                      settings.fetch?.virtual?.investments || [],
+                      "position",
+                      settings.fetch?.virtual?.position || [],
                     )}
                     {renderVirtualConfigSection(
                       "transactions",

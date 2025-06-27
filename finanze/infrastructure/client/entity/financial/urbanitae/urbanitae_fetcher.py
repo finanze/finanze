@@ -7,18 +7,19 @@ from dateutil.relativedelta import relativedelta
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     GlobalPosition,
     HistoricalPosition,
-    Investments,
+    ProductType,
     RealStateCFDetail,
     RealStateCFInvestments,
 )
 from domain.native_entities import URBANITAE
-from domain.fetch_result import FetchOptions
-from domain.transactions import ProductType, RealStateCFTx, Transactions, TxType
+from domain.transactions import RealStateCFTx, Transactions, TxType
 from infrastructure.client.entity.financial.urbanitae.urbanitae_client import (
     UrbanitaeAPIClient,
 )
@@ -67,32 +68,14 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             if inv["projectPhase"] in ACTIVE_PHASES
         ]
 
-        total_invested = round(
-            sum([inv.amount for inv in real_state_cf_inv_details]), 2
-        )
-        weighted_interest_rate = round(
-            (
-                sum(
-                    [
-                        inv.amount * inv.interest_rate
-                        for inv in real_state_cf_inv_details
-                    ]
-                )
-                / sum([inv.amount for inv in real_state_cf_inv_details])
+        products = {
+            ProductType.ACCOUNT: Accounts([account]),
+            ProductType.REAL_STATE_CF: RealStateCFInvestments(
+                real_state_cf_inv_details
             ),
-            4,
-        )
-        investments = Investments(
-            real_state_cf=RealStateCFInvestments(
-                total=total_invested,
-                weighted_interest_rate=weighted_interest_rate,
-                details=real_state_cf_inv_details,
-            )
-        )
+        }
 
-        return GlobalPosition(
-            id=uuid4(), entity=URBANITAE, accounts=[account], investments=investments
-        )
+        return GlobalPosition(id=uuid4(), entity=URBANITAE, products=products)
 
     def _map_investment(self, inv):
         project_details = self._client.get_project_detail(inv["projectId"])
@@ -207,11 +190,9 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
         ]
 
         return HistoricalPosition(
-            investments=Investments(
-                real_state_cf=RealStateCFInvestments(
-                    total=None,
-                    weighted_interest_rate=None,
-                    details=real_state_cf_inv_details,
+            {
+                ProductType.REAL_STATE_CF: RealStateCFInvestments(
+                    real_state_cf_inv_details
                 )
-            )
+            }
         )

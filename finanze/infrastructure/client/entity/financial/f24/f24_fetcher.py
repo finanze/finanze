@@ -13,17 +13,17 @@ from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResul
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     Deposit,
     Deposits,
     GlobalPosition,
-    Investments,
+    ProductType,
 )
 from domain.native_entities import F24
 from domain.transactions import (
     AccountTx,
     DepositTx,
-    ProductType,
     StockTx,
     Transactions,
     TxType,
@@ -255,33 +255,16 @@ class F24Fetcher(FinancialEntityFetcher):
 
             deposit_details = _map_deposits(off_balance_entries["accounts"])
 
-            total_invested = round(sum([inv.amount for inv in deposit_details]), 2)
-            total_interests = round(
-                sum([inv.expected_interests for inv in deposit_details]), 2
-            )
-            weighted_interest_rate = round(
-                (
-                    sum([inv.amount * inv.interest_rate for inv in deposit_details])
-                    / sum([inv.amount for inv in deposit_details])
-                ),
-                6,
-            )
-
             deposits = Deposits(
-                total=total_invested,
-                expected_interests=total_interests,
-                weighted_interest_rate=weighted_interest_rate,
-                details=deposit_details,
+                deposit_details,
             )
 
-        return GlobalPosition(
-            id=uuid4(),
-            entity=F24,
-            accounts=accounts,
-            investments=Investments(
-                deposits=deposits,
-            ),
-        )
+        products = {
+            ProductType.ACCOUNT: Accounts(accounts),
+            ProductType.DEPOSIT: deposits,
+        }
+
+        return GlobalPosition(id=uuid4(), entity=F24, products=products)
 
     def _get_positions(self, user_id: str) -> dict:
         return self._client.get_positions(user_id)

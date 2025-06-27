@@ -5,16 +5,20 @@ from uuid import uuid4
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
 from domain.dezimal import Dezimal
-from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.entity import EntitySetupLoginType
+from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     Card,
+    Cards,
     CardType,
     GlobalPosition,
     Loan,
+    Loans,
     LoanType,
+    ProductType,
 )
 from domain.native_entities import UNICAJA
 from infrastructure.client.entity.financial.unicaja.unicaja_client import UnicajaClient
@@ -52,12 +56,16 @@ class UnicajaFetcher(FinancialEntityFetcher):
         loans = [self._get_loan(loan_data_raw) for loan_data_raw in raw_loans]
         loans = [loan for loan in loans if loan is not None]
 
+        products = {
+            ProductType.ACCOUNT: Accounts(accounts),
+            ProductType.CARD: Cards(cards),
+            ProductType.LOAN: Loans(loans),
+        }
+
         return GlobalPosition(
             id=uuid4(),
             entity=UNICAJA,
-            accounts=accounts,
-            cards=cards,
-            loans=loans,
+            products=products,
         )
 
     def _map_account(self, account_data_raw):

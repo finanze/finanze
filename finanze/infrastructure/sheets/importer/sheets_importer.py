@@ -1,4 +1,3 @@
-import inspect
 import logging
 from datetime import datetime
 from typing import Optional
@@ -8,14 +7,25 @@ from application.ports.virtual_fetch import VirtualFetcher
 from domain.entity import Entity, EntityType
 from domain.exception.exceptions import MissingFieldsError
 from domain.global_position import (
+    Account,
+    Accounts,
+    Card,
+    Cards,
+    CryptoCurrencies,
+    CryptoCurrencyWallet,
     Deposit,
     Deposits,
     FactoringDetail,
     FactoringInvestments,
     FundDetail,
     FundInvestments,
+    FundPortfolio,
+    FundPortfolios,
     GlobalPosition,
-    Investments,
+    Loan,
+    Loans,
+    ProductPosition,
+    ProductType,
     RealStateCFDetail,
     RealStateCFInvestments,
     StockDetail,
@@ -24,7 +34,7 @@ from domain.global_position import (
 from domain.settings import (
     BaseSheetConfig,
     GoogleCredentials,
-    VirtualInvestmentSheetConfig,
+    VirtualPositionSheetConfig,
     VirtualTransactionSheetConfig,
 )
 from domain.transactions import (
@@ -43,40 +53,6 @@ def parse_number(value: str) -> float:
     return float(value.strip().replace(".", "").replace(",", "."))
 
 
-def total(products):
-    return round(sum([product.amount for product in products]), 2)
-
-
-def expected_interests(products):
-    return round(sum([product.expected_interests for product in products]), 2)
-
-
-def weighted_interest_rate(products):
-    return round(
-        sum([product.interest_rate * product.amount for product in products])
-        / total(products),
-        6,
-    )
-
-
-def initial_investment(products):
-    return round(sum([product.initial_investment for product in products]), 2)
-
-
-def market_value(products):
-    return round(sum([product.market_value for product in products]), 2)
-
-
-AGGR_FIELD_OPERATION = {
-    "total": total,
-    "invested": total,
-    "expected_interests": expected_interests,
-    "weighted_interest_rate": weighted_interest_rate,
-    "investment": initial_investment,
-    "market_value": market_value,
-}
-
-
 def _parse_cell(value: str, config: BaseSheetConfig) -> any:
     try:
         return parse_number(value)
@@ -93,12 +69,16 @@ def _parse_cell(value: str, config: BaseSheetConfig) -> any:
 
 
 class SheetsImporter(VirtualFetcher):
-    INV_TYPE_ATTR_MAP = {
-        "deposits": (Deposits, Deposit),
-        "funds": (FundInvestments, FundDetail),
-        "stocks": (StockInvestments, StockDetail),
-        "factoring": (FactoringInvestments, FactoringDetail),
-        "real_state_cf": (RealStateCFInvestments, RealStateCFDetail),
+    PRODUCT_TYPE_CLS_MAP = {
+        ProductType.ACCOUNT: (Accounts, Account),
+        ProductType.CARD: (Cards, Card),
+        ProductType.LOAN: (Loans, Loan),
+        ProductType.DEPOSIT: (Deposits, Deposit),
+        ProductType.FUND: (FundInvestments, FundDetail),
+        ProductType.STOCK_ETF: (StockInvestments, StockDetail),
+        ProductType.FACTORING: (FactoringInvestments, FactoringDetail),
+        ProductType.REAL_STATE_CF: (RealStateCFInvestments, RealStateCFDetail),
+        ProductType.CRYPTO: (CryptoCurrencies, CryptoCurrencyWallet),
     }
 
     TX_PROD_TYPE_ATTR_MAP = {
@@ -115,26 +95,51 @@ class SheetsImporter(VirtualFetcher):
     async def global_positions(
         self,
         credentials: GoogleCredentials,
-        investment_configs: list[VirtualInvestmentSheetConfig],
+        position_configs: list[VirtualPositionSheetConfig],
         existing_entities: dict[str, Entity],
     ) -> tuple[list[GlobalPosition], set[Entity]]:
         global_positions_dicts = {}
-        for config in investment_configs:
+        for config in position_configs:
             field = config.data
-            parent_type, detail_type = self.INV_TYPE_ATTR_MAP.get(field, (None, None))
+            parent_type, detail_type = self.PRODUCT_TYPE_CLS_MAP.get(
+                field, (None, None)
+            )
             if not parent_type:
                 raise ValueError(f"Invalid field {field}")
 
-            per_entity = self._load_investment_products(
+            per_entity = self._load_products(
                 detail_type, parent_type, credentials, config
             )
             for entity in per_entity:
                 if entity not in global_positions_dicts:
-                    global_positions_dicts[entity] = {"investments": {}}
+                    global_positions_dicts[entity] = {"products": {}}
 
-                global_positions_dicts[entity]["investments"][field] = per_entity[
-                    entity
-                ]
+                if field in global_positions_dicts[entity]["products"]:
+                    global_positions_dicts[entity]["products"][field] += per_entity[
+                        entity
+                    ]
+                else:
+                    global_positions_dicts[entity]["products"][field] = per_entity[
+                        entity
+                    ]
+
+        for entity, positions in global_positions_dicts.items():
+            required_portfolios = {}
+            if (
+                ProductType.FUND in positions["products"]
+                and positions["products"][ProductType.FUND]
+            ):
+                for fund in positions["products"][ProductType.FUND].entries:
+                    if fund.portfolio:
+                        if fund.portfolio.name not in required_portfolios:
+                            required_portfolios[fund.portfolio.name] = fund.portfolio
+                        else:
+                            fund.portfolio = required_portfolios[fund.portfolio.name]
+
+            if required_portfolios:
+                positions["products"][ProductType.FUND_PORTFOLIO] = FundPortfolios(
+                    list(required_portfolios.values())
+                )
 
         created_entities = {}
         global_positions = []
@@ -151,22 +156,22 @@ class SheetsImporter(VirtualFetcher):
                     )
                 entity = created_entities[entity]
 
-            investments = Investments(**data["investments"])
+            products = data["products"]
             global_positions.append(
                 GlobalPosition(
-                    id=uuid4(), entity=entity, investments=investments, is_real=False
+                    id=uuid4(), entity=entity, products=products, is_real=False
                 )
             )
 
         return global_positions, set(created_entities.values())
 
-    def _load_investment_products(
+    def _load_products(
         self,
         cls,
         parent_cls,
         credentials: GoogleCredentials,
-        config: VirtualInvestmentSheetConfig,
-    ) -> dict[str, any]:
+        config: VirtualPositionSheetConfig,
+    ) -> dict[str, ProductPosition]:
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
@@ -174,6 +179,14 @@ class SheetsImporter(VirtualFetcher):
             product_dict["id"] = p_id
             entity = product_dict["entity"]
             entity_products = details_per_entity.get(entity, [])
+
+            if cls == FundDetail:
+                portfolio_name = product_dict.get("portfolio")
+                if portfolio_name:
+                    product_dict["portfolio"] = FundPortfolio(
+                        id=uuid4(), name=portfolio_name
+                    )
+
             entity_products.append(cls.from_dict(product_dict))
 
             details_per_entity[entity] = entity_products
@@ -184,17 +197,11 @@ class SheetsImporter(VirtualFetcher):
             return {}
 
         per_entity = {}
-        parent_params = inspect.signature(parent_cls).parameters
         for entity, entity_products in details_per_entity.items():
-            parent_obj_dict = {}
-            for param in parent_params:
-                if param in AGGR_FIELD_OPERATION:
-                    parent_obj_dict[param] = AGGR_FIELD_OPERATION[param](
-                        entity_products
-                    )
+            parent_obj_dict = {
+                "entries": entity_products,
+            }
 
-            parent_obj_dict["details"] = entity_products
-            parent_obj_dict["currency"] = entity_products[0].currency
             per_entity[entity] = parent_cls(**parent_obj_dict)
 
         return per_entity

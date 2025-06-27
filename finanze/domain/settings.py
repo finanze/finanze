@@ -3,7 +3,6 @@ from typing import Optional
 
 from pydantic.dataclasses import dataclass
 
-DataField = str | list[str]
 FilterValues = str | list[str]
 
 
@@ -30,17 +29,17 @@ class BaseSheetConfig:
 
 @dataclass
 class PositionSheetConfig(BaseSheetConfig):
-    data: DataField = field(default_factory=list)
+    data: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ContributionSheetConfig(BaseSheetConfig):
-    data: DataField = field(default_factory=list)
+    data: list[str] = field(default_factory=list)
 
 
 @dataclass
 class TransactionSheetConfig(BaseSheetConfig):
-    data: DataField = field(default_factory=list)
+    data: list[str] = field(default_factory=list)
     filters: list[FilterConfig] | None = None
 
 
@@ -71,7 +70,7 @@ class ExportConfig:
 
 
 @dataclass
-class VirtualInvestmentSheetConfig(BaseSheetConfig):
+class VirtualPositionSheetConfig(BaseSheetConfig):
     data: str = field(default_factory=str)
 
 
@@ -84,7 +83,7 @@ class VirtualTransactionSheetConfig(BaseSheetConfig):
 class VirtualFetchConfig:
     enabled: bool = False
     globals: GlobalsConfig | None = None
-    investments: list[VirtualInvestmentSheetConfig] | None = None
+    position: list[VirtualPositionSheetConfig] | None = None
     transactions: list[VirtualTransactionSheetConfig] | None = None
 
 
@@ -122,6 +121,6 @@ ProductSheetConfig = (
     | ContributionSheetConfig
     | TransactionSheetConfig
     | HistoricSheetConfig
-    | VirtualInvestmentSheetConfig
+    | VirtualPositionSheetConfig
     | VirtualTransactionSheetConfig
 )

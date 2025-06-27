@@ -1,3 +1,17 @@
+export enum ProductType {
+  ACCOUNT = "ACCOUNT",
+  CARD = "CARD",
+  LOAN = "LOAN",
+  STOCK_ETF = "STOCK_ETF",
+  FUND = "FUND",
+  FUND_PORTFOLIO = "FUND_PORTFOLIO",
+  DEPOSIT = "DEPOSIT",
+  FACTORING = "FACTORING",
+  REAL_STATE_CF = "REAL_STATE_CF",
+  CROWDLENDING = "CROWDLENDING",
+  CRYPTO = "CRYPTO",
+}
+
 export enum AccountType {
   CHECKING = "CHECKING",
   VIRTUAL_WALLET = "VIRTUAL_WALLET",
@@ -117,20 +131,36 @@ export interface RealStateCFDetail {
   extended_maturity?: string | null
 }
 
+export interface Accounts {
+  entries: Account[]
+}
+
+export interface Cards {
+  entries: Card[]
+}
+
+export interface Loans {
+  entries: Loan[]
+}
+
 export interface StockInvestments {
-  details: StockDetail[]
+  entries: StockDetail[]
 }
 
 export interface FundInvestments {
-  details: FundDetail[]
+  entries: FundDetail[]
+}
+
+export interface FundPortfolios {
+  entries: FundPortfolio[]
 }
 
 export interface FactoringInvestments {
-  details: FactoringDetail[]
+  entries: FactoringDetail[]
 }
 
 export interface RealStateCFInvestments {
-  details: RealStateCFDetail[]
+  entries: RealStateCFDetail[]
 }
 
 export interface Deposit {
@@ -145,7 +175,7 @@ export interface Deposit {
 }
 
 export interface Deposits {
-  details: Deposit[]
+  entries: Deposit[]
 }
 
 export interface Crowdlending {
@@ -154,7 +184,7 @@ export interface Crowdlending {
   weighted_interest_rate: number
   currency: string
   distribution: any
-  details: any[]
+  entries: any[]
 }
 
 export interface CryptoCurrencyToken {
@@ -187,8 +217,23 @@ export interface CryptoCurrencyWallet {
 }
 
 export interface CryptoCurrencies {
-  details: CryptoCurrencyWallet[]
+  entries: CryptoCurrencyWallet[]
 }
+
+export type ProductPosition =
+  | Accounts
+  | Cards
+  | Loans
+  | StockInvestments
+  | FundInvestments
+  | FundPortfolios
+  | FactoringInvestments
+  | RealStateCFInvestments
+  | Deposits
+  | Crowdlending
+  | CryptoCurrencies
+
+export type ProductPositions = Record<ProductType, ProductPosition>
 
 export interface Investments {
   stocks?: StockInvestments | null
@@ -211,10 +256,7 @@ export interface GlobalPosition {
   id: string
   entity: EntitySummary
   date: string
-  accounts: Account[]
-  cards: Card[]
-  loans: Loan[]
-  investments?: Investments | null
+  products: ProductPositions
   is_real: boolean
 }
 

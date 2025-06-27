@@ -5,8 +5,9 @@ from domain.global_position import (
     Deposits,
     FactoringInvestments,
     FundInvestments,
+    FundPortfolios,
     GlobalPosition,
-    Investments,
+    ProductPositions,
     RealStateCFInvestments,
     StockInvestments,
 )
@@ -20,13 +21,19 @@ def _add_weighted_interest_rate(
 
 def _add_stocks(self: StockInvestments, other: StockInvestments) -> StockInvestments:
     return StockInvestments(
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
     )
 
 
 def _add_funds(self: FundInvestments, other: FundInvestments) -> FundInvestments:
     return FundInvestments(
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
+    )
+
+
+def _add_fund_portfolios(self: FundPortfolios, other: FundPortfolios) -> FundPortfolios:
+    return FundPortfolios(
+        entries=self.entries + other.entries,
     )
 
 
@@ -34,7 +41,7 @@ def _add_factoring(
     self: FactoringInvestments, other: FactoringInvestments
 ) -> FactoringInvestments:
     return FactoringInvestments(
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
     )
 
 
@@ -42,13 +49,13 @@ def _add_real_state_cf(
     self: RealStateCFInvestments, other: RealStateCFInvestments
 ) -> RealStateCFInvestments:
     return RealStateCFInvestments(
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
     )
 
 
 def _add_deposits(self: Deposits, other: Deposits) -> Deposits:
     return Deposits(
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
     )
 
 
@@ -68,7 +75,7 @@ def _add_crowdlending(self: Crowdlending, other: Crowdlending) -> Crowdlending:
         else None,
         currency=self.currency,
         distribution=self.distribution,
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
     )
 
 
@@ -76,43 +83,20 @@ def _add_crypto_currencies(
     self: CryptoCurrencies, other: CryptoCurrencies
 ) -> CryptoCurrencies:
     return CryptoCurrencies(
-        details=self.details + other.details,
+        entries=self.entries + other.entries,
     )
 
 
-def _add_investments(self: Investments, other: Investments) -> Investments:
-    if other is None:
+def _add_products(self: ProductPositions, other: ProductPositions) -> ProductPositions:
+    if not other:
         return self
-
-    return Investments(
-        stocks=(self.stocks + other.stocks) if self.stocks and other.stocks else None,
-        funds=(self.funds + other.funds) if self.funds and other.funds else None,
-        factoring=(self.factoring + other.factoring)
-        if self.factoring and other.factoring
-        else None,
-        real_state_cf=(self.real_state_cf + other.real_state_cf)
-        if self.real_state_cf and other.real_state_cf
-        else None,
-        deposits=(self.deposits + other.deposits)
-        if self.deposits and other.deposits
-        else None,
-        crowdlending=(self.crowdlending + other.crowdlending)
-        if self.crowdlending and other.crowdlending
-        else None,
-        crypto_currencies=(self.crypto_currencies + other.crypto_currencies)
-        if self.crypto_currencies and other.crypto_currencies
-        else None,
-    )
-
-
-def _sum_inv(self, attr: str, other: GlobalPosition):
-    self_val = getattr(self.investments, attr)
-    other_val = getattr(other.investments, attr)
-    return (
-        (self_val + other_val)
-        if (self_val is not None and other_val is not None)
-        else None
-    )
+    merged: ProductPositions = {}
+    for ptype in set(self) | set(other):
+        if ptype in self and ptype in other:
+            merged[ptype] = self[ptype] + other[ptype]
+        else:
+            merged[ptype] = self.get(ptype) or other.get(ptype)
+    return merged
 
 
 def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition:
@@ -128,18 +112,7 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
         id=self.id,
         entity=self.entity,
         date=self.date,
-        accounts=self.accounts + other.accounts,
-        cards=self.cards + other.cards,
-        loans=self.loans + other.loans,
-        investments=Investments(
-            stocks=_sum_inv(self, "stocks", other),
-            funds=_sum_inv(self, "funds", other),
-            factoring=_sum_inv(self, "factoring", other),
-            real_state_cf=_sum_inv(self, "real_state_cf", other),
-            deposits=_sum_inv(self, "deposits", other),
-            crowdlending=_sum_inv(self, "crowdlending", other),
-            crypto_currencies=_sum_inv(self, "crypto_currencies", other),
-        ),
+        products=_add_products(self.products, other.products),
         is_real=self.is_real and other.is_real,
     )
 
@@ -147,10 +120,10 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
 def add_extensions():
     StockInvestments.__add__ = _add_stocks
     FundInvestments.__add__ = _add_funds
+    FundPortfolios.__add__ = _add_fund_portfolios
     FactoringInvestments.__add__ = _add_factoring
     RealStateCFInvestments.__add__ = _add_real_state_cf
     Deposits.__add__ = _add_deposits
     Crowdlending.__add__ = _add_crowdlending
     CryptoCurrencies.__add__ = _add_crypto_currencies
-    Investments.__add__ = _add_investments
     GlobalPosition.__add__ = _add_position

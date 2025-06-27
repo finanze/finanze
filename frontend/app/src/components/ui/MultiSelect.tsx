@@ -124,7 +124,7 @@ export function MultiSelect({
               ref={inputRef}
               type="text"
               placeholder={t.common.searchOptions}
-              className="w-full px-2 py-1 text-sm border border-input rounded focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-2 py-1 text-sm border border-input rounded bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               onClick={e => e.stopPropagation()}

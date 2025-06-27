@@ -9,18 +9,19 @@ from dateutil.tz import tzlocal
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     GlobalPosition,
     HistoricalPosition,
-    Investments,
+    ProductType,
     RealStateCFDetail,
     RealStateCFInvestments,
 )
 from domain.native_entities import WECITY
-from domain.fetch_result import FetchOptions
-from domain.transactions import ProductType, RealStateCFTx, Transactions, TxType
+from domain.transactions import RealStateCFTx, Transactions, TxType
 from infrastructure.client.entity.financial.wecity.wecity_client import WecityAPIClient
 
 DATE_FORMAT = "%Y-%m-%d"
@@ -100,25 +101,12 @@ class WecityFetcher(FinancialEntityFetcher):
             related_txs = _normalize_transactions(raw_related_txs)
             investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
-        total_invested = round(sum([inv.amount for inv in investment_details]), 2)
-        weighted_interest_rate = round(
-            (
-                sum([inv.amount * inv.interest_rate for inv in investment_details])
-                / sum([inv.amount for inv in investment_details])
-            ),
-            4,
-        )
-        investments = Investments(
-            real_state_cf=RealStateCFInvestments(
-                total=total_invested,
-                weighted_interest_rate=weighted_interest_rate,
-                details=investment_details,
-            )
-        )
+        products = {
+            ProductType.ACCOUNT: Accounts([account]),
+            ProductType.REAL_STATE_CF: RealStateCFInvestments(investment_details),
+        }
 
-        return GlobalPosition(
-            id=uuid4(), entity=WECITY, accounts=[account], investments=investments
-        )
+        return GlobalPosition(id=uuid4(), entity=WECITY, products=products)
 
     def _map_investment(self, related_txs, inv_id, inv):
         opportunity = inv["opportunity"]
@@ -298,9 +286,5 @@ class WecityFetcher(FinancialEntityFetcher):
             investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
         return HistoricalPosition(
-            investments=Investments(
-                real_state_cf=RealStateCFInvestments(
-                    total=None, weighted_interest_rate=None, details=investment_details
-                )
-            )
+            {ProductType.REAL_STATE_CF: RealStateCFInvestments(investment_details)}
         )

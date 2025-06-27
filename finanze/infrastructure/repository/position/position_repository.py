@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Callable, Dict, Optional
 from uuid import UUID
 
 from application.ports.position_port import PositionPort
@@ -8,8 +8,10 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     Card,
+    Cards,
     CardType,
     Crowdlending,
     CryptoCurrencies,
@@ -24,11 +26,14 @@ from domain.global_position import (
     FundDetail,
     FundInvestments,
     FundPortfolio,
+    FundPortfolios,
     GlobalPosition,
-    Investments,
     Loan,
+    Loans,
     LoanType,
     PositionQueryRequest,
+    ProductPositions,
+    ProductType,
     RealStateCFDetail,
     RealStateCFInvestments,
     StockDetail,
@@ -36,6 +41,77 @@ from domain.global_position import (
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient, DBCursor
+
+
+def _save_loans(cursor, position: GlobalPosition, loans: Loans):
+    for loan in loans.entries:
+        cursor.execute(
+            """
+            INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
+                                        interest_rate, loan_amount, next_payment_date,
+                                        principal_outstanding, principal_paid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(loan.id),
+                str(position.id),
+                loan.type,
+                loan.currency,
+                loan.name,
+                str(loan.current_installment),
+                str(loan.interest_rate),
+                str(loan.loan_amount),
+                loan.next_payment_date.isoformat(),
+                str(loan.principal_outstanding),
+                str(loan.principal_paid),
+            ),
+        )
+
+
+def _save_cards(cursor, position: GlobalPosition, cards: Cards):
+    for card in cards.entries:
+        cursor.execute(
+            """
+            INSERT INTO card_positions (id, global_position_id, type, name, currency,
+                                        ending, card_limit, used, active, related_account)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(card.id),
+                str(position.id),
+                card.type.value,
+                card.name,
+                card.currency,
+                str(card.ending),
+                str(card.limit) if card.limit else None,
+                str(card.used),
+                card.active,
+                str(card.related_account) if card.related_account else None,
+            ),
+        )
+
+
+def _save_accounts(cursor, position: GlobalPosition, accounts: Accounts):
+    for account in accounts.entries:
+        cursor.execute(
+            """
+            INSERT INTO account_positions (id, global_position_id, type, currency, name, iban, total,
+                                           interest, retained, pending_transfers)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(account.id),
+                str(position.id),
+                account.type,
+                account.currency,
+                account.name,
+                account.iban,
+                str(account.total),
+                str(account.interest) if account.interest else None,
+                str(account.retained) if account.retained else None,
+                str(account.pending_transfers) if account.pending_transfers else None,
+            ),
+        )
 
 
 def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlending):
@@ -87,7 +163,7 @@ def _save_crypto_currency_token_positions(cursor, wallet_detail: CryptoCurrencyW
 def _save_crypto_currencies(
     cursor, position: GlobalPosition, cryptocurrencies: CryptoCurrencies
 ):
-    for wallet_detail in cryptocurrencies.details:
+    for wallet_detail in cryptocurrencies.entries:
         cursor.execute(
             """
             INSERT INTO crypto_currency_wallet_positions (id, global_position_id, wallet_connection_id, symbol, amount,
@@ -116,7 +192,7 @@ def _save_crypto_currencies(
 
 
 def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
-    for detail in deposits.details:
+    for detail in deposits.entries:
         cursor.execute(
             """
             INSERT INTO deposit_positions (id, global_position_id, name, amount, currency,
@@ -140,7 +216,7 @@ def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
 def _save_real_state_cf(
     cursor, position: GlobalPosition, real_state: RealStateCFInvestments
 ):
-    for detail in real_state.details:
+    for detail in real_state.entries:
         cursor.execute(
             """
             INSERT INTO real_state_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
@@ -167,7 +243,7 @@ def _save_real_state_cf(
 
 
 def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvestments):
-    for detail in factoring.details:
+    for detail in factoring.entries:
         cursor.execute(
             """
             INSERT INTO factoring_positions (id, global_position_id, name, amount, currency,
@@ -193,10 +269,8 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
         )
 
 
-def _save_fund_portfolios(
-    cursor, position: GlobalPosition, portfolios: list[FundPortfolio]
-):
-    for portfolio in portfolios:
+def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPortfolios):
+    for portfolio in portfolios.entries:
         cursor.execute(
             """
             INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value)
@@ -207,14 +281,16 @@ def _save_fund_portfolios(
                 str(position.id),
                 portfolio.name,
                 portfolio.currency,
-                str(portfolio.initial_investment),
-                str(portfolio.market_value),
+                str(portfolio.initial_investment)
+                if portfolio.initial_investment
+                else None,
+                str(portfolio.market_value) if portfolio.market_value else None,
             ),
         )
 
 
 def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
-    for detail in funds.details:
+    for detail in funds.entries:
         cursor.execute(
             """
             INSERT INTO fund_positions (id, global_position_id, name, isin, market,
@@ -239,7 +315,7 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
 
 
 def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
-    for detail in stocks.details:
+    for detail in stocks.entries:
         cursor.execute(
             """
             INSERT INTO stock_positions (id, global_position_id, name, ticker, isin, market,
@@ -265,91 +341,37 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
         )
 
 
-def _save_investments(cursor, position: GlobalPosition, investments: Investments):
-    if investments.stocks:
-        _save_stocks(cursor, position, investments.stocks)
-    if investments.fund_portfolios:
-        _save_fund_portfolios(cursor, position, investments.fund_portfolios)
-    if investments.funds:
-        _save_funds(cursor, position, investments.funds)
-    if investments.factoring:
-        _save_factoring(cursor, position, investments.factoring)
-    if investments.real_state_cf:
-        _save_real_state_cf(cursor, position, investments.real_state_cf)
-    if investments.deposits:
-        _save_deposits(cursor, position, investments.deposits)
-    if investments.crowdlending:
-        _save_crowdlending(cursor, position, investments.crowdlending)
-    if investments.crypto_currencies:
-        _save_crypto_currencies(cursor, position, investments.crypto_currencies)
+def _save_position(
+    cursor, position: GlobalPosition, product_type: ProductType, save_fn: Callable
+):
+    product_position = position.products.get(product_type)
+    if product_position:
+        save_fn(cursor, position, product_position)
 
 
-def _save_loan(cursor, position: GlobalPosition, loan: Loan):
-    cursor.execute(
-        """
-        INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
-                                    interest_rate, loan_amount, next_payment_date,
-                                    principal_outstanding, principal_paid)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            str(loan.id),
-            str(position.id),
-            loan.type,
-            loan.currency,
-            loan.name,
-            str(loan.current_installment),
-            str(loan.interest_rate),
-            str(loan.loan_amount),
-            loan.next_payment_date.isoformat(),
-            str(loan.principal_outstanding),
-            str(loan.principal_paid),
-        ),
-    )
+def _save_product_positions(cursor, position: GlobalPosition):
+    _save_position(cursor, position, ProductType.ACCOUNT, _save_accounts)
+    _save_position(cursor, position, ProductType.CARD, _save_cards)
+    _save_position(cursor, position, ProductType.LOAN, _save_loans)
+    _save_position(cursor, position, ProductType.STOCK_ETF, _save_stocks)
+    _save_position(cursor, position, ProductType.FUND_PORTFOLIO, _save_fund_portfolios)
+    _save_position(cursor, position, ProductType.FUND, _save_funds)
+    _save_position(cursor, position, ProductType.FACTORING, _save_factoring)
+    _save_position(cursor, position, ProductType.REAL_STATE_CF, _save_real_state_cf)
+    _save_position(cursor, position, ProductType.DEPOSIT, _save_deposits)
+    _save_position(cursor, position, ProductType.CROWDLENDING, _save_crowdlending)
+    _save_position(cursor, position, ProductType.CRYPTO, _save_crypto_currencies)
 
 
-def _save_card(cursor, position: GlobalPosition, card: Card):
-    cursor.execute(
-        """
-        INSERT INTO card_positions (id, global_position_id, type, name, currency,
-                                    ending, card_limit, used, active, related_account)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            str(card.id),
-            str(position.id),
-            card.type.value,
-            card.name,
-            card.currency,
-            card.ending,
-            str(card.limit) if card.limit else None,
-            str(card.used),
-            card.active,
-            str(card.related_account) if card.related_account else None,
-        ),
-    )
-
-
-def _save_account(cursor, position: GlobalPosition, account: Account):
-    cursor.execute(
-        """
-        INSERT INTO account_positions (id, global_position_id, type, currency, name, iban, total,
-                                       interest, retained, pending_transfers)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            str(account.id),
-            str(position.id),
-            account.type,
-            account.currency,
-            account.name,
-            account.iban,
-            str(account.total),
-            str(account.interest) if account.interest else None,
-            str(account.retained) if account.retained else None,
-            str(account.pending_transfers) if account.pending_transfers else None,
-        ),
-    )
+def _store_position(
+    positions: ProductPositions,
+    global_position_id: UUID,
+    product_type: ProductType,
+    get_fc: Callable,
+):
+    position = get_fc(global_position_id)
+    if position:
+        positions[product_type] = position
 
 
 class PositionSQLRepository(PositionPort):
@@ -368,25 +390,11 @@ class PositionSQLRepository(PositionPort):
                 ),
             )
 
-            # Save accounts
-            for account in position.accounts:
-                _save_account(cursor, position, account)
-
-            # Save cards
-            for card in position.cards:
-                _save_card(cursor, position, card)
-
-            # Save loans
-            for loan in position.loans:
-                _save_loan(cursor, position, loan)
-
-            # Save investments
-            if position.investments:
-                _save_investments(cursor, position, position.investments)
+            _save_product_positions(cursor, position)
 
     def get_last_grouped_by_entity(
         self, query: Optional[PositionQueryRequest] = None
-    ) -> Dict[Entity, GlobalPosition]:
+    ) -> dict[Entity, GlobalPosition]:
         real_global_position_by_entity, manual_global_position_by_entity = {}, {}
 
         if not query or query.real is None or query.real:
@@ -463,10 +471,7 @@ class PositionSQLRepository(PositionPort):
                 id=UUID(row["id"]),
                 entity=entity,
                 date=datetime.fromisoformat(row["date"]),
-                accounts=self._get_account_position(row["id"]),
-                cards=self._get_card_positions(row["id"]),
-                loans=self._get_loans_position(row["id"]),
-                investments=self._get_investments(row["id"]),
+                products=self._get_product_positions(row["id"]),
                 is_real=row["is_real"],
             )
             positions[entity] = position
@@ -521,7 +526,7 @@ class PositionSQLRepository(PositionPort):
 
             return self._map_position_rows(cursor)
 
-    def _get_account_position(self, global_position_id: UUID) -> list[Account]:
+    def _get_accounts(self, global_position_id: UUID) -> Optional[Accounts]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
@@ -549,9 +554,12 @@ class PositionSQLRepository(PositionPort):
                 for row in cursor
             ]
 
-            return accounts
+            if not accounts:
+                return None
 
-    def _get_card_positions(self, global_position_id: UUID) -> list[Card]:
+            return Accounts(accounts)
+
+    def _get_cards(self, global_position_id: UUID) -> Optional[Cards]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM card_positions WHERE global_position_id = ?",
@@ -573,9 +581,12 @@ class PositionSQLRepository(PositionPort):
                 for row in cursor
             ]
 
-            return cards
+            if not cards:
+                return None
 
-    def _get_loans_position(self, global_position_id: UUID) -> list[Loan]:
+            return Cards(cards)
+
+    def _get_loans(self, global_position_id: UUID) -> Optional[Loans]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM loan_positions WHERE global_position_id = ?",
@@ -600,23 +611,12 @@ class PositionSQLRepository(PositionPort):
                 for row in cursor
             ]
 
-            return loans
+            if not loans:
+                return None
 
-    def _get_investments(self, global_position_id: UUID) -> Optional[Investments]:
-        return Investments(
-            stocks=self._get_stock_investments(global_position_id),
-            funds=self._get_fund_investments(global_position_id),
-            fund_portfolios=self._get_fund_portfolios(global_position_id),
-            factoring=self._get_factoring_investments(global_position_id),
-            real_state_cf=self._get_real_state_cf_investments(global_position_id),
-            deposits=self._get_deposit_investments(global_position_id),
-            crowdlending=self._get_crowdlending_investments(global_position_id),
-            crypto_currencies=self._get_cryptocurrency_investments(global_position_id),
-        )
+            return Loans(loans)
 
-    def _get_stock_investments(
-        self, global_position_id: UUID
-    ) -> Optional[StockInvestments]:
+    def _get_stocks(self, global_position_id: UUID) -> Optional[StockInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM stock_positions WHERE global_position_id = ?",
@@ -644,11 +644,11 @@ class PositionSQLRepository(PositionPort):
             if not details:
                 return None
 
-            return StockInvestments(
-                details=details,
-            )
+            return StockInvestments(details)
 
-    def _get_fund_portfolios(self, global_position_id: UUID) -> list[FundPortfolio]:
+    def _get_fund_portfolios(
+        self, global_position_id: UUID
+    ) -> Optional[FundPortfolios]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM fund_portfolios WHERE global_position_id = ?",
@@ -662,16 +662,21 @@ class PositionSQLRepository(PositionPort):
                         id=UUID(row["id"]),
                         name=row["name"],
                         currency=row["currency"],
-                        initial_investment=Dezimal(row["initial_investment"]),
-                        market_value=Dezimal(row["market_value"]),
+                        initial_investment=Dezimal(row["initial_investment"])
+                        if row["initial_investment"]
+                        else None,
+                        market_value=Dezimal(row["market_value"])
+                        if row["market_value"]
+                        else None,
                     )
                 )
 
-            return portfolios
+            if not portfolios:
+                return None
 
-    def _get_fund_investments(
-        self, global_position_id: UUID
-    ) -> Optional[FundInvestments]:
+            return FundPortfolios(portfolios)
+
+    def _get_funds(self, global_position_id: UUID) -> Optional[FundInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
@@ -702,9 +707,15 @@ class PositionSQLRepository(PositionPort):
                     portfolio=FundPortfolio(
                         id=UUID(row["portfolio_id"]),
                         name=row["portfolio_name"],
-                        currency=row["portfolio_currency"],
-                        initial_investment=Dezimal(row["portfolio_investment"]),
-                        market_value=Dezimal(row["portfolio_value"]),
+                        currency=row["portfolio_currency"]
+                        if row["portfolio_currency"]
+                        else None,
+                        initial_investment=Dezimal(row["portfolio_investment"])
+                        if row["portfolio_investment"]
+                        else None,
+                        market_value=Dezimal(row["portfolio_value"])
+                        if row["portfolio_value"]
+                        else None,
                     )
                     if row["portfolio_id"]
                     else None,
@@ -715,11 +726,9 @@ class PositionSQLRepository(PositionPort):
             if not details:
                 return None
 
-            return FundInvestments(
-                details=details,
-            )
+            return FundInvestments(details)
 
-    def _get_factoring_investments(
+    def _get_factoring(
         self, global_position_id: UUID
     ) -> Optional[FactoringInvestments]:
         with self._db_client.read() as cursor:
@@ -747,11 +756,9 @@ class PositionSQLRepository(PositionPort):
             if not details:
                 return None
 
-            return FactoringInvestments(
-                details=details,
-            )
+            return FactoringInvestments(details)
 
-    def _get_real_state_cf_investments(
+    def _get_real_state_cf(
         self, global_position_id: UUID
     ) -> Optional[RealStateCFInvestments]:
         with self._db_client.read() as cursor:
@@ -781,11 +788,9 @@ class PositionSQLRepository(PositionPort):
             if not details:
                 return None
 
-            return RealStateCFInvestments(
-                details=details,
-            )
+            return RealStateCFInvestments(details)
 
-    def _get_deposit_investments(self, global_position_id: UUID) -> Optional[Deposits]:
+    def _get_deposits(self, global_position_id: UUID) -> Optional[Deposits]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM deposit_positions WHERE global_position_id = ?",
@@ -809,13 +814,9 @@ class PositionSQLRepository(PositionPort):
             if not details:
                 return None
 
-            return Deposits(
-                details=details,
-            )
+            return Deposits(details)
 
-    def _get_crowdlending_investments(
-        self, global_position_id: UUID
-    ) -> Optional[Crowdlending]:
+    def _get_crowdlending(self, global_position_id: UUID) -> Optional[Crowdlending]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM crowdlending_positions WHERE global_position_id = ?",
@@ -831,7 +832,7 @@ class PositionSQLRepository(PositionPort):
                 weighted_interest_rate=Dezimal(row["weighted_interest_rate"]),
                 currency=row["currency"],
                 distribution=json.loads(row["distribution"]),
-                details=[],
+                entries=[],
             )
 
     def _get_crypto_currency_token_positions(
@@ -863,7 +864,7 @@ class PositionSQLRepository(PositionPort):
                 for row in cursor
             ]
 
-    def _get_cryptocurrency_investments(
+    def _get_cryptocurrency(
         self, global_position_id: UUID
     ) -> Optional[CryptoCurrencies]:
         with self._db_client.read() as cursor:
@@ -904,26 +905,41 @@ class PositionSQLRepository(PositionPort):
             if not wallets:
                 return None
 
-            return CryptoCurrencies(
-                details=wallets,
-            )
+            return CryptoCurrencies(wallets)
 
-    def get_last_updated(self, entity_id: UUID) -> Optional[datetime]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                           SELECT MAX(date) as last_date
-                           FROM global_positions
-                           WHERE entity_id = ?
-                           """,
-                (str(entity_id),),
-            )
-
-            result = cursor.fetchone()
-            if not result or not result["last_date"]:
-                return None
-
-            return datetime.fromisoformat(result["last_date"])
+    def _get_product_positions(self, g_position_id: UUID) -> ProductPositions:
+        positions = {}
+        _store_position(
+            positions, g_position_id, ProductType.ACCOUNT, self._get_accounts
+        )
+        _store_position(positions, g_position_id, ProductType.CARD, self._get_cards)
+        _store_position(positions, g_position_id, ProductType.LOAN, self._get_loans)
+        _store_position(
+            positions, g_position_id, ProductType.STOCK_ETF, self._get_stocks
+        )
+        _store_position(positions, g_position_id, ProductType.FUND, self._get_funds)
+        _store_position(
+            positions,
+            g_position_id,
+            ProductType.FUND_PORTFOLIO,
+            self._get_fund_portfolios,
+        )
+        _store_position(
+            positions, g_position_id, ProductType.FACTORING, self._get_factoring
+        )
+        _store_position(
+            positions, g_position_id, ProductType.REAL_STATE_CF, self._get_real_state_cf
+        )
+        _store_position(
+            positions, g_position_id, ProductType.DEPOSIT, self._get_deposits
+        )
+        _store_position(
+            positions, g_position_id, ProductType.CROWDLENDING, self._get_crowdlending
+        )
+        _store_position(
+            positions, g_position_id, ProductType.CRYPTO, self._get_cryptocurrency
+        )
+        return positions
 
     def _get_entity_id_from_global(self, global_position_id: UUID) -> int:
         with self._db_client.read() as cursor:

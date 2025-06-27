@@ -5,7 +5,7 @@ from domain.entity import Entity
 from domain.global_position import GlobalPosition
 from domain.settings import (
     GoogleCredentials,
-    VirtualInvestmentSheetConfig,
+    VirtualPositionSheetConfig,
     VirtualTransactionSheetConfig,
 )
 from domain.transactions import Transactions
@@ -15,7 +15,7 @@ class VirtualFetcher(metaclass=abc.ABCMeta):
     async def global_positions(
         self,
         credentials: GoogleCredentials,
-        investment_sheets: list[VirtualInvestmentSheetConfig],
+        investment_sheets: list[VirtualPositionSheetConfig],
         existing_entities: dict[str, Entity],
     ) -> tuple[list[GlobalPosition], set[Entity]]:
         raise NotImplementedError

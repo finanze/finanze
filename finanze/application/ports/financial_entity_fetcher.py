@@ -3,8 +3,8 @@ import abc
 from domain.auto_contributions import AutoContributions
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.exception.exceptions import FeatureNotSupported
-from domain.global_position import GlobalPosition, HistoricalPosition
 from domain.fetch_result import FetchOptions
+from domain.global_position import GlobalPosition, HistoricalPosition
 from domain.transactions import Transactions
 
 

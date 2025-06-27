@@ -28,7 +28,7 @@ from domain.global_position import (
     CryptoCurrencyToken,
     CryptoCurrencyWallet,
     GlobalPosition,
-    Investments,
+    ProductType,
 )
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 
@@ -119,12 +119,12 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             wallet = self._update_market_value(wallet)
             wallets.append(wallet)
 
+        products = {ProductType.CRYPTO: CryptoCurrencies(wallets)}
+
         position = GlobalPosition(
             id=uuid4(),
             entity=entity,
-            investments=Investments(
-                crypto_currencies=CryptoCurrencies(details=wallets)
-            ),
+            products=products,
         )
 
         self._position_port.save(position)

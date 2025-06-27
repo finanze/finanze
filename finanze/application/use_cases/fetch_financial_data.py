@@ -32,9 +32,9 @@ from domain.fetch_result import (
     FetchResultCode,
 )
 from domain.fetched_data import FetchedData
-from domain.global_position import FactoringDetail, RealStateCFDetail
+from domain.global_position import FactoringDetail, ProductType, RealStateCFDetail
 from domain.historic import BaseHistoricEntry, FactoringEntry, RealStateCFEntry
-from domain.transactions import ProductType, TxType
+from domain.transactions import TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
 DEFAULT_FEATURES = [Feature.POSITION]
@@ -102,10 +102,10 @@ def compute_return_values(related_inv_txs):
 
 def _historic_inv_by_name(historical_position):
     investments_by_name = {}
-    for key, cat in asdict(historical_position.investments).items():
-        if not cat or "details" not in cat:
+    for product_type, position in asdict(historical_position.positions).items():
+        if not position or "entries" not in position:
             continue
-        investments = cat["details"]
+        investments = position["entries"]
         for inv in investments:
             inv_name = inv["name"]
             if inv_name in investments_by_name:
@@ -177,18 +177,26 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         async with lock:
             if Feature.POSITION in features:
                 update_cooldown = self._get_position_update_cooldown()
-                last_update = self._position_port.get_last_updated(entity_id)
+                last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
+                last_fetch = next(
+                    (
+                        record
+                        for record in last_fetch
+                        if record.feature == Feature.POSITION
+                    ),
+                    None,
+                )
+                if last_fetch:
+                    last_fetch = last_fetch.date
                 if (
-                    last_update
-                    and (datetime.now(tzlocal()) - last_update).seconds
-                    < update_cooldown
+                    last_fetch
+                    and (datetime.now(tzlocal()) - last_fetch).seconds < update_cooldown
                 ):
                     remaining_seconds = (
-                        update_cooldown
-                        - (datetime.now(tzlocal()) - last_update).seconds
+                        update_cooldown - (datetime.now(tzlocal()) - last_fetch).seconds
                     )
                     details = {
-                        "lastUpdate": last_update.astimezone(tzlocal()).isoformat(),
+                        "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
                         "wait": remaining_seconds,
                     }
                     return FetchResult(FetchResultCode.COOLDOWN, details=details)

@@ -14,15 +14,6 @@ def _migrate_v1_to_v2(data: dict) -> dict:
         sheets.pop("summary", None)
         if "investments" in sheets:
             sheets["position"] = sheets.pop("investments")
-            if isinstance(positions := sheets.get("position"), list):
-                for pos in positions:
-                    if data_field := pos.get("data"):
-                        if isinstance(data_field, str):
-                            pos["data"] = f"investments.{data_field}.details"
-                        elif isinstance(data_field, list):
-                            pos["data"] = [
-                                f"investments.{d}.details" for d in data_field
-                            ]
 
     data["version"] = 2
     return data

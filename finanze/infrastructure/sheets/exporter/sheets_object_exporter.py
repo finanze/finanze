@@ -143,7 +143,10 @@ def map_products(
                     path_tokens = field_path.split(".")
                     target_data = entity_data
                     for field in path_tokens:
-                        target_data = getattr(target_data, field)
+                        try:
+                            target_data = getattr(target_data, field)
+                        except AttributeError:
+                            target_data = target_data.get(field)
 
                     for product in target_data:
                         if not matches_filters(product, config):

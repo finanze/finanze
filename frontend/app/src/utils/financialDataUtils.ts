@@ -3,9 +3,8 @@ import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { ExchangeRates } from "@/types"
 
-/**
- * Convert amount from one currency to another using exchange rates
- */
+import { ProductType } from "@/types/position"
+
 export const convertCurrency = (
   amount: number,
   fromCurrency: string,
@@ -81,7 +80,7 @@ export interface CryptoPosition {
   formattedValue: string
   type: string
   change: number
-  entities: string[] // Changed from single entity to array of entities
+  entities: string[]
   showEntityBadge: boolean
   percentageOfTotalVariableRent: number
   id: string
@@ -106,9 +105,6 @@ export interface GroupedTransaction {
   entity: string
 }
 
-/**
- * Calculate asset distribution by asset type
- */
 export const getAssetDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency?: string,
@@ -123,20 +119,28 @@ export const getAssetDistribution = (
   let totalValue = 0
 
   Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.accounts && entityPosition.accounts.length > 0) {
-      const accountsTotal = entityPosition.accounts.reduce((sum, account) => {
-        const accountTotal = account.total || 0
-        const convertedTotal =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                accountTotal,
-                account.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : accountTotal
-        return sum + convertedTotal
-      }, 0)
+    const accountsProduct = entityPosition.products[ProductType.ACCOUNT]
+    if (
+      accountsProduct &&
+      "entries" in accountsProduct &&
+      accountsProduct.entries.length > 0
+    ) {
+      const accountsTotal = accountsProduct.entries.reduce(
+        (sum: number, account: any) => {
+          const accountTotal = account.total || 0
+          const convertedTotal =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  accountTotal,
+                  account.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : accountTotal
+          return sum + convertedTotal
+        },
+        0,
+      )
       if (accountsTotal > 0) {
         if (!assetTypes["CASH"]) {
           assetTypes["CASH"] = {
@@ -151,242 +155,254 @@ export const getAssetDistribution = (
       }
     }
 
-    if (entityPosition.investments) {
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details &&
-        entityPosition.investments.funds.details.length > 0
-      ) {
-        if (!assetTypes["FUND"]) {
-          assetTypes["FUND"] = {
-            type: "FUND",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      if (!assetTypes["FUND"]) {
+        assetTypes["FUND"] = {
+          type: "FUND",
+          value: 0,
+          percentage: 0,
+          change: 0,
         }
-        const fundsMarketValue =
-          entityPosition.investments.funds.details.reduce((sum, fund) => {
-            const marketValue = fund.market_value || 0
-            const convertedValue =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    marketValue,
-                    fund.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : marketValue
-            return sum + convertedValue
-          }, 0)
-        assetTypes["FUND"].value += fundsMarketValue
-        totalValue += fundsMarketValue
+      }
+      const fundsMarketValue = fundsProduct.entries.reduce(
+        (sum: number, fund: any) => {
+          const marketValue = fund.market_value || 0
+          const convertedValue =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  marketValue,
+                  fund.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : marketValue
+          return sum + convertedValue
+        },
+        0,
+      )
+      assetTypes["FUND"].value += fundsMarketValue
+      totalValue += fundsMarketValue
+    }
+
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      if (!assetTypes["STOCK_ETF"]) {
+        assetTypes["STOCK_ETF"] = {
+          type: "STOCK_ETF",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      const stocksMarketValue = stocksProduct.entries.reduce(
+        (sum: number, stock: any) => {
+          const marketValue = stock.market_value || 0
+          const convertedValue =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  marketValue,
+                  stock.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : marketValue
+          return sum + convertedValue
+        },
+        0,
+      )
+      assetTypes["STOCK_ETF"].value += stocksMarketValue
+      totalValue += stocksMarketValue
+    }
+
+    const depositsProduct = entityPosition.products[ProductType.DEPOSIT]
+    if (
+      depositsProduct &&
+      "entries" in depositsProduct &&
+      depositsProduct.entries.length > 0
+    ) {
+      if (!assetTypes["DEPOSIT"]) {
+        assetTypes["DEPOSIT"] = {
+          type: "DEPOSIT",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      const depositsTotal = depositsProduct.entries.reduce(
+        (sum: number, deposit: any) => {
+          const amount = deposit.amount || 0
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  amount,
+                  deposit.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : amount
+          return sum + convertedAmount
+        },
+        0,
+      )
+      assetTypes["DEPOSIT"].value += depositsTotal
+      totalValue += depositsTotal
+    }
+
+    const realStateCfProduct =
+      entityPosition.products[ProductType.REAL_STATE_CF]
+    if (
+      realStateCfProduct &&
+      "entries" in realStateCfProduct &&
+      realStateCfProduct.entries.length > 0
+    ) {
+      if (!assetTypes["REAL_STATE_CF"]) {
+        assetTypes["REAL_STATE_CF"] = {
+          type: "REAL_STATE_CF",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      const realStateCfTotal = realStateCfProduct.entries.reduce(
+        (sum: number, project: any) => {
+          const amount = project.amount || 0
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  amount,
+                  project.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : amount
+          return sum + convertedAmount
+        },
+        0,
+      )
+      assetTypes["REAL_STATE_CF"].value += realStateCfTotal
+      totalValue += realStateCfTotal
+    }
+
+    const factoringProduct = entityPosition.products[ProductType.FACTORING]
+    if (
+      factoringProduct &&
+      "entries" in factoringProduct &&
+      factoringProduct.entries.length > 0
+    ) {
+      if (!assetTypes["FACTORING"]) {
+        assetTypes["FACTORING"] = {
+          type: "FACTORING",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      const factoringTotal = factoringProduct.entries.reduce(
+        (sum: number, factoring: any) => {
+          const amount = factoring.amount || 0
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  amount,
+                  factoring.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : amount
+          return sum + convertedAmount
+        },
+        0,
+      )
+      assetTypes["FACTORING"].value += factoringTotal
+      totalValue += factoringTotal
+    }
+
+    const crowdlendingProduct =
+      entityPosition.products[ProductType.CROWDLENDING]
+    if (
+      crowdlendingProduct &&
+      "total" in crowdlendingProduct &&
+      crowdlendingProduct.total
+    ) {
+      if (!assetTypes["CROWDLENDING"]) {
+        assetTypes["CROWDLENDING"] = {
+          type: "CROWDLENDING",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      const crowdlendingTotal = crowdlendingProduct.total
+      const convertedCrowdlendingTotal =
+        targetCurrency && exchangeRates
+          ? convertCurrency(
+              crowdlendingTotal,
+              crowdlendingProduct.currency,
+              targetCurrency,
+              exchangeRates,
+            )
+          : crowdlendingTotal
+      assetTypes["CROWDLENDING"].value += convertedCrowdlendingTotal
+      totalValue += convertedCrowdlendingTotal
+    }
+
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
+    if (
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
+    ) {
+      if (!assetTypes["CRYPTO"]) {
+        assetTypes["CRYPTO"] = {
+          type: "CRYPTO",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
       }
 
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details &&
-        entityPosition.investments.stocks.details.length > 0
-      ) {
-        if (!assetTypes["STOCK_ETF"]) {
-          assetTypes["STOCK_ETF"] = {
-            type: "STOCK_ETF",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
+      cryptoProduct.entries.forEach((wallet: any) => {
+        if (wallet.market_value) {
+          const convertedValue =
+            targetCurrency && exchangeRates && wallet.currency
+              ? convertCurrency(
+                  wallet.market_value,
+                  wallet.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : wallet.market_value
+          assetTypes["CRYPTO"].value += convertedValue
+          totalValue += convertedValue
         }
-        const stocksMarketValue =
-          entityPosition.investments.stocks.details.reduce((sum, stock) => {
-            const marketValue = stock.market_value || 0
-            const convertedValue =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    marketValue,
-                    stock.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : marketValue
-            return sum + convertedValue
-          }, 0)
-        assetTypes["STOCK_ETF"].value += stocksMarketValue
-        totalValue += stocksMarketValue
-      }
 
-      if (
-        entityPosition.investments.deposits &&
-        entityPosition.investments.deposits.details &&
-        entityPosition.investments.deposits.details.length > 0
-      ) {
-        if (!assetTypes["DEPOSIT"]) {
-          assetTypes["DEPOSIT"] = {
-            type: "DEPOSIT",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
-        }
-        const depositsTotal =
-          entityPosition.investments.deposits.details.reduce((sum, deposit) => {
-            const amount = deposit.amount || 0
-            const convertedAmount =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    amount,
-                    deposit.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : amount
-            return sum + convertedAmount
-          }, 0)
-        assetTypes["DEPOSIT"].value += depositsTotal
-        totalValue += depositsTotal
-      }
-
-      if (
-        entityPosition.investments.real_state_cf &&
-        entityPosition.investments.real_state_cf.details &&
-        entityPosition.investments.real_state_cf.details.length > 0
-      ) {
-        if (!assetTypes["REAL_STATE_CF"]) {
-          assetTypes["REAL_STATE_CF"] = {
-            type: "REAL_STATE_CF",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
-        }
-        const realStateCfTotal =
-          entityPosition.investments.real_state_cf.details.reduce(
-            (sum, project) => {
-              const amount = project.amount || 0
-              const convertedAmount =
-                targetCurrency && exchangeRates
+        if (wallet.tokens) {
+          wallet.tokens.forEach((token: any) => {
+            if (token.market_value) {
+              const convertedTokenValue =
+                targetCurrency && exchangeRates && token.currency
                   ? convertCurrency(
-                      amount,
-                      project.currency,
+                      token.market_value,
+                      token.currency,
                       targetCurrency,
                       exchangeRates,
                     )
-                  : amount
-              return sum + convertedAmount
-            },
-            0,
-          )
-        assetTypes["REAL_STATE_CF"].value += realStateCfTotal
-        totalValue += realStateCfTotal
-      }
-
-      if (
-        entityPosition.investments.factoring &&
-        entityPosition.investments.factoring.details &&
-        entityPosition.investments.factoring.details.length > 0
-      ) {
-        if (!assetTypes["FACTORING"]) {
-          assetTypes["FACTORING"] = {
-            type: "FACTORING",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
+                  : token.market_value
+              assetTypes["CRYPTO"].value += convertedTokenValue
+              totalValue += convertedTokenValue
+            }
+          })
         }
-        const factoringTotal =
-          entityPosition.investments.factoring.details.reduce(
-            (sum, factoring) => {
-              const amount = factoring.amount || 0
-              const convertedAmount =
-                targetCurrency && exchangeRates
-                  ? convertCurrency(
-                      amount,
-                      factoring.currency,
-                      targetCurrency,
-                      exchangeRates,
-                    )
-                  : amount
-              return sum + convertedAmount
-            },
-            0,
-          )
-        assetTypes["FACTORING"].value += factoringTotal
-        totalValue += factoringTotal
-      }
-
-      if (
-        entityPosition.investments.crowdlending &&
-        entityPosition.investments.crowdlending.total
-      ) {
-        if (!assetTypes["CROWDLENDING"]) {
-          assetTypes["CROWDLENDING"] = {
-            type: "CROWDLENDING",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
-        }
-        const crowdlendingTotal = entityPosition.investments.crowdlending.total
-        const convertedCrowdlendingTotal =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                crowdlendingTotal,
-                entityPosition.investments.crowdlending.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : crowdlendingTotal
-        assetTypes["CROWDLENDING"].value += convertedCrowdlendingTotal
-        totalValue += convertedCrowdlendingTotal
-      }
-
-      if (
-        entityPosition.investments.crypto_currencies &&
-        entityPosition.investments.crypto_currencies.details
-      ) {
-        if (!assetTypes["CRYPTO"]) {
-          assetTypes["CRYPTO"] = {
-            type: "CRYPTO",
-            value: 0,
-            percentage: 0,
-            change: 0,
-          }
-        }
-
-        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
-          if (wallet.market_value) {
-            const convertedValue =
-              targetCurrency && exchangeRates && wallet.currency
-                ? convertCurrency(
-                    wallet.market_value,
-                    wallet.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : wallet.market_value
-            assetTypes["CRYPTO"].value += convertedValue
-            totalValue += convertedValue
-          }
-
-          // Include tokens if they exist
-          if (wallet.tokens) {
-            wallet.tokens.forEach(token => {
-              if (token.market_value) {
-                const convertedTokenValue =
-                  targetCurrency && exchangeRates && token.currency
-                    ? convertCurrency(
-                        token.market_value,
-                        token.currency,
-                        targetCurrency,
-                        exchangeRates,
-                      )
-                    : token.market_value
-                assetTypes["CRYPTO"].value += convertedTokenValue
-                totalValue += convertedTokenValue
-              }
-            })
-          }
-        })
-      }
+      })
     }
   })
 
@@ -398,9 +414,6 @@ export const getAssetDistribution = (
   return Object.values(assetTypes).sort((a, b) => b.value - a.value)
 }
 
-/**
- * Calculate asset distribution by entity
- */
 export const getEntityDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency?: string,
@@ -420,196 +433,214 @@ export const getEntityDistribution = (
 
     let entityTotal = 0
 
-    // Calculate cash from accounts
-    if (entityPosition.accounts && entityPosition.accounts.length > 0) {
-      const accountsTotal = entityPosition.accounts.reduce((sum, account) => {
-        const accountTotal = account.total || 0
-        const convertedTotal =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                accountTotal,
-                account.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : accountTotal
-        return sum + convertedTotal
-      }, 0)
+    const accountsProduct = entityPosition.products[ProductType.ACCOUNT]
+    if (
+      accountsProduct &&
+      "entries" in accountsProduct &&
+      accountsProduct.entries.length > 0
+    ) {
+      const accountsTotal = accountsProduct.entries.reduce(
+        (sum: number, account: any) => {
+          const accountTotal = account.total || 0
+          const convertedTotal =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  accountTotal,
+                  account.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : accountTotal
+          return sum + convertedTotal
+        },
+        0,
+      )
       entityTotal += accountsTotal
     }
 
-    // Calculate investments
-    if (entityPosition.investments) {
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details &&
-        entityPosition.investments.funds.details.length > 0
-      ) {
-        const fundsMarketValue =
-          entityPosition.investments.funds.details.reduce((sum, fund) => {
-            const marketValue = fund.market_value || 0
-            const convertedValue =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    marketValue,
-                    fund.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : marketValue
-            return sum + convertedValue
-          }, 0)
-        entityTotal += fundsMarketValue
-      }
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      const fundsMarketValue = fundsProduct.entries.reduce(
+        (sum: number, fund: any) => {
+          const marketValue = fund.market_value || 0
+          const convertedValue =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  marketValue,
+                  fund.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : marketValue
+          return sum + convertedValue
+        },
+        0,
+      )
+      entityTotal += fundsMarketValue
+    }
 
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details &&
-        entityPosition.investments.stocks.details.length > 0
-      ) {
-        const stocksMarketValue =
-          entityPosition.investments.stocks.details.reduce((sum, stock) => {
-            const marketValue = stock.market_value || 0
-            const convertedValue =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    marketValue,
-                    stock.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : marketValue
-            return sum + convertedValue
-          }, 0)
-        entityTotal += stocksMarketValue
-      }
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      const stocksMarketValue = stocksProduct.entries.reduce(
+        (sum: number, stock: any) => {
+          const marketValue = stock.market_value || 0
+          const convertedValue =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  marketValue,
+                  stock.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : marketValue
+          return sum + convertedValue
+        },
+        0,
+      )
+      entityTotal += stocksMarketValue
+    }
 
-      if (
-        entityPosition.investments.deposits &&
-        entityPosition.investments.deposits.details &&
-        entityPosition.investments.deposits.details.length > 0
-      ) {
-        const depositsTotal =
-          entityPosition.investments.deposits.details.reduce((sum, deposit) => {
-            const amount = deposit.amount || 0
-            const convertedAmount =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    amount,
-                    deposit.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : amount
-            return sum + convertedAmount
-          }, 0)
-        entityTotal += depositsTotal
-      }
+    const depositsProduct = entityPosition.products[ProductType.DEPOSIT]
+    if (
+      depositsProduct &&
+      "entries" in depositsProduct &&
+      depositsProduct.entries.length > 0
+    ) {
+      const depositsTotal = depositsProduct.entries.reduce(
+        (sum: number, deposit: any) => {
+          const amount = deposit.amount || 0
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  amount,
+                  deposit.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : amount
+          return sum + convertedAmount
+        },
+        0,
+      )
+      entityTotal += depositsTotal
+    }
 
-      if (
-        entityPosition.investments.real_state_cf &&
-        entityPosition.investments.real_state_cf.details &&
-        entityPosition.investments.real_state_cf.details.length > 0
-      ) {
-        const realStateCfTotal =
-          entityPosition.investments.real_state_cf.details.reduce(
-            (sum, project) => {
-              const amount = project.amount || 0
-              const convertedAmount =
-                targetCurrency && exchangeRates
+    const realStateCfProduct =
+      entityPosition.products[ProductType.REAL_STATE_CF]
+    if (
+      realStateCfProduct &&
+      "entries" in realStateCfProduct &&
+      realStateCfProduct.entries.length > 0
+    ) {
+      const realStateCfTotal = realStateCfProduct.entries.reduce(
+        (sum: number, project: any) => {
+          const amount = project.amount || 0
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  amount,
+                  project.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : amount
+          return sum + convertedAmount
+        },
+        0,
+      )
+      entityTotal += realStateCfTotal
+    }
+
+    const factoringProduct = entityPosition.products[ProductType.FACTORING]
+    if (
+      factoringProduct &&
+      "entries" in factoringProduct &&
+      factoringProduct.entries.length > 0
+    ) {
+      const factoringTotal = factoringProduct.entries.reduce(
+        (sum: number, factoring: any) => {
+          const amount = factoring.amount || 0
+          const convertedAmount =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  amount,
+                  factoring.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : amount
+          return sum + convertedAmount
+        },
+        0,
+      )
+      entityTotal += factoringTotal
+    }
+
+    const crowdlendingProduct =
+      entityPosition.products[ProductType.CROWDLENDING]
+    if (
+      crowdlendingProduct &&
+      "total" in crowdlendingProduct &&
+      crowdlendingProduct.total
+    ) {
+      const amount = crowdlendingProduct.total
+      const convertedAmount =
+        targetCurrency && exchangeRates
+          ? convertCurrency(
+              amount,
+              crowdlendingProduct.currency,
+              targetCurrency,
+              exchangeRates,
+            )
+          : amount
+      entityTotal += convertedAmount
+    }
+
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
+    if (
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
+    ) {
+      cryptoProduct.entries.forEach((wallet: any) => {
+        if (wallet.market_value) {
+          const convertedValue =
+            targetCurrency && exchangeRates && wallet.currency
+              ? convertCurrency(
+                  wallet.market_value,
+                  wallet.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : wallet.market_value
+          entityTotal += convertedValue
+        }
+
+        if (wallet.tokens) {
+          wallet.tokens.forEach((token: any) => {
+            if (token.market_value) {
+              const convertedTokenValue =
+                targetCurrency && exchangeRates && token.currency
                   ? convertCurrency(
-                      amount,
-                      project.currency,
+                      token.market_value,
+                      token.currency,
                       targetCurrency,
                       exchangeRates,
                     )
-                  : amount
-              return sum + convertedAmount
-            },
-            0,
-          )
-        entityTotal += realStateCfTotal
-      }
-
-      if (
-        entityPosition.investments.factoring &&
-        entityPosition.investments.factoring.details &&
-        entityPosition.investments.factoring.details.length > 0
-      ) {
-        const factoringTotal =
-          entityPosition.investments.factoring.details.reduce(
-            (sum, factoring) => {
-              const amount = factoring.amount || 0
-              const convertedAmount =
-                targetCurrency && exchangeRates
-                  ? convertCurrency(
-                      amount,
-                      factoring.currency,
-                      targetCurrency,
-                      exchangeRates,
-                    )
-                  : amount
-              return sum + convertedAmount
-            },
-            0,
-          )
-        entityTotal += factoringTotal
-      }
-
-      if (
-        entityPosition.investments.crowdlending &&
-        entityPosition.investments.crowdlending.total
-      ) {
-        const amount = entityPosition.investments.crowdlending.total
-        const convertedAmount =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                amount,
-                entityPosition.investments.crowdlending.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : amount
-        entityTotal += convertedAmount
-      }
-
-      if (
-        entityPosition.investments.crypto_currencies &&
-        entityPosition.investments.crypto_currencies.details
-      ) {
-        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
-          if (wallet.market_value) {
-            const convertedValue =
-              targetCurrency && exchangeRates && wallet.currency
-                ? convertCurrency(
-                    wallet.market_value,
-                    wallet.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : wallet.market_value
-            entityTotal += convertedValue
-          }
-
-          // Include tokens if they exist
-          if (wallet.tokens) {
-            wallet.tokens.forEach(token => {
-              if (token.market_value) {
-                const convertedTokenValue =
-                  targetCurrency && exchangeRates && token.currency
-                    ? convertCurrency(
-                        token.market_value,
-                        token.currency,
-                        targetCurrency,
-                        exchangeRates,
-                      )
-                    : token.market_value
-                entityTotal += convertedTokenValue
-              }
-            })
-          }
-        })
-      }
+                  : token.market_value
+              entityTotal += convertedTokenValue
+            }
+          })
+        }
+      })
     }
 
     if (entityTotal > 0) {
@@ -623,24 +654,19 @@ export const getEntityDistribution = (
     }
   })
 
-  // Calculate percentages with proper rounding to ensure they sum to 100%
   if (totalValue > 0) {
     const entityList = Object.values(entities)
     let remainingPercentage = 100
 
-    // Calculate exact percentages first
     const exactPercentages = entityList.map(entity => ({
       entity,
       exactPercentage: (entity.value / totalValue) * 100,
     }))
 
-    // Sort by exact percentage descending to allocate largest percentages first
     exactPercentages.sort((a, b) => b.exactPercentage - a.exactPercentage)
 
-    // Assign rounded percentages, keeping track of remainder
     exactPercentages.forEach((item, index) => {
       if (index === exactPercentages.length - 1) {
-        // Last item gets the remaining percentage to ensure sum is 100%
         item.entity.percentage = remainingPercentage
       } else {
         const roundedPercentage = Math.round(item.exactPercentage)
@@ -657,9 +683,6 @@ export const getEntityDistribution = (
   return Object.values(entities).sort((a, b) => b.value - a.value)
 }
 
-/**
- * Calculate total assets value
- */
 export const getTotalAssets = (
   positionsData: EntitiesPosition | null,
   targetCurrency?: string,
@@ -670,276 +693,89 @@ export const getTotalAssets = (
   let total = 0
 
   Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.accounts) {
-      entityPosition.accounts.forEach(account => {
-        const accountTotal = account.total || 0
-        const convertedTotal =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                accountTotal,
-                account.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : accountTotal
-        total += convertedTotal
-      })
-    }
-
-    if (entityPosition.investments) {
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details &&
-        entityPosition.investments.funds.details.length > 0
-      ) {
-        const fundsMarketValue =
-          entityPosition.investments.funds.details.reduce((sum, fund) => {
-            const marketValue = fund.market_value || 0
-            const convertedValue =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    marketValue,
-                    fund.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : marketValue
-            return sum + convertedValue
-          }, 0)
-        total += fundsMarketValue
-      }
-
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details &&
-        entityPosition.investments.stocks.details.length > 0
-      ) {
-        const stocksMarketValue =
-          entityPosition.investments.stocks.details.reduce((sum, stock) => {
-            const marketValue = stock.market_value || 0
-            const convertedValue =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    marketValue,
-                    stock.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : marketValue
-            return sum + convertedValue
-          }, 0)
-        total += stocksMarketValue
-      }
-
-      if (
-        entityPosition.investments.deposits &&
-        entityPosition.investments.deposits.details &&
-        entityPosition.investments.deposits.details.length > 0
-      ) {
-        const depositsTotal =
-          entityPosition.investments.deposits.details.reduce((sum, deposit) => {
-            const amount = deposit.amount || 0
-            const convertedAmount =
-              targetCurrency && exchangeRates
-                ? convertCurrency(
-                    amount,
-                    deposit.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : amount
-            return sum + convertedAmount
-          }, 0)
-        total += depositsTotal
-      }
-
-      if (
-        entityPosition.investments.real_state_cf &&
-        entityPosition.investments.real_state_cf.details &&
-        entityPosition.investments.real_state_cf.details.length > 0
-      ) {
-        const realStateCfTotal =
-          entityPosition.investments.real_state_cf.details.reduce(
-            (sum, project) => {
-              const amount = project.amount || 0
-              const convertedAmount =
-                targetCurrency && exchangeRates
-                  ? convertCurrency(
-                      amount,
-                      project.currency,
-                      targetCurrency,
-                      exchangeRates,
-                    )
-                  : amount
-              return sum + convertedAmount
-            },
-            0,
-          )
-        total += realStateCfTotal
-      }
-
-      if (
-        entityPosition.investments.factoring &&
-        entityPosition.investments.factoring.details &&
-        entityPosition.investments.factoring.details.length > 0
-      ) {
-        const factoringTotal =
-          entityPosition.investments.factoring.details.reduce(
-            (sum, factoring) => {
-              const amount = factoring.amount || 0
-              const convertedAmount =
-                targetCurrency && exchangeRates
-                  ? convertCurrency(
-                      amount,
-                      factoring.currency,
-                      targetCurrency,
-                      exchangeRates,
-                    )
-                  : amount
-              return sum + convertedAmount
-            },
-            0,
-          )
-        total += factoringTotal
-      }
-
-      if (
-        entityPosition.investments.crowdlending &&
-        entityPosition.investments.crowdlending.total
-      ) {
-        const amount = entityPosition.investments.crowdlending.total
-        const convertedAmount =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                amount,
-                entityPosition.investments.crowdlending.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : amount
-        total += convertedAmount
-      }
-
-      if (
-        entityPosition.investments.crypto_currencies &&
-        entityPosition.investments.crypto_currencies.details
-      ) {
-        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
-          if (wallet.market_value) {
-            const convertedValue =
-              targetCurrency && exchangeRates && wallet.currency
-                ? convertCurrency(
-                    wallet.market_value,
-                    wallet.currency,
-                    targetCurrency,
-                    exchangeRates,
-                  )
-                : wallet.market_value
-            total += convertedValue
-          }
-
-          // Include tokens if they exist
-          if (wallet.tokens) {
-            wallet.tokens.forEach(token => {
-              if (token.market_value) {
-                const convertedTokenValue =
-                  targetCurrency && exchangeRates && token.currency
-                    ? convertCurrency(
-                        token.market_value,
-                        token.currency,
-                        targetCurrency,
-                        exchangeRates,
-                      )
-                    : token.market_value
-                total += convertedTokenValue
-              }
-            })
-          }
-        })
-      }
-    }
-  })
-
-  return total
-}
-
-/**
- * Calculate total invested amount
- */
-export const getTotalInvestedAmount = (
-  positionsData: EntitiesPosition | null,
-  targetCurrency?: string,
-  exchangeRates?: ExchangeRates | null,
-): number => {
-  if (!positionsData || !positionsData.positions) return 0
-
-  let totalInvested = 0
-
-  Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.accounts) {
-      entityPosition.accounts.forEach(account => {
-        const accountTotal = account.total || 0
-        const convertedTotal =
-          targetCurrency && exchangeRates
-            ? convertCurrency(
-                accountTotal,
-                account.currency,
-                targetCurrency,
-                exchangeRates,
-              )
-            : accountTotal
-        totalInvested += convertedTotal
-      })
-    }
-
-    if (entityPosition.investments) {
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details
-      ) {
-        entityPosition.investments.funds.details.forEach(fund => {
-          const amount = fund.initial_investment || fund.market_value || 0
-          const convertedAmount =
+    const accountsProduct = entityPosition.products[ProductType.ACCOUNT]
+    if (
+      accountsProduct &&
+      "entries" in accountsProduct &&
+      accountsProduct.entries.length > 0
+    ) {
+      const accountsTotal = accountsProduct.entries.reduce(
+        (sum: number, account: any) => {
+          const accountTotal = account.total || 0
+          const convertedTotal =
             targetCurrency && exchangeRates
               ? convertCurrency(
-                  amount,
+                  accountTotal,
+                  account.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : accountTotal
+          return sum + convertedTotal
+        },
+        0,
+      )
+      total += accountsTotal
+    }
+
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      const fundsMarketValue = fundsProduct.entries.reduce(
+        (sum: number, fund: any) => {
+          const marketValue = fund.market_value || 0
+          const convertedValue =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  marketValue,
                   fund.currency,
                   targetCurrency,
                   exchangeRates,
                 )
-              : amount
-          totalInvested += convertedAmount
-        })
-      }
+              : marketValue
+          return sum + convertedValue
+        },
+        0,
+      )
+      total += fundsMarketValue
+    }
 
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details
-      ) {
-        entityPosition.investments.stocks.details.forEach(stock => {
-          const amount =
-            stock.initial_investment ||
-            (stock.shares && stock.average_buy_price
-              ? stock.shares * stock.average_buy_price
-              : stock.market_value || 0)
-          const convertedAmount =
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      const stocksMarketValue = stocksProduct.entries.reduce(
+        (sum: number, stock: any) => {
+          const marketValue = stock.market_value || 0
+          const convertedValue =
             targetCurrency && exchangeRates
               ? convertCurrency(
-                  amount,
+                  marketValue,
                   stock.currency,
                   targetCurrency,
                   exchangeRates,
                 )
-              : amount
-          totalInvested += convertedAmount
-        })
-      }
+              : marketValue
+          return sum + convertedValue
+        },
+        0,
+      )
+      total += stocksMarketValue
+    }
 
-      if (
-        entityPosition.investments.deposits &&
-        entityPosition.investments.deposits.details
-      ) {
-        entityPosition.investments.deposits.details.forEach(deposit => {
+    const depositsProduct = entityPosition.products[ProductType.DEPOSIT]
+    if (
+      depositsProduct &&
+      "entries" in depositsProduct &&
+      depositsProduct.entries.length > 0
+    ) {
+      const depositsTotal = depositsProduct.entries.reduce(
+        (sum: number, deposit: any) => {
           const amount = deposit.amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
@@ -950,15 +786,22 @@ export const getTotalInvestedAmount = (
                   exchangeRates,
                 )
               : amount
-          totalInvested += convertedAmount
-        })
-      }
+          return sum + convertedAmount
+        },
+        0,
+      )
+      total += depositsTotal
+    }
 
-      if (
-        entityPosition.investments.real_state_cf &&
-        entityPosition.investments.real_state_cf.details
-      ) {
-        entityPosition.investments.real_state_cf.details.forEach(project => {
+    const realStateCfProduct =
+      entityPosition.products[ProductType.REAL_STATE_CF]
+    if (
+      realStateCfProduct &&
+      "entries" in realStateCfProduct &&
+      realStateCfProduct.entries.length > 0
+    ) {
+      const realStateCfTotal = realStateCfProduct.entries.reduce(
+        (sum: number, project: any) => {
           const amount = project.amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
@@ -969,15 +812,21 @@ export const getTotalInvestedAmount = (
                   exchangeRates,
                 )
               : amount
-          totalInvested += convertedAmount
-        })
-      }
+          return sum + convertedAmount
+        },
+        0,
+      )
+      total += realStateCfTotal
+    }
 
-      if (
-        entityPosition.investments.factoring &&
-        entityPosition.investments.factoring.details
-      ) {
-        entityPosition.investments.factoring.details.forEach(factoring => {
+    const factoringProduct = entityPosition.products[ProductType.FACTORING]
+    if (
+      factoringProduct &&
+      "entries" in factoringProduct &&
+      factoringProduct.entries.length > 0
+    ) {
+      const factoringTotal = factoringProduct.entries.reduce(
+        (sum: number, factoring: any) => {
           const amount = factoring.amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
@@ -988,77 +837,290 @@ export const getTotalInvestedAmount = (
                   exchangeRates,
                 )
               : amount
-          totalInvested += convertedAmount
-        })
-      }
+          return sum + convertedAmount
+        },
+        0,
+      )
+      total += factoringTotal
+    }
 
-      if (
-        entityPosition.investments.crowdlending &&
-        entityPosition.investments.crowdlending.details
-      ) {
-        entityPosition.investments.crowdlending.details.forEach(loan => {
-          const amount = loan.amount || 0
-          const convertedAmount =
-            targetCurrency &&
-            exchangeRates &&
-            entityPosition.investments?.crowdlending?.currency
-              ? convertCurrency(
-                  amount,
-                  entityPosition.investments.crowdlending.currency,
-                  targetCurrency,
-                  exchangeRates,
-                )
-              : amount
-          totalInvested += convertedAmount
-        })
-      }
+    const crowdlendingProduct =
+      entityPosition.products[ProductType.CROWDLENDING]
+    if (
+      crowdlendingProduct &&
+      "total" in crowdlendingProduct &&
+      crowdlendingProduct.total
+    ) {
+      const amount = crowdlendingProduct.total
+      const convertedAmount =
+        targetCurrency && exchangeRates
+          ? convertCurrency(
+              amount,
+              crowdlendingProduct.currency,
+              targetCurrency,
+              exchangeRates,
+            )
+          : amount
+      total += convertedAmount
+    }
 
-      if (
-        entityPosition.investments.crypto_currencies &&
-        entityPosition.investments.crypto_currencies.details
-      ) {
-        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
-          const walletAmount =
-            wallet.initial_investment || wallet.market_value || 0
-          const convertedWalletAmount =
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
+    if (
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
+    ) {
+      cryptoProduct.entries.forEach((wallet: any) => {
+        if (wallet.market_value) {
+          const convertedValue =
             targetCurrency && exchangeRates && wallet.currency
               ? convertCurrency(
-                  walletAmount,
+                  wallet.market_value,
                   wallet.currency,
                   targetCurrency,
                   exchangeRates,
                 )
-              : walletAmount
-          totalInvested += convertedWalletAmount
+              : wallet.market_value
+          total += convertedValue
+        }
 
-          // Include tokens if they exist
-          if (wallet.tokens) {
-            wallet.tokens.forEach(token => {
-              const tokenAmount =
-                token.initial_investment || token.market_value || 0
-              const convertedTokenAmount =
+        if (wallet.tokens) {
+          wallet.tokens.forEach((token: any) => {
+            if (token.market_value) {
+              const convertedTokenValue =
                 targetCurrency && exchangeRates && token.currency
                   ? convertCurrency(
-                      tokenAmount,
+                      token.market_value,
                       token.currency,
                       targetCurrency,
                       exchangeRates,
                     )
-                  : tokenAmount
-              totalInvested += convertedTokenAmount
-            })
-          }
-        })
-      }
+                  : token.market_value
+              total += convertedTokenValue
+            }
+          })
+        }
+      })
+    }
+  })
+
+  return total
+}
+
+export const getTotalInvestedAmount = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency?: string,
+  exchangeRates?: ExchangeRates | null,
+): number => {
+  if (!positionsData || !positionsData.positions) return 0
+
+  let totalInvested = 0
+
+  Object.values(positionsData.positions).forEach(entityPosition => {
+    const accountsProduct = entityPosition.products[ProductType.ACCOUNT]
+    if (
+      accountsProduct &&
+      "entries" in accountsProduct &&
+      accountsProduct.entries.length > 0
+    ) {
+      const accountsTotal = accountsProduct.entries.reduce(
+        (sum: number, account: any) => {
+          const accountTotal = account.total || 0
+          const convertedTotal =
+            targetCurrency && exchangeRates
+              ? convertCurrency(
+                  accountTotal,
+                  account.currency,
+                  targetCurrency,
+                  exchangeRates,
+                )
+              : accountTotal
+          return sum + convertedTotal
+        },
+        0,
+      )
+      totalInvested += accountsTotal
+    }
+
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      fundsProduct.entries.forEach((fund: any) => {
+        const amount = fund.initial_investment || fund.market_value || 0
+        const convertedAmount =
+          targetCurrency && exchangeRates
+            ? convertCurrency(
+                amount,
+                fund.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : amount
+        totalInvested += convertedAmount
+      })
+    }
+
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      stocksProduct.entries.forEach((stock: any) => {
+        const amount =
+          stock.initial_investment ||
+          (stock.shares && stock.average_buy_price
+            ? stock.shares * stock.average_buy_price
+            : stock.market_value || 0)
+        const convertedAmount =
+          targetCurrency && exchangeRates
+            ? convertCurrency(
+                amount,
+                stock.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : amount
+        totalInvested += convertedAmount
+      })
+    }
+
+    const depositsProduct = entityPosition.products[ProductType.DEPOSIT]
+    if (
+      depositsProduct &&
+      "entries" in depositsProduct &&
+      depositsProduct.entries.length > 0
+    ) {
+      depositsProduct.entries.forEach((deposit: any) => {
+        const amount = deposit.amount || 0
+        const convertedAmount =
+          targetCurrency && exchangeRates
+            ? convertCurrency(
+                amount,
+                deposit.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : amount
+        totalInvested += convertedAmount
+      })
+    }
+
+    const realStateCfProduct =
+      entityPosition.products[ProductType.REAL_STATE_CF]
+    if (
+      realStateCfProduct &&
+      "entries" in realStateCfProduct &&
+      realStateCfProduct.entries.length > 0
+    ) {
+      realStateCfProduct.entries.forEach((project: any) => {
+        const amount = project.amount || 0
+        const convertedAmount =
+          targetCurrency && exchangeRates
+            ? convertCurrency(
+                amount,
+                project.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : amount
+        totalInvested += convertedAmount
+      })
+    }
+
+    const factoringProduct = entityPosition.products[ProductType.FACTORING]
+    if (
+      factoringProduct &&
+      "entries" in factoringProduct &&
+      factoringProduct.entries.length > 0
+    ) {
+      factoringProduct.entries.forEach((factoring: any) => {
+        const amount = factoring.amount || 0
+        const convertedAmount =
+          targetCurrency && exchangeRates
+            ? convertCurrency(
+                amount,
+                factoring.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : amount
+        totalInvested += convertedAmount
+      })
+    }
+
+    const crowdlendingProduct =
+      entityPosition.products[ProductType.CROWDLENDING]
+    if (
+      crowdlendingProduct &&
+      "details" in crowdlendingProduct &&
+      crowdlendingProduct.details &&
+      Array.isArray(crowdlendingProduct.details)
+    ) {
+      crowdlendingProduct.details.forEach((loan: any) => {
+        const amount = loan.amount || 0
+        const convertedAmount =
+          targetCurrency &&
+          exchangeRates &&
+          "currency" in crowdlendingProduct &&
+          crowdlendingProduct.currency
+            ? convertCurrency(
+                amount,
+                crowdlendingProduct.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : amount
+        totalInvested += convertedAmount
+      })
+    }
+
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
+    if (
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
+    ) {
+      cryptoProduct.entries.forEach((wallet: any) => {
+        const walletAmount =
+          wallet.initial_investment || wallet.market_value || 0
+        const convertedWalletAmount =
+          targetCurrency && exchangeRates && wallet.currency
+            ? convertCurrency(
+                walletAmount,
+                wallet.currency,
+                targetCurrency,
+                exchangeRates,
+              )
+            : walletAmount
+        totalInvested += convertedWalletAmount
+
+        if (wallet.tokens) {
+          wallet.tokens.forEach((token: any) => {
+            const tokenAmount =
+              token.initial_investment || token.market_value || 0
+            const convertedTokenAmount =
+              targetCurrency && exchangeRates && token.currency
+                ? convertCurrency(
+                    tokenAmount,
+                    token.currency,
+                    targetCurrency,
+                    exchangeRates,
+                  )
+                : tokenAmount
+            totalInvested += convertedTokenAmount
+          })
+        }
+      })
     }
   })
 
   return totalInvested
 }
 
-/**
- * Get ongoing projects (deposits, real estate, factoring with maturity dates)
- */
 export const getOngoingProjects = (
   positionsData: EntitiesPosition | null,
   locale: string,
@@ -1069,81 +1131,86 @@ export const getOngoingProjects = (
   const projects: OngoingProject[] = []
 
   Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.investments) {
-      if (
-        entityPosition.investments.deposits &&
-        entityPosition.investments.deposits.details
-      ) {
-        entityPosition.investments.deposits.details.forEach(deposit => {
-          if (deposit.maturity) {
-            projects.push({
-              name: deposit.name || "Deposit",
-              type: "DEPOSIT",
-              value: deposit.amount,
-              currency: deposit.currency,
-              formattedValue: formatCurrency(
-                deposit.amount,
-                locale,
-                defaultCurrency,
-                deposit.currency,
-              ),
-              roi: deposit.interest_rate * 100,
-              maturity: deposit.maturity,
-              entity: entityPosition.entity?.name || "Unknown",
-            })
-          }
-        })
-      }
+    const depositsProduct = entityPosition.products[ProductType.DEPOSIT]
+    if (
+      depositsProduct &&
+      "entries" in depositsProduct &&
+      depositsProduct.entries.length > 0
+    ) {
+      depositsProduct.entries.forEach((deposit: any) => {
+        if (deposit.maturity) {
+          projects.push({
+            name: deposit.name || "Deposit",
+            type: "DEPOSIT",
+            value: deposit.amount,
+            currency: deposit.currency,
+            formattedValue: formatCurrency(
+              deposit.amount,
+              locale,
+              defaultCurrency,
+              deposit.currency,
+            ),
+            roi: deposit.interest_rate * 100,
+            maturity: deposit.maturity,
+            entity: entityPosition.entity?.name || "Unknown",
+          })
+        }
+      })
+    }
 
-      if (
-        entityPosition.investments.real_state_cf &&
-        entityPosition.investments.real_state_cf.details
-      ) {
-        entityPosition.investments.real_state_cf.details.forEach(project => {
-          if (project.maturity) {
-            projects.push({
-              name: project.name,
-              type: "REAL_STATE_CF",
-              value: project.amount,
-              currency: project.currency,
-              formattedValue: formatCurrency(
-                project.amount,
-                locale,
-                defaultCurrency,
-                project.currency,
-              ),
-              roi: project.interest_rate * 100,
-              maturity: project.maturity,
-              entity: entityPosition.entity?.name || "Unknown",
-            })
-          }
-        })
-      }
+    const realStateCfProduct =
+      entityPosition.products[ProductType.REAL_STATE_CF]
+    if (
+      realStateCfProduct &&
+      "entries" in realStateCfProduct &&
+      realStateCfProduct.entries.length > 0
+    ) {
+      realStateCfProduct.entries.forEach((project: any) => {
+        if (project.maturity) {
+          projects.push({
+            name: project.name,
+            type: "REAL_STATE_CF",
+            value: project.amount,
+            currency: project.currency,
+            formattedValue: formatCurrency(
+              project.amount,
+              locale,
+              defaultCurrency,
+              project.currency,
+            ),
+            roi: project.interest_rate * 100,
+            maturity: project.maturity,
+            entity: entityPosition.entity?.name || "Unknown",
+          })
+        }
+      })
+    }
 
-      if (
-        entityPosition.investments.factoring &&
-        entityPosition.investments.factoring.details
-      ) {
-        entityPosition.investments.factoring.details.forEach(factoring => {
-          if (factoring.maturity) {
-            projects.push({
-              name: factoring.name,
-              type: "FACTORING",
-              value: factoring.amount,
-              currency: factoring.currency,
-              formattedValue: formatCurrency(
-                factoring.amount,
-                locale,
-                defaultCurrency,
-                factoring.currency,
-              ),
-              roi: factoring.interest_rate * 100,
-              maturity: factoring.maturity,
-              entity: entityPosition.entity?.name || "Unknown",
-            })
-          }
-        })
-      }
+    const factoringProduct = entityPosition.products[ProductType.FACTORING]
+    if (
+      factoringProduct &&
+      "entries" in factoringProduct &&
+      factoringProduct.entries.length > 0
+    ) {
+      factoringProduct.entries.forEach((factoring: any) => {
+        if (factoring.maturity) {
+          projects.push({
+            name: factoring.name,
+            type: "FACTORING",
+            value: factoring.amount,
+            currency: factoring.currency,
+            formattedValue: formatCurrency(
+              factoring.amount,
+              locale,
+              defaultCurrency,
+              factoring.currency,
+            ),
+            roi: factoring.interest_rate * 100,
+            maturity: factoring.maturity,
+            entity: entityPosition.entity?.name || "Unknown",
+          })
+        }
+      })
     }
   })
 
@@ -1154,9 +1221,6 @@ export const getOngoingProjects = (
     .slice(0, 12)
 }
 
-/**
- * Get stock and fund positions
- */
 export const getStockAndFundPositions = (
   positionsData: EntitiesPosition | null,
   locale: string,
@@ -1168,143 +1232,142 @@ export const getStockAndFundPositions = (
   const allPositionsRaw: any[] = []
   let totalVariableRentValue = 0
 
-  // First pass: calculate total variable rent value (stocks + funds + crypto)
   Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.investments) {
-      // Add stocks value
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details
-      ) {
-        entityPosition.investments.stocks.details.forEach(stock => {
-          const stockValue = stock.market_value || 0
-          const convertedStockValue = exchangeRates
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      stocksProduct.entries.forEach((stock: any) => {
+        const stockValue = stock.market_value || 0
+        const convertedStockValue = exchangeRates
+          ? convertCurrency(
+              stockValue,
+              stock.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : stockValue
+        totalVariableRentValue += convertedStockValue
+      })
+    }
+
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      fundsProduct.entries.forEach((fund: any) => {
+        const fundValue = fund.market_value || 0
+        const convertedFundValue = exchangeRates
+          ? convertCurrency(
+              fundValue,
+              fund.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : fundValue
+        totalVariableRentValue += convertedFundValue
+      })
+    }
+
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
+    if (
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
+    ) {
+      cryptoProduct.entries.forEach((wallet: any) => {
+        const walletValue = wallet.market_value || 0
+        const convertedWalletValue =
+          exchangeRates && wallet.currency
             ? convertCurrency(
-                stockValue,
-                stock.currency,
+                walletValue,
+                wallet.currency,
                 defaultCurrency,
                 exchangeRates,
               )
-            : stockValue
-          totalVariableRentValue += convertedStockValue
-        })
-      }
+            : walletValue
+        totalVariableRentValue += convertedWalletValue
 
-      // Add funds value
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details
-      ) {
-        entityPosition.investments.funds.details.forEach(fund => {
-          const fundValue = fund.market_value || 0
-          const convertedFundValue = exchangeRates
-            ? convertCurrency(
-                fundValue,
-                fund.currency,
-                defaultCurrency,
-                exchangeRates,
-              )
-            : fundValue
-          totalVariableRentValue += convertedFundValue
-        })
-      }
-
-      // Add crypto value
-      if (
-        entityPosition.investments.crypto_currencies &&
-        entityPosition.investments.crypto_currencies.details
-      ) {
-        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
-          const walletValue = wallet.market_value || 0
-          const convertedWalletValue =
-            exchangeRates && wallet.currency
-              ? convertCurrency(
-                  walletValue,
-                  wallet.currency,
-                  defaultCurrency,
-                  exchangeRates,
-                )
-              : walletValue
-          totalVariableRentValue += convertedWalletValue
-
-          // Include tokens if they exist
-          if (wallet.tokens) {
-            wallet.tokens.forEach(token => {
-              if (token.market_value && token.market_value > 0) {
-                const convertedTokenValue =
-                  exchangeRates && token.currency
-                    ? convertCurrency(
-                        token.market_value,
-                        token.currency,
-                        defaultCurrency,
-                        exchangeRates,
-                      )
-                    : token.market_value
-                totalVariableRentValue += convertedTokenValue
-              }
-            })
-          }
-        })
-      }
+        if (wallet.tokens) {
+          wallet.tokens.forEach((token: any) => {
+            if (token.market_value && token.market_value > 0) {
+              const convertedTokenValue =
+                exchangeRates && token.currency
+                  ? convertCurrency(
+                      token.market_value,
+                      token.currency,
+                      defaultCurrency,
+                      exchangeRates,
+                    )
+                  : token.market_value
+              totalVariableRentValue += convertedTokenValue
+            }
+          })
+        }
+      })
     }
   })
 
-  // Second pass: collect stock and fund positions
   Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.investments) {
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details
-      ) {
-        entityPosition.investments.stocks.details.forEach(stock => {
-          const value = stock.market_value || 0
-          allPositionsRaw.push({
-            symbol: stock.ticker || "",
-            name: stock.name,
-            shares: stock.shares || 0,
-            price: stock.average_buy_price || 0,
-            value: value,
-            currency: stock.currency,
-            formattedValue: formatCurrency(
-              value,
-              locale,
-              defaultCurrency,
-              stock.currency,
-            ),
-            type: "STOCK_ETF",
-            change:
-              (value / (stock.initial_investment || value || 1) - 1) * 100,
-            entity: entityPosition.entity?.name,
-          })
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      stocksProduct.entries.forEach((stock: any) => {
+        const value = stock.market_value || 0
+        allPositionsRaw.push({
+          symbol: stock.ticker || "",
+          name: stock.name,
+          shares: stock.shares || 0,
+          price: stock.average_buy_price || 0,
+          value: value,
+          currency: stock.currency,
+          formattedValue: formatCurrency(
+            value,
+            locale,
+            defaultCurrency,
+            stock.currency,
+          ),
+          type: "STOCK_ETF",
+          change: (value / (stock.initial_investment || value || 1) - 1) * 100,
+          entity: entityPosition.entity?.name,
         })
-      }
+      })
+    }
 
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details
-      ) {
-        entityPosition.investments.funds.details.forEach(fund => {
-          const value = fund.market_value || 0
-          allPositionsRaw.push({
-            symbol: "",
-            name: fund.name,
-            portfolioName: fund.portfolio?.name || null,
-            shares: fund.shares || 0,
-            price: fund.average_buy_price || 0,
-            value: value,
-            currency: fund.currency,
-            formattedValue: formatCurrency(
-              value,
-              locale,
-              defaultCurrency,
-              fund.currency,
-            ),
-            type: "FUND",
-            change: (value / (fund.initial_investment || value || 1) - 1) * 100,
-            entity: entityPosition.entity?.name,
-          })
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      fundsProduct.entries.forEach((fund: any) => {
+        const value = fund.market_value || 0
+        allPositionsRaw.push({
+          symbol: "",
+          name: fund.name,
+          portfolioName: fund.portfolio?.name || null,
+          shares: fund.shares || 0,
+          price: fund.average_buy_price || 0,
+          value: value,
+          currency: fund.currency,
+          formattedValue: formatCurrency(
+            value,
+            locale,
+            defaultCurrency,
+            fund.currency,
+          ),
+          type: "FUND",
+          change: (value / (fund.initial_investment || value || 1) - 1) * 100,
+          entity: entityPosition.entity?.name,
         })
-      }
+      })
     }
   })
 
@@ -1320,12 +1383,8 @@ export const getStockAndFundPositions = (
         : `${pos.symbol}-stock-${index}-${pos.entity}`,
   }))
 
-  // Ensure percentages sum to exactly the portion they represent
-  const sortedPositions = enrichedPositions
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10)
+  const sortedPositions = enrichedPositions.sort((a, b) => b.value - a.value)
 
-  // Adjust percentages to account for rounding and ensure consistency
   if (sortedPositions.length > 0) {
     const totalStockFundValue = sortedPositions.reduce((sum, pos) => {
       const convertedValue = exchangeRates
@@ -1354,12 +1413,11 @@ export const getStockAndFundPositions = (
           : pos.value
 
         if (index === sortedPositions.length - 1) {
-          // Last item gets the remaining percentage
           pos.percentageOfTotalVariableRent = Math.max(0, remainingPercentage)
         } else {
           const exactPercentage =
             (convertedValue / totalVariableRentValue) * 100
-          const roundedPercentage = Math.round(exactPercentage * 100) / 100 // Round to 2 decimal places
+          const roundedPercentage = Math.round(exactPercentage * 100) / 100
           pos.percentageOfTotalVariableRent = roundedPercentage
           remainingPercentage -= roundedPercentage
         }
@@ -1370,9 +1428,6 @@ export const getStockAndFundPositions = (
   return sortedPositions
 }
 
-/**
- * Get crypto positions with percentage calculated against total variable rent (stocks + funds + crypto)
- */
 export const getCryptoPositions = (
   positionsData: EntitiesPosition | null,
   locale: string,
@@ -1384,103 +1439,100 @@ export const getCryptoPositions = (
   const cryptoAggregation: Record<string, any> = {}
   let totalVariableRentValue = 0
 
-  // First pass: calculate total variable rent value (stocks + funds + crypto)
   Object.values(positionsData.positions).forEach(entityPosition => {
-    if (entityPosition.investments) {
-      // Add stocks value
-      if (
-        entityPosition.investments.stocks &&
-        entityPosition.investments.stocks.details
-      ) {
-        entityPosition.investments.stocks.details.forEach(stock => {
-          const stockValue = stock.market_value || 0
-          const convertedStockValue = exchangeRates
+    const stocksProduct = entityPosition.products[ProductType.STOCK_ETF]
+    if (
+      stocksProduct &&
+      "entries" in stocksProduct &&
+      stocksProduct.entries.length > 0
+    ) {
+      stocksProduct.entries.forEach((stock: any) => {
+        const stockValue = stock.market_value || 0
+        const convertedStockValue = exchangeRates
+          ? convertCurrency(
+              stockValue,
+              stock.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : stockValue
+        totalVariableRentValue += convertedStockValue
+      })
+    }
+
+    const fundsProduct = entityPosition.products[ProductType.FUND]
+    if (
+      fundsProduct &&
+      "entries" in fundsProduct &&
+      fundsProduct.entries.length > 0
+    ) {
+      fundsProduct.entries.forEach((fund: any) => {
+        const fundValue = fund.market_value || 0
+        const convertedFundValue = exchangeRates
+          ? convertCurrency(
+              fundValue,
+              fund.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : fundValue
+        totalVariableRentValue += convertedFundValue
+      })
+    }
+
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
+    if (
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
+    ) {
+      cryptoProduct.entries.forEach((wallet: any) => {
+        const walletValue = wallet.market_value || 0
+        const convertedWalletValue =
+          exchangeRates && wallet.currency
             ? convertCurrency(
-                stockValue,
-                stock.currency,
+                walletValue,
+                wallet.currency,
                 defaultCurrency,
                 exchangeRates,
               )
-            : stockValue
-          totalVariableRentValue += convertedStockValue
-        })
-      }
+            : walletValue
+        totalVariableRentValue += convertedWalletValue
 
-      // Add funds value
-      if (
-        entityPosition.investments.funds &&
-        entityPosition.investments.funds.details
-      ) {
-        entityPosition.investments.funds.details.forEach(fund => {
-          const fundValue = fund.market_value || 0
-          const convertedFundValue = exchangeRates
-            ? convertCurrency(
-                fundValue,
-                fund.currency,
-                defaultCurrency,
-                exchangeRates,
-              )
-            : fundValue
-          totalVariableRentValue += convertedFundValue
-        })
-      }
-
-      // Add crypto value
-      if (
-        entityPosition.investments.crypto_currencies &&
-        entityPosition.investments.crypto_currencies.details
-      ) {
-        entityPosition.investments.crypto_currencies.details.forEach(wallet => {
-          const walletValue = wallet.market_value || 0
-          const convertedWalletValue =
-            exchangeRates && wallet.currency
-              ? convertCurrency(
-                  walletValue,
-                  wallet.currency,
-                  defaultCurrency,
-                  exchangeRates,
-                )
-              : walletValue
-          totalVariableRentValue += convertedWalletValue
-
-          // Include tokens if they exist
-          if (wallet.tokens) {
-            wallet.tokens.forEach(token => {
-              if (token.market_value && token.market_value > 0) {
-                const convertedTokenValue =
-                  exchangeRates && token.currency
-                    ? convertCurrency(
-                        token.market_value,
-                        token.currency,
-                        defaultCurrency,
-                        exchangeRates,
-                      )
-                    : token.market_value
-                totalVariableRentValue += convertedTokenValue
-              }
-            })
-          }
-        })
-      }
+        if (wallet.tokens) {
+          wallet.tokens.forEach((token: any) => {
+            if (token.market_value && token.market_value > 0) {
+              const convertedTokenValue =
+                exchangeRates && token.currency
+                  ? convertCurrency(
+                      token.market_value,
+                      token.currency,
+                      defaultCurrency,
+                      exchangeRates,
+                    )
+                  : token.market_value
+              totalVariableRentValue += convertedTokenValue
+            }
+          })
+        }
+      })
     }
   })
 
-  // Second pass: aggregate crypto positions
   Object.values(positionsData.positions).forEach(entityPosition => {
+    const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
     if (
-      entityPosition.investments &&
-      entityPosition.investments.crypto_currencies &&
-      entityPosition.investments.crypto_currencies.details
+      cryptoProduct &&
+      "entries" in cryptoProduct &&
+      cryptoProduct.entries.length > 0
     ) {
-      entityPosition.investments.crypto_currencies.details.forEach(wallet => {
+      cryptoProduct.entries.forEach((wallet: any) => {
         const entityName = entityPosition.entity?.name || "Unknown"
 
-        // Process main wallet crypto - each entity gets separate entry
         if (wallet.market_value && wallet.market_value > 0) {
           const symbol = wallet.symbol || wallet.crypto || "Unknown"
-          const key = `${symbol}-${entityName}` // Use symbol-entity for main cryptos
+          const key = `${symbol}-${entityName}`
 
-          // Convert wallet value to default currency
           const convertedValue =
             exchangeRates && wallet.currency
               ? convertCurrency(
@@ -1507,7 +1559,7 @@ export const getCryptoPositions = (
               name: wallet.name,
               amount: 0,
               value: 0,
-              currency: defaultCurrency, // Always use defaultCurrency for display
+              currency: defaultCurrency,
               type: "CRYPTO",
               entities: new Set([entityName]),
               initialInvestment: 0,
@@ -1521,14 +1573,12 @@ export const getCryptoPositions = (
           cryptoAggregation[key].addresses.add(wallet.address)
         }
 
-        // Process tokens - aggregate across entities
         if (wallet.tokens) {
-          wallet.tokens.forEach(token => {
+          wallet.tokens.forEach((token: any) => {
             if (token.market_value && token.market_value > 0) {
               const symbol = token.symbol || "Unknown"
-              const key = symbol // Only use symbol as key for tokens
+              const key = symbol
 
-              // Convert token value to default currency
               const convertedValue =
                 exchangeRates && token.currency
                   ? convertCurrency(
@@ -1555,7 +1605,7 @@ export const getCryptoPositions = (
                   name: token.name,
                   amount: 0,
                   value: 0,
-                  currency: defaultCurrency, // Always use defaultCurrency for display
+                  currency: defaultCurrency,
                   type: "CRYPTO_TOKEN",
                   entities: new Set(),
                   initialInvestment: 0,
@@ -1576,7 +1626,6 @@ export const getCryptoPositions = (
     }
   })
 
-  // Convert aggregated data to final format
   const allCryptoPositions = Object.keys(cryptoAggregation).map(
     (key, index) => {
       const crypto = cryptoAggregation[key]
@@ -1589,28 +1638,26 @@ export const getCryptoPositions = (
       const entitiesArray = Array.from(crypto.entities) as string[]
       const isToken = crypto.type === "CRYPTO_TOKEN"
 
-      // For tokens: use token name and show entity badges
-      // For main crypto: use entity name and no badges
-      const displayName = isToken ? crypto.name : entitiesArray[0] // For main crypto, use the entity name
+      const displayName = isToken ? crypto.name : entitiesArray[0]
 
       return {
         symbol: crypto.symbol,
         name: displayName,
-        address: Array.from(crypto.addresses).join(", "), // Join multiple addresses
+        address: Array.from(crypto.addresses).join(", "),
         amount: crypto.amount,
         price: crypto.amount > 0 ? value / crypto.amount : 0,
         value: value,
-        currency: defaultCurrency, // Always use defaultCurrency for crypto display
+        currency: defaultCurrency,
         formattedValue: formatCurrency(
           value,
           locale,
           defaultCurrency,
-          defaultCurrency, // Force display in defaultCurrency
+          defaultCurrency,
         ),
         type: crypto.type,
         change: change,
-        entities: entitiesArray, // Array of entities where this crypto is held
-        showEntityBadge: isToken, // Only show entity badges for tokens
+        entities: entitiesArray,
+        showEntityBadge: isToken,
         percentageOfTotalVariableRent:
           totalVariableRentValue > 0
             ? (value / totalVariableRentValue) * 100
@@ -1620,11 +1667,10 @@ export const getCryptoPositions = (
     },
   )
 
-  const sortedCryptoPositions = allCryptoPositions
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 10)
+  const sortedCryptoPositions = allCryptoPositions.sort(
+    (a, b) => b.value - a.value,
+  )
 
-  // Ensure crypto percentages are accurate and consistent with the bar display
   if (sortedCryptoPositions.length > 0) {
     const totalCryptoValue = sortedCryptoPositions.reduce(
       (sum, pos) => sum + pos.value,
@@ -1637,11 +1683,10 @@ export const getCryptoPositions = (
 
       sortedCryptoPositions.forEach((pos, index) => {
         if (index === sortedCryptoPositions.length - 1) {
-          // Last item gets the remaining percentage
           pos.percentageOfTotalVariableRent = Math.max(0, remainingPercentage)
         } else {
           const exactPercentage = (pos.value / totalVariableRentValue) * 100
-          const roundedPercentage = Math.round(exactPercentage * 100) / 100 // Round to 2 decimal places
+          const roundedPercentage = Math.round(exactPercentage * 100) / 100
           pos.percentageOfTotalVariableRent = roundedPercentage
           remainingPercentage -= roundedPercentage
         }
@@ -1652,9 +1697,6 @@ export const getCryptoPositions = (
   return sortedCryptoPositions
 }
 
-/**
- * Get recent transactions grouped by date
- */
 export const getRecentTransactions = (
   transactions: TransactionsResult | null,
   locale: string,
@@ -1689,7 +1731,6 @@ export const getRecentTransactions = (
         : ("in" as const),
       entity: tx.entity.name,
     }))
-    .slice(0, 10)
     .forEach(tx => {
       const dateKey = formatDate(tx.date, locale)
       if (!groupedTxs[dateKey]) {
@@ -1712,9 +1753,6 @@ export const getRecentTransactions = (
   return sortedGroupedTxs
 }
 
-/**
- * Get days status for maturity date
- */
 export const getDaysStatus = (dateString: string, t: any) => {
   const today = new Date()
   const maturityDate = new Date(dateString)

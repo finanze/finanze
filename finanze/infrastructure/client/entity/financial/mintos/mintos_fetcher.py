@@ -2,14 +2,15 @@ from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.dezimal import Dezimal
-from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from domain.entity import EntitySetupLoginType
+from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from domain.global_position import (
     Account,
+    Accounts,
     AccountType,
     Crowdlending,
     GlobalPosition,
-    Investments,
+    ProductType,
 )
 from domain.native_entities import MINTOS
 from infrastructure.client.entity.financial.mintos.mintos_client import MintosAPIClient
@@ -109,19 +110,22 @@ class MintosFetcher(FinancialEntityFetcher):
         )
 
         loan_distribution = map_loan_distribution(total_investment_distribution)
+        crowdlending = Crowdlending(
+            id=uuid4(),
+            total=round(Dezimal(loans), 2),
+            weighted_interest_rate=round(Dezimal(net_annual_returns) / 100, 4),
+            currency=currency_iso,
+            distribution=loan_distribution,
+            entries=[],
+        )
+
+        products = {
+            ProductType.ACCOUNT: Accounts([account_data]),
+            ProductType.CROWDLENDING: crowdlending,
+        }
 
         return GlobalPosition(
             id=uuid4(),
             entity=MINTOS,
-            accounts=[account_data],
-            investments=Investments(
-                crowdlending=Crowdlending(
-                    id=uuid4(),
-                    total=round(Dezimal(loans), 2),
-                    weighted_interest_rate=round(Dezimal(net_annual_returns) / 100, 4),
-                    currency=currency_iso,
-                    distribution=loan_distribution,
-                    details=[],
-                )
-            ),
+            products=products,
         )

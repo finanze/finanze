@@ -13,13 +13,13 @@ from domain.transactions import (
     DepositTx,
     FactoringTx,
     FundTx,
-    ProductType,
     RealStateCFTx,
     StockTx,
     TransactionQueryRequest,
     Transactions,
     TxType,
 )
+from domain.global_position import ProductType
 from infrastructure.repository.db.client import DBClient
 
 

@@ -1,11 +1,4 @@
-export enum ProductType {
-  ACCOUNT = "ACCOUNT",
-  FUND = "FUND",
-  STOCK_ETF = "STOCK_ETF",
-  FACTORING = "FACTORING",
-  REAL_STATE_CF = "REAL_STATE_CF",
-  DEPOSIT = "DEPOSIT",
-}
+import { ProductType } from "./position"
 
 export enum TxType {
   BUY = "BUY",

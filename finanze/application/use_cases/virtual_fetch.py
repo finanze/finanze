@@ -64,7 +64,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
 
             registered_txs = self._transaction_port.get_refs_by_source_type(real=False)
 
-            investment_sheets = virtual_fetch_config.investments or []
+            investment_sheets = virtual_fetch_config.position or []
             transaction_sheets = virtual_fetch_config.transactions or []
             investment_sheets = apply_global_config(config_globals, investment_sheets)
             transaction_sheets = apply_global_config(config_globals, transaction_sheets)

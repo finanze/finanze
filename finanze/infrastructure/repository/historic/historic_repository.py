@@ -10,9 +10,9 @@ from domain.historic import (
     BaseHistoricEntry,
     FactoringEntry,
     Historic,
-    ProductType,
     RealStateCFEntry,
 )
+from domain.global_position import ProductType
 from domain.transactions import BaseInvestmentTx
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.transaction.transaction_repository import (

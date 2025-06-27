@@ -150,8 +150,7 @@ class UpdateSheetsImpl(UpdateSheets):
     ):
         for config in configs:
             fields = config.data
-            fields = [fields] if isinstance(fields, str) else fields
-            config.data = fields
+            config.data = [f"products.{field}.entries" for field in fields]
 
             self._sheets_update_port.update_sheet(
                 global_position, credentials, config, last_update
