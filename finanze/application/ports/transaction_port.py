@@ -28,3 +28,7 @@ class TransactionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_non_real(self):
+        raise NotImplementedError

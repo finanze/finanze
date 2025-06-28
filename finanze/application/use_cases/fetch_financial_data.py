@@ -102,7 +102,8 @@ def compute_return_values(related_inv_txs):
 
 def _historic_inv_by_name(historical_position):
     investments_by_name = {}
-    for product_type, position in asdict(historical_position.positions).items():
+    for product_type, position in historical_position.positions.items():
+        position = asdict(position)
         if not position or "entries" not in position:
             continue
         investments = position["entries"]

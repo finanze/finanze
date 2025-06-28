@@ -24,7 +24,6 @@ class VirtualFetcher(metaclass=abc.ABCMeta):
         self,
         credentials: GoogleCredentials,
         txs_sheets: list[VirtualTransactionSheetConfig],
-        registered_txs: set[str],
         existing_entities: dict[str, Entity],
     ) -> tuple[Optional[Transactions], set[Entity]]:
         raise NotImplementedError

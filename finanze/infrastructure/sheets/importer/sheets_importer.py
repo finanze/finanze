@@ -210,7 +210,6 @@ class SheetsImporter(VirtualFetcher):
         self,
         credentials: GoogleCredentials,
         txs_configs: list[VirtualTransactionSheetConfig],
-        registered_txs: set[str],
         existing_entities: dict[str, Entity],
     ) -> tuple[Optional[Transactions], set[Entity]]:
         all_created_entities = {}
@@ -223,7 +222,6 @@ class SheetsImporter(VirtualFetcher):
                 credentials, config, existing_entities, all_created_entities
             )
             all_created_entities.update(created_entities)
-            txs = [tx for tx in txs if tx.ref not in registered_txs]
 
             current_transactions = None
             if field == "investment":

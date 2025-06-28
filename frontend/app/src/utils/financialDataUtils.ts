@@ -28,6 +28,25 @@ export const convertCurrency = (
   return amount
 }
 
+// Shared function to determine transaction display type
+export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
+  // Transactions that represent money going out (no green color, no + sign)
+  if (
+    [
+      TxType.BUY,
+      TxType.INVESTMENT,
+      TxType.SUBSCRIPTION,
+      TxType.SWAP_FROM,
+      TxType.SWAP_TO,
+    ].includes(txType)
+  ) {
+    return "out"
+  } else {
+    // Transactions that represent money coming in (green color, + sign)
+    return "in"
+  }
+}
+
 export interface AssetDistributionItem {
   type: string
   value: number
@@ -1720,15 +1739,7 @@ export const getRecentTransactions = (
       ),
       type: tx.type,
       product_type: tx.product_type,
-      displayType: [
-        TxType.BUY,
-        TxType.INVESTMENT,
-        TxType.SUBSCRIPTION,
-        TxType.SWAP_FROM,
-        TxType.SWAP_TO,
-      ].includes(tx.type)
-        ? ("out" as const)
-        : ("in" as const),
+      displayType: getTransactionDisplayType(tx.type),
       entity: tx.entity.name,
     }))
     .forEach(tx => {

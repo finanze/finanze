@@ -76,10 +76,14 @@ export default function EntityIntegrationsPage() {
   }
 
   const connectedEntities =
-    entities?.filter(entity => isEntityConnected(entity)) || []
+    entities?.filter(
+      entity => isEntityConnected(entity) && entity.is_real !== false,
+    ) || []
 
   const unconnectedEntities =
-    entities?.filter(entity => isEntityDisconnected(entity)) || []
+    entities?.filter(
+      entity => isEntityDisconnected(entity) && entity.is_real !== false,
+    ) || []
 
   // Categorize connected entities by type
   const connectedFinancialEntities = connectedEntities.filter(

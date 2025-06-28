@@ -77,26 +77,51 @@ export function MultiSelect({
     <div className={cn("relative", className)} ref={dropdownRef}>
       <div
         className={cn(
-          "flex min-h-[2.5rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background cursor-pointer",
+          "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background cursor-pointer",
           "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
           disabled && "cursor-not-allowed opacity-50",
           isOpen && "ring-2 ring-ring ring-offset-2",
         )}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <div className="flex flex-wrap gap-1 flex-1 items-center">
+        <div className="flex flex-wrap gap-1 flex-1 items-center overflow-hidden">
           {selectedOptions.length === 0 ? (
             <span className="text-muted-foreground">{defaultPlaceholder}</span>
+          ) : selectedOptions.length > 3 ? (
+            <>
+              {selectedOptions.slice(0, 2).map(option => (
+                <div
+                  key={option.value}
+                  className="flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs max-w-[120px]"
+                >
+                  <span className="truncate">{option.label}</span>
+                  <button
+                    type="button"
+                    className="hover:bg-secondary-foreground/10 rounded-full p-0.5 flex-shrink-0"
+                    onClick={e => {
+                      e.stopPropagation()
+                      removeOption(option.value)
+                    }}
+                    disabled={disabled}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              <div className="flex items-center bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs">
+                +{selectedOptions.length - 2}
+              </div>
+            </>
           ) : (
             selectedOptions.map(option => (
               <div
                 key={option.value}
-                className="flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-2 py-1 text-xs"
+                className="flex items-center gap-1 bg-secondary text-secondary-foreground rounded px-1.5 py-0.5 text-xs max-w-[120px]"
               >
-                <span>{option.label}</span>
+                <span className="truncate">{option.label}</span>
                 <button
                   type="button"
-                  className="hover:bg-secondary-foreground/10 rounded-full p-0.5"
+                  className="hover:bg-secondary-foreground/10 rounded-full p-0.5 flex-shrink-0"
                   onClick={e => {
                     e.stopPropagation()
                     removeOption(option.value)

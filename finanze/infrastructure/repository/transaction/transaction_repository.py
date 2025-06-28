@@ -6,6 +6,7 @@ from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
     BaseInvestmentTx,
@@ -19,7 +20,6 @@ from domain.transactions import (
     Transactions,
     TxType,
 )
-from domain.global_position import ProductType
 from infrastructure.repository.db.client import DBClient
 
 
@@ -436,3 +436,8 @@ class TransactionSQLRepository(TransactionPort):
             tx_list.append(tx)
 
         return tx_list
+
+    def delete_non_real(self):
+        with self._db_client.tx() as cursor:
+            cursor.execute("DELETE FROM investment_transactions WHERE NOT is_real")
+            cursor.execute("DELETE FROM account_transactions WHERE NOT is_real")

@@ -16,6 +16,7 @@ import {
   Globe,
   FileUp,
   SunMoon,
+  Receipt,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
@@ -61,6 +62,11 @@ export function Sidebar() {
       icon: <LayoutDashboard size={20} />,
     },
     { path: "/entities", label: t.common.entities, icon: <Bank size={20} /> },
+    {
+      path: "/transactions",
+      label: t.common.transactions,
+      icon: <Receipt size={20} />,
+    },
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
     {
       path: "/settings",

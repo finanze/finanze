@@ -4,6 +4,7 @@ import EntityIntegrationsPage from "./pages/EntityIntegrationsPage"
 import DashboardPage from "./pages/DashboardPage"
 import SettingsPage from "./pages/SettingsPage"
 import ExportPage from "./pages/ExportPage"
+import TransactionsPage from "./pages/TransactionsPage"
 import LoginPage from "./pages/LoginPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
@@ -31,6 +32,7 @@ function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/entities" element={<EntityIntegrationsPage />} />
+          <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

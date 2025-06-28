@@ -165,9 +165,11 @@ class FinanzeServer:
 
         get_available_entities = GetAvailableEntitiesImpl(
             self.config_loader,
+            entity_repository,
             credentials_port,
             crypto_wallet_connections_repository,
             last_fetches_repository,
+            virtual_import_repository,
         )
         fetch_financial_data = FetchFinancialDataImpl(
             position_repository,

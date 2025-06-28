@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Receipt,
   BarChart3,
+  ArrowRight,
 } from "lucide-react"
 import {
   PieChart,
@@ -287,7 +288,6 @@ export default function DashboardPage() {
       ),
     )
     const colors = [
-      "bg-red-500",
       "bg-emerald-500",
       "bg-blue-500",
       "bg-amber-500",
@@ -1577,6 +1577,15 @@ export default function DashboardPage() {
                       <Receipt className="h-5 w-5 mr-2 text-primary" />
                       {t.dashboard.recentTransactions}
                     </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate("/transactions")}
+                      className="flex items-center gap-1"
+                    >
+                      {t.dashboard.viewAll}
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="flex-grow overflow-y-auto scrollbar-thin min-h-[350px] max-h-[650px]">
@@ -1597,7 +1606,10 @@ export default function DashboardPage() {
                                   >
                                     <div className="flex items-center flex-grow min-w-0">
                                       <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-4 text-muted-foreground">
-                                        {getIconForTxType(tx.type as TxType)}
+                                        {getIconForTxType(
+                                          tx.type as TxType,
+                                          "h-full w-full",
+                                        )}
                                       </div>
                                       <div className="flex-grow min-w-0">
                                         <p
