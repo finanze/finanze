@@ -8,6 +8,10 @@ from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.settings import BaseSheetConfig, ProductSheetConfig
+from infrastructure.sheets.importer.sheets_importer import (
+    DEFAULT_DATE_FORMAT,
+    DEFAULT_DATETIME_FORMAT,
+)
 from pytz import utc
 
 LAST_UPDATE_FIELD = "last_update"
@@ -263,19 +267,13 @@ def format_field_value(value, config: BaseSheetConfig):
         return ""
 
     if isinstance(value, date) and not isinstance(value, datetime):
-        config_date_format = config.dateFormat
-        if config_date_format:
-            return value.strftime(config_date_format)
-
-        return value.isoformat()[:10]
+        date_format = config.dateFormat or DEFAULT_DATE_FORMAT
+        return value.strftime(date_format)
 
     elif isinstance(value, datetime):
+        datetime_format = config.datetimeFormat or DEFAULT_DATETIME_FORMAT
         value = value.replace(tzinfo=utc).astimezone(tzlocal())
-        config_date_format = config.datetimeFormat
-        if config_date_format:
-            return value.strftime(config_date_format)
-
-        return value.isoformat()
+        return value.strftime(datetime_format)
 
     elif isinstance(value, dict) or isinstance(value, list):
         return json.dumps(value, default=str)

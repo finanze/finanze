@@ -48,6 +48,9 @@ from domain.transactions import (
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from pydantic import ValidationError
 
+DEFAULT_DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
+DEFAULT_DATE_FORMAT = "%d/%m/%Y"
+
 
 def parse_number(value: str) -> float:
     return float(value.strip().replace(".", "").replace(",", "."))
@@ -58,10 +61,12 @@ def _parse_cell(value: str, config: BaseSheetConfig) -> any:
         return parse_number(value)
     except ValueError:
         try:
-            return datetime.strptime(value, config.datetimeFormat)
+            datetime_format = config.datetimeFormat or DEFAULT_DATETIME_FORMAT
+            return datetime.strptime(value, datetime_format)
         except ValueError:
             try:
-                return datetime.strptime(value, config.dateFormat).date()
+                date_format = config.dateFormat or DEFAULT_DATE_FORMAT
+                return datetime.strptime(value, date_format).date()
             except ValueError:
                 if not len(value):
                     return None

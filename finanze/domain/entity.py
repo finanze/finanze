@@ -16,6 +16,7 @@ class Feature(str, Enum):
 class EntityType(str, Enum):
     FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION"
     CRYPTO_WALLET = "CRYPTO_WALLET"
+    COMMODITY = "COMMODITY"
 
 
 @dataclass

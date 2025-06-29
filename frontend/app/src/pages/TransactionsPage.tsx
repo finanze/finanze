@@ -214,14 +214,7 @@ export default function TransactionsPage() {
   }
 
   const renderTransactionDetails = (tx: any) => {
-    const commonFields = (
-      <>
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          <span className="font-medium">{t.transactions.entity}:</span>{" "}
-          {tx.entity.name}
-        </div>
-      </>
-    )
+    const commonFields = <></>
 
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {

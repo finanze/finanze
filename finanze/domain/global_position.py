@@ -23,6 +23,7 @@ class ProductType(str, Enum):
     REAL_STATE_CF = "REAL_STATE_CF"
     CROWDLENDING = "CROWDLENDING"
     CRYPTO = "CRYPTO"
+    COMMODITY = "COMMODITY"
 
 
 class AccountType(str, Enum):
@@ -205,6 +206,26 @@ class CryptoCurrencyWallet(BaseData):
     market_value: Optional[Dezimal] = None
     currency: Optional[str] = None
     tokens: list[CryptoCurrencyToken] = None
+
+
+class CommodityType(str, Enum):
+    GOLD = "GOLD"
+    SILVER = "SILVER"
+    PLATINUM = "PLATINUM"
+
+
+class WeightUnit(str, Enum):
+    GRAMS = "GRAMS"
+    TROY_OUNCES = "TROY_OUNCES"
+
+
+@dataclass
+class StandardCommodityGroup(BaseData):
+    id: UUID
+    name: str
+    type: CommodityType
+    amount: Dezimal
+    unit: WeightUnit
 
 
 @dataclass

@@ -7,6 +7,7 @@ export enum EntityStatus {
 export enum EntityType {
   FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION",
   CRYPTO_WALLET = "CRYPTO_WALLET",
+  COMMODITY = "COMMODITY",
 }
 
 export interface CryptoWalletConnection {

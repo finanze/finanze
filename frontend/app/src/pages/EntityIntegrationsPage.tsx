@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
   RefreshCw,
@@ -41,6 +42,7 @@ export default function EntityIntegrationsPage() {
   } = useAppContext()
 
   const { t } = useI18n()
+  const navigate = useNavigate()
   const [showVirtualConfirm, setShowVirtualConfirm] = useState(false)
   const [isVirtualScraping, setIsVirtualScraping] = useState(false)
   const [showAddWallet, setShowAddWallet] = useState(false)
@@ -215,6 +217,10 @@ export default function EntityIntegrationsPage() {
     setShowAddWallet(true)
   }
 
+  const handleConfigureVirtual = () => {
+    navigate("/settings")
+  }
+
   const container = {
     hidden: { opacity: 0 },
     show: {
@@ -354,7 +360,7 @@ export default function EntityIntegrationsPage() {
               </motion.div>
             )}
 
-            {unconnectedEntities.length > 0 && (
+            {(unconnectedEntities.length > 0 || !virtualEnabled) && (
               <motion.div variants={item} className="space-y-6">
                 <h2 className="text-xl font-semibold">
                   {t.entities.available}
@@ -400,6 +406,38 @@ export default function EntityIntegrationsPage() {
                           onManage={() => handleManage(entity)}
                         />
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* User Entered (Virtual) - Show in Available when disabled */}
+                {!virtualEnabled && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <User className="h-5 w-5 mr-2" />
+                      {t.entities.manualDataEntry}
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <Card className="transition-all hover:shadow-md border-gray-300 dark:border-gray-600 flex flex-col h-full">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="flex items-center justify-center">
+                            <FileSpreadsheet className="h-5 w-5 mr-2" />
+                            {t.entities.userEntered}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            {t.entities.userEnteredAvailableDescription}
+                          </p>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={handleConfigureVirtual}
+                          >
+                            {t.entities.configureInSettings}
+                          </Button>
+                        </CardContent>
+                      </Card>
                     </div>
                   </div>
                 )}
