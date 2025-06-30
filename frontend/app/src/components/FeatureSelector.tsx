@@ -110,37 +110,39 @@ export function FeatureSelector() {
           </div>
 
           <div className="flex justify-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground"
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  {t.features.advancedOptions}
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="center">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between space-x-2">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">
-                        {t.features.deepScrape}
+            {availableFeatures.includes("TRANSACTIONS") && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    {t.features.advancedOptions}
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="center">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between space-x-2">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">
+                          {t.features.deepScrape}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t.features.deepScrapeDescription}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {t.features.deepScrapeDescription}
-                      </div>
+                      <Switch
+                        checked={deepScrape}
+                        onCheckedChange={setDeepScrape}
+                      />
                     </div>
-                    <Switch
-                      checked={deepScrape}
-                      onCheckedChange={setDeepScrape}
-                    />
                   </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           <Button
