@@ -9,6 +9,9 @@ import {
   type AccountTx,
   type StockTx,
   type FundTx,
+  type FactoringTx,
+  type RealStateCFTx,
+  type DepositTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { Card } from "@/components/ui/Card"
@@ -23,7 +26,13 @@ import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
-import { Search, RotateCcw, Calendar } from "lucide-react"
+import {
+  Search,
+  RotateCcw,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react"
 import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
 
 interface TransactionFilters {
@@ -47,6 +56,7 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
   const [filters, setFilters] = useState<TransactionFilters>({
     entities: [],
@@ -154,6 +164,53 @@ export default function TransactionsPage() {
     fetchTransactions(page, false)
   }
 
+  const toggleCardExpansion = (transactionId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId)
+      } else {
+        newSet.add(transactionId)
+      }
+      return newSet
+    })
+  }
+
+  const handleBadgeClick = (
+    type: "entity" | "productType" | "transactionType",
+    value: string,
+  ) => {
+    setFilters(prev => {
+      switch (type) {
+        case "entity":
+          if (!prev.entities.includes(value)) {
+            return {
+              ...prev,
+              entities: [...prev.entities, value],
+            }
+          }
+          break
+        case "productType":
+          if (!prev.product_types.includes(value as ProductType)) {
+            return {
+              ...prev,
+              product_types: [...prev.product_types, value as ProductType],
+            }
+          }
+          break
+        case "transactionType":
+          if (!prev.types.includes(value as TxType)) {
+            return {
+              ...prev,
+              types: [...prev.types, value as TxType],
+            }
+          }
+          break
+      }
+      return prev
+    })
+  }
+
   const getTransactionTypeColor = (type: TxType): string => {
     switch (type) {
       case TxType.BUY:
@@ -228,6 +285,12 @@ export default function TransactionsPage() {
                 {stockTx.ticker}
               </div>
             )}
+            {stockTx.isin && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.isin}:</span>{" "}
+                {stockTx.isin}
+              </div>
+            )}
             {stockTx.shares && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">{t.transactions.shares}:</span>{" "}
@@ -243,6 +306,23 @@ export default function TransactionsPage() {
                   settings.general.defaultCurrency,
                   tx.currency,
                 )}
+              </div>
+            )}
+            {stockTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  stockTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {stockTx.market && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.market}:</span>{" "}
+                {stockTx.market}
               </div>
             )}
           </>
@@ -271,6 +351,21 @@ export default function TransactionsPage() {
                 tx.currency,
               )}
             </div>
+            {fundTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  fundTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="font-medium">{t.transactions.market}:</span>{" "}
+              {fundTx.market}
+            </div>
           </>
         )
       }
@@ -291,12 +386,214 @@ export default function TransactionsPage() {
                 )}
               </div>
             )}
+            {accountTx.retentions > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">
+                  {t.transactions.retentions}:
+                </span>{" "}
+                {formatCurrency(
+                  accountTx.retentions,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
             {accountTx.interest_rate && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">
                   {t.transactions.interestRate}:
                 </span>{" "}
                 {accountTx.interest_rate}%
+              </div>
+            )}
+            {accountTx.avg_balance && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">
+                  {t.transactions.avgBalance}:
+                </span>{" "}
+                {formatCurrency(
+                  accountTx.avg_balance,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+          </>
+        )
+      }
+
+      case ProductType.FACTORING: {
+        const factoringTx = tx as FactoringTx
+        return (
+          <>
+            {commonFields}
+            {factoringTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  factoringTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {factoringTx.retentions > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">
+                  {t.transactions.retentions}:
+                </span>{" "}
+                {formatCurrency(
+                  factoringTx.retentions,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {factoringTx.interests > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.interests}:</span>{" "}
+                {formatCurrency(
+                  factoringTx.interests,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+          </>
+        )
+      }
+
+      case ProductType.REAL_STATE_CF: {
+        const realStateTx = tx as RealStateCFTx
+        return (
+          <>
+            {commonFields}
+            {realStateTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  realStateTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {realStateTx.retentions > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">
+                  {t.transactions.retentions}:
+                </span>{" "}
+                {formatCurrency(
+                  realStateTx.retentions,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {realStateTx.interests > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.interests}:</span>{" "}
+                {formatCurrency(
+                  realStateTx.interests,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+          </>
+        )
+      }
+
+      case ProductType.DEPOSIT: {
+        const depositTx = tx as DepositTx
+        return (
+          <>
+            {commonFields}
+            {depositTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  depositTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {depositTx.retentions > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">
+                  {t.transactions.retentions}:
+                </span>{" "}
+                {formatCurrency(
+                  depositTx.retentions,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {depositTx.interests > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.interests}:</span>{" "}
+                {formatCurrency(
+                  depositTx.interests,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+          </>
+        )
+      }
+
+      case ProductType.CRYPTO: {
+        // For crypto, we can show basic investment details if available
+        const cryptoTx = tx as any
+        return (
+          <>
+            {commonFields}
+            {cryptoTx.ticker && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.ticker}:</span>{" "}
+                {cryptoTx.ticker}
+              </div>
+            )}
+            {cryptoTx.shares && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.amount}:</span>{" "}
+                {cryptoTx.shares.toLocaleString()}
+              </div>
+            )}
+            {cryptoTx.price && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.price}:</span>{" "}
+                {formatCurrency(
+                  cryptoTx.price,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {cryptoTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  cryptoTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
               </div>
             )}
           </>
@@ -432,8 +729,223 @@ export default function TransactionsPage() {
       )}
 
       {transactions && (
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-4">
+        <>
+          {/* Desktop Results Card */}
+          <Card className="hidden md:block overflow-hidden">
+            <div className="flex justify-between items-center mb-4 px-6 pt-6">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {t.transactions.results}
+                {transactions.transactions.length > 0 && (
+                  <span className="text-sm font-normal text-gray-600 dark:text-gray-400 ml-2">
+                    ({transactions.transactions.length} {t.transactions.items})
+                  </span>
+                )}
+              </h2>
+              {loading && <LoadingSpinner size="sm" />}
+            </div>
+
+            {transactions.transactions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400 px-6">
+                {t.transactions.noTransactionsFound}
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
+                          {t.transactions.date}
+                        </th>
+                        <th className="text-left py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
+                          {t.transactions.name}
+                        </th>
+                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-24">
+                          {t.transactions.type}
+                        </th>
+                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-32">
+                          {t.transactions.product}
+                        </th>
+                        <th className="text-right py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
+                          {t.transactions.amount}
+                        </th>
+                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
+                          {t.transactions.entity}
+                        </th>
+                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-20">
+                          Details
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {transactions.transactions.map((tx, index) => {
+                        const isExpanded = expandedCards.has(tx.id)
+                        const hasDetails =
+                          tx.product_type === ProductType.STOCK_ETF ||
+                          tx.product_type === ProductType.FUND ||
+                          tx.product_type === ProductType.ACCOUNT ||
+                          tx.product_type === ProductType.FACTORING ||
+                          tx.product_type === ProductType.REAL_STATE_CF ||
+                          tx.product_type === ProductType.DEPOSIT ||
+                          tx.product_type === ProductType.CRYPTO
+
+                        return (
+                          <React.Fragment key={tx.id}>
+                            <tr
+                              className={`transition-colors duration-300 ${
+                                index % 2 === 0
+                                  ? "bg-neutral-50 dark:bg-black"
+                                  : "bg-white dark:bg-neutral-900"
+                              }`}
+                            >
+                              <td className="py-4 px-3 text-sm text-gray-900 dark:text-gray-100">
+                                {formatDate(tx.date, locale)}
+                              </td>
+                              <td className="py-4 px-3">
+                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                  {tx.name}
+                                  {!tx.is_real && (
+                                    <span
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                                      title="Virtual/User Imported Transaction"
+                                    >
+                                      📝
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-4 px-3 text-center w-24">
+                                <Badge
+                                  className={`${getTransactionTypeColor(tx.type)} whitespace-normal break-words text-xs inline-flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                                  onClick={() =>
+                                    handleBadgeClick("transactionType", tx.type)
+                                  }
+                                >
+                                  {getIconForTxType(tx.type, "h-3 w-3")}
+                                  {t.enums?.transactionType?.[tx.type] ||
+                                    tx.type}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-3 text-center w-32">
+                                <Badge
+                                  className={`${getProductTypeColor(tx.product_type)} whitespace-normal break-words text-xs inline-flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                                  onClick={() =>
+                                    handleBadgeClick(
+                                      "productType",
+                                      tx.product_type,
+                                    )
+                                  }
+                                >
+                                  {getIconForProductType(tx.product_type)}
+                                  {t.enums?.productType?.[tx.product_type] ||
+                                    tx.product_type}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-3 text-right">
+                                <div
+                                  className={`font-medium ${
+                                    getTransactionDisplayType(tx.type) === "in"
+                                      ? "text-green-600 dark:text-green-400"
+                                      : ""
+                                  }`}
+                                >
+                                  {getTransactionDisplayType(tx.type) === "in"
+                                    ? "+"
+                                    : ""}
+                                  {formatCurrency(
+                                    tx.amount,
+                                    locale,
+                                    settings.general.defaultCurrency,
+                                    tx.currency,
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-4 px-3 text-center">
+                                <Badge
+                                  className={`${getEntityColor(tx.entity.name)} whitespace-normal break-words text-xs inline-flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity`}
+                                  onClick={() =>
+                                    handleBadgeClick("entity", tx.entity.id)
+                                  }
+                                >
+                                  {tx.entity.name}
+                                  {!tx.entity.is_real && (
+                                    <span className="ml-1 opacity-70">(V)</span>
+                                  )}
+                                </Badge>
+                              </td>
+                              <td className="py-4 px-3 text-center w-20">
+                                {hasDetails && (
+                                  <button
+                                    onClick={() => toggleCardExpansion(tx.id)}
+                                    className="inline-flex items-center justify-center p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                  >
+                                    {isExpanded ? (
+                                      <ChevronUp className="h-4 w-4" />
+                                    ) : (
+                                      <ChevronDown className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                            {hasDetails && isExpanded && (
+                              <tr
+                                className={`${
+                                  index % 2 === 0
+                                    ? "bg-neutral-50 dark:bg-black"
+                                    : "bg-white dark:bg-neutral-900"
+                                }`}
+                              >
+                                <td colSpan={7} className="px-3 pb-4">
+                                  <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                                    {renderTransactionDetails(tx)}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Desktop Pagination */}
+                <div className="flex justify-center items-center mt-6 gap-3 px-6 pb-6">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1 || loading}
+                    className="px-3 py-2"
+                  >
+                    ←
+                  </Button>
+
+                  <span className="text-sm text-gray-600 dark:text-gray-400 px-3">
+                    {t.transactions.page} {currentPage}
+                  </span>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={
+                      transactions?.transactions.length < ITEMS_PER_PAGE ||
+                      loading
+                    }
+                    className="px-3 py-2"
+                  >
+                    →
+                  </Button>
+                </div>
+              </>
+            )}
+          </Card>
+
+          {/* Mobile Results Header */}
+          <div className="md:hidden flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               {t.transactions.results}
               {transactions.transactions.length > 0 && (
@@ -445,129 +957,39 @@ export default function TransactionsPage() {
             {loading && <LoadingSpinner size="sm" />}
           </div>
 
-          {transactions.transactions.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+          {/* Mobile No Results */}
+          {transactions.transactions.length === 0 && (
+            <div className="md:hidden text-center py-8 text-gray-500 dark:text-gray-400">
               {t.transactions.noTransactionsFound}
             </div>
-          ) : (
-            <>
-              {/* Desktop Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700">
-                      <th className="text-left py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                        {t.transactions.date}
-                      </th>
-                      <th className="text-left py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                        {t.transactions.name}
-                      </th>
-                      <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-24">
-                        {t.transactions.type}
-                      </th>
-                      <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-32">
-                        {t.transactions.product}
-                      </th>
-                      <th className="text-right py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                        {t.transactions.amount}
-                      </th>
-                      <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                        {t.transactions.entity}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transactions.transactions.map((tx, index) => (
-                      <tr
-                        key={tx.id}
-                        className={`transition-colors duration-300 ${
-                          index % 2 === 0
-                            ? "bg-neutral-50 dark:bg-black"
-                            : "bg-white dark:bg-neutral-900"
-                        }`}
-                      >
-                        <td className="py-4 px-3 text-sm text-gray-900 dark:text-gray-100">
-                          {formatDate(tx.date, locale)}
-                        </td>
-                        <td className="py-4 px-3">
-                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                            {tx.name}
-                            {!tx.is_real && (
-                              <span
-                                className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                                title="Virtual/User Imported Transaction"
-                              >
-                                📝
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-3 text-center w-24">
-                          <Badge
-                            className={`${getTransactionTypeColor(tx.type)} whitespace-normal break-words text-xs inline-flex items-center justify-center gap-1`}
-                          >
-                            {getIconForTxType(tx.type, "h-3 w-3")}
-                            {t.enums?.transactionType?.[tx.type] || tx.type}
-                          </Badge>
-                        </td>
-                        <td className="py-4 px-3 text-center w-32">
-                          <Badge
-                            className={`${getProductTypeColor(tx.product_type)} whitespace-normal break-words text-xs inline-flex items-center justify-center gap-1`}
-                          >
-                            {getIconForProductType(tx.product_type)}
-                            {t.enums?.productType?.[tx.product_type] ||
-                              tx.product_type}
-                          </Badge>
-                        </td>
-                        <td className="py-4 px-3 text-right">
-                          <div
-                            className={`font-medium ${
-                              getTransactionDisplayType(tx.type) === "in"
-                                ? "text-green-600 dark:text-green-400"
-                                : ""
-                            }`}
-                          >
-                            {getTransactionDisplayType(tx.type) === "in"
-                              ? "+"
-                              : ""}
-                            {formatCurrency(
-                              tx.amount,
-                              locale,
-                              settings.general.defaultCurrency,
-                              tx.currency,
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-4 px-3 text-center">
-                          <Badge
-                            className={`${getEntityColor(tx.entity.name)} whitespace-normal break-words text-xs inline-flex items-center justify-center`}
-                          >
-                            {tx.entity.name}
-                            {!tx.entity.is_real && (
-                              <span className="ml-1 opacity-70">(V)</span>
-                            )}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          )}
 
-              {/* Mobile Cards */}
-              <div className="md:hidden space-y-4">
-                {transactions.transactions.map(tx => (
+          {/* Mobile Cards */}
+          {transactions.transactions.length > 0 && (
+            <div className="md:hidden space-y-4">
+              {transactions.transactions.map(tx => {
+                const isExpanded = expandedCards.has(tx.id)
+                const hasDetails =
+                  tx.product_type === ProductType.STOCK_ETF ||
+                  tx.product_type === ProductType.FUND ||
+                  tx.product_type === ProductType.ACCOUNT ||
+                  tx.product_type === ProductType.FACTORING ||
+                  tx.product_type === ProductType.REAL_STATE_CF ||
+                  tx.product_type === ProductType.DEPOSIT ||
+                  tx.product_type === ProductType.CRYPTO
+
+                return (
                   <Card
                     key={tx.id}
                     className="p-4 transition-colors duration-300"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2 flex-wrap">
-                          {tx.name}
+                      <div className="flex-1 min-w-0 pr-3">
+                        <div className="font-medium text-gray-900 dark:text-gray-100 flex items-start gap-2 flex-wrap break-words">
+                          <span className="break-words min-w-0">{tx.name}</span>
                           {!tx.is_real && (
                             <span
-                              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
+                              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 flex-shrink-0"
                               title="Virtual/User Imported Transaction"
                             >
                               📝
@@ -599,36 +1021,68 @@ export default function TransactionsPage() {
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2 mb-3">
+                    <div
+                      className={`flex flex-wrap gap-2 ${hasDetails && isExpanded ? "mb-2" : "mb-0"}`}
+                    >
                       <Badge
-                        className={`${getTransactionTypeColor(tx.type)} whitespace-normal break-words inline-flex items-center gap-1`}
+                        className={`${getTransactionTypeColor(tx.type)} whitespace-normal break-words inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                        onClick={() =>
+                          handleBadgeClick("transactionType", tx.type)
+                        }
                       >
                         {getIconForTxType(tx.type, "h-3 w-3")}
                         {t.enums?.transactionType?.[tx.type] || tx.type}
                       </Badge>
                       <Badge
-                        className={`${getProductTypeColor(tx.product_type)} whitespace-normal break-words inline-flex items-center gap-1`}
+                        className={`${getProductTypeColor(tx.product_type)} whitespace-normal break-words inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                        onClick={() =>
+                          handleBadgeClick("productType", tx.product_type)
+                        }
                       >
                         {getIconForProductType(tx.product_type)}
                         {t.enums?.productType?.[tx.product_type] ||
                           tx.product_type}
                       </Badge>
                       <Badge
-                        className={`${getEntityColor(tx.entity.name)} whitespace-normal break-words inline-flex items-center`}
+                        className={`${getEntityColor(tx.entity.name)} whitespace-normal break-words inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
+                        onClick={() => handleBadgeClick("entity", tx.entity.id)}
                       >
                         {tx.entity.name}
                         {!tx.entity.is_real && (
                           <span className="ml-1 opacity-75">(V)</span>
                         )}
                       </Badge>
+
+                      {hasDetails && (
+                        <button
+                          onClick={() => toggleCardExpansion(tx.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="h-3 w-3" />
+                              Less
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3" />
+                              More
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
 
-                    {renderTransactionDetails(tx)}
+                    {hasDetails && isExpanded && (
+                      <div className="pt-2 space-y-2 border-t border-gray-100 dark:border-gray-800">
+                        {renderTransactionDetails(tx)}
+                      </div>
+                    )}
                   </Card>
-                ))}
-              </div>
+                )
+              })}
 
-              {/* Pagination */}
+              {/* Mobile Pagination */}
               <div className="flex justify-center items-center mt-6 gap-3">
                 <Button
                   variant="outline"
@@ -657,9 +1111,9 @@ export default function TransactionsPage() {
                   →
                 </Button>
               </div>
-            </>
+            </div>
           )}
-        </Card>
+        </>
       )}
     </div>
   )

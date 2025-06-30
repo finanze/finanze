@@ -5,7 +5,7 @@ from uuid import UUID
 from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
-from domain.entity import Entity
+from domain.entity import Entity, EntityType
 from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
@@ -53,7 +53,7 @@ def _map_investment_row(row) -> BaseInvestmentTx:
     entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
-        type=row["entity_type"],
+        type=EntityType[row["entity_type"]],
         is_real=row["entity_is_real"],
     )
 
