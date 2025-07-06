@@ -1,3 +1,5 @@
+import { WeightUnit, CommodityType } from "./position"
+
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
   DISCONNECTED = "DISCONNECTED",
@@ -245,4 +247,18 @@ declare global {
       ) => void
     }
   }
+}
+
+export interface CommodityRegister {
+  name: string
+  amount: number
+  unit: WeightUnit
+  type: CommodityType
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  currency?: string | null
+}
+
+export interface SaveCommodityRequest {
+  registers: CommodityRegister[]
 }

@@ -10,6 +10,7 @@ export enum ProductType {
   REAL_STATE_CF = "REAL_STATE_CF",
   CROWDLENDING = "CROWDLENDING",
   CRYPTO = "CRYPTO",
+  COMMODITY = "COMMODITY",
 }
 
 export enum AccountType {
@@ -220,6 +221,55 @@ export interface CryptoCurrencies {
   entries: CryptoCurrencyWallet[]
 }
 
+export enum CommodityType {
+  GOLD = "GOLD",
+  SILVER = "SILVER",
+  PLATINUM = "PLATINUM",
+  PALLADIUM = "PALLADIUM",
+}
+
+export enum WeightUnit {
+  GRAM = "GRAM",
+  TROY_OUNCE = "TROY_OUNCE",
+}
+
+export const COMMODITY_SYMBOLS = {
+  [CommodityType.GOLD]: "XAU",
+  [CommodityType.SILVER]: "XAG",
+  [CommodityType.PLATINUM]: "XPT",
+  [CommodityType.PALLADIUM]: "XPD",
+}
+
+export const WEIGHT_CONVERSIONS: Record<
+  WeightUnit,
+  Record<WeightUnit, number>
+> = {
+  [WeightUnit.GRAM]: {
+    [WeightUnit.TROY_OUNCE]: 0.032150746568628,
+    [WeightUnit.GRAM]: 1,
+  },
+  [WeightUnit.TROY_OUNCE]: {
+    [WeightUnit.GRAM]: 31.1034768,
+    [WeightUnit.TROY_OUNCE]: 1,
+  },
+}
+
+export interface Commodity {
+  id: string
+  name: string
+  amount: number
+  unit: WeightUnit
+  type: CommodityType
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  market_value?: number | null
+  currency?: string | null
+}
+
+export interface Commodities {
+  entries: Commodity[]
+}
+
 export type ProductPosition =
   | Accounts
   | Cards
@@ -232,19 +282,9 @@ export type ProductPosition =
   | Deposits
   | Crowdlending
   | CryptoCurrencies
+  | Commodities
 
 export type ProductPositions = Record<ProductType, ProductPosition>
-
-export interface Investments {
-  stocks?: StockInvestments | null
-  funds?: FundInvestments | null
-  fund_portfolios: FundPortfolio[]
-  factoring?: FactoringInvestments | null
-  real_state_cf?: RealStateCFInvestments | null
-  deposits?: Deposits | null
-  crowdlending?: Crowdlending | null
-  crypto_currencies?: CryptoCurrencies | null
-}
 
 export interface EntitySummary {
   id: string

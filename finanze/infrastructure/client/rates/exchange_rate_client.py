@@ -3,7 +3,6 @@ from datetime import datetime
 
 import requests
 from application.ports.exchange_rate_provider import ExchangeRateProvider
-from application.ports.metal_price_provider import MetalPriceProvider
 from cachetools import TTLCache, cached
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
@@ -15,7 +14,7 @@ def _parse_rates(rates: dict) -> dict:
     return {currency.upper(): Dezimal(rate) for currency, rate in rates.items()}
 
 
-class ExchangeRateClient(ExchangeRateProvider, MetalPriceProvider):
+class ExchangeRateClient(ExchangeRateProvider):
     MATRIX_CACHE_TTL = 2 * 60 * 60
 
     BASE_URL = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1"

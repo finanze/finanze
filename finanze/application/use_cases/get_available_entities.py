@@ -31,6 +31,8 @@ def get_last_fetches_for_virtual(
 
 
 class GetAvailableEntitiesImpl(GetAvailableEntities):
+    LISTED_ENTITY_TYPES = [EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_WALLET]
+
     def __init__(
         self,
         config_port: ConfigPort,
@@ -47,7 +49,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._last_fetches_port = last_fetches_port
         self._virtual_import_registry = virtual_import_registry
 
-    async def execute(self) -> AvailableSources:
+    def execute(self) -> AvailableSources:
         fetch_config = self._config_port.load().fetch
 
         virtual_enabled = fetch_config.virtual.enabled
@@ -63,6 +65,8 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
         entities = []
         for entity in all_entities:
+            if entity.type not in self.LISTED_ENTITY_TYPES:
+                continue
             native_entity = native_entities_by_id.get(entity.id)
             status = None
             wallets = None

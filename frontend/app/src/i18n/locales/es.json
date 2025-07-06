@@ -21,7 +21,7 @@
     "settings": "Configuración",
     "dashboard": "Panel",
     "transactions": "Transacciones",
-    "entities": "Entidades",
+    "entities": "Integraciones",
     "darkMode": "Modo Oscuro",
     "lightMode": "Modo Claro",
     "enabled": "Habilitado",
@@ -44,6 +44,7 @@
     "noDataAvailable": "No hay datos disponibles",
     "retry": "Reintentar",
     "crypto": "Crypto",
+    "commodities": "Materias Primas",
     "search": "Buscar...",
     "copy": "Copiar",
     "copied": "Copiado",
@@ -110,8 +111,8 @@
     "login": "Iniciar Sesión de Nuevo",
     "fetchData": "Obtener Datos",
     "connect": "Conectar",
-    "userEntered": "Introducción Manual",
-    "importData": "Importar Datos",
+    "userEntered": "Datos importados",
+    "importData": "Importar",
     "runVirtual": "Importar Datos Manuales",
     "confirmUserEntered": "Importar Datos Manuales",
     "confirmUserEnteredDescription": "Esto importará datos desde tus hojas de Google configuradas.",
@@ -120,7 +121,7 @@
     "available": "Entidades Disponibles",
     "setupUserEntered": "Configurar Datos Manuales",
     "userEnteredDescription": "Importa datos desde tus hojas de Google configuradas para seguimiento manual.",
-    "userEnteredAvailableDescription": "Configura la integración con Google Sheets para importar datos financieros introducidos manualmente.",
+    "userEnteredAvailableDescription": "Configura Google Sheets para importar datos financieros.",
     "virtualConnectedDescription": "Ejecuta una extracción virtual para generar datos de prueba sin conectarte a entidades bancarias reales.",
     "virtualAvailableDescription": "Ejecuta una extracción virtual para generar datos de prueba sin conectarte a entidades bancarias reales.",
     "configureInSettings": "Configurar en Ajustes",
@@ -131,7 +132,10 @@
     "refreshEntity": "Actualizar datos de entidades",
     "financialInstitutions": "Instituciones Financieras",
     "cryptoWallets": "Carteras Crypto",
-    "manualDataEntry": "Datos de usuario"
+    "commodities": "Materias Primas",
+    "commoditiesDescription": "Integra tus materias primas con valor de mercado en tiempo real",
+    "manualDataEntry": "Datos de usuario",
+    "manage": "Gestionar"
   },
   "features": {
     "POSITION": "Posiciones",
@@ -143,15 +147,17 @@
     "fetchSelected": "Obtener fatos seleccionados",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
-    "advancedOptions": "Opciones avanzadas"
+    "advancedOptions": "Opciones avanzadas",
+    "availableFeatures": "Características Disponibles"
   },
   "settings": {
     "title": "Configuración",
     "general": "General",
     "generalDescription": "Configura los ajustes generales de la aplicación",
     "defaultCurrency": "Divisa principal",
+    "defaultCommodityWeightUnit": "Unidad de peso de materia primas",
     "integrations": "Integraciones",
-    "sheetsIntegration": "Integración con Google Sheets",
+    "sheetsIntegration": "Google Sheets",
     "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets",
     "clientId": "ID de Cliente",
     "clientIdPlaceholder": "Introduce tu ID de Cliente OAuth2 de Google",
@@ -223,7 +229,7 @@
     "recentTransactions": "Transacciones Recientes",
     "maturity": "Vencimiento",
     "assetDistribution": "Distribución",
-    "assetDistributionByType": "Por tipo",
+    "assetDistributionByType": "Por producto",
     "assetDistributionByEntity": "Por entidad",
     "ongoingProjects": "Inversiones en curso",
     "noOngoingProjects": "No hay inversiones en curso en este momento.",
@@ -255,7 +261,11 @@
     "totalValue": "Valor Total",
     "shareOfTotal": "Cuota del Total",
     "ofPortfolioShareShort": "del total",
-    "stake": "Participación",
+    "stake": "Peso",
+    "stakeInFunds": "Peso en Fondos",
+    "stakeInStocks": "Peso en Acciones",
+    "stakeInCryptos": "Peso en Criptos",
+    "stakeInCommodities": "Peso en Materias Primas",
     "symbol": "Símbolo",
     "portfolio": "Cartera",
     "change": "Cambio",
@@ -263,12 +273,13 @@
     "entities": "Entidades",
     "mainCrypto": "Cripto Principal",
     "token": "Token",
+    "amount": "Cantidad",
     "noTransactions": "No se han encontrado transacciones",
     "noInvestments": "No tienes inversiones"
   },
   "export": {
     "moreOptionsNote": "En el futuro se añadirá compatibilidad con otros formatos y destinos de exportación.",
-    "title": "Exportar Datos",
+    "title": "Exportar",
     "description": "Exporta tus datos financieros a Google Sheets.",
     "spreadsheetId": "ID de Hoja de Cálculo",
     "configuredSections": "Secciones Configuradas",
@@ -355,7 +366,22 @@
       "DEPOSIT": "Depósitos",
       "CASH": "Efectivo",
       "CROWDLENDING": "Crowdlending",
-      "CRYPTO": "Criptomonedas"
+      "CRYPTO": "Criptomonedas",
+      "COMMODITY": "Materia Prima"
+    },
+    "commodityType": {
+      "GOLD": "Oro",
+      "SILVER": "Plata",
+      "PLATINUM": "Platino",
+      "PALLADIUM": "Paladio"
+    },
+    "weightUnit": {
+      "GRAM": "g",
+      "TROY_OUNCE": "oz t"
+    },
+    "weightUnitName": {
+      "GRAM": "Gramos",
+      "TROY_OUNCE": "Onzas Troy"
     }
   },
   "walletForm": {
@@ -375,7 +401,8 @@
       "addressRequired": "La dirección de la cartera es obligatoria",
       "addressTooShort": "La dirección de la cartera parece demasiado corta",
       "generic": "Error al agregar cartera",
-      "ADDRESS_ALREADY_EXISTS": "Esta dirección de cartera ya está conectada a tu cuenta",
+      "ADDRESS_ALREADY_EXISTS": "Esta dirección de cartera ya está conectada",
+      "ADDRESS_NOT_FOUND": "Dirección de cartera no encontrada",
       "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Por favor espera un momento antes de intentar de nuevo"
     }
   },
@@ -391,5 +418,19 @@
     "deleteWalletConfirm": "¿Estás seguro de que quieres eliminar la cartera \"{{walletName}}\"? Esta acción no se puede deshacer.",
     "editWalletName": "Editar nombre de cartera",
     "walletNamePlaceholder": "Ingrese el nombre de la cartera"
+  },
+  "commodityManagement": {
+    "title": "Gestionar Materias Primas",
+    "addEntry": "Nueva entrada",
+    "name": "Nombre",
+    "namePlaceholder": "Moneda de oro",
+    "type": "Tipo",
+    "amount": "Cantidad",
+    "unit": "Unidad",
+    "initialInvestment": "Inversión",
+    "averageBuyPrice": "Precio",
+    "currency": "Moneda",
+    "noCommodities": "No hay materias primas registradas",
+    "addFirstCommodity": "Agrega tu primera entrada de materia prima para empezar"
   }
 }

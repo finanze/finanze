@@ -83,6 +83,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
             entities = {}
             for row in cursor.fetchall():
+                if not row["entity_id"] or not row["pc_id"]:
+                    continue
+
                 entity = Entity(
                     id=UUID(row["entity_id"]),
                     name=row["entity_name"],

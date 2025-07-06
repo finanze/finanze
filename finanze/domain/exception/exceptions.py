@@ -20,6 +20,10 @@ class UserNotFound(Exception):
     pass
 
 
+class UserAlreadyLoggedIn(Exception):
+    pass
+
+
 class UserAlreadyExists(Exception):
     pass
 

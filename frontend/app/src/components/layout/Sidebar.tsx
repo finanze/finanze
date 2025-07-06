@@ -6,7 +6,6 @@ import { useAppContext } from "@/context/AppContext"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  BanknoteIcon as Bank,
   Settings,
   LogOut,
   Sun,
@@ -17,6 +16,7 @@ import {
   FileUp,
   SunMoon,
   Receipt,
+  BanknoteArrowDown,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
@@ -61,11 +61,15 @@ export function Sidebar() {
       label: t.common.dashboard,
       icon: <LayoutDashboard size={20} />,
     },
-    { path: "/entities", label: t.common.entities, icon: <Bank size={20} /> },
     {
       path: "/transactions",
       label: t.common.transactions,
       icon: <Receipt size={20} />,
+    },
+    {
+      path: "/entities",
+      label: t.common.entities,
+      icon: <BanknoteArrowDown size={20} />,
     },
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
     {

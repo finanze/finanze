@@ -4,6 +4,7 @@ from typing import Callable, Dict, Optional
 from uuid import UUID
 
 from application.ports.position_port import PositionPort
+from domain.commodity import CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.global_position import (
@@ -13,6 +14,8 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    Commodities,
+    Commodity,
     Crowdlending,
     CryptoCurrencies,
     CryptoCurrency,
@@ -129,6 +132,33 @@ def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlend
             json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder),
         ),
     )
+
+
+def _save_commodities(cursor, position: GlobalPosition, commodities: Commodities):
+    for commodity in commodities.entries:
+        cursor.execute(
+            """
+            INSERT INTO commodity_positions (id, global_position_id, name, type, amount, unit,
+                                           market_value, currency, initial_investment, average_buy_price)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                str(commodity.id),
+                str(position.id),
+                commodity.name,
+                commodity.type.value,
+                str(commodity.amount),
+                commodity.unit.value,
+                str(commodity.market_value),
+                commodity.currency,
+                str(commodity.initial_investment)
+                if commodity.initial_investment
+                else None,
+                str(commodity.average_buy_price)
+                if commodity.average_buy_price
+                else None,
+            ),
+        )
 
 
 def _save_crypto_currency_token_positions(cursor, wallet_detail: CryptoCurrencyWallet):
@@ -361,6 +391,7 @@ def _save_product_positions(cursor, position: GlobalPosition):
     _save_position(cursor, position, ProductType.DEPOSIT, _save_deposits)
     _save_position(cursor, position, ProductType.CROWDLENDING, _save_crowdlending)
     _save_position(cursor, position, ProductType.CRYPTO, _save_crypto_currencies)
+    _save_position(cursor, position, ProductType.COMMODITY, _save_commodities)
 
 
 def _store_position(
@@ -436,7 +467,7 @@ class PositionSQLRepository(PositionPort):
                            JOIN latest_positions lp
                                 ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
                            JOIN entities e ON gp.entity_id = e.id
-                  WHERE gp.is_real = TRUE \
+                  WHERE gp.is_real = TRUE
                   """
 
             params = []
@@ -907,6 +938,37 @@ class PositionSQLRepository(PositionPort):
 
             return CryptoCurrencies(wallets)
 
+    def _get_commodities(self, global_position_id: UUID) -> Optional[Commodities]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                "SELECT * FROM commodity_positions WHERE global_position_id = ?",
+                (str(global_position_id),),
+            )
+
+            commodities = [
+                Commodity(
+                    id=UUID(row["id"]),
+                    name=row["name"],
+                    type=CommodityType(row["type"]),
+                    amount=Dezimal(row["amount"]),
+                    unit=WeightUnit(row["unit"]),
+                    market_value=Dezimal(row["market_value"]),
+                    currency=row["currency"],
+                    initial_investment=Dezimal(row["initial_investment"])
+                    if row["initial_investment"]
+                    else None,
+                    average_buy_price=Dezimal(row["average_buy_price"])
+                    if row["average_buy_price"]
+                    else None,
+                )
+                for row in cursor
+            ]
+
+            if not commodities:
+                return None
+
+            return Commodities(commodities)
+
     def _get_product_positions(self, g_position_id: UUID) -> ProductPositions:
         positions = {}
         _store_position(
@@ -939,6 +1001,9 @@ class PositionSQLRepository(PositionPort):
         _store_position(
             positions, g_position_id, ProductType.CRYPTO, self._get_cryptocurrency
         )
+        _store_position(
+            positions, g_position_id, ProductType.COMMODITY, self._get_commodities
+        )
         return positions
 
     def _get_entity_id_from_global(self, global_position_id: UUID) -> int:
@@ -948,3 +1013,18 @@ class PositionSQLRepository(PositionPort):
                 (str(global_position_id),),
             )
             return cursor.fetchone()[0]
+
+    def delete_position_for_date(
+        self, entity_id: UUID, date: datetime.date, is_real: bool
+    ):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                """
+                DELETE
+                FROM global_positions
+                WHERE entity_id = ?
+                  AND DATE(date) = ?
+                  AND is_real = ?
+                """,
+                (str(entity_id), date.isoformat(), is_real),
+            )

@@ -35,7 +35,7 @@ DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DATE_FORMAT = "%Y-%m-%d"
 
 
-def _map_deposits(off_balance_entries: list):
+def _map_deposits(off_balance_entries: list) -> list[Deposit]:
     deposits = []
     for entry in off_balance_entries:
         if entry["type"] != "deposit":
@@ -249,20 +249,16 @@ class F24Fetcher(FinancialEntityFetcher):
                 )
             )
 
-        deposits = None
+        products = {ProductType.ACCOUNT: Accounts(accounts)}
+
         if brokerage_position and brokerage_position["offbalance"]:
             off_balance_entries = self._client.get_off_balance()
 
             deposit_details = _map_deposits(off_balance_entries["accounts"])
 
-            deposits = Deposits(
-                deposit_details,
-            )
-
-        products = {
-            ProductType.ACCOUNT: Accounts(accounts),
-            ProductType.DEPOSIT: deposits,
-        }
+            if deposit_details:
+                deposits = Deposits(deposit_details)
+                products[ProductType.DEPOSIT] = deposits
 
         return GlobalPosition(id=uuid4(), entity=F24, products=products)
 

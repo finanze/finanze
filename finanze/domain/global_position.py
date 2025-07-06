@@ -6,6 +6,7 @@ from uuid import UUID
 
 from dateutil.tz import tzlocal
 from domain.base import BaseData
+from domain.commodity import CommodityRegister
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from pydantic.dataclasses import dataclass
@@ -177,6 +178,18 @@ class CryptoToken(str, Enum):
     USDC = "USDC"
 
 
+CryptoAsset = CryptoCurrency | CryptoToken
+
+CRYPTO_SYMBOLS = {
+    CryptoCurrency.BITCOIN: "BTC",
+    CryptoCurrency.ETHEREUM: "ETH",
+    CryptoCurrency.LITECOIN: "LTC",
+    CryptoCurrency.TRON: "TRX",
+    CryptoToken.USDT: "USDT",
+    CryptoToken.USDC: "USDC",
+}
+
+
 @dataclass
 class CryptoCurrencyToken(BaseData):
     id: UUID
@@ -195,7 +208,7 @@ class CryptoCurrencyToken(BaseData):
 @dataclass
 class CryptoCurrencyWallet(BaseData):
     id: UUID
-    wallet_connection_id: UUID
+    wallet_connection_id: Optional[UUID]
     symbol: str
     crypto: CryptoCurrency
     amount: Dezimal
@@ -208,24 +221,9 @@ class CryptoCurrencyWallet(BaseData):
     tokens: list[CryptoCurrencyToken] = None
 
 
-class CommodityType(str, Enum):
-    GOLD = "GOLD"
-    SILVER = "SILVER"
-    PLATINUM = "PLATINUM"
-
-
-class WeightUnit(str, Enum):
-    GRAMS = "GRAMS"
-    TROY_OUNCES = "TROY_OUNCES"
-
-
 @dataclass
-class StandardCommodityGroup(BaseData):
-    id: UUID
-    name: str
-    type: CommodityType
-    amount: Dezimal
-    unit: WeightUnit
+class Commodity(BaseData, CommodityRegister):
+    id: UUID = field(default_factory=UUID)
 
 
 @dataclass
@@ -288,6 +286,11 @@ class CryptoCurrencies:
     entries: List[CryptoCurrencyWallet]
 
 
+@dataclass
+class Commodities:
+    entries: List[Commodity]
+
+
 ProductPosition = Union[
     Accounts,
     Cards,
@@ -300,6 +303,7 @@ ProductPosition = Union[
     Deposits,
     Crowdlending,
     CryptoCurrencies,
+    Commodities,
 ]
 
 

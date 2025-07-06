@@ -3,6 +3,7 @@ import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm } from "@/components/AddWalletForm"
 import { ManageWalletsView } from "@/components/ManageWalletsView"
+import { ManageCommoditiesView } from "@/components/ManageCommoditiesView"
 import { PinPad } from "@/components/PinPad"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
@@ -19,10 +20,15 @@ import {
   Landmark,
   Wallet,
   User,
+  Settings,
+  Download,
 } from "lucide-react"
 import { EntitySetupLoginType, EntityStatus, EntityType } from "@/types"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { createCryptoWallet } from "@/services/api"
+import { useFinancialData } from "@/context/FinancialDataContext"
+import { ProductType } from "@/types/position"
+import { CommodityIconsStack } from "@/utils/commodityIcons"
 
 export default function EntityIntegrationsPage() {
   const {
@@ -32,6 +38,7 @@ export default function EntityIntegrationsPage() {
     pinRequired,
     selectEntity,
     fetchEntities,
+    scrape,
     runVirtualScrape,
     view,
     setView,
@@ -41,6 +48,7 @@ export default function EntityIntegrationsPage() {
     disconnectEntity,
   } = useAppContext()
 
+  const { positionsData } = useFinancialData()
   const { t } = useI18n()
   const navigate = useNavigate()
   const [showVirtualConfirm, setShowVirtualConfirm] = useState(false)
@@ -48,6 +56,7 @@ export default function EntityIntegrationsPage() {
   const [showAddWallet, setShowAddWallet] = useState(false)
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
+  const [showManageCommodities, setShowManageCommodities] = useState(false)
 
   // Helper function to determine if a crypto wallet entity is connected
   const isCryptoWalletConnected = (entity: any) => {
@@ -75,6 +84,30 @@ export default function EntityIntegrationsPage() {
       return !isCryptoWalletConnected(entity)
     }
     return entity.status === EntityStatus.DISCONNECTED
+  }
+
+  // Helper function to determine if commodity data entry is available
+  const isCommodityDataEntryAvailable = () => {
+    // Check if there are any commodity positions in the financial data
+    // (commodities are positions within entities, not separate entities)
+    if (!positionsData?.positions) {
+      return false
+    }
+
+    // Look through all positions to find any that have commodity data
+    const hasAnyCommodityPositions = Object.values(
+      positionsData.positions,
+    ).some(entityPosition => {
+      if (entityPosition?.products[ProductType.COMMODITY]) {
+        const commodityProduct = entityPosition.products[ProductType.COMMODITY]
+        return (
+          "entries" in commodityProduct && commodityProduct.entries.length > 0
+        )
+      }
+      return false
+    })
+
+    return hasAnyCommodityPositions
   }
 
   const connectedEntities =
@@ -193,7 +226,7 @@ export default function EntityIntegrationsPage() {
         address,
       })
 
-      await fetchEntities()
+      await scrape(selectedEntity, selectedEntity.features)
 
       setShowAddWallet(false)
       setView("entities")
@@ -210,6 +243,10 @@ export default function EntityIntegrationsPage() {
   const handleBackFromManageWallets = () => {
     setShowManageWallets(false)
     setView("entities")
+  }
+
+  const handleBackFromManageCommodities = () => {
+    setShowManageCommodities(false)
   }
 
   const handleAddWalletFromManage = () => {
@@ -326,34 +363,69 @@ export default function EntityIntegrationsPage() {
                   </div>
                 )}
 
-                {/* User Entered (Virtual) */}
-                {virtualEnabled && (
+                {/* User Data Section */}
+                {(virtualEnabled || isCommodityDataEntryAvailable()) && (
                   <div className="space-y-3">
                     <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
                       <User className="h-5 w-5 mr-2" />
                       {t.entities.manualDataEntry}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <Card className="transition-all hover:shadow-md border-green-500 flex flex-col h-full">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="flex items-center justify-center">
-                            <FileSpreadsheet className="h-5 w-5 mr-2" />
-                            {t.entities.userEntered}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex flex-col items-center justify-center text-center flex-1">
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            {t.entities.userEnteredDescription}
-                          </p>
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => setShowVirtualConfirm(true)}
-                          >
-                            {t.entities.importData}
-                          </Button>
-                        </CardContent>
-                      </Card>
+                      {/* Virtual Data Entry - only show when enabled */}
+                      {virtualEnabled && (
+                        <Card className="transition-all hover:shadow-md border-l-4 border-l-green-500 flex flex-col h-full">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center justify-center">
+                              <FileSpreadsheet className="h-5 w-5 mr-2" />
+                              {t.entities.userEntered}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex flex-col items-center justify-center text-center flex-1 space-y-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {t.entities.userEnteredDescription}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 min-w-0 text-gray-900 hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                              onClick={() => setShowVirtualConfirm(true)}
+                            >
+                              <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                              {t.entities.importData}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Commodity Data Entry - only show when enabled */}
+                      {isCommodityDataEntryAvailable() && (
+                        <Card className="transition-all hover:shadow-md border-l-4 border-l-green-500 flex flex-col h-full">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center justify-center">
+                              <CommodityIconsStack
+                                positionsData={positionsData}
+                              />
+                              <span className="ml-2">
+                                {t.entities.commodities}
+                              </span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex flex-col items-center justify-center text-center flex-1 space-y-4">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {t.entities.commoditiesDescription}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-9 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                              onClick={() => setShowManageCommodities(true)}
+                            >
+                              <Settings className="mr-2 h-4 w-4 flex-shrink-0" />
+                              {t.entities.manage}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )}
                     </div>
                   </div>
                 )}
@@ -410,35 +482,66 @@ export default function EntityIntegrationsPage() {
                   </div>
                 )}
 
-                {/* User Entered (Virtual) - Show in Available when disabled */}
-                {!virtualEnabled && (
+                {/* User Entered (Virtual) and Commodities - Show in Available when disabled */}
+                {(!virtualEnabled || !isCommodityDataEntryAvailable()) && (
                   <div className="space-y-3">
                     <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
                       <User className="h-5 w-5 mr-2" />
                       {t.entities.manualDataEntry}
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <Card className="transition-all hover:shadow-md border-gray-300 dark:border-gray-600 flex flex-col h-full">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="flex items-center justify-center">
-                            <FileSpreadsheet className="h-5 w-5 mr-2" />
-                            {t.entities.userEntered}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex flex-col items-center justify-center text-center flex-1">
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            {t.entities.userEnteredAvailableDescription}
-                          </p>
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={handleConfigureVirtual}
+                    {(!virtualEnabled || !isCommodityDataEntryAvailable()) && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {/* User Entered (Virtual) - Show when disabled */}
+                        {!virtualEnabled && (
+                          <Card className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 flex flex-col h-full">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="flex items-center justify-center">
+                                <FileSpreadsheet className="h-5 w-5 mr-2" />
+                                {t.entities.userEntered}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                {t.entities.userEnteredAvailableDescription}
+                              </p>
+                              <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={handleConfigureVirtual}
+                              >
+                                {t.entities.configureInSettings}
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        )}
+
+                        {/* Commodity Data Entry - show when disabled */}
+                        {!isCommodityDataEntryAvailable() && (
+                          <Card
+                            className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 opacity-80 cursor-pointer hover:opacity-100 flex flex-col h-full"
+                            onClick={() => {
+                              setShowManageCommodities(true)
+                            }}
                           >
-                            {t.entities.configureInSettings}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
+                            <CardHeader className="pb-2">
+                              <CardTitle className="flex items-center justify-center">
+                                <CommodityIconsStack
+                                  positionsData={positionsData}
+                                />
+                                <span className="ml-2">
+                                  {t.entities.commodities}
+                                </span>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                                {t.entities.commoditiesDescription}
+                              </p>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -608,6 +711,31 @@ export default function EntityIntegrationsPage() {
                   onAddWallet={handleAddWalletFromManage}
                   onWalletUpdated={fetchEntities}
                   onClose={handleBackFromManageWallets}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Manage Commodities Modal */}
+      <AnimatePresence>
+        {showManageCommodities && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] overflow-hidden"
+            >
+              <div className="h-full overflow-y-auto p-6">
+                <ManageCommoditiesView
+                  onBack={handleBackFromManageCommodities}
                 />
               </div>
             </motion.div>

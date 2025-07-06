@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { FeaturesBadge } from "@/components/ui/FeaturesBadge"
 import { useAppContext } from "@/context/AppContext"
 import { useI18n } from "@/i18n"
 import {
@@ -67,11 +68,11 @@ export function EntityCard({
   const getCardStyle = () => {
     switch (effectiveStatus) {
       case EntityStatus.CONNECTED:
-        return "border-green-500"
+        return "border-l-4 border-l-green-500"
       case EntityStatus.REQUIRES_LOGIN:
-        return "border-amber-500"
+        return "border-l-4 border-l-amber-500"
       default:
-        return "border-gray-300 opacity-80"
+        return "border-l-4 border-l-gray-300 opacity-80"
     }
   }
 
@@ -133,13 +134,22 @@ export function EntityCard({
     entity.type === EntityType.FINANCIAL_INSTITUTION
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
+  const isDisconnected = effectiveStatus === EntityStatus.DISCONNECTED
+
   return (
     <>
-      <Card className={`transition-all hover:shadow-md ${getCardStyle()}`}>
-        <CardHeader className="pb-2">
+      <Card
+        className={`transition-all hover:shadow-md ${getCardStyle()} ${
+          isDisconnected ? "cursor-pointer hover:opacity-100" : ""
+        }`}
+        onClick={isDisconnected ? onSelect : undefined}
+      >
+        <CardHeader className={isDisconnected ? "pb-0" : "pb-2"}>
           <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center min-w-0">
-              <div className="w-10 h-10 mr-3 flex-shrink-0 overflow-hidden rounded-md">
+              <div
+                className={`${isDisconnected ? "w-8 h-8 mr-2" : "w-10 h-10 mr-3"} flex-shrink-0 overflow-hidden rounded-md`}
+              >
                 <img
                   src={`entities/${entity.id}.png`}
                   alt={`${entity.name} logo`}
@@ -152,25 +162,20 @@ export function EntityCard({
               </div>
               <span className="truncate">{entity.name}</span>
             </div>
-            {badgeInfo && (
-              <Badge
-                variant="outline"
-                className={`${badgeInfo.style} flex-shrink-0`}
-              >
-                {badgeInfo.text}
-              </Badge>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <FeaturesBadge features={entity.features} />
+              {badgeInfo && (
+                <Badge
+                  variant="outline"
+                  className={`${badgeInfo.style} ${isDisconnected ? "text-xs py-0" : ""}`}
+                >
+                  {badgeInfo.text}
+                </Badge>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-1 mt-2">
-            {entity.features.map(feature => (
-              <Badge key={feature} variant="secondary" className="text-xs">
-                {t.features[feature]}
-              </Badge>
-            ))}
-          </div>
-
+        <CardContent className={isDisconnected ? "pt-0" : ""}>
           {/* Show connected wallets info for crypto entities */}
           {isCryptoWallet && effectiveStatus === EntityStatus.CONNECTED && (
             <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
@@ -208,21 +213,12 @@ export function EntityCard({
             </div>
           )}
 
-          {/* Show fetch button only for disconnected entities or those requiring login */}
-          {(effectiveStatus === EntityStatus.DISCONNECTED ||
-            effectiveStatus === EntityStatus.REQUIRES_LOGIN) && (
+          {/* Show fetch button only for entities requiring login */}
+          {effectiveStatus === EntityStatus.REQUIRES_LOGIN && (
             <Button
-              variant={
-                effectiveStatus === EntityStatus.REQUIRES_LOGIN
-                  ? "ghost"
-                  : "outline"
-              }
+              variant="ghost"
               size="sm"
-              className={`w-full mt-4 h-9 ${
-                effectiveStatus === EntityStatus.REQUIRES_LOGIN
-                  ? "text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                  : "text-gray-700 dark:text-gray-300 font-medium border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
-              }`}
+              className={`w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200`}
               disabled={entityFetching}
               onClick={onSelect}
             >
@@ -231,13 +227,11 @@ export function EntityCard({
                   <LoadingSpinner size="sm" />
                   <span className="ml-2">{t.common.fetching}</span>
                 </>
-              ) : effectiveStatus === EntityStatus.REQUIRES_LOGIN ? (
+              ) : (
                 <>
                   <LogIn className="mr-2 h-4 w-4" />
                   {getButtonText()}
                 </>
-              ) : (
-                getButtonText()
               )}
             </Button>
           )}
@@ -318,7 +312,7 @@ export function EntityCard({
                     disabled={entityFetching || !onManage}
                   >
                     <Settings className="mr-1 h-4 w-4 flex-shrink-0" />
-                    Manage
+                    {t.entities.manage}
                   </Button>
 
                   <Button

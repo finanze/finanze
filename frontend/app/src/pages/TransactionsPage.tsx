@@ -79,7 +79,10 @@ export default function TransactionsPage() {
   }, [entities])
 
   const productTypeOptions: MultiSelectOption[] = useMemo(() => {
-    const productTypes = Object.values(ProductType)
+    const productTypes = Object.values(ProductType).filter(
+      type =>
+        type !== ProductType.CROWDLENDING && type !== ProductType.COMMODITY,
+    )
     return productTypes.map(type => ({
       value: type,
       label: t.enums?.productType?.[type] || type,
@@ -404,7 +407,7 @@ export default function TransactionsPage() {
                 <span className="font-medium">
                   {t.transactions.interestRate}:
                 </span>{" "}
-                {accountTx.interest_rate}%
+                {(accountTx.interest_rate * 100).toFixed(2)}%
               </div>
             )}
             {accountTx.avg_balance && (

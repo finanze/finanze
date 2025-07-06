@@ -1,6 +1,7 @@
 from dataclasses import field
 from typing import Optional
 
+from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
 FilterValues = str | list[str]
@@ -106,6 +107,7 @@ class IntegrationsConfig:
 @dataclass
 class GeneralConfig:
     defaultCurrency: str = "EUR"
+    defaultCommodityWeightUnit: str = WeightUnit.GRAM.value
 
 
 @dataclass

@@ -51,6 +51,7 @@ import {
   getOngoingProjects,
   getStockAndFundPositions,
   getCryptoPositions,
+  getCommodityPositions,
   getRecentTransactions,
   getDaysStatus,
 } from "@/utils/financialDataUtils"
@@ -64,7 +65,8 @@ export default function DashboardPage() {
     error: financialDataError,
     refreshData: refreshFinancialData,
   } = useFinancialData()
-  const { settings, inactiveEntities, exchangeRates } = useAppContext()
+  const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
+    useAppContext()
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
@@ -249,6 +251,13 @@ export default function DashboardPage() {
     settings.general.defaultCurrency,
     exchangeRates,
   )
+  const commodityPositions = getCommodityPositions(
+    positionsData,
+    locale,
+    settings.general.defaultCurrency,
+    exchangeRates,
+    settings,
+  )
   const recentTransactions = getRecentTransactions(
     transactions,
     locale,
@@ -277,6 +286,11 @@ export default function DashboardPage() {
   const cryptoItems = cryptoPositions.map((p, index) => ({
     ...p,
     id: `crypto-${p.symbol}-${p.entities.join("-")}-${p.address}-${index}`,
+  }))
+
+  const commodityItems = commodityPositions.map((p, index) => ({
+    ...p,
+    id: `commodity-${p.symbol}-${p.entities.join("-")}-${index}`,
   }))
 
   const fundPortfolioColorMap = useMemo(() => {
@@ -371,6 +385,26 @@ export default function DashboardPage() {
     "bg-slate-600",
   ]
 
+  const ITEM_COMMODITY_COLORS = [
+    "bg-yellow-500",
+    "bg-amber-500",
+    "bg-orange-500",
+    "bg-yellow-600",
+    "bg-amber-600",
+    "bg-orange-600",
+    "bg-lime-500",
+    "bg-green-500",
+    "bg-emerald-500",
+    "bg-teal-500",
+    "bg-cyan-500",
+    "bg-blue-500",
+    "bg-indigo-500",
+    "bg-purple-500",
+    "bg-pink-500",
+    "bg-rose-500",
+    "bg-red-500",
+  ]
+
   const ENTITY_COLORS = [
     "#8b5cf6",
     "#06b6d4",
@@ -406,17 +440,23 @@ export default function DashboardPage() {
     () => shuffle(ITEM_CRYPTO_COLORS),
     [],
   )
+  const shuffledCommodityItemColors = useMemo(
+    () => shuffle(ITEM_COMMODITY_COLORS),
+    [],
+  )
 
   const getItemColorByIndex = (
     index: number,
-    type: "FUND" | "STOCK_ETF" | "CRYPTO" | "CRYPTO_TOKEN",
+    type: "FUND" | "STOCK_ETF" | "CRYPTO" | "CRYPTO_TOKEN" | "COMMODITY",
   ) => {
     const colors =
       type === "FUND"
         ? shuffledFundItemColors
         : type === "STOCK_ETF"
           ? shuffledStockItemColors
-          : shuffledCryptoItemColors
+          : type === "CRYPTO" || type === "CRYPTO_TOKEN"
+            ? shuffledCryptoItemColors
+            : shuffledCommodityItemColors
     return colors[index % colors.length]
   }
 
@@ -554,10 +594,20 @@ export default function DashboardPage() {
           onClick={() => {
             refreshFinancialData()
             fetchTransactionsData()
+            refreshExchangeRates()
           }}
         >
           {t.common.retry}
         </Button>
+      </div>
+    )
+  }
+
+  // Don't render until exchange rates are available
+  if (!exchangeRates) {
+    return (
+      <div className="flex justify-center items-center h-[70vh]">
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
@@ -626,6 +676,7 @@ export default function DashboardPage() {
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart
                               key={`pie-asset-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                              style={{ userSelect: "none" }}
                             >
                               <Pie
                                 data={assetDistribution}
@@ -638,6 +689,7 @@ export default function DashboardPage() {
                                 fill="#8884d8"
                                 dataKey="value"
                                 nameKey="type"
+                                isAnimationActive={false}
                               >
                                 {assetDistribution.map((entry, index) => (
                                   <Cell
@@ -645,6 +697,7 @@ export default function DashboardPage() {
                                     fill={getPieSliceColorForAssetType(
                                       entry.type,
                                     )}
+                                    style={{ outline: "none" }}
                                   />
                                 ))}
                               </Pie>
@@ -714,6 +767,7 @@ export default function DashboardPage() {
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart
                               key={`pie-entity-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                              style={{ userSelect: "none" }}
                             >
                               <Pie
                                 data={entityDistribution}
@@ -726,11 +780,13 @@ export default function DashboardPage() {
                                 fill="#8884d8"
                                 dataKey="value"
                                 nameKey="name"
+                                isAnimationActive={false}
                               >
                                 {entityDistribution.map((entry, index) => (
                                   <Cell
                                     key={`entity-cell-${index}`}
                                     fill={entityColorMap.get(entry.id)}
+                                    style={{ outline: "none" }}
                                   />
                                 ))}
                               </Pie>
@@ -1133,9 +1189,20 @@ export default function DashboardPage() {
                                     >
                                       {item.name}
                                     </span>
-                                    <span className="font-semibold whitespace-nowrap text-sm">
-                                      {item.formattedValue}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                        {item.amount?.toLocaleString(locale, {
+                                          minimumFractionDigits:
+                                            item.amount < 1 ? 6 : 2,
+                                          maximumFractionDigits:
+                                            item.amount < 1 ? 6 : 2,
+                                        })}{" "}
+                                        {item.symbol}
+                                      </span>
+                                      <span className="font-semibold whitespace-nowrap text-sm">
+                                        {item.formattedValue}
+                                      </span>
+                                    </div>
                                   </div>
                                   <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
                                     {item.showEntityBadge &&
@@ -1170,16 +1237,100 @@ export default function DashboardPage() {
                             ))}
                           </div>
                         ) : null}
+
+                        {commodityItems.length > 0 ? (
+                          <div className="pb-2">
+                            <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                              {t.common.commodities}
+                            </h3>
+                            {commodityItems.map((item, index) => (
+                              <div
+                                key={item.id}
+                                className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
+                              >
+                                <div
+                                  className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "COMMODITY")}`}
+                                ></div>
+                                <div className="flex-grow min-w-0">
+                                  <div className="flex justify-between items-center">
+                                    <span
+                                      className="font-medium truncate flex-1 mr-2 text-base"
+                                      title={
+                                        t.enums.commodityType[
+                                          item.type as keyof typeof t.enums.commodityType
+                                        ]
+                                      }
+                                    >
+                                      {
+                                        t.enums.commodityType[
+                                          item.type as keyof typeof t.enums.commodityType
+                                        ]
+                                      }
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                        {item.amount?.toLocaleString(locale, {
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 1,
+                                        })}{" "}
+                                        {
+                                          t.enums.weightUnit[
+                                            item.unit as keyof typeof t.enums.weightUnit
+                                          ]
+                                        }
+                                      </span>
+                                      <span className="font-semibold whitespace-nowrap text-sm">
+                                        {item.formattedValue}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
+                                    {item.showEntityBadge &&
+                                    item.entities &&
+                                    item.entities.length > 0 ? (
+                                      <div className="flex gap-1 flex-wrap">
+                                        {item.entities.map(
+                                          (
+                                            entity: string,
+                                            entityIndex: number,
+                                          ) => (
+                                            <Badge
+                                              key={entityIndex}
+                                              variant="outline"
+                                              className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                            >
+                                              {entity}
+                                            </Badge>
+                                          ),
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span>&nbsp;</span>
+                                    )}
+                                    {item.change !== 0 && (
+                                      <span
+                                        className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
+                                      >
+                                        {formatPercentage(item.change, locale)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="flex-shrink-0 w-6 relative">
                         {(fundItems.length > 0 ||
                           stockItems.length > 0 ||
-                          cryptoItems.length > 0) && (
+                          cryptoItems.length > 0 ||
+                          commodityItems.length > 0) && (
                           <div className="h-full w-full flex flex-col rounded-sm overflow-hidden">
                             {fundItems.map(
                               (item, index) =>
-                                item.percentageOfTotalVariableRent > 0 && (
+                                item.percentageOfTotalPortfolio > 0 && (
                                   <Popover
                                     key={`bar-fund-${item.id}`}
                                     open={isPopoverOpen(`fund-${item.id}`)}
@@ -1194,7 +1345,7 @@ export default function DashboardPage() {
                                       <div
                                         className={`w-full ${getItemColorByIndex(index, "FUND")} cursor-pointer hover:opacity-80 transition-opacity`}
                                         style={{
-                                          height: `${item.percentageOfTotalVariableRent}%`,
+                                          height: `${item.percentageOfTotalPortfolio}%`,
                                         }}
                                         onMouseEnter={() =>
                                           handleMouseEnter(`fund-${item.id}`)
@@ -1233,17 +1384,20 @@ export default function DashboardPage() {
                                               {item.formattedValue}
                                             </div>
                                           </div>
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.stake}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {formatPercentage(
-                                                item.percentageOfTotalVariableRent,
-                                                locale,
-                                              )}
+                                          {item.percentageOfTotalVariableRent <
+                                            100 && (
+                                            <div>
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.stakeInFunds}:
+                                              </span>
+                                              <div className="font-semibold">
+                                                {formatPercentage(
+                                                  item.percentageOfTotalVariableRent,
+                                                  locale,
+                                                )}
+                                              </div>
                                             </div>
-                                          </div>
+                                          )}
                                           <div className="col-span-2">
                                             <span className="text-muted-foreground">
                                               {t.dashboard.entity}:
@@ -1298,7 +1452,7 @@ export default function DashboardPage() {
                               ) && <div className="h-1 w-full my-0.5"></div>}
                             {stockItems.map(
                               (item, index) =>
-                                item.percentageOfTotalVariableRent > 0 && (
+                                item.percentageOfTotalPortfolio > 0 && (
                                   <Popover
                                     key={`bar-stock-${item.id}`}
                                     open={isPopoverOpen(`stock-${item.id}`)}
@@ -1313,7 +1467,7 @@ export default function DashboardPage() {
                                       <div
                                         className={`w-full ${getItemColorByIndex(index, "STOCK_ETF")} cursor-pointer hover:opacity-80 transition-opacity`}
                                         style={{
-                                          height: `${item.percentageOfTotalVariableRent}%`,
+                                          height: `${item.percentageOfTotalPortfolio}%`,
                                         }}
                                         onMouseEnter={() =>
                                           handleMouseEnter(`stock-${item.id}`)
@@ -1352,17 +1506,20 @@ export default function DashboardPage() {
                                               {item.formattedValue}
                                             </div>
                                           </div>
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.stake}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {formatPercentage(
-                                                item.percentageOfTotalVariableRent,
-                                                locale,
-                                              )}
+                                          {item.percentageOfTotalVariableRent <
+                                            100 && (
+                                            <div>
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.stakeInStocks}:
+                                              </span>
+                                              <div className="font-semibold">
+                                                {formatPercentage(
+                                                  item.percentageOfTotalVariableRent,
+                                                  locale,
+                                                )}
+                                              </div>
                                             </div>
-                                          </div>
+                                          )}
                                           {item.symbol && (
                                             <div>
                                               <span className="text-muted-foreground">
@@ -1418,7 +1575,7 @@ export default function DashboardPage() {
                               ) && <div className="h-1 w-full my-0.5"></div>}
                             {cryptoItems.map(
                               (item, index) =>
-                                item.percentageOfTotalVariableRent > 0 && (
+                                item.percentageOfTotalPortfolio > 0 && (
                                   <Popover
                                     key={`bar-crypto-${item.id}`}
                                     open={isPopoverOpen(`crypto-${item.id}`)}
@@ -1433,7 +1590,7 @@ export default function DashboardPage() {
                                       <div
                                         className={`w-full ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")} cursor-pointer hover:opacity-80 transition-opacity`}
                                         style={{
-                                          height: `${item.percentageOfTotalVariableRent}%`,
+                                          height: `${item.percentageOfTotalPortfolio}%`,
                                         }}
                                         onMouseEnter={() =>
                                           handleMouseEnter(`crypto-${item.id}`)
@@ -1474,15 +1631,35 @@ export default function DashboardPage() {
                                               {item.formattedValue}
                                             </div>
                                           </div>
+                                          {item.percentageOfTotalVariableRent <
+                                            100 && (
+                                            <div>
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.stakeInCryptos}:
+                                              </span>
+                                              <div className="font-semibold">
+                                                {formatPercentage(
+                                                  item.percentageOfTotalVariableRent,
+                                                  locale,
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
                                           <div>
                                             <span className="text-muted-foreground">
-                                              {t.dashboard.stake}:
+                                              Amount:
                                             </span>
                                             <div className="font-semibold">
-                                              {formatPercentage(
-                                                item.percentageOfTotalVariableRent,
+                                              {item.amount?.toLocaleString(
                                                 locale,
-                                              )}
+                                                {
+                                                  minimumFractionDigits:
+                                                    item.amount < 1 ? 6 : 2,
+                                                  maximumFractionDigits:
+                                                    item.amount < 1 ? 6 : 2,
+                                                },
+                                              )}{" "}
+                                              {item.symbol}
                                             </div>
                                           </div>
                                           {item.symbol && (
@@ -1542,6 +1719,164 @@ export default function DashboardPage() {
                                               </div>
                                             </div>
                                           )}
+                                        </div>
+                                      </div>
+                                    </PopoverContent>
+                                  </Popover>
+                                ),
+                            )}
+                            {(fundItems.length > 0 ||
+                              stockItems.length > 0 ||
+                              cryptoItems.length > 0) &&
+                              commodityItems.length > 0 &&
+                              commodityItems.some(
+                                ci => ci.percentageOfTotalVariableRent > 0,
+                              ) && <div className="h-1 w-full my-0.5"></div>}
+                            {commodityItems.map(
+                              (item, index) =>
+                                item.percentageOfTotalPortfolio > 0 && (
+                                  <Popover
+                                    key={`bar-commodity-${item.id}`}
+                                    open={isPopoverOpen(`commodity-${item.id}`)}
+                                    onOpenChange={open => {
+                                      if (!open) {
+                                        setHoveredItem(null)
+                                        setClickedItem(null)
+                                      }
+                                    }}
+                                  >
+                                    <PopoverTrigger asChild>
+                                      <div
+                                        className={`w-full ${getItemColorByIndex(index, "COMMODITY")} cursor-pointer hover:opacity-80 transition-opacity`}
+                                        style={{
+                                          height: `${item.percentageOfTotalPortfolio}%`,
+                                        }}
+                                        onClick={() =>
+                                          handlePopoverClick(
+                                            `commodity-${item.id}`,
+                                          )
+                                        }
+                                        onMouseEnter={() =>
+                                          handleMouseEnter(
+                                            `commodity-${item.id}`,
+                                          )
+                                        }
+                                        onMouseLeave={() =>
+                                          setHoveredItem(null)
+                                        }
+                                      ></div>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80">
+                                      <div
+                                        onMouseEnter={() =>
+                                          handleMouseEnter(
+                                            `commodity-${item.id}`,
+                                          )
+                                        }
+                                        onMouseLeave={() =>
+                                          setHoveredItem(null)
+                                        }
+                                      >
+                                        <div className="space-y-2">
+                                          <div className="flex items-center space-x-2">
+                                            <div
+                                              className={`w-4 h-4 rounded ${getItemColorByIndex(index, "COMMODITY")}`}
+                                            ></div>
+                                            <h4 className="font-medium text-sm">
+                                              {
+                                                t.enums.commodityType[
+                                                  item.type as keyof typeof t.enums.commodityType
+                                                ]
+                                              }
+                                            </h4>
+                                          </div>
+                                          <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.value}:
+                                              </span>
+                                              <div className="font-semibold">
+                                                {item.formattedValue}
+                                              </div>
+                                            </div>
+                                            {item.percentageOfTotalVariableRent <
+                                              100 && (
+                                              <div>
+                                                <span className="text-muted-foreground">
+                                                  {
+                                                    t.dashboard
+                                                      .stakeInCommodities
+                                                  }
+                                                  :
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {formatPercentage(
+                                                    item.percentageOfTotalVariableRent,
+                                                    locale,
+                                                  )}
+                                                </div>
+                                              </div>
+                                            )}
+                                            <div>
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.amount}:
+                                              </span>
+                                              <div className="font-semibold">
+                                                {item.amount?.toLocaleString(
+                                                  locale,
+                                                  {
+                                                    minimumFractionDigits: 0,
+                                                    maximumFractionDigits: 1,
+                                                  },
+                                                )}{" "}
+                                                {
+                                                  t.enums.weightUnit[
+                                                    item.unit as keyof typeof t.enums.weightUnit
+                                                  ]
+                                                }
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.change}:
+                                              </span>
+                                              <div
+                                                className={`font-semibold ${
+                                                  item.change >= 0
+                                                    ? "text-green-500"
+                                                    : "text-red-500"
+                                                }`}
+                                              >
+                                                {item.change >= 0 ? "+" : ""}
+                                                {formatPercentage(
+                                                  item.change,
+                                                  locale,
+                                                )}
+                                              </div>
+                                            </div>
+                                            {item.showEntityBadge &&
+                                              item.entities &&
+                                              item.entities.length > 0 && (
+                                                <div className="col-span-2">
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.entities}:
+                                                  </span>
+                                                  <div className="flex flex-wrap gap-1 mt-1">
+                                                    {item.entities.map(
+                                                      (entity, entityIndex) => (
+                                                        <Badge
+                                                          key={entityIndex}
+                                                          variant="outline"
+                                                          className="text-xs"
+                                                        >
+                                                          {entity}
+                                                        </Badge>
+                                                      ),
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+                                          </div>
                                         </div>
                                       </div>
                                     </PopoverContent>

@@ -31,6 +31,7 @@ import {
 } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
+import { WeightUnit } from "@/types/position"
 export interface AppSettings {
   integrations?: {
     sheets?: {
@@ -55,6 +56,7 @@ export interface AppSettings {
   }
   general: {
     defaultCurrency: string
+    defaultCommodityWeightUnit: string
   }
 }
 
@@ -69,6 +71,7 @@ export interface FetchingEntityState {
 
 interface AppContextType {
   entities: Entity[]
+  entitiesLoaded: boolean
   inactiveEntities: Entity[]
   isLoading: boolean
   virtualEnabled: boolean
@@ -89,7 +92,7 @@ interface AppContextType {
   pinError: boolean
   externalLoginInProgress: boolean
   platform: PlatformType | null
-  exchangeRates: ExchangeRates | null
+  exchangeRates: ExchangeRates
   exchangeRatesLoading: boolean
   exchangeRatesError: string | null
   exportState: ExportState
@@ -147,11 +150,13 @@ const defaultSettings: AppSettings = {
   },
   general: {
     defaultCurrency: "EUR",
+    defaultCommodityWeightUnit: WeightUnit.GRAM,
   },
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
+  const [entitiesLoaded, setEntitiesLoaded] = useState(false)
   const [inactiveEntities, setInactiveEntities] = useState<Entity[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null)
@@ -178,7 +183,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [virtualEnabled, setVirtualEnabled] = useState(false)
   const [externalLoginInProgress, setExternalLoginInProgress] = useState(false)
   const [platform, setPlatform] = useState<PlatformType | null>(null)
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRates | null>(null)
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false)
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
     null,
@@ -195,6 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
 
   const initialFetchDone = useRef(false)
+  const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const scrapeManualLogin = useRef<{
     active: boolean
@@ -259,6 +265,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const data = await getEntities()
       setVirtualEnabled(data.virtual)
       setEntities(data.entities)
+      setEntitiesLoaded(true)
+
+      await fetchExchangeRates()
     } catch {
       showToast(t.common.fetchError, "error")
     } finally {
@@ -290,6 +299,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const startExchangeRatesTimer = () => {
+    if (exchangeRatesTimerRef.current) {
+      clearInterval(exchangeRatesTimerRef.current)
+    }
+
+    exchangeRatesTimerRef.current = setInterval(
+      () => {
+        if (isAuthenticated) {
+          fetchExchangeRatesSilently()
+        }
+      },
+      5 * 60 * 1000,
+    )
+  }
+
+  const stopExchangeRatesTimer = () => {
+    if (exchangeRatesTimerRef.current) {
+      clearInterval(exchangeRatesTimerRef.current)
+      exchangeRatesTimerRef.current = null
+    }
+  }
+
   const fetchExchangeRates = async () => {
     if (!isAuthenticated) return
 
@@ -298,11 +329,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setExchangeRatesError(null)
       const rates = await getExchangeRates()
       setExchangeRates(rates)
+
+      if (!exchangeRatesTimerRef.current) {
+        startExchangeRatesTimer()
+      }
     } catch (error) {
       console.error("Error fetching exchange rates:", error)
       setExchangeRatesError(t.common.fetchError)
     } finally {
       setExchangeRatesLoading(false)
+    }
+  }
+
+  const fetchExchangeRatesSilently = async () => {
+    if (!isAuthenticated) return
+
+    try {
+      setExchangeRatesError(null)
+      const rates = await getExchangeRates()
+      setExchangeRates(rates)
+    } catch (error) {
+      console.error("Error fetching exchange rates silently:", error)
     }
   }
 
@@ -599,8 +646,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (response.code === "COMPLETED") {
         showToast(t.common.virtualScrapeSuccess, "success")
+        await fetchEntities()
       } else {
-        handleScrapeError(response.code || "UNEXPECTED_ERROR")
+        handleScrapeError(response.code)
       }
     } catch {
       showToast(t.common.virtualScrapeError, "error")
@@ -657,10 +705,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
-      fetchExchangeRates()
       initialFetchDone.current = true
+    } else if (!isAuthenticated) {
+      stopExchangeRatesTimer()
+      setEntitiesLoaded(false)
     }
   }, [isAuthenticated])
+
+  useEffect(() => {
+    return () => {
+      stopExchangeRatesTimer()
+    }
+  }, [])
 
   useEffect(() => {
     setInactiveEntities(
@@ -672,6 +728,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         entities,
+        entitiesLoaded,
         inactiveEntities,
         isLoading,
         virtualEnabled,

@@ -3,6 +3,7 @@ from uuid import UUID
 
 from domain.entity import (
     CredentialType,
+    Entity,
     EntitySetupLoginType,
     EntityType,
     Feature,
@@ -149,6 +150,13 @@ ETHEREUM = _create_crypto_entity(2, "Ethereum")
 LITECOIN = _create_crypto_entity(3, "Litecoin")
 TRON = _create_crypto_entity(4, "Tron")
 
+COMMODITIES = Entity(
+    id=UUID("ccccdddd-0000-0000-0000-000000000000"),
+    name="Commodity Source",
+    type=EntityType.COMMODITY,
+    is_real=True,
+)
+
 NATIVE_ENTITIES = [
     MY_INVESTOR,
     UNICAJA,
@@ -163,6 +171,7 @@ NATIVE_ENTITIES = [
     ETHEREUM,
     LITECOIN,
     TRON,
+    COMMODITIES,
 ]
 
 

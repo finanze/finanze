@@ -16,6 +16,7 @@ from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.register_user import RegisterUserImpl
+from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
@@ -50,6 +51,7 @@ from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
 from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
 from infrastructure.client.rates.crypto_price_client import CryptoPriceClient
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
+from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
@@ -133,6 +135,7 @@ class FinanzeServer:
         last_fetches_repository = LastFetchesRepository(client=self.db_client)
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
+        metal_price_client = MetalPriceClient()
 
         credentials_storage_mode = self.args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -224,15 +227,25 @@ class FinanzeServer:
         get_entities_position = GetPositionImpl(position_repository)
         get_contributions = GetContributionsImpl(auto_contrib_repository)
         get_transactions = GetTransactionsImpl(transaction_repository)
-        get_exchange_rates = GetExchangeRatesImpl(exchange_rate_client)
+        get_exchange_rates = GetExchangeRatesImpl(
+            exchange_rate_client, crypto_price_client, metal_price_client
+        )
         connect_crypto_wallet = ConnectCryptoWalletImpl(
-            crypto_wallet_connections_repository
+            crypto_wallet_connections_repository,
+            self.crypto_entity_fetchers,
         )
         update_crypto_wallet = UpdateCryptoWalletConnectionImpl(
             crypto_wallet_connections_repository
         )
         delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
             crypto_wallet_connections_repository
+        )
+        save_commodities = SaveCommoditiesImpl(
+            position_repository,
+            exchange_rate_client,
+            metal_price_client,
+            last_fetches_repository,
+            transaction_handler,
         )
 
         self._log.info("Initial component setup completed.")
@@ -276,6 +289,7 @@ class FinanzeServer:
             connect_crypto_wallet,
             update_crypto_wallet,
             delete_crypto_wallet,
+            save_commodities,
         )
         self._log.info("Completed.")
 
@@ -285,7 +299,6 @@ class FinanzeServer:
             serve(self.flask_app, host="0.0.0.0", port=self.args.port)
         except OSError as e:
             self._log.error(f"Could not start server on port {self.args.port}: {e}")
-            # Handle specific errors like EADDRINUSE if needed
             raise
         except Exception:
             self._log.exception(

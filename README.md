@@ -28,7 +28,7 @@ information.
 - Dynamic and customizable data export to Google Sheets
 - Virtual scraping for simulated data
 
-### Supported Assets by Entity
+### Supported Assets by Financial Entity
 
 | Entity         | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
 |----------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
@@ -44,7 +44,7 @@ information.
 
 ⚠️ = Not tested
 
-### Entity Features
+### Financial Entity Features
 
 Not all entities support the same features, in general we can group data in the following categories:
 
@@ -69,7 +69,7 @@ Not all entities support the same features, in general we can group data in the 
 | Freedom24      | ✅               | -                         | ✅                              | ❌                      |
 | Indexa Capital | ✅⚠️             | -                         | ❌                              | -                      |
 
-### Entity notes
+### Financial Entity notes
 
 Some entities require a 2FA to login or get its data, which doesn't allow to background update, this applies to the
 following ones:
@@ -87,6 +87,27 @@ Important points to remark:
 - **Indexa Capital** is not tested, as I don't have an account.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
   removal.
+
+### Crypto
+
+Crypto is a bit special, as it is not a financial entity, but a financial product. To add it just set up a wallet,
+currently the following are supported:
+
+- **Bitcoin**
+- **Ethereum**: ERC20 tokens are supported too, currently **USDT** and **USDC** are supported.
+- **Litecoin**
+- **Tron**: TRC20 tokens are supported too, same as ETH.
+
+At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
+
+### Commodities
+
+Manual commodity input is feature that allows to track market value for them. Currently, the following are supported:
+
+- **Gold**
+- **Silver**
+- **Platinum**
+- **Palladium**
 
 ### Google Sheets export
 

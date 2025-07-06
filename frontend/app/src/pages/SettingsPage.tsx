@@ -21,10 +21,11 @@ import {
   ChevronUp,
   Save,
   RefreshCw,
+  FileSpreadsheet,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
-import { ProductType } from "@/types/position"
+import { ProductType, WeightUnit } from "@/types/position"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
 
@@ -86,6 +87,7 @@ export default function SettingsPage() {
     historic: false,
     virtualPosition: false,
     virtualTransactions: false,
+    googleSheets: false,
   })
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
@@ -101,6 +103,7 @@ export default function SettingsPage() {
     ProductType.CRYPTO,
     ProductType.DEPOSIT,
     ProductType.REAL_STATE_CF,
+    ProductType.COMMODITY,
   ]
 
   const getPositionDataOptions = (): MultiSelectOption[] => {
@@ -196,6 +199,16 @@ export default function SettingsPage() {
       general: {
         ...settings.general,
         defaultCurrency: currency,
+      },
+    })
+  }
+
+  const handleCommodityWeightUnitChange = (unit: string) => {
+    setSettings({
+      ...settings,
+      general: {
+        ...settings.general,
+        defaultCommodityWeightUnit: unit,
       },
     })
   }
@@ -1369,6 +1382,33 @@ export default function SettingsPage() {
                       </select>
                     </div>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="default-commodity-weight-unit">
+                      {t.settings.defaultCommodityWeightUnit}
+                    </Label>
+                    <div className="relative">
+                      <select
+                        id="default-commodity-weight-unit"
+                        value={
+                          settings.general?.defaultCommodityWeightUnit ||
+                          WeightUnit.GRAM
+                        }
+                        onChange={e =>
+                          handleCommodityWeightUnitChange(e.target.value)
+                        }
+                        className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                      >
+                        <option value={WeightUnit.GRAM}>
+                          {t.enums.weightUnit.GRAM} -{" "}
+                          {t.enums.weightUnitName.GRAM}
+                        </option>
+                        <option value={WeightUnit.TROY_OUNCE}>
+                          {t.enums.weightUnit.TROY_OUNCE} -{" "}
+                          {t.enums.weightUnitName.TROY_OUNCE}
+                        </option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1380,102 +1420,150 @@ export default function SettingsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
+            className="space-y-4"
           >
+            {/* Google Sheets Integration */}
             <Card>
               <CardHeader>
-                <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleSection("googleSheets")}
+                >
+                  <div className="flex items-center">
+                    <FileSpreadsheet className="mr-2 h-5 w-5 text-green-600" />
+                    <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
+                  </div>
+                  {expandedSections.googleSheets ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
                 <CardDescription>
                   {t.settings.sheetsIntegrationDescription}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="client-id">{t.settings.clientId}</Label>
-                    <Input
-                      id="client-id"
-                      type="text"
-                      placeholder={t.settings.clientIdPlaceholder}
-                      value={
-                        settings?.integrations?.sheets?.credentials
-                          ?.client_id || ""
-                      }
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            sheets: {
-                              ...settings.integrations?.sheets,
-                              credentials: {
-                                ...settings.integrations?.sheets?.credentials,
-                                client_id: e.target.value,
+              {expandedSections.googleSheets && (
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client-id">{t.settings.clientId}</Label>
+                      <Input
+                        id="client-id"
+                        type="text"
+                        placeholder={t.settings.clientIdPlaceholder}
+                        value={
+                          settings?.integrations?.sheets?.credentials
+                            ?.client_id || ""
+                        }
+                        onChange={e =>
+                          setSettings({
+                            ...settings,
+                            integrations: {
+                              ...settings.integrations,
+                              sheets: {
+                                ...settings.integrations?.sheets,
+                                credentials: {
+                                  ...settings.integrations?.sheets?.credentials,
+                                  client_id: e.target.value,
+                                },
                               },
                             },
-                          },
-                        })
-                      }
-                      className={
-                        validationErrors.integrations &&
-                        !settings?.integrations?.sheets?.credentials?.client_id
-                          ? "border-red-500"
-                          : ""
-                      }
-                    />
-                    {validationErrors.integrations &&
-                      !settings?.integrations?.sheets?.credentials
-                        ?.client_id && (
-                        <div className="text-red-500 text-sm">
-                          {t.settings.errors.clientIdRequired}
-                        </div>
-                      )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="client-secret">
-                      {t.settings.clientSecret}
-                    </Label>
-                    <Input
-                      id="client-secret"
-                      type="password"
-                      placeholder={t.settings.clientSecretPlaceholder}
-                      value={
-                        settings?.integrations?.sheets?.credentials
-                          ?.client_secret || ""
-                      }
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            sheets: {
-                              ...settings.integrations?.sheets,
-                              credentials: {
-                                ...settings.integrations?.sheets?.credentials,
-                                client_secret: e.target.value,
-                              },
-                            },
-                          },
-                        })
-                      }
-                      className={
-                        validationErrors.integrations &&
+                          })
+                        }
+                        className={
+                          validationErrors.integrations &&
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_id
+                            ? "border-red-500"
+                            : ""
+                        }
+                      />
+                      {validationErrors.integrations &&
                         !settings?.integrations?.sheets?.credentials
-                          ?.client_secret
-                          ? "border-red-500"
-                          : ""
-                      }
-                    />
-                    {validationErrors.integrations &&
-                      !settings?.integrations?.sheets?.credentials
-                        ?.client_secret && (
-                        <div className="text-red-500 text-sm">
-                          {t.settings.errors.clientSecretRequired}
-                        </div>
-                      )}
+                          ?.client_id && (
+                          <div className="text-red-500 text-sm">
+                            {t.settings.errors.clientIdRequired}
+                          </div>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-secret">
+                        {t.settings.clientSecret}
+                      </Label>
+                      <Input
+                        id="client-secret"
+                        type="password"
+                        placeholder={t.settings.clientSecretPlaceholder}
+                        value={
+                          settings?.integrations?.sheets?.credentials
+                            ?.client_secret || ""
+                        }
+                        onChange={e =>
+                          setSettings({
+                            ...settings,
+                            integrations: {
+                              ...settings.integrations,
+                              sheets: {
+                                ...settings.integrations?.sheets,
+                                credentials: {
+                                  ...settings.integrations?.sheets?.credentials,
+                                  client_secret: e.target.value,
+                                },
+                              },
+                            },
+                          })
+                        }
+                        className={
+                          validationErrors.integrations &&
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_secret
+                            ? "border-red-500"
+                            : ""
+                        }
+                      />
+                      {validationErrors.integrations &&
+                        !settings?.integrations?.sheets?.credentials
+                          ?.client_secret && (
+                          <div className="text-red-500 text-sm">
+                            {t.settings.errors.clientSecretRequired}
+                          </div>
+                        )}
+                    </div>
                   </div>
-                </div>
-              </CardContent>
+                </CardContent>
+              )}
             </Card>
+
+            {/* Future integrations can be added here as separate Card components */}
+            {/* Example structure for future integrations:
+            <Card>
+              <CardHeader>
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleSection("otherIntegration")}
+                >
+                  <div className="flex items-center">
+                    <SomeIcon className="mr-2 h-5 w-5 text-blue-600" />
+                    <CardTitle>Other Integration</CardTitle>
+                  </div>
+                  {expandedSections.otherIntegration ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
+                <CardDescription>
+                  Configure your other integration
+                </CardDescription>
+              </CardHeader>
+              {expandedSections.otherIntegration && (
+                <CardContent>
+                  // Integration-specific content
+                </CardContent>
+              )}
+            </Card>
+            */}
           </motion.div>
         </TabsContent>
 

@@ -12,6 +12,7 @@ from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
 from domain.use_cases.get_transactions import GetTransactions
 from domain.use_cases.register_user import RegisterUser
+from domain.use_cases.save_commodities import SaveCommodities
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_sheets import UpdateSheets
@@ -34,6 +35,7 @@ from infrastructure.controller.routes.login_status import login_status
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
+from infrastructure.controller.routes.save_commodities import save_commodities
 from infrastructure.controller.routes.transactions import transactions
 from infrastructure.controller.routes.update_crypto_wallet import update_crypto_wallet
 from infrastructure.controller.routes.update_settings import update_settings
@@ -63,6 +65,7 @@ def register_routes(
     connect_crypto_wallet_uc: ConnectCryptoWallet,
     update_crypto_wallet_uc: UpdateCryptoWalletConnection,
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
+    save_commodities_uc: SaveCommodities,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -89,8 +92,8 @@ def register_routes(
         return update_settings(update_settings_uc)
 
     @app.route("/api/v1/entities", methods=["GET"])
-    async def get_available_source_route():
-        return await get_available_sources(get_available_entities_uc)
+    def get_available_source_route():
+        return get_available_sources(get_available_entities_uc)
 
     @app.route("/api/v1/entities/login", methods=["POST"])
     async def add_entity_login_route():
@@ -143,3 +146,7 @@ def register_routes(
     @app.route("/api/v1/crypto-wallet/<wallet_connection_id>", methods=["DELETE"])
     def delete_crypto_wallet_route(wallet_connection_id: str):
         return delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
+
+    @app.route("/api/v1/commodities", methods=["POST"])
+    async def save_commodities_route():
+        return await save_commodities(save_commodities_uc)

@@ -2,8 +2,8 @@ import { useState, useEffect } from "react"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
-import { formatCurrency, formatConvertedCurrency } from "@/lib/formatters"
-import { convertCurrency } from "@/utils/financialDataUtils"
+import { formatCurrency } from "@/lib/formatters"
+import { calculateCryptoValue } from "@/utils/financialDataUtils"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -56,42 +56,35 @@ export function ManageWalletsView({
   const [isUpdatingWallet, setIsUpdatingWallet] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
 
-  // Get the current entity from the entities list
   const entity: Entity | undefined = entities.find(e => e.id === entityId)
 
   useEffect(() => {
     if (entity) {
-      // Get wallets from positions data
       const cryptoProduct =
         positionsData?.positions[entity.id]?.products[ProductType.CRYPTO]
       const positionWallets =
         (cryptoProduct as { entries: CryptoCurrencyWallet[] })?.entries || []
 
-      // Get connected wallets from entity connections
       const connectedWallets = entity.connected || []
 
-      // Create a combined list, prioritizing connection data for names
       const combinedWallets: CryptoCurrencyWallet[] = []
 
-      // Add all wallets from position data, but use connection name
       positionWallets.forEach(wallet => {
         const connection = connectedWallets.find(
           conn => conn.address === wallet.address,
         )
         const walletWithConnectionName = {
           ...wallet,
-          name: connection?.name || wallet.name, // Use connection name if available
+          name: connection?.name || wallet.name,
         }
         combinedWallets.push(walletWithConnectionName)
       })
 
-      // Add any connected wallets that don't have position data
       connectedWallets.forEach(connection => {
         const existsInPositions = positionWallets.some(
           wallet => wallet.address === connection.address,
         )
         if (!existsInPositions) {
-          // Create a minimal wallet object for display
           const placeholderWallet: CryptoCurrencyWallet = {
             id: connection.id,
             wallet_connection_id: connection.id,
@@ -118,23 +111,21 @@ export function ManageWalletsView({
   const getTotalWalletValue = (wallet: CryptoCurrencyWallet) => {
     let totalValue = 0
 
-    // Add main wallet value (converted to default currency)
-    if (wallet.market_value && wallet.currency) {
-      totalValue += convertCurrency(
-        wallet.market_value,
-        wallet.currency,
+    if (wallet.amount && wallet.symbol) {
+      totalValue += calculateCryptoValue(
+        wallet.amount,
+        wallet.symbol,
         settings.general.defaultCurrency,
         exchangeRates,
       )
     }
 
-    // Add token values (converted to default currency)
     if (wallet.tokens) {
       wallet.tokens.forEach(token => {
-        if (token.market_value && token.currency) {
-          totalValue += convertCurrency(
-            token.market_value,
-            token.currency,
+        if (token.amount && token.symbol) {
+          totalValue += calculateCryptoValue(
+            token.amount,
+            token.symbol,
             settings.general.defaultCurrency,
             exchangeRates,
           )
@@ -192,7 +183,6 @@ export function ManageWalletsView({
       setEditWalletName("")
     } catch (error) {
       console.error("Error updating wallet:", error)
-      // TODO: Show error toast
     } finally {
       setIsUpdatingWallet(false)
     }
@@ -212,7 +202,6 @@ export function ManageWalletsView({
   const confirmDeleteWallet = async () => {
     if (!walletToDelete || !entity) return
 
-    // Find the connection ID for this wallet by matching the address
     const connection = entity.connected?.find(
       conn => conn.address === walletToDelete.address,
     )
@@ -228,7 +217,6 @@ export function ManageWalletsView({
     try {
       await deleteCryptoWallet(connection.id)
 
-      // Update local state
       setWallets(prevWallets =>
         prevWallets.filter(w => w.address !== walletToDelete.address),
       )
@@ -237,7 +225,6 @@ export function ManageWalletsView({
         onWalletUpdated()
       }
 
-      // Close dialog after successful deletion
       setShowDeleteConfirm(false)
       setWalletToDelete(null)
 
@@ -246,7 +233,6 @@ export function ManageWalletsView({
       }
     } catch (error) {
       console.error("Error deleting wallet:", error)
-      // TODO: Show error toast
     } finally {
       setIsDeletingWallet(false)
     }
@@ -262,13 +248,11 @@ export function ManageWalletsView({
       await navigator.clipboard.writeText(address)
       setCopiedAddress(address)
 
-      // Clear the copied state after 2 seconds
       setTimeout(() => {
         setCopiedAddress(null)
       }, 2000)
     } catch (error) {
       console.error("Failed to copy address:", error)
-      // Fallback for older browsers or when clipboard API is not available
       const textArea = document.createElement("textarea")
       textArea.value = address
       document.body.appendChild(textArea)
@@ -311,7 +295,6 @@ export function ManageWalletsView({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button
@@ -338,7 +321,6 @@ export function ManageWalletsView({
         </Button>
       </div>
 
-      {/* Wallets List */}
       {wallets.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
@@ -439,7 +421,6 @@ export function ManageWalletsView({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Main Crypto */}
                   <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 flex items-center justify-center">
@@ -468,43 +449,58 @@ export function ManageWalletsView({
                       </div>
                     </div>
                     <div className="text-right">
-                      {wallet.market_value && wallet.currency ? (
+                      {wallet.amount && wallet.symbol ? (
                         <p className="font-medium">
-                          {formatConvertedCurrency(
-                            wallet.market_value,
+                          {formatCurrency(
+                            calculateCryptoValue(
+                              wallet.amount,
+                              wallet.symbol,
+                              settings.general.defaultCurrency,
+                              exchangeRates,
+                            ),
                             locale,
-                            wallet.currency,
                             settings.general.defaultCurrency,
-                            exchangeRates,
+                            settings.general.defaultCurrency,
                           )}
                         </p>
                       ) : (
                         <p className="font-medium text-gray-500">N/A</p>
                       )}
-                      {wallet.initial_investment && wallet.market_value && (
-                        <div className="flex items-center gap-1 text-sm">
-                          <TrendingUp className="h-3 w-3" />
-                          <span
-                            className={
-                              wallet.market_value >= wallet.initial_investment
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {(
-                              ((wallet.market_value -
-                                wallet.initial_investment) /
-                                wallet.initial_investment) *
-                              100
-                            ).toFixed(1)}
-                            %
-                          </span>
-                        </div>
-                      )}
+                      {wallet.initial_investment &&
+                        wallet.amount &&
+                        wallet.symbol && (
+                          <div className="flex items-center gap-1 text-sm">
+                            <TrendingUp className="h-3 w-3" />
+                            <span
+                              className={
+                                calculateCryptoValue(
+                                  wallet.amount,
+                                  wallet.symbol,
+                                  settings.general.defaultCurrency,
+                                  exchangeRates,
+                                ) >= wallet.initial_investment
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }
+                            >
+                              {(
+                                ((calculateCryptoValue(
+                                  wallet.amount,
+                                  wallet.symbol,
+                                  settings.general.defaultCurrency,
+                                  exchangeRates,
+                                ) -
+                                  wallet.initial_investment) /
+                                  wallet.initial_investment) *
+                                100
+                              ).toFixed(1)}
+                              %
+                            </span>
+                          </div>
+                        )}
                     </div>
                   </div>
 
-                  {/* Tokens */}
                   {wallet.tokens && wallet.tokens.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -541,14 +537,18 @@ export function ManageWalletsView({
                               </div>
                             </div>
                             <div className="text-right">
-                              {token.market_value && token.currency && (
+                              {token.amount && token.symbol && (
                                 <p className="text-sm font-medium">
-                                  {formatConvertedCurrency(
-                                    token.market_value,
+                                  {formatCurrency(
+                                    calculateCryptoValue(
+                                      token.amount,
+                                      token.symbol,
+                                      settings.general.defaultCurrency,
+                                      exchangeRates,
+                                    ),
                                     locale,
-                                    token.currency,
                                     settings.general.defaultCurrency,
-                                    exchangeRates,
+                                    settings.general.defaultCurrency,
                                   )}
                                 </p>
                               )}
@@ -559,7 +559,6 @@ export function ManageWalletsView({
                     </div>
                   )}
 
-                  {/* Total Value */}
                   <div className="border-t pt-3">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">
@@ -583,7 +582,6 @@ export function ManageWalletsView({
         </motion.div>
       )}
 
-      {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         isOpen={showDeleteConfirm}
         title={t.common.warning}
@@ -598,7 +596,6 @@ export function ManageWalletsView({
         isLoading={isDeletingWallet}
       />
 
-      {/* Edit Wallet Dialog */}
       <EditDialog
         isOpen={showEditDialog}
         title={t.walletManagement.editWalletName}

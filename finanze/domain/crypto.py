@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID
 
 from pydantic.dataclasses import dataclass
@@ -13,8 +14,8 @@ class CryptoWalletConnection:
 
 @dataclass
 class CryptoFetchRequest:
-    connection_id: UUID
     address: str
+    connection_id: Optional[UUID] = None
 
 
 @dataclass

@@ -24,6 +24,7 @@ from domain.fetch_record import FetchRecord
 from domain.fetch_result import FetchOptions, FetchRequest, FetchResult, FetchResultCode
 from domain.fetched_data import FetchedData
 from domain.global_position import (
+    CryptoAsset,
     CryptoCurrencies,
     CryptoCurrencyToken,
     CryptoCurrencyWallet,
@@ -146,12 +147,12 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
                 tokens.append(
                     CryptoCurrencyToken(
                         **token_dict,
-                        market_value=self._get_market_value(token.symbol, token.amount),
+                        market_value=self._get_market_value(token.token, token.amount),
                         currency=TARGET_FIAT,
                     )
                 )
 
-        market_value = self._get_market_value(wallet.symbol, wallet.amount)
+        market_value = self._get_market_value(wallet.crypto, wallet.amount)
         wallet_dict = asdict(wallet)
         del wallet_dict["market_value"]
         del wallet_dict["currency"]
@@ -163,10 +164,9 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             tokens=tokens,
         )
 
-    def _get_market_value(self, crypto_symbol: str, crypto_amount: Dezimal) -> Dezimal:
+    def _get_market_value(self, crypto: CryptoAsset, crypto_amount: Dezimal) -> Dezimal:
         return round(
-            crypto_amount
-            * self._crypto_price_provider.get_price(crypto_symbol, TARGET_FIAT),
+            crypto_amount * self._crypto_price_provider.get_price(crypto, TARGET_FIAT),
             2,
         )
 

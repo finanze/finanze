@@ -20,7 +20,7 @@
     "logout": "Logout",
     "settings": "Settings",
     "dashboard": "Dashboard",
-    "entities": "Entities",
+    "entities": "Integrations",
     "darkMode": "Dark Mode",
     "lightMode": "Light Mode",
     "enabled": "Enabled",
@@ -48,6 +48,7 @@
     "investments": "Investments",
     "assets": "Assets",
     "crypto": "Crypto",
+    "commodities": "Commodities",
     "search": "Search...",
     "copy": "Copy",
     "copied": "Copied",
@@ -115,7 +116,7 @@
     "fetchData": "Fetch Data",
     "connect": "Connect",
     "userEntered": "User Entered",
-    "importData": "Import Data",
+    "importData": "Import",
     "runVirtual": "Import User Data",
     "confirmUserEntered": "Import User Entered Data",
     "confirmUserEnteredDescription": "This will import data from your configured Google Sheets.",
@@ -124,7 +125,7 @@
     "available": "Available Entities",
     "setupUserEntered": "Setup User Data",
     "userEnteredDescription": "Import data from your configured Google Sheets for manual tracking.",
-    "userEnteredAvailableDescription": "Configure Google Sheets integration to import manually entered financial data.",
+    "userEnteredAvailableDescription": "Configure Google Sheets to import financial data.",
     "virtualConnectedDescription": "Run a virtual scrape to generate test data without connecting to real bank entities.",
     "virtualAvailableDescription": "Run a virtual scrape to generate test data without connecting to real bank entities.",
     "configureInSettings": "Configure in Settings",
@@ -135,7 +136,10 @@
     "refreshEntity": "Update entity data",
     "financialInstitutions": "Financial Institutions",
     "cryptoWallets": "Crypto Wallets",
-    "manualDataEntry": "User data"
+    "commodities": "Commodities",
+    "commoditiesDescription": "Integrate your commodities with live market value",
+    "manualDataEntry": "User data",
+    "manage": "Manage"
   },
   "features": {
     "POSITION": "Positions",
@@ -147,23 +151,25 @@
     "fetchSelected": "Fetch selected data",
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
-    "advancedOptions": "Advanced options"
+    "advancedOptions": "Advanced options",
+    "availableFeatures": "Available Features"
   },
   "settings": {
     "title": "Settings",
     "general": "General",
     "generalDescription": "Configure general application settings",
     "defaultCurrency": "Main Currency",
+    "defaultCommodityWeightUnit": "Default commodity weight unit",
     "integrations": "Integrations",
-    "sheetsIntegration": "Google Sheets Integration",
+    "sheetsIntegration": "Google Sheets",
     "sheetsIntegrationDescription": "Configure your Google Sheets API credentials",
     "clientId": "Client ID",
     "clientIdPlaceholder": "Enter your Google OAuth2 Client ID",
     "clientSecret": "Client Secret",
     "clientSecretPlaceholder": "Enter your Google OAuth2 Client Secret",
-    "export": "Export Settings",
+    "export": "Export",
     "sheets": "Google Sheets",
-    "sheetsDescription": "Configure your Google Sheets export settings",
+    "sheetsDescription": "Configure your data export settings",
     "globals": "Global Settings",
     "investments": "Investments",
     "position": "Position",
@@ -227,7 +233,7 @@
     "recentTransactions": "Recent Transactions",
     "maturity": "Maturity",
     "assetDistribution": "Distribution",
-    "assetDistributionByType": "By type",
+    "assetDistributionByType": "By product",
     "assetDistributionByEntity": "By source",
     "ongoingProjects": "Ongoing investments",
     "noOngoingProjects": "No ongoing investments at the moment.",
@@ -259,6 +265,10 @@
     "shareOfTotal": "Share of Total",
     "ofPortfolioShareShort": "of total",
     "stake": "Stake",
+    "stakeInFunds": "Stake in Funds",
+    "stakeInStocks": "Stake in Stocks",
+    "stakeInCryptos": "Stake in Cryptos",
+    "stakeInCommodities": "Stake in Commodities",
     "symbol": "Symbol",
     "portfolio": "Portfolio",
     "change": "Change",
@@ -266,12 +276,13 @@
     "entities": "Entities",
     "mainCrypto": "Main Crypto",
     "token": "Token",
+    "amount": "Amount",
     "noTransactions": "No transactions found",
     "noInvestments": "You don't have investments"
   },
   "export": {
     "moreOptionsNote": "Support for other export formats and destinations will be added in the future.",
-    "title": "Export Data",
+    "title": "Export",
     "description": "Export your financial data to Google Sheets.",
     "spreadsheetId": "Spreadsheet ID",
     "configuredSections": "Configured Sections",
@@ -358,7 +369,22 @@
       "DEPOSIT": "Deposit",
       "CASH": "Cash",
       "CROWDLENDING": "Crowdlending",
-      "CRYPTO": "Crypto"
+      "CRYPTO": "Crypto",
+      "COMMODITY": "Commodity"
+    },
+    "commodityType": {
+      "GOLD": "Gold",
+      "SILVER": "Silver",
+      "PLATINUM": "Platinum",
+      "PALLADIUM": "Palladium"
+    },
+    "weightUnit": {
+      "GRAM": "g",
+      "TROY_OUNCE": "oz t"
+    },
+    "weightUnitName": {
+      "GRAM": "Grams",
+      "TROY_OUNCE": "Troy Ounces"
     }
   },
   "walletForm": {
@@ -378,7 +404,8 @@
       "addressRequired": "Wallet address is required",
       "addressTooShort": "Wallet address seems too short",
       "generic": "Failed to add wallet",
-      "ADDRESS_ALREADY_EXISTS": "This wallet address is already connected to your account",
+      "ADDRESS_ALREADY_EXISTS": "This wallet address is already connected",
+      "ADDRESS_NOT_FOUND": "Wallet address not found",
       "TOO_MANY_REQUESTS": "Too many requests. Please wait a moment before trying again"
     }
   },
@@ -394,5 +421,19 @@
     "deleteWalletConfirm": "Are you sure you want to delete the wallet \"{{walletName}}\"? This action cannot be undone.",
     "editWalletName": "Edit Wallet Name",
     "walletNamePlaceholder": "Enter wallet name"
+  },
+  "commodityManagement": {
+    "title": "Manage Commodities",
+    "addEntry": "Add new entry",
+    "name": "Name",
+    "namePlaceholder": "Gold coin",
+    "type": "Type",
+    "amount": "Amount",
+    "unit": "Unit",
+    "initialInvestment": "Investment",
+    "averageBuyPrice": "Price",
+    "currency": "Currency",
+    "noCommodities": "No commodities registered",
+    "addFirstCommodity": "Add your first commodity entry to get started"
   }
 }
