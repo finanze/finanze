@@ -45,6 +45,7 @@ from domain.transactions import (
     StockTx,
     Transactions,
 )
+from googleapiclient.errors import HttpError
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from pydantic import ValidationError
 
@@ -329,9 +330,17 @@ class SheetsImporter(VirtualFetcher):
         self, credentials: GoogleCredentials, sheet_id, cell_range
     ) -> list[list]:
         sheets_service = self._sheets_service.service(credentials)
-        result = (
-            sheets_service.values()
-            .get(spreadsheetId=sheet_id, range=cell_range)
-            .execute()
-        )
+        try:
+            result = (
+                sheets_service.values()
+                .get(spreadsheetId=sheet_id, range=cell_range)
+                .execute()
+            )
+        except HttpError as e:
+            if e.status_code == 404:
+                self._log.warning(f"Sheet {sheet_id} not found")
+                return []
+            else:
+                raise
+
         return result.get("values", [])

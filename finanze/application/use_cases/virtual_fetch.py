@@ -81,6 +81,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
             )
 
             now = datetime.now(tzlocal())
+            import_id = None
             virtual_import_entries = []
             if global_positions:
                 for entity in created_pos_entities:
@@ -133,7 +134,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
                         )
                     )
 
-            if not virtual_import_entries:
+            if not virtual_import_entries and import_id:
                 virtual_import_entries.append(
                     VirtualDataImport(
                         import_id=import_id,

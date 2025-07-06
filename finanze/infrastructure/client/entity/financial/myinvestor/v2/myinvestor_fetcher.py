@@ -520,10 +520,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return cards
 
-    def fetch_deposits(self) -> Optional[Deposits]:
+    def fetch_deposits(self) -> Deposits:
         deposits_raw = self._client.get_deposits()
         if not deposits_raw:
-            return None
+            return Deposits([])
 
         deposit_list = [
             Deposit(

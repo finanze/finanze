@@ -42,10 +42,10 @@ export default function EntityIntegrationsPage() {
     runVirtualScrape,
     view,
     setView,
-    virtualEnabled,
     startExternalLogin,
     externalLoginInProgress,
     disconnectEntity,
+    settings,
   } = useAppContext()
 
   const { positionsData } = useFinancialData()
@@ -57,6 +57,8 @@ export default function EntityIntegrationsPage() {
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
   const [showManageCommodities, setShowManageCommodities] = useState(false)
+
+  const virtualEnabled = settings?.fetch?.virtual?.enabled ?? false
 
   // Helper function to determine if a crypto wallet entity is connected
   const isCryptoWalletConnected = (entity: any) => {
@@ -313,7 +315,9 @@ export default function EntityIntegrationsPage() {
             animate="show"
             className="space-y-8"
           >
-            {(connectedEntities.length > 0 || virtualEnabled) && (
+            {(connectedEntities.length > 0 ||
+              virtualEnabled ||
+              isCommodityDataEntryAvailable()) && (
               <motion.div variants={item} className="space-y-6">
                 <h2 className="text-xl font-semibold">
                   {t.entities.connected}

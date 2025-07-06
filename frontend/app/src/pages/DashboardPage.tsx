@@ -229,6 +229,18 @@ export default function DashboardPage() {
     targetCurrency,
     exchangeRates,
   )
+  const { entities } = useAppContext()
+  const adjustedEntityDistribution = useMemo(() => {
+    const contextIds = new Set(entities.map(e => e.id))
+    return entityDistribution.map(item =>
+      contextIds.has(item.id)
+        ? item
+        : {
+            ...item,
+            name: (t.enums?.productType as any)?.COMMODITY || item.name,
+          },
+    )
+  }, [entityDistribution, entities, t])
   const totalAssets = getTotalAssets(
     positionsData,
     targetCurrency,
@@ -292,6 +304,14 @@ export default function DashboardPage() {
     ...p,
     id: `commodity-${p.symbol}-${p.entities.join("-")}-${index}`,
   }))
+
+  // Check if there are any detailed assets to display
+  const hasDetailedAssets = [
+    fundItems,
+    stockItems,
+    cryptoItems,
+    commodityItems,
+  ].some(items => items.length > 0)
 
   const fundPortfolioColorMap = useMemo(() => {
     const uniqueNames = Array.from(
@@ -756,7 +776,7 @@ export default function DashboardPage() {
                     </TabsContent>
 
                     <TabsContent value="by-entity" className="mt-4">
-                      {entityDistribution.length > 0 ? (
+                      {adjustedEntityDistribution.length > 0 ? (
                         <div
                           className={
                             assetDistributionCardSmall
@@ -770,7 +790,7 @@ export default function DashboardPage() {
                               style={{ userSelect: "none" }}
                             >
                               <Pie
-                                data={entityDistribution}
+                                data={adjustedEntityDistribution}
                                 cx={assetDistributionCardSmall ? "50%" : "40%"}
                                 cy={assetDistributionCardSmall ? "40%" : "50%"}
                                 labelLine={false}
@@ -782,13 +802,15 @@ export default function DashboardPage() {
                                 nameKey="name"
                                 isAnimationActive={false}
                               >
-                                {entityDistribution.map((entry, index) => (
-                                  <Cell
-                                    key={`entity-cell-${index}`}
-                                    fill={entityColorMap.get(entry.id)}
-                                    style={{ outline: "none" }}
-                                  />
-                                ))}
+                                {adjustedEntityDistribution.map(
+                                  (entry, index) => (
+                                    <Cell
+                                      key={`entity-cell-${index}`}
+                                      fill={entityColorMap.get(entry.id)}
+                                      style={{ outline: "none" }}
+                                    />
+                                  ),
+                                )}
                               </Pie>
                               <Tooltip
                                 formatter={(
@@ -1060,7 +1082,8 @@ export default function DashboardPage() {
                 <CardContent className="flex-grow flex flex-col space-y-3 p-4 overflow-hidden min-h-[350px] max-h-[650px]">
                   {fundItems.length > 0 ||
                   stockItems.length > 0 ||
-                  cryptoItems.length > 0 ? (
+                  cryptoItems.length > 0 ||
+                  commodityItems.length > 0 ? (
                     <div className="flex flex-grow space-x-3 overflow-hidden">
                       <div className="flex-grow space-y-2 overflow-y-auto scrollbar-thin pr-2">
                         {fundItems.length > 0 ? (
@@ -1323,10 +1346,7 @@ export default function DashboardPage() {
                       </div>
 
                       <div className="flex-shrink-0 w-6 relative">
-                        {(fundItems.length > 0 ||
-                          stockItems.length > 0 ||
-                          cryptoItems.length > 0 ||
-                          commodityItems.length > 0) && (
+                        {hasDetailedAssets && (
                           <div className="h-full w-full flex flex-col rounded-sm overflow-hidden">
                             {fundItems.map(
                               (item, index) =>
@@ -1421,21 +1441,28 @@ export default function DashboardPage() {
                                               </div>
                                             </div>
                                           )}
-                                          {item.change !== 0 && (
-                                            <div className="col-span-2">
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.change}:
-                                              </span>
-                                              <div
-                                                className={`font-semibold ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
-                                              >
-                                                {formatPercentage(
-                                                  item.change,
-                                                  locale,
-                                                )}
-                                              </div>
+                                          <div className="col-span-2">
+                                            <span className="text-muted-foreground">
+                                              {t.dashboard.change}:
+                                            </span>
+                                            <div
+                                              className={`font-semibold ${
+                                                item.change > 0
+                                                  ? "text-green-500"
+                                                  : item.change < 0
+                                                    ? "text-red-500"
+                                                    : "text-white"
+                                              }`}
+                                            >
+                                              {item.change === 0
+                                                ? "-"
+                                                : (item.change > 0 ? "+" : "") +
+                                                  formatPercentage(
+                                                    item.change,
+                                                    locale,
+                                                  )}
                                             </div>
-                                          )}
+                                          </div>
                                         </div>
                                       </div>
                                     </PopoverContent>
@@ -1547,21 +1574,28 @@ export default function DashboardPage() {
                                               </Badge>
                                             </div>
                                           </div>
-                                          {item.change !== 0 && (
-                                            <div className="col-span-2">
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.change}:
-                                              </span>
-                                              <div
-                                                className={`font-semibold ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
-                                              >
-                                                {formatPercentage(
-                                                  item.change,
-                                                  locale,
-                                                )}
-                                              </div>
+                                          <div className="col-span-2">
+                                            <span className="text-muted-foreground">
+                                              {t.dashboard.change}:
+                                            </span>
+                                            <div
+                                              className={`font-semibold ${
+                                                item.change > 0
+                                                  ? "text-green-500"
+                                                  : item.change < 0
+                                                    ? "text-red-500"
+                                                    : "text-white"
+                                              }`}
+                                            >
+                                              {item.change === 0
+                                                ? "-"
+                                                : (item.change > 0 ? "+" : "") +
+                                                  formatPercentage(
+                                                    item.change,
+                                                    locale,
+                                                  )}
                                             </div>
-                                          )}
+                                          </div>
                                         </div>
                                       </div>
                                     </PopoverContent>
@@ -1710,8 +1744,13 @@ export default function DashboardPage() {
                                                 {t.dashboard.change}:
                                               </span>
                                               <div
-                                                className={`font-semibold ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
+                                                className={`font-semibold ${
+                                                  item.change > 0
+                                                    ? "text-green-500"
+                                                    : "text-red-500"
+                                                }`}
                                               >
+                                                {item.change >= 0 ? "+" : ""}
                                                 {formatPercentage(
                                                   item.change,
                                                   locale,
@@ -1842,16 +1881,22 @@ export default function DashboardPage() {
                                               </span>
                                               <div
                                                 className={`font-semibold ${
-                                                  item.change >= 0
+                                                  item.change > 0
                                                     ? "text-green-500"
-                                                    : "text-red-500"
+                                                    : item.change < 0
+                                                      ? "text-red-500"
+                                                      : "text-white"
                                                 }`}
                                               >
-                                                {item.change >= 0 ? "+" : ""}
-                                                {formatPercentage(
-                                                  item.change,
-                                                  locale,
-                                                )}
+                                                {item.change === 0
+                                                  ? "-"
+                                                  : (item.change > 0
+                                                      ? "+"
+                                                      : "") +
+                                                    formatPercentage(
+                                                      item.change,
+                                                      locale,
+                                                    )}
                                               </div>
                                             </div>
                                             {item.showEntityBadge &&

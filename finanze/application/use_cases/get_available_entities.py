@@ -2,7 +2,6 @@ from dataclasses import asdict
 from datetime import datetime
 from uuid import UUID
 
-from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
 from application.ports.entity_port import EntityPort
@@ -35,14 +34,12 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
     def __init__(
         self,
-        config_port: ConfigPort,
         entity_port: EntityPort,
         credentials_port: CredentialsPort,
         crypto_wallet_connections_port: CryptoWalletConnectionPort,
         last_fetches_port: LastFetchesPort,
         virtual_import_registry: VirtualImportRegistry,
     ):
-        self._config_port = config_port
         self._entity_port = entity_port
         self._credentials_port = credentials_port
         self._crypto_wallet_connections_port = crypto_wallet_connections_port
@@ -50,10 +47,6 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._virtual_import_registry = virtual_import_registry
 
     def execute(self) -> AvailableSources:
-        fetch_config = self._config_port.load().fetch
-
-        virtual_enabled = fetch_config.virtual.enabled
-
         logged_entities = self._credentials_port.get_available_entities()
         logged_entity_ids = {e.entity_id: e.expiration for e in logged_entities}
 
@@ -118,7 +111,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 )
             )
 
-        return AvailableSources(virtual=virtual_enabled, entities=entities)
+        return AvailableSources(entities=entities)
 
     def get_last_virtual_imports_by_entity(self) -> dict[UUID, list[VirtualDataImport]]:
         last_virtual_imports = self._virtual_import_registry.get_last_import_records()

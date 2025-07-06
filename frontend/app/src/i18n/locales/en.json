@@ -424,6 +424,8 @@
   },
   "commodityManagement": {
     "title": "Manage Commodities",
+    "nameRequired": "Name is required",
+    "amountRequired": "Weight must be greater than zero",
     "addEntry": "Add new entry",
     "name": "Name",
     "namePlaceholder": "Gold coin",
@@ -434,6 +436,7 @@
     "averageBuyPrice": "Price",
     "currency": "Currency",
     "noCommodities": "No commodities registered",
-    "addFirstCommodity": "Add your first commodity entry to get started"
+    "addFirstCommodity": "Add your first commodity entry to get started",
+    "saveError": "Failed to save commodities"
   }
 }

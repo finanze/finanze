@@ -74,7 +74,6 @@ interface AppContextType {
   entitiesLoaded: boolean
   inactiveEntities: Entity[]
   isLoading: boolean
-  virtualEnabled: boolean
   selectedEntity: Entity | null
   processId: string | null
   pinRequired: boolean
@@ -180,7 +179,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   >("entities")
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [pinError, setPinError] = useState(false)
-  const [virtualEnabled, setVirtualEnabled] = useState(false)
   const [externalLoginInProgress, setExternalLoginInProgress] = useState(false)
   const [platform, setPlatform] = useState<PlatformType | null>(null)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
@@ -263,7 +261,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true)
       const data = await getEntities()
-      setVirtualEnabled(data.virtual)
       setEntities(data.entities)
       setEntitiesLoaded(true)
 
@@ -644,7 +641,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const response = await virtualFetch()
 
-      if (response.code === "COMPLETED") {
+      if (
+        response.code === "COMPLETED" &&
+        (response?.data?.positions ||
+          response?.data?.transactions?.account ||
+          response?.data?.transactions?.investment)
+      ) {
         showToast(t.common.virtualScrapeSuccess, "success")
         await fetchEntities()
       } else {
@@ -731,7 +733,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         entitiesLoaded,
         inactiveEntities,
         isLoading,
-        virtualEnabled,
         selectedEntity,
         processId,
         pinRequired,

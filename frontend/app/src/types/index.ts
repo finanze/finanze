@@ -102,7 +102,6 @@ export interface FetchResponse {
 
 export interface EntitiesResponse {
   entities: Entity[]
-  virtual: boolean
 }
 
 export enum LoginResultCode {

@@ -13,8 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/Card"
 import { Button } from "./ui/Button"
 import { Input } from "./ui/Input"
 import { Label } from "./ui/Label"
-import { useI18n } from "../i18n"
-import { useAppContext } from "../context/AppContext"
+import { useI18n } from "@/i18n"
+import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "../context/FinancialDataContext"
 import {
   Commodity,
@@ -27,6 +27,7 @@ import { CommodityRegister } from "../types"
 import { saveCommodity } from "../services/api"
 import { convertWeight } from "../utils/financialDataUtils"
 import { CommodityIcon } from "../utils/commodityIcons"
+import { cn } from "@/lib/utils"
 
 interface ManageCommoditiesViewProps {
   onBack: () => void
@@ -39,7 +40,7 @@ interface CommodityEntry extends Commodity {
 
 export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
   const { t } = useI18n()
-  const { settings } = useAppContext()
+  const { settings, showToast } = useAppContext()
   const { positionsData, refreshData } = useFinancialData()
 
   const [commodities, setCommodities] = useState<CommodityEntry[]>([])
@@ -47,6 +48,9 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<
+    Record<string, { name?: string; amount?: string }>
+  >({})
 
   // New entry form state
   const [newEntry, setNewEntry] = useState<Partial<CommodityRegister>>({
@@ -161,6 +165,16 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
       ),
     )
     setHasChanges(true)
+    // Clear field error for this commodity and field
+    setFieldErrors(prev => {
+      const errs = { ...prev }
+      const commodityErr = errs[commodityId] ? { ...errs[commodityId] } : {}
+      if (field === "name" && commodityErr.name) delete commodityErr.name
+      if (field === "amount" && commodityErr.amount) delete commodityErr.amount
+      if (Object.keys(commodityErr).length) errs[commodityId] = commodityErr
+      else delete errs[commodityId]
+      return errs
+    })
   }
 
   const deleteCommodity = (commodityId: string) => {
@@ -205,6 +219,28 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
 
   const saveChanges = async () => {
     if (!hasChanges) return
+    // Validate entries and collect errors per commodity
+    const errors: Record<string, { name?: string; amount?: string }> = {}
+    commodities.forEach(c => {
+      if (!c.name.trim()) {
+        errors[c.id] = {
+          ...(errors[c.id] || {}),
+          name: t.commodityManagement.nameRequired,
+        }
+      }
+      if (c.amount <= 0) {
+        errors[c.id] = {
+          ...(errors[c.id] || {}),
+          amount: t.commodityManagement.amountRequired,
+        }
+      }
+    })
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
+      return
+    }
+    // Clear previous errors
+    setFieldErrors({})
 
     setIsSaving(true)
     try {
@@ -229,7 +265,7 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
       setHasChanges(false)
     } catch (error) {
       console.error("Error saving commodities:", error)
-      // TODO: Show error toast
+      showToast(t.commodityManagement.saveError, "error")
     } finally {
       setIsSaving(false)
     }
@@ -565,8 +601,17 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
                                         e.target.value,
                                       )
                                     }
-                                    className="h-8 text-sm"
+                                    className={cn(
+                                      "h-8 text-sm",
+                                      fieldErrors[commodity.id]?.name &&
+                                        "border-red-500",
+                                    )}
                                   />
+                                  {fieldErrors[commodity.id]?.name && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                      {fieldErrors[commodity.id].name}
+                                    </p>
+                                  )}
                                 </div>
                                 <Button
                                   variant="ghost"
@@ -608,8 +653,17 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
                                         e.target.select()
                                       }
                                     }}
-                                    className="h-8 text-sm"
+                                    className={cn(
+                                      "h-8 text-sm",
+                                      fieldErrors[commodity.id]?.amount &&
+                                        "border-red-500",
+                                    )}
                                   />
+                                  {fieldErrors[commodity.id]?.amount && (
+                                    <p className="text-red-500 text-xs mt-1">
+                                      {fieldErrors[commodity.id].amount}
+                                    </p>
+                                  )}
                                 </div>
                                 <div>
                                   <Label

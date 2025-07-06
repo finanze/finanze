@@ -32,5 +32,4 @@ class AvailableFinancialEntity(Entity):
 
 @dataclass
 class AvailableSources:
-    virtual: bool
     entities: list[AvailableFinancialEntity]

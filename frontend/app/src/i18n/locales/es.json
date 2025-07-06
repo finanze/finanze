@@ -421,6 +421,8 @@
   },
   "commodityManagement": {
     "title": "Gestionar Materias Primas",
+    "nameRequired": "El nombre es obligatorio",
+    "amountRequired": "El peso debe ser mayor que cero",
     "addEntry": "Nueva entrada",
     "name": "Nombre",
     "namePlaceholder": "Moneda de oro",
@@ -431,6 +433,7 @@
     "averageBuyPrice": "Precio",
     "currency": "Moneda",
     "noCommodities": "No hay materias primas registradas",
-    "addFirstCommodity": "Agrega tu primera entrada de materia prima para empezar"
+    "addFirstCommodity": "Agrega tu primera entrada de materia prima para empezar",
+    "saveError": "Error al guardar las materias primas"
   }
 }

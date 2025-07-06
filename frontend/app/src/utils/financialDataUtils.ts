@@ -1302,7 +1302,20 @@ export const getTotalInvestedAmount = (
       commodityProduct.entries.length > 0
     ) {
       commodityProduct.entries.forEach((commodity: any) => {
-        const initialInvestment = commodity.initial_investment || 0
+        // calculate current market value for this commodity
+        const marketValue = calculateCommodityValue(
+          commodity.amount,
+          COMMODITY_SYMBOLS[commodity.type as CommodityType],
+          targetCurrency,
+          exchangeRates,
+          commodity.unit,
+        )
+        // use market value as initial investment if none provided
+        const initialInvestment =
+          commodity.initial_investment != null &&
+          commodity.initial_investment > 0
+            ? commodity.initial_investment
+            : marketValue
         const convertedInvestment =
           targetCurrency && exchangeRates
             ? convertCurrency(
