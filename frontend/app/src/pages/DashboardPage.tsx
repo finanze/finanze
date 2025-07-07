@@ -504,6 +504,71 @@ export default function DashboardPage() {
     }
   }
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
+          <div className="flex items-center gap-2 mb-2">
+            {getIconForAssetType(data.type)}
+            <p className="font-medium text-sm text-popover-foreground">
+              {t.enums &&
+              t.enums.productType &&
+              (t.enums.productType as any)[data.type]
+                ? (t.enums.productType as any)[data.type]
+                : data.type?.toLowerCase().replace(/_/g, " ")}
+            </p>
+          </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium text-popover-foreground">
+                {formatCurrency(
+                  data.value,
+                  locale,
+                  settings.general.defaultCurrency,
+                )}
+              </span>
+            </p>
+            <p>{data.percentage}%</p>
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
+
+  const CustomEntityTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      return (
+        <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: entityColorMap.get(data.id) }}
+            />
+            <p className="font-medium text-sm text-popover-foreground">
+              {data.name}
+            </p>
+          </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              <span className="font-medium text-popover-foreground">
+                {formatCurrency(
+                  data.value,
+                  locale,
+                  settings.general.defaultCurrency,
+                )}
+              </span>
+            </p>
+            <p>{data.percentage}%</p>
+          </div>
+        </div>
+      )
+    }
+    return null
+  }
+
   const CustomLegend = (props: any) => {
     const { payload } = props
     return (
@@ -528,17 +593,12 @@ export default function DashboardPage() {
                   assetType.toLowerCase().replace(/_/g, " ")}
               </span>
               <div className="text-right flex space-x-1">
-                <span className="font-bold block whitespace-nowrap">
-                  {assetPercentage}%
-                </span>
-                <span className="text-muted-foreground block whitespace-nowrap text-[10px]">
-                  (
+                <span className="block whitespace-nowrap text-[11px]">
                   {formatCurrency(
                     assetValue,
                     locale,
                     settings.general.defaultCurrency,
                   )}
-                  )
                 </span>
               </div>
             </li>
@@ -570,17 +630,12 @@ export default function DashboardPage() {
               />
               <span className="truncate flex-grow min-w-0">{entityName}</span>
               <div className="text-right flex space-x-1">
-                <span className="font-bold block whitespace-nowrap">
-                  {entityPercentage}%
-                </span>
-                <span className="text-muted-foreground block whitespace-nowrap text-[10px]">
-                  (
+                <span className="block whitespace-nowrap text-[11px]">
                   {formatCurrency(
                     entityValue,
                     locale,
                     settings.general.defaultCurrency,
                   )}
-                  )
                 </span>
               </div>
             </li>
@@ -673,7 +728,7 @@ export default function DashboardPage() {
                     {t.dashboard.assetDistribution}
                   </CardTitle>
                 </CardHeader>
-                <CardContent ref={assetDistributionCardRef}>
+                <CardContent ref={assetDistributionCardRef} className="px-2">
                   <Tabs defaultValue="by-asset" className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="by-asset">
@@ -689,8 +744,8 @@ export default function DashboardPage() {
                         <div
                           className={
                             assetDistributionCardSmall
-                              ? "h-[450px]"
-                              : "h-[300px]"
+                              ? "h-[450px] px-2"
+                              : "h-[300px] px-4"
                           }
                         >
                           <ResponsiveContainer width="100%" height="100%">
@@ -700,16 +755,65 @@ export default function DashboardPage() {
                             >
                               <Pie
                                 data={assetDistribution}
-                                cx={assetDistributionCardSmall ? "50%" : "40%"}
+                                cx={assetDistributionCardSmall ? "50%" : "45%"}
                                 cy={assetDistributionCardSmall ? "40%" : "50%"}
                                 labelLine={false}
+                                innerRadius={
+                                  assetDistributionCardSmall ? 60 : 70
+                                }
                                 outerRadius={
-                                  assetDistributionCardSmall ? 100 : 120
+                                  assetDistributionCardSmall ? 100 : 110
                                 }
                                 fill="#8884d8"
                                 dataKey="value"
                                 nameKey="type"
                                 isAnimationActive={false}
+                                stroke="hsl(var(--background))"
+                                strokeWidth={2}
+                                label={({
+                                  cx,
+                                  cy,
+                                  midAngle,
+                                  innerRadius,
+                                  outerRadius,
+                                  percentage,
+                                }) => {
+                                  if (percentage < 3) return null
+
+                                  const RADIAN = Math.PI / 180
+
+                                  const isLargeSegment = percentage >= 15
+                                  const radius = isLargeSegment
+                                    ? innerRadius +
+                                      (outerRadius - innerRadius) * 0.45 // Inside
+                                    : innerRadius +
+                                      (outerRadius - innerRadius) * 1.25 // Outside
+
+                                  const x =
+                                    cx + radius * Math.cos(-midAngle * RADIAN)
+                                  const y =
+                                    cy + radius * Math.sin(-midAngle * RADIAN)
+
+                                  return (
+                                    <g>
+                                      <text
+                                        x={x}
+                                        y={y}
+                                        fill={
+                                          isLargeSegment
+                                            ? "white"
+                                            : "hsl(var(--foreground))"
+                                        }
+                                        textAnchor="middle"
+                                        dominantBaseline="central"
+                                        fontSize={isLargeSegment ? "12" : "10"}
+                                        fontWeight="600"
+                                      >
+                                        {percentage.toFixed(0)}%
+                                      </text>
+                                    </g>
+                                  )
+                                }}
                               >
                                 {assetDistribution.map((entry, index) => (
                                   <Cell
@@ -721,21 +825,7 @@ export default function DashboardPage() {
                                   />
                                 ))}
                               </Pie>
-                              <Tooltip
-                                formatter={(
-                                  value: number,
-                                  name: string,
-                                  props: any,
-                                ) => [
-                                  // eslint-disable-next-line react/prop-types -- props are not typed
-                                  `${formatCurrency(value, locale, settings.general.defaultCurrency)} (${props.payload.percentage}%)`,
-                                  t.enums &&
-                                  t.enums.productType &&
-                                  (t.enums.productType as any)[name]
-                                    ? (t.enums.productType as any)[name]
-                                    : name.toLowerCase().replace(/_/g, " "),
-                                ]}
-                              />
+                              <Tooltip content={<CustomTooltip />} />
                               <Legend
                                 layout="vertical"
                                 verticalAlign={
@@ -753,12 +843,11 @@ export default function DashboardPage() {
                                     ? {
                                         maxHeight: "200px",
                                         overflowY: "auto",
-                                        paddingTop: "25px",
                                         width: "95%",
                                         margin: "0 auto",
                                       }
                                     : {
-                                        paddingRight: "20px",
+                                        paddingRight: "10px",
                                         maxHeight: "260px",
                                         overflowY: "auto",
                                       }
@@ -780,8 +869,8 @@ export default function DashboardPage() {
                         <div
                           className={
                             assetDistributionCardSmall
-                              ? "h-[450px]"
-                              : "h-[300px]"
+                              ? "h-[450px] px-2"
+                              : "h-[300px] px-4"
                           }
                         >
                           <ResponsiveContainer width="100%" height="100%">
@@ -791,16 +880,65 @@ export default function DashboardPage() {
                             >
                               <Pie
                                 data={adjustedEntityDistribution}
-                                cx={assetDistributionCardSmall ? "50%" : "40%"}
+                                cx={assetDistributionCardSmall ? "50%" : "45%"}
                                 cy={assetDistributionCardSmall ? "40%" : "50%"}
                                 labelLine={false}
+                                innerRadius={
+                                  assetDistributionCardSmall ? 60 : 70
+                                }
                                 outerRadius={
-                                  assetDistributionCardSmall ? 100 : 120
+                                  assetDistributionCardSmall ? 100 : 110
                                 }
                                 fill="#8884d8"
                                 dataKey="value"
                                 nameKey="name"
                                 isAnimationActive={false}
+                                stroke="hsl(var(--background))"
+                                strokeWidth={2}
+                                label={({
+                                  cx,
+                                  cy,
+                                  midAngle,
+                                  innerRadius,
+                                  outerRadius,
+                                  percentage,
+                                }) => {
+                                  if (percentage < 3) return null
+
+                                  const RADIAN = Math.PI / 180
+
+                                  const isLargeSegment = percentage >= 15
+                                  const radius = isLargeSegment
+                                    ? innerRadius +
+                                      (outerRadius - innerRadius) * 0.45 // Inside
+                                    : innerRadius +
+                                      (outerRadius - innerRadius) * 1.25 // Outside
+
+                                  const x =
+                                    cx + radius * Math.cos(-midAngle * RADIAN)
+                                  const y =
+                                    cy + radius * Math.sin(-midAngle * RADIAN)
+
+                                  return (
+                                    <g>
+                                      <text
+                                        x={x}
+                                        y={y}
+                                        fill={
+                                          isLargeSegment
+                                            ? "white"
+                                            : "hsl(var(--foreground))"
+                                        }
+                                        textAnchor="middle"
+                                        dominantBaseline="central"
+                                        fontSize={isLargeSegment ? "12" : "10"}
+                                        fontWeight="600"
+                                      >
+                                        {percentage.toFixed(0)}%
+                                      </text>
+                                    </g>
+                                  )
+                                }}
                               >
                                 {adjustedEntityDistribution.map(
                                   (entry, index) => (
@@ -812,18 +950,7 @@ export default function DashboardPage() {
                                   ),
                                 )}
                               </Pie>
-                              <Tooltip
-                                formatter={(
-                                  value: number,
-                                  name: string,
-                                  props: any,
-                                ) => [
-                                  // eslint-disable-next-line react/prop-types -- props are not typed
-                                  `${formatCurrency(value, locale, settings.general.defaultCurrency)} (${props.payload.percentage}%)`,
-                                  // eslint-disable-next-line react/prop-types -- props are not typed
-                                  props.payload.name,
-                                ]}
-                              />
+                              <Tooltip content={<CustomEntityTooltip />} />
                               <Legend
                                 layout="vertical"
                                 verticalAlign={
@@ -841,12 +968,11 @@ export default function DashboardPage() {
                                     ? {
                                         maxHeight: "200px",
                                         overflowY: "auto",
-                                        paddingTop: "25px",
                                         width: "95%",
                                         margin: "0 auto",
                                       }
                                     : {
-                                        paddingRight: "20px",
+                                        paddingRight: "10px",
                                         maxHeight: "260px",
                                         overflowY: "auto",
                                       }
