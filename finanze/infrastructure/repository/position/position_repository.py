@@ -129,7 +129,9 @@ def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlend
             str(crowdlending.total),
             str(crowdlending.weighted_interest_rate),
             crowdlending.currency,
-            json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder),
+            json.dumps(crowdlending.distribution, cls=DezimalJSONEncoder)
+            if crowdlending.distribution
+            else "{}",
         ),
     )
 
@@ -862,7 +864,9 @@ class PositionSQLRepository(PositionPort):
                 total=Dezimal(row["total"]),
                 weighted_interest_rate=Dezimal(row["weighted_interest_rate"]),
                 currency=row["currency"],
-                distribution=json.loads(row["distribution"]),
+                distribution=json.loads(row["distribution"])
+                if row["distribution"]
+                else None,
                 entries=[],
             )
 

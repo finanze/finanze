@@ -227,13 +227,13 @@ class Commodity(BaseData, CommodityRegister):
 
 
 @dataclass
-class Crowdlending:
+class Crowdlending(BaseData):
     id: UUID
     total: Optional[Dezimal]
     weighted_interest_rate: Optional[Dezimal]
     currency: str
-    distribution: dict
-    entries: List
+    distribution: Optional[dict] = None
+    entries: Optional[list] = None
 
 
 @dataclass

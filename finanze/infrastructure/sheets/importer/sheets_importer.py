@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime
 from typing import Optional
@@ -11,6 +12,9 @@ from domain.global_position import (
     Accounts,
     Card,
     Cards,
+    Commodities,
+    Commodity,
+    Crowdlending,
     CryptoCurrencies,
     CryptoCurrencyWallet,
     Deposit,
@@ -85,6 +89,8 @@ class SheetsImporter(VirtualFetcher):
         ProductType.FACTORING: (FactoringInvestments, FactoringDetail),
         ProductType.REAL_STATE_CF: (RealStateCFInvestments, RealStateCFDetail),
         ProductType.CRYPTO: (CryptoCurrencies, CryptoCurrencyWallet),
+        ProductType.COMMODITY: (Commodities, Commodity),
+        ProductType.CROWDLENDING: (None, Crowdlending),
     }
 
     TX_PROD_TYPE_ATTR_MAP = {
@@ -110,7 +116,7 @@ class SheetsImporter(VirtualFetcher):
             parent_type, detail_type = self.PRODUCT_TYPE_CLS_MAP.get(
                 field, (None, None)
             )
-            if not parent_type:
+            if not parent_type and not detail_type:
                 raise ValueError(f"Invalid field {field}")
 
             per_entity = self._load_products(
@@ -192,6 +198,12 @@ class SheetsImporter(VirtualFetcher):
                     product_dict["portfolio"] = FundPortfolio(
                         id=uuid4(), name=portfolio_name
                     )
+            elif cls == Crowdlending:
+                product_dict["distribution"] = (
+                    json.loads(product_dict["distribution"])
+                    if product_dict.get("distribution")
+                    else None
+                )
 
             entity_products.append(cls.from_dict(product_dict))
 
@@ -204,11 +216,16 @@ class SheetsImporter(VirtualFetcher):
 
         per_entity = {}
         for entity, entity_products in details_per_entity.items():
-            parent_obj_dict = {
-                "entries": entity_products,
-            }
+            if parent_cls is None:
+                per_entity[entity] = (
+                    entity_products[0] if len(entity_products) == 1 else {}
+                )
+            else:
+                parent_obj_dict = {
+                    "entries": entity_products,
+                }
 
-            per_entity[entity] = parent_cls(**parent_obj_dict)
+                per_entity[entity] = parent_cls(**parent_obj_dict)
 
         return per_entity
 

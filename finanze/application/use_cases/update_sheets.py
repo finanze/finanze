@@ -15,7 +15,7 @@ from domain.entity import Entity, Feature
 from domain.exception.exceptions import ExecutionConflict
 from domain.export import ExportRequest
 from domain.fetch_record import FetchRecord
-from domain.global_position import GlobalPosition
+from domain.global_position import GlobalPosition, ProductType
 from domain.historic import Historic
 from domain.settings import (
     ContributionSheetConfig,
@@ -149,8 +149,13 @@ class UpdateSheetsImpl(UpdateSheets):
         credentials: GoogleCredentials,
     ):
         for config in configs:
-            fields = config.data
-            config.data = [f"products.{field}.entries" for field in fields]
+            fields = []
+            for field in config.data:
+                if field == ProductType.CROWDLENDING.value:
+                    fields.append(f"products.{field}")
+                else:
+                    fields.append(f"products.{field}.entries")
+            config.data = fields
 
             self._sheets_update_port.update_sheet(
                 global_position, credentials, config, last_update

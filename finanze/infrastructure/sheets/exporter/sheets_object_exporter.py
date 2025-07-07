@@ -152,12 +152,24 @@ def map_products(
                         except AttributeError:
                             target_data = target_data.get(field)
 
-                    for product in target_data:
-                        if not matches_filters(product, config):
+                    if not target_data:
+                        continue
+
+                    if isinstance(target_data, list):
+                        for product in target_data:
+                            if not matches_filters(product, config):
+                                continue
+                            product_rows.append(
+                                map_product_row(
+                                    product, entity, field_path, columns, config
+                                )
+                            )
+                    else:
+                        if not matches_filters(target_data, config):
                             continue
                         product_rows.append(
                             map_product_row(
-                                product, entity, field_path, columns, config
+                                target_data, entity, field_path, columns, config
                             )
                         )
                 except AttributeError:
