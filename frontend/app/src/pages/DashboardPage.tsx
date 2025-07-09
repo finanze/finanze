@@ -1055,7 +1055,7 @@ export default function DashboardPage() {
               transition={{ delay: 0.3 }}
             >
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
                   <div>
                     <CardTitle className="text-lg font-bold flex items-center">
                       <TrendingUp className="h-5 w-5 mr-2 text-primary" />
@@ -1063,50 +1063,51 @@ export default function DashboardPage() {
                     </CardTitle>
                   </div>
                   {ongoingProjects.length > 3 && (
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-1">
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => scrollProjects("left")}
                         disabled={!showLeftScroll}
-                        className={
+                        className={`h-7 w-7 p-0 ${
                           !showLeftScroll ? "opacity-50 cursor-not-allowed" : ""
-                        }
+                        }`}
                       >
-                        <ChevronLeft className="h-4 w-4" />
+                        <ChevronLeft className="h-3 w-3" />
                       </Button>
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => scrollProjects("right")}
                         disabled={!showRightScroll}
-                        className={
+                        className={`h-7 w-7 p-0 ${
                           !showRightScroll
                             ? "opacity-50 cursor-not-allowed"
                             : ""
-                        }
+                        }`}
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-3 w-3" />
                       </Button>
                     </div>
                   )}
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pt-0">
                   <div
                     ref={projectsContainerRef}
-                    className="flex overflow-x-auto pb-4 space-x-4 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600"
+                    className="flex overflow-x-auto space-x-3 scrollbar-none"
                     onScroll={handleScroll}
+                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                   >
                     {ongoingProjects.map((project, index) => {
                       const status = getDaysStatus(project.maturity, t)
                       return (
                         <Card
                           key={index}
-                          className="bg-gray-50 dark:bg-gray-900 border flex-shrink-0 w-[320px]"
+                          className="bg-gray-50 dark:bg-gray-900 border flex-shrink-0 w-[280px]"
                         >
-                          <CardContent className="p-4 flex flex-col justify-between h-full">
+                          <CardContent className="p-3 flex flex-col justify-between h-full">
                             <div>
-                              <div className="flex justify-between items-start mb-3">
+                              <div className="flex justify-between items-start mb-2">
                                 <div className="flex-grow mr-2 min-w-0">
                                   <h3
                                     className="font-medium text-sm truncate"
@@ -1114,16 +1115,16 @@ export default function DashboardPage() {
                                   >
                                     {project.name}
                                   </h3>
-                                  <div className="flex items-center text-xs text-muted-foreground mt-1">
+                                  <div className="flex items-center text-xs text-muted-foreground mt-0.5">
                                     <Badge
                                       variant="outline"
-                                      className="mr-2 text-xs py-0.5 px-1.5"
+                                      className="mr-1.5 text-[10px] py-0 px-1"
                                     >
                                       {project.entity}
                                     </Badge>
                                     <div className="flex items-center">
                                       {getIconForProjectType(project.type)}
-                                      <span className="ml-1 capitalize">
+                                      <span className="ml-1 capitalize text-[10px]">
                                         {t.enums &&
                                         t.enums.productType &&
                                         (t.enums.productType as any)[
@@ -1141,7 +1142,7 @@ export default function DashboardPage() {
                                 </div>
                                 <Badge
                                   variant="outline"
-                                  className={`flex-shrink-0 h-auto px-2 py-1 text-center text-xs whitespace-nowrap ${
+                                  className={`flex-shrink-0 h-auto px-1.5 py-0.5 text-center text-[10px] whitespace-nowrap ${
                                     status.isDelayed
                                       ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
                                       : status.days < 30
@@ -1156,29 +1157,19 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <div className="space-y-1 mt-auto">
-                              <div className="flex justify-between">
-                                <span className="text-xs text-muted-foreground">
-                                  {t.dashboard.value}
-                                </span>
-                                <span className="text-xs font-medium">
-                                  {project.formattedValue}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-xs text-muted-foreground">
-                                  {t.dashboard.roi}
-                                </span>
-                                <span className="text-xs font-medium text-green-600">
-                                  {formatPercentage(project.roi, locale)}
-                                </span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-xs text-muted-foreground">
-                                  {t.dashboard.maturity}
-                                </span>
-                                <span className="text-xs">
+                              <div className="flex justify-between text-[10px] text-muted-foreground">
+                                <span>{t.dashboard.maturity}</span>
+                                <span>
                                   {formatDate(project.maturity, locale)}
                                 </span>
+                              </div>
+                              <div className="flex justify-between items-start mb-2">
+                                <p className="text-base font-semibold">
+                                  {project.formattedValue}
+                                </p>
+                                <p className="text-base font-semibold text-green-600">
+                                  {formatPercentage(project.roi, locale)}
+                                </p>
                               </div>
                             </div>
                           </CardContent>

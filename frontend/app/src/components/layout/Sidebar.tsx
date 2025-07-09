@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n"
 import { useTheme } from "@/context/ThemeContext"
 import { useAuth } from "@/context/AuthContext"
 import { useAppContext } from "@/context/AppContext"
+import { useFinancialData } from "@/context/FinancialDataContext"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -17,8 +18,11 @@ import {
   SunMoon,
   Receipt,
   BanknoteArrowDown,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
 import {
   Popover,
@@ -27,12 +31,15 @@ import {
 } from "@/components/ui/Popover"
 import type { Locale } from "@/i18n"
 import { PlatformType } from "@/types"
+import { ProductType } from "@/types/position"
+import { getAvailableInvestmentTypes } from "@/utils/financialDataUtils"
 
 export function Sidebar() {
   const { t, locale, changeLocale } = useI18n()
   const { theme, setThemeMode } = useTheme()
   const { logout } = useAuth()
   const { platform } = useAppContext()
+  const { positionsData } = useFinancialData()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -42,6 +49,71 @@ export function Sidebar() {
     }
     return false
   })
+
+  const [investmentsExpanded, setInvestmentsExpanded] = useState(() => {
+    // Expand investments section if we're on an investment page
+    return location.pathname.startsWith("/investments")
+  })
+
+  // Get available investment types for the user
+  const availableInvestmentTypes = useMemo(() => {
+    return getAvailableInvestmentTypes(positionsData)
+  }, [positionsData])
+
+  // Define investment subsections with their routes and labels
+  const investmentRoutes = useMemo(() => {
+    const routes = []
+
+    if (availableInvestmentTypes.includes(ProductType.STOCK_ETF)) {
+      routes.push({
+        path: "/investments/stocks-etfs",
+        label: t.common.stocksEtfs,
+        productType: ProductType.STOCK_ETF,
+      })
+    }
+
+    if (availableInvestmentTypes.includes(ProductType.FUND)) {
+      routes.push({
+        path: "/investments/funds",
+        label: t.common.fundsInvestments,
+        productType: ProductType.FUND,
+      })
+    }
+
+    if (availableInvestmentTypes.includes(ProductType.DEPOSIT)) {
+      routes.push({
+        path: "/investments/deposits",
+        label: t.common.depositsInvestments,
+        productType: ProductType.DEPOSIT,
+      })
+    }
+
+    if (availableInvestmentTypes.includes(ProductType.FACTORING)) {
+      routes.push({
+        path: "/investments/factoring",
+        label: t.common.factoringInvestments,
+        productType: ProductType.FACTORING,
+      })
+    }
+
+    if (availableInvestmentTypes.includes(ProductType.REAL_STATE_CF)) {
+      routes.push({
+        path: "/investments/real-estate",
+        label: t.common.realEstateInvestments,
+        productType: ProductType.REAL_STATE_CF,
+      })
+    }
+
+    if (availableInvestmentTypes.includes(ProductType.CRYPTO)) {
+      routes.push({
+        path: "/investments/crypto",
+        label: t.common.cryptoInvestments,
+        productType: ProductType.CRYPTO,
+      })
+    }
+
+    return routes
+  }, [availableInvestmentTypes, t.common])
 
   useEffect(() => {
     const handleResize = () => {
@@ -54,6 +126,13 @@ export function Sidebar() {
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
   }, [collapsed])
+
+  // Update investments expanded state when navigating
+  useEffect(() => {
+    if (location.pathname.startsWith("/investments")) {
+      setInvestmentsExpanded(true)
+    }
+  }, [location.pathname])
 
   const navItems = [
     {
@@ -88,6 +167,10 @@ export function Sidebar() {
     setCollapsed(!collapsed)
   }
 
+  const toggleInvestments = () => {
+    setInvestmentsExpanded(!investmentsExpanded)
+  }
+
   const handleLogout = async () => {
     try {
       await logout()
@@ -119,7 +202,88 @@ export function Sidebar() {
 
       <nav className="flex-1 py-4">
         <ul className="space-y-1">
-          {navItems.map(item => (
+          {/* Dashboard */}
+          <li>
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full rounded-none h-12",
+                collapsed ? "justify-center" : "justify-start",
+                location.pathname === "/"
+                  ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                  : "hover:bg-gray-200 dark:hover:bg-gray-900",
+              )}
+              onClick={() => navigate("/")}
+            >
+              <span className="flex items-center">
+                <LayoutDashboard size={20} />
+                {!collapsed && (
+                  <span className="ml-3">{t.common.dashboard}</span>
+                )}
+              </span>
+            </Button>
+          </li>
+
+          {/* Investments Section */}
+          {investmentRoutes.length > 0 && (
+            <li>
+              <Button
+                variant="ghost"
+                className={cn(
+                  "w-full rounded-none h-12",
+                  collapsed ? "justify-center" : "justify-between",
+                  location.pathname.startsWith("/investments")
+                    ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                    : "hover:bg-gray-200 dark:hover:bg-gray-900",
+                )}
+                onClick={
+                  collapsed ? () => navigate("/investments") : toggleInvestments
+                }
+              >
+                <span className="flex items-center">
+                  <TrendingUp size={20} />
+                  {!collapsed && (
+                    <span className="ml-3">{t.common.investments}</span>
+                  )}
+                </span>
+                {!collapsed && investmentRoutes.length > 0 && (
+                  <span className="ml-auto">
+                    {investmentsExpanded ? (
+                      <ChevronUp size={16} />
+                    ) : (
+                      <ChevronDown size={16} />
+                    )}
+                  </span>
+                )}
+              </Button>
+
+              {/* Investment Subsections */}
+              {!collapsed && investmentsExpanded && (
+                <ul className="mt-1 space-y-1">
+                  {investmentRoutes.map(route => (
+                    <li key={route.path}>
+                      <Button
+                        variant="ghost"
+                        className={cn(
+                          "w-full rounded-none h-10 pl-12",
+                          "text-sm justify-start",
+                          location.pathname === route.path
+                            ? "bg-gray-300 dark:bg-gray-800 text-primary"
+                            : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
+                        )}
+                        onClick={() => navigate(route.path)}
+                      >
+                        {route.label}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          )}
+
+          {/* Other navigation items */}
+          {navItems.slice(1).map(item => (
             <li key={item.path}>
               <Button
                 variant="ghost"

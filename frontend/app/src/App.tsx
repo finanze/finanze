@@ -5,6 +5,13 @@ import DashboardPage from "./pages/DashboardPage"
 import SettingsPage from "./pages/SettingsPage"
 import ExportPage from "./pages/ExportPage"
 import TransactionsPage from "./pages/TransactionsPage"
+import StocksInvestmentPage from "./pages/StocksInvestmentPage"
+import FundsInvestmentPage from "./pages/FundsInvestmentPage"
+import DepositsInvestmentPage from "./pages/DepositsInvestmentPage"
+import FactoringInvestmentPage from "./pages/FactoringInvestmentPage"
+import RealEstateInvestmentPage from "./pages/RealEstateInvestmentPage"
+import CryptoInvestmentPage from "./pages/CryptoInvestmentPage"
+import InvestmentsPage from "./pages/InvestmentsPage"
 import LoginPage from "./pages/LoginPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
@@ -33,6 +40,28 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/entities" element={<EntityIntegrationsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
+          <Route path="/investments" element={<InvestmentsPage />} />
+          <Route
+            path="/investments/stocks-etfs"
+            element={<StocksInvestmentPage />}
+          />
+          <Route path="/investments/funds" element={<FundsInvestmentPage />} />
+          <Route
+            path="/investments/deposits"
+            element={<DepositsInvestmentPage />}
+          />
+          <Route
+            path="/investments/factoring"
+            element={<FactoringInvestmentPage />}
+          />
+          <Route
+            path="/investments/real-estate"
+            element={<RealEstateInvestmentPage />}
+          />
+          <Route
+            path="/investments/crypto"
+            element={<CryptoInvestmentPage />}
+          />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

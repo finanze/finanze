@@ -156,8 +156,10 @@ export interface StockFundPosition {
   shares: number
   price: number
   value: number
+  originalValue: number
   currency: string
   formattedValue: string
+  formattedOriginalValue: string
   type: string
   change: number
   entity: string
@@ -1487,22 +1489,39 @@ export const getStockAndFundPositions = (
       stocksProduct.entries.length > 0
     ) {
       stocksProduct.entries.forEach((stock: any) => {
-        const value = stock.market_value || 0
+        const originalValue = stock.market_value || 0
+        const convertedValue = exchangeRates
+          ? convertCurrency(
+              originalValue,
+              stock.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : originalValue
+
         allPositionsRaw.push({
           symbol: stock.ticker || "",
           name: stock.name,
           shares: stock.shares || 0,
           price: stock.average_buy_price || 0,
-          value: value,
+          value: convertedValue, // Use converted value
+          originalValue: originalValue, // Keep original for display
           currency: stock.currency,
           formattedValue: formatCurrency(
-            value,
+            convertedValue,
             locale,
             defaultCurrency,
+          ),
+          formattedOriginalValue: formatCurrency(
+            originalValue,
+            locale,
             stock.currency,
           ),
           type: "STOCK_ETF",
-          change: (value / (stock.initial_investment || value || 1) - 1) * 100,
+          change:
+            (originalValue / (stock.initial_investment || originalValue || 1) -
+              1) *
+            100,
           entity: entityPosition.entity?.name,
         })
       })
@@ -1515,23 +1534,40 @@ export const getStockAndFundPositions = (
       fundsProduct.entries.length > 0
     ) {
       fundsProduct.entries.forEach((fund: any) => {
-        const value = fund.market_value || 0
+        const originalValue = fund.market_value || 0
+        const convertedValue = exchangeRates
+          ? convertCurrency(
+              originalValue,
+              fund.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : originalValue
+
         allPositionsRaw.push({
           symbol: "",
           name: fund.name,
           portfolioName: fund.portfolio?.name || null,
           shares: fund.shares || 0,
           price: fund.average_buy_price || 0,
-          value: value,
+          value: convertedValue, // Use converted value
+          originalValue: originalValue, // Keep original for display
           currency: fund.currency,
           formattedValue: formatCurrency(
-            value,
+            convertedValue,
             locale,
             defaultCurrency,
+          ),
+          formattedOriginalValue: formatCurrency(
+            originalValue,
+            locale,
             fund.currency,
           ),
           type: "FUND",
-          change: (value / (fund.initial_investment || value || 1) - 1) * 100,
+          change:
+            (originalValue / (fund.initial_investment || originalValue || 1) -
+              1) *
+            100,
           entity: entityPosition.entity?.name,
         })
       })
@@ -1540,40 +1576,19 @@ export const getStockAndFundPositions = (
 
   const sortedPositions = allPositionsRaw.sort((a, b) => b.value - a.value)
 
-  // Calculate separate totals for stocks and funds
+  // Calculate separate totals for stocks and funds (values are already converted)
   const totalStockValue = sortedPositions
     .filter(pos => pos.type === "STOCK_ETF")
-    .reduce((sum, pos) => {
-      const convertedValue = exchangeRates
-        ? convertCurrency(
-            pos.value,
-            pos.currency,
-            defaultCurrency,
-            exchangeRates,
-          )
-        : pos.value
-      return sum + convertedValue
-    }, 0)
+    .reduce((sum, pos) => sum + pos.value, 0)
 
   const totalFundValue = sortedPositions
     .filter(pos => pos.type === "FUND")
-    .reduce((sum, pos) => {
-      const convertedValue = exchangeRates
-        ? convertCurrency(
-            pos.value,
-            pos.currency,
-            defaultCurrency,
-            exchangeRates,
-          )
-        : pos.value
-      return sum + convertedValue
-    }, 0)
+    .reduce((sum, pos) => sum + pos.value, 0)
 
   // Calculate percentages relative to each asset type's total
   const enrichedPositions = sortedPositions.map((pos, index) => {
-    const convertedValue = exchangeRates
-      ? convertCurrency(pos.value, pos.currency, defaultCurrency, exchangeRates)
-      : pos.value
+    // Values are already converted, no need to convert again
+    const convertedValue = pos.value
 
     // Calculate percentage relative to the specific asset type total
     const relevantTotal =
@@ -2188,4 +2203,270 @@ export const getTotalDisplayedAssets = (
   })
 
   return total
+}
+
+export const calculateInvestmentDistribution = (
+  positions: any[],
+  groupBy: "entity" | "symbol" | "name" = "symbol", // Allow grouping by name as well
+): { name: string; value: number; color: string; percentage: number }[] => {
+  if (!positions || positions.length === 0) return []
+
+  // Group positions by the specified field
+  const grouped = positions.reduce(
+    (acc, position) => {
+      const key =
+        groupBy === "entity"
+          ? position.entity
+          : groupBy === "name"
+            ? position.name || position.symbol
+            : position.symbol || position.name
+      if (!acc[key]) {
+        acc[key] = 0
+      }
+      acc[key] += position.currentValue || position.value || 0
+      return acc
+    },
+    {} as Record<string, number>,
+  )
+
+  // Calculate total value
+  const values = Object.values(grouped) as number[]
+  const totalValue = values.reduce((sum, value) => sum + value, 0)
+
+  // Convert to chart data format
+  const entries = Object.entries(grouped) as [string, number][]
+  const data = entries
+    .map(([name, value]) => ({
+      name,
+      value,
+      color: "",
+      percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+    }))
+    .sort((a, b) => b.value - a.value) // Sort by value descending
+
+  // Assign colors
+  const colors = [
+    "#3b82f6",
+    "#ef4444",
+    "#10b981",
+    "#f59e0b",
+    "#8b5cf6",
+    "#06b6d4",
+    "#f97316",
+    "#84cc16",
+    "#ec4899",
+    "#6366f1",
+    "#14b8a6",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#06b6d4",
+  ]
+  data.forEach((item, index) => {
+    item.color = colors[index]
+  })
+
+  return data
+}
+
+export const calculateInvestmentDistributionWithCurrency = (
+  positions: any[],
+  groupBy: "entity" | "symbol" | "name" = "symbol",
+  userCurrency: string,
+  exchangeRates: ExchangeRates | null,
+): {
+  name: string
+  value: number
+  color: string
+  percentage: number
+  currency?: string
+  convertedValue?: number
+  convertedCurrency?: string
+}[] => {
+  if (!positions || positions.length === 0) return []
+
+  // Group positions by the specified field
+  const grouped = positions.reduce(
+    (acc, position) => {
+      const key =
+        groupBy === "entity"
+          ? position.entity
+          : groupBy === "name"
+            ? position.name || position.symbol
+            : position.symbol || position.name
+
+      if (!acc[key]) {
+        acc[key] = {
+          value: 0,
+          currency: position.currency,
+          convertedValue: 0,
+        }
+      }
+
+      const positionValue = position.currentValue || position.value || 0
+      acc[key].value += positionValue
+
+      // Convert to user currency for comparison
+      const convertedValue = convertCurrency(
+        positionValue,
+        position.currency,
+        userCurrency,
+        exchangeRates,
+      )
+      acc[key].convertedValue += convertedValue
+
+      return acc
+    },
+    {} as Record<
+      string,
+      { value: number; currency: string; convertedValue: number }
+    >,
+  )
+
+  // Calculate total value in user currency
+  const groupedValues = Object.values(grouped) as {
+    value: number
+    currency: string
+    convertedValue: number
+  }[]
+  const values = groupedValues.map(item => item.convertedValue)
+  const totalValue = values.reduce((sum, value) => sum + value, 0)
+
+  // Convert to chart data format
+  const entries = Object.entries(grouped) as [
+    string,
+    { value: number; currency: string; convertedValue: number },
+  ][]
+  const data = entries
+    .map(([name, item]) => ({
+      name,
+      value: item.value,
+      currency: item.currency,
+      convertedValue: item.convertedValue,
+      convertedCurrency: userCurrency,
+      color: "",
+      percentage: totalValue > 0 ? (item.convertedValue / totalValue) * 100 : 0,
+    }))
+    .sort((a, b) => b.convertedValue - a.convertedValue) // Sort by converted value descending
+
+  // Assign colors
+  const colors = [
+    "#3b82f6",
+    "#ef4444",
+    "#10b981",
+    "#f59e0b",
+    "#8b5cf6",
+    "#06b6d4",
+    "#f97316",
+    "#84cc16",
+    "#ec4899",
+    "#6366f1",
+    "#14b8a6",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#06b6d4",
+  ]
+  data.forEach((item, index) => {
+    item.color = colors[index % colors.length]
+  })
+
+  return data
+}
+
+/**
+ * Convert snake_case or SCREAMING_SNAKE_CASE to human-readable format
+ */
+export const formatSnakeCaseToHuman = (text: string): string => {
+  if (!text) return text
+
+  return text
+    .toLowerCase()
+    .split("_")
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ")
+}
+
+/**
+ * Get all entity IDs that have positions for a specific product type
+ */
+export const getEntitiesWithProductType = (
+  positionsData: any,
+  productType: ProductType,
+): string[] => {
+  if (!positionsData?.positions) return []
+
+  const entityIds = new Set<string>()
+
+  // positionsData.positions is an object, not an array
+  Object.values(positionsData.positions).forEach((entityPosition: any) => {
+    if (entityPosition.products && entityPosition.products[productType]) {
+      const product = entityPosition.products[productType]
+      // Check if the product has entries and they're not empty
+      if (
+        product &&
+        "entries" in product &&
+        product.entries &&
+        product.entries.length > 0
+      ) {
+        entityIds.add(entityPosition.entity.id)
+      }
+      // Also check for products with total value (like crowdlending)
+      else if (
+        product &&
+        "total" in product &&
+        product.total &&
+        product.total > 0
+      ) {
+        entityIds.add(entityPosition.entity.id)
+      }
+    }
+  })
+
+  return Array.from(entityIds)
+}
+
+/**
+ * Get all available investment types from positions data
+ */
+export const getAvailableInvestmentTypes = (
+  positionsData: any,
+): ProductType[] => {
+  if (!positionsData?.positions) return []
+
+  const availableTypes = new Set<ProductType>()
+
+  Object.values(positionsData.positions).forEach((entityPosition: any) => {
+    if (entityPosition.products) {
+      // Check each investment product type
+      const investmentTypes = [
+        ProductType.STOCK_ETF,
+        ProductType.FUND,
+        ProductType.DEPOSIT,
+        ProductType.FACTORING,
+        ProductType.REAL_STATE_CF,
+        ProductType.CRYPTO,
+      ]
+
+      investmentTypes.forEach(productType => {
+        const product = entityPosition.products[productType]
+        if (product) {
+          // Check if the product has entries and they're not empty
+          if (
+            "entries" in product &&
+            product.entries &&
+            product.entries.length > 0
+          ) {
+            availableTypes.add(productType)
+          }
+          // Also check for products with total value (like crowdlending)
+          else if ("total" in product && product.total && product.total > 0) {
+            availableTypes.add(productType)
+          }
+        }
+      })
+    }
+  })
+
+  return Array.from(availableTypes)
 }
