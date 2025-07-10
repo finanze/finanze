@@ -441,3 +441,14 @@ class TransactionSQLRepository(TransactionPort):
         with self._db_client.tx() as cursor:
             cursor.execute("DELETE FROM investment_transactions WHERE NOT is_real")
             cursor.execute("DELETE FROM account_transactions WHERE NOT is_real")
+
+    def delete_for_real_entity(self, entity_id: UUID):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM investment_transactions WHERE entity_id = ? AND is_real",
+                (str(entity_id),),
+            )
+            cursor.execute(
+                "DELETE FROM account_transactions WHERE entity_id = ? AND is_real",
+                (str(entity_id),),
+            )

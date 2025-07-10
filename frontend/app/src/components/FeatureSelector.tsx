@@ -1,5 +1,4 @@
 import type React from "react"
-import { useState } from "react"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -30,8 +29,9 @@ export function FeatureSelector() {
     fetchingEntityState,
     selectedFeatures,
     setSelectedFeatures,
+    fetchOptions,
+    setFetchOptions,
   } = useAppContext()
-  const [deepScrape, setDeepScrape] = useState(false)
   const { t } = useI18n()
 
   if (!selectedEntity) return null
@@ -39,6 +39,12 @@ export function FeatureSelector() {
   const isEntityFetching = fetchingEntityState.fetchingEntityIds.includes(
     selectedEntity.id,
   )
+
+  const { deep } = fetchOptions
+
+  const setDeepScrape = (value: boolean) => {
+    setFetchOptions({ ...fetchOptions, deep: value })
+  }
 
   const availableFeatures = selectedEntity.features
 
@@ -55,7 +61,7 @@ export function FeatureSelector() {
   }
 
   const handleSubmit = () => {
-    scrape(selectedEntity, selectedFeatures, { deep: deepScrape })
+    scrape(selectedEntity, selectedFeatures, { deep: deep })
   }
 
   // Map features to icons
@@ -134,10 +140,7 @@ export function FeatureSelector() {
                           {t.features.deepScrapeDescription}
                         </div>
                       </div>
-                      <Switch
-                        checked={deepScrape}
-                        onCheckedChange={setDeepScrape}
-                      />
+                      <Switch checked={deep} onCheckedChange={setDeepScrape} />
                     </div>
                   </div>
                 </PopoverContent>

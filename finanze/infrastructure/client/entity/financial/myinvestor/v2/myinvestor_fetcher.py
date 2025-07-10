@@ -84,6 +84,7 @@ ACCOUNT_TYPE_MAP = {
 BEGINNING = date.fromisocalendar(2018, 1, 1)
 
 ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
+STOCKS_TX_FETCH_STEP = relativedelta(months=4)
 
 
 def _get_stock_investments(broker_investments) -> StockInvestments:
@@ -236,33 +237,38 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         for account in target_accounts:
             account_id = account["accountId"]
+            creation_date = datetime.fromisoformat(account["creationDate"]).date()
             related_security_account_id = self._get_related_security_account(
                 account_id
             )["accountId"]
             investment_txs += self._get_investment_txs(
-                registered_txs, related_security_account_id
+                registered_txs, related_security_account_id, creation_date
             )
 
             account_related_txs = self._classify_account_txs(
-                account_id, registered_txs, options.deep
+                account_id, registered_txs, creation_date, options.deep
             )
             investment_txs += account_related_txs["deposit"]
             account_txs += account_related_txs["interests"]
 
         return Transactions(investment=investment_txs, account=account_txs)
 
-    def _get_investment_txs(self, registered_txs, related_security_account_id):
+    def _get_investment_txs(
+        self, registered_txs, related_security_account_id, min_date: date
+    ):
         fund_txs, stock_txs = [], []
 
         try:
-            fund_txs = self.fetch_fund_txs(related_security_account_id, registered_txs)
+            fund_txs = self.fetch_fund_txs(
+                related_security_account_id, registered_txs, min_date
+            )
         except Exception as e:
             self._log.error(f"Error getting fund txs: {e}")
             traceback.print_exc()
 
         try:
             stock_txs = self.fetch_stock_txs(
-                related_security_account_id, registered_txs
+                related_security_account_id, registered_txs, min_date
             )
         except Exception as e:
             self._log.error(f"Error getting stock txs: {e}")
@@ -301,14 +307,16 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return found
 
-    def _classify_account_txs(self, account_id, registered_txs, force_all=False):
+    def _classify_account_txs(
+        self, account_id, registered_txs, min_date: date, force_all=False
+    ):
         deposit_txs = []
         interest_txs = []
         result = {"deposit": deposit_txs, "interests": interest_txs}
 
         to_date = from_date = date.today()
         from_date += timedelta(days=1)
-        while from_date > BEGINNING:
+        while from_date > min_date:
             from_date -= ACCOUNT_TX_FETCH_STEP
             raw_txs = self._client.get_account_movements(
                 account_id, from_date, to_date
@@ -663,10 +671,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return AutoContributions(periodic=periodic_contributions)
 
     def fetch_fund_txs(
-        self, securities_account_id: str, registered_txs: set[str]
+        self, securities_account_id: str, registered_txs: set[str], min_date: date
     ) -> list[FundTx]:
         raw_fund_orders = self._client.get_fund_orders(
-            securities_account_id=securities_account_id, from_date=BEGINNING
+            securities_account_id=securities_account_id, from_date=min_date
         )
 
         fund_txs = []
@@ -687,7 +695,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
                 continue
 
-            raw_order_details = self._client.get_fund_order_details(ref)
+            raw_order_details = self._client.get_fund_order_details(
+                securities_account_id, ref
+            )
             order_date = datetime.strptime(
                 raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
             )
@@ -727,111 +737,95 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return fund_txs
 
     def fetch_stock_txs(
-        self, securities_account_id: str, registered_txs: set[str]
+        self, securities_account_id: str, registered_txs: set[str], min_date: date
     ) -> list[StockTx]:
-        raw_stock_orders = []
-
-        # Both v1 & v2 stock order history endpoint are failing for some dates, we retry since current year
-        try:
-            raw_stock_orders += self._client.get_stock_orders(
-                securities_account_id=securities_account_id,
-                from_date=BEGINNING,
-                to_date=date.today().replace(
-                    year=date.today().year - 1, month=9, day=1
-                ),
-                status=None,
-            )
-
-            raw_stock_orders += self._client.get_stock_orders(
-                securities_account_id=securities_account_id,
-                from_date=date.today().replace(year=2024, month=9, day=1),
-                to_date=date.fromisocalendar(date.today().year, 1, 1),
-                status=None,
-            )
-        except Exception:
-            self._log.error(
-                "Error getting stock orders for past years, retrying since this year"
-            )
-
-        raw_stock_orders += self._client.get_stock_orders(
-            securities_account_id=securities_account_id,
-            from_date=date.fromisocalendar(date.today().year, 1, 2),
-            status=None,
-        )
-
         stock_txs = []
-        for order in raw_stock_orders:
-            ref = order["id"]
 
-            if ref in registered_txs:
-                continue
-
-            raw_operation_type = order["operation"]
-            if (
-                "COMPRA" in raw_operation_type
-                or raw_operation_type == "PURCHASE_VARIABLE_INCOME_CASH"
-            ):
-                operation_type = TxType.BUY
-            elif (
-                "VENTA" in raw_operation_type
-                or raw_operation_type == "SALE_VARIABLE_INCOME_CASH"
-            ):
-                operation_type = TxType.SELL
-            else:
-                self._log.warning(
-                    f"Unknown operation type {raw_operation_type} for tx {ref}"
-                )
-                continue
-
-            raw_order_details = self._client.get_stock_order_details(ref)
-            order_date = datetime.strptime(
-                raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
+        to_date = from_date = date.today()
+        from_date += timedelta(days=1)
+        while from_date > min_date:
+            from_date -= STOCKS_TX_FETCH_STEP
+            raw_txs = self._client.get_stock_orders(
+                securities_account_id=securities_account_id,
+                from_date=from_date,
+                to_date=to_date,
+                status=None,
             )
 
-            if not raw_order_details.get("executedShares"):
-                continue
+            for order in raw_txs:
+                ref = order["id"]
 
-            amount = round(
-                Dezimal(raw_order_details["grossAmountOperationCurrency"]), 2
-            )
-            net_amount = round(Dezimal(raw_order_details["netAmountCurrency"]), 2)
+                if ref in registered_txs:
+                    continue
 
-            fees = Dezimal(0)
-            if operation_type == TxType.BUY:
-                # Financial Tx Tax not included in "comisionCorretaje", "comisionMiembroMercado" and "costeCanon"
-                fees = net_amount - amount
-            elif operation_type == TxType.SELL:
-                fees = Dezimal(raw_order_details["tradeCommissions"]) + Dezimal(
-                    raw_order_details["otherCommissions"]
+                raw_operation_type = order["operation"]
+                if (
+                    "COMPRA" in raw_operation_type
+                    or raw_operation_type == "PURCHASE_VARIABLE_INCOME_CASH"
+                ):
+                    operation_type = TxType.BUY
+                elif (
+                    "VENTA" in raw_operation_type
+                    or raw_operation_type == "SALE_VARIABLE_INCOME_CASH"
+                ):
+                    operation_type = TxType.SELL
+                else:
+                    self._log.warning(
+                        f"Unknown operation type {raw_operation_type} for tx {ref}"
+                    )
+                    continue
+
+                raw_order_details = self._client.get_stock_order_details(ref)
+                order_date = datetime.strptime(
+                    raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
                 )
 
-            execution_date = datetime.strptime(
-                raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT
-            )
+                if not raw_order_details.get("executedShares"):
+                    continue
 
-            stock_txs.append(
-                StockTx(
-                    id=uuid4(),
-                    ref=ref,
-                    name=order["toolName"].strip(),
-                    ticker=order["ticker"],
-                    amount=amount,
-                    net_amount=net_amount,
-                    currency=order["currency"],
-                    type=operation_type,
-                    order_date=order_date,
-                    entity=MY_INVESTOR,
-                    isin=raw_order_details["instrumentIsin"],
-                    shares=round(Dezimal(raw_order_details["executedShares"]), 4),
-                    price=round(Dezimal(raw_order_details["priceCurrency"]), 4),
-                    market=order["marketId"],
-                    fees=round(fees, 2),
-                    retentions=Dezimal(0),
-                    date=execution_date,
-                    product_type=ProductType.STOCK_ETF,
-                    is_real=True,
-                    linked_tx=None,
+                amount = round(
+                    Dezimal(raw_order_details["grossAmountOperationCurrency"]), 2
                 )
-            )
+                net_amount = round(Dezimal(raw_order_details["netAmountCurrency"]), 2)
+
+                fees = Dezimal(0)
+                if operation_type == TxType.BUY:
+                    # Financial Tx Tax not included in "comisionCorretaje", "comisionMiembroMercado" and "costeCanon"
+                    fees = net_amount - amount
+                elif operation_type == TxType.SELL:
+                    fees = Dezimal(raw_order_details["tradeCommissions"]) + Dezimal(
+                        raw_order_details["otherCommissions"]
+                    )
+
+                execution_date = datetime.strptime(
+                    raw_order_details["executionDate"], ISO_DATE_TIME_FORMAT
+                )
+
+                stock_txs.append(
+                    StockTx(
+                        id=uuid4(),
+                        ref=ref,
+                        name=order["toolName"].strip(),
+                        ticker=order["ticker"],
+                        amount=amount,
+                        net_amount=net_amount,
+                        currency=order["currency"],
+                        type=operation_type,
+                        order_date=order_date,
+                        entity=MY_INVESTOR,
+                        isin=raw_order_details["instrumentIsin"],
+                        shares=round(Dezimal(raw_order_details["executedShares"]), 4),
+                        price=round(Dezimal(raw_order_details["priceCurrency"]), 4),
+                        market=order["marketId"],
+                        fees=round(fees, 2),
+                        retentions=Dezimal(0),
+                        date=execution_date,
+                        product_type=ProductType.STOCK_ETF,
+                        is_real=True,
+                        linked_tx=None,
+                    )
+                )
+
+            to_date -= STOCKS_TX_FETCH_STEP
 
         return stock_txs

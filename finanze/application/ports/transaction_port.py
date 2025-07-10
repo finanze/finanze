@@ -32,3 +32,7 @@ class TransactionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def delete_non_real(self):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_for_real_entity(self, entity_id: UUID):
+        raise NotImplementedError

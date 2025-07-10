@@ -297,7 +297,11 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
 
         transactions = None
         if Feature.TRANSACTIONS in features:
-            registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
+            registered_txs = {}
+            if options.deep:
+                self._transaction_port.delete_for_real_entity(entity.id)
+            else:
+                registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
             transactions = await specific_fetcher.transactions(registered_txs, options)
 
         if position:

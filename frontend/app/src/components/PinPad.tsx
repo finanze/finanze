@@ -15,6 +15,7 @@ export function PinPad() {
     scrape,
     storedCredentials,
     selectedFeatures,
+    fetchOptions,
     pinError,
     clearPinError,
     fetchingEntityState,
@@ -64,7 +65,10 @@ export function PinPad() {
     if (currentAction === "login" && storedCredentials) {
       login(storedCredentials, pinString)
     } else if (currentAction === "scrape") {
-      scrape(selectedEntity, selectedFeatures, { code: pinString })
+      scrape(selectedEntity, selectedFeatures, {
+        code: pinString,
+        deep: fetchOptions.deep,
+      })
     }
 
     // Don't reset PIN - we'll handle it based on response

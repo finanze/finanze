@@ -32,6 +32,11 @@ import {
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
+
+const DEFAULT_OPTIONS: FetchOptions = {
+  deep: false,
+}
+
 export interface AppSettings {
   integrations?: {
     sheets?: {
@@ -69,6 +74,10 @@ export interface FetchingEntityState {
   fetchingEntityIds: string[]
 }
 
+export interface FetchOptions {
+  deep: boolean
+}
+
 interface AppContextType {
   entities: Entity[]
   entitiesLoaded: boolean
@@ -80,6 +89,8 @@ interface AppContextType {
   pinLength: number
   selectedFeatures: Feature[]
   setSelectedFeatures: (features: Feature[]) => void
+  fetchOptions: FetchOptions
+  setFetchOptions: (options: FetchOptions) => void
   currentAction: "login" | "scrape" | null
   storedCredentials: Record<string, string> | null
   toast: {
@@ -163,6 +174,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pinRequired, setPinRequired] = useState(false)
   const [pinLength, setPinLength] = useState(4)
   const [selectedFeatures, setSelectedFeatures] = useState<Feature[]>([])
+  const [fetchOptions, setFetchOptions] =
+    useState<FetchOptions>(DEFAULT_OPTIONS)
   const [currentAction, setCurrentAction] = useState<"login" | "scrape" | null>(
     null,
   )
@@ -661,6 +674,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPinRequired(false)
     setProcessId(null)
     setSelectedFeatures([])
+    setFetchOptions(DEFAULT_OPTIONS)
     setCurrentAction(null)
     setStoredCredentials(null)
     setPinError(false)
@@ -739,6 +753,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         pinLength,
         selectedFeatures,
         setSelectedFeatures,
+        fetchOptions,
+        setFetchOptions,
         currentAction,
         storedCredentials,
         toast,

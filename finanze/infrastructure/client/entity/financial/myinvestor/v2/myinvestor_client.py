@@ -3,10 +3,9 @@ from datetime import date
 from typing import Optional
 
 import requests
-from cachetools import cached, TTLCache
+from cachetools import TTLCache, cached
 from dateutil.relativedelta import relativedelta
-
-from domain.entity_login import EntityLoginResult, LoginResultCode, LoginOptions
+from domain.entity_login import EntityLoginResult, LoginOptions, LoginResultCode
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -305,9 +304,9 @@ class MyInvestorAPIV2Client:
 
         return self._get_request(path)["payload"]["data"]
 
-    def get_fund_order_details(self, order_id: str):
+    def get_fund_order_details(self, securities_account_id: str, order_id: str):
         return self._get_request(
-            f"/myinvestor-server/api/v2/securities-accounts/self/orders/{order_id}"
+            f"/myinvestor-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
         )["payload"]["data"]
 
     def get_auto_contributions(self):
