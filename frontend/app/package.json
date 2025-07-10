@@ -1,6 +1,6 @@
 {
   "name": "finanze",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
   "main": "dist-electron/main/index.js",
   "packageManager": "pnpm@10.11.1",
@@ -33,8 +33,10 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.12.1",
     "lucide-react": "^0.511.0",
+    "react-day-picker": "^9.7.0",
     "recharts": "^2.15.3"
   },
   "devDependencies": {

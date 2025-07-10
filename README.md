@@ -28,7 +28,7 @@ information.
 - Dynamic and customizable data export to Google Sheets
 - Virtual scraping for simulated data
 
-### Supported Assets by Entity
+### Supported Assets by Financial Entity
 
 | Entity         | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
 |----------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
@@ -44,7 +44,7 @@ information.
 
 ⚠️ = Not tested
 
-### Entity Features
+### Financial Entity Features
 
 Not all entities support the same features, in general we can group data in the following categories:
 
@@ -69,7 +69,7 @@ Not all entities support the same features, in general we can group data in the 
 | Freedom24      | ✅               | -                         | ✅                              | ❌                      |
 | Indexa Capital | ✅⚠️             | -                         | ❌                              | -                      |
 
-### Entity notes
+### Financial Entity notes
 
 Some entities require a 2FA to login or get its data, which doesn't allow to background update, this applies to the
 following ones:
@@ -87,6 +87,27 @@ Important points to remark:
 - **Indexa Capital** is not tested, as I don't have an account.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
   removal.
+
+### Crypto
+
+Crypto is a bit special, as it is not a financial entity, but a financial product. To add it just set up a wallet,
+currently the following are supported:
+
+- **Bitcoin**
+- **Ethereum**: ERC20 tokens are supported too, currently **USDT** and **USDC** are supported.
+- **Litecoin**
+- **Tron**: TRC20 tokens are supported too, same as ETH.
+
+At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
+
+### Commodities
+
+Manual commodity input is feature that allows to track market value for them. Currently, the following are supported:
+
+- **Gold**
+- **Silver**
+- **Platinum**
+- **Palladium**
 
 ### Google Sheets export
 
@@ -108,7 +129,7 @@ below:
 1. Remove the quarantine attribute from the application using the following command in the terminal:
 
 ```sh
-xattr -d com.apple.quarantine Finanze.app
+cd /Applications & xattr -d com.apple.quarantine Finanze.app
 ```
 
 2. Open the application as usual.
@@ -146,68 +167,6 @@ This project requires `Python 3.11`.
     pip install -r requirements.txt
     pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA
     ```
-
-### Backend Usage
-
-1. Start the application:
-    ```sh
-    python app.py
-    ```
-
-2. These are some API endpoints to interact with the application:
-    - `GET /api/v1/login`: Get current user session status.
-    - `POST /api/v1/logout`: Exit and lock current session.
-    - `POST /api/v1/login`: Login and unlock database.
-   ```
-   {
-        "username": "xxxxxxxxxxx",
-        "password": "xxxxxxxxxxx"
-   }
-   ```
-    - `POST /api/v1/signup`: Register a user.
-   ```
-   {
-        "username": "xxxxxxxxxxx",
-        "password": "xxxxxxxxxxx"
-   }
-   ```
-    - `GET /api/v1/entities`: Get available entities.
-    - `POST /api/v1/entities/login`: Login to a specific entity.
-   ```
-   {
-        "entity": "e0000000-0000-0000-0000-000000000001",    // MyInvestor
-        "credentials": {                                     // Credentials object schema defined
-            "user": "12345678G",                             // by "credentials_template" field
-            "password": "MySecretor123"                      // in the available entities endpoint 
-        },
-        "code": "0000",                                      // Only if 2FA is needed
-        "processId": "xxxxxxxxxxx"                           // Same
-    }
-   ```
-    - `DELETE /api/v1/entities/login`: Disconnect/logout from a specific entity.
-   ```
-   {
-      "id": "e0000000-0000-0000-0000-000000000001"
-   }
-   ```
-    - `POST /api/v1/scrape`: Start a scraping process for a specific entity, this endpoint will also prompt for the
-      needed 2FA code if the entity requires it. It will return all scraped data. Resembles the previous one.
-   ```
-   {
-        "entity": "e0000000-0000-0000-0000-000000000003", // Trade Republic
-        "features": ["POSITION", "TRANSACTIONS"],
-        "code": "0000",                              // Only if 2FA is needed
-        "processId": "xxxxxxxxxxx",                  // Same
-        "avoidNewLogin": false,                      // Avoid new login if session has expired and 2FA is required (optional, defaults to false)
-    }
-   ```
-    - `POST /api/v1/export`: Export data (currently only Google Sheets available).
-   ```
-   {
-        "target": "GOOGLE_SHEETS"
-   }
-   ```
-    - `POST /api/v1/scrape/virtual`: Perform a virtual scrape.
 
 ### Export & Import Configuration
 

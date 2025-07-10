@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from threading import RLock
 from types import TracebackType
 from typing import Optional, Literal, Any, Generator
 from uuid import uuid4
@@ -58,6 +59,7 @@ class DBClient:
     def __init__(self, connection: UnderlyingConnection | None = None):
         self._conn = connection
         self.savepoint_stack: list[Optional[str]] = []
+        self._lock = RLock()
 
     def _get_connection(self) -> UnderlyingConnection:
         if self._conn is None:
@@ -66,62 +68,65 @@ class DBClient:
 
     @contextmanager
     def tx(self) -> Generator[DBCursor, None, None]:
-        cursor = self.cursor()
-        try:
-            if not self.savepoint_stack:
-                # Outer transaction
-                cursor.execute("BEGIN")
-                self.savepoint_stack.append(None)
-            else:
-                # Generate unique savepoint name for nested transaction
-                savepoint_name = f"savepoint_{uuid4().hex}"
-                cursor.execute(f"SAVEPOINT {savepoint_name}")
-                self.savepoint_stack.append(savepoint_name)
-            yield cursor
+        with self._lock:
+            cursor = self._cursor()
+            try:
+                if not self.savepoint_stack:
+                    # Outer transaction
+                    cursor.execute("BEGIN")
+                    self.savepoint_stack.append(None)
+                else:
+                    # Generate unique savepoint name for nested transaction
+                    savepoint_name = f"savepoint_{uuid4().hex}"
+                    cursor.execute(f"SAVEPOINT {savepoint_name}")
+                    self.savepoint_stack.append(savepoint_name)
+                yield cursor
 
-        except Exception:
-            if self.savepoint_stack:
-                current_sp = self.savepoint_stack[-1]
-                if current_sp is not None:
-                    # Rollback to savepoint and release it
-                    cursor.execute(f"ROLLBACK TO SAVEPOINT {current_sp}")
-                    cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
-                else:
-                    # Rollback outermost transaction
-                    self.rollback()
-            raise  # Re-raise exception
-        else:
-            if self.savepoint_stack:
-                current_sp = self.savepoint_stack[-1]
-                if current_sp is not None:
-                    # Release savepoint (commit nested changes)
-                    cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
-                else:
-                    # Commit outermost transaction
-                    self.commit()
-        finally:
-            # Cleanup stack and cursor
-            if self.savepoint_stack:
-                self.savepoint_stack.pop()
-            cursor.close()
+            except Exception:
+                if self.savepoint_stack:
+                    current_sp = self.savepoint_stack[-1]
+                    if current_sp is not None:
+                        # Rollback to savepoint and release it
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {current_sp}")
+                        cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
+                    else:
+                        # Rollback outermost transaction
+                        self._rollback()
+                raise  # Re-raise exception
+            else:
+                if self.savepoint_stack:
+                    current_sp = self.savepoint_stack[-1]
+                    if current_sp is not None:
+                        # Release savepoint (commit nested changes)
+                        cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
+                    else:
+                        # Commit outermost transaction
+                        self._commit()
+            finally:
+                # Cleanup stack and cursor
+                if self.savepoint_stack:
+                    self.savepoint_stack.pop()
+                cursor.close()
 
     @contextmanager
     def read(self) -> Generator[DBCursor, None, None]:
-        cursor = self.cursor()
-        try:
-            yield cursor
-        finally:
-            cursor.close()
+        with self._lock:
+            cursor = self._cursor()
+            try:
+                yield cursor
+            finally:
+                cursor.close()
 
-    def commit(self):
+    def _commit(self):
         self._get_connection().commit()
 
-    def rollback(self):
+    def _rollback(self):
         self._get_connection().rollback()
 
     def close(self):
-        self._get_connection().close()
-        self._conn = None
+        with self._lock:
+            self._get_connection().close()
+            self._conn = None
 
     def silent_close(self) -> bool:
         try:
@@ -130,7 +135,7 @@ class DBClient:
         except Exception:
             return False
 
-    def cursor(self) -> DBCursor:
+    def _cursor(self) -> DBCursor:
         return DBCursor(self._get_connection().cursor())
 
     def set_connection(self, connection: UnderlyingConnection) -> None:

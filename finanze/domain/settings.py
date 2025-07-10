@@ -1,9 +1,9 @@
 from dataclasses import field
 from typing import Optional
 
+from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
-DataField = str | list[str]
 FilterValues = str | list[str]
 
 
@@ -29,23 +29,18 @@ class BaseSheetConfig:
 
 
 @dataclass
-class SummarySheetConfig(BaseSheetConfig):
-    pass
-
-
-@dataclass
-class InvestmentSheetConfig(BaseSheetConfig):
-    data: DataField = field(default_factory=list)
+class PositionSheetConfig(BaseSheetConfig):
+    data: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ContributionSheetConfig(BaseSheetConfig):
-    data: DataField = field(default_factory=list)
+    data: list[str] = field(default_factory=list)
 
 
 @dataclass
 class TransactionSheetConfig(BaseSheetConfig):
-    data: DataField = field(default_factory=list)
+    data: list[str] = field(default_factory=list)
     filters: list[FilterConfig] | None = None
 
 
@@ -64,8 +59,7 @@ class GoogleCredentials:
 class SheetsConfig:
     enabled: bool
     globals: GlobalsConfig | None = None
-    summary: list[SummarySheetConfig] = field(default_factory=list)
-    investments: list[InvestmentSheetConfig] = field(default_factory=list)
+    position: list[PositionSheetConfig] = field(default_factory=list)
     contributions: list[ContributionSheetConfig] = field(default_factory=list)
     transactions: list[TransactionSheetConfig] = field(default_factory=list)
     historic: list[HistoricSheetConfig] = field(default_factory=list)
@@ -77,7 +71,7 @@ class ExportConfig:
 
 
 @dataclass
-class VirtualInvestmentSheetConfig(BaseSheetConfig):
+class VirtualPositionSheetConfig(BaseSheetConfig):
     data: str = field(default_factory=str)
 
 
@@ -87,16 +81,16 @@ class VirtualTransactionSheetConfig(BaseSheetConfig):
 
 
 @dataclass
-class VirtualScrapeConfig:
+class VirtualFetchConfig:
     enabled: bool = False
     globals: GlobalsConfig | None = None
-    investments: list[VirtualInvestmentSheetConfig] | None = None
+    position: list[VirtualPositionSheetConfig] | None = None
     transactions: list[VirtualTransactionSheetConfig] | None = None
 
 
 @dataclass
-class ScrapeConfig:
-    virtual: VirtualScrapeConfig
+class FetchConfig:
+    virtual: VirtualFetchConfig
     updateCooldown: int
 
 
@@ -113,6 +107,7 @@ class IntegrationsConfig:
 @dataclass
 class GeneralConfig:
     defaultCurrency: str = "EUR"
+    defaultCommodityWeightUnit: str = WeightUnit.GRAM.value
 
 
 @dataclass
@@ -120,14 +115,14 @@ class Settings:
     general: GeneralConfig = field(default_factory=GeneralConfig)
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
-    scrape: ScrapeConfig = field(default_factory=ScrapeConfig)
+    fetch: FetchConfig = field(default_factory=FetchConfig)
 
 
 ProductSheetConfig = (
-    InvestmentSheetConfig
+    PositionSheetConfig
     | ContributionSheetConfig
     | TransactionSheetConfig
     | HistoricSheetConfig
-    | VirtualInvestmentSheetConfig
+    | VirtualPositionSheetConfig
     | VirtualTransactionSheetConfig
 )

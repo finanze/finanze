@@ -1,33 +1,33 @@
 from datetime import datetime
-from typing import Dict, Set, List
+from typing import List, Set
 from uuid import UUID
 
-from dateutil.tz import tzlocal
-
 from application.ports.transaction_port import TransactionPort
+from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity, EntityType
+from domain.global_position import ProductType
 from domain.transactions import (
-    Transactions,
-    StockTx,
-    FundTx,
-    BaseInvestmentTx,
     AccountTx,
-    ProductType,
-    TxType,
-    FactoringTx,
-    RealStateCFTx,
-    DepositTx,
-    TransactionQueryRequest,
+    BaseInvestmentTx,
     BaseTx,
+    DepositTx,
+    FactoringTx,
+    FundTx,
+    RealEstateCFTx,
+    StockTx,
+    TransactionQueryRequest,
+    Transactions,
+    TxType,
 )
 from infrastructure.repository.db.client import DBClient
 
 
 def _map_account_row(row) -> AccountTx:
-    entity = FinancialEntity(
+    entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
+        type=row["entity_type"],
         is_real=row["entity_is_real"],
     )
 
@@ -50,9 +50,10 @@ def _map_account_row(row) -> AccountTx:
 
 
 def _map_investment_row(row) -> BaseInvestmentTx:
-    entity = FinancialEntity(
+    entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
+        type=EntityType[row["entity_type"]],
         is_real=row["entity_is_real"],
     )
 
@@ -107,8 +108,8 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             retentions=Dezimal(row["retentions"]),
             interests=Dezimal(row["interests"]),
         )
-    elif row["product_type"] == ProductType.REAL_STATE_CF.value:
-        return RealStateCFTx(
+    elif row["product_type"] == ProductType.REAL_ESTATE_CF.value:
+        return RealEstateCFTx(
             **common,
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
@@ -197,7 +198,7 @@ class TransactionSQLRepository(TransactionPort):
                             else None,
                         }
                     )
-                elif isinstance(tx, (FactoringTx, RealStateCFTx, DepositTx)):
+                elif isinstance(tx, (FactoringTx, RealEstateCFTx, DepositTx)):
                     entry.update(
                         {
                             "net_amount": str(tx.net_amount),
@@ -257,18 +258,18 @@ class TransactionSQLRepository(TransactionPort):
     def _get_investment_txs(self) -> List[BaseInvestmentTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
                            FROM investment_transactions it
-                                    JOIN financial_entities e ON it.entity_id = e.id
+                                    JOIN entities e ON it.entity_id = e.id
                            """)
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
     def _get_account_txs(self) -> List[AccountTx]:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                           SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
                            FROM account_transactions at
-                                    JOIN financial_entities e ON at.entity_id = e.id
+                                    JOIN entities e ON at.entity_id = e.id
                            """)
             return [_map_account_row(row) for row in cursor.fetchall()]
 
@@ -276,9 +277,9 @@ class TransactionSQLRepository(TransactionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
+                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
                            FROM investment_transactions it
-                                    JOIN financial_entities e ON it.entity_id = e.id
+                                    JOIN entities e ON it.entity_id = e.id
                            WHERE it.entity_id = ?
                            """,
                 (str(entity_id),),
@@ -291,7 +292,7 @@ class TransactionSQLRepository(TransactionPort):
                 """
                            SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
                            FROM account_transactions at
-                                    JOIN financial_entities e ON at.entity_id = e.id
+                                    JOIN entities e ON at.entity_id = e.id
                            WHERE at.entity_id = ?
                            """,
                 (str(entity_id),),
@@ -336,33 +337,10 @@ class TransactionSQLRepository(TransactionPort):
             )
             return {row[0] for row in cursor.fetchall()}
 
-    def get_last_created_grouped_by_entity(self) -> Dict[FinancialEntity, datetime]:
-        with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT e.*, MAX(created_at) AS last_created
-                           FROM (SELECT entity_id, created_at
-                                 FROM investment_transactions
-                                 UNION ALL
-                                 SELECT entity_id, created_at
-                                 FROM account_transactions) txs
-                                    JOIN financial_entities e ON txs.entity_id = e.id
-                           GROUP BY e.name
-                           """)
-
-            result = {}
-            for row in cursor.fetchall():
-                entity = FinancialEntity(
-                    id=UUID(row["id"]), name=row["name"], is_real=row["is_real"]
-                )
-                last_created = datetime.fromisoformat(row["last_created"])
-                result[entity] = last_created
-
-            return result
-
     def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
         params = []
         base_sql = """
-                   SELECT tx.*, e.name AS entity_name, e.is_real AS entity_is_real
+                   SELECT tx.*, e.name AS entity_name, e.type as entity_type, e.is_real AS entity_is_real
                    FROM (SELECT id,
                                 ref,
                                 name,
@@ -412,7 +390,7 @@ class TransactionSQLRepository(TransactionPort):
                                 NULL      AS linked_tx,
                                 NULL      AS interests
                          FROM account_transactions) tx
-                            JOIN financial_entities e ON tx.entity_id = e.id
+                            JOIN entities e ON tx.entity_id = e.id
                    """
 
         conditions = []
@@ -458,3 +436,19 @@ class TransactionSQLRepository(TransactionPort):
             tx_list.append(tx)
 
         return tx_list
+
+    def delete_non_real(self):
+        with self._db_client.tx() as cursor:
+            cursor.execute("DELETE FROM investment_transactions WHERE NOT is_real")
+            cursor.execute("DELETE FROM account_transactions WHERE NOT is_real")
+
+    def delete_for_real_entity(self, entity_id: UUID):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM investment_transactions WHERE entity_id = ? AND is_real",
+                (str(entity_id),),
+            )
+            cursor.execute(
+                "DELETE FROM account_transactions WHERE entity_id = ? AND is_real",
+                (str(entity_id),),
+            )

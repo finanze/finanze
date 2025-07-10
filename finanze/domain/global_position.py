@@ -1,15 +1,30 @@
 from dataclasses import field
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import UUID
 
 from dateutil.tz import tzlocal
+from domain.base import BaseData
+from domain.commodity import CommodityRegister
+from domain.dezimal import Dezimal
+from domain.entity import Entity
 from pydantic.dataclasses import dataclass
 
-from domain.base import BaseData
-from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+
+class ProductType(str, Enum):
+    ACCOUNT = "ACCOUNT"
+    CARD = "CARD"
+    LOAN = "LOAN"
+    STOCK_ETF = "STOCK_ETF"
+    FUND = "FUND"
+    FUND_PORTFOLIO = "FUND_PORTFOLIO"
+    DEPOSIT = "DEPOSIT"
+    FACTORING = "FACTORING"
+    REAL_ESTATE_CF = "REAL_ESTATE_CF"
+    CROWDLENDING = "CROWDLENDING"
+    CRYPTO = "CRYPTO"
+    COMMODITY = "COMMODITY"
 
 
 class AccountType(str, Enum):
@@ -21,7 +36,7 @@ class AccountType(str, Enum):
 
 
 @dataclass
-class Account:
+class Account(BaseData):
     id: UUID
     total: Dezimal
     currency: str
@@ -39,7 +54,7 @@ class CardType(str, Enum):
 
 
 @dataclass
-class Card:
+class Card(BaseData):
     id: UUID
     currency: str
     type: CardType
@@ -47,7 +62,7 @@ class Card:
     active: bool
     limit: Optional[Dezimal] = None
     name: Optional[str] = None
-    ending: Optional[str] = None
+    ending: Optional[str | int] = None
     related_account: Optional[UUID] = None
 
 
@@ -57,7 +72,7 @@ class LoanType(str, Enum):
 
 
 @dataclass
-class Loan:
+class Loan(BaseData):
     id: UUID
     type: LoanType
     currency: str
@@ -124,7 +139,7 @@ class FactoringDetail(BaseData):
 
 
 @dataclass
-class RealStateCFDetail(BaseData):
+class RealEstateCFDetail(BaseData):
     id: UUID
     name: str
     amount: Dezimal
@@ -140,34 +155,6 @@ class RealStateCFDetail(BaseData):
 
 
 @dataclass
-class StockInvestments:
-    investment: Optional[Dezimal]
-    market_value: Optional[Dezimal]
-    details: List[StockDetail]
-
-
-@dataclass
-class FundInvestments:
-    investment: Optional[Dezimal]
-    market_value: Optional[Dezimal]
-    details: List[FundDetail]
-
-
-@dataclass
-class FactoringInvestments:
-    total: Optional[Dezimal]
-    weighted_interest_rate: Optional[Dezimal]
-    details: List[FactoringDetail]
-
-
-@dataclass
-class RealStateCFInvestments:
-    total: Optional[Dezimal]
-    weighted_interest_rate: Optional[Dezimal]
-    details: List[RealStateCFDetail]
-
-
-@dataclass
 class Deposit(BaseData):
     id: UUID
     name: str
@@ -179,44 +166,156 @@ class Deposit(BaseData):
     maturity: date
 
 
-@dataclass
-class Deposits:
-    total: Optional[Dezimal]
-    expected_interests: Optional[Dezimal]
-    weighted_interest_rate: Optional[Dezimal]
-    details: List[Deposit]
+class CryptoCurrency(str, Enum):
+    BITCOIN = "BITCOIN"
+    ETHEREUM = "ETHEREUM"
+    LITECOIN = "LITECOIN"
+    TRON = "TRON"
+
+
+class CryptoToken(str, Enum):
+    USDT = "USDT"
+    USDC = "USDC"
+
+
+CryptoAsset = CryptoCurrency | CryptoToken
+
+CRYPTO_SYMBOLS = {
+    CryptoCurrency.BITCOIN: "BTC",
+    CryptoCurrency.ETHEREUM: "ETH",
+    CryptoCurrency.LITECOIN: "LTC",
+    CryptoCurrency.TRON: "TRX",
+    CryptoToken.USDT: "USDT",
+    CryptoToken.USDC: "USDC",
+}
 
 
 @dataclass
-class Crowdlending:
+class CryptoCurrencyToken(BaseData):
+    id: UUID
+    token_id: str
+    name: str
+    symbol: str
+    token: CryptoToken
+    amount: Dezimal
+    initial_investment: Optional[Dezimal] = None
+    average_buy_price: Optional[Dezimal] = None
+    market_value: Optional[Dezimal] = None
+    currency: Optional[str] = None
+    type: Optional[str] = None
+
+
+@dataclass
+class CryptoCurrencyWallet(BaseData):
+    id: UUID
+    wallet_connection_id: Optional[UUID]
+    symbol: str
+    crypto: CryptoCurrency
+    amount: Dezimal
+    address: Optional[str] = None
+    name: Optional[str] = None
+    initial_investment: Optional[Dezimal] = None
+    average_buy_price: Optional[Dezimal] = None
+    market_value: Optional[Dezimal] = None
+    currency: Optional[str] = None
+    tokens: list[CryptoCurrencyToken] = None
+
+
+@dataclass
+class Commodity(BaseData, CommodityRegister):
+    id: UUID = field(default_factory=UUID)
+
+
+@dataclass
+class Crowdlending(BaseData):
     id: UUID
     total: Optional[Dezimal]
     weighted_interest_rate: Optional[Dezimal]
     currency: str
-    distribution: dict
-    details: List
+    distribution: Optional[dict] = None
+    entries: Optional[list] = None
 
 
 @dataclass
-class Investments:
-    stocks: Optional[StockInvestments] = None
-    funds: Optional[FundInvestments] = None
-    fund_portfolios: List[FundPortfolio] = field(default_factory=list)
-    factoring: Optional[FactoringInvestments] = None
-    real_state_cf: Optional[RealStateCFInvestments] = None
-    deposits: Optional[Deposits] = None
-    crowdlending: Optional[Crowdlending] = None
+class Accounts:
+    entries: List[Account]
+
+
+@dataclass
+class Cards:
+    entries: List[Card]
+
+
+@dataclass
+class Loans:
+    entries: List[Loan]
+
+
+@dataclass
+class StockInvestments:
+    entries: List[StockDetail]
+
+
+@dataclass
+class FundInvestments:
+    entries: List[FundDetail]
+
+
+@dataclass
+class FundPortfolios:
+    entries: List[FundPortfolio]
+
+
+@dataclass
+class FactoringInvestments:
+    entries: List[FactoringDetail]
+
+
+@dataclass
+class RealEstateCFInvestments:
+    entries: List[RealEstateCFDetail]
+
+
+@dataclass
+class Deposits:
+    entries: List[Deposit]
+
+
+@dataclass
+class CryptoCurrencies:
+    entries: List[CryptoCurrencyWallet]
+
+
+@dataclass
+class Commodities:
+    entries: List[Commodity]
+
+
+ProductPosition = Union[
+    Accounts,
+    Cards,
+    Loans,
+    StockInvestments,
+    FundInvestments,
+    FundPortfolios,
+    FactoringInvestments,
+    RealEstateCFInvestments,
+    Deposits,
+    Crowdlending,
+    CryptoCurrencies,
+    Commodities,
+]
+
+
+ProductPositions = dict[ProductType, ProductPosition]
 
 
 @dataclass
 class GlobalPosition:
     id: UUID
-    entity: FinancialEntity
+    entity: Entity
     date: Optional[datetime] = None
-    accounts: list[Account] = field(default_factory=list)
-    cards: list[Card] = field(default_factory=list)
-    loans: list[Loan] = field(default_factory=list)
-    investments: Optional[Investments] = None
+    products: ProductPositions = field(default_factory=dict)
     is_real: bool = True
 
     def __post_init__(self):
@@ -226,7 +325,7 @@ class GlobalPosition:
 
 @dataclass
 class HistoricalPosition:
-    investments: Investments
+    positions: ProductPositions
 
 
 @dataclass

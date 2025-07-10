@@ -1,5 +1,5 @@
 from domain.data_init import AlreadyUnlockedError, DecryptionError
-from domain.exception.exceptions import UserNotFound
+from domain.exception.exceptions import UserNotFound, UserAlreadyLoggedIn
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
 from flask import jsonify, request
@@ -26,6 +26,9 @@ def user_login(user_login_uc: UserLogin):
 
     except UserNotFound:
         return jsonify({"message": "Username not found"}), 404
+
+    except UserAlreadyLoggedIn:
+        return jsonify({"message": "User already logged in"}), 409
 
     except AlreadyUnlockedError:
         return "", 204

@@ -1,9 +1,7 @@
 import abc
-from datetime import datetime
 from uuid import UUID
 
-from domain.financial_entity import FinancialEntity
-from domain.transactions import Transactions, TransactionQueryRequest, BaseTx
+from domain.transactions import BaseTx, TransactionQueryRequest, Transactions
 
 
 class TransactionPort(metaclass=abc.ABCMeta):
@@ -28,9 +26,13 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_created_grouped_by_entity(self) -> dict[FinancialEntity, datetime]:
+    def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
+    def delete_non_real(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_for_real_entity(self, entity_id: UUID):
         raise NotImplementedError

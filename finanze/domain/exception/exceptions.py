@@ -20,6 +20,10 @@ class UserNotFound(Exception):
     pass
 
 
+class UserAlreadyLoggedIn(Exception):
+    pass
+
+
 class UserAlreadyExists(Exception):
     pass
 
@@ -33,4 +37,16 @@ class NoAdapterFound(Exception):
 
 
 class ExecutionConflict(Exception):
+    pass
+
+
+class AddressNotFound(Exception):
+    pass
+
+
+class AddressAlreadyExists(Exception):
+    pass
+
+
+class TooManyRequests(Exception):
     pass

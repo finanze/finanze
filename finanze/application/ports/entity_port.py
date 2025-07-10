@@ -2,20 +2,20 @@ import abc
 from typing import Optional
 from uuid import UUID
 
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 
 
 class EntityPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def insert(self, entity: FinancialEntity):
+    def insert(self, entity: Entity):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_id(self, entity_id: UUID) -> Optional[FinancialEntity]:
+    def get_by_id(self, entity_id: UUID) -> Optional[Entity]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self) -> list[FinancialEntity]:
+    def get_all(self) -> list[Entity]:
         raise NotImplementedError
 
     @abc.abstractmethod

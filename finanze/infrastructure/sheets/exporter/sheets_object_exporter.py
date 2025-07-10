@@ -1,17 +1,20 @@
-import datetime
+import json
 import logging
 from dataclasses import asdict
+from datetime import date, datetime
+from uuid import UUID
 
 from dateutil.tz import tzlocal
-
-from domain.financial_entity import FinancialEntity
+from domain.dezimal import Dezimal
+from domain.entity import Entity
 from domain.settings import BaseSheetConfig, ProductSheetConfig
-from infrastructure.sheets.exporter.sheets_summary_exporter import (
-    LAST_UPDATE_FIELD,
-    set_field_value,
-    format_field_value,
+from infrastructure.sheets.importer.sheets_importer import (
+    DEFAULT_DATE_FORMAT,
+    DEFAULT_DATETIME_FORMAT,
 )
+from pytz import utc
 
+LAST_UPDATE_FIELD = "last_update"
 NO_HEADERS_FOUND = "NO_HEADERS_FOUND"
 ENTITY_COLUMN = "entity"
 TYPE_COLUMN = "investment_type"
@@ -22,9 +25,9 @@ _log = logging.getLogger(__name__)
 
 def update_sheet(
     sheet,
-    data: object | dict[FinancialEntity, object],
+    data: object | dict[Entity, object],
     config: ProductSheetConfig,
-    last_update: dict[FinancialEntity, datetime] = None,
+    last_update: dict[Entity, datetime] = None,
 ):
     sheet_id, sheet_range, field_paths = config.spreadsheetId, config.range, config.data
     result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
@@ -48,10 +51,10 @@ def update_sheet(
 
 
 def map_rows(
-    data: object | dict[FinancialEntity, object],
+    data: object | dict[Entity, object],
     cells: list[list[str]],
     field_paths: list[str],
-    last_update: dict[FinancialEntity, datetime],
+    last_update: dict[Entity, datetime],
     config: ProductSheetConfig,
 ) -> list[list[str]] | None:
     sheet_range = config.range
@@ -84,7 +87,7 @@ def map_rows(
                 *entity_last_update_row,
             ]
         else:
-            last_update_date = datetime.datetime.now(tzlocal())
+            last_update_date = datetime.now(tzlocal())
             config_datetime_format = config.datetimeFormat
             if config_datetime_format:
                 formated_last_update_date = last_update_date.strftime(
@@ -131,7 +134,7 @@ def map_rows(
 
 
 def map_products(
-    data: object | dict[FinancialEntity, object],
+    data: object | dict[Entity, object],
     columns: list[str],
     field_paths: list[str],
     config: ProductSheetConfig,
@@ -144,14 +147,29 @@ def map_products(
                     path_tokens = field_path.split(".")
                     target_data = entity_data
                     for field in path_tokens:
-                        target_data = getattr(target_data, field)
+                        try:
+                            target_data = getattr(target_data, field)
+                        except AttributeError:
+                            target_data = target_data.get(field)
 
-                    for product in target_data:
-                        if not matches_filters(product, config):
+                    if not target_data:
+                        continue
+
+                    if isinstance(target_data, list):
+                        for product in target_data:
+                            if not matches_filters(product, config):
+                                continue
+                            product_rows.append(
+                                map_product_row(
+                                    product, entity, field_path, columns, config
+                                )
+                            )
+                    else:
+                        if not matches_filters(target_data, config):
                             continue
                         product_rows.append(
                             map_product_row(
-                                product, entity, field_path, columns, config
+                                target_data, entity, field_path, columns, config
                             )
                         )
                 except AttributeError:
@@ -193,7 +211,7 @@ def matches_filters(element, config: ProductSheetConfig):
 
 
 def map_product_row(
-    details, entity: FinancialEntity, p_type, columns, config: ProductSheetConfig
+    details, entity: Entity, p_type, columns, config: ProductSheetConfig
 ) -> list[str]:
     rows = []
     details = asdict(details)
@@ -230,9 +248,7 @@ def format_type_name(value):
         return value.upper()
 
 
-def map_last_update_row(
-    last_update: dict[FinancialEntity, datetime], config: BaseSheetConfig
-):
+def map_last_update_row(last_update: dict[Entity, datetime], config: BaseSheetConfig):
     last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=True)
     last_update_row = [None]
     for k, v in last_update:
@@ -248,3 +264,36 @@ def map_last_update_row(
         last_update_row.append(formated_last_update_date)
     last_update_row.extend(["" for _ in range(10)])
     return last_update_row
+
+
+def set_field_value(row: list[str], index: int, value, config: BaseSheetConfig):
+    value = format_field_value(value, config)
+    if len(row) > index:
+        row[index] = value
+    else:
+        row.append(value)
+
+
+def format_field_value(value, config: BaseSheetConfig):
+    if value is None:
+        return ""
+
+    if isinstance(value, date) and not isinstance(value, datetime):
+        date_format = config.dateFormat or DEFAULT_DATE_FORMAT
+        return value.strftime(date_format)
+
+    elif isinstance(value, datetime):
+        datetime_format = config.datetimeFormat or DEFAULT_DATETIME_FORMAT
+        value = value.replace(tzinfo=utc).astimezone(tzlocal())
+        return value.strftime(datetime_format)
+
+    elif isinstance(value, dict) or isinstance(value, list):
+        return json.dumps(value, default=str)
+
+    elif isinstance(value, Dezimal):
+        return float(value)
+
+    elif isinstance(value, UUID):
+        return str(value)
+
+    return value

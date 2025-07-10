@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { Switch } from "@/components/ui/Switch"
+import { MultiSelect, MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
 import {
   PlusCircle,
@@ -20,9 +21,11 @@ import {
   ChevronUp,
   Save,
   RefreshCw,
+  FileSpreadsheet,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { ProductType, WeightUnit } from "@/types/position"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
 
@@ -74,19 +77,75 @@ export default function SettingsPage() {
   } = useAppContext()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState("integrations")
+  const [activeTab, setActiveTab] = useState("general")
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
-    summary: true,
-    investments: false,
+    position: false,
     contributions: false,
     transactions: false,
     historic: false,
+    virtualPosition: false,
+    virtualTransactions: false,
+    googleSheets: false,
   })
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
+
+  const availablePositionOptions = [
+    ProductType.ACCOUNT,
+    ProductType.CARD,
+    ProductType.LOAN,
+    ProductType.FUND,
+    ProductType.STOCK_ETF,
+    ProductType.FACTORING,
+    ProductType.CRYPTO,
+    ProductType.DEPOSIT,
+    ProductType.REAL_ESTATE_CF,
+    ProductType.CROWDLENDING,
+    ProductType.COMMODITY,
+  ]
+
+  const getPositionDataOptions = (): MultiSelectOption[] => {
+    const options: MultiSelectOption[] = []
+    const productTypeOptions = (t.enums as any).productType || {}
+
+    availablePositionOptions.forEach(productType => {
+      if (productTypeOptions[productType]) {
+        options.push({
+          value: productType,
+          label: productTypeOptions[productType] as string,
+        })
+      }
+    })
+
+    return options
+  }
+
+  const getContributionsDataOptions = (): MultiSelectOption[] => {
+    const options: MultiSelectOption[] = []
+    const contributionsDataOptions =
+      (t.settings as any).contributionsDataOptions || {}
+
+    Object.entries(contributionsDataOptions).forEach(([value, label]) => {
+      options.push({ value, label: label as string })
+    })
+
+    return options
+  }
+
+  const getTransactionsDataOptions = (): MultiSelectOption[] => {
+    const options: MultiSelectOption[] = []
+    const transactionsDataOptions =
+      (t.settings as any).transactionsDataOptions || {}
+
+    Object.entries(transactionsDataOptions).forEach(([value, label]) => {
+      options.push({ value, label: label as string })
+    })
+
+    return options
+  }
 
   useEffect(() => {
     fetchSettings()
@@ -102,8 +161,8 @@ export default function SettingsPage() {
   const handleUpdateCooldown = (value: string) => {
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         updateCooldown: value === "" ? 60 : Number.parseInt(value) || 60,
       },
     })
@@ -125,12 +184,32 @@ export default function SettingsPage() {
   const handleVirtualToggle = (enabled: boolean) => {
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           enabled,
         },
+      },
+    })
+  }
+
+  const handleCurrencyChange = (currency: string) => {
+    setSettings({
+      ...settings,
+      general: {
+        ...settings.general,
+        defaultCurrency: currency,
+      },
+    })
+  }
+
+  const handleCommodityWeightUnitChange = (unit: string) => {
+    setSettings({
+      ...settings,
+      general: {
+        ...settings.general,
+        defaultCommodityWeightUnit: unit,
       },
     })
   }
@@ -139,7 +218,7 @@ export default function SettingsPage() {
     const newItem: any = { range: "" }
 
     if (
-      section === "investments" ||
+      section === "position" ||
       section === "transactions" ||
       section === "contributions"
     ) {
@@ -148,7 +227,7 @@ export default function SettingsPage() {
 
     if (
       section === "historic" ||
-      section === "investments" ||
+      section === "position" ||
       section === "contributions"
     ) {
       newItem.filters = []
@@ -202,19 +281,19 @@ export default function SettingsPage() {
   const addVirtualConfigItem = (section: string) => {
     const newItem: any = { range: "" }
 
-    if (section === "investments" || section === "transactions") {
+    if (section === "position" || section === "transactions") {
       newItem.data = ""
     }
 
     setSettings({
       ...settings,
-      scrape: {
-        ...(settings.scrape || {}),
+      fetch: {
+        ...(settings.fetch || {}),
         virtual: {
-          ...(settings.scrape?.virtual || {}),
+          ...(settings.fetch?.virtual || {}),
           [section]: [
-            ...((settings.scrape?.virtual?.[
-              section as keyof typeof settings.scrape.virtual
+            ...((settings.fetch?.virtual?.[
+              section as keyof typeof settings.fetch.virtual
             ] as any[]) || []),
             newItem,
           ],
@@ -238,13 +317,13 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           [section]: (
-            settings.scrape.virtual[
-              section as keyof typeof settings.scrape.virtual
+            settings.fetch.virtual[
+              section as keyof typeof settings.fetch.virtual
             ] as any[]
           ).filter((_, i) => i !== index),
         },
@@ -344,8 +423,8 @@ export default function SettingsPage() {
     field: string,
     value: any,
   ) => {
-    const items = settings.scrape.virtual[
-      section as keyof typeof settings.scrape.virtual
+    const items = settings.fetch.virtual[
+      section as keyof typeof settings.fetch.virtual
     ] as any[]
     const updatedItems = [...items]
 
@@ -368,10 +447,10 @@ export default function SettingsPage() {
 
     setSettings({
       ...settings,
-      scrape: {
-        ...settings.scrape,
+      fetch: {
+        ...settings.fetch,
         virtual: {
-          ...settings.scrape.virtual,
+          ...settings.fetch.virtual,
           [section]: updatedItems,
         },
       },
@@ -460,7 +539,7 @@ export default function SettingsPage() {
             }
 
             if (
-              (section === "investments" ||
+              (section === "position" ||
                 section === "transactions" ||
                 section === "contributions") &&
               (!item.data ||
@@ -478,12 +557,12 @@ export default function SettingsPage() {
       },
     )
 
-    if (settings.scrape.virtual.enabled) {
-      if (!settings.scrape.virtual?.globals?.spreadsheetId) {
+    if (settings.fetch.virtual.enabled) {
+      if (!settings.fetch.virtual?.globals?.spreadsheetId) {
         errors.virtualGlobals = [t.settings.errors.virtualSpreadsheetIdRequired]
       }
 
-      Object.entries(settings.scrape.virtual).forEach(([section, items]) => {
+      Object.entries(settings.fetch.virtual).forEach(([section, items]) => {
         if (
           section !== "globals" &&
           section !== "enabled" &&
@@ -498,7 +577,7 @@ export default function SettingsPage() {
             }
 
             if (
-              (section === "investments" || section === "transactions") &&
+              (section === "position" || section === "transactions") &&
               !item.data
             ) {
               if (!sectionErrors[index]) sectionErrors[index] = ""
@@ -528,7 +607,12 @@ export default function SettingsPage() {
           Array.isArray(items)
         ) {
           ;(items as any[]).forEach(item => {
-            if (item.data && typeof item.data === "string") {
+            // Skip processing data for position section as it's already an array from MultiSelect
+            if (
+              section !== "position" &&
+              item.data &&
+              typeof item.data === "string"
+            ) {
               if (item.data.includes(",")) {
                 item.data = item.data
                   .split(",")
@@ -578,9 +662,9 @@ export default function SettingsPage() {
 
       const cleanedSettings = cleanObject(processedSettings)
 
-      if (cleanedSettings.scrape && cleanedSettings.scrape.virtual) {
-        cleanedSettings.scrape.virtual.enabled =
-          !!cleanedSettings.scrape.virtual.enabled
+      if (cleanedSettings.fetch && cleanedSettings.fetch.virtual) {
+        cleanedSettings.fetch.virtual.enabled =
+          !!cleanedSettings.fetch.virtual.enabled
       }
       if (cleanedSettings.export && cleanedSettings.export.sheets) {
         cleanedSettings.export.sheets.enabled =
@@ -600,7 +684,7 @@ export default function SettingsPage() {
     const canHaveFilters =
       section === "transactions" ||
       section === "historic" ||
-      section === "investments" ||
+      section === "position" ||
       section === "contributions"
 
     return (
@@ -704,42 +788,113 @@ export default function SettingsPage() {
                         />
                       </div>
 
-                      {(section === "investments" ||
+                      {(section === "position" ||
                         section === "transactions" ||
                         section === "contributions") && (
                         <div className="space-y-2 md:col-span-2">
                           <Label>{t.settings.data} *</Label>
-                          <Input
-                            value={
-                              isArray(item.data)
-                                ? item.data.join(", ")
-                                : item.data || ""
-                            }
-                            onChange={e =>
-                              updateConfigItem(
-                                section,
-                                index,
-                                "data",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t.settings.dataPlaceholder}
-                            required
-                            className={
-                              validationErrors[section] &&
-                              validationErrors[section][index] &&
-                              (!item.data ||
-                                (Array.isArray(item.data) &&
-                                  item.data.length === 0))
-                                ? "border-red-500"
-                                : ""
-                            }
-                          />
+                          {section === "position" ? (
+                            <MultiSelect
+                              options={getPositionDataOptions()}
+                              value={isArray(item.data) ? item.data : []}
+                              onChange={selectedValues =>
+                                updateConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  selectedValues,
+                                )
+                              }
+                              placeholder={t.settings.selectDataTypes}
+                              className={
+                                validationErrors[section] &&
+                                validationErrors[section][index] &&
+                                (!item.data ||
+                                  (Array.isArray(item.data) &&
+                                    item.data.length === 0))
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          ) : section === "contributions" ? (
+                            <MultiSelect
+                              options={getContributionsDataOptions()}
+                              value={isArray(item.data) ? item.data : []}
+                              onChange={selectedValues =>
+                                updateConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  selectedValues,
+                                )
+                              }
+                              placeholder={t.settings.selectDataTypes}
+                              className={
+                                validationErrors[section] &&
+                                validationErrors[section][index] &&
+                                (!item.data ||
+                                  (Array.isArray(item.data) &&
+                                    item.data.length === 0))
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          ) : section === "transactions" ? (
+                            <MultiSelect
+                              options={getTransactionsDataOptions()}
+                              value={isArray(item.data) ? item.data : []}
+                              onChange={selectedValues =>
+                                updateConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  selectedValues,
+                                )
+                              }
+                              placeholder={t.settings.selectDataTypes}
+                              className={
+                                validationErrors[section] &&
+                                validationErrors[section][index] &&
+                                (!item.data ||
+                                  (Array.isArray(item.data) &&
+                                    item.data.length === 0))
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          ) : (
+                            <Input
+                              value={
+                                isArray(item.data)
+                                  ? item.data.join(", ")
+                                  : item.data || ""
+                              }
+                              onChange={e =>
+                                updateConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={t.settings.dataPlaceholder}
+                              required
+                              className={
+                                validationErrors[section] &&
+                                validationErrors[section][index] &&
+                                (!item.data ||
+                                  (Array.isArray(item.data) &&
+                                    item.data.length === 0))
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          )}
                         </div>
                       )}
 
                       {(section === "transactions" ||
-                        section === "investments") && (
+                        section === "position") && (
                         <>
                           <div className="space-y-2">
                             <Label>{t.settings.dateFormat}</Label>
@@ -870,12 +1025,23 @@ export default function SettingsPage() {
 
   const renderVirtualConfigSection = (section: string, items: any[]) => {
     const virtualKey = `virtual_${section}`
+    const virtualSectionKey = `virtual${section.charAt(0).toUpperCase() + section.slice(1)}`
 
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          {/* @ts-expect-error settings */}
-          <h3 className="text-lg font-medium">{t.settings[section]}</h3>
+          <h3
+            className="text-lg font-medium cursor-pointer flex items-center"
+            onClick={() => toggleSection(virtualSectionKey)}
+          >
+            {/* @ts-expect-error settings */}
+            {t.settings[section]}
+            {expandedSections[virtualSectionKey] ? (
+              <ChevronUp className="ml-2 h-4 w-4" />
+            ) : (
+              <ChevronDown className="ml-2 h-4 w-4" />
+            )}
+          </h3>
           <Button
             variant="outline"
             size="sm"
@@ -887,147 +1053,229 @@ export default function SettingsPage() {
           </Button>
         </div>
 
-        <Card className="bg-gray-50 dark:bg-gray-900">
-          <CardContent className="pt-4 space-y-4">
-            {items.length === 0 ? (
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {t.settings.noItems}
-              </p>
-            ) : (
-              items.map((item, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-1 gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800 last:border-0 last:mb-0 last:pb-0"
-                >
-                  <div className="flex justify-between items-center">
-                    <h4 className="font-medium">{t.settings.configuration}</h4>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeVirtualConfigItem(section, index)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {validationErrors[virtualKey] &&
-                    validationErrors[virtualKey][index] && (
-                      <div className="text-red-500 text-sm">
-                        {validationErrors[virtualKey][index]}
-                      </div>
-                    )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>{t.settings.range} *</Label>
-                      <Input
-                        value={item.range || ""}
-                        onChange={e =>
-                          updateVirtualConfigItem(
-                            section,
-                            index,
-                            "range",
-                            e.target.value,
-                          )
-                        }
-                        placeholder={t.settings.rangePlaceholder}
-                        required
-                        className={
-                          validationErrors[virtualKey] &&
-                          validationErrors[virtualKey][index] &&
-                          !item.range
-                            ? "border-red-500"
-                            : ""
-                        }
-                      />
+        {expandedSections[virtualSectionKey] && (
+          <Card className="bg-gray-50 dark:bg-gray-900">
+            <CardContent className="pt-4 space-y-4">
+              {items.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {t.settings.noItems}
+                </p>
+              ) : (
+                items.map((item, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-1 gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-800 last:border-0 last:mb-0 last:pb-0"
+                  >
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">
+                        {t.settings.configuration}
+                      </h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeVirtualConfigItem(section, index)}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>{t.settings.spreadsheetId}</Label>
-                      <Input
-                        value={item.spreadsheetId || ""}
-                        onChange={e =>
-                          updateVirtualConfigItem(
-                            section,
-                            index,
-                            "spreadsheetId",
-                            e.target.value,
-                          )
-                        }
-                        placeholder={t.settings.optional}
-                      />
-                    </div>
+                    {validationErrors[virtualKey] &&
+                      validationErrors[virtualKey][index] && (
+                        <div className="text-red-500 text-sm">
+                          {validationErrors[virtualKey][index]}
+                        </div>
+                      )}
 
-                    {(section === "investments" ||
-                      section === "transactions") && (
-                      <div className="space-y-2 md:col-span-2">
-                        <Label>{t.settings.data} *</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>{t.settings.range} *</Label>
                         <Input
-                          value={item.data || ""}
+                          value={item.range || ""}
                           onChange={e =>
                             updateVirtualConfigItem(
                               section,
                               index,
-                              "data",
+                              "range",
                               e.target.value,
                             )
                           }
-                          placeholder={t.settings.dataPlaceholder}
+                          placeholder={t.settings.rangePlaceholder}
                           required
                           className={
                             validationErrors[virtualKey] &&
                             validationErrors[virtualKey][index] &&
-                            !item.data
+                            !item.range
                               ? "border-red-500"
                               : ""
                           }
                         />
                       </div>
-                    )}
 
-                    {(section === "investments" ||
-                      section === "transactions") && (
-                      <>
-                        <div className="space-y-2">
-                          <Label>{t.settings.dateFormat}</Label>
-                          <Input
-                            value={item.dateFormat || ""}
-                            onChange={e =>
-                              updateVirtualConfigItem(
-                                section,
-                                index,
-                                "dateFormat",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t.settings.optional}
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label>{t.settings.spreadsheetId}</Label>
+                        <Input
+                          value={item.spreadsheetId || ""}
+                          onChange={e =>
+                            updateVirtualConfigItem(
+                              section,
+                              index,
+                              "spreadsheetId",
+                              e.target.value,
+                            )
+                          }
+                          placeholder={t.settings.optional}
+                        />
+                      </div>
 
-                        <div className="space-y-2">
-                          <Label>{t.settings.datetimeFormat}</Label>
-                          <Input
-                            value={item.datetimeFormat || ""}
-                            onChange={e =>
-                              updateVirtualConfigItem(
-                                section,
-                                index,
-                                "datetimeFormat",
-                                e.target.value,
-                              )
-                            }
-                            placeholder={t.settings.optional}
-                          />
+                      {(section === "position" ||
+                        section === "transactions") && (
+                        <div className="space-y-2 md:col-span-2">
+                          <Label>{t.settings.data} *</Label>
+                          {section === "position" ? (
+                            <MultiSelect
+                              options={getPositionDataOptions()}
+                              value={item.data ? [item.data] : []}
+                              onChange={selectedValues => {
+                                // For single-value mode: if multiple values, keep only the newest one
+                                // If the current selection is different from what we have, it means a new selection was made
+                                let newValue = ""
+                                if (selectedValues.length > 0) {
+                                  if (selectedValues.length === 1) {
+                                    // Only one item selected
+                                    newValue = selectedValues[0]
+                                  } else {
+                                    // Multiple items selected, find the new one (not the current value)
+                                    const currentValue = item.data
+                                    newValue =
+                                      selectedValues.find(
+                                        val => val !== currentValue,
+                                      ) ||
+                                      selectedValues[selectedValues.length - 1]
+                                  }
+                                }
+                                updateVirtualConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  newValue,
+                                )
+                              }}
+                              placeholder={t.settings.selectDataTypes}
+                              className={
+                                validationErrors[virtualKey] &&
+                                validationErrors[virtualKey][index] &&
+                                !item.data
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          ) : section === "transactions" ? (
+                            <MultiSelect
+                              options={getTransactionsDataOptions()}
+                              value={item.data ? [item.data] : []}
+                              onChange={selectedValues => {
+                                // For single-value mode: if multiple values, keep only the newest one
+                                // If the current selection is different from what we have, it means a new selection was made
+                                let newValue = ""
+                                if (selectedValues.length > 0) {
+                                  if (selectedValues.length === 1) {
+                                    // Only one item selected
+                                    newValue = selectedValues[0]
+                                  } else {
+                                    // Multiple items selected, find the new one (not the current value)
+                                    const currentValue = item.data
+                                    newValue =
+                                      selectedValues.find(
+                                        val => val !== currentValue,
+                                      ) ||
+                                      selectedValues[selectedValues.length - 1]
+                                  }
+                                }
+                                updateVirtualConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  newValue,
+                                )
+                              }}
+                              placeholder={t.settings.selectDataTypes}
+                              className={
+                                validationErrors[virtualKey] &&
+                                validationErrors[virtualKey][index] &&
+                                !item.data
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          ) : (
+                            <Input
+                              value={item.data || ""}
+                              onChange={e =>
+                                updateVirtualConfigItem(
+                                  section,
+                                  index,
+                                  "data",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={t.settings.dataPlaceholder}
+                              required
+                              className={
+                                validationErrors[virtualKey] &&
+                                validationErrors[virtualKey][index] &&
+                                !item.data
+                                  ? "border-red-500"
+                                  : ""
+                              }
+                            />
+                          )}
                         </div>
-                      </>
-                    )}
+                      )}
+
+                      {(section === "position" ||
+                        section === "transactions") && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>{t.settings.dateFormat}</Label>
+                            <Input
+                              value={item.dateFormat || ""}
+                              onChange={e =>
+                                updateVirtualConfigItem(
+                                  section,
+                                  index,
+                                  "dateFormat",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={t.settings.optional}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>{t.settings.datetimeFormat}</Label>
+                            <Input
+                              value={item.datetimeFormat || ""}
+                              onChange={e =>
+                                updateVirtualConfigItem(
+                                  section,
+                                  index,
+                                  "datetimeFormat",
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={t.settings.optional}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     )
   }
@@ -1041,7 +1289,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t.settings.title}</h1>
         <div className="flex space-x-2">
@@ -1070,13 +1318,19 @@ export default function SettingsPage() {
       </div>
 
       <Tabs
-        defaultValue="integrations"
+        defaultValue="general"
         value={activeTab}
         onValueChange={setActiveTab}
         className="w-full"
       >
         <div className="flex justify-center w-full">
-          <TabsList className="grid grid-cols-3 w-full max-w-[600px] h-auto min-h-[3rem]">
+          <TabsList className="grid grid-cols-4 w-full max-w-[800px] h-auto min-h-[3rem]">
+            <TabsTrigger
+              value="general"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+            >
+              {t.settings.general}
+            </TabsTrigger>
             <TabsTrigger
               value="integrations"
               className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
@@ -1098,7 +1352,7 @@ export default function SettingsPage() {
           </TabsList>
         </div>
 
-        <TabsContent value="integrations" className="space-y-4 mt-4">
+        <TabsContent value="general" className="space-y-4 mt-4">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1106,99 +1360,211 @@ export default function SettingsPage() {
           >
             <Card>
               <CardHeader>
-                <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
+                <CardTitle>{t.settings.general}</CardTitle>
                 <CardDescription>
-                  {t.settings.sheetsIntegrationDescription}
+                  {t.settings.generalDescription}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="client-id">{t.settings.clientId}</Label>
-                    <Input
-                      id="client-id"
-                      type="text"
-                      placeholder={t.settings.clientIdPlaceholder}
-                      value={
-                        settings?.integrations?.sheets?.credentials
-                          ?.client_id || ""
-                      }
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            sheets: {
-                              ...settings.integrations?.sheets,
-                              credentials: {
-                                ...settings.integrations?.sheets?.credentials,
-                                client_id: e.target.value,
-                              },
-                            },
-                          },
-                        })
-                      }
-                      className={
-                        validationErrors.integrations &&
-                        !settings?.integrations?.sheets?.credentials?.client_id
-                          ? "border-red-500"
-                          : ""
-                      }
-                    />
-                    {validationErrors.integrations &&
-                      !settings?.integrations?.sheets?.credentials
-                        ?.client_id && (
-                        <div className="text-red-500 text-sm">
-                          {t.settings.errors.clientIdRequired}
-                        </div>
-                      )}
+                    <Label htmlFor="default-currency">
+                      {t.settings.defaultCurrency}
+                    </Label>
+                    <div className="relative">
+                      <select
+                        id="default-currency"
+                        value={settings.general?.defaultCurrency || "EUR"}
+                        onChange={e => handleCurrencyChange(e.target.value)}
+                        className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                      >
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="USD">USD - US Dollar</option>
+                      </select>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="client-secret">
-                      {t.settings.clientSecret}
+                    <Label htmlFor="default-commodity-weight-unit">
+                      {t.settings.defaultCommodityWeightUnit}
                     </Label>
-                    <Input
-                      id="client-secret"
-                      type="password"
-                      placeholder={t.settings.clientSecretPlaceholder}
-                      value={
-                        settings?.integrations?.sheets?.credentials
-                          ?.client_secret || ""
-                      }
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            sheets: {
-                              ...settings.integrations?.sheets,
-                              credentials: {
-                                ...settings.integrations?.sheets?.credentials,
-                                client_secret: e.target.value,
-                              },
-                            },
-                          },
-                        })
-                      }
-                      className={
-                        validationErrors.integrations &&
-                        !settings?.integrations?.sheets?.credentials
-                          ?.client_secret
-                          ? "border-red-500"
-                          : ""
-                      }
-                    />
-                    {validationErrors.integrations &&
-                      !settings?.integrations?.sheets?.credentials
-                        ?.client_secret && (
-                        <div className="text-red-500 text-sm">
-                          {t.settings.errors.clientSecretRequired}
-                        </div>
-                      )}
+                    <div className="relative">
+                      <select
+                        id="default-commodity-weight-unit"
+                        value={
+                          settings.general?.defaultCommodityWeightUnit ||
+                          WeightUnit.GRAM
+                        }
+                        onChange={e =>
+                          handleCommodityWeightUnitChange(e.target.value)
+                        }
+                        className="flex h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                      >
+                        <option value={WeightUnit.GRAM}>
+                          {t.enums.weightUnit.GRAM} -{" "}
+                          {t.enums.weightUnitName.GRAM}
+                        </option>
+                        <option value={WeightUnit.TROY_OUNCE}>
+                          {t.enums.weightUnit.TROY_OUNCE} -{" "}
+                          {t.enums.weightUnitName.TROY_OUNCE}
+                        </option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
+          </motion.div>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-4 mt-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-4"
+          >
+            {/* Google Sheets Integration */}
+            <Card>
+              <CardHeader>
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleSection("googleSheets")}
+                >
+                  <div className="flex items-center">
+                    <FileSpreadsheet className="mr-2 h-5 w-5 text-green-600" />
+                    <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
+                  </div>
+                  {expandedSections.googleSheets ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
+                <CardDescription>
+                  {t.settings.sheetsIntegrationDescription}
+                </CardDescription>
+              </CardHeader>
+              {expandedSections.googleSheets && (
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="client-id">{t.settings.clientId}</Label>
+                      <Input
+                        id="client-id"
+                        type="text"
+                        placeholder={t.settings.clientIdPlaceholder}
+                        value={
+                          settings?.integrations?.sheets?.credentials
+                            ?.client_id || ""
+                        }
+                        onChange={e =>
+                          setSettings({
+                            ...settings,
+                            integrations: {
+                              ...settings.integrations,
+                              sheets: {
+                                ...settings.integrations?.sheets,
+                                credentials: {
+                                  ...settings.integrations?.sheets?.credentials,
+                                  client_id: e.target.value,
+                                },
+                              },
+                            },
+                          })
+                        }
+                        className={
+                          validationErrors.integrations &&
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_id
+                            ? "border-red-500"
+                            : ""
+                        }
+                      />
+                      {validationErrors.integrations &&
+                        !settings?.integrations?.sheets?.credentials
+                          ?.client_id && (
+                          <div className="text-red-500 text-sm">
+                            {t.settings.errors.clientIdRequired}
+                          </div>
+                        )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="client-secret">
+                        {t.settings.clientSecret}
+                      </Label>
+                      <Input
+                        id="client-secret"
+                        type="password"
+                        placeholder={t.settings.clientSecretPlaceholder}
+                        value={
+                          settings?.integrations?.sheets?.credentials
+                            ?.client_secret || ""
+                        }
+                        onChange={e =>
+                          setSettings({
+                            ...settings,
+                            integrations: {
+                              ...settings.integrations,
+                              sheets: {
+                                ...settings.integrations?.sheets,
+                                credentials: {
+                                  ...settings.integrations?.sheets?.credentials,
+                                  client_secret: e.target.value,
+                                },
+                              },
+                            },
+                          })
+                        }
+                        className={
+                          validationErrors.integrations &&
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_secret
+                            ? "border-red-500"
+                            : ""
+                        }
+                      />
+                      {validationErrors.integrations &&
+                        !settings?.integrations?.sheets?.credentials
+                          ?.client_secret && (
+                          <div className="text-red-500 text-sm">
+                            {t.settings.errors.clientSecretRequired}
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Future integrations can be added here as separate Card components */}
+            {/* Example structure for future integrations:
+            <Card>
+              <CardHeader>
+                <div 
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleSection("otherIntegration")}
+                >
+                  <div className="flex items-center">
+                    <SomeIcon className="mr-2 h-5 w-5 text-blue-600" />
+                    <CardTitle>Other Integration</CardTitle>
+                  </div>
+                  {expandedSections.otherIntegration ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
+                <CardDescription>
+                  Configure your other integration
+                </CardDescription>
+              </CardHeader>
+              {expandedSections.otherIntegration && (
+                <CardContent>
+                  // Integration-specific content
+                </CardContent>
+              )}
+            </Card>
+            */}
           </motion.div>
         </TabsContent>
 
@@ -1330,12 +1696,8 @@ export default function SettingsPage() {
                     </div>
 
                     {renderConfigSection(
-                      "summary",
-                      settings.export?.sheets?.summary ?? [],
-                    )}
-                    {renderConfigSection(
-                      "investments",
-                      settings.export?.sheets?.investments ?? [],
+                      "position",
+                      settings.export?.sheets?.position ?? [],
                     )}
                     {renderConfigSection(
                       "contributions",
@@ -1377,7 +1739,7 @@ export default function SettingsPage() {
                   <Input
                     id="updateCooldown"
                     type="number"
-                    value={settings.scrape?.updateCooldown ?? 60}
+                    value={settings.fetch?.updateCooldown ?? 60}
                     onChange={e => handleUpdateCooldown(e.target.value)}
                     placeholder="0"
                   />
@@ -1397,12 +1759,12 @@ export default function SettingsPage() {
                   <Label htmlFor="virtual-enabled">{t.settings.enabled}</Label>
                   <Switch
                     id="virtual-enabled"
-                    checked={settings.scrape?.virtual?.enabled === true}
+                    checked={settings.fetch?.virtual?.enabled === true}
                     onCheckedChange={handleVirtualToggle}
                   />
                 </div>
 
-                {settings.scrape.virtual.enabled === true && (
+                {settings.fetch.virtual.enabled === true && (
                   <div className="space-y-6 pt-4 border-t border-gray-200 dark:border-gray-800">
                     <div className="space-y-4">
                       <h3 className="text-lg font-medium">
@@ -1416,18 +1778,18 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-spreadsheetId"
                             value={
-                              settings.scrape?.virtual?.globals
-                                ?.spreadsheetId || ""
+                              settings.fetch?.virtual?.globals?.spreadsheetId ||
+                              ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       spreadsheetId: e.target.value || null,
                                     },
@@ -1455,18 +1817,18 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-datetimeFormat"
                             value={
-                              settings.scrape?.virtual?.globals
+                              settings.fetch?.virtual?.globals
                                 ?.datetimeFormat || ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       datetimeFormat: e.target.value || null,
                                     },
@@ -1484,18 +1846,17 @@ export default function SettingsPage() {
                           <Input
                             id="virtual-dateFormat"
                             value={
-                              settings.scrape?.virtual?.globals?.dateFormat ||
-                              ""
+                              settings.fetch?.virtual?.globals?.dateFormat || ""
                             }
                             onChange={e =>
                               setSettings({
                                 ...settings,
-                                scrape: {
-                                  ...(settings.scrape || {}),
+                                fetch: {
+                                  ...(settings.fetch || {}),
                                   virtual: {
-                                    ...(settings.scrape?.virtual || {}),
+                                    ...(settings.fetch?.virtual || {}),
                                     globals: {
-                                      ...(settings.scrape?.virtual?.globals ||
+                                      ...(settings.fetch?.virtual?.globals ||
                                         {}),
                                       dateFormat: e.target.value || null,
                                     },
@@ -1510,12 +1871,12 @@ export default function SettingsPage() {
                     </div>
 
                     {renderVirtualConfigSection(
-                      "investments",
-                      settings.scrape?.virtual?.investments || [],
+                      "position",
+                      settings.fetch?.virtual?.position || [],
                     )}
                     {renderVirtualConfigSection(
                       "transactions",
-                      settings.scrape?.virtual?.transactions || [],
+                      settings.fetch?.virtual?.transactions || [],
                     )}
                   </div>
                 )}

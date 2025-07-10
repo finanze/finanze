@@ -1,5 +1,4 @@
 import type React from "react"
-import { useState } from "react"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -27,14 +26,25 @@ export function FeatureSelector() {
   const {
     selectedEntity,
     scrape,
-    isLoading,
+    fetchingEntityState,
     selectedFeatures,
     setSelectedFeatures,
+    fetchOptions,
+    setFetchOptions,
   } = useAppContext()
-  const [deepScrape, setDeepScrape] = useState(false)
   const { t } = useI18n()
 
   if (!selectedEntity) return null
+
+  const isEntityFetching = fetchingEntityState.fetchingEntityIds.includes(
+    selectedEntity.id,
+  )
+
+  const { deep } = fetchOptions
+
+  const setDeepScrape = (value: boolean) => {
+    setFetchOptions({ ...fetchOptions, deep: value })
+  }
 
   const availableFeatures = selectedEntity.features
 
@@ -51,7 +61,7 @@ export function FeatureSelector() {
   }
 
   const handleSubmit = () => {
-    scrape(selectedEntity, selectedFeatures, { deep: deepScrape })
+    scrape(selectedEntity, selectedFeatures, { deep: deep })
   }
 
   // Map features to icons
@@ -106,46 +116,45 @@ export function FeatureSelector() {
           </div>
 
           <div className="flex justify-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-muted-foreground"
-                >
-                  <Settings className="mr-2 h-4 w-4" />
-                  {t.features.advancedOptions}
-                  <ChevronDown className="ml-2 h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80" align="center">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between space-x-2">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">
-                        {t.features.deepScrape}
+            {availableFeatures.includes("TRANSACTIONS") && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground"
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    {t.features.advancedOptions}
+                    <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="center">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between space-x-2">
+                      <div className="flex-1">
+                        <div className="text-sm font-medium">
+                          {t.features.deepScrape}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {t.features.deepScrapeDescription}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {t.features.deepScrapeDescription}
-                      </div>
+                      <Switch checked={deep} onCheckedChange={setDeepScrape} />
                     </div>
-                    <Switch
-                      checked={deepScrape}
-                      onCheckedChange={setDeepScrape}
-                    />
                   </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
 
           <Button
             className="w-full mt-4"
-            disabled={selectedFeatures.length === 0 || isLoading}
+            disabled={selectedFeatures.length === 0 || isEntityFetching}
             onClick={handleSubmit}
           >
             <Send className="mr-2 h-4 w-4" />
-            {isLoading ? t.common.loading : t.features.fetchSelected}
+            {isEntityFetching ? t.common.loading : t.features.fetchSelected}
           </Button>
         </div>
       </CardContent>

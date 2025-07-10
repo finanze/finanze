@@ -5,7 +5,7 @@ from application.ports.data_manager import DataManager
 from application.ports.datasource_initiator import DatasourceInitiator
 from application.ports.sheets_initiator import SheetsInitiator
 from domain.data_init import DatasourceInitParams
-from domain.exception.exceptions import UserNotFound
+from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
 
@@ -26,7 +26,7 @@ class UserLoginImpl(UserLogin):
 
     def execute(self, login_request: LoginRequest):
         if self._source_initiator.unlocked:
-            raise ValueError("Already logged in")
+            raise UserAlreadyLoggedIn()
 
         user = self._data_manager.get_user(login_request.username)
         if not user:

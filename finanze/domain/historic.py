@@ -5,8 +5,9 @@ from uuid import UUID
 from pydantic.dataclasses import dataclass
 
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
-from domain.transactions import ProductType, BaseInvestmentTx
+from domain.entity import Entity
+from domain.transactions import BaseInvestmentTx
+from domain.global_position import ProductType
 
 
 @dataclass
@@ -25,7 +26,7 @@ class BaseHistoricEntry:
     retentions: Optional[Dezimal]
     interests: Optional[Dezimal]
     state: Optional[str]
-    entity: FinancialEntity
+    entity: Entity
     product_type: ProductType
     related_txs: list[BaseInvestmentTx]
 
@@ -39,7 +40,7 @@ class FactoringEntry(BaseHistoricEntry):
 
 
 @dataclass
-class RealStateCFEntry(BaseHistoricEntry):
+class RealEstateCFEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     maturity: date
     extended_maturity: Optional[date]

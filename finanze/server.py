@@ -3,21 +3,55 @@ import logging
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
+from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
+from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
+from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_contributions import GetContributionsImpl
+from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.register_user import RegisterUserImpl
-from application.use_cases.scrape import ScrapeImpl
+from application.use_cases.save_commodities import SaveCommoditiesImpl
+from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
-from application.use_cases.virtual_scrape import VirtualScrapeImpl
+from application.use_cases.virtual_fetch import VirtualFetchImpl
 from domain.data_init import DatasourceInitParams
+from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
+from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (
+    EthereumFetcher,
+)
+from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
+    LitecoinFetcher,
+)
+from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
+from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
+from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
+    IndexaCapitalFetcher,
+)
+from infrastructure.client.entity.financial.mintos.mintos_fetcher import MintosFetcher
+from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
+from infrastructure.client.entity.financial.sego.sego_fetcher import SegoFetcher
+from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
+    TradeRepublicFetcher,
+)
+from infrastructure.client.entity.financial.unicaja.unicaja_fetcher import (
+    UnicajaFetcher,
+)
+from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
+    UrbanitaeFetcher,
+)
+from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
+from infrastructure.client.rates.crypto_price_client import CryptoPriceClient
+from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
+from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
@@ -32,24 +66,19 @@ from infrastructure.repository import (
 from infrastructure.repository.credentials.credentials_repository import (
     CredentialsRepository,
 )
+from infrastructure.repository.crypto_wallets.crypto_wallet_connection_repository import (
+    CryptoWalletConnectionRepository,
+)
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.fetch.last_fetches_repository import (
+    LastFetchesRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
 )
-from infrastructure.scrapers.f24.f24_scraper import F24Scraper
-from infrastructure.scrapers.indexa_capital.indexa_capital_scraper import (
-    IndexaCapitalScraper,
-)
-from infrastructure.scrapers.mintos.mintos_scraper import MintosScraper
-from infrastructure.scrapers.myinvestor import MyInvestorScraper
-from infrastructure.scrapers.sego.sego_scraper import SegoScraper
-from infrastructure.scrapers.tr.trade_republic_scraper import TradeRepublicScraper
-from infrastructure.scrapers.unicaja.unicaja_scraper import UnicajaScraper
-from infrastructure.scrapers.urbanitae.urbanitae_scraper import UrbanitaeScraper
-from infrastructure.scrapers.wecity.wecity_scraper import WecityScraper
 from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
 from infrastructure.sheets.importer.sheets_importer import SheetsImporter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
@@ -71,19 +100,26 @@ class FinanzeServer:
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
 
-        self.entity_scrapers = {
+        self.financial_entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
-            domain.native_entities.TRADE_REPUBLIC: TradeRepublicScraper(),
-            domain.native_entities.UNICAJA: UnicajaScraper(),
-            domain.native_entities.URBANITAE: UrbanitaeScraper(),
-            domain.native_entities.WECITY: WecityScraper(),
-            domain.native_entities.SEGO: SegoScraper(),
-            domain.native_entities.MINTOS: MintosScraper(),
-            domain.native_entities.F24: F24Scraper(),
-            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalScraper(),
+            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
+            domain.native_entities.UNICAJA: UnicajaFetcher(),
+            domain.native_entities.URBANITAE: UrbanitaeFetcher(),
+            domain.native_entities.WECITY: WecityFetcher(),
+            domain.native_entities.SEGO: SegoFetcher(),
+            domain.native_entities.MINTOS: MintosFetcher(),
+            domain.native_entities.F24: F24Fetcher(),
+            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
         }
 
-        self.virtual_scraper = SheetsImporter(self.sheets_initiator)
+        self.crypto_entity_fetchers = {
+            domain.native_entities.BITCOIN: BitcoinFetcher(),
+            domain.native_entities.ETHEREUM: EthereumFetcher(),
+            domain.native_entities.LITECOIN: LitecoinFetcher(),
+            domain.native_entities.TRON: TronFetcher(),
+        }
+
+        self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
         self.exporter = SheetsExporter(self.sheets_initiator)
 
         position_repository = PositionRepository(client=self.db_client)
@@ -91,8 +127,15 @@ class FinanzeServer:
         transaction_repository = TransactionRepository(client=self.db_client)
         historic_repository = HistoricRepository(client=self.db_client)
         entity_repository = EntityRepository(client=self.db_client)
-        sessions_port = SessionsRepository(client=self.db_client)
+        sessions_repository = SessionsRepository(client=self.db_client)
         virtual_import_repository = VirtualImportRepository(client=self.db_client)
+        crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
+            client=self.db_client
+        )
+        last_fetches_repository = LastFetchesRepository(client=self.db_client)
+        exchange_rate_client = ExchangeRateClient()
+        crypto_price_client = CryptoPriceClient()
+        metal_price_client = MetalPriceClient()
 
         credentials_storage_mode = self.args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -124,17 +167,31 @@ class FinanzeServer:
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
-            self.config_loader, credentials_port
+            entity_repository,
+            credentials_port,
+            crypto_wallet_connections_repository,
+            last_fetches_repository,
+            virtual_import_repository,
         )
-        scrape = ScrapeImpl(
+        fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
             auto_contrib_repository,
             transaction_repository,
             historic_repository,
-            self.entity_scrapers,
+            self.financial_entity_fetchers,
             self.config_loader,
             credentials_port,
-            sessions_port,
+            sessions_repository,
+            last_fetches_repository,
+            transaction_handler,
+        )
+        fetch_crypto_data = FetchCryptoDataImpl(
+            position_repository,
+            self.crypto_entity_fetchers,
+            crypto_wallet_connections_repository,
+            crypto_price_client,
+            self.config_loader,
+            last_fetches_repository,
             transaction_handler,
         )
         update_sheets = UpdateSheetsImpl(
@@ -143,28 +200,52 @@ class FinanzeServer:
             transaction_repository,
             historic_repository,
             self.exporter,
+            last_fetches_repository,
             self.config_loader,
         )
-        virtual_scrape = VirtualScrapeImpl(
+        virtual_fetch = VirtualFetchImpl(
             position_repository,
             transaction_repository,
-            self.virtual_scraper,
+            self.virtual_fetcher,
             entity_repository,
             self.config_loader,
             virtual_import_repository,
             transaction_handler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
-            self.entity_scrapers, credentials_port, sessions_port, transaction_handler
+            self.financial_entity_fetchers,
+            credentials_port,
+            sessions_repository,
+            transaction_handler,
         )
         disconnect_entity = DisconnectEntityImpl(
-            credentials_port, sessions_port, transaction_handler
+            credentials_port, sessions_repository, transaction_handler
         )
         get_settings = GetSettingsImpl(self.config_loader)
         update_settings = UpdateSettingsImpl(self.config_loader)
         get_entities_position = GetPositionImpl(position_repository)
         get_contributions = GetContributionsImpl(auto_contrib_repository)
         get_transactions = GetTransactionsImpl(transaction_repository)
+        get_exchange_rates = GetExchangeRatesImpl(
+            exchange_rate_client, crypto_price_client, metal_price_client
+        )
+        connect_crypto_wallet = ConnectCryptoWalletImpl(
+            crypto_wallet_connections_repository,
+            self.crypto_entity_fetchers,
+        )
+        update_crypto_wallet = UpdateCryptoWalletConnectionImpl(
+            crypto_wallet_connections_repository
+        )
+        delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
+            crypto_wallet_connections_repository
+        )
+        save_commodities = SaveCommoditiesImpl(
+            position_repository,
+            exchange_rate_client,
+            metal_price_client,
+            last_fetches_repository,
+            transaction_handler,
+        )
 
         self._log.info("Initial component setup completed.")
 
@@ -190,9 +271,10 @@ class FinanzeServer:
             user_login,
             register_user,
             get_available_entities,
-            scrape,
+            fetch_financial_data,
+            fetch_crypto_data,
             update_sheets,
-            virtual_scrape,
+            virtual_fetch,
             add_entity_credentials,
             get_login_status,
             user_logout,
@@ -202,6 +284,11 @@ class FinanzeServer:
             get_entities_position,
             get_contributions,
             get_transactions,
+            get_exchange_rates,
+            connect_crypto_wallet,
+            update_crypto_wallet,
+            delete_crypto_wallet,
+            save_commodities,
         )
         self._log.info("Completed.")
 
@@ -211,7 +298,6 @@ class FinanzeServer:
             serve(self.flask_app, host="0.0.0.0", port=self.args.port)
         except OSError as e:
             self._log.error(f"Could not start server on port {self.args.port}: {e}")
-            # Handle specific errors like EADDRINUSE if needed
             raise
         except Exception:
             self._log.exception(

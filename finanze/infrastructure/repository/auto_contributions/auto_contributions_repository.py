@@ -1,18 +1,17 @@
 from datetime import datetime
 from uuid import UUID
 
-from dateutil.tz import tzlocal
-
 from application.ports.auto_contributions_port import AutoContributionsPort
+from dateutil.tz import tzlocal
 from domain.auto_contributions import (
     AutoContributions,
-    PeriodicContribution,
     ContributionFrequency,
-    ContributionTargetType,
     ContributionQueryRequest,
+    ContributionTargetType,
+    PeriodicContribution,
 )
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from infrastructure.repository.db.client import DBClient
 
 
@@ -55,13 +54,13 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
     def get_all_grouped_by_entity(
         self, query: ContributionQueryRequest
-    ) -> dict[FinancialEntity, AutoContributions]:
+    ) -> dict[Entity, AutoContributions]:
         with self._db_client.read() as cursor:
             params = []
             sql = """
-                  SELECT e.id as entity_id, e.name as entity_name, e.is_real as entity_is_real, pc.id as pc_id, pc.*
+                  SELECT e.id as entity_id, e.name as entity_name, e.type as entity_type, e.is_real as entity_is_real, pc.id as pc_id, pc.*
                   FROM periodic_contributions pc
-                           JOIN financial_entities e ON pc.entity_id = e.id
+                           JOIN entities e ON pc.entity_id = e.id
                   """
 
             conditions = []
@@ -84,9 +83,13 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
             entities = {}
             for row in cursor.fetchall():
-                entity = FinancialEntity(
+                if not row["entity_id"] or not row["pc_id"]:
+                    continue
+
+                entity = Entity(
                     id=UUID(row["entity_id"]),
                     name=row["entity_name"],
+                    type=row["entity_type"],
                     is_real=row["entity_is_real"],
                 )
                 if entity not in entities:
@@ -114,22 +117,3 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 entity: AutoContributions(periodic=contribs)
                 for entity, contribs in entities.items()
             }
-
-    def get_last_update_grouped_by_entity(self) -> dict[FinancialEntity, datetime]:
-        with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT e.*, MAX(pc.created_at) AS last_update
-                           FROM periodic_contributions pc
-                                    JOIN financial_entities e ON pc.entity_id = e.id
-                           GROUP BY entity_id
-                           """)
-
-            result = {}
-            for row in cursor.fetchall():
-                entity = FinancialEntity(
-                    id=UUID(row["id"]), name=row["name"], is_real=row["is_real"]
-                )
-                last_update = datetime.fromisoformat(row["last_update"])
-                result[entity] = last_update
-
-            return result

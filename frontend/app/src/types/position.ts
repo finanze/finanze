@@ -1,3 +1,18 @@
+export enum ProductType {
+  ACCOUNT = "ACCOUNT",
+  CARD = "CARD",
+  LOAN = "LOAN",
+  STOCK_ETF = "STOCK_ETF",
+  FUND = "FUND",
+  FUND_PORTFOLIO = "FUND_PORTFOLIO",
+  DEPOSIT = "DEPOSIT",
+  FACTORING = "FACTORING",
+  REAL_ESTATE_CF = "REAL_ESTATE_CF",
+  CROWDLENDING = "CROWDLENDING",
+  CRYPTO = "CRYPTO",
+  COMMODITY = "COMMODITY",
+}
+
 export enum AccountType {
   CHECKING = "CHECKING",
   VIRTUAL_WALLET = "VIRTUAL_WALLET",
@@ -102,7 +117,7 @@ export interface FactoringDetail {
   state: string
 }
 
-export interface RealStateCFDetail {
+export interface RealEstateCFDetail {
   id: string
   name: string
   amount: number
@@ -117,28 +132,36 @@ export interface RealStateCFDetail {
   extended_maturity?: string | null
 }
 
+export interface Accounts {
+  entries: Account[]
+}
+
+export interface Cards {
+  entries: Card[]
+}
+
+export interface Loans {
+  entries: Loan[]
+}
+
 export interface StockInvestments {
-  investment?: number | null
-  market_value?: number | null
-  details: StockDetail[]
+  entries: StockDetail[]
 }
 
 export interface FundInvestments {
-  investment?: number | null
-  market_value?: number | null
-  details: FundDetail[]
+  entries: FundDetail[]
+}
+
+export interface FundPortfolios {
+  entries: FundPortfolio[]
 }
 
 export interface FactoringInvestments {
-  total?: number | null
-  weighted_interest_rate?: number | null
-  details: FactoringDetail[]
+  entries: FactoringDetail[]
 }
 
-export interface RealStateCFInvestments {
-  total?: number | null
-  weighted_interest_rate?: number | null
-  details: RealStateCFDetail[]
+export interface RealEstateCFInvestments {
+  entries: RealEstateCFDetail[]
 }
 
 export interface Deposit {
@@ -153,30 +176,115 @@ export interface Deposit {
 }
 
 export interface Deposits {
-  total?: number | null
-  expected_interests?: number | null
-  weighted_interest_rate?: number | null
-  details: Deposit[]
+  entries: Deposit[]
 }
 
 export interface Crowdlending {
   id: string
-  total?: number | null
-  weighted_interest_rate?: number | null
+  total: number
+  weighted_interest_rate: number
   currency: string
   distribution: any
-  details: any[]
+  entries: any[]
 }
 
-export interface Investments {
-  stocks?: StockInvestments | null
-  funds?: FundInvestments | null
-  fund_portfolios: FundPortfolio[]
-  factoring?: FactoringInvestments | null
-  real_state_cf?: RealStateCFInvestments | null
-  deposits?: Deposits | null
-  crowdlending?: Crowdlending | null
+export interface CryptoCurrencyToken {
+  id: string
+  token_id: string
+  name: string
+  symbol: string
+  token: string
+  amount: number
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  market_value?: number | null
+  currency?: string | null
+  type?: string | null
 }
+
+export interface CryptoCurrencyWallet {
+  id: string
+  wallet_connection_id: string
+  address: string
+  name: string
+  symbol: string
+  crypto: string
+  amount: number
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  market_value?: number | null
+  currency?: string | null
+  tokens?: CryptoCurrencyToken[] | null
+}
+
+export interface CryptoCurrencies {
+  entries: CryptoCurrencyWallet[]
+}
+
+export enum CommodityType {
+  GOLD = "GOLD",
+  SILVER = "SILVER",
+  PLATINUM = "PLATINUM",
+  PALLADIUM = "PALLADIUM",
+}
+
+export enum WeightUnit {
+  GRAM = "GRAM",
+  TROY_OUNCE = "TROY_OUNCE",
+}
+
+export const COMMODITY_SYMBOLS = {
+  [CommodityType.GOLD]: "XAU",
+  [CommodityType.SILVER]: "XAG",
+  [CommodityType.PLATINUM]: "XPT",
+  [CommodityType.PALLADIUM]: "XPD",
+}
+
+export const WEIGHT_CONVERSIONS: Record<
+  WeightUnit,
+  Record<WeightUnit, number>
+> = {
+  [WeightUnit.GRAM]: {
+    [WeightUnit.TROY_OUNCE]: 0.032150746568628,
+    [WeightUnit.GRAM]: 1,
+  },
+  [WeightUnit.TROY_OUNCE]: {
+    [WeightUnit.GRAM]: 31.1034768,
+    [WeightUnit.TROY_OUNCE]: 1,
+  },
+}
+
+export interface Commodity {
+  id: string
+  name: string
+  amount: number
+  unit: WeightUnit
+  type: CommodityType
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  market_value?: number | null
+  currency?: string | null
+}
+
+export interface Commodities {
+  entries: Commodity[]
+}
+
+export type ProductPosition =
+  | Accounts
+  | Cards
+  | Loans
+  | StockInvestments
+  | FundInvestments
+  | FundPortfolios
+  | FactoringInvestments
+  | RealEstateCFInvestments
+  | Deposits
+  | Crowdlending
+  | CryptoCurrencies
+  | Commodities
+
+export type ProductPositions = Record<ProductType, ProductPosition>
 
 export interface EntitySummary {
   id: string
@@ -188,10 +296,7 @@ export interface GlobalPosition {
   id: string
   entity: EntitySummary
   date: string
-  accounts: Account[]
-  cards: Card[]
-  loans: Loan[]
-  investments?: Investments | null
+  products: ProductPositions
   is_real: boolean
 }
 

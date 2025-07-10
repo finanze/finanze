@@ -7,16 +7,8 @@ from pydantic.dataclasses import dataclass
 
 from domain.base import BaseData
 from domain.dezimal import Dezimal
-from domain.financial_entity import FinancialEntity
-
-
-class ProductType(str, Enum):
-    ACCOUNT = "ACCOUNT"
-    FUND = "FUND"
-    STOCK_ETF = "STOCK_ETF"
-    FACTORING = "FACTORING"
-    REAL_STATE_CF = "REAL_STATE_CF"
-    DEPOSIT = "DEPOSIT"
+from domain.entity import Entity
+from domain.global_position import ProductType
 
 
 class TxType(str, Enum):
@@ -43,7 +35,7 @@ class BaseTx(BaseData):
     currency: str
     type: TxType
     date: datetime
-    entity: FinancialEntity
+    entity: Entity
     is_real: bool
     product_type: ProductType
 
@@ -96,7 +88,7 @@ class FactoringTx(BaseInvestmentTx):
 
 
 @dataclass
-class RealStateCFTx(BaseInvestmentTx):
+class RealEstateCFTx(BaseInvestmentTx):
     net_amount: Dezimal
     fees: Dezimal
     retentions: Dezimal

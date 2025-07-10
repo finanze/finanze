@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   type ReactNode,
 } from "react"
 import { getPositions, getContributions } from "@/services/api"
@@ -12,6 +13,7 @@ import {
   ContributionQueryRequest,
 } from "@/types/contributions"
 import { useAppContext } from "./AppContext"
+import { EntityType } from "@/types"
 
 interface FinancialDataContextType {
   positionsData: EntitiesPosition | null
@@ -34,7 +36,16 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     useState<EntityContributions | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { inactiveEntities, setOnScrapeCompleted } = useAppContext()
+  const initialFetchDone = useRef(false)
+  const {
+    inactiveEntities,
+    entities,
+    entitiesLoaded,
+    setOnScrapeCompleted,
+    fetchEntities,
+    exchangeRates,
+    exchangeRatesLoading,
+  } = useAppContext()
 
   const fetchFinancialData = async () => {
     setIsLoading(true)
@@ -72,8 +83,26 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     try {
       console.log(`Refreshing financial data for entity: ${entityId}`)
 
-      // Fetch data only for the specific entity
-      const queryParams = { entities: [entityId] }
+      let queryParams: { entities: string[] }
+
+      if (entityId === "crypto") {
+        const cryptoEntities =
+          entities?.filter(
+            entity => entity.type === EntityType.CRYPTO_WALLET,
+          ) || []
+
+        if (cryptoEntities.length === 0) {
+          console.log("No crypto entities found")
+          return
+        }
+
+        queryParams = { entities: cryptoEntities.map(entity => entity.id) }
+        console.log(
+          `Refreshing crypto entities: ${cryptoEntities.map(e => e.name).join(", ")}`,
+        )
+      } else {
+        queryParams = { entities: [entityId] }
+      }
 
       const [positionsResponse, contributionsData] = await Promise.all([
         getPositions(queryParams as PositionQueryRequest),
@@ -105,9 +134,25 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         }
       })
 
-      console.log(`Successfully refreshed entity ${entityId}`)
+      console.log(
+        `Successfully refreshed ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}`,
+      )
+
+      // Refresh entities to get updated last_fetch data
+      try {
+        await fetchEntities()
+        console.log("Entities refreshed to update last_fetch data")
+      } catch (error) {
+        console.error(
+          "Error refreshing entities after financial data refresh:",
+          error,
+        )
+      }
     } catch (err) {
-      console.error(`Error refreshing entity ${entityId}:`, err)
+      console.error(
+        `Error refreshing ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}:`,
+        err,
+      )
       setError(`Failed to refresh entity. Please try again.`)
     } finally {
       setIsLoading(false)
@@ -115,7 +160,28 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    fetchFinancialData()
+    // Only fetch financial data if entities are loaded, exchange rates are not loading and are available
+    // and we haven't done the initial fetch yet
+    if (
+      entitiesLoaded &&
+      !exchangeRatesLoading &&
+      exchangeRates &&
+      !initialFetchDone.current
+    ) {
+      fetchFinancialData()
+      initialFetchDone.current = true
+    } else if (!entitiesLoaded) {
+      // Reset the flag when entities are not loaded (user logged out)
+      initialFetchDone.current = false
+    }
+  }, [entitiesLoaded, exchangeRatesLoading, exchangeRates])
+
+  // Separate effect for inactive entities changes that should trigger refetch
+  useEffect(() => {
+    // Only refetch if we've already done the initial fetch
+    if (initialFetchDone.current) {
+      fetchFinancialData()
+    }
   }, [inactiveEntities])
 
   // Register the refreshEntity callback with AppContext

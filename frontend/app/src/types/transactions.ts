@@ -1,11 +1,4 @@
-export enum ProductType {
-  ACCOUNT = "ACCOUNT",
-  FUND = "FUND",
-  STOCK_ETF = "STOCK_ETF",
-  FACTORING = "FACTORING",
-  REAL_STATE_CF = "REAL_STATE_CF",
-  DEPOSIT = "DEPOSIT",
-}
+import { ProductType } from "./position"
 
 export enum TxType {
   BUY = "BUY",
@@ -85,7 +78,7 @@ export interface FactoringTx extends BaseInvestmentTx {
 }
 
 // Real state crowdfunding transaction interface
-export interface RealStateCFTx extends BaseInvestmentTx {
+export interface realEstateCFTx extends BaseInvestmentTx {
   net_amount: number
   fees: number
   retentions: number
@@ -106,7 +99,12 @@ export interface Transactions {
   account?: AccountTx[]
 }
 
-type Tx = AccountTx & StockTx & FundTx & FactoringTx & RealStateCFTx & DepositTx
+type Tx = AccountTx &
+  StockTx &
+  FundTx &
+  FactoringTx &
+  realEstateCFTx &
+  DepositTx
 
 // Transaction query result
 export interface TransactionsResult {

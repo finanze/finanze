@@ -1,80 +1,64 @@
-import inspect
+import json
 import logging
 from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from application.ports.virtual_scraper import VirtualScraper
+from application.ports.virtual_fetch import VirtualFetcher
+from domain.entity import Entity, EntityType
 from domain.exception.exceptions import MissingFieldsError
-from domain.financial_entity import FinancialEntity
 from domain.global_position import (
+    Account,
+    Accounts,
+    Card,
+    Cards,
+    Commodities,
+    Commodity,
+    Crowdlending,
+    CryptoCurrencies,
+    CryptoCurrencyWallet,
     Deposit,
     Deposits,
     FactoringDetail,
     FactoringInvestments,
     FundDetail,
     FundInvestments,
+    FundPortfolio,
+    FundPortfolios,
     GlobalPosition,
-    Investments,
-    RealStateCFDetail,
-    RealStateCFInvestments,
+    Loan,
+    Loans,
+    ProductPosition,
+    ProductType,
+    RealEstateCFDetail,
+    RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
 )
 from domain.settings import (
     BaseSheetConfig,
     GoogleCredentials,
-    VirtualInvestmentSheetConfig,
+    VirtualPositionSheetConfig,
     VirtualTransactionSheetConfig,
 )
 from domain.transactions import (
     BaseTx,
     FactoringTx,
     FundTx,
-    RealStateCFTx,
+    RealEstateCFTx,
     StockTx,
     Transactions,
 )
+from googleapiclient.errors import HttpError
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from pydantic import ValidationError
+
+DEFAULT_DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
+DEFAULT_DATE_FORMAT = "%d/%m/%Y"
 
 
 def parse_number(value: str) -> float:
     return float(value.strip().replace(".", "").replace(",", "."))
-
-
-def total(products):
-    return round(sum([product.amount for product in products]), 2)
-
-
-def expected_interests(products):
-    return round(sum([product.expected_interests for product in products]), 2)
-
-
-def weighted_interest_rate(products):
-    return round(
-        sum([product.interest_rate * product.amount for product in products])
-        / total(products),
-        6,
-    )
-
-
-def initial_investment(products):
-    return round(sum([product.initial_investment for product in products]), 2)
-
-
-def market_value(products):
-    return round(sum([product.market_value for product in products]), 2)
-
-
-AGGR_FIELD_OPERATION = {
-    "total": total,
-    "invested": total,
-    "expected_interests": expected_interests,
-    "weighted_interest_rate": weighted_interest_rate,
-    "investment": initial_investment,
-    "market_value": market_value,
-}
 
 
 def _parse_cell(value: str, config: BaseSheetConfig) -> any:
@@ -82,29 +66,37 @@ def _parse_cell(value: str, config: BaseSheetConfig) -> any:
         return parse_number(value)
     except ValueError:
         try:
-            return datetime.strptime(value, config.datetimeFormat)
+            datetime_format = config.datetimeFormat or DEFAULT_DATETIME_FORMAT
+            return datetime.strptime(value, datetime_format)
         except ValueError:
             try:
-                return datetime.strptime(value, config.dateFormat).date()
+                date_format = config.dateFormat or DEFAULT_DATE_FORMAT
+                return datetime.strptime(value, date_format).date()
             except ValueError:
                 if not len(value):
                     return None
                 return value
 
 
-class SheetsImporter(VirtualScraper):
-    INV_TYPE_ATTR_MAP = {
-        "deposits": (Deposits, Deposit),
-        "funds": (FundInvestments, FundDetail),
-        "stocks": (StockInvestments, StockDetail),
-        "factoring": (FactoringInvestments, FactoringDetail),
-        "real_state_cf": (RealStateCFInvestments, RealStateCFDetail),
+class SheetsImporter(VirtualFetcher):
+    PRODUCT_TYPE_CLS_MAP = {
+        ProductType.ACCOUNT: (Accounts, Account),
+        ProductType.CARD: (Cards, Card),
+        ProductType.LOAN: (Loans, Loan),
+        ProductType.DEPOSIT: (Deposits, Deposit),
+        ProductType.FUND: (FundInvestments, FundDetail),
+        ProductType.STOCK_ETF: (StockInvestments, StockDetail),
+        ProductType.FACTORING: (FactoringInvestments, FactoringDetail),
+        ProductType.REAL_ESTATE_CF: (RealEstateCFInvestments, RealEstateCFDetail),
+        ProductType.CRYPTO: (CryptoCurrencies, CryptoCurrencyWallet),
+        ProductType.COMMODITY: (Commodities, Commodity),
+        ProductType.CROWDLENDING: (None, Crowdlending),
     }
 
     TX_PROD_TYPE_ATTR_MAP = {
         "STOCK_ETF": StockTx,
         "FUND": FundTx,
-        "REAL_STATE_CF": RealStateCFTx,
+        "REAL_ESTATE_CF": RealEstateCFTx,
         "FACTORING": FactoringTx,
     }
 
@@ -115,26 +107,51 @@ class SheetsImporter(VirtualScraper):
     async def global_positions(
         self,
         credentials: GoogleCredentials,
-        investment_configs: list[VirtualInvestmentSheetConfig],
-        existing_entities: dict[str, FinancialEntity],
-    ) -> tuple[list[GlobalPosition], set[FinancialEntity]]:
+        position_configs: list[VirtualPositionSheetConfig],
+        existing_entities: dict[str, Entity],
+    ) -> tuple[list[GlobalPosition], set[Entity]]:
         global_positions_dicts = {}
-        for config in investment_configs:
+        for config in position_configs:
             field = config.data
-            parent_type, detail_type = self.INV_TYPE_ATTR_MAP.get(field, (None, None))
-            if not parent_type:
+            parent_type, detail_type = self.PRODUCT_TYPE_CLS_MAP.get(
+                field, (None, None)
+            )
+            if not parent_type and not detail_type:
                 raise ValueError(f"Invalid field {field}")
 
-            per_entity = self._load_investment_products(
+            per_entity = self._load_products(
                 detail_type, parent_type, credentials, config
             )
             for entity in per_entity:
                 if entity not in global_positions_dicts:
-                    global_positions_dicts[entity] = {"investments": {}}
+                    global_positions_dicts[entity] = {"products": {}}
 
-                global_positions_dicts[entity]["investments"][field] = per_entity[
-                    entity
-                ]
+                if field in global_positions_dicts[entity]["products"]:
+                    global_positions_dicts[entity]["products"][field] += per_entity[
+                        entity
+                    ]
+                else:
+                    global_positions_dicts[entity]["products"][field] = per_entity[
+                        entity
+                    ]
+
+        for entity, positions in global_positions_dicts.items():
+            required_portfolios = {}
+            if (
+                ProductType.FUND in positions["products"]
+                and positions["products"][ProductType.FUND]
+            ):
+                for fund in positions["products"][ProductType.FUND].entries:
+                    if fund.portfolio:
+                        if fund.portfolio.name not in required_portfolios:
+                            required_portfolios[fund.portfolio.name] = fund.portfolio
+                        else:
+                            fund.portfolio = required_portfolios[fund.portfolio.name]
+
+            if required_portfolios:
+                positions["products"][ProductType.FUND_PORTFOLIO] = FundPortfolios(
+                    list(required_portfolios.values())
+                )
 
         created_entities = {}
         global_positions = []
@@ -143,27 +160,30 @@ class SheetsImporter(VirtualScraper):
                 entity = existing_entities[entity]
             else:
                 if entity not in created_entities:
-                    created_entities[entity] = FinancialEntity(
-                        id=uuid4(), name=entity, is_real=False
+                    created_entities[entity] = Entity(
+                        id=uuid4(),
+                        name=entity,
+                        type=EntityType.FINANCIAL_INSTITUTION,
+                        is_real=False,
                     )
                 entity = created_entities[entity]
 
-            investments = Investments(**data["investments"])
+            products = data["products"]
             global_positions.append(
                 GlobalPosition(
-                    id=uuid4(), entity=entity, investments=investments, is_real=False
+                    id=uuid4(), entity=entity, products=products, is_real=False
                 )
             )
 
         return global_positions, set(created_entities.values())
 
-    def _load_investment_products(
+    def _load_products(
         self,
         cls,
         parent_cls,
         credentials: GoogleCredentials,
-        config: VirtualInvestmentSheetConfig,
-    ) -> dict[str, any]:
+        config: VirtualPositionSheetConfig,
+    ) -> dict[str, ProductPosition]:
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
@@ -171,6 +191,20 @@ class SheetsImporter(VirtualScraper):
             product_dict["id"] = p_id
             entity = product_dict["entity"]
             entity_products = details_per_entity.get(entity, [])
+
+            if cls == FundDetail:
+                portfolio_name = product_dict.get("portfolio")
+                if portfolio_name:
+                    product_dict["portfolio"] = FundPortfolio(
+                        id=uuid4(), name=portfolio_name
+                    )
+            elif cls == Crowdlending:
+                product_dict["distribution"] = (
+                    json.loads(product_dict["distribution"])
+                    if product_dict.get("distribution")
+                    else None
+                )
+
             entity_products.append(cls.from_dict(product_dict))
 
             details_per_entity[entity] = entity_products
@@ -181,17 +215,17 @@ class SheetsImporter(VirtualScraper):
             return {}
 
         per_entity = {}
-        parent_params = inspect.signature(parent_cls).parameters
         for entity, entity_products in details_per_entity.items():
-            parent_obj_dict = {}
-            for param in parent_params:
-                if param in AGGR_FIELD_OPERATION:
-                    parent_obj_dict[param] = AGGR_FIELD_OPERATION[param](
-                        entity_products
-                    )
+            if parent_cls is None:
+                per_entity[entity] = (
+                    entity_products[0] if len(entity_products) == 1 else {}
+                )
+            else:
+                parent_obj_dict = {
+                    "entries": entity_products,
+                }
 
-            parent_obj_dict["details"] = entity_products
-            per_entity[entity] = parent_cls(**parent_obj_dict)
+                per_entity[entity] = parent_cls(**parent_obj_dict)
 
         return per_entity
 
@@ -199,9 +233,8 @@ class SheetsImporter(VirtualScraper):
         self,
         credentials: GoogleCredentials,
         txs_configs: list[VirtualTransactionSheetConfig],
-        registered_txs: set[str],
-        existing_entities: dict[str, FinancialEntity],
-    ) -> tuple[Optional[Transactions], set[FinancialEntity]]:
+        existing_entities: dict[str, Entity],
+    ) -> tuple[Optional[Transactions], set[Entity]]:
         all_created_entities = {}
         transactions = Transactions(investment=[], account=[])
 
@@ -212,7 +245,6 @@ class SheetsImporter(VirtualScraper):
                 credentials, config, existing_entities, all_created_entities
             )
             all_created_entities.update(created_entities)
-            txs = [tx for tx in txs if tx.ref not in registered_txs]
 
             current_transactions = None
             if field == "investment":
@@ -229,9 +261,9 @@ class SheetsImporter(VirtualScraper):
         self,
         credentials: GoogleCredentials,
         config: VirtualTransactionSheetConfig,
-        existing_entities: dict[str, FinancialEntity],
-        already_created_entities: dict[str, FinancialEntity],
-    ) -> tuple[list[BaseTx], dict[str, FinancialEntity]]:
+        existing_entities: dict[str, Entity],
+        already_created_entities: dict[str, Entity],
+    ) -> tuple[list[BaseTx], dict[str, Entity]]:
         txs = []
         created_entities = {}
 
@@ -256,8 +288,11 @@ class SheetsImporter(VirtualScraper):
 
             else:
                 if entity_name not in created_entities:
-                    created_entities[entity_name] = FinancialEntity(
-                        id=uuid4(), name=entity_name, is_real=False
+                    created_entities[entity_name] = Entity(
+                        id=uuid4(),
+                        name=entity_name,
+                        type=EntityType.FINANCIAL_INSTITUTION,
+                        is_real=False,
                     )
 
                 tx_dict["entity"] = created_entities[entity_name]
@@ -312,9 +347,17 @@ class SheetsImporter(VirtualScraper):
         self, credentials: GoogleCredentials, sheet_id, cell_range
     ) -> list[list]:
         sheets_service = self._sheets_service.service(credentials)
-        result = (
-            sheets_service.values()
-            .get(spreadsheetId=sheet_id, range=cell_range)
-            .execute()
-        )
+        try:
+            result = (
+                sheets_service.values()
+                .get(spreadsheetId=sheet_id, range=cell_range)
+                .execute()
+            )
+        except HttpError as e:
+            if e.status_code == 404:
+                self._log.warning(f"Sheet {sheet_id} not found")
+                return []
+            else:
+                raise
+
         return result.get("values", [])

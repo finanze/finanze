@@ -3,10 +3,9 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from dateutil.tz import tzlocal
-
 from application.ports.credentials_port import CredentialsPort
-from domain.financial_entity import EntityCredentials, EntityCredentialsEntry
+from dateutil.tz import tzlocal
+from domain.entity import EntityCredentials, FinancialEntityCredentialsEntry
 from infrastructure.repository.db.client import DBClient
 
 
@@ -26,11 +25,11 @@ class CredentialsRepository(CredentialsPort):
 
             return None
 
-    def get_available_entities(self) -> list[EntityCredentialsEntry]:
+    def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
         with self._db_client.read() as cursor:
             cursor.execute("SELECT * FROM entity_credentials")
             return [
-                EntityCredentialsEntry(
+                FinancialEntityCredentialsEntry(
                     entity_id=UUID(row["entity_id"]),
                     created_at=datetime.fromisoformat(row["created_at"]),
                     last_used_at=datetime.fromisoformat(row["last_used_at"])
@@ -75,7 +74,7 @@ class CredentialsRepository(CredentialsPort):
                 (datetime.now(tzlocal()).isoformat(), str(entity_id)),
             )
 
-    def update_expiration(self, entity_id: UUID, expiration: datetime):
+    def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 """
@@ -83,5 +82,8 @@ class CredentialsRepository(CredentialsPort):
                 SET expiration = ?
                 WHERE entity_id = ?
                 """,
-                (expiration.isoformat(), str(entity_id)),
+                (
+                    expiration.isoformat() if expiration is not None else None,
+                    str(entity_id),
+                ),
             )

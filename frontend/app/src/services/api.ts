@@ -1,12 +1,16 @@
 import type {
   EntitiesResponse,
   LoginRequest,
-  ScrapeRequest,
-  ScrapeResponse,
+  FetchRequest,
+  FetchResponse,
   LoginResponse,
   ExportRequest,
   AuthRequest,
   LoginStatusResponse,
+  ExchangeRates,
+  CreateCryptoWalletRequest,
+  UpdateCryptoWalletConnectionRequest,
+  SaveCommodityRequest,
 } from "@/types"
 import {
   EntityContributions,
@@ -17,6 +21,7 @@ import {
   TransactionQueryRequest,
   TransactionsResult,
 } from "../types/transactions"
+import { handleApiError } from "@/utils/apiErrors"
 
 import { BASE_URL } from "@/env"
 
@@ -55,7 +60,7 @@ export async function getEntities(): Promise<EntitiesResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/entities`)
   if (!response.ok) {
-    throw new Error("Failed to fetch entities")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -93,15 +98,15 @@ export async function disconnectEntity(entityId: string): Promise<void> {
   })
 
   if (!response.ok) {
-    throw new Error("Failed to disconnect entity")
+    await handleApiError(response)
   }
 }
 
-export async function scrapeEntity(
-  request: ScrapeRequest,
-): Promise<ScrapeResponse> {
+export async function fetchFinancialEntity(
+  request: FetchRequest,
+): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/scrape`, {
+  const response = await fetch(`${baseUrl}/fetch/financial`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -113,15 +118,37 @@ export async function scrapeEntity(
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Scrape failed")
+    throw new Error("Fetch failed")
   }
 
   return data
 }
 
-export async function virtualScrape(): Promise<ScrapeResponse> {
+export async function fetchCryptoEntity(
+  request: FetchRequest,
+): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/scrape/virtual`, {
+  const response = await fetch(`${baseUrl}/fetch/crypto`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  // Even if the response is not OK, we want to get the error code
+  const data = await response.json()
+
+  if (!response.ok && !data.code) {
+    throw new Error("Fetch failed")
+  }
+
+  return data
+}
+
+export async function virtualFetch(): Promise<FetchResponse> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/fetch/virtual`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -132,7 +159,7 @@ export async function virtualScrape(): Promise<ScrapeResponse> {
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Virtual scrape failed")
+    throw new Error("Virtual fetch failed")
   }
 
   return data
@@ -146,7 +173,7 @@ export async function updateSheets(request: ExportRequest): Promise<void> {
     body: JSON.stringify(request),
   })
   if (!response.ok) {
-    throw new Error("Failed to update sheets")
+    await handleApiError(response)
   }
 }
 
@@ -154,7 +181,7 @@ export async function getSettings() {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/settings`)
   if (!response.ok) {
-    throw new Error("Failed to fetch settings")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -170,7 +197,7 @@ export async function saveSettings(settings: any) {
   })
 
   if (!response.ok) {
-    throw new Error("Failed to save settings")
+    await handleApiError(response)
   }
 }
 
@@ -178,7 +205,7 @@ export async function checkLoginStatus(): Promise<LoginStatusResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/login`)
   if (!response.ok) {
-    throw new Error("Failed to check login status")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -222,7 +249,7 @@ export async function logout(): Promise<void> {
   })
 
   if (!response.ok) {
-    throw new Error("Logout failed")
+    await handleApiError(response)
   }
 }
 
@@ -254,7 +281,7 @@ export async function getContributions(
 
   const response = await fetch(`${baseUrl}/contributions${queryString}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch contributions")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -287,7 +314,7 @@ export async function getPositions(
 
   const response = await fetch(`${baseUrl}/positions${queryString}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch positions")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -339,7 +366,7 @@ export async function getTransactions(
 
   const response = await fetch(`${baseUrl}/transactions${queryString}`)
   if (!response.ok) {
-    throw new Error("Failed to fetch transactions")
+    await handleApiError(response)
   }
   return response.json()
 }
@@ -377,5 +404,76 @@ export async function signup(
   } catch (error) {
     console.error("Signup error:", error)
     throw error
+  }
+}
+
+export async function getExchangeRates(): Promise<ExchangeRates> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/exchange-rates`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function createCryptoWallet(
+  request: CreateCryptoWalletRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/crypto-wallet`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function updateCryptoWallet(
+  request: UpdateCryptoWalletConnectionRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/crypto-wallet`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function deleteCryptoWallet(id: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/crypto-wallet/${id}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function saveCommodity(
+  request: SaveCommodityRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/commodities`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
   }
 }

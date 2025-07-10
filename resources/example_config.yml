@@ -1,3 +1,5 @@
+version: 2
+
 general:
   defaultCurrency: EUR
 
@@ -14,23 +16,24 @@ export:
       datetimeFormat: "%d/%m/%Y %H:%M:%S"
       dateFormat: "%d/%m/%Y"
 
-    summary:
-      - spreadsheetId: oneSpecificSheetId
-        range: Summary
-      - range: Basic Summary
-
-    investments:
+    position:
       - spreadsheetId: anotherSpecificSheetId
         range: Funds
-        data: funds
+        data:
+          - FUND
       - range: Stocks
-        data: stocks
+        data:
+          - STOCK
       - range: Real State CF
-        data: real_state_cf
+        data:
+          - REAL_ESTATE_CF
       - range: Mixed
         data:
-          - factoring
-          - real_state_cf
+          - FACTORING
+          - REAL_ESTATE_CF
+      - range: Accounts
+        data:
+          - ACCOUNT
 
     contributions:
       - range: Contributions
@@ -62,7 +65,7 @@ export:
               - COLLECTED
               - MANAGING_COLLECTION
 
-scrape:
+fetch:
   updateCooldown: 60
 
   virtual:
@@ -73,10 +76,10 @@ scrape:
       datetimeFormat: "%d/%m/%Y %H:%M:%S"
       dateFormat: "%d/%m/%Y"
 
-    investments:
+    position:
       - spreadsheetId: oneSpecificSheetId
         range: Deposits
-        data: deposits
+        data: DEPOSIT
         datetimeFormat: "%d/%m/%Y %H:%M:%S"
         dateFormat: "%d/%m/%Y"
 

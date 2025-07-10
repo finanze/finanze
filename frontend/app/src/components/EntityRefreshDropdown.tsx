@@ -4,24 +4,41 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
 import { useAppContext } from "@/context/AppContext"
-import { useFinancialData } from "@/context/FinancialDataContext"
 import { useI18n } from "@/i18n"
-import { Entity, EntityStatus } from "@/types"
+import { Entity, EntityStatus, EntityType } from "@/types"
 import { Database, RefreshCw, History, ChevronDown } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { formatTimeAgo } from "@/lib/timeUtils"
 
 export function EntityRefreshDropdown() {
-  const { entities, scrape } = useAppContext()
-  const { positionsData } = useFinancialData()
+  const { entities, scrape, fetchingEntityState, setFetchingEntityState } =
+    useAppContext()
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
-  const [refreshingEntityIds, setRefreshingEntityIds] = useState<string[]>([])
+
+  const { fetchingEntityIds } = fetchingEntityState
 
   const connectedEntities =
     entities?.filter(
-      entity => entity.status === EntityStatus.CONNECTED && entity.is_real,
+      entity => entity.status !== EntityStatus.DISCONNECTED && entity.is_real,
     ) || []
+
+  // Separate financial institutions and crypto wallets
+  const financialEntities = connectedEntities.filter(
+    entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+  )
+  // Only include crypto entities that have connected wallets
+  const cryptoEntities = connectedEntities.filter(
+    entity =>
+      entity.type === EntityType.CRYPTO_WALLET &&
+      entity.connected &&
+      entity.connected.length > 0,
+  )
+
+  // Check if any crypto entities are being fetched
+  const isCryptoFetching = cryptoEntities.some(entity =>
+    fetchingEntityIds.includes(entity.id),
+  )
 
   const handleRefreshEntity = async (entity: Entity, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -29,13 +46,54 @@ export function EntityRefreshDropdown() {
     if (!entity) return
 
     try {
-      setRefreshingEntityIds(prev => [...prev, entity.id])
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: [...prev.fetchingEntityIds, entity.id],
+      }))
 
       const features = entity.features || []
       const options = { avoidNewLogin: true }
       await scrape(entity, features, options)
     } finally {
-      setRefreshingEntityIds(prev => prev.filter(id => id !== entity.id))
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: prev.fetchingEntityIds.filter(
+          id => id !== entity.id,
+        ),
+      }))
+    }
+  }
+
+  const handleRefreshCrypto = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+
+    if (cryptoEntities.length === 0) return
+
+    try {
+      // Add all connected crypto entities to fetchingEntityIds
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: [
+          ...prev.fetchingEntityIds,
+          ...cryptoEntities.map(entity => entity.id),
+        ],
+      }))
+
+      // Get all unique features from crypto entities
+      const allFeatures = [
+        ...new Set(cryptoEntities.flatMap(entity => entity.features || [])),
+      ]
+      const options = { avoidNewLogin: true }
+      // Pass null as entity to scrape all crypto entities
+      await scrape(null, allFeatures, options)
+    } finally {
+      // Remove all crypto entities from fetchingEntityIds
+      setFetchingEntityState(prev => ({
+        ...prev,
+        fetchingEntityIds: prev.fetchingEntityIds.filter(
+          id => !cryptoEntities.some(entity => entity.id === id),
+        ),
+      }))
     }
   }
 
@@ -47,18 +105,31 @@ export function EntityRefreshDropdown() {
     return diffDays > 7
   }
 
+  const getEntityLastFetchDate = (entity: Entity): Date | null => {
+    if (!entity.last_fetch) return null
+
+    const fetchDates = Object.values(entity.last_fetch)
+      .filter(dateStr => dateStr && dateStr.trim() !== "")
+      .map(dateStr => new Date(dateStr))
+      .filter(date => !isNaN(date.getTime()))
+
+    return fetchDates.length > 0
+      ? new Date(Math.max(...fetchDates.map(date => date.getTime())))
+      : null
+  }
+
   const entitiesWithLastUpdate = useMemo(() => {
-    if (!connectedEntities || !positionsData?.positions) {
+    if (!connectedEntities) {
       return []
     }
 
-    return connectedEntities
+    const result = []
+
+    // Add individual financial entities
+    const financialEntitiesWithUpdate = financialEntities
       .map(entity => {
-        const globalPosition = positionsData.positions[entity.id]
-        const lastUpdatedAt = globalPosition
-          ? new Date(globalPosition.date)
-          : null
-        return { entity, lastUpdatedAt }
+        const lastUpdatedAt = getEntityLastFetchDate(entity)
+        return { type: "entity" as const, entity, lastUpdatedAt }
       })
       .sort((a, b) => {
         if (a.lastUpdatedAt && b.lastUpdatedAt) {
@@ -68,7 +139,44 @@ export function EntityRefreshDropdown() {
         if (b.lastUpdatedAt) return 1
         return a.entity.name.localeCompare(b.entity.name)
       })
-  }, [connectedEntities, positionsData])
+
+    result.push(...financialEntitiesWithUpdate)
+
+    // Add crypto group if there are crypto entities
+    if (cryptoEntities.length > 0) {
+      // Find the most recent update among all crypto entities
+      const cryptoLastUpdates = cryptoEntities
+        .map(entity => getEntityLastFetchDate(entity))
+        .filter(Boolean)
+
+      const lastCryptoUpdate =
+        cryptoLastUpdates.length > 0
+          ? new Date(
+              Math.max(...cryptoLastUpdates.map(date => date!.getTime())),
+            )
+          : null
+
+      result.push({
+        type: "crypto" as const,
+        entity: null,
+        lastUpdatedAt: lastCryptoUpdate,
+        cryptoEntities,
+      })
+    }
+
+    // Sort the entire result by last updated date
+    return result.sort((a, b) => {
+      if (a.lastUpdatedAt && b.lastUpdatedAt) {
+        return b.lastUpdatedAt.getTime() - a.lastUpdatedAt.getTime()
+      }
+      if (a.lastUpdatedAt) return -1
+      if (b.lastUpdatedAt) return 1
+      // If both don't have dates, sort entities before crypto
+      if (a.type === "entity" && b.type === "crypto") return -1
+      if (a.type === "crypto" && b.type === "entity") return 1
+      return 0
+    })
+  }, [connectedEntities, financialEntities, cryptoEntities])
 
   if (entitiesWithLastUpdate.length === 0) {
     return null
@@ -83,7 +191,7 @@ export function EntityRefreshDropdown() {
         aria-expanded={isOpen}
         aria-haspopup="true"
       >
-        {refreshingEntityIds.length > 0 ? (
+        {fetchingEntityIds.length > 0 ? (
           <LoadingSpinner size="sm" />
         ) : (
           <Database className="h-4 w-4" />
@@ -107,48 +215,111 @@ export function EntityRefreshDropdown() {
                 {t.entities.refreshEntity}
               </div>
               <div className="max-h-80 overflow-y-auto">
-                {entitiesWithLastUpdate.map(({ entity, lastUpdatedAt }) => {
-                  return (
-                    <div
-                      key={entity.id}
-                      className="px-4 py-1.5 text-sm text-neutral-100 flex items-center justify-between hover:bg-neutral-800/50 border-b border-neutral-700/60 last:border-b-0"
-                    >
-                      <div>
-                        <span>{entity.name}</span>
-                        {lastUpdatedAt ? (
-                          <p
-                            className={`text-xs mt-0.5 ${
-                              isUpdateOld(lastUpdatedAt)
-                                ? "text-orange-300"
-                                : "text-neutral-400"
-                            }`}
-                          >
-                            {formatTimeAgo(lastUpdatedAt, t)}
-                          </p>
+                {entitiesWithLastUpdate.map(item => {
+                  if (item.type === "entity") {
+                    const { entity, lastUpdatedAt } = item
+                    return (
+                      <div
+                        key={entity.id}
+                        className="px-4 py-1.5 text-sm text-neutral-100 flex items-center justify-between hover:bg-neutral-800/50 border-b border-neutral-700/60 last:border-b-0"
+                      >
+                        <div>
+                          <span>{entity.name}</span>
+                          {lastUpdatedAt ? (
+                            <p
+                              className={`text-xs mt-0.5 ${
+                                isUpdateOld(lastUpdatedAt)
+                                  ? "text-orange-300"
+                                  : "text-neutral-400"
+                              }`}
+                            >
+                              {formatTimeAgo(lastUpdatedAt, t)}
+                            </p>
+                          ) : (
+                            <p className="text-xs mt-0.5 text-neutral-500">
+                              {t.common.never}
+                            </p>
+                          )}
+                        </div>
+                        {fetchingEntityIds.includes(entity.id) ? (
+                          <div className="p-1.5">
+                            <LoadingSpinner
+                              size="sm"
+                              className="text-gray-300 p-1.5"
+                            />
+                          </div>
                         ) : (
-                          <p className="text-xs mt-0.5 text-neutral-500">
-                            {t.common.never}
-                          </p>
+                          <button
+                            onClick={e => handleRefreshEntity(entity, e)}
+                            className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
+                            aria-label={`Refresh ${entity.name}`}
+                          >
+                            <RefreshCw className="h-4 w-4 text-gray-300" />
+                          </button>
                         )}
                       </div>
-                      {refreshingEntityIds.includes(entity.id) ? (
-                        <div className="p-1.5">
-                          <LoadingSpinner
-                            size="sm"
-                            className="text-gray-300 p-1.5"
-                          />
+                    )
+                  } else {
+                    // Crypto group
+                    const { lastUpdatedAt, cryptoEntities: cryptoItems } = item
+
+                    // Format crypto entities display - only show entities with connected wallets
+                    const activeCryptoEntities = cryptoItems.filter(
+                      entity => entity.connected && entity.connected.length > 0,
+                    )
+
+                    const cryptoDisplay =
+                      activeCryptoEntities.length <= 2
+                        ? activeCryptoEntities.map(e => e.name).join(", ")
+                        : `${activeCryptoEntities[0].name}, +${activeCryptoEntities.length - 1}`
+
+                    return (
+                      <div
+                        key="crypto-group"
+                        className="px-4 py-1.5 text-sm text-neutral-100 flex items-center justify-between hover:bg-neutral-800/50 border-b border-neutral-700/60 last:border-b-0"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span>{t.common.crypto}</span>
+                            <span className="text-xs text-neutral-500">
+                              {cryptoDisplay}
+                            </span>
+                          </div>
+                          {lastUpdatedAt ? (
+                            <p
+                              className={`text-xs mt-0.5 ${
+                                isUpdateOld(lastUpdatedAt)
+                                  ? "text-orange-300"
+                                  : "text-neutral-400"
+                              }`}
+                            >
+                              {formatTimeAgo(lastUpdatedAt, t)}
+                            </p>
+                          ) : (
+                            <p className="text-xs mt-0.5 text-neutral-500">
+                              {t.common.never}
+                            </p>
+                          )}
                         </div>
-                      ) : (
-                        <button
-                          onClick={e => handleRefreshEntity(entity, e)}
-                          className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
-                          aria-label={`Refresh ${entity.name}`}
-                        >
-                          <RefreshCw className="h-4 w-4 text-gray-300" />
-                        </button>
-                      )}
-                    </div>
-                  )
+                        {isCryptoFetching ? (
+                          <div className="p-1.5">
+                            <LoadingSpinner
+                              size="sm"
+                              className="text-gray-300 p-1.5"
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            onClick={handleRefreshCrypto}
+                            className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
+                            aria-label={`Refresh ${t.common.crypto}`}
+                          >
+                            <RefreshCw className="h-4 w-4 text-gray-300" />
+                          </button>
+                        )}
+                      </div>
+                    )
+                  }
                 })}
               </div>
             </div>

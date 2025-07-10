@@ -1,9 +1,9 @@
 import abc
-from datetime import datetime
-from typing import Dict, Optional
+import datetime
+from typing import Optional
 from uuid import UUID
 
-from domain.financial_entity import FinancialEntity
+from domain.entity import Entity
 from domain.global_position import GlobalPosition, PositionQueryRequest
 
 
@@ -15,9 +15,11 @@ class PositionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_last_grouped_by_entity(
         self, query: Optional[PositionQueryRequest] = None
-    ) -> Dict[FinancialEntity, GlobalPosition]:
+    ) -> dict[Entity, GlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_updated(self, entity_id: UUID) -> Optional[datetime]:
+    def delete_position_for_date(
+        self, entity_id: UUID, date: datetime.date, is_real: bool
+    ):
         raise NotImplementedError
