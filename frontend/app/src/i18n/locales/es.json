@@ -89,10 +89,10 @@
     "ofInvestmentType": "de {type}",
     "noPositionsFound": "No se encontraron posiciones de {type} para las entidades seleccionadas",
     "noPositionsAvailable": "No hay {type} disponibles",
-    "numberOfAssets": "Número de Activos",
+    "numberOfAssets": "Número de activos",
     "asset": "activo",
     "assets": "activos",
-    "weightedAverageInterest": "Interés Promedio Ponderado"
+    "weightedAverageInterest": "Interés ponderado"
   },
   "toast": {
     "success": "Operación exitosa",
@@ -185,7 +185,7 @@
     "HISTORIC": "Datos Históricos",
     "selectFeatures": "Seleccionar que descargar de",
     "selectAll": "Seleccionar todas",
-    "fetchSelected": "Obtener fatos seleccionados",
+    "fetchSelected": "Obtener datos seleccionados",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
