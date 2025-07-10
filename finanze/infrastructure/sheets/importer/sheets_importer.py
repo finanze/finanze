@@ -30,8 +30,8 @@ from domain.global_position import (
     Loans,
     ProductPosition,
     ProductType,
-    RealStateCFDetail,
-    RealStateCFInvestments,
+    RealEstateCFDetail,
+    RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
 )
@@ -45,7 +45,7 @@ from domain.transactions import (
     BaseTx,
     FactoringTx,
     FundTx,
-    RealStateCFTx,
+    RealEstateCFTx,
     StockTx,
     Transactions,
 )
@@ -87,7 +87,7 @@ class SheetsImporter(VirtualFetcher):
         ProductType.FUND: (FundInvestments, FundDetail),
         ProductType.STOCK_ETF: (StockInvestments, StockDetail),
         ProductType.FACTORING: (FactoringInvestments, FactoringDetail),
-        ProductType.REAL_STATE_CF: (RealStateCFInvestments, RealStateCFDetail),
+        ProductType.REAL_ESTATE_CF: (RealEstateCFInvestments, RealEstateCFDetail),
         ProductType.CRYPTO: (CryptoCurrencies, CryptoCurrencyWallet),
         ProductType.COMMODITY: (Commodities, Commodity),
         ProductType.CROWDLENDING: (None, Crowdlending),
@@ -96,7 +96,7 @@ class SheetsImporter(VirtualFetcher):
     TX_PROD_TYPE_ATTR_MAP = {
         "STOCK_ETF": StockTx,
         "FUND": FundTx,
-        "REAL_STATE_CF": RealStateCFTx,
+        "REAL_ESTATE_CF": RealEstateCFTx,
         "FACTORING": FactoringTx,
     }
 

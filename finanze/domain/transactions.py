@@ -88,7 +88,7 @@ class FactoringTx(BaseInvestmentTx):
 
 
 @dataclass
-class RealStateCFTx(BaseInvestmentTx):
+class RealEstateCFTx(BaseInvestmentTx):
     net_amount: Dezimal
     fees: Dezimal
     retentions: Dezimal

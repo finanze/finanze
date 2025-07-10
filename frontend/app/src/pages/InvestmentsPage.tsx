@@ -53,11 +53,11 @@ export default function InvestmentsPage() {
       },
       {
         path: "/investments/real-estate",
-        label: t.common.realEstateInvestments,
-        icon: getIconForProductType(ProductType.REAL_STATE_CF, "h-6 w-6"),
+        label: t.common.realEstateCfInvestments,
+        icon: getIconForProductType(ProductType.REAL_ESTATE_CF, "h-6 w-6"),
         color:
           "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300",
-        productType: ProductType.REAL_STATE_CF,
+        productType: ProductType.REAL_ESTATE_CF,
       },
       {
         path: "/investments/crypto",

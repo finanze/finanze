@@ -8,7 +8,7 @@ from domain.global_position import (
     FundPortfolios,
     GlobalPosition,
     ProductPositions,
-    RealStateCFInvestments,
+    RealEstateCFInvestments,
     StockInvestments,
 )
 
@@ -45,10 +45,10 @@ def _add_factoring(
     )
 
 
-def _add_real_state_cf(
-    self: RealStateCFInvestments, other: RealStateCFInvestments
-) -> RealStateCFInvestments:
-    return RealStateCFInvestments(
+def _add_real_estate_cf(
+    self: RealEstateCFInvestments, other: RealEstateCFInvestments
+) -> RealEstateCFInvestments:
+    return RealEstateCFInvestments(
         entries=self.entries + other.entries,
     )
 
@@ -122,7 +122,7 @@ def add_extensions():
     FundInvestments.__add__ = _add_funds
     FundPortfolios.__add__ = _add_fund_portfolios
     FactoringInvestments.__add__ = _add_factoring
-    RealStateCFInvestments.__add__ = _add_real_state_cf
+    RealEstateCFInvestments.__add__ = _add_real_estate_cf
     Deposits.__add__ = _add_deposits
     Crowdlending.__add__ = _add_crowdlending
     CryptoCurrencies.__add__ = _add_crypto_currencies

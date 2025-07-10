@@ -375,22 +375,22 @@ export const getAssetDistribution = (
       totalValue += depositsTotal
     }
 
-    const realStateCfProduct =
-      entityPosition.products[ProductType.REAL_STATE_CF]
+    const realEstateCfProduct =
+      entityPosition.products[ProductType.REAL_ESTATE_CF]
     if (
-      realStateCfProduct &&
-      "entries" in realStateCfProduct &&
-      realStateCfProduct.entries.length > 0
+      realEstateCfProduct &&
+      "entries" in realEstateCfProduct &&
+      realEstateCfProduct.entries.length > 0
     ) {
-      if (!assetTypes["REAL_STATE_CF"]) {
-        assetTypes["REAL_STATE_CF"] = {
-          type: "REAL_STATE_CF",
+      if (!assetTypes["REAL_ESTATE_CF"]) {
+        assetTypes["REAL_ESTATE_CF"] = {
+          type: "REAL_ESTATE_CF",
           value: 0,
           percentage: 0,
           change: 0,
         }
       }
-      const realStateCfTotal = realStateCfProduct.entries.reduce(
+      const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
           const amount = project.amount || 0
           const convertedAmount =
@@ -406,8 +406,8 @@ export const getAssetDistribution = (
         },
         0,
       )
-      assetTypes["REAL_STATE_CF"].value += realStateCfTotal
-      totalValue += realStateCfTotal
+      assetTypes["REAL_ESTATE_CF"].value += realEstateCfTotal
+      totalValue += realEstateCfTotal
     }
 
     const factoringProduct = entityPosition.products[ProductType.FACTORING]
@@ -675,14 +675,14 @@ export const getEntityDistribution = (
       entityTotal += depositsTotal
     }
 
-    const realStateCfProduct =
-      entityPosition.products[ProductType.REAL_STATE_CF]
+    const realEstateCfProduct =
+      entityPosition.products[ProductType.REAL_ESTATE_CF]
     if (
-      realStateCfProduct &&
-      "entries" in realStateCfProduct &&
-      realStateCfProduct.entries.length > 0
+      realEstateCfProduct &&
+      "entries" in realEstateCfProduct &&
+      realEstateCfProduct.entries.length > 0
     ) {
-      const realStateCfTotal = realStateCfProduct.entries.reduce(
+      const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
           const amount = project.amount || 0
           const convertedAmount =
@@ -698,7 +698,7 @@ export const getEntityDistribution = (
         },
         0,
       )
-      entityTotal += realStateCfTotal
+      entityTotal += realEstateCfTotal
     }
 
     const factoringProduct = entityPosition.products[ProductType.FACTORING]
@@ -945,14 +945,14 @@ export const getTotalAssets = (
       total += depositsTotal
     }
 
-    const realStateCfProduct =
-      entityPosition.products[ProductType.REAL_STATE_CF]
+    const realEstateCfProduct =
+      entityPosition.products[ProductType.REAL_ESTATE_CF]
     if (
-      realStateCfProduct &&
-      "entries" in realStateCfProduct &&
-      realStateCfProduct.entries.length > 0
+      realEstateCfProduct &&
+      "entries" in realEstateCfProduct &&
+      realEstateCfProduct.entries.length > 0
     ) {
-      const realStateCfTotal = realStateCfProduct.entries.reduce(
+      const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
           const amount = project.amount || 0
           const convertedAmount =
@@ -968,7 +968,7 @@ export const getTotalAssets = (
         },
         0,
       )
-      total += realStateCfTotal
+      total += realEstateCfTotal
     }
 
     const factoringProduct = entityPosition.products[ProductType.FACTORING]
@@ -1171,14 +1171,14 @@ export const getTotalInvestedAmount = (
       })
     }
 
-    const realStateCfProduct =
-      entityPosition.products[ProductType.REAL_STATE_CF]
+    const realEstateCfProduct =
+      entityPosition.products[ProductType.REAL_ESTATE_CF]
     if (
-      realStateCfProduct &&
-      "entries" in realStateCfProduct &&
-      realStateCfProduct.entries.length > 0
+      realEstateCfProduct &&
+      "entries" in realEstateCfProduct &&
+      realEstateCfProduct.entries.length > 0
     ) {
-      realStateCfProduct.entries.forEach((project: any) => {
+      realEstateCfProduct.entries.forEach((project: any) => {
         const amount = project.amount || 0
         const convertedAmount =
           targetCurrency && exchangeRates
@@ -1372,18 +1372,18 @@ export const getOngoingProjects = (
       })
     }
 
-    const realStateCfProduct =
-      entityPosition.products[ProductType.REAL_STATE_CF]
+    const realEstateCfProduct =
+      entityPosition.products[ProductType.REAL_ESTATE_CF]
     if (
-      realStateCfProduct &&
-      "entries" in realStateCfProduct &&
-      realStateCfProduct.entries.length > 0
+      realEstateCfProduct &&
+      "entries" in realEstateCfProduct &&
+      realEstateCfProduct.entries.length > 0
     ) {
-      realStateCfProduct.entries.forEach((project: any) => {
+      realEstateCfProduct.entries.forEach((project: any) => {
         if (project.maturity) {
           projects.push({
             name: project.name,
-            type: "REAL_STATE_CF",
+            type: "REAL_ESTATE_CF",
             value: project.amount,
             currency: project.currency,
             formattedValue: formatCurrency(
@@ -2444,7 +2444,7 @@ export const getAvailableInvestmentTypes = (
         ProductType.FUND,
         ProductType.DEPOSIT,
         ProductType.FACTORING,
-        ProductType.REAL_STATE_CF,
+        ProductType.REAL_ESTATE_CF,
         ProductType.CRYPTO,
       ]
 

@@ -102,7 +102,7 @@ export default function SettingsPage() {
     ProductType.FACTORING,
     ProductType.CRYPTO,
     ProductType.DEPOSIT,
-    ProductType.REAL_STATE_CF,
+    ProductType.REAL_ESTATE_CF,
     ProductType.CROWDLENDING,
     ProductType.COMMODITY,
   ]

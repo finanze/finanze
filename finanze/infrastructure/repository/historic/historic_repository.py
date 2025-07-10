@@ -10,7 +10,7 @@ from domain.historic import (
     BaseHistoricEntry,
     FactoringEntry,
     Historic,
-    RealStateCFEntry,
+    RealEstateCFEntry,
 )
 from domain.global_position import ProductType
 from domain.transactions import BaseInvestmentTx
@@ -58,8 +58,8 @@ def _map_historic_row(row) -> BaseHistoricEntry:
             maturity=datetime.fromisoformat(row["maturity"]).date(),
             type=row["type"],
         )
-    elif common["product_type"] == ProductType.REAL_STATE_CF:
-        return RealStateCFEntry(
+    elif common["product_type"] == ProductType.REAL_ESTATE_CF:
+        return RealEstateCFEntry(
             **common,
             interest_rate=Dezimal(row["interest_rate"]),
             maturity=datetime.fromisoformat(row["maturity"]).date(),
@@ -119,7 +119,7 @@ class HistoricSQLRepository(HistoricPort):
                             "type": entry.type,
                         }
                     )
-                elif isinstance(entry, RealStateCFEntry):
+                elif isinstance(entry, RealEstateCFEntry):
                     base_data.update(
                         {
                             "interest_rate": str(entry.interest_rate),

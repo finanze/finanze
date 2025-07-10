@@ -10,7 +10,7 @@ import {
   type StockTx,
   type FundTx,
   type FactoringTx,
-  type RealStateCFTx,
+  type realEstateCFTx,
   type DepositTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
@@ -471,40 +471,40 @@ export default function TransactionsPage() {
         )
       }
 
-      case ProductType.REAL_STATE_CF: {
-        const realStateTx = tx as RealStateCFTx
+      case ProductType.REAL_ESTATE_CF: {
+        const realEstateTx = tx as realEstateCFTx
         return (
           <>
             {commonFields}
-            {realStateTx.fees > 0 && (
+            {realEstateTx.fees > 0 && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
-                  realStateTx.fees,
+                  realEstateTx.fees,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
                 )}
               </div>
             )}
-            {realStateTx.retentions > 0 && (
+            {realEstateTx.retentions > 0 && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
-                  realStateTx.retentions,
+                  realEstateTx.retentions,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
                 )}
               </div>
             )}
-            {realStateTx.interests > 0 && (
+            {realEstateTx.interests > 0 && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">{t.transactions.interests}:</span>{" "}
                 {formatCurrency(
-                  realStateTx.interests,
+                  realEstateTx.interests,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
@@ -789,7 +789,7 @@ export default function TransactionsPage() {
                           tx.product_type === ProductType.FUND ||
                           tx.product_type === ProductType.ACCOUNT ||
                           tx.product_type === ProductType.FACTORING ||
-                          tx.product_type === ProductType.REAL_STATE_CF ||
+                          tx.product_type === ProductType.REAL_ESTATE_CF ||
                           tx.product_type === ProductType.DEPOSIT ||
                           tx.product_type === ProductType.CRYPTO
 
@@ -977,7 +977,7 @@ export default function TransactionsPage() {
                   tx.product_type === ProductType.FUND ||
                   tx.product_type === ProductType.ACCOUNT ||
                   tx.product_type === ProductType.FACTORING ||
-                  tx.product_type === ProductType.REAL_STATE_CF ||
+                  tx.product_type === ProductType.REAL_ESTATE_CF ||
                   tx.product_type === ProductType.DEPOSIT ||
                   tx.product_type === ProductType.CRYPTO
 

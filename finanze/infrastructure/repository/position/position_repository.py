@@ -37,8 +37,8 @@ from domain.global_position import (
     PositionQueryRequest,
     ProductPositions,
     ProductType,
-    RealStateCFDetail,
-    RealStateCFInvestments,
+    RealEstateCFDetail,
+    RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
 )
@@ -245,13 +245,13 @@ def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
         )
 
 
-def _save_real_state_cf(
-    cursor, position: GlobalPosition, real_state: RealStateCFInvestments
+def _save_real_estate_cf(
+    cursor, position: GlobalPosition, real_estate: RealEstateCFInvestments
 ):
-    for detail in real_state.entries:
+    for detail in real_estate.entries:
         cursor.execute(
             """
-            INSERT INTO real_state_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
+            INSERT INTO real_estate_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
                                                  interest_rate, last_invest_date, maturity, type,
                                                  business_type, state, extended_maturity)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -389,7 +389,7 @@ def _save_product_positions(cursor, position: GlobalPosition):
     _save_position(cursor, position, ProductType.FUND_PORTFOLIO, _save_fund_portfolios)
     _save_position(cursor, position, ProductType.FUND, _save_funds)
     _save_position(cursor, position, ProductType.FACTORING, _save_factoring)
-    _save_position(cursor, position, ProductType.REAL_STATE_CF, _save_real_state_cf)
+    _save_position(cursor, position, ProductType.REAL_ESTATE_CF, _save_real_estate_cf)
     _save_position(cursor, position, ProductType.DEPOSIT, _save_deposits)
     _save_position(cursor, position, ProductType.CROWDLENDING, _save_crowdlending)
     _save_position(cursor, position, ProductType.CRYPTO, _save_crypto_currencies)
@@ -791,17 +791,17 @@ class PositionSQLRepository(PositionPort):
 
             return FactoringInvestments(details)
 
-    def _get_real_state_cf(
+    def _get_real_estate_cf(
         self, global_position_id: UUID
-    ) -> Optional[RealStateCFInvestments]:
+    ) -> Optional[RealEstateCFInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM real_state_cf_positions WHERE global_position_id = ?",
+                "SELECT * FROM real_estate_cf_positions WHERE global_position_id = ?",
                 (str(global_position_id),),
             )
 
             details = [
-                RealStateCFDetail(
+                RealEstateCFDetail(
                     id=UUID(row["id"]),
                     name=row["name"],
                     amount=Dezimal(row["amount"]),
@@ -821,7 +821,7 @@ class PositionSQLRepository(PositionPort):
             if not details:
                 return None
 
-            return RealStateCFInvestments(details)
+            return RealEstateCFInvestments(details)
 
     def _get_deposits(self, global_position_id: UUID) -> Optional[Deposits]:
         with self._db_client.read() as cursor:
@@ -994,7 +994,10 @@ class PositionSQLRepository(PositionPort):
             positions, g_position_id, ProductType.FACTORING, self._get_factoring
         )
         _store_position(
-            positions, g_position_id, ProductType.REAL_STATE_CF, self._get_real_state_cf
+            positions,
+            g_position_id,
+            ProductType.REAL_ESTATE_CF,
+            self._get_real_estate_cf,
         )
         _store_position(
             positions, g_position_id, ProductType.DEPOSIT, self._get_deposits

@@ -26,11 +26,11 @@ export:
           - STOCK
       - range: Real State CF
         data:
-          - REAL_STATE_CF
+          - REAL_ESTATE_CF
       - range: Mixed
         data:
           - FACTORING
-          - REAL_STATE_CF
+          - REAL_ESTATE_CF
       - range: Accounts
         data:
           - ACCOUNT

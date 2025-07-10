@@ -96,11 +96,11 @@ export function Sidebar() {
       })
     }
 
-    if (availableInvestmentTypes.includes(ProductType.REAL_STATE_CF)) {
+    if (availableInvestmentTypes.includes(ProductType.REAL_ESTATE_CF)) {
       routes.push({
         path: "/investments/real-estate",
-        label: t.common.realEstateInvestments,
-        productType: ProductType.REAL_STATE_CF,
+        label: t.common.realEstateCfInvestments,
+        productType: ProductType.REAL_ESTATE_CF,
       })
     }
 

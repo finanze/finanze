@@ -40,7 +40,7 @@ class FactoringEntry(BaseHistoricEntry):
 
 
 @dataclass
-class RealStateCFEntry(BaseHistoricEntry):
+class RealEstateCFEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     maturity: date
     extended_maturity: Optional[date]

@@ -23,7 +23,7 @@ import { JSX } from "react"
 export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   STOCK_ETF: "#3b82f6", // Equivalent to text-blue-500
   FUND: "#06b6d4", // Equivalent to text-cyan-500
-  REAL_STATE_CF: "#10b981", // Equivalent to text-green-500
+  REAL_ESTATE_CF: "#10b981", // Equivalent to text-green-500
   FACTORING: "#f59e0b", // Equivalent to text-amber-500
   DEPOSIT: "#8b5cf6", // Equivalent to text-purple-500
   CASH: "#6b7280", // Equivalent to text-gray-500
@@ -38,7 +38,7 @@ export function getPieSliceColorForAssetType(type: string): string {
 
 export function getIconForProjectType(type: string): JSX.Element {
   switch (type) {
-    case "REAL_STATE_CF":
+    case "REAL_ESTATE_CF":
       return <Building className="h-3 w-3" />
     case "FACTORING":
       return <Briefcase className="h-3 w-3" />
@@ -55,7 +55,7 @@ export function getIconForAssetType(type: string): JSX.Element {
       return <BarChart3 className="h-4 w-4 text-blue-500" />
     case "FUND":
       return <BarChart3 className="h-4 w-4 text-cyan-500" />
-    case "REAL_STATE_CF":
+    case "REAL_ESTATE_CF":
       return <Building className="h-4 w-4 text-green-500" />
     case "FACTORING":
       return <Briefcase className="h-4 w-4 text-amber-500" />
@@ -114,7 +114,7 @@ export function getIconForProductType(
       return <BarChart3 className={iconClass} />
     case ProductType.FUND:
       return <BarChart3 className={iconClass} />
-    case ProductType.REAL_STATE_CF:
+    case ProductType.REAL_ESTATE_CF:
       return <Building className={iconClass} />
     case ProductType.FACTORING:
       return <Briefcase className={iconClass} />

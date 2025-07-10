@@ -9,7 +9,7 @@ import StocksInvestmentPage from "./pages/StocksInvestmentPage"
 import FundsInvestmentPage from "./pages/FundsInvestmentPage"
 import DepositsInvestmentPage from "./pages/DepositsInvestmentPage"
 import FactoringInvestmentPage from "./pages/FactoringInvestmentPage"
-import RealEstateInvestmentPage from "./pages/RealEstateInvestmentPage"
+import RealEstateCFInvestmentPage from "./pages/RealEstateCFInvestmentPage"
 import CryptoInvestmentPage from "./pages/CryptoInvestmentPage"
 import InvestmentsPage from "./pages/InvestmentsPage"
 import LoginPage from "./pages/LoginPage"
@@ -56,7 +56,7 @@ function App() {
           />
           <Route
             path="/investments/real-estate"
-            element={<RealEstateInvestmentPage />}
+            element={<RealEstateCFInvestmentPage />}
           />
           <Route
             path="/investments/crypto"

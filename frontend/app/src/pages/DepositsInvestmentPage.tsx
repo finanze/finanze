@@ -13,7 +13,6 @@ import {
   convertCurrency,
   getEntitiesWithProductType,
   calculateInvestmentDistribution,
-  formatSnakeCaseToHuman,
 } from "@/utils/financialDataUtils"
 import { ProductType } from "@/types/position"
 import { ArrowLeft, Calendar, Percent, TrendingUp } from "lucide-react"
@@ -328,10 +327,6 @@ export default function DepositsInvestmentPage() {
                             {formatDate(deposit.creation, locale)}
                           </span>
                         </div>
-                        <span>
-                          {t.investments.type}:{" "}
-                          {formatSnakeCaseToHuman(deposit.type || "deposit")}
-                        </span>
                       </div>
 
                       {deposit.formattedExpectedAmount && (

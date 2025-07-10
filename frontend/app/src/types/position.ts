@@ -7,7 +7,7 @@ export enum ProductType {
   FUND_PORTFOLIO = "FUND_PORTFOLIO",
   DEPOSIT = "DEPOSIT",
   FACTORING = "FACTORING",
-  REAL_STATE_CF = "REAL_STATE_CF",
+  REAL_ESTATE_CF = "REAL_ESTATE_CF",
   CROWDLENDING = "CROWDLENDING",
   CRYPTO = "CRYPTO",
   COMMODITY = "COMMODITY",
@@ -117,7 +117,7 @@ export interface FactoringDetail {
   state: string
 }
 
-export interface RealStateCFDetail {
+export interface RealEstateCFDetail {
   id: string
   name: string
   amount: number
@@ -160,8 +160,8 @@ export interface FactoringInvestments {
   entries: FactoringDetail[]
 }
 
-export interface RealStateCFInvestments {
-  entries: RealStateCFDetail[]
+export interface RealEstateCFInvestments {
+  entries: RealEstateCFDetail[]
 }
 
 export interface Deposit {
@@ -278,7 +278,7 @@ export type ProductPosition =
   | FundInvestments
   | FundPortfolios
   | FactoringInvestments
-  | RealStateCFInvestments
+  | RealEstateCFInvestments
   | Deposits
   | Crowdlending
   | CryptoCurrencies

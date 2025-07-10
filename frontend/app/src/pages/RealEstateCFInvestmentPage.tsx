@@ -20,7 +20,7 @@ import { ArrowLeft, Calendar, Percent, Building, Clock } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 
-export default function RealEstateInvestmentPage() {
+export default function RealEstateCFInvestmentPage() {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const { positionsData, isLoading } = useFinancialData()
@@ -36,7 +36,7 @@ export default function RealEstateInvestmentPage() {
 
     Object.values(positionsData.positions).forEach(entityPosition => {
       const realEstateProduct =
-        entityPosition.products[ProductType.REAL_STATE_CF]
+        entityPosition.products[ProductType.REAL_ESTATE_CF]
       if (
         realEstateProduct &&
         "entries" in realEstateProduct &&
@@ -106,7 +106,7 @@ export default function RealEstateInvestmentPage() {
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     const entitiesWithRealEstate = getEntitiesWithProductType(
       positionsData,
-      ProductType.REAL_STATE_CF,
+      ProductType.REAL_ESTATE_CF,
     )
     return (
       entities
@@ -155,12 +155,6 @@ export default function RealEstateInvestmentPage() {
     return totalValue > 0 ? (totalWeightedInterest / totalValue) * 100 : 0
   }, [filteredRealEstatePositions, totalValue])
 
-  const totalExpectedReturn = useMemo(() => {
-    return filteredRealEstatePositions.reduce((sum, position) => {
-      return sum + (position.convertedPendingAmount || 0)
-    }, 0)
-  }, [filteredRealEstatePositions])
-
   // Calculate percentage within real estate type
   const totalRealEstateValue = useMemo(() => {
     return totalValue
@@ -184,7 +178,7 @@ export default function RealEstateInvestmentPage() {
         >
           <ArrowLeft size={20} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.realEstate}</h1>
+        <h1 className="text-2xl font-bold">{t.common.realEstateCf}</h1>
       </div>
 
       {/* Filters */}
@@ -200,11 +194,11 @@ export default function RealEstateInvestmentPage() {
             {selectedEntities.length > 0
               ? t.investments.noPositionsFound.replace(
                   "{type}",
-                  t.common.realEstate.toLowerCase(),
+                  t.common.realEstateCf.toLowerCase(),
                 )
               : t.investments.noPositionsAvailable.replace(
                   "{type}",
-                  t.common.realEstate.toLowerCase(),
+                  t.common.realEstateCf.toLowerCase(),
                 )}
           </div>
         </Card>
@@ -216,21 +210,11 @@ export default function RealEstateInvestmentPage() {
             <Card className="flex-shrink-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.realEstate}
+                  {t.common.realEstateCf}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                {totalExpectedReturn > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.investments.expected}{" "}
-                    {formatCurrency(
-                      totalExpectedReturn,
-                      locale,
-                      settings.general.defaultCurrency,
-                    )}
-                  </p>
-                )}
               </CardContent>
             </Card>
 
@@ -298,15 +282,8 @@ export default function RealEstateInvestmentPage() {
                         </h3>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{realEstate.entity}</Badge>
-                          <Badge
-                            variant={
-                              realEstate.status === "ACTIVE"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className="text-xs"
-                          >
-                            {formatSnakeCaseToHuman(realEstate.status)}
+                          <Badge variant="default" className="text-xs">
+                            {formatSnakeCaseToHuman(realEstate.state)}
                           </Badge>
                         </div>
                       </div>
@@ -381,7 +358,7 @@ export default function RealEstateInvestmentPage() {
                         {" " +
                           t.investments.ofInvestmentType.replace(
                             "{type}",
-                            t.common.realEstate.toLowerCase(),
+                            t.common.realEstateCf.toLowerCase(),
                           )}
                       </div>
                     </div>

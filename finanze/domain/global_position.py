@@ -21,7 +21,7 @@ class ProductType(str, Enum):
     FUND_PORTFOLIO = "FUND_PORTFOLIO"
     DEPOSIT = "DEPOSIT"
     FACTORING = "FACTORING"
-    REAL_STATE_CF = "REAL_STATE_CF"
+    REAL_ESTATE_CF = "REAL_ESTATE_CF"
     CROWDLENDING = "CROWDLENDING"
     CRYPTO = "CRYPTO"
     COMMODITY = "COMMODITY"
@@ -139,7 +139,7 @@ class FactoringDetail(BaseData):
 
 
 @dataclass
-class RealStateCFDetail(BaseData):
+class RealEstateCFDetail(BaseData):
     id: UUID
     name: str
     amount: Dezimal
@@ -272,8 +272,8 @@ class FactoringInvestments:
 
 
 @dataclass
-class RealStateCFInvestments:
-    entries: List[RealStateCFDetail]
+class RealEstateCFInvestments:
+    entries: List[RealEstateCFDetail]
 
 
 @dataclass
@@ -299,7 +299,7 @@ ProductPosition = Union[
     FundInvestments,
     FundPortfolios,
     FactoringInvestments,
-    RealStateCFInvestments,
+    RealEstateCFInvestments,
     Deposits,
     Crowdlending,
     CryptoCurrencies,

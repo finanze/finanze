@@ -294,14 +294,7 @@ export default function FactoringInvestmentPage() {
                         <h3 className="font-semibold text-lg">{factor.name}</h3>
                         <div className="flex items-center gap-2">
                           <Badge variant="outline">{factor.entity}</Badge>
-                          <Badge
-                            variant={
-                              factor.state === "ACTIVE"
-                                ? "default"
-                                : "secondary"
-                            }
-                            className="text-xs"
-                          >
+                          <Badge variant="default" className="text-xs">
                             {formatSnakeCaseToHuman(factor.state)}
                           </Badge>
                         </div>

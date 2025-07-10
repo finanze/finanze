@@ -32,8 +32,8 @@ from domain.fetch_result import (
     FetchResultCode,
 )
 from domain.fetched_data import FetchedData
-from domain.global_position import FactoringDetail, ProductType, RealStateCFDetail
-from domain.historic import BaseHistoricEntry, FactoringEntry, RealStateCFEntry
+from domain.global_position import FactoringDetail, ProductType, RealEstateCFDetail
+from domain.historic import BaseHistoricEntry, FactoringEntry, RealEstateCFEntry
 from domain.transactions import TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
@@ -333,8 +333,8 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         inv_txs = [tx for tx in related_inv_txs if tx.type == TxType.INVESTMENT]
         product_type = next((tx.product_type for tx in inv_txs), None)
 
-        if product_type == ProductType.REAL_STATE_CF:
-            inv = RealStateCFDetail(**inv)
+        if product_type == ProductType.REAL_ESTATE_CF:
+            inv = RealEstateCFDetail(**inv)
         elif product_type == ProductType.FACTORING:
             inv = FactoringDetail(**inv)
         else:
@@ -369,8 +369,8 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             "related_txs": related_inv_txs,
         }
 
-        if product_type == ProductType.REAL_STATE_CF:
-            return RealStateCFEntry(
+        if product_type == ProductType.REAL_ESTATE_CF:
+            return RealEstateCFEntry(
                 **historic_entry_base,
                 interest_rate=Dezimal(inv.interest_rate),
                 maturity=inv.maturity,

@@ -58,17 +58,15 @@ const renderCustomizedLabel = ({
 const CustomTooltip = ({
   active,
   payload,
-  locale = "en",
-  currency = "USD",
+  locale,
+  currency,
   showOriginalCurrency = false,
 }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload
     return (
-      <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
-        <p className="font-medium text-gray-900 dark:text-gray-100">
-          {data.name}
-        </p>
+      <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
+        <p className="font-medium">{data.name}</p>
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {data.percentage.toFixed(2)}% •{" "}
           {showOriginalCurrency && data.currency && data.currency !== currency
@@ -109,7 +107,7 @@ export const InvestmentDistributionChart: React.FC<
 
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
+          <PieChart style={{ userSelect: "none" }}>
             <Pie
               data={data}
               cx="50%"
@@ -124,7 +122,11 @@ export const InvestmentDistributionChart: React.FC<
               strokeWidth={2}
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
+                <Cell
+                  key={`cell-${index}`}
+                  fill={entry.color}
+                  style={{ outline: "none" }}
+                />
               ))}
             </Pie>
             <Tooltip

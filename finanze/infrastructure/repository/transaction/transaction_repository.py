@@ -14,7 +14,7 @@ from domain.transactions import (
     DepositTx,
     FactoringTx,
     FundTx,
-    RealStateCFTx,
+    RealEstateCFTx,
     StockTx,
     TransactionQueryRequest,
     Transactions,
@@ -108,8 +108,8 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             retentions=Dezimal(row["retentions"]),
             interests=Dezimal(row["interests"]),
         )
-    elif row["product_type"] == ProductType.REAL_STATE_CF.value:
-        return RealStateCFTx(
+    elif row["product_type"] == ProductType.REAL_ESTATE_CF.value:
+        return RealEstateCFTx(
             **common,
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
@@ -198,7 +198,7 @@ class TransactionSQLRepository(TransactionPort):
                             else None,
                         }
                     )
-                elif isinstance(tx, (FactoringTx, RealStateCFTx, DepositTx)):
+                elif isinstance(tx, (FactoringTx, RealEstateCFTx, DepositTx)):
                     entry.update(
                         {
                             "net_amount": str(tx.net_amount),

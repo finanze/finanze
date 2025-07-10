@@ -17,11 +17,11 @@ from domain.global_position import (
     GlobalPosition,
     HistoricalPosition,
     ProductType,
-    RealStateCFDetail,
-    RealStateCFInvestments,
+    RealEstateCFDetail,
+    RealEstateCFInvestments,
 )
 from domain.native_entities import WECITY
-from domain.transactions import RealStateCFTx, Transactions, TxType
+from domain.transactions import RealEstateCFTx, Transactions, TxType
 from infrastructure.client.entity.financial.wecity.wecity_client import WecityAPIClient
 
 DATE_FORMAT = "%Y-%m-%d"
@@ -103,7 +103,7 @@ class WecityFetcher(FinancialEntityFetcher):
 
         products = {
             ProductType.ACCOUNT: Accounts([account]),
-            ProductType.REAL_STATE_CF: RealStateCFInvestments(investment_details),
+            ProductType.REAL_ESTATE_CF: RealEstateCFInvestments(investment_details),
         }
 
         return GlobalPosition(id=uuid4(), entity=WECITY, products=products)
@@ -182,7 +182,7 @@ class WecityFetcher(FinancialEntityFetcher):
             else None
         )
 
-        return RealStateCFDetail(
+        return RealEstateCFDetail(
             id=uuid4(),
             name=name,
             amount=round(amount, 2),
@@ -246,7 +246,7 @@ class WecityFetcher(FinancialEntityFetcher):
                 interests = amount
 
             txs.append(
-                RealStateCFTx(
+                RealEstateCFTx(
                     id=uuid4(),
                     ref=ref,
                     name=name,
@@ -255,7 +255,7 @@ class WecityFetcher(FinancialEntityFetcher):
                     type=tx_type,
                     date=tx_date,
                     entity=WECITY,
-                    product_type=ProductType.REAL_STATE_CF,
+                    product_type=ProductType.REAL_ESTATE_CF,
                     fees=Dezimal(0),
                     retentions=round(retentions, 2),
                     interests=round(interests, 2),
@@ -286,5 +286,5 @@ class WecityFetcher(FinancialEntityFetcher):
             investment_details.append(self._map_investment(related_txs, inv_id, inv))
 
         return HistoricalPosition(
-            {ProductType.REAL_STATE_CF: RealStateCFInvestments(investment_details)}
+            {ProductType.REAL_ESTATE_CF: RealEstateCFInvestments(investment_details)}
         )

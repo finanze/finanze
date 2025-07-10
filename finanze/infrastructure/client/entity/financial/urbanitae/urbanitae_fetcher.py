@@ -15,11 +15,11 @@ from domain.global_position import (
     GlobalPosition,
     HistoricalPosition,
     ProductType,
-    RealStateCFDetail,
-    RealStateCFInvestments,
+    RealEstateCFDetail,
+    RealEstateCFInvestments,
 )
 from domain.native_entities import URBANITAE
-from domain.transactions import RealStateCFTx, Transactions, TxType
+from domain.transactions import RealEstateCFTx, Transactions, TxType
 from infrastructure.client.entity.financial.urbanitae.urbanitae_client import (
     UrbanitaeAPIClient,
 )
@@ -62,7 +62,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         investments_data = self._client.get_investments()
 
-        real_state_cf_inv_details = [
+        real_estate_cf_inv_details = [
             self._map_investment(inv)
             for inv in investments_data
             if inv["projectPhase"] in ACTIVE_PHASES
@@ -70,8 +70,8 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         products = {
             ProductType.ACCOUNT: Accounts([account]),
-            ProductType.REAL_STATE_CF: RealStateCFInvestments(
-                real_state_cf_inv_details
+            ProductType.REAL_ESTATE_CF: RealEstateCFInvestments(
+                real_estate_cf_inv_details
             ),
         }
 
@@ -97,7 +97,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
         amount = round(Dezimal(inv["investedQuantity"]), 2)
         pending_amount = round(Dezimal(inv["investedQuantityActive"]), 2)
 
-        return RealStateCFDetail(
+        return RealEstateCFDetail(
             id=uuid4(),
             name=inv["projectName"],
             amount=amount,
@@ -162,7 +162,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
                 interests = amount
 
             txs.append(
-                RealStateCFTx(
+                RealEstateCFTx(
                     id=uuid4(),
                     ref=ref,
                     name=name,
@@ -171,7 +171,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
                     type=tx_type,
                     date=datetime.strptime(tx["timestamp"], self.DATETIME_FORMAT),
                     entity=URBANITAE,
-                    product_type=ProductType.REAL_STATE_CF,
+                    product_type=ProductType.REAL_ESTATE_CF,
                     fees=fee,
                     retentions=retentions,
                     interests=interests,
@@ -185,14 +185,14 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
     async def historical_position(self) -> HistoricalPosition:
         investments_data = self._client.get_investments()
 
-        real_state_cf_inv_details = [
+        real_estate_cf_inv_details = [
             self._map_investment(inv) for inv in investments_data
         ]
 
         return HistoricalPosition(
             {
-                ProductType.REAL_STATE_CF: RealStateCFInvestments(
-                    real_state_cf_inv_details
+                ProductType.REAL_ESTATE_CF: RealEstateCFInvestments(
+                    real_estate_cf_inv_details
                 )
             }
         )
