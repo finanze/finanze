@@ -129,10 +129,12 @@ below:
 1. Remove the quarantine attribute from the application using the following command in the terminal:
 
 ```sh
-cd /Applications & xattr -d com.apple.quarantine Finanze.app
+cd /Applications && xattr -d com.apple.quarantine Finanze.app
 ```
 
 2. Open the application as usual.
+3. *(Disclaimer)* If it still doesn't open, or you get some kind of "Operation not permitted" error in the previous command, then do the following:
+   - Go to `System Settings → Privacy & Security → Full Disk Access` and add or enable `Terminal` in the list.
 
 ## Development
 
