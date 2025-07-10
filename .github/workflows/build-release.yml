@@ -46,7 +46,7 @@ jobs:
           python-version: 3.11.9
 
       - name: Setup python (macOS)
-        if: ${{ !startsWith(matrix.os, 'macos-') }}
+        if: ${{ startsWith(matrix.os, 'macos-') }}
         shell: bash
         run: |
           brew install pyenv pyenv-virtualenv
