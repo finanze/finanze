@@ -21,8 +21,13 @@ from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import FetchRecord
-from domain.fetch_result import FetchOptions, FetchRequest, FetchResult, FetchResultCode
-from domain.fetched_data import FetchedData
+from domain.fetch_result import (
+    FetchedData,
+    FetchOptions,
+    FetchRequest,
+    FetchResult,
+    FetchResultCode,
+)
 from domain.global_position import (
     CryptoAsset,
     CryptoCurrencies,

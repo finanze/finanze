@@ -138,9 +138,7 @@
     "UNEXPECTED_ERROR": "Ocurrió un error inesperado",
     "NOT_LOGGED": "No ha iniciado sesión",
     "COOLDOWN": "Por favor espere antes de intentar nuevamente",
-    "ENTITY_NOT_FOUND": "Entidad no encontrada",
     "FEATURE_NOT_SUPPORTED": "Característica no soportada",
-    "DISABLED": "Esta característica está deshabilitada",
     "EXTERNAL_LOGIN_FAILED": "Error en el inicio de sesión externo. Por favor intente de nuevo.",
     "LOGIN_REQUIRED": "Se requiere iniciar sesión. Por favor inicie sesión nuevamente.",
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente."
@@ -163,8 +161,6 @@
     "setupUserEntered": "Configurar Datos Manuales",
     "userEnteredDescription": "Importa datos desde tus hojas de Google configuradas para seguimiento manual.",
     "userEnteredAvailableDescription": "Configura Google Sheets para importar datos financieros.",
-    "virtualConnectedDescription": "Ejecuta una extracción virtual para generar datos de prueba sin conectarte a entidades bancarias reales.",
-    "virtualAvailableDescription": "Ejecuta una extracción virtual para generar datos de prueba sin conectarte a entidades bancarias reales.",
     "configureInSettings": "Configurar en Ajustes",
     "relogin": "Reloguearse",
     "disconnect": "Desconectar",
@@ -478,6 +474,20 @@
     "noCommodities": "No hay materias primas registradas",
     "addFirstCommodity": "Agrega tu primera entrada de materia prima para empezar",
     "saveError": "Error al guardar las materias primas"
+  },
+  "importErrors": {
+    "title": "Advertencias de Importación",
+    "description": "Tus datos fueron importados exitosamente, pero algunas filas fueron omitidas debido a errores. Por favor revisa y corrige los siguientes problemas:",
+    "sheetNotFound": "Hoja No Encontrada",
+    "missingField": "Campo Faltante",
+    "validationError": "Error de Validación",
+    "unknownError": "Error Desconocido",
+    "sheetNotFoundMessage": "La hoja {entry} no fue encontrada",
+    "missingFieldMessage": "Campos requeridos faltantes en {entry}:",
+    "validationErrorMessage": "Errores de validación en {entry}:",
+    "validationErrorRow": "Fila: {row}",
+    "fieldError": "Campo {field}: valor inválido {value}",
+    "unknownErrorMessage": "Error desconocido en {entry}"
   },
   "crypto": {
     "BTC": "Bitcoin",

@@ -11,6 +11,7 @@ import type {
   CreateCryptoWalletRequest,
   UpdateCryptoWalletConnectionRequest,
   SaveCommodityRequest,
+  VirtualFetchResponse,
 } from "@/types"
 import {
   EntityContributions,
@@ -146,7 +147,7 @@ export async function fetchCryptoEntity(
   return data
 }
 
-export async function virtualFetch(): Promise<FetchResponse> {
+export async function virtualFetch(): Promise<VirtualFetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/fetch/virtual`, {
     method: "POST",

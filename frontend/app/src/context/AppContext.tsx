@@ -17,6 +17,7 @@ import {
   PlatformType,
   type PlatformInfo,
   type ExchangeRates,
+  type VirtualFetchError,
 } from "@/types"
 import {
   getEntities,
@@ -35,6 +36,11 @@ import { WeightUnit } from "@/types/position"
 
 const DEFAULT_OPTIONS: FetchOptions = {
   deep: false,
+}
+
+export interface VirtualFetchResult {
+  gotData: boolean
+  errors?: VirtualFetchError[]
 }
 
 export interface AppSettings {
@@ -125,7 +131,7 @@ interface AppContextType {
     features: Feature[],
     options?: object,
   ) => Promise<void>
-  runVirtualScrape: () => Promise<void>
+  runVirtualScrape: () => Promise<VirtualFetchResult | null>
   resetState: () => void
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
@@ -650,23 +656,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const runVirtualScrape = async () => {
+  const runVirtualScrape = async (): Promise<VirtualFetchResult | null> => {
     try {
       const response = await virtualFetch()
 
-      if (
-        response.code === "COMPLETED" &&
-        (response?.data?.positions ||
+      if (response.code === "COMPLETED") {
+        let gotData = false
+        if (
+          response?.data?.positions ||
           response?.data?.transactions?.account ||
-          response?.data?.transactions?.investment)
-      ) {
-        showToast(t.common.virtualScrapeSuccess, "success")
-        await fetchEntities()
+          response?.data?.transactions?.investment
+        ) {
+          gotData = true
+          showToast(t.common.virtualScrapeSuccess, "success")
+        }
+
+        return { gotData: gotData, errors: response.errors }
       } else {
         handleScrapeError(response.code)
+        return null
       }
     } catch {
       showToast(t.common.virtualScrapeError, "error")
+      return null
     }
   }
 

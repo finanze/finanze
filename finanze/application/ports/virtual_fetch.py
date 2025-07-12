@@ -1,14 +1,12 @@
 import abc
-from typing import Optional
 
 from domain.entity import Entity
-from domain.global_position import GlobalPosition
 from domain.settings import (
     GoogleCredentials,
     VirtualPositionSheetConfig,
     VirtualTransactionSheetConfig,
 )
-from domain.transactions import Transactions
+from domain.virtual_fetch_result import VirtualPositionResult, VirtualTransactionResult
 
 
 class VirtualFetcher(metaclass=abc.ABCMeta):
@@ -17,7 +15,7 @@ class VirtualFetcher(metaclass=abc.ABCMeta):
         credentials: GoogleCredentials,
         investment_sheets: list[VirtualPositionSheetConfig],
         existing_entities: dict[str, Entity],
-    ) -> tuple[list[GlobalPosition], set[Entity]]:
+    ) -> VirtualPositionResult:
         raise NotImplementedError
 
     async def transactions(
@@ -25,5 +23,5 @@ class VirtualFetcher(metaclass=abc.ABCMeta):
         credentials: GoogleCredentials,
         txs_sheets: list[VirtualTransactionSheetConfig],
         existing_entities: dict[str, Entity],
-    ) -> tuple[Optional[Transactions], set[Entity]]:
+    ) -> VirtualTransactionResult:
         raise NotImplementedError

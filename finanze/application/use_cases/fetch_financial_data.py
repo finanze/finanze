@@ -26,12 +26,12 @@ from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
+    FetchedData,
     FetchOptions,
     FetchRequest,
     FetchResult,
     FetchResultCode,
 )
-from domain.fetched_data import FetchedData
 from domain.global_position import FactoringDetail, ProductType, RealEstateCFDetail
 from domain.historic import BaseHistoricEntry, FactoringEntry, RealEstateCFEntry
 from domain.transactions import TxType

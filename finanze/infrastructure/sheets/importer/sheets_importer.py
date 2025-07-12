@@ -1,7 +1,6 @@
 import json
 import logging
 from datetime import datetime
-from typing import Optional
 from uuid import uuid4
 
 from application.ports.virtual_fetch import VirtualFetcher
@@ -43,11 +42,18 @@ from domain.settings import (
 )
 from domain.transactions import (
     BaseTx,
+    DepositTx,
     FactoringTx,
     FundTx,
     RealEstateCFTx,
     StockTx,
     Transactions,
+)
+from domain.virtual_fetch_result import (
+    VirtualFetchError,
+    VirtualFetchErrorType,
+    VirtualPositionResult,
+    VirtualTransactionResult,
 )
 from googleapiclient.errors import HttpError
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
@@ -55,6 +61,14 @@ from pydantic import ValidationError
 
 DEFAULT_DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 DEFAULT_DATE_FORMAT = "%d/%m/%Y"
+
+
+class InvalidFieldError(Exception):
+    def __init__(self, field_name: str, value: str):
+        self.field_name = field_name
+        self.value = value
+        message = f"Invalid field value: {field_name} = {value}"
+        super().__init__(message)
 
 
 def parse_number(value: str) -> float:
@@ -98,6 +112,7 @@ class SheetsImporter(VirtualFetcher):
         "FUND": FundTx,
         "REAL_ESTATE_CF": RealEstateCFTx,
         "FACTORING": FactoringTx,
+        "DEPOSIT": DepositTx,
     }
 
     def __init__(self, sheets_service: SheetsServiceLoader):
@@ -109,7 +124,8 @@ class SheetsImporter(VirtualFetcher):
         credentials: GoogleCredentials,
         position_configs: list[VirtualPositionSheetConfig],
         existing_entities: dict[str, Entity],
-    ) -> tuple[list[GlobalPosition], set[Entity]]:
+    ) -> VirtualPositionResult:
+        all_errors = []
         global_positions_dicts = {}
         for config in position_configs:
             field = config.data
@@ -119,9 +135,10 @@ class SheetsImporter(VirtualFetcher):
             if not parent_type and not detail_type:
                 raise ValueError(f"Invalid field {field}")
 
-            per_entity = self._load_products(
+            per_entity, errors = self._load_products(
                 detail_type, parent_type, credentials, config
             )
+            all_errors.extend(errors)
             for entity in per_entity:
                 if entity not in global_positions_dicts:
                     global_positions_dicts[entity] = {"products": {}}
@@ -175,7 +192,9 @@ class SheetsImporter(VirtualFetcher):
                 )
             )
 
-        return global_positions, set(created_entities.values())
+        return VirtualPositionResult(
+            global_positions, set(created_entities.values()), all_errors
+        )
 
     def _load_products(
         self,
@@ -183,12 +202,15 @@ class SheetsImporter(VirtualFetcher):
         parent_cls,
         credentials: GoogleCredentials,
         config: VirtualPositionSheetConfig,
-    ) -> dict[str, ProductPosition]:
+    ) -> tuple[dict[str, ProductPosition], list[VirtualFetchError]]:
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
             p_id = uuid4()
             product_dict["id"] = p_id
+            if "entity" not in product_dict:
+                raise MissingFieldsError(["entity"])
+
             entity = product_dict["entity"]
             entity_products = details_per_entity.get(entity, [])
 
@@ -209,10 +231,10 @@ class SheetsImporter(VirtualFetcher):
 
             details_per_entity[entity] = entity_products
 
-        self._parse_sheet_table(credentials, config, process_entry_fn)
+        errors = self._parse_sheet_table(credentials, config, process_entry_fn)
 
         if not details_per_entity:
-            return {}
+            return {}, errors
 
         per_entity = {}
         for entity, entity_products in details_per_entity.items():
@@ -227,23 +249,25 @@ class SheetsImporter(VirtualFetcher):
 
                 per_entity[entity] = parent_cls(**parent_obj_dict)
 
-        return per_entity
+        return per_entity, errors
 
     async def transactions(
         self,
         credentials: GoogleCredentials,
         txs_configs: list[VirtualTransactionSheetConfig],
         existing_entities: dict[str, Entity],
-    ) -> tuple[Optional[Transactions], set[Entity]]:
+    ) -> VirtualTransactionResult:
+        all_errors = []
         all_created_entities = {}
         transactions = Transactions(investment=[], account=[])
 
         for config in txs_configs:
             field = config.data
 
-            txs, created_entities = self._load_txs(
+            txs, created_entities, errors = self._load_txs(
                 credentials, config, existing_entities, all_created_entities
             )
+            all_errors.extend(errors)
             all_created_entities.update(created_entities)
 
             current_transactions = None
@@ -255,7 +279,9 @@ class SheetsImporter(VirtualFetcher):
             if current_transactions:
                 transactions += current_transactions
 
-        return transactions, set(all_created_entities.values())
+        return VirtualTransactionResult(
+            transactions, set(all_created_entities.values()), all_errors
+        )
 
     def _load_txs(
         self,
@@ -263,7 +289,7 @@ class SheetsImporter(VirtualFetcher):
         config: VirtualTransactionSheetConfig,
         existing_entities: dict[str, Entity],
         already_created_entities: dict[str, Entity],
-    ) -> tuple[list[BaseTx], dict[str, Entity]]:
+    ) -> tuple[list[BaseTx], dict[str, Entity], list[VirtualFetchError]]:
         txs = []
         created_entities = {}
 
@@ -272,12 +298,18 @@ class SheetsImporter(VirtualFetcher):
             tx_dict["id"] = tx_id
             tx_dict["is_real"] = False
 
-            prod_type = tx_dict.get("product_type")
+            if "product_type" not in tx_dict:
+                raise MissingFieldsError(["product_type"])
+
+            prod_type = tx_dict["product_type"]
             if prod_type not in self.TX_PROD_TYPE_ATTR_MAP:
-                self._log.warning(
-                    f"Skipping row {row}: Invalid product type {prod_type}"
+                raise InvalidFieldError(
+                    "product_type",
+                    prod_type,
                 )
-                return
+
+            if "entity" not in tx_dict:
+                raise MissingFieldsError(["entity"])
 
             entity_name = tx_dict["entity"]
             if entity_name in existing_entities:
@@ -300,17 +332,17 @@ class SheetsImporter(VirtualFetcher):
             cls = self.TX_PROD_TYPE_ATTR_MAP[prod_type]
             txs.append(cls.from_dict(tx_dict))
 
-        self._parse_sheet_table(credentials, config, process_entry_fn)
+        errors = self._parse_sheet_table(credentials, config, process_entry_fn)
 
-        return txs, created_entities
+        return txs, created_entities, errors
 
     def _parse_sheet_table(
         self, credentials: GoogleCredentials, config: BaseSheetConfig, entry_fn
-    ):
+    ) -> list[VirtualFetchError]:
         sheet_range, sheet_id = config.range, config.spreadsheetId
-        cells = self._read_sheet_table(credentials, sheet_id, sheet_range)
+        cells, errors = self._read_sheet_table(credentials, sheet_id, sheet_range)
         if not cells:
-            return {}
+            return errors
 
         header_row_index, start_column_index = next(
             (
@@ -321,7 +353,7 @@ class SheetsImporter(VirtualFetcher):
             (None, None),
         )
         if header_row_index is None or start_column_index is None:
-            return {}
+            return errors
 
         columns = cells[header_row_index][start_column_index:]
 
@@ -337,16 +369,56 @@ class SheetsImporter(VirtualFetcher):
             try:
                 entry_fn(row, entry_dict)
             except MissingFieldsError as e:
+                errors.append(
+                    VirtualFetchError(
+                        VirtualFetchErrorType.MISSING_FIELD,
+                        config.range,
+                        e.missing_fields,
+                        row,
+                    )
+                )
                 self._log.warning(f"Skipping row {row}: {e}")
                 continue
             except ValidationError as e:
+                errors.append(
+                    VirtualFetchError(
+                        VirtualFetchErrorType.VALIDATION_ERROR,
+                        config.range,
+                        [
+                            {
+                                "field": ".".join(map(str, error.get("loc"))),
+                                "value": error.get("input"),
+                            }
+                            for error in e.errors()
+                        ],
+                        row,
+                    )
+                )
                 self._log.warning(f"Skipping row {row}: {e}")
                 continue
+            except InvalidFieldError as e:
+                errors.append(
+                    VirtualFetchError(
+                        VirtualFetchErrorType.VALIDATION_ERROR,
+                        config.range,
+                        [
+                            {
+                                "field": e.field_name,
+                                "value": e.value,
+                            }
+                        ],
+                        row,
+                    )
+                )
+                self._log.warning(f"Skipping row {row}: {e}")
+                continue
+        return errors
 
     def _read_sheet_table(
         self, credentials: GoogleCredentials, sheet_id, cell_range
-    ) -> list[list]:
+    ) -> tuple[list[list], list[VirtualFetchError]]:
         sheets_service = self._sheets_service.service(credentials)
+        errors = []
         try:
             result = (
                 sheets_service.values()
@@ -354,10 +426,13 @@ class SheetsImporter(VirtualFetcher):
                 .execute()
             )
         except HttpError as e:
-            if e.status_code == 404:
+            if e.status_code == 400:
+                errors.append(
+                    VirtualFetchError(VirtualFetchErrorType.SHEET_NOT_FOUND, cell_range)
+                )
                 self._log.warning(f"Sheet {sheet_id} not found")
-                return []
+                return [], errors
             else:
                 raise
 
-        return result.get("values", [])
+        return result.get("values", []), errors

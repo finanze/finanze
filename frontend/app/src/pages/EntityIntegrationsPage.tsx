@@ -23,8 +23,14 @@ import {
   Settings,
   Download,
 } from "lucide-react"
-import { EntitySetupLoginType, EntityStatus, EntityType } from "@/types"
+import {
+  EntitySetupLoginType,
+  EntityStatus,
+  EntityType,
+  VirtualFetchError,
+} from "@/types"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
 import { createCryptoWallet } from "@/services/api"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { ProductType } from "@/types/position"
@@ -57,6 +63,10 @@ export default function EntityIntegrationsPage() {
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
   const [showManageCommodities, setShowManageCommodities] = useState(false)
+  const [virtualErrors, setVirtualErrors] = useState<
+    VirtualFetchError[] | null
+  >(null)
+  const [showErrorDetails, setShowErrorDetails] = useState(false)
 
   const virtualEnabled = settings?.fetch?.virtual?.enabled ?? false
 
@@ -185,19 +195,36 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleVirtualConfirm = async () => {
+    let result
     try {
       setIsVirtualScraping(true)
-      await runVirtualScrape()
+      result = await runVirtualScrape()
     } catch (error) {
       console.error("Error running virtual scrape:", error)
     } finally {
       setIsVirtualScraping(false)
       setShowVirtualConfirm(false)
     }
+
+    if (result) {
+      const { gotData, errors } = result
+      if (errors && errors.length > 0) {
+        setVirtualErrors(errors)
+        setShowErrorDetails(true)
+      }
+      if (gotData) {
+        await fetchEntities()
+      }
+    }
   }
 
   const handleVirtualCancel = () => {
     setShowVirtualConfirm(false)
+  }
+
+  const handleCloseErrorDetails = () => {
+    setShowErrorDetails(false)
+    setVirtualErrors(null)
   }
 
   const handleManage = (entity: any) => {
@@ -756,6 +783,12 @@ export default function EntityIntegrationsPage() {
         onConfirm={handleVirtualConfirm}
         onCancel={handleVirtualCancel}
         isLoading={isVirtualScraping}
+      />
+
+      <ErrorDetailsDialog
+        isOpen={showErrorDetails}
+        errors={virtualErrors || []}
+        onClose={handleCloseErrorDetails}
       />
     </div>
   )

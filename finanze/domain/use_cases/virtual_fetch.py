@@ -1,9 +1,9 @@
 import abc
 
-from domain.fetch_result import FetchResult
+from domain.virtual_fetch_result import VirtualFetchResult
 
 
 class VirtualFetch(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    async def execute(self) -> FetchResult:
+    async def execute(self) -> VirtualFetchResult:
         raise NotImplementedError

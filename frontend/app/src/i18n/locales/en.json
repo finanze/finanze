@@ -140,9 +140,7 @@
     "UNEXPECTED_ERROR": "An unexpected error occurred",
     "NOT_LOGGED": "Not logged in",
     "COOLDOWN": "Please wait before trying again",
-    "ENTITY_NOT_FOUND": "Entity not found",
     "FEATURE_NOT_SUPPORTED": "Feature not supported",
-    "DISABLED": "This feature is disabled",
     "EXTERNAL_LOGIN_FAILED": "External login failed. Please try again.",
     "LOGIN_REQUIRED": "Login required. Please login again.",
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again."
@@ -165,8 +163,6 @@
     "setupUserEntered": "Setup User Data",
     "userEnteredDescription": "Import data from your configured Google Sheets for manual tracking.",
     "userEnteredAvailableDescription": "Configure Google Sheets to import financial data.",
-    "virtualConnectedDescription": "Run a virtual scrape to generate test data without connecting to real bank entities.",
-    "virtualAvailableDescription": "Run a virtual scrape to generate test data without connecting to real bank entities.",
     "configureInSettings": "Configure in Settings",
     "relogin": "Relogin",
     "disconnect": "Disconnect",
@@ -479,6 +475,20 @@
     "noCommodities": "No commodities registered",
     "addFirstCommodity": "Add your first commodity entry to get started",
     "saveError": "Failed to save commodities"
+  },
+  "importErrors": {
+    "title": "Import Warnings",
+    "description": "Your data was imported successfully, but some rows were skipped due to errors. Please review and fix the following issues:",
+    "sheetNotFound": "Sheet Not Found",
+    "missingField": "Missing Field",
+    "validationError": "Validation Error",
+    "unknownError": "Unknown Error",
+    "sheetNotFoundMessage": "Sheet {entry} was not found",
+    "missingFieldMessage": "Missing required fields in {entry}:",
+    "validationErrorMessage": "Validation errors in {entry}:",
+    "validationErrorRow": "Row: {row}",
+    "fieldError": "Field {field}: invalid value {value}",
+    "unknownErrorMessage": "Unknown error in {entry}"
   },
   "crypto": {
     "BTC": "Bitcoin",

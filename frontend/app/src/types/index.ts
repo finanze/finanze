@@ -100,6 +100,30 @@ export interface FetchResponse {
   data?: any
 }
 
+export enum VirtualFetchErrorType {
+  SHEET_NOT_FOUND = "SHEET_NOT_FOUND",
+  MISSING_FIELD = "MISSING_FIELD",
+  VALIDATION_ERROR = "VALIDATION_ERROR",
+}
+
+export interface VirtualFetchError {
+  type: VirtualFetchErrorType
+  entry: string
+  detail?:
+    | {
+        field: string
+        value: string
+      }[]
+    | string[]
+  row?: string[]
+}
+
+export interface VirtualFetchResponse {
+  code: VirtualFetchResultCode
+  data?: any
+  errors?: VirtualFetchError[]
+}
+
 export interface EntitiesResponse {
   entities: Entity[]
 }
@@ -136,11 +160,7 @@ export enum FetchResultCode {
   COOLDOWN = "COOLDOWN",
 
   // Bad user input
-  ENTITY_NOT_FOUND = "ENTITY_NOT_FOUND",
   FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED",
-
-  // Entity or feature disabled (also bad input)
-  DISABLED = "DISABLED",
 
   // Login related codes
   CODE_REQUESTED = "CODE_REQUESTED",
@@ -151,6 +171,14 @@ export enum FetchResultCode {
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
   LOGIN_REQUIRED = "LOGIN_REQUIRED",
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",
+}
+
+export enum VirtualFetchResultCode {
+  // Success
+  COMPLETED = "COMPLETED",
+
+  // Virtual fetch not enabled
+  DISABLED = "DISABLED",
 }
 
 export interface Settings {

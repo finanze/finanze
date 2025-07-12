@@ -9,5 +9,7 @@ async def virtual_fetch(virtual_fetch_uc: VirtualFetch):
     response = {"code": result.code.name}
     if result.data:
         response["data"] = result.data
+    if result.errors:
+        response["errors"] = result.errors
 
     return jsonify(response), 200

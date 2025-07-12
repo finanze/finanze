@@ -14,10 +14,13 @@ from application.use_cases.update_sheets import apply_global_config
 from dateutil.tz import tzlocal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict
-from domain.fetch_result import FetchResult, FetchResultCode
-from domain.fetched_data import VirtuallyFetchedData
 from domain.use_cases.virtual_fetch import VirtualFetch
 from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
+from domain.virtual_fetch_result import (
+    VirtualFetchResult,
+    VirtualFetchResultCode,
+    VirtuallyFetchedData,
+)
 
 
 class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
@@ -42,7 +45,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
 
         self._lock = Lock()
 
-    async def execute(self) -> FetchResult:
+    async def execute(self) -> VirtualFetchResult:
         config = self._config_port.load()
         virtual_fetch_config = config.fetch.virtual
 
@@ -53,7 +56,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
             or not sheet_config
             or not sheet_config.credentials
         ):
-            return FetchResult(FetchResultCode.DISABLED)
+            return VirtualFetchResult(VirtualFetchResultCode.DISABLED)
 
         if self._lock.locked():
             raise ExecutionConflict()
@@ -73,23 +76,20 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
                 entity.name: entity for entity in existing_entities
             }
 
-            (
-                global_positions,
-                created_pos_entities,
-            ) = await self._virtual_fetcher.global_positions(
+            virtual_position_result = await self._virtual_fetcher.global_positions(
                 sheets_credentials, investment_sheets, existing_entities_by_name
             )
 
             now = datetime.now(tzlocal())
             import_id = None
             virtual_import_entries = []
-            if global_positions:
-                for entity in created_pos_entities:
+            if virtual_position_result.positions:
+                for entity in virtual_position_result.created_entities:
                     self._entity_port.insert(entity)
                     existing_entities_by_name[entity.name] = entity
 
                 import_id = uuid4()
-                for position in global_positions:
+                for position in virtual_position_result.positions:
                     self._position_port.save(position)
                     virtual_import_entries.append(
                         VirtualDataImport(
@@ -102,18 +102,16 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
                         )
                     )
 
-            (
-                transactions,
-                created_tx_entities,
-            ) = await self._virtual_fetcher.transactions(
+            virtual_txs_result = await self._virtual_fetcher.transactions(
                 sheets_credentials,
                 transaction_sheets,
                 existing_entities_by_name,
             )
 
             self._transaction_port.delete_non_real()
+            transactions = virtual_txs_result.transactions
             if transactions:
-                for entity in created_tx_entities:
+                for entity in virtual_txs_result.created_entities:
                     self._entity_port.insert(entity)
 
                 self._transaction_port.save(transactions)
@@ -148,8 +146,14 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
 
             self._virtual_import_registry.insert(virtual_import_entries)
 
+            errors = virtual_position_result.errors + virtual_txs_result.errors
             data = VirtuallyFetchedData(
-                positions=global_positions, transactions=transactions
+                positions=virtual_position_result.positions,
+                transactions=transactions,
             )
 
-            return FetchResult(FetchResultCode.COMPLETED, data=data)
+            return VirtualFetchResult(
+                VirtualFetchResultCode.COMPLETED,
+                data=data,
+                errors=errors,
+            )
