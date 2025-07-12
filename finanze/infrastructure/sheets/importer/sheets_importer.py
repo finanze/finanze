@@ -132,8 +132,12 @@ class SheetsImporter(VirtualFetcher):
             parent_type, detail_type = self.PRODUCT_TYPE_CLS_MAP.get(
                 field, (None, None)
             )
+
             if not parent_type and not detail_type:
-                raise ValueError(f"Invalid field {field}")
+                raise InvalidFieldError(
+                    "product_type",
+                    field,
+                )
 
             per_entity, errors = self._load_products(
                 detail_type, parent_type, credentials, config
