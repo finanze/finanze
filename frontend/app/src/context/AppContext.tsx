@@ -663,9 +663,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (response.code === "COMPLETED") {
         let gotData = false
         if (
-          response?.data?.positions ||
-          response?.data?.transactions?.account ||
-          response?.data?.transactions?.investment
+          (
+            response?.data?.positions ||
+            response?.data?.transactions?.account ||
+            response?.data?.transactions?.investment
+          )?.length
         ) {
           gotData = true
           showToast(t.common.virtualScrapeSuccess, "success")

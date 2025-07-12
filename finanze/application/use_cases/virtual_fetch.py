@@ -81,14 +81,13 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
             )
 
             now = datetime.now(tzlocal())
-            import_id = None
+            import_id = uuid4()
             virtual_import_entries = []
             if virtual_position_result.positions:
                 for entity in virtual_position_result.created_entities:
                     self._entity_port.insert(entity)
                     existing_entities_by_name[entity.name] = entity
 
-                import_id = uuid4()
                 for position in virtual_position_result.positions:
                     self._position_port.save(position)
                     virtual_import_entries.append(
@@ -132,7 +131,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
                         )
                     )
 
-            if not virtual_import_entries and import_id:
+            if not virtual_import_entries:
                 virtual_import_entries.append(
                     VirtualDataImport(
                         import_id=import_id,

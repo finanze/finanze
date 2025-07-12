@@ -416,6 +416,17 @@ class SheetsImporter(VirtualFetcher):
                 )
                 self._log.warning(f"Skipping row {row}: {e}")
                 continue
+            except Exception as e:
+                errors.append(
+                    VirtualFetchError(
+                        VirtualFetchErrorType.UNEXPECTED_ERROR,
+                        config.range,
+                        [str(e)],
+                        row,
+                    )
+                )
+                self._log.warning(f"Skipping row {row}: {e}")
+                continue
         return errors
 
     def _read_sheet_table(

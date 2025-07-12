@@ -100,7 +100,25 @@ export function ErrorDetailsDialog({
       default:
         return (
           <div className="text-sm text-gray-600 dark:text-gray-400">
-            {t.importErrors.unknownErrorMessage.replace("{entry}", error.entry)}
+            <div>
+              {t.importErrors.unknownErrorMessage.replace(
+                "{entry}",
+                error.entry,
+              )}
+            </div>
+            {error.row && (
+              <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+                {t.importErrors.validationErrorRow.replace(
+                  "{row}",
+                  error.row.join(", "),
+                )}
+              </div>
+            )}
+            <ul className="list-disc list-inside ml-2 mt-1">
+              {(error.detail as string[])?.map((err, index) => (
+                <li key={index}>{err}</li>
+              ))}
+            </ul>
           </div>
         )
     }
