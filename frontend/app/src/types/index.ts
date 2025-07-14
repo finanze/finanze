@@ -289,3 +289,29 @@ export interface CommodityRegister {
 export interface SaveCommodityRequest {
   registers: CommodityRegister[]
 }
+
+export enum ExternalIntegrationType {
+  CRYPTO_PROVIDER = "CRYPTO_PROVIDER",
+  DATA_SOURCE = "DATA_SOURCE",
+}
+
+export enum ExternalIntegrationStatus {
+  ON = "ON",
+  OFF = "OFF",
+}
+
+export interface ExternalIntegration {
+  id: string
+  name: string
+  status: ExternalIntegrationStatus
+  type: ExternalIntegrationType
+}
+
+export interface ExternalIntegrations {
+  integrations: ExternalIntegration[]
+}
+
+export interface GoogleIntegrationCredentials {
+  client_id: string
+  client_secret: string
+}

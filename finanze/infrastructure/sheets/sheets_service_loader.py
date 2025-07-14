@@ -1,7 +1,7 @@
 from threading import Lock
 
 from application.ports.sheets_initiator import SheetsInitiator
-from domain.settings import GoogleCredentials
+from domain.external_integration import GoogleIntegrationCredentials
 from domain.user import User
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -14,7 +14,7 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 TOKEN_FILENAME = "token.json"
 
 
-def _client_config(credentials: GoogleCredentials) -> dict:
+def _client_config(credentials: GoogleIntegrationCredentials) -> dict:
     client_id, client_secret = credentials.client_id, credentials.client_secret
     if not client_id or not client_secret:
         raise ValueError("Google credentials not found")
@@ -42,7 +42,23 @@ class SheetsServiceLoader(SheetsInitiator):
     def connect(self, user: User):
         self._base_path = user.path
 
-    def _load_creds(self, credentials: GoogleCredentials):
+    def setup_credentials(self, credentials: GoogleIntegrationCredentials):
+        if not self._base_path:
+            raise ValueError("Base path not set")
+
+        token_path = self._base_path / TOKEN_FILENAME
+
+        client_config = _client_config(credentials)
+
+        flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+        creds = flow.run_local_server(port=0)
+
+        with open(token_path, "w") as token:
+            token.write(creds.to_json())
+
+        return creds
+
+    def _load_credentials(self, credentials: GoogleIntegrationCredentials):
         if not self._base_path:
             raise ValueError("Base path not set")
 
@@ -56,20 +72,17 @@ class SheetsServiceLoader(SheetsInitiator):
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                client_config = _client_config(credentials)
-
-                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-                creds = flow.run_local_server(port=0)
+                return self.setup_credentials(credentials)
 
             with open(token_path, "w") as token:
                 token.write(creds.to_json())
 
         return creds
 
-    def service(self, credentials: GoogleCredentials):
+    def service(self, credentials: GoogleIntegrationCredentials):
         with self._lock:
             if not self._service:
-                creds = self._load_creds(credentials)
+                creds = self._load_credentials(credentials)
                 service = build("sheets", "v4", credentials=creds)
                 self._service = service.spreadsheets()
 

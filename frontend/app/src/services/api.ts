@@ -12,6 +12,8 @@ import type {
   UpdateCryptoWalletConnectionRequest,
   SaveCommodityRequest,
   VirtualFetchResponse,
+  ExternalIntegrations,
+  GoogleIntegrationCredentials,
 } from "@/types"
 import {
   EntityContributions,
@@ -467,6 +469,32 @@ export async function saveCommodity(
 ): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/commodities`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function getExternalIntegrations(): Promise<ExternalIntegrations> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/integrations`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function setupGoogleIntegration(
+  request: GoogleIntegrationCredentials,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/integrations/google`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

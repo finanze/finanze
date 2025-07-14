@@ -47,3 +47,7 @@ class AddressAlreadyExists(Exception):
 
 class TooManyRequests(Exception):
     pass
+
+
+class IntegrationSetupError(Exception):
+    pass

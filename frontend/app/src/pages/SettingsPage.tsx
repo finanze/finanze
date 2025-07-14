@@ -24,8 +24,13 @@ import {
   FileSpreadsheet,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
+import { getExternalIntegrations } from "@/services/api"
+import type { ExternalIntegration } from "@/types"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ProductType, WeightUnit } from "@/types/position"
+import { setupGoogleIntegration } from "@/services/api"
+import { Badge } from "@/components/ui/Badge"
+import { cn } from "@/lib/utils"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
 
@@ -89,9 +94,23 @@ export default function SettingsPage() {
     virtualTransactions: false,
     googleSheets: false,
   })
+
+  const [externalIntegrations, setExternalIntegrations] = useState<
+    ExternalIntegration[]
+  >([])
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
+
+  useEffect(() => {
+    if (activeTab === "integrations") {
+      getExternalIntegrations()
+        .then(data => setExternalIntegrations(data.integrations))
+        .catch(err =>
+          console.error("Error loading external integrations:", err),
+        )
+    }
+  }, [activeTab])
 
   const availablePositionOptions = [
     ProductType.ACCOUNT,
@@ -212,6 +231,32 @@ export default function SettingsPage() {
         defaultCommodityWeightUnit: unit,
       },
     })
+  }
+
+  const handleSetupGoogleIntegration = async () => {
+    const clientId = settings?.integrations?.sheets?.credentials?.client_id
+    const clientSecret =
+      settings?.integrations?.sheets?.credentials?.client_secret
+    if (!clientId || !clientSecret) {
+      setValidationErrors(prev => ({
+        ...prev,
+        integrations: [
+          t.settings.errors.clientIdRequired,
+          t.settings.errors.clientSecretRequired,
+        ],
+      }))
+      return
+    }
+    try {
+      await setupGoogleIntegration({
+        client_id: clientId,
+        client_secret: clientSecret,
+      })
+      showToast(t.common.success, "success")
+    } catch (error) {
+      console.error(error)
+      showToast(t.common.error, "error")
+    }
   }
 
   const addConfigItem = (section: string) => {
@@ -1434,11 +1479,30 @@ export default function SettingsPage() {
                     <FileSpreadsheet className="mr-2 h-5 w-5 text-green-600" />
                     <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
                   </div>
-                  {expandedSections.googleSheets ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const google = externalIntegrations.find(
+                        i => i.id === "GOOGLE_SHEETS",
+                      )
+                      const on = google?.status === "ON"
+                      return (
+                        <Badge
+                          className={cn(
+                            on
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          )}
+                        >
+                          {on ? t.common.enabled : t.common.disabled}
+                        </Badge>
+                      )
+                    })()}
+                    {expandedSections.googleSheets ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
                 </div>
                 <CardDescription>
                   {t.settings.sheetsIntegrationDescription}
@@ -1531,40 +1595,25 @@ export default function SettingsPage() {
                           </div>
                         )}
                     </div>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
 
-            {/* Future integrations can be added here as separate Card components */}
-            {/* Example structure for future integrations:
-            <Card>
-              <CardHeader>
-                <div 
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => toggleSection("otherIntegration")}
-                >
-                  <div className="flex items-center">
-                    <SomeIcon className="mr-2 h-5 w-5 text-blue-600" />
-                    <CardTitle>Other Integration</CardTitle>
+                    {/* Add Setup button */}
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleSetupGoogleIntegration}
+                        disabled={
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_id ||
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_secret
+                        }
+                      >
+                        {t.common.setup}
+                      </Button>
+                    </div>
                   </div>
-                  {expandedSections.otherIntegration ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </div>
-                <CardDescription>
-                  Configure your other integration
-                </CardDescription>
-              </CardHeader>
-              {expandedSections.otherIntegration && (
-                <CardContent>
-                  // Integration-specific content
                 </CardContent>
               )}
             </Card>
-            */}
           </motion.div>
         </TabsContent>
 

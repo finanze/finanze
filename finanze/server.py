@@ -4,6 +4,7 @@ import logging
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
+from application.use_cases.connect_google import ConnectGoogleImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
@@ -11,6 +12,7 @@ from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
+from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
@@ -72,6 +74,9 @@ from infrastructure.repository.crypto_wallets.crypto_wallet_connection_repositor
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.external_integration.external_integration_repository import (
+    ExternalIntegrationRepository,
+)
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
@@ -133,6 +138,9 @@ class FinanzeServer:
             client=self.db_client
         )
         last_fetches_repository = LastFetchesRepository(client=self.db_client)
+        external_integration_repository = ExternalIntegrationRepository(
+            client=self.db_client
+        )
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
         metal_price_client = MetalPriceClient()
@@ -246,6 +254,14 @@ class FinanzeServer:
             last_fetches_repository,
             transaction_handler,
         )
+        get_external_integrations = GetExternalIntegrationsImpl(
+            external_integration_repository
+        )
+        connect_google = ConnectGoogleImpl(
+            external_integration_repository,
+            self.config_loader,
+            self.sheets_initiator,
+        )
 
         self._log.info("Initial component setup completed.")
 
@@ -289,6 +305,8 @@ class FinanzeServer:
             update_crypto_wallet,
             delete_crypto_wallet,
             save_commodities,
+            get_external_integrations,
+            connect_google,
         )
         self._log.info("Completed.")
 

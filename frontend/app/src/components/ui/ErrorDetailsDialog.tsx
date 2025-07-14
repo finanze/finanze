@@ -58,6 +58,14 @@ export function ErrorDetailsDialog({
                 error.entry,
               )}
             </div>
+            {error.row && (
+              <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+                {t.importErrors.validationErrorRow.replace(
+                  "{row}",
+                  error.row.join(", "),
+                )}
+              </div>
+            )}
             <ul className="list-disc list-inside ml-2 mt-1">
               {(error.detail as string[])?.map((field, index) => (
                 <li key={index}>{field}</li>

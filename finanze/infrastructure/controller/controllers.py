@@ -1,5 +1,6 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
+from domain.use_cases.connect_google import ConnectGoogle
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
@@ -7,6 +8,7 @@ from domain.use_cases.fetch_financial_data import FetchFinancialData
 from domain.use_cases.get_available_entities import GetAvailableEntities
 from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_exchange_rates import GetExchangeRates
+from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_login_status import GetLoginStatus
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
@@ -22,6 +24,7 @@ from domain.use_cases.virtual_fetch import VirtualFetch
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
+from infrastructure.controller.routes.connect_google import connect_google
 from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
@@ -30,6 +33,9 @@ from infrastructure.controller.routes.export import export
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
 from infrastructure.controller.routes.fetch_financial_data import fetch_financial_data
 from infrastructure.controller.routes.get_available_sources import get_available_sources
+from infrastructure.controller.routes.get_external_integrations import (
+    get_external_integrations,
+)
 from infrastructure.controller.routes.get_settings import get_settings
 from infrastructure.controller.routes.login_status import login_status
 from infrastructure.controller.routes.logout import logout
@@ -66,6 +72,8 @@ def register_routes(
     update_crypto_wallet_uc: UpdateCryptoWalletConnection,
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
     save_commodities_uc: SaveCommodities,
+    get_external_integrations_uc: GetExternalIntegrations,
+    connect_google_uc: ConnectGoogle,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -150,3 +158,11 @@ def register_routes(
     @app.route("/api/v1/commodities", methods=["POST"])
     async def save_commodities_route():
         return await save_commodities(save_commodities_uc)
+
+    @app.route("/api/v1/integrations", methods=["GET"])
+    def get_external_integrations_route():
+        return get_external_integrations(get_external_integrations_uc)
+
+    @app.route("/api/v1/integrations/google", methods=["POST"])
+    def connect_google_route():
+        return connect_google(connect_google_uc)
