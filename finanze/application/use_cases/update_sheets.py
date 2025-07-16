@@ -17,7 +17,7 @@ from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRe
 from domain.export import ExportRequest
 from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import FetchRecord
-from domain.global_position import GlobalPosition, ProductType
+from domain.global_position import GlobalPosition, PositionQueryRequest, ProductType
 from domain.historic import Historic
 from domain.settings import (
     ContributionSheetConfig,
@@ -111,7 +111,11 @@ class UpdateSheetsImpl(UpdateSheets):
             tx_configs = apply_global_config(config_globals, tx_configs)
             historic_configs = apply_global_config(config_globals, historic_configs)
 
-            global_position_by_entity = self._position_port.get_last_grouped_by_entity()
+            real = True if request.options.exclude_non_real else None
+
+            global_position_by_entity = self._position_port.get_last_grouped_by_entity(
+                PositionQueryRequest(real=real)
+            )
             last_position_fetches = _map_last_fetch(
                 self._last_fetches_port.get_grouped_by_entity(Feature.POSITION)
             )
@@ -124,7 +128,7 @@ class UpdateSheetsImpl(UpdateSheets):
             )
 
             auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
-                ContributionQueryRequest()
+                ContributionQueryRequest(real=real)
             )
             last_contribution_fetches = _map_last_fetch(
                 self._last_fetches_port.get_grouped_by_entity(
@@ -139,7 +143,7 @@ class UpdateSheetsImpl(UpdateSheets):
                 sheet_credentials,
             )
 
-            transactions = self._transaction_port.get_all()
+            transactions = self._transaction_port.get_all(real=real)
             transactions_last_update = _map_last_fetch(
                 self._last_fetches_port.get_grouped_by_entity(Feature.TRANSACTIONS)
             )

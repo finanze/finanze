@@ -332,7 +332,10 @@
     "spreadsheetId": "Spreadsheet ID",
     "configuredSections": "Configured Sections",
     "disabledMessage": "Google Sheets export is currently disabled. You can enable it in settings.",
-    "sheetNotFound": "Sheet {sheetName} doesn't exist"
+    "sheetNotFound": "Sheet {sheetName} doesn't exist",
+    "options": "Export options",
+    "excludeManual": "Exclude manual data",
+    "excludeManualDescription": "Non include imported or manual inserted data"
   },
   "transactions": {
     "title": "Transactions",

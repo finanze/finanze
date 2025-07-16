@@ -215,8 +215,13 @@ export enum ExportTarget {
   GOOGLE_SHEETS = "GOOGLE_SHEETS",
 }
 
+export interface ExportOptions {
+  exclude_non_real?: boolean
+}
+
 export interface ExportRequest {
   target: ExportTarget
+  options: ExportOptions
 }
 
 export enum PlatformType {
