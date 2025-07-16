@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 import { updateSheets } from "@/services/api"
 import { ExportTarget } from "@/types"
+import { ApiErrorException } from "@/utils/apiErrors"
 
 export default function ExportPage() {
   const { t } = useI18n()
@@ -41,6 +42,18 @@ export default function ExportPage() {
       }, 2000)
     } catch (error) {
       console.error("Export error:", error)
+      if (error instanceof ApiErrorException) {
+        const code = error.code
+        if (code.startsWith("sheet.not_found.")) {
+          const sheetName = code.split(".").pop() || ""
+          showToast(
+            t.export.sheetNotFound.replace("{sheetName}", sheetName),
+            "error",
+          )
+          setExportState(prev => ({ ...prev, isExporting: false }))
+          return
+        }
+      }
       showToast(t.common.exportError, "error")
       setExportState(prev => ({ ...prev, isExporting: false }))
     }

@@ -331,7 +331,8 @@
     "description": "Export your financial data to Google Sheets.",
     "spreadsheetId": "Spreadsheet ID",
     "configuredSections": "Configured Sections",
-    "disabledMessage": "Google Sheets export is currently disabled. You can enable it in settings."
+    "disabledMessage": "Google Sheets export is currently disabled. You can enable it in settings.",
+    "sheetNotFound": "Sheet {sheetName} doesn't exist"
   },
   "transactions": {
     "title": "Transactions",

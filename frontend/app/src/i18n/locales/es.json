@@ -330,7 +330,8 @@
     "description": "Exporta tus datos financieros a Google Sheets.",
     "spreadsheetId": "ID de Hoja de Cálculo",
     "configuredSections": "Secciones Configuradas",
-    "disabledMessage": "La exportación a Google Sheets está actualmente deshabilitada. Puedes habilitarla en la configuración."
+    "disabledMessage": "La exportación a Google Sheets está actualmente deshabilitada. Puedes habilitarla en la configuración.",
+    "sheetNotFound": "La hoja {sheetName} no existe"
   },
   "transactions": {
     "title": "Transacciones",

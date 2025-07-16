@@ -61,3 +61,10 @@ class TooManyRequests(Exception):
 
 class IntegrationSetupError(Exception):
     pass
+
+
+class ExportException(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        message = f"Error while exporting data: {details}"
+        super().__init__(message)

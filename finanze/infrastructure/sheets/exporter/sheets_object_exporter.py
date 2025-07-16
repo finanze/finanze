@@ -7,7 +7,9 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.exception.exceptions import ExportException
 from domain.settings import BaseSheetConfig, ProductSheetConfig
+from googleapiclient.errors import HttpError
 from infrastructure.sheets.importer.sheets_importer import (
     DEFAULT_DATE_FORMAT,
     DEFAULT_DATETIME_FORMAT,
@@ -30,7 +32,13 @@ def update_sheet(
     last_update: dict[Entity, datetime] = None,
 ):
     sheet_id, sheet_range, field_paths = config.spreadsheetId, config.range, config.data
-    result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
+    try:
+        result = sheet.values().get(spreadsheetId=sheet_id, range=sheet_range).execute()
+    except HttpError as e:
+        if e.resp.status == 400:
+            raise ExportException(f"sheet.not_found.{sheet_range}")
+        else:
+            raise
     cells = result.get("values")
     if not cells:
         _log.warning(f"Got empty sheet for {sheet_range}, aborting sheet...")
