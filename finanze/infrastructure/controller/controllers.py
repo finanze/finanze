@@ -1,5 +1,6 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
+from domain.use_cases.connect_etherscan import ConnectEtherscan
 from domain.use_cases.connect_google import ConnectGoogle
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.disconnect_entity import DisconnectEntity
@@ -24,6 +25,7 @@ from domain.use_cases.virtual_fetch import VirtualFetch
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
+from infrastructure.controller.routes.connect_etherscan import connect_etherscan
 from infrastructure.controller.routes.connect_google import connect_google
 from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
@@ -74,6 +76,7 @@ def register_routes(
     save_commodities_uc: SaveCommodities,
     get_external_integrations_uc: GetExternalIntegrations,
     connect_google_uc: ConnectGoogle,
+    connect_etherscan_uc: ConnectEtherscan,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -166,3 +169,7 @@ def register_routes(
     @app.route("/api/v1/integrations/google", methods=["POST"])
     def connect_google_route():
         return connect_google(connect_google_uc)
+
+    @app.route("/api/v1/integrations/etherscan", methods=["POST"])
+    def connect_etherscan_route():
+        return connect_etherscan(connect_etherscan_uc)

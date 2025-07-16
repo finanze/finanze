@@ -33,6 +33,7 @@ export interface Entity {
   }
   connected?: CryptoWalletConnection[]
   last_fetch: Record<Feature, string>
+  required_external_integrations?: string[]
 }
 
 export enum EntitySetupLoginType {
@@ -314,4 +315,8 @@ export interface ExternalIntegrations {
 export interface GoogleIntegrationCredentials {
   client_id: string
   client_secret: string
+}
+
+export interface EtherscanIntegrationData {
+  api_key: string
 }

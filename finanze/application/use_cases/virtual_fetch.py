@@ -5,6 +5,7 @@ from uuid import uuid4
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
@@ -13,7 +14,8 @@ from application.ports.virtual_import_registry import VirtualImportRegistry
 from application.use_cases.update_sheets import apply_global_config
 from dateutil.tz import tzlocal
 from domain.entity import Feature
-from domain.exception.exceptions import ExecutionConflict
+from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
+from domain.external_integration import ExternalIntegrationId
 from domain.use_cases.virtual_fetch import VirtualFetch
 from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
 from domain.virtual_fetch_result import (
@@ -30,6 +32,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
         transaction_port: TransactionPort,
         virtual_fetcher: VirtualFetcher,
         entity_port: EntityPort,
+        external_integration_port: ExternalIntegrationPort,
         config_port: ConfigPort,
         virtual_import_registry: VirtualImportRegistry,
         transaction_handler_port: TransactionHandlerPort,
@@ -40,6 +43,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
         self._transaction_port = transaction_port
         self._virtual_fetcher = virtual_fetcher
         self._entity_port = entity_port
+        self._external_integration_port = external_integration_port
         self._config_port = config_port
         self._virtual_import_registry = virtual_import_registry
 
@@ -57,6 +61,12 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
             or not sheet_config.credentials
         ):
             return VirtualFetchResult(VirtualFetchResultCode.DISABLED)
+
+        sheets_integration = self._external_integration_port.get(
+            ExternalIntegrationId.GOOGLE_SHEETS
+        )
+        if not sheets_integration:
+            raise ExternalIntegrationRequired([ExternalIntegrationId.GOOGLE_SHEETS])
 
         if self._lock.locked():
             raise ExecutionConflict()

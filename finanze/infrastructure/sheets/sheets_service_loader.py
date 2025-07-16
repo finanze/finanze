@@ -42,7 +42,7 @@ class SheetsServiceLoader(SheetsInitiator):
     def connect(self, user: User):
         self._base_path = user.path
 
-    def setup_credentials(self, credentials: GoogleIntegrationCredentials):
+    def setup(self, credentials: GoogleIntegrationCredentials):
         if not self._base_path:
             raise ValueError("Base path not set")
 
@@ -72,7 +72,7 @@ class SheetsServiceLoader(SheetsInitiator):
             if creds and creds.expired and creds.refresh_token:
                 creds.refresh(Request())
             else:
-                return self.setup_credentials(credentials)
+                return self.setup(credentials)
 
             with open(token_path, "w") as token:
                 token.write(creds.to_json())

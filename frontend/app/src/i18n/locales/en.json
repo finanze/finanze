@@ -152,6 +152,12 @@
     "login": "Login Again",
     "fetchData": "Fetch Data",
     "connect": "Connect",
+    "requires": "Requires",
+    "integrations": "integrations",
+    "cannotConnect": "Cannot Connect",
+    "requiresExternalIntegrations": "Requires integration setup",
+    "setupIntegrationsMessage": "Setup required integrations to connect this entity:",
+    "goToSettings": "Go to Settings",
     "userEntered": "User Entered",
     "importData": "Import",
     "runVirtual": "Import User Data",
@@ -259,7 +265,11 @@
       "virtualSpreadsheetIdRequired": "Spreadsheet ID is required in Virtual Global Settings",
       "clientIdRequired": "Client ID is required when configuring Google Sheets integration",
       "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
-    }
+    },
+    "etherscanIntegration": "Etherscan",
+    "etherscanIntegrationDescription": "Enter your Etherscan API key to enable more crypto data fetching",
+    "etherscanApiKey": "API Key",
+    "etherscanApiKeyPlaceholder": "Enter your Etherscan API key"
   },
   "dashboard": {
     "title": "Dashboard",

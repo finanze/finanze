@@ -4,6 +4,7 @@ import logging
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
+from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
@@ -26,7 +27,9 @@ from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
 from domain.data_init import DatasourceInitParams
+from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
+from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
 from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (
     EthereumFetcher,
 )
@@ -104,6 +107,7 @@ class FinanzeServer:
 
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
+        self.etherscan_client = EtherscanClient()
 
         self.financial_entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
@@ -122,6 +126,7 @@ class FinanzeServer:
             domain.native_entities.ETHEREUM: EthereumFetcher(),
             domain.native_entities.LITECOIN: LitecoinFetcher(),
             domain.native_entities.TRON: TronFetcher(),
+            domain.native_entities.BSC: BSCFetcher(self.etherscan_client),
         }
 
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
@@ -209,6 +214,7 @@ class FinanzeServer:
             historic_repository,
             self.exporter,
             last_fetches_repository,
+            external_integration_repository,
             self.config_loader,
         )
         virtual_fetch = VirtualFetchImpl(
@@ -216,6 +222,7 @@ class FinanzeServer:
             transaction_repository,
             self.virtual_fetcher,
             entity_repository,
+            external_integration_repository,
             self.config_loader,
             virtual_import_repository,
             transaction_handler,
@@ -240,6 +247,7 @@ class FinanzeServer:
         connect_crypto_wallet = ConnectCryptoWalletImpl(
             crypto_wallet_connections_repository,
             self.crypto_entity_fetchers,
+            self.config_loader,
         )
         update_crypto_wallet = UpdateCryptoWalletConnectionImpl(
             crypto_wallet_connections_repository
@@ -261,6 +269,9 @@ class FinanzeServer:
             external_integration_repository,
             self.config_loader,
             self.sheets_initiator,
+        )
+        connect_etherscan = ConnectEtherscanImpl(
+            external_integration_repository, self.config_loader, self.etherscan_client
         )
 
         self._log.info("Initial component setup completed.")
@@ -307,6 +318,7 @@ class FinanzeServer:
             save_commodities,
             get_external_integrations,
             connect_google,
+            connect_etherscan,
         )
         self._log.info("Completed.")
 

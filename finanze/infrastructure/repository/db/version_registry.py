@@ -1,3 +1,4 @@
+from infrastructure.repository.db.versions.v030_1_bsc import V0301BSC
 from infrastructure.repository.db.versions.v0_genesis import V0Genesis
 from infrastructure.repository.db.versions.v011_0 import V0110
 from infrastructure.repository.db.versions.v020_0_crypto import V0200Crypto
@@ -18,4 +19,5 @@ versions = [
     V0204Commodities(),
     V0205(),
     V0300Integrations(),
+    V0301BSC(),
 ]

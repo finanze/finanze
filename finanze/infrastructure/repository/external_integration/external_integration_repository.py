@@ -1,9 +1,11 @@
+from typing import Optional
+
 from application.ports.external_integration_port import ExternalIntegrationPort
 from domain.external_integration import (
     ExternalIntegration,
     ExternalIntegrationId,
-    ExternalIntegrationType,
     ExternalIntegrationStatus,
+    ExternalIntegrationType,
 )
 from infrastructure.repository.db.client import DBClient
 
@@ -23,6 +25,23 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
                 WHERE id = ?
                 """,
                 (status.value, integration.value),
+            )
+
+    def get(self, integration: ExternalIntegrationId) -> Optional[ExternalIntegration]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                "SELECT * FROM external_integrations WHERE id = ?", (integration.value,)
+            )
+
+            row = cursor.fetchone()
+            if row is None:
+                return None
+
+            return ExternalIntegration(
+                id=ExternalIntegrationId(row["id"]),
+                name=row["name"],
+                type=ExternalIntegrationType(row["type"]),
+                status=ExternalIntegrationStatus(row["status"]),
             )
 
     def get_all(self) -> list[ExternalIntegration]:

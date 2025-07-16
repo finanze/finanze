@@ -35,3 +35,8 @@ class AvailableExternalIntegrations:
 class GoogleIntegrationCredentials:
     client_id: str
     client_secret: str
+
+
+@dataclass
+class EtherscanIntegrationData:
+    api_key: str

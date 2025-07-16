@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useEffect,
   useRef,
+  useCallback,
 } from "react"
 import {
   CredentialType,
@@ -18,6 +19,7 @@ import {
   type PlatformInfo,
   type ExchangeRates,
   type VirtualFetchError,
+  type ExternalIntegration,
 } from "@/types"
 import {
   getEntities,
@@ -29,6 +31,7 @@ import {
   saveSettings,
   disconnectEntity,
   getExchangeRates,
+  getExternalIntegrations,
 } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
@@ -50,6 +53,9 @@ export interface AppSettings {
         client_id?: string
         client_secret?: string
       }
+    }
+    etherscan?: {
+      api_key?: string
     }
   }
   export?: {
@@ -111,6 +117,8 @@ interface AppContextType {
   exchangeRates: ExchangeRates
   exchangeRatesLoading: boolean
   exchangeRatesError: string | null
+  externalIntegrations: ExternalIntegration[]
+  externalIntegrationsLoading: boolean
   exportState: ExportState
   setExportState: (
     state: ExportState | ((prev: ExportState) => ExportState),
@@ -148,6 +156,7 @@ interface AppContextType {
     callback: ((entityId: string) => Promise<void>) | null,
   ) => void
   refreshExchangeRates: () => Promise<void>
+  fetchExternalIntegrations: () => Promise<void>
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -205,6 +214,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
     null,
   )
+  const [externalIntegrations, setExternalIntegrations] = useState<
+    ExternalIntegration[]
+  >([])
+  const [externalIntegrationsLoading, setExternalIntegrationsLoading] =
+    useState(false)
   const [exportState, setExportState] = useState<ExportState>({
     isExporting: false,
     lastExportTime: null,
@@ -731,10 +745,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const fetchExternalIntegrations = useCallback(async () => {
+    try {
+      setExternalIntegrationsLoading(true)
+      const data = await getExternalIntegrations()
+      setExternalIntegrations(data.integrations)
+    } catch (error) {
+      console.error("Error fetching external integrations:", error)
+    } finally {
+      setExternalIntegrationsLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
+      fetchExternalIntegrations()
       initialFetchDone.current = true
     } else if (!isAuthenticated) {
       stopExchangeRatesTimer()
@@ -780,6 +807,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         exchangeRates,
         exchangeRatesLoading,
         exchangeRatesError,
+        externalIntegrations,
+        externalIntegrationsLoading,
         exportState,
         setExportState,
         fetchingEntityState,
@@ -801,6 +830,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         disconnectEntity: disconnectEntityHandler,
         setOnScrapeCompleted,
         refreshExchangeRates,
+        fetchExternalIntegrations,
       }}
     >
       {children}

@@ -171,6 +171,7 @@ class CryptoCurrency(str, Enum):
     ETHEREUM = "ETHEREUM"
     LITECOIN = "LITECOIN"
     TRON = "TRON"
+    BNB = "BNB"
 
 
 class CryptoToken(str, Enum):
@@ -185,6 +186,7 @@ CRYPTO_SYMBOLS = {
     CryptoCurrency.ETHEREUM: "ETH",
     CryptoCurrency.LITECOIN: "LTC",
     CryptoCurrency.TRON: "TRX",
+    CryptoCurrency.BNB: "BNB",
     CryptoToken.USDT: "USDT",
     CryptoToken.USDC: "USDC",
 }

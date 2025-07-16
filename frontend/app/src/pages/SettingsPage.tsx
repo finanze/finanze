@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import {
   Card,
@@ -22,13 +23,15 @@ import {
   Save,
   RefreshCw,
   FileSpreadsheet,
+  FileSearch,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
-import { getExternalIntegrations } from "@/services/api"
-import type { ExternalIntegration } from "@/types"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ProductType, WeightUnit } from "@/types/position"
-import { setupGoogleIntegration } from "@/services/api"
+import {
+  setupGoogleIntegration,
+  setupEtherscanIntegration,
+} from "@/services/api"
 import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 
@@ -73,16 +76,25 @@ const cleanObject = (obj: any): any => {
 
 export default function SettingsPage() {
   const { t } = useI18n()
+  const [searchParams] = useSearchParams()
   const {
     showToast,
     fetchSettings,
     settings: storedSettings,
     saveSettings,
     isLoading,
+    externalIntegrations,
+    fetchExternalIntegrations,
   } = useAppContext()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState("general")
+  const [isSetupLoading, setIsSetupLoading] = useState({
+    google: false,
+    etherscan: false,
+  })
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get("tab") || "general",
+  )
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
@@ -93,24 +105,12 @@ export default function SettingsPage() {
     virtualPosition: false,
     virtualTransactions: false,
     googleSheets: false,
+    etherscan: false,
   })
 
-  const [externalIntegrations, setExternalIntegrations] = useState<
-    ExternalIntegration[]
-  >([])
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
-
-  useEffect(() => {
-    if (activeTab === "integrations") {
-      getExternalIntegrations()
-        .then(data => setExternalIntegrations(data.integrations))
-        .catch(err =>
-          console.error("Error loading external integrations:", err),
-        )
-    }
-  }, [activeTab])
 
   const availablePositionOptions = [
     ProductType.ACCOUNT,
@@ -168,6 +168,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings()
+    fetchExternalIntegrations()
   }, [])
 
   const toggleSection = (section: string) => {
@@ -247,15 +248,41 @@ export default function SettingsPage() {
       }))
       return
     }
+
+    setIsSetupLoading(prev => ({ ...prev, google: true }))
     try {
       await setupGoogleIntegration({
         client_id: clientId,
         client_secret: clientSecret,
       })
       showToast(t.common.success, "success")
+      // Refetch external integrations to update the status indicator
+      await fetchExternalIntegrations()
     } catch (error) {
       console.error(error)
       showToast(t.common.error, "error")
+    } finally {
+      setIsSetupLoading(prev => ({ ...prev, google: false }))
+    }
+  }
+
+  const handleSetupEtherscanIntegration = async () => {
+    const apiKey = settings?.integrations?.etherscan?.api_key
+    if (!apiKey) {
+      return
+    }
+
+    setIsSetupLoading(prev => ({ ...prev, etherscan: true }))
+    try {
+      await setupEtherscanIntegration({ api_key: apiKey })
+      showToast(t.common.success, "success")
+      // Refetch external integrations to update the status indicator
+      await fetchExternalIntegrations()
+    } catch (error) {
+      console.error(error)
+      showToast(t.common.error, "error")
+    } finally {
+      setIsSetupLoading(prev => ({ ...prev, etherscan: false }))
     }
   }
 
@@ -1341,7 +1368,10 @@ export default function SettingsPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={fetchSettings}
+            onClick={() => {
+              fetchSettings()
+              fetchExternalIntegrations()
+            }}
             disabled={isLoading || isSaving}
           >
             <RefreshCw className="h-4 w-4" />
@@ -1604,12 +1634,106 @@ export default function SettingsPage() {
                           !settings?.integrations?.sheets?.credentials
                             ?.client_id ||
                           !settings?.integrations?.sheets?.credentials
-                            ?.client_secret
+                            ?.client_secret ||
+                          isSetupLoading.google
                         }
                       >
-                        {t.common.setup}
+                        {isSetupLoading.google ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            {t.common.loading}
+                          </>
+                        ) : (
+                          t.common.setup
+                        )}
                       </Button>
                     </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* Etherscan Integration */}
+            <Card>
+              <CardHeader>
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleSection("etherscan")}
+                >
+                  <div className="flex items-center">
+                    <FileSearch className="mr-2 h-5 w-5 text-blue-600" />
+                    <CardTitle>{t.settings.etherscanIntegration}</CardTitle>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const eth = externalIntegrations.find(
+                        i => i.id === "ETHERSCAN",
+                      )
+                      const on = eth?.status === "ON"
+                      return (
+                        <Badge
+                          className={cn(
+                            on
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          )}
+                        >
+                          {on ? t.common.enabled : t.common.disabled}
+                        </Badge>
+                      )
+                    })()}
+                    {expandedSections.etherscan ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
+                </div>
+                <CardDescription>
+                  {t.settings.etherscanIntegrationDescription}
+                </CardDescription>
+              </CardHeader>
+              {expandedSections.etherscan && (
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="etherscan-api-key">
+                      {t.settings.etherscanApiKey}
+                    </Label>
+                    <Input
+                      id="etherscan-api-key"
+                      type="text"
+                      placeholder={t.settings.etherscanApiKeyPlaceholder}
+                      value={settings?.integrations?.etherscan?.api_key || ""}
+                      onChange={e =>
+                        setSettings({
+                          ...settings,
+                          integrations: {
+                            ...settings.integrations,
+                            etherscan: { api_key: e.target.value },
+                          },
+                        })
+                      }
+                    />
+                  </div>
+
+                  {/* Add Setup button for Etherscan */}
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSetupEtherscanIntegration}
+                      disabled={
+                        !settings?.integrations?.etherscan?.api_key ||
+                        isSetupLoading.etherscan
+                      }
+                    >
+                      {isSetupLoading.etherscan ? (
+                        <>
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          {t.common.loading}
+                        </>
+                      ) : (
+                        t.common.setup
+                      )}
+                    </Button>
                   </div>
                 </CardContent>
               )}

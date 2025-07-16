@@ -284,7 +284,7 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleConfigureVirtual = () => {
-    navigate("/settings")
+    navigate("/settings?tab=scrape")
   }
 
   const container = {

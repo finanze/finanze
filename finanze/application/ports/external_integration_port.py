@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 
 from domain.external_integration import (
     ExternalIntegration,
@@ -12,6 +13,10 @@ class ExternalIntegrationPort(metaclass=abc.ABCMeta):
     def update_status(
         self, integration: ExternalIntegrationId, status: ExternalIntegrationStatus
     ):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get(self, integration: ExternalIntegrationId) -> Optional[ExternalIntegration]:
         raise NotImplementedError
 
     @abc.abstractmethod

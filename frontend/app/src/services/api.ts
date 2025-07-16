@@ -14,6 +14,7 @@ import type {
   VirtualFetchResponse,
   ExternalIntegrations,
   GoogleIntegrationCredentials,
+  EtherscanIntegrationData,
 } from "@/types"
 import {
   EntityContributions,
@@ -495,6 +496,23 @@ export async function setupGoogleIntegration(
 ): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/integrations/google`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function setupEtherscanIntegration(
+  request: EtherscanIntegrationData,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/integrations/etherscan`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

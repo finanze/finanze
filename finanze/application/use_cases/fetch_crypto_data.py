@@ -16,10 +16,14 @@ from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from dateutil.tz import tzlocal
 from domain import native_entities
-from domain.crypto import CryptoFetchRequest
+from domain.crypto import CryptoFetchIntegrations, CryptoFetchRequest
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
-from domain.exception.exceptions import EntityNotFound, ExecutionConflict
+from domain.exception.exceptions import (
+    EntityNotFound,
+    ExecutionConflict,
+    ExternalIntegrationRequired,
+)
 from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
     FetchedData,
@@ -72,19 +76,28 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
 
     async def execute(self, fetch_request: FetchRequest) -> FetchResult:
         entity_id = fetch_request.entity_id
+
+        connected_entities = (
+            self._crypto_wallet_connection_port.get_connected_entities()
+        )
+
         if entity_id:
             entity = native_entities.get_native_by_id(
                 entity_id, EntityType.CRYPTO_WALLET
             )
             if not entity:
                 raise EntityNotFound(entity_id)
+            if entity_id not in connected_entities:
+                return FetchResult(FetchResultCode.NOT_CONNECTED)
             entities = [entity]
         else:
             entities = [
-                e
-                for e in native_entities.NATIVE_ENTITIES
-                if e.type == EntityType.CRYPTO_WALLET
+                e for e in native_entities.NATIVE_ENTITIES if e.id in connected_entities
             ]
+
+        integrations = CryptoFetchIntegrations.from_config(
+            self._config_port.load().integrations
+        )
 
         fetched_data = []
         for entity in entities:
@@ -96,11 +109,19 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             async with lock:
                 specific_fetcher = self._entity_fetchers[entity]
 
-                fetched_data.append(
-                    self.get_data(entity, specific_fetcher, fetch_request.fetch_options)
-                )
+                try:
+                    fetched_data.append(
+                        self.get_data(
+                            entity,
+                            specific_fetcher,
+                            fetch_request.fetch_options,
+                            integrations,
+                        )
+                    )
 
-                self._update_last_fetch(entity.id, [Feature.POSITION])
+                    self._update_last_fetch(entity.id, [Feature.POSITION])
+                except ExternalIntegrationRequired:
+                    pass
 
         return FetchResult(FetchResultCode.COMPLETED, data=fetched_data)
 
@@ -109,6 +130,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
         entity: Entity,
         specific_fetcher: CryptoEntityFetcher,
         options: FetchOptions,
+        integrations: CryptoFetchIntegrations,
     ) -> FetchedData:
         existing_connections = self._crypto_wallet_connection_port.get_by_entity_id(
             entity.id
@@ -120,6 +142,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
                 CryptoFetchRequest(
                     connection_id=connection.id,
                     address=connection.address,
+                    integrations=integrations,
                 )
             )
             wallet = self._update_market_value(wallet)

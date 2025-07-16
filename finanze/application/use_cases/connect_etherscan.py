@@ -1,44 +1,41 @@
 import logging
 
 from application.ports.config_port import ConfigPort
+from application.ports.connectable_integration import ConnectableIntegration
 from application.ports.external_integration_port import ExternalIntegrationPort
-from application.ports.sheets_initiator import SheetsInitiator
 from domain.exception.exceptions import IntegrationSetupError
 from domain.external_integration import (
+    EtherscanIntegrationData,
     ExternalIntegrationId,
     ExternalIntegrationStatus,
-    GoogleIntegrationCredentials,
 )
-from domain.settings import GoogleCredentials
-from domain.use_cases.connect_google import ConnectGoogle
+from domain.settings import EtherscanIntegrationConfig
+from domain.use_cases.connect_etherscan import ConnectEtherscan
 
 
-class ConnectGoogleImpl(ConnectGoogle):
+class ConnectEtherscanImpl(ConnectEtherscan):
     def __init__(
         self,
         external_integration_port: ExternalIntegrationPort,
         config_port: ConfigPort,
-        sheets_initiator: SheetsInitiator,
+        integration: ConnectableIntegration[EtherscanIntegrationData],
     ):
         self._external_integration_port = external_integration_port
         self._config_port = config_port
-        self._sheets_initiator = sheets_initiator
+        self._integration = integration
 
         self._log = logging.getLogger(__name__)
 
-    def execute(self, credentials: GoogleIntegrationCredentials):
+    def execute(self, data: EtherscanIntegrationData):
         try:
-            self._sheets_initiator.setup(credentials)
+            self._integration.setup(data)
         except Exception as e:
             raise IntegrationSetupError(e)
 
         config = self._config_port.load()
-        config.integrations.sheets.credentials = GoogleCredentials(
-            client_id=credentials.client_id,
-            client_secret=credentials.client_secret,
-        )
+        config.integrations.etherscan = EtherscanIntegrationConfig(api_key=data.api_key)
         self._config_port.save(config)
 
         self._external_integration_port.update_status(
-            ExternalIntegrationId.GOOGLE_SHEETS, ExternalIntegrationStatus.ON
+            ExternalIntegrationId.ETHERSCAN, ExternalIntegrationStatus.ON
         )

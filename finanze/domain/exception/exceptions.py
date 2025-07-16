@@ -1,3 +1,6 @@
+from domain.external_integration import ExternalIntegrationId
+
+
 class MissingFieldsError(Exception):
     def __init__(self, missing_fields: list[str]):
         self.missing_fields = missing_fields
@@ -11,6 +14,13 @@ class FeatureNotSupported(Exception):
 
 class EntityNotFound(Exception):
     pass
+
+
+class ExternalIntegrationRequired(Exception):
+    def __init__(self, required_integrations: list[ExternalIntegrationId]):
+        self.required_integrations = required_integrations
+        message = f"External Integrations required: {', '.join(required_integrations)}"
+        super().__init__(message)
 
 
 class UserNotFound(Exception):

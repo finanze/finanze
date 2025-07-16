@@ -11,7 +11,13 @@ class CryptoWalletConnectionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_address(self, address: str) -> Optional[CryptoWalletConnection]:
+    def get_by_entity_and_address(
+        self, entity_id: UUID, address: str
+    ) -> Optional[CryptoWalletConnection]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_connected_entities(self) -> set[UUID]:
         raise NotImplementedError
 
     @abc.abstractmethod

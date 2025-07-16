@@ -10,6 +10,7 @@ from domain.entity import (
     Feature,
     PinDetails,
 )
+from domain.external_integration import ExternalIntegrationId
 from pydantic.dataclasses import dataclass
 
 
@@ -20,7 +21,7 @@ class FinancialEntityStatus(str, Enum):
 
 
 @dataclass(eq=False)
-class AvailableFinancialEntity(Entity):
+class AvailableSource(Entity):
     features: list[Feature]
     last_fetch: dict[Feature, datetime]
     setup_login_type: Optional[EntitySetupLoginType] = None
@@ -28,8 +29,9 @@ class AvailableFinancialEntity(Entity):
     pin: Optional[PinDetails] = None
     status: Optional[FinancialEntityStatus] = None
     connected: Optional[list[CryptoWalletConnection]] = None
+    required_external_integrations: list[ExternalIntegrationId] = None
 
 
 @dataclass
 class AvailableSources:
-    entities: list[AvailableFinancialEntity]
+    entities: list[AvailableSource]

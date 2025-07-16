@@ -100,8 +100,14 @@ class SheetsIntegrationConfig:
 
 
 @dataclass
+class EtherscanIntegrationConfig:
+    api_key: str
+
+
+@dataclass
 class IntegrationsConfig:
     sheets: Optional[SheetsIntegrationConfig] = None
+    etherscan: Optional[EtherscanIntegrationConfig] = None
 
 
 @dataclass

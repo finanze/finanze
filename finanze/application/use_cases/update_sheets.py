@@ -5,6 +5,7 @@ from typing import TypeVar
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
@@ -12,8 +13,9 @@ from application.ports.sheets_export_port import SheetsUpdatePort
 from application.ports.transaction_port import TransactionPort
 from domain.auto_contributions import AutoContributions, ContributionQueryRequest
 from domain.entity import Entity, Feature
-from domain.exception.exceptions import ExecutionConflict
+from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
 from domain.export import ExportRequest
+from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import FetchRecord
 from domain.global_position import GlobalPosition, ProductType
 from domain.historic import Historic
@@ -60,6 +62,7 @@ class UpdateSheetsImpl(UpdateSheets):
         historic_port: HistoricPort,
         sheets_update_port: SheetsUpdatePort,
         last_fetches_port: LastFetchesPort,
+        external_integration_port: ExternalIntegrationPort,
         config_port: ConfigPort,
     ):
         self._position_port = position_port
@@ -68,6 +71,7 @@ class UpdateSheetsImpl(UpdateSheets):
         self._historic_port = historic_port
         self._sheets_update_port = sheets_update_port
         self._last_fetches_port = last_fetches_port
+        self._external_integration_port = external_integration_port
         self._config_port = config_port
 
         self._lock = Lock()
@@ -77,13 +81,18 @@ class UpdateSheetsImpl(UpdateSheets):
         sheets_export_config = config.export.sheets
         sheet_config = config.integrations.sheets
 
+        sheets_integration = self._external_integration_port.get(
+            ExternalIntegrationId.GOOGLE_SHEETS
+        )
+
         if (
             not sheets_export_config
             or not sheets_export_config.enabled
             or not sheet_config
             or not sheet_config.credentials
+            or not sheets_integration
         ):
-            raise ValueError("Sheets export is not enabled")
+            raise ExternalIntegrationRequired([ExternalIntegrationId.GOOGLE_SHEETS])
 
         if self._lock.locked():
             raise ExecutionConflict()
