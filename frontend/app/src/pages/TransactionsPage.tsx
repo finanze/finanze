@@ -857,7 +857,7 @@ export default function TransactionsPage() {
                                     ? "+"
                                     : ""}
                                   {formatCurrency(
-                                    tx.amount,
+                                    tx.net_amount ?? tx.amount,
                                     locale,
                                     settings.general.defaultCurrency,
                                     tx.currency,

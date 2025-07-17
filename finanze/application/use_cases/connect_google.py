@@ -9,7 +9,7 @@ from domain.external_integration import (
     ExternalIntegrationStatus,
     GoogleIntegrationCredentials,
 )
-from domain.settings import GoogleCredentials
+from domain.settings import GoogleCredentials, SheetsIntegrationConfig
 from domain.use_cases.connect_google import ConnectGoogle
 
 
@@ -33,9 +33,11 @@ class ConnectGoogleImpl(ConnectGoogle):
             raise IntegrationSetupError(e)
 
         config = self._config_port.load()
-        config.integrations.sheets.credentials = GoogleCredentials(
-            client_id=credentials.client_id,
-            client_secret=credentials.client_secret,
+        config.integrations.sheets = SheetsIntegrationConfig(
+            GoogleCredentials(
+                client_id=credentials.client_id,
+                client_secret=credentials.client_secret,
+            )
         )
         self._config_port.save(config)
 

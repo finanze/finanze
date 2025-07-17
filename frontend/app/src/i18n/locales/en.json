@@ -269,7 +269,11 @@
     "etherscanIntegration": "Etherscan",
     "etherscanIntegrationDescription": "Enter your Etherscan API key to enable more crypto data fetching",
     "etherscanApiKey": "API Key",
-    "etherscanApiKeyPlaceholder": "Enter your Etherscan API key"
+    "etherscanApiKeyPlaceholder": "Enter your Etherscan API key",
+    "etherscanApiInfoPrefix": "To get your API key, visit ",
+    "etherscanApiInfoLinkText": "etherscan.io",
+    "etherscanApiInfoSuffix": " and follow the instructions.",
+    "googleSheetsWebDisabled": "Use desktop app"
   },
   "dashboard": {
     "title": "Dashboard",
