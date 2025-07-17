@@ -16,9 +16,60 @@ import LoginPage from "./pages/LoginPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
+import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
+import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
+import { useAppContext } from "./context/AppContext"
+import { useState, useEffect } from "react"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
+  const { platform } = useAppContext()
+  const [showReleaseModal, setShowReleaseModal] = useState(false)
+  const [skippedVersions, setSkippedVersions] = useState<string[]>([])
+
+  // Load skipped versions from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("finanze-skipped-versions")
+      if (stored) {
+        setSkippedVersions(JSON.parse(stored))
+      }
+    } catch (error) {
+      console.error("Error loading skipped versions:", error)
+    }
+  }, [])
+
+  // Save skipped versions to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "finanze-skipped-versions",
+        JSON.stringify(skippedVersions),
+      )
+    } catch (error) {
+      console.error("Error saving skipped versions:", error)
+    }
+  }, [skippedVersions])
+
+  const { updateInfo } = useReleaseUpdate({
+    checkOnMount: isAuthenticated && !isInitializing,
+    skipVersions: skippedVersions,
+    onUpdateAvailable: () => {
+      // Only show modal if user is authenticated and not already shown
+      if (isAuthenticated && !showReleaseModal) {
+        setShowReleaseModal(true)
+      }
+    },
+  })
+
+  const handleCloseReleaseModal = () => {
+    setShowReleaseModal(false)
+  }
+
+  const handleSkipVersion = (version: string) => {
+    setSkippedVersions(prev => [...prev, version])
+    setShowReleaseModal(false)
+  }
 
   if (isInitializing) {
     return <SplashScreen />
@@ -67,6 +118,19 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
+
+      {/* Release Update Modal */}
+      {showReleaseModal && updateInfo?.hasUpdate && updateInfo.release && (
+        <ReleaseUpdateModal
+          isOpen={showReleaseModal}
+          onClose={handleCloseReleaseModal}
+          currentVersion={updateInfo.currentVersion}
+          latestVersion={updateInfo.latestVersion}
+          release={updateInfo.release}
+          platform={platform}
+          onSkipVersion={handleSkipVersion}
+        />
+      )}
     </FinancialDataProvider>
   )
 }

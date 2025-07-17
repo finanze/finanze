@@ -67,7 +67,23 @@
     "retry": "Reintentar",
     "assets": "Activos",
     "crypto": "Cripto",
-    "commodities": "Materias Primas"
+    "commodities": "Materias Primas",
+    "close": "Cerrar",
+    "download": "Descargar",
+    "viewRelease": "Ver versión",
+    "remindLater": "Recordar después"
+  },
+  "release": {
+    "newVersionAvailable": "Nueva versión disponible",
+    "currentVersion": "Versión actual",
+    "latestVersion": "Última versión",
+    "publishedOn": "Publicado el",
+    "downloadFor": "Descargar para {platform}",
+    "whatsNew": "Novedades",
+    "downloadAssets": "Opciones de descarga",
+    "releaseNotes": "Notas de la versión",
+    "skipThisVersion": "Omitir versión",
+    "releasePageLink": "Visitar página de versión"
   },
   "investments": {
     "type": "Tipo",

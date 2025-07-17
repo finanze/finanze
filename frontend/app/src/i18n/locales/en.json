@@ -69,7 +69,23 @@
     "incompatibleLoginPlatform": "Use desktop app in order to do manual log in.",
     "selectOptions": "Select options...",
     "searchOptions": "Search options...",
-    "noOptionsFound": "No options found"
+    "noOptionsFound": "No options found",
+    "close": "Close",
+    "download": "Download",
+    "viewRelease": "View Release",
+    "remindLater": "Remind Me Later"
+  },
+  "release": {
+    "newVersionAvailable": "New Version Available",
+    "currentVersion": "Current Version",
+    "latestVersion": "Latest Version",
+    "publishedOn": "Published on",
+    "downloadFor": "Download for {platform}",
+    "whatsNew": "What's New",
+    "downloadAssets": "Download Options",
+    "releaseNotes": "Release Notes",
+    "skipThisVersion": "Skip version",
+    "releasePageLink": "Visit Release Page"
   },
   "investments": {
     "type": "Type",

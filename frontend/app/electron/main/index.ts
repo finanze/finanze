@@ -96,7 +96,6 @@ function updateTitleBarOverlay(mainWindow: BrowserWindow | null) {
 
 function startPythonBackend() {
   const args = ["--port", appConfig.ports.backend.toString()]
-
   if (appConfig.isDev) {
     const backendPyPath = join(__dirname, "..", "..", "..", "..", "finanze")
 

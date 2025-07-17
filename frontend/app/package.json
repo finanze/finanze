@@ -37,6 +37,7 @@
     "framer-motion": "^12.12.1",
     "lucide-react": "^0.511.0",
     "react-day-picker": "^9.7.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.15.3"
   },
   "devDependencies": {
