@@ -3,6 +3,7 @@ import logging
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
@@ -174,6 +175,9 @@ class FinanzeServer:
             self.config_loader,
             self.sheets_initiator,
         )
+        change_user_password = ChangeUserPasswordImpl(
+            self.db_manager, self.data_manager
+        )
         get_login_status = GetLoginStatusImpl(self.db_manager, self.data_manager)
         user_logout = UserLogoutImpl(
             self.db_manager, self.config_loader, self.sheets_initiator
@@ -297,6 +301,7 @@ class FinanzeServer:
             self.flask_app,
             user_login,
             register_user,
+            change_user_password,
             get_available_entities,
             fetch_financial_data,
             fetch_crypto_data,

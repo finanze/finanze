@@ -64,6 +64,12 @@ export interface AuthRequest {
   password: string
 }
 
+export interface ChangePasswordRequest {
+  username: string
+  oldPassword: string
+  newPassword: string
+}
+
 export interface LoginStatusResponse {
   status: "LOCKED" | "UNLOCKED"
   last_logged?: string

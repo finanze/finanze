@@ -9,7 +9,7 @@ from domain.data_init import (
     DatasourceInitParams,
     DecryptionError,
 )
-from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.db.client import DBClient, UnderlyingConnection
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
 from infrastructure.repository.db.version_registry import versions
 from pysqlcipher3 import dbapi2 as sqlcipher
@@ -39,6 +39,9 @@ class DBManager(DatasourceInitiator):
             self._client.close()
 
     def initialize(self, params: DatasourceInitParams):
+        self._initialize(params)
+
+    def _initialize(self, params: DatasourceInitParams) -> UnderlyingConnection:
         user_path = Path(params.user.path) / DB_NAME
         self._log.info(f"Attempting to connect and unlock database at {user_path}")
 
@@ -63,6 +66,8 @@ class DBManager(DatasourceInitiator):
 
                 self._setup_database_schema()
 
+                return connection
+
             except DatabaseError as e:
                 self._log.error(f"Failed to unlock database: {e}")
                 if connection:
@@ -81,7 +86,7 @@ class DBManager(DatasourceInitiator):
                     connection.close()
                 raise
 
-    def _unlock_and_setup(self, connection: sqlcipher.Connection, password: str):
+    def _unlock_and_setup(self, connection: UnderlyingConnection, password: str):
         sanitized_pass = password.replace(r"'", r"''")
         connection.execute(f"PRAGMA key='{sanitized_pass}';")
 
@@ -94,9 +99,31 @@ class DBManager(DatasourceInitiator):
 
         return connection
 
+    def change_password(self, user_params: DatasourceInitParams, new_password: str):
+        if not new_password:
+            raise ValueError("New password cannot be empty.")
+
+        if self._unlocked:
+            raise Exception(
+                "Database is unlocked, it must be locked before changing password."
+            )
+
+        connection = self._initialize(user_params)
+        self._change_password(connection, new_password)
+        self.lock()
+
+    def _change_password(self, connection: UnderlyingConnection, new_password: str):
+        if not self._unlocked:
+            raise Exception("Database must be unlocked before changing password.")
+
+        sanitized_pass = new_password.replace(r"'", r"''")
+        connection.execute(f"PRAGMA rekey='{sanitized_pass}';")
+
+        self._log.info("Database password changed successfully.")
+
     def _setup_database_schema(self):
         if not self._unlocked:
-            raise ValueError("Database must be unlocked before setting up schema.")
+            raise Exception("Database must be unlocked before setting up schema.")
 
         self._log.info("Setting up database schema...")
 

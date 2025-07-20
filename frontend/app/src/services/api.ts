@@ -6,6 +6,7 @@ import type {
   LoginResponse,
   ExportRequest,
   AuthRequest,
+  ChangePasswordRequest,
   LoginStatusResponse,
   ExchangeRates,
   CreateCryptoWalletRequest,
@@ -231,17 +232,39 @@ export async function login(
       return { success: false }
     }
 
-    if (response.status === 500) {
-      throw new Error("Server error")
-    }
-
     if (!response.ok) {
-      throw new Error("Login failed")
+      throw new Error("Failed to login")
     }
 
     return { success: true }
   } catch (error) {
     console.error("Login error:", error)
+    throw error
+  }
+}
+
+export const changePassword = async (
+  data: ChangePasswordRequest,
+): Promise<void> => {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/change-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  })
+
+  if (!response.ok) {
+    const errorData = await response
+      .json()
+      .catch(() => ({ message: "Password change failed" }))
+    const errorMessage =
+      errorData.message || `HTTP error! status: ${response.status}`
+
+    // Create an error with status information for better handling
+    const error = new Error(errorMessage)
+    ;(error as any).status = response.status
     throw error
   }
 }
@@ -253,7 +276,7 @@ export async function logout(): Promise<void> {
   })
 
   if (!response.ok) {
-    await handleApiError(response)
+    throw new Error("Failed to logout")
   }
 }
 

@@ -1,4 +1,5 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
+from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 from domain.use_cases.connect_etherscan import ConnectEtherscan
 from domain.use_cases.connect_google import ConnectGoogle
@@ -24,6 +25,7 @@ from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_fetch import VirtualFetch
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
+from infrastructure.controller.routes.change_user_password import change_user_password
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
 from infrastructure.controller.routes.connect_etherscan import connect_etherscan
 from infrastructure.controller.routes.connect_google import connect_google
@@ -55,6 +57,7 @@ def register_routes(
     app: FlaskApp,
     user_login_uc: UserLogin,
     register_user_uc: RegisterUser,
+    change_user_password_uc: ChangeUserPassword,
     get_available_entities_uc: GetAvailableEntities,
     fetch_financial_data_uc: FetchFinancialData,
     fetch_crypto_data_uc: FetchCryptoData,
@@ -85,6 +88,10 @@ def register_routes(
     @app.route("/api/v1/signup", methods=["POST"])
     def register_user_route():
         return register_user(register_user_uc)
+
+    @app.route("/api/v1/change-password", methods=["POST"])
+    def change_user_password_route():
+        return change_user_password(change_user_password_uc)
 
     @app.route("/api/v1/login", methods=["GET"])
     def login_status_route():
