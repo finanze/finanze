@@ -28,7 +28,7 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Receipt,
+  ArrowLeftRight,
   BarChart3,
   ArrowRight,
 } from "lucide-react"
@@ -2071,7 +2071,7 @@ export default function DashboardPage() {
                 <CardHeader>
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg font-bold flex items-center">
-                      <Receipt className="h-5 w-5 mr-2 text-primary" />
+                      <ArrowLeftRight className="h-5 w-5 mr-2 text-primary" />
                       {t.dashboard.recentTransactions}
                     </CardTitle>
                     <Button
@@ -2165,7 +2165,7 @@ export default function DashboardPage() {
                     </ul>
                   ) : (
                     <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
-                      <Receipt className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+                      <ArrowLeftRight className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
                       <p className="text-sm text-muted-foreground">
                         {t.dashboard.noTransactions}
                       </p>

@@ -9,6 +9,9 @@ from infrastructure.repository.db.versions.v020_5_recf_rename import V0205
 from infrastructure.repository.db.versions.v030_0_integrations import V0300Integrations
 from infrastructure.repository.db.versions.v030_1_bsc import V0301BSC
 from infrastructure.repository.db.versions.v030_2_re_rename_historic import V0302
+from infrastructure.repository.db.versions.v030_3_crypto_initial_investments import (
+    V0303CryptoInitialInvestments,
+)
 
 versions = [
     V0Genesis(),
@@ -22,4 +25,5 @@ versions = [
     V0300Integrations(),
     V0301BSC(),
     V0302(),
+    V0303CryptoInitialInvestments(),
 ]

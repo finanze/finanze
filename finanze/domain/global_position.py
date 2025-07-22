@@ -202,6 +202,7 @@ class CryptoCurrencyToken(BaseData):
     amount: Dezimal
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
+    investment_currency: Optional[str] = None
     market_value: Optional[Dezimal] = None
     currency: Optional[str] = None
     type: Optional[str] = None
@@ -218,9 +219,26 @@ class CryptoCurrencyWallet(BaseData):
     name: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
+    investment_currency: Optional[str] = None
     market_value: Optional[Dezimal] = None
     currency: Optional[str] = None
     tokens: list[CryptoCurrencyToken] = None
+
+
+class CryptoInitialInvestmentType(str, Enum):
+    CRYPTO = "CRYPTO"
+    TOKEN = "TOKEN"
+
+
+@dataclass
+class CryptoInitialInvestment(BaseData):
+    wallet_connection_id: UUID
+    symbol: str
+    type: CryptoInitialInvestmentType
+    initial_investment: Optional[Dezimal]
+    average_buy_price: Optional[Dezimal]
+    investment_currency: str
+    currency: str
 
 
 @dataclass

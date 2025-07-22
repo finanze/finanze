@@ -80,9 +80,8 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
-  bot protection, good news is that it last for a year approx, if you use front to log in you have nothing to worry
-  about.
+- **Unicaja** if not using the desktop app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
+  bot protection.
 - **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
 - **Indexa Capital** is not tested, as I don't have an account.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
@@ -97,6 +96,7 @@ currently the following are supported:
 - **Ethereum**: ERC20 tokens are supported too, currently **USDT** and **USDC** are supported.
 - **Litecoin**
 - **Tron**: TRC20 tokens are supported too, same as ETH.
+- **Binance Smart Chain**: BSC tokens are supported too (requires Etherscan integration setup with an API Key).
 
 At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
 
