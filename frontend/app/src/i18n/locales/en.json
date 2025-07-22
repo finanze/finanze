@@ -568,5 +568,50 @@
     "MANA": "Decentraland",
     "CRO": "Cronos",
     "KCS": "KuCoin Token"
+  },
+  "banking": {
+    "title": "Banking",
+    "subtitle": "Manage your accounts, cards, and loans",
+    "showNumbers": "Show Numbers",
+    "hideNumbers": "Hide Numbers",
+    "totalBalance": "Total Balance",
+    "totalCardUsed": "Total Card Usage",
+    "totalDebt": "Total Outstanding Debt",
+    "monthlyPayments": "Monthly Payments",
+    "avgInterest": "avg. interest",
+    "accounts": "Accounts",
+    "cards": "Cards",
+    "loans": "Loans",
+    "card": "card",
+    "loan": "loan",
+    "available": "Available",
+    "used": "Used",
+    "limit": "Limit",
+    "utilization": "Utilization",
+    "inactive": "Inactive",
+    "principalOutstanding": "Principal Outstanding",
+    "monthlyInstallment": "Monthly Installment",
+    "interestRate": "Interest Rate",
+    "nextPayment": "Next Payment",
+    "originalAmount": "Original Amount",
+    "principalPaid": "Principal Paid",
+    "repaymentProgress": "Repayment Progress",
+    "noData": "No data available",
+    "noDataDescription": "Connect your banking accounts to view accounts, cards, and loans information."
+  },
+  "cardTypes": {
+    "CREDIT": "Credit",
+    "DEBIT": "Debit"
+  },
+  "loanTypes": {
+    "MORTGAGE": "Mortgage",
+    "STANDARD": "Personal Loan"
+  },
+  "accountTypes": {
+    "CHECKING": "Checking",
+    "SAVINGS": "Savings",
+    "BROKERAGE": "Brokerage",
+    "VIRTUAL_WALLET": "Wallet",
+    "FUND_PORTFOLIO": "Fund Portfolio"
   }
 }

@@ -12,6 +12,7 @@ import FactoringInvestmentPage from "./pages/FactoringInvestmentPage"
 import RealEstateCFInvestmentPage from "./pages/RealEstateCFInvestmentPage"
 import CryptoInvestmentPage from "./pages/CryptoInvestmentPage"
 import InvestmentsPage from "./pages/InvestmentsPage"
+import BankingPage from "./pages/BankingPage"
 import LoginPage from "./pages/LoginPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
@@ -89,6 +90,7 @@ function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/banking" element={<BankingPage />} />
           <Route path="/entities" element={<EntityIntegrationsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/investments" element={<InvestmentsPage />} />

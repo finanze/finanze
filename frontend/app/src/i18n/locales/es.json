@@ -567,5 +567,50 @@
     "MANA": "Decentraland",
     "CRO": "Cronos",
     "KCS": "KuCoin Token"
+  },
+  "banking": {
+    "title": "Banca",
+    "subtitle": "Gestiona tus cuentas, tarjetas y préstamos",
+    "showNumbers": "Mostrar números",
+    "hideNumbers": "Ocultar números",
+    "totalBalance": "Saldo total",
+    "totalCardUsed": "Uso total de tarjetas",
+    "totalDebt": "Deuda pendiente total",
+    "monthlyPayments": "Pagos mensuales",
+    "avgInterest": "interés promedio",
+    "accounts": "Cuentas",
+    "cards": "Tarjetas",
+    "loans": "Préstamos",
+    "card": "tarjeta",
+    "loan": "préstamo",
+    "available": "Disponible",
+    "used": "Usado",
+    "limit": "Límite",
+    "utilization": "Utilización",
+    "inactive": "Inactiva",
+    "principalOutstanding": "Capital pendiente",
+    "monthlyInstallment": "Cuota mensual",
+    "interestRate": "Tasa de interés",
+    "nextPayment": "Próximo pago",
+    "originalAmount": "Total",
+    "principalPaid": "Capital pagado",
+    "repaymentProgress": "Progreso de pago",
+    "noData": "No hay datos disponibles",
+    "noDataDescription": "Conecta tus cuentas bancarias para ver información de cuentas, tarjetas y préstamos."
+  },
+  "cardTypes": {
+    "CREDIT": "Crédito",
+    "DEBIT": "Débito"
+  },
+  "loanTypes": {
+    "MORTGAGE": "Hipoteca",
+    "STANDARD": "Préstamo Personal"
+  },
+  "accountTypes": {
+    "CHECKING": "Corriente",
+    "SAVINGS": "Ahorros",
+    "BROKERAGE": "Inversión",
+    "VIRTUAL_WALLET": "Monedero",
+    "FUND_PORTFOLIO": "Asociada a cartera"
   }
 }

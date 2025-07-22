@@ -23,6 +23,7 @@ import {
   User,
   ArrowLeftRight,
   Blocks,
+  Banknote,
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
@@ -141,6 +142,11 @@ export function Sidebar() {
       path: "/",
       label: t.common.dashboard,
       icon: <LayoutDashboard size={20} />,
+    },
+    {
+      path: "/banking",
+      label: t.banking.title,
+      icon: <Banknote size={20} />,
     },
     {
       path: "/transactions",
