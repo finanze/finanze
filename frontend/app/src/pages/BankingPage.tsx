@@ -3,6 +3,7 @@ import { motion } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
@@ -312,14 +313,6 @@ export default function BankingPage() {
     return "•••• •••• •••• " + iban.slice(-4)
   }
 
-  const formatPaymentDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString(locale, {
-      day: "numeric",
-      month: "short",
-    })
-  }
-
   const formatCardNumber = (ending?: string | null) => {
     if (!ending) return "•••• •••• •••• ••••"
     return "•••• •••• •••• " + ending
@@ -340,10 +333,24 @@ export default function BankingPage() {
     show: { opacity: 1, y: 0 },
   }
 
+  // Helper: compute next expected payment date
+  const getNextPaymentDate = (dateString: string) => {
+    const localeToday = new Date()
+    const nextDate = new Date(dateString)
+    // advance until in the future
+    while (nextDate <= localeToday) {
+      nextDate.setMonth(nextDate.getMonth() + 1)
+    }
+    return nextDate.toLocaleDateString(locale, {
+      day: "numeric",
+      month: "short",
+    })
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg">{t.common.loading}</div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
@@ -357,14 +364,14 @@ export default function BankingPage() {
     >
       {/* Header */}
       <motion.div variants={item}>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
           <div>
             <h1 className="text-2xl font-bold">{t.banking.title}</h1>
             <p className="text-gray-600 dark:text-gray-400">
               {t.banking.subtitle}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
@@ -445,7 +452,6 @@ export default function BankingPage() {
               </div>
             </Card>
           )}
-
           {/* Outstanding Debt - only show if there are loans */}
           {loans.length > 0 && (
             <Card className="p-4">
@@ -455,7 +461,7 @@ export default function BankingPage() {
                   {t.banking.totalDebt}
                 </span>
               </div>
-              <div className="text-2xl font-bold text-red-500 dark:text-red-400">
+              <div className="text-2xl font-bold">
                 {formatCurrency(
                   totalLoanDebt,
                   locale,
@@ -586,7 +592,7 @@ export default function BankingPage() {
                               </div>
                             </PopoverTrigger>
                             <PopoverContent className="w-auto p-2 text-xs">
-                              Interest Rate
+                              {t.banking.interestRate}
                             </PopoverContent>
                           </Popover>
                         )}
@@ -605,7 +611,7 @@ export default function BankingPage() {
                                 </div>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-2 text-xs">
-                                Retained Amount
+                                {t.banking.retainedAmount}
                               </PopoverContent>
                             </Popover>
                           )}
@@ -624,7 +630,7 @@ export default function BankingPage() {
                                 </div>
                               </PopoverTrigger>
                               <PopoverContent className="w-auto p-2 text-xs">
-                                Pending Transfers
+                                {t.banking.pendingTransfers}
                               </PopoverContent>
                             </Popover>
                           )}
@@ -857,11 +863,11 @@ export default function BankingPage() {
 
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                      Payment Date
+                      {t.banking.paymentDate || "Payment Date"}
                     </span>
                     <span className="text-sm font-medium flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {formatPaymentDate(loan.data.next_payment_date)}
+                      {getNextPaymentDate(loan.data.next_payment_date)}
                     </span>
                   </div>
                 </div>

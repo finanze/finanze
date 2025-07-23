@@ -596,7 +596,10 @@
     "principalPaid": "Capital pagado",
     "repaymentProgress": "Progreso de pago",
     "noData": "No hay datos disponibles",
-    "noDataDescription": "Conecta tus cuentas bancarias para ver información de cuentas, tarjetas y préstamos."
+    "noDataDescription": "Conecta tus cuentas bancarias para ver información de cuentas, tarjetas y préstamos.",
+    "paymentDate": "Fecha de Pago",
+    "retainedAmount": "Retenido",
+    "pendingTransfers": "Transferencias Pendientes"
   },
   "cardTypes": {
     "CREDIT": "Crédito",

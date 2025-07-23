@@ -596,8 +596,11 @@
     "originalAmount": "Original Amount",
     "principalPaid": "Principal Paid",
     "repaymentProgress": "Repayment Progress",
-    "noData": "No data available",
-    "noDataDescription": "Connect your banking accounts to view accounts, cards, and loans information."
+    "noData": "No Banking Data Available",
+    "noDataDescription": "Connect your banking accounts to view accounts, cards, and loans information.",
+    "paymentDate": "Payment Date",
+    "retainedAmount": "Retained Amount",
+    "pendingTransfers": "Pending Transfers"
   },
   "cardTypes": {
     "CREDIT": "Credit",
