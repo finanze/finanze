@@ -52,14 +52,14 @@ export default function RealEstateCFInvestmentPage() {
             exchangeRates,
           )
 
-          const convertedPendingAmount = realEstate.pending_amount
-            ? convertCurrency(
+          const convertedPendingAmount = isNaN(realEstate.pending_amount)
+            ? null
+            : convertCurrency(
                 realEstate.pending_amount,
                 realEstate.currency,
                 settings.general.defaultCurrency,
                 exchangeRates,
               )
-            : null
 
           realEstates.push({
             ...realEstate,
@@ -77,13 +77,14 @@ export default function RealEstateCFInvestmentPage() {
               locale,
               settings.general.defaultCurrency,
             ),
-            formattedPendingAmount: convertedPendingAmount
-              ? formatCurrency(
-                  convertedPendingAmount,
-                  locale,
-                  settings.general.defaultCurrency,
-                )
-              : null,
+            formattedPendingAmount:
+              convertedPendingAmount !== null
+                ? formatCurrency(
+                    convertedPendingAmount,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
           })
         })
       }
@@ -123,14 +124,14 @@ export default function RealEstateCFInvestmentPage() {
     const mappedPositions = filteredRealEstatePositions.map(position => ({
       ...position,
       symbol: position.name,
-      currentValue: position.convertedAmount, // Use converted amount for chart
+      currentValue: position.convertedPendingAmount, // Use converted amount for chart
     }))
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [filteredRealEstatePositions])
 
   const totalValue = useMemo(() => {
     return filteredRealEstatePositions.reduce(
-      (sum, position) => sum + (position.convertedAmount || 0),
+      (sum, position) => sum + (position.convertedPendingAmount || 0),
       0,
     )
   }, [filteredRealEstatePositions])
@@ -145,7 +146,7 @@ export default function RealEstateCFInvestmentPage() {
 
     const totalWeightedInterest = filteredRealEstatePositions.reduce(
       (sum, position) => {
-        const weight = position.convertedAmount || 0
+        const weight = position.convertedPendingAmount || 0
         const interest = position.interest_rate || 0
         return sum + weight * interest
       },
@@ -268,7 +269,8 @@ export default function RealEstateCFInvestmentPage() {
             {filteredRealEstatePositions.map(realEstate => {
               const percentageOfRealEstate =
                 totalRealEstateValue > 0
-                  ? ((realEstate.convertedAmount || 0) / totalRealEstateValue) *
+                  ? ((realEstate.convertedPendingAmount || 0) /
+                      totalRealEstateValue) *
                     100
                   : 0
 

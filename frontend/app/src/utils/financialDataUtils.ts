@@ -395,7 +395,7 @@ export const getAssetDistribution = (
       }
       const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
-          const amount = project.amount || 0
+          const amount = project.pending_amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
               ? convertCurrency(
@@ -687,7 +687,7 @@ export const getEntityDistribution = (
     ) {
       const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
-          const amount = project.amount || 0
+          const amount = project.pending_amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
               ? convertCurrency(
@@ -957,7 +957,7 @@ export const getTotalAssets = (
     ) {
       const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
-          const amount = project.amount || 0
+          const amount = project.pending_amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
               ? convertCurrency(
@@ -1182,7 +1182,7 @@ export const getTotalInvestedAmount = (
       realEstateCfProduct.entries.length > 0
     ) {
       realEstateCfProduct.entries.forEach((project: any) => {
-        const amount = project.amount || 0
+        const amount = project.pending_amount || 0
         const convertedAmount =
           targetCurrency && exchangeRates
             ? convertCurrency(
@@ -1387,10 +1387,10 @@ export const getOngoingProjects = (
           projects.push({
             name: project.name,
             type: "REAL_ESTATE_CF",
-            value: project.amount,
+            value: project.pending_amount,
             currency: project.currency,
             formattedValue: formatCurrency(
-              project.amount,
+              project.pending_amount,
               locale,
               defaultCurrency,
               project.currency,
