@@ -3,9 +3,12 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from domain.entity_login import LoginOptions, LoginResultCode, TwoFactor
+from domain.auto_contributions import AutoContributions
 from domain.entity import Feature
-from domain.fetched_data import FetchedData, VirtuallyFetchedData
+from domain.entity_login import LoginOptions, LoginResultCode, TwoFactor
+from domain.global_position import GlobalPosition
+from domain.historic import Historic
+from domain.transactions import Transactions
 from pydantic.dataclasses import dataclass
 
 
@@ -17,11 +20,7 @@ class FetchResultCode(str, Enum):
     COOLDOWN = "COOLDOWN"
 
     # Bad user input
-    ENTITY_NOT_FOUND = "ENTITY_NOT_FOUND"
     FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED"
-
-    # Entity or feature disabled (also bad input)
-    DISABLED = "DISABLED"
 
     # Login related codes
     CODE_REQUESTED = "CODE_REQUESTED"
@@ -30,6 +29,7 @@ class FetchResultCode(str, Enum):
     INVALID_CODE = "INVALID_CODE"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
     NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE"
+    NOT_CONNECTED = "NOT_CONNECTED"
     LOGIN_REQUIRED = "LOGIN_REQUIRED"
     UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR"
 
@@ -49,9 +49,17 @@ class FetchRequest:
 
 
 @dataclass
+class FetchedData:
+    position: Optional[GlobalPosition] = None
+    auto_contributions: Optional[AutoContributions] = None
+    transactions: Optional[Transactions] = None
+    historic: Optional[Historic] = None
+
+
+@dataclass
 class FetchResult:
     code: FetchResultCode
-    data: Optional[FetchedData | VirtuallyFetchedData | list[FetchedData]] = None
+    data: Optional[FetchedData | list[FetchedData]] = None
     details: Optional[dict] = None
 
 

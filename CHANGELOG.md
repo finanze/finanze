@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2025-07-23
+
+### 🚀 Features
+
+- Add data importing error information
+- Add external integrations, google sheets
+- Add entity external integrations, etherscan and BSC support
+- Show export sheet not found errors
+- Add export option to exclude imported/manual data
+- Add version release notification
+- Improve sidebar button display
+- Add password change feature
+- Add banking dashboard with account, cards and loans detailed info and KPIs
+
+### 🐛 Bug Fixes
+
+- Add product type field validation
+- Empty virtual fetch causing error and unknown error handling in import
+- Historic real estate name
+- Improve integration requirement warnings
+- Export empty asset table not emptying previously filled table
+- Wecity balance and use pending amount for totals
+
+### 📚 Documentation
+
+- Update macOS instructions
+- Update crypto related feats
+
 ## [0.2.0] - 2025-07-10
 
 ### 🚀 Features

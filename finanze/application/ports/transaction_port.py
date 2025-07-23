@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 from uuid import UUID
 
 from domain.transactions import BaseTx, TransactionQueryRequest, Transactions
@@ -10,7 +11,7 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self) -> Transactions:
+    def get_all(self, real: Optional[bool] = None) -> Transactions:
         raise NotImplementedError
 
     @abc.abstractmethod

@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Settings,
   LogOut,
+  KeyRound,
   Sun,
   Moon,
   ChevronRight,
@@ -16,11 +17,13 @@ import {
   Globe,
   FileUp,
   SunMoon,
-  Receipt,
-  BanknoteArrowDown,
   TrendingUp,
   ChevronDown,
   ChevronUp,
+  User,
+  ArrowLeftRight,
+  Blocks,
+  Banknote,
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
@@ -37,7 +40,7 @@ import { getAvailableInvestmentTypes } from "@/utils/financialDataUtils"
 export function Sidebar() {
   const { t, locale, changeLocale } = useI18n()
   const { theme, setThemeMode } = useTheme()
-  const { logout } = useAuth()
+  const { logout, startPasswordChange } = useAuth()
   const { platform } = useAppContext()
   const { positionsData } = useFinancialData()
   const navigate = useNavigate()
@@ -141,14 +144,19 @@ export function Sidebar() {
       icon: <LayoutDashboard size={20} />,
     },
     {
+      path: "/banking",
+      label: t.banking.title,
+      icon: <Banknote size={20} />,
+    },
+    {
       path: "/transactions",
       label: t.common.transactions,
-      icon: <Receipt size={20} />,
+      icon: <ArrowLeftRight size={20} />,
     },
     {
       path: "/entities",
       label: t.common.entities,
-      icon: <BanknoteArrowDown size={20} />,
+      icon: <Blocks size={20} />,
     },
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
     {
@@ -177,6 +185,17 @@ export function Sidebar() {
       navigate("/login")
     } catch (error) {
       console.error("Logout failed:", error)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    try {
+      console.log("handleChangePassword: Starting password change flow")
+      await startPasswordChange()
+      console.log("handleChangePassword: Navigating to login")
+      navigate("/login")
+    } catch (error) {
+      console.error("Change password flow failed:", error)
     }
   }
 
@@ -309,53 +328,96 @@ export function Sidebar() {
       <div className="p-4 border-t border-gray-200 dark:border-gray-800">
         {!collapsed ? (
           <div className="space-y-2">
-            <div className="flex flex-wrap gap-1 mb-2">
-              {languages.map(lang => (
-                <Button
-                  key={lang.code}
-                  variant={locale === lang.code ? "default" : "outline"}
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => changeLocale(lang.code)}
-                >
-                  {lang.label}
-                </Button>
-              ))}
-            </div>
             <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => setThemeMode("light")}
-                disabled={theme === "light"}
-              >
-                <Sun size={18} />
-              </Button>
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => setThemeMode("dark")}
-                disabled={theme === "dark"}
-              >
-                <Moon size={18} />
-              </Button>
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => setThemeMode("system")}
-                disabled={theme === "system"}
-              >
-                <SunMoon size={18} />
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="flex-1" size="sm">
+                    <Globe size={16} className="mr-2" />
+                    {languages.find(lang => lang.code === locale)?.label}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="top" className="p-1 w-auto">
+                  <div className="flex flex-col gap-1">
+                    {languages.map(lang => (
+                      <Button
+                        key={lang.code}
+                        variant={locale === lang.code ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => changeLocale(lang.code)}
+                      >
+                        {lang.label}
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="flex-1" size="sm">
+                    {theme === "light" && <Sun size={16} />}
+                    {theme === "dark" && <Moon size={16} />}
+                    {theme === "system" && <SunMoon size={16} />}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="top" className="p-1 w-auto">
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setThemeMode("light")}
+                      disabled={theme === "light"}
+                    >
+                      <Sun size={16} className="mr-2" /> Light
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setThemeMode("dark")}
+                      disabled={theme === "dark"}
+                    >
+                      <Moon size={16} className="mr-2" /> Dark
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setThemeMode("system")}
+                      disabled={theme === "system"}
+                    >
+                      <SunMoon size={16} className="mr-2" /> System
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" className="flex-1" size="sm">
+                    <User size={16} />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent side="top" className="p-1 w-auto">
+                  <div className="flex flex-col gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start"
+                      onClick={handleChangePassword}
+                    >
+                      <KeyRound size={16} className="mr-2" />
+                      {t.login.changePassword}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 justify-start"
+                      onClick={handleLogout}
+                    >
+                      <LogOut size={16} className="mr-2" />
+                      {t.common.logout}
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
-            <Button
-              variant="ghost"
-              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 justify-start"
-              onClick={handleLogout}
-            >
-              <LogOut size={18} className="mr-2" />
-              {t.common.logout}
-            </Button>
           </div>
         ) : (
           <div className="space-y-2">
@@ -417,14 +479,35 @@ export function Sidebar() {
                 </div>
               </PopoverContent>
             </Popover>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-              onClick={handleLogout}
-            >
-              <LogOut size={20} />
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-full">
+                  <User size={20} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="right" className="p-1 w-auto">
+                <div className="flex flex-col gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start"
+                    onClick={handleChangePassword}
+                  >
+                    <KeyRound size={18} className="mr-2" />
+                    {t.login.changePassword}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 justify-start"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={18} className="mr-2" />
+                    {t.common.logout}
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         )}
       </div>

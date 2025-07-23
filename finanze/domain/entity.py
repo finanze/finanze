@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
+from domain.external_integration import ExternalIntegrationId
 from pydantic.dataclasses import dataclass
 
 
@@ -68,6 +69,7 @@ class NativeFinancialEntity(Entity):
 @dataclass(eq=False)
 class NativeCryptoWalletEntity(Entity):
     features: list[Feature]
+    required_external_integrations: list[ExternalIntegrationId]
 
 
 EntityCredentials = dict[str, str]

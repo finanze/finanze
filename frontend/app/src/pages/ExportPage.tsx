@@ -16,16 +16,28 @@ import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 import { updateSheets } from "@/services/api"
 import { ExportTarget } from "@/types"
+import { ApiErrorException } from "@/utils/apiErrors"
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/Popover"
+import { Switch } from "@/components/ui/Switch"
+import { Settings } from "lucide-react"
 
 export default function ExportPage() {
   const { t } = useI18n()
   const { settings, exportState, setExportState, showToast } = useAppContext()
   const [successAnimation, setSuccessAnimation] = useState(false)
+  const [excludeNonReal, setExcludeNonReal] = useState(false)
 
   const handleExport = async () => {
     try {
       setExportState(prev => ({ ...prev, isExporting: true }))
-      await updateSheets({ target: ExportTarget.GOOGLE_SHEETS })
+      await updateSheets({
+        target: ExportTarget.GOOGLE_SHEETS,
+        options: { exclude_non_real: excludeNonReal },
+      })
 
       // Show success animation
       setSuccessAnimation(true)
@@ -41,6 +53,18 @@ export default function ExportPage() {
       }, 2000)
     } catch (error) {
       console.error("Export error:", error)
+      if (error instanceof ApiErrorException) {
+        const code = error.code
+        if (code.startsWith("sheet.not_found.")) {
+          const sheetName = code.split(".").pop() || ""
+          showToast(
+            t.export.sheetNotFound.replace("{sheetName}", sheetName),
+            "error",
+          )
+          setExportState(prev => ({ ...prev, isExporting: false }))
+          return
+        }
+      }
       showToast(t.common.exportError, "error")
       setExportState(prev => ({ ...prev, isExporting: false }))
     }
@@ -121,6 +145,40 @@ export default function ExportPage() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* Exclude manual data option popover */}
+                <div className="flex justify-center">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground"
+                      >
+                        <Settings className="mr-2 h-4 w-4" />
+                        {t.export.options}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80" align="center">
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between space-x-2">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">
+                              {t.export.excludeManual}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {t.export.excludeManualDescription}
+                            </div>
+                          </div>
+                          <Switch
+                            checked={excludeNonReal}
+                            onCheckedChange={setExcludeNonReal}
+                          />
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="pt-2">

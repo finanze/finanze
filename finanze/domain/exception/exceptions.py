@@ -1,8 +1,8 @@
-from typing import List
+from domain.external_integration import ExternalIntegrationId
 
 
 class MissingFieldsError(Exception):
-    def __init__(self, missing_fields: List[str]):
+    def __init__(self, missing_fields: list[str]):
         self.missing_fields = missing_fields
         message = f"Missing required fields: {', '.join(missing_fields)}"
         super().__init__(message)
@@ -14,6 +14,13 @@ class FeatureNotSupported(Exception):
 
 class EntityNotFound(Exception):
     pass
+
+
+class ExternalIntegrationRequired(Exception):
+    def __init__(self, required_integrations: list[ExternalIntegrationId]):
+        self.required_integrations = required_integrations
+        message = f"External Integrations required: {', '.join(required_integrations)}"
+        super().__init__(message)
 
 
 class UserNotFound(Exception):
@@ -50,3 +57,14 @@ class AddressAlreadyExists(Exception):
 
 class TooManyRequests(Exception):
     pass
+
+
+class IntegrationSetupError(Exception):
+    pass
+
+
+class ExportException(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        message = f"Error while exporting data: {details}"
+        super().__init__(message)

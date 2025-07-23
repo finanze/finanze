@@ -11,6 +11,7 @@ from domain.entity import (
     NativeFinancialEntity,
     PinDetails,
 )
+from domain.external_integration import ExternalIntegrationId
 
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
@@ -134,7 +135,10 @@ INDEXA_CAPITAL = NativeFinancialEntity(
 
 
 def _create_crypto_entity(
-    num: int, name: str, features: list[Feature] = [Feature.POSITION]
+    num: int,
+    name: str,
+    features: list[Feature] = [Feature.POSITION],
+    required_external_integrations: list[ExternalIntegrationId] = [],
 ) -> NativeCryptoWalletEntity:
     return NativeCryptoWalletEntity(
         id=UUID(f"c0000000-0000-0000-0000-000000000{num:03d}"),
@@ -142,6 +146,7 @@ def _create_crypto_entity(
         type=EntityType.CRYPTO_WALLET,
         is_real=True,
         features=features,
+        required_external_integrations=required_external_integrations,
     )
 
 
@@ -149,6 +154,11 @@ BITCOIN = _create_crypto_entity(1, "Bitcoin")
 ETHEREUM = _create_crypto_entity(2, "Ethereum")
 LITECOIN = _create_crypto_entity(3, "Litecoin")
 TRON = _create_crypto_entity(4, "Tron")
+BSC = _create_crypto_entity(
+    5,
+    "Binance Smart Chain",
+    required_external_integrations=[ExternalIntegrationId.ETHERSCAN],
+)
 
 COMMODITIES = Entity(
     id=UUID("ccccdddd-0000-0000-0000-000000000000"),
@@ -171,6 +181,7 @@ NATIVE_ENTITIES = [
     ETHEREUM,
     LITECOIN,
     TRON,
+    BSC,
     COMMODITIES,
 ]
 

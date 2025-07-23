@@ -9,7 +9,7 @@ from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
 from domain.available_sources import (
-    AvailableFinancialEntity,
+    AvailableSource,
     AvailableSources,
     FinancialEntityStatus,
 )
@@ -103,7 +103,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     dict_entity["features"] = list(virtual_last_fetch.keys())
 
             entities.append(
-                AvailableFinancialEntity(
+                AvailableSource(
                     **dict_entity,
                     status=status,
                     connected=wallets,

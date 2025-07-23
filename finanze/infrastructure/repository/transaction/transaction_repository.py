@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Set
+from typing import List, Optional, Set
 from uuid import UUID
 
 from application.ports.transaction_port import TransactionPort
@@ -250,27 +250,47 @@ class TransactionSQLRepository(TransactionPort):
                     ),
                 )
 
-    def get_all(self) -> Transactions:
+    def get_all(self, real: Optional[bool] = None) -> Transactions:
         return Transactions(
-            investment=self._get_investment_txs(), account=self._get_account_txs()
+            investment=self._get_investment_txs(real),
+            account=self._get_account_txs(real),
         )
 
-    def _get_investment_txs(self) -> List[BaseInvestmentTx]:
+    def _get_investment_txs(
+        self, real: Optional[bool] = None
+    ) -> List[BaseInvestmentTx]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
-                           FROM investment_transactions it
-                                    JOIN entities e ON it.entity_id = e.id
-                           """)
+            params = []
+            query = """
+                    SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
+                    FROM investment_transactions it
+                             JOIN entities e ON it.entity_id = e.id
+                    """
+            if real is not None:
+                query += " WHERE it.is_real = ?"
+                params.append(real)
+
+            cursor.execute(query, tuple(params))
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
-    def _get_account_txs(self) -> List[AccountTx]:
+    def _get_account_txs(self, real: Optional[bool] = None) -> List[AccountTx]:
         with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
-                           FROM account_transactions at
-                                    JOIN entities e ON at.entity_id = e.id
-                           """)
+            params = []
+            query = """
+                    SELECT at.*,
+                           e.name    AS entity_name,
+                           e.id      AS entity_id,
+                           e.type    as entity_type,
+                           e.is_real AS entity_is_real
+                    FROM account_transactions at
+                             JOIN entities e ON at.entity_id = e.id
+                    """
+
+            if real is not None:
+                query += " WHERE at.is_real = ?"
+                params.append(real)
+
+            cursor.execute(query, tuple(params))
             return [_map_account_row(row) for row in cursor.fetchall()]
 
     def _get_investment_txs_by_entity(self, entity_id: UUID) -> List[BaseInvestmentTx]:

@@ -7,7 +7,7 @@ import {
   WeightUnit,
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
 import { ExchangeRates } from "@/types"
 
 export const convertCurrency = (
@@ -166,6 +166,9 @@ export interface StockFundPosition {
   percentageOfTotalVariableRent: number
   percentageOfTotalPortfolio: number
   id: string
+  isin?: string
+  gainLossAmount?: number
+  formattedGainLossAmount?: string
 }
 
 export interface CryptoPosition {
@@ -392,7 +395,7 @@ export const getAssetDistribution = (
       }
       const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
-          const amount = project.amount || 0
+          const amount = project.pending_amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
               ? convertCurrency(
@@ -684,7 +687,7 @@ export const getEntityDistribution = (
     ) {
       const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
-          const amount = project.amount || 0
+          const amount = project.pending_amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
               ? convertCurrency(
@@ -954,7 +957,7 @@ export const getTotalAssets = (
     ) {
       const realEstateCfTotal = realEstateCfProduct.entries.reduce(
         (sum: number, project: any) => {
-          const amount = project.amount || 0
+          const amount = project.pending_amount || 0
           const convertedAmount =
             targetCurrency && exchangeRates
               ? convertCurrency(
@@ -1179,7 +1182,7 @@ export const getTotalInvestedAmount = (
       realEstateCfProduct.entries.length > 0
     ) {
       realEstateCfProduct.entries.forEach((project: any) => {
-        const amount = project.amount || 0
+        const amount = project.pending_amount || 0
         const convertedAmount =
           targetCurrency && exchangeRates
             ? convertCurrency(
@@ -1384,10 +1387,10 @@ export const getOngoingProjects = (
           projects.push({
             name: project.name,
             type: "REAL_ESTATE_CF",
-            value: project.amount,
+            value: project.pending_amount,
             currency: project.currency,
             formattedValue: formatCurrency(
-              project.amount,
+              project.pending_amount,
               locale,
               defaultCurrency,
               project.currency,
@@ -1490,6 +1493,9 @@ export const getStockAndFundPositions = (
     ) {
       stocksProduct.entries.forEach((stock: any) => {
         const originalValue = stock.market_value || 0
+        const initialInvestment = stock.initial_investment || 0
+        const gainLossAmount = originalValue - initialInvestment
+
         const convertedValue = exchangeRates
           ? convertCurrency(
               originalValue,
@@ -1498,6 +1504,15 @@ export const getStockAndFundPositions = (
               exchangeRates,
             )
           : originalValue
+
+        const convertedGainLoss = exchangeRates
+          ? convertCurrency(
+              gainLossAmount,
+              stock.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : gainLossAmount
 
         allPositionsRaw.push({
           symbol: stock.ticker || "",
@@ -1523,6 +1538,12 @@ export const getStockAndFundPositions = (
               1) *
             100,
           entity: entityPosition.entity?.name,
+          isin: stock.isin,
+          gainLossAmount: convertedGainLoss,
+          formattedGainLossAmount:
+            initialInvestment > 0 && gainLossAmount !== 0
+              ? formatGainLoss(convertedGainLoss, locale, defaultCurrency)
+              : undefined,
         })
       })
     }
@@ -1535,6 +1556,9 @@ export const getStockAndFundPositions = (
     ) {
       fundsProduct.entries.forEach((fund: any) => {
         const originalValue = fund.market_value || 0
+        const initialInvestment = fund.initial_investment || 0
+        const gainLossAmount = originalValue - initialInvestment
+
         const convertedValue = exchangeRates
           ? convertCurrency(
               originalValue,
@@ -1543,6 +1567,15 @@ export const getStockAndFundPositions = (
               exchangeRates,
             )
           : originalValue
+
+        const convertedGainLoss = exchangeRates
+          ? convertCurrency(
+              gainLossAmount,
+              fund.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : gainLossAmount
 
         allPositionsRaw.push({
           symbol: "",
@@ -1569,6 +1602,12 @@ export const getStockAndFundPositions = (
               1) *
             100,
           entity: entityPosition.entity?.name,
+          isin: fund.isin,
+          gainLossAmount: convertedGainLoss,
+          formattedGainLossAmount:
+            initialInvestment > 0 && gainLossAmount !== 0
+              ? formatGainLoss(convertedGainLoss, locale, defaultCurrency)
+              : undefined,
         })
       })
     }

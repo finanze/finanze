@@ -38,6 +38,15 @@ export const formatDate = (dateString: string, locale: string): string => {
   }).format(new Date(dateString))
 }
 
+export const formatGainLoss = (
+  value: number,
+  locale: string,
+  currency: string,
+): string => {
+  const formatted = formatCurrency(Math.abs(value), locale, currency)
+  return value >= 0 ? `+${formatted}` : `-${formatted}`
+}
+
 export const formatConvertedCurrency = (
   value: number,
   locale: string,

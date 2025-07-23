@@ -15,3 +15,7 @@ class DatasourceInitiator(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def initialize(self, params: DatasourceInitParams):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def change_password(self, params: DatasourceInitParams, new_password: str):
+        raise NotImplementedError

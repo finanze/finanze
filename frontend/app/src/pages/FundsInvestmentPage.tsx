@@ -271,6 +271,14 @@ export default function FundsInvestmentPage() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
+                        {position.isin && (
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {t.transactions.isin}:{" "}
+                            </span>
+                            <span className="font-medium">{position.isin}</span>
+                          </div>
+                        )}
                         <div>
                           <span className="text-gray-600 dark:text-gray-400">
                             {t.investments.shares}:{" "}
@@ -295,9 +303,22 @@ export default function FundsInvestmentPage() {
                     </div>
 
                     <div className="text-left sm:text-right space-y-1 flex-shrink-0">
-                      <div className="text-xl font-semibold">
-                        {position.formattedOriginalValue ||
-                          position.formattedValue}
+                      <div className="flex items-center gap-2 justify-end">
+                        {position.formattedGainLossAmount && (
+                          <span
+                            className={`text-sm ${
+                              (position.gainLossAmount || 0) >= 0
+                                ? "text-green-500"
+                                : "text-red-500"
+                            }`}
+                          >
+                            {position.formattedGainLossAmount}
+                          </span>
+                        )}
+                        <div className="text-xl font-semibold">
+                          {position.formattedOriginalValue ||
+                            position.formattedValue}
+                        </div>
                       </div>
                       {position.currency !==
                         settings.general.defaultCurrency && (

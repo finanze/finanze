@@ -77,7 +77,7 @@ class WecityFetcher(FinancialEntityFetcher):
         )
 
     async def global_position(self) -> GlobalPosition:
-        wallet = Dezimal(self._client.get_wallet()["LW"]["balance"])
+        wallet = Dezimal(self._client.get_wallet()["LW"]["balance"]) / 100
         account = Account(
             id=uuid4(),
             total=round(wallet, 2),

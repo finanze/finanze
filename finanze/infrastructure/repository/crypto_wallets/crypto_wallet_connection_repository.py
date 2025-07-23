@@ -28,11 +28,16 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
                 for row in cursor.fetchall()
             ]
 
-    def get_by_address(self, address: str) -> Optional[CryptoWalletConnection]:
+    def get_by_entity_and_address(
+        self, entity_id: UUID, address: str
+    ) -> Optional[CryptoWalletConnection]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM crypto_wallet_connections WHERE address = ?",
-                (address,),
+                "SELECT * FROM crypto_wallet_connections WHERE entity_id = ? AND address = ?",
+                (
+                    str(entity_id),
+                    address,
+                ),
             )
             row = cursor.fetchone()
             if not row:
@@ -44,6 +49,12 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
                 address=row["address"],
                 name=row["name"],
             )
+
+    def get_connected_entities(self) -> set[UUID]:
+        with self._db_client.read() as cursor:
+            cursor.execute("SELECT DISTINCT(entity_id) FROM crypto_wallet_connections")
+            rows = cursor.fetchall()
+            return {UUID(row["entity_id"]) for row in rows}
 
     def insert(self, connection: CryptoWalletConnection):
         with self._db_client.tx() as cursor:

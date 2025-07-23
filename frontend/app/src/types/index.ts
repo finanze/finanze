@@ -33,6 +33,7 @@ export interface Entity {
   }
   connected?: CryptoWalletConnection[]
   last_fetch: Record<Feature, string>
+  required_external_integrations?: string[]
 }
 
 export enum EntitySetupLoginType {
@@ -61,6 +62,12 @@ export type Feature =
 export interface AuthRequest {
   username: string
   password: string
+}
+
+export interface ChangePasswordRequest {
+  username: string
+  oldPassword: string
+  newPassword: string
 }
 
 export interface LoginStatusResponse {
@@ -100,6 +107,30 @@ export interface FetchResponse {
   data?: any
 }
 
+export enum VirtualFetchErrorType {
+  SHEET_NOT_FOUND = "SHEET_NOT_FOUND",
+  MISSING_FIELD = "MISSING_FIELD",
+  VALIDATION_ERROR = "VALIDATION_ERROR",
+}
+
+export interface VirtualFetchError {
+  type: VirtualFetchErrorType
+  entry: string
+  detail?:
+    | {
+        field: string
+        value: string
+      }[]
+    | string[]
+  row?: string[]
+}
+
+export interface VirtualFetchResponse {
+  code: VirtualFetchResultCode
+  data?: any
+  errors?: VirtualFetchError[]
+}
+
 export interface EntitiesResponse {
   entities: Entity[]
 }
@@ -136,11 +167,7 @@ export enum FetchResultCode {
   COOLDOWN = "COOLDOWN",
 
   // Bad user input
-  ENTITY_NOT_FOUND = "ENTITY_NOT_FOUND",
   FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED",
-
-  // Entity or feature disabled (also bad input)
-  DISABLED = "DISABLED",
 
   // Login related codes
   CODE_REQUESTED = "CODE_REQUESTED",
@@ -151,6 +178,14 @@ export enum FetchResultCode {
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
   LOGIN_REQUIRED = "LOGIN_REQUIRED",
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",
+}
+
+export enum VirtualFetchResultCode {
+  // Success
+  COMPLETED = "COMPLETED",
+
+  // Virtual fetch not enabled
+  DISABLED = "DISABLED",
 }
 
 export interface Settings {
@@ -186,8 +221,13 @@ export enum ExportTarget {
   GOOGLE_SHEETS = "GOOGLE_SHEETS",
 }
 
+export interface ExportOptions {
+  exclude_non_real?: boolean
+}
+
 export interface ExportRequest {
   target: ExportTarget
+  options: ExportOptions
 }
 
 export enum PlatformType {
@@ -260,4 +300,34 @@ export interface CommodityRegister {
 
 export interface SaveCommodityRequest {
   registers: CommodityRegister[]
+}
+
+export enum ExternalIntegrationType {
+  CRYPTO_PROVIDER = "CRYPTO_PROVIDER",
+  DATA_SOURCE = "DATA_SOURCE",
+}
+
+export enum ExternalIntegrationStatus {
+  ON = "ON",
+  OFF = "OFF",
+}
+
+export interface ExternalIntegration {
+  id: string
+  name: string
+  status: ExternalIntegrationStatus
+  type: ExternalIntegrationType
+}
+
+export interface ExternalIntegrations {
+  integrations: ExternalIntegration[]
+}
+
+export interface GoogleIntegrationCredentials {
+  client_id: string
+  client_secret: string
+}
+
+export interface EtherscanIntegrationData {
+  api_key: string
 }

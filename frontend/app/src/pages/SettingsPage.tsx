@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import {
   Card,
@@ -22,10 +23,26 @@ import {
   Save,
   RefreshCw,
   FileSpreadsheet,
+  FileSearch,
+  Info,
+  AlertCircle,
+  Settings,
 } from "lucide-react"
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/Popover"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ProductType, WeightUnit } from "@/types/position"
+import {
+  setupGoogleIntegration,
+  setupEtherscanIntegration,
+} from "@/services/api"
+import { Badge } from "@/components/ui/Badge"
+import { cn } from "@/lib/utils"
+import { PlatformType } from "@/types"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
 
@@ -68,16 +85,26 @@ const cleanObject = (obj: any): any => {
 
 export default function SettingsPage() {
   const { t } = useI18n()
+  const [searchParams] = useSearchParams()
   const {
     showToast,
     fetchSettings,
     settings: storedSettings,
     saveSettings,
     isLoading,
+    externalIntegrations,
+    fetchExternalIntegrations,
+    platform,
   } = useAppContext()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState("general")
+  const [isSetupLoading, setIsSetupLoading] = useState({
+    google: false,
+    etherscan: false,
+  })
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get("tab") || "general",
+  )
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
@@ -88,7 +115,9 @@ export default function SettingsPage() {
     virtualPosition: false,
     virtualTransactions: false,
     googleSheets: false,
+    etherscan: false,
   })
+
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
@@ -106,6 +135,14 @@ export default function SettingsPage() {
     ProductType.CROWDLENDING,
     ProductType.COMMODITY,
   ]
+
+  // Helper function to check if Google Sheets integration is enabled
+  const isGoogleSheetsIntegrationEnabled = () => {
+    const googleIntegration = externalIntegrations.find(
+      integration => integration.id === "GOOGLE_SHEETS",
+    )
+    return googleIntegration?.status === "ON"
+  }
 
   const getPositionDataOptions = (): MultiSelectOption[] => {
     const options: MultiSelectOption[] = []
@@ -149,7 +186,31 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings()
+    fetchExternalIntegrations()
   }, [])
+
+  // Auto-disable export and virtual settings when Google Sheets integration is disabled
+  useEffect(() => {
+    if (!isGoogleSheetsIntegrationEnabled()) {
+      setSettings(prev => ({
+        ...prev,
+        export: {
+          ...prev.export,
+          sheets: {
+            ...prev.export?.sheets,
+            enabled: false,
+          },
+        },
+        fetch: {
+          ...prev.fetch,
+          virtual: {
+            ...prev.fetch?.virtual,
+            enabled: false,
+          },
+        },
+      }))
+    }
+  }, [isGoogleSheetsIntegrationEnabled()])
 
   const toggleSection = (section: string) => {
     setExpandedSections({
@@ -169,6 +230,11 @@ export default function SettingsPage() {
   }
 
   const handleExportToggle = (enabled: boolean) => {
+    // Don't allow enabling if Google Sheets integration is not enabled
+    if (enabled && !isGoogleSheetsIntegrationEnabled()) {
+      return
+    }
+
     setSettings({
       ...settings,
       export: {
@@ -182,6 +248,11 @@ export default function SettingsPage() {
   }
 
   const handleVirtualToggle = (enabled: boolean) => {
+    // Don't allow enabling if Google Sheets integration is not enabled
+    if (enabled && !isGoogleSheetsIntegrationEnabled()) {
+      return
+    }
+
     setSettings({
       ...settings,
       fetch: {
@@ -212,6 +283,58 @@ export default function SettingsPage() {
         defaultCommodityWeightUnit: unit,
       },
     })
+  }
+
+  const handleSetupGoogleIntegration = async () => {
+    const clientId = settings?.integrations?.sheets?.credentials?.client_id
+    const clientSecret =
+      settings?.integrations?.sheets?.credentials?.client_secret
+    if (!clientId || !clientSecret) {
+      setValidationErrors(prev => ({
+        ...prev,
+        integrations: [
+          t.settings.errors.clientIdRequired,
+          t.settings.errors.clientSecretRequired,
+        ],
+      }))
+      return
+    }
+
+    setIsSetupLoading(prev => ({ ...prev, google: true }))
+    try {
+      await setupGoogleIntegration({
+        client_id: clientId,
+        client_secret: clientSecret,
+      })
+      showToast(t.common.success, "success")
+      // Refetch external integrations to update the status indicator
+      await fetchExternalIntegrations()
+    } catch (error) {
+      console.error(error)
+      showToast(t.common.error, "error")
+    } finally {
+      setIsSetupLoading(prev => ({ ...prev, google: false }))
+    }
+  }
+
+  const handleSetupEtherscanIntegration = async () => {
+    const apiKey = settings?.integrations?.etherscan?.api_key
+    if (!apiKey) {
+      return
+    }
+
+    setIsSetupLoading(prev => ({ ...prev, etherscan: true }))
+    try {
+      await setupEtherscanIntegration({ api_key: apiKey })
+      showToast(t.common.success, "success")
+      // Refetch external integrations to update the status indicator
+      await fetchExternalIntegrations()
+    } catch (error) {
+      console.error(error)
+      showToast(t.common.error, "error")
+    } finally {
+      setIsSetupLoading(prev => ({ ...prev, etherscan: false }))
+    }
   }
 
   const addConfigItem = (section: string) => {
@@ -1280,6 +1403,47 @@ export default function SettingsPage() {
     )
   }
 
+  // Component for displaying integration requirement badge and popover
+  const IntegrationRequiredBadge = ({
+    integrationName = "Google Sheets",
+  }: {
+    integrationName?: string
+  }) => {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Badge
+            variant="outline"
+            className="bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30 cursor-pointer transition-colors"
+          >
+            {t.entities.requires} {integrationName}
+          </Badge>
+        </PopoverTrigger>
+        <PopoverContent className="w-80">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-9 w-9 text-red-500" />
+              <h4 className="font-medium text-sm">
+                {t.entities.setupIntegrationsMessage}
+              </h4>
+            </div>
+            <div className="space-y-1">
+              <div className="text-sm ml-8">• {integrationName}</div>
+            </div>
+            <Button
+              size="sm"
+              className="w-full mt-8"
+              onClick={() => setActiveTab("integrations")}
+            >
+              <Settings className="mr-2 h-3 w-3" />
+              {t.entities.goToSettings}
+            </Button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    )
+  }
+
   if (isLoading || !settings) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -1296,7 +1460,10 @@ export default function SettingsPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={fetchSettings}
+            onClick={() => {
+              fetchSettings()
+              fetchExternalIntegrations()
+            }}
             disabled={isLoading || isSaving}
           >
             <RefreshCw className="h-4 w-4" />
@@ -1434,11 +1601,30 @@ export default function SettingsPage() {
                     <FileSpreadsheet className="mr-2 h-5 w-5 text-green-600" />
                     <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
                   </div>
-                  {expandedSections.googleSheets ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const google = externalIntegrations.find(
+                        i => i.id === "GOOGLE_SHEETS",
+                      )
+                      const on = google?.status === "ON"
+                      return (
+                        <Badge
+                          className={cn(
+                            on
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          )}
+                        >
+                          {on ? t.common.enabled : t.common.disabled}
+                        </Badge>
+                      )
+                    })()}
+                    {expandedSections.googleSheets ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
                 </div>
                 <CardDescription>
                   {t.settings.sheetsIntegrationDescription}
@@ -1531,40 +1717,154 @@ export default function SettingsPage() {
                           </div>
                         )}
                     </div>
+
+                    {/* Add Setup button */}
+                    <div className="flex justify-end">
+                      {platform === PlatformType.WEB && (
+                        <div
+                          className={
+                            "text-xs text-grey-500 dark:text-gray-400 m-2 content-center"
+                          }
+                        >
+                          {platform === PlatformType.WEB
+                            ? "(" + t.settings.googleSheetsWebDisabled + ")"
+                            : undefined}
+                        </div>
+                      )}
+                      <Button
+                        onClick={handleSetupGoogleIntegration}
+                        disabled={
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_id ||
+                          !settings?.integrations?.sheets?.credentials
+                            ?.client_secret ||
+                          isSetupLoading.google ||
+                          platform === PlatformType.WEB
+                        }
+                      >
+                        {isSetupLoading.google ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            {t.common.loading}
+                          </>
+                        ) : (
+                          t.common.setup
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               )}
             </Card>
 
-            {/* Future integrations can be added here as separate Card components */}
-            {/* Example structure for future integrations:
+            {/* Etherscan Integration */}
             <Card>
               <CardHeader>
-                <div 
+                <div
                   className="flex items-center justify-between cursor-pointer"
-                  onClick={() => toggleSection("otherIntegration")}
+                  onClick={() => toggleSection("etherscan")}
                 >
                   <div className="flex items-center">
-                    <SomeIcon className="mr-2 h-5 w-5 text-blue-600" />
-                    <CardTitle>Other Integration</CardTitle>
+                    <FileSearch className="mr-2 h-5 w-5 text-blue-600" />
+                    <CardTitle>{t.settings.etherscanIntegration}</CardTitle>
                   </div>
-                  {expandedSections.otherIntegration ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const eth = externalIntegrations.find(
+                        i => i.id === "ETHERSCAN",
+                      )
+                      const on = eth?.status === "ON"
+                      return (
+                        <Badge
+                          className={cn(
+                            on
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          )}
+                        >
+                          {on ? t.common.enabled : t.common.disabled}
+                        </Badge>
+                      )
+                    })()}
+                    {expandedSections.etherscan ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
                 </div>
                 <CardDescription>
-                  Configure your other integration
+                  {t.settings.etherscanIntegrationDescription}
                 </CardDescription>
               </CardHeader>
-              {expandedSections.otherIntegration && (
-                <CardContent>
-                  // Integration-specific content
+              {expandedSections.etherscan && (
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1">
+                      <Label htmlFor="etherscan-api-key">
+                        {t.settings.etherscanApiKey}
+                      </Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button type="button">
+                            <Info className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64 p-2">
+                          <p className="text-sm">
+                            {t.settings.etherscanApiInfoPrefix}
+                            <a
+                              href="https://docs.etherscan.io/etherscan-v2/getting-an-api-key"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline text-blue-600"
+                            >
+                              {t.settings.etherscanApiInfoLinkText}
+                            </a>
+                            {t.settings.etherscanApiInfoSuffix}
+                          </p>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <Input
+                      id="etherscan-api-key"
+                      type="text"
+                      placeholder={t.settings.etherscanApiKeyPlaceholder}
+                      value={settings?.integrations?.etherscan?.api_key || ""}
+                      onChange={e =>
+                        setSettings({
+                          ...settings,
+                          integrations: {
+                            ...settings.integrations,
+                            etherscan: { api_key: e.target.value },
+                          },
+                        })
+                      }
+                    />
+                  </div>
+
+                  {/* Add Setup button for Etherscan */}
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSetupEtherscanIntegration}
+                      disabled={
+                        !settings?.integrations?.etherscan?.api_key ||
+                        isSetupLoading.etherscan
+                      }
+                    >
+                      {isSetupLoading.etherscan ? (
+                        <>
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          {t.common.loading}
+                        </>
+                      ) : (
+                        t.common.setup
+                      )}
+                    </Button>
+                  </div>
                 </CardContent>
               )}
             </Card>
-            */}
           </motion.div>
         </TabsContent>
 
@@ -1583,11 +1883,20 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="export-enabled">{t.settings.enabled}</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="export-enabled">{t.settings.enabled}</Label>
+                    {!isGoogleSheetsIntegrationEnabled() && (
+                      <IntegrationRequiredBadge />
+                    )}
+                  </div>
                   <Switch
                     id="export-enabled"
-                    checked={settings.export?.sheets?.enabled === true}
+                    checked={
+                      isGoogleSheetsIntegrationEnabled() &&
+                      settings.export?.sheets?.enabled === true
+                    }
                     onCheckedChange={handleExportToggle}
+                    disabled={!isGoogleSheetsIntegrationEnabled()}
                   />
                 </div>
 
@@ -1756,11 +2065,22 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="virtual-enabled">{t.settings.enabled}</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="virtual-enabled">
+                      {t.settings.enabled}
+                    </Label>
+                    {!isGoogleSheetsIntegrationEnabled() && (
+                      <IntegrationRequiredBadge />
+                    )}
+                  </div>
                   <Switch
                     id="virtual-enabled"
-                    checked={settings.fetch?.virtual?.enabled === true}
+                    checked={
+                      isGoogleSheetsIntegrationEnabled() &&
+                      settings.fetch?.virtual?.enabled === true
+                    }
                     onCheckedChange={handleVirtualToggle}
+                    disabled={!isGoogleSheetsIntegrationEnabled()}
                   />
                 </div>
 

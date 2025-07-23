@@ -19,7 +19,7 @@
     "exportError": "Failed to export data",
     "logout": "Logout",
     "settings": "Settings",
-    "dashboard": "Dashboard",
+    "dashboard": "Summary",
     "entities": "Integrations",
     "darkMode": "Dark Mode",
     "lightMode": "Light Mode",
@@ -69,7 +69,23 @@
     "incompatibleLoginPlatform": "Use desktop app in order to do manual log in.",
     "selectOptions": "Select options...",
     "searchOptions": "Search options...",
-    "noOptionsFound": "No options found"
+    "noOptionsFound": "No options found",
+    "close": "Close",
+    "download": "Download",
+    "viewRelease": "View Release",
+    "remindLater": "Remind Me Later"
+  },
+  "release": {
+    "newVersionAvailable": "New Version Available",
+    "currentVersion": "Current Version",
+    "latestVersion": "Latest Version",
+    "publishedOn": "Published on",
+    "downloadFor": "Download for {platform}",
+    "whatsNew": "What's New",
+    "downloadAssets": "Download Options",
+    "releaseNotes": "Release Notes",
+    "skipThisVersion": "Skip version",
+    "releasePageLink": "Visit Release Page"
   },
   "investments": {
     "type": "Type",
@@ -120,13 +136,25 @@
     "welcomeBack": "Welcome back, {username}!",
     "signupTitle": "Create Finanze account",
     "signupSubtitle": "Set up your account to manage your finances",
+    "changePasswordTitle": "Change Password",
+    "changePasswordSubtitle": "Enter your current and new password",
     "usernameLabel": "Username",
     "usernamePlaceholder": "Enter your username",
     "passwordLabel": "Password",
     "passwordPlaceholder": "Enter your password",
+    "oldPasswordLabel": "Current Password",
+    "oldPasswordPlaceholder": "Enter your current password",
+    "newPasswordLabel": "New Password",
+    "newPasswordPlaceholder": "Enter your new password",
+    "repeatPasswordLabel": "Repeat Password",
+    "repeatPasswordPlaceholder": "Repeat your password",
+    "passwordsDontMatch": "Passwords don't match",
     "invalidPassword": "Invalid password",
     "invalidCredentials": "Invalid credentials",
     "serverError": "An unexpected error occurred. Please try again.",
+    "changePasswordSuccess": "Password changed successfully",
+    "changePasswordError": "Failed to change password",
+    "changePassword": "Change Password",
     "signup": "Sign Up",
     "login": "Log In"
   },
@@ -140,9 +168,7 @@
     "UNEXPECTED_ERROR": "An unexpected error occurred",
     "NOT_LOGGED": "Not logged in",
     "COOLDOWN": "Please wait before trying again",
-    "ENTITY_NOT_FOUND": "Entity not found",
     "FEATURE_NOT_SUPPORTED": "Feature not supported",
-    "DISABLED": "This feature is disabled",
     "EXTERNAL_LOGIN_FAILED": "External login failed. Please try again.",
     "LOGIN_REQUIRED": "Login required. Please login again.",
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again."
@@ -154,6 +180,12 @@
     "login": "Login Again",
     "fetchData": "Fetch Data",
     "connect": "Connect",
+    "requires": "Requires",
+    "integrations": "integrations",
+    "cannotConnect": "Cannot Connect",
+    "requiresExternalIntegrations": "Requires integration setup",
+    "setupIntegrationsMessage": "Setup required integrations to connect this entity:",
+    "goToSettings": "Go to Settings",
     "userEntered": "User Entered",
     "importData": "Import",
     "runVirtual": "Import User Data",
@@ -165,8 +197,6 @@
     "setupUserEntered": "Setup User Data",
     "userEnteredDescription": "Import data from your configured Google Sheets for manual tracking.",
     "userEnteredAvailableDescription": "Configure Google Sheets to import financial data.",
-    "virtualConnectedDescription": "Run a virtual scrape to generate test data without connecting to real bank entities.",
-    "virtualAvailableDescription": "Run a virtual scrape to generate test data without connecting to real bank entities.",
     "configureInSettings": "Configure in Settings",
     "relogin": "Relogin",
     "disconnect": "Disconnect",
@@ -263,7 +293,15 @@
       "virtualSpreadsheetIdRequired": "Spreadsheet ID is required in Virtual Global Settings",
       "clientIdRequired": "Client ID is required when configuring Google Sheets integration",
       "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
-    }
+    },
+    "etherscanIntegration": "Etherscan",
+    "etherscanIntegrationDescription": "Enter your Etherscan API key to enable more crypto data fetching",
+    "etherscanApiKey": "API Key",
+    "etherscanApiKeyPlaceholder": "Enter your Etherscan API key",
+    "etherscanApiInfoPrefix": "To get your API key, visit ",
+    "etherscanApiInfoLinkText": "etherscan.io",
+    "etherscanApiInfoSuffix": " and follow the instructions.",
+    "googleSheetsWebDisabled": "Use desktop app"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -325,7 +363,11 @@
     "description": "Export your financial data to Google Sheets.",
     "spreadsheetId": "Spreadsheet ID",
     "configuredSections": "Configured Sections",
-    "disabledMessage": "Google Sheets export is currently disabled. You can enable it in settings."
+    "disabledMessage": "Google Sheets export is currently disabled. You can enable it in settings.",
+    "sheetNotFound": "Sheet {sheetName} doesn't exist",
+    "options": "Export options",
+    "excludeManual": "Exclude manual data",
+    "excludeManualDescription": "Non include imported or manual inserted data"
   },
   "transactions": {
     "title": "Transactions",
@@ -480,6 +522,20 @@
     "addFirstCommodity": "Add your first commodity entry to get started",
     "saveError": "Failed to save commodities"
   },
+  "importErrors": {
+    "title": "Import Warnings",
+    "description": "Your data was imported successfully, but some rows were skipped due to errors. Please review and fix the following issues:",
+    "sheetNotFound": "Sheet Not Found",
+    "missingField": "Missing Field",
+    "validationError": "Validation Error",
+    "unknownError": "Unknown Error",
+    "sheetNotFoundMessage": "Sheet {entry} was not found",
+    "missingFieldMessage": "Missing required fields in {entry}:",
+    "validationErrorMessage": "Validation errors in {entry}:",
+    "validationErrorRow": "Row: {row}",
+    "fieldError": "Field {field}: invalid value {value}",
+    "unknownErrorMessage": "Unknown error in {entry}"
+  },
   "crypto": {
     "BTC": "Bitcoin",
     "ETH": "Ethereum",
@@ -512,5 +568,53 @@
     "MANA": "Decentraland",
     "CRO": "Cronos",
     "KCS": "KuCoin Token"
+  },
+  "banking": {
+    "title": "Banking",
+    "subtitle": "Manage your accounts, cards, and loans",
+    "showNumbers": "Show Numbers",
+    "hideNumbers": "Hide Numbers",
+    "totalBalance": "Total Balance",
+    "totalCardUsed": "Total Card Usage",
+    "totalDebt": "Total Outstanding Debt",
+    "monthlyPayments": "Monthly Payments",
+    "avgInterest": "avg. interest",
+    "accounts": "Accounts",
+    "cards": "Cards",
+    "loans": "Loans",
+    "card": "card",
+    "loan": "loan",
+    "available": "Available",
+    "used": "Used",
+    "limit": "Limit",
+    "utilization": "Utilization",
+    "inactive": "Inactive",
+    "principalOutstanding": "Principal Outstanding",
+    "monthlyInstallment": "Monthly Installment",
+    "interestRate": "Interest Rate",
+    "nextPayment": "Next Payment",
+    "originalAmount": "Original Amount",
+    "principalPaid": "Principal Paid",
+    "repaymentProgress": "Repayment Progress",
+    "noData": "No Banking Data Available",
+    "noDataDescription": "Connect your banking accounts to view accounts, cards, and loans information.",
+    "paymentDate": "Payment Date",
+    "retainedAmount": "Retained Amount",
+    "pendingTransfers": "Pending Transfers"
+  },
+  "cardTypes": {
+    "CREDIT": "Credit",
+    "DEBIT": "Debit"
+  },
+  "loanTypes": {
+    "MORTGAGE": "Mortgage",
+    "STANDARD": "Personal Loan"
+  },
+  "accountTypes": {
+    "CHECKING": "Checking",
+    "SAVINGS": "Savings",
+    "BROKERAGE": "Brokerage",
+    "VIRTUAL_WALLET": "Wallet",
+    "FUND_PORTFOLIO": "Fund Portfolio"
   }
 }

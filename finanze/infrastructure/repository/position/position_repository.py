@@ -168,8 +168,8 @@ def _save_crypto_currency_token_positions(cursor, wallet_detail: CryptoCurrencyW
         cursor.execute(
             """
             INSERT INTO crypto_currency_token_positions (id, wallet_id, token_id, name, symbol, token, amount,
-                                               initial_investment, average_buy_price, market_value, currency, type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                               market_value, currency, type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(token_detail.id),
@@ -179,12 +179,6 @@ def _save_crypto_currency_token_positions(cursor, wallet_detail: CryptoCurrencyW
                 token_detail.symbol,
                 token_detail.token,
                 str(token_detail.amount),
-                str(token_detail.initial_investment)
-                if token_detail.initial_investment
-                else None,
-                str(token_detail.average_buy_price)
-                if token_detail.average_buy_price
-                else None,
                 str(token_detail.market_value),
                 token_detail.currency,
                 token_detail.type,
@@ -199,9 +193,9 @@ def _save_crypto_currencies(
         cursor.execute(
             """
             INSERT INTO crypto_currency_wallet_positions (id, global_position_id, wallet_connection_id, symbol, amount,
-                                                          initial_investment, average_buy_price, market_value, currency,
+                                                          market_value, currency,
                                                           crypto)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(wallet_detail.id),
@@ -209,12 +203,6 @@ def _save_crypto_currencies(
                 str(wallet_detail.wallet_connection_id),
                 wallet_detail.symbol,
                 str(wallet_detail.amount),
-                str(wallet_detail.initial_investment)
-                if wallet_detail.initial_investment
-                else None,
-                str(wallet_detail.average_buy_price)
-                if wallet_detail.average_buy_price
-                else None,
                 str(wallet_detail.market_value),
                 wallet_detail.currency,
                 wallet_detail.crypto.value,
@@ -871,12 +859,23 @@ class PositionSQLRepository(PositionPort):
             )
 
     def _get_crypto_currency_token_positions(
-        self, wallet_id: UUID
+        self, wallet_id: UUID, wallet_connection_id: UUID
     ) -> list[CryptoCurrencyToken]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM crypto_currency_token_positions WHERE wallet_id = ?",
-                (str(wallet_id),),
+                """
+                SELECT p.*,
+                       cii.currency AS investment_currency,
+                       cii.initial_investment,
+                       cii.average_buy_price
+                FROM crypto_currency_token_positions p
+                         LEFT JOIN crypto_initial_investments cii ON cii.wallet_connection_id = ? AND p.symbol = cii.symbol AND cii.type = 'TOKEN'
+                WHERE p.wallet_id = ?
+                """,
+                (
+                    str(wallet_connection_id),
+                    str(wallet_id),
+                ),
             )
             return [
                 CryptoCurrencyToken(
@@ -892,6 +891,9 @@ class PositionSQLRepository(PositionPort):
                     average_buy_price=Dezimal(row["average_buy_price"])
                     if row["average_buy_price"]
                     else None,
+                    investment_currency=row["investment_currency"]
+                    if row["investment_currency"]
+                    else None,
                     market_value=Dezimal(row["market_value"]),
                     currency=row["currency"],
                     type=row["type"],
@@ -905,9 +907,15 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                SELECT p.*, c.address, c.name
+                SELECT p.*,
+                       c.address,
+                       c.name,
+                       cii.currency AS investment_currency,
+                       cii.initial_investment,
+                       cii.average_buy_price
                 FROM crypto_currency_wallet_positions p
                          JOIN crypto_wallet_connections c ON p.wallet_connection_id = c.id
+                         LEFT JOIN crypto_initial_investments cii ON cii.wallet_connection_id = c.id AND p.symbol = cii.symbol AND cii.type = 'CRYPTO'
                 WHERE global_position_id = ?
                 """,
                 (str(global_position_id),),
@@ -915,11 +923,14 @@ class PositionSQLRepository(PositionPort):
             wallets = []
             for row in cursor:
                 wallet_id = UUID(row["id"])
-                tokens = self._get_crypto_currency_token_positions(wallet_id)
+                wallet_connection_id = UUID(row["wallet_connection_id"])
+                tokens = self._get_crypto_currency_token_positions(
+                    wallet_id, wallet_connection_id
+                )
                 wallets.append(
                     CryptoCurrencyWallet(
                         id=wallet_id,
-                        wallet_connection_id=UUID(row["wallet_connection_id"]),
+                        wallet_connection_id=wallet_connection_id,
                         address=row["address"],
                         name=row["name"],
                         symbol=row["symbol"],
@@ -929,6 +940,9 @@ class PositionSQLRepository(PositionPort):
                         else None,
                         average_buy_price=Dezimal(row["average_buy_price"])
                         if row["average_buy_price"]
+                        else None,
+                        investment_currency=row["investment_currency"]
+                        if row["investment_currency"]
                         else None,
                         market_value=Dezimal(row["market_value"]),
                         currency=row["currency"],
