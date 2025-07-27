@@ -6,6 +6,7 @@ import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { getTransactions } from "@/services/api"
 import { TransactionsResult, TxType } from "@/types/transactions"
+import { FlowType } from "@/types"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -31,6 +32,9 @@ import {
   ArrowLeftRight,
   BarChart3,
   ArrowRight,
+  CalendarDays,
+  CalendarSync,
+  HandCoins,
 } from "lucide-react"
 import {
   PieChart,
@@ -48,6 +52,7 @@ import {
   getEntityDistribution,
   getTotalAssets,
   getTotalInvestedAmount,
+  convertCurrency,
   getOngoingProjects,
   getStockAndFundPositions,
   getCryptoPositions,
@@ -61,6 +66,8 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const {
     positionsData,
+    periodicFlows,
+    pendingFlows,
     isLoading: financialDataLoading,
     error: financialDataError,
     refreshData: refreshFinancialData,
@@ -223,28 +230,39 @@ export default function DashboardPage() {
     positionsData,
     targetCurrency,
     exchangeRates,
+    pendingFlows,
   )
   const entityDistribution = getEntityDistribution(
     positionsData,
     targetCurrency,
     exchangeRates,
+    pendingFlows,
   )
   const { entities } = useAppContext()
   const adjustedEntityDistribution = useMemo(() => {
     const contextIds = new Set(entities.map(e => e.id))
-    return entityDistribution.map(item =>
-      contextIds.has(item.id)
-        ? item
-        : {
-            ...item,
-            name: (t.enums?.productType as any)?.COMMODITY || item.name,
-          },
-    )
+    return entityDistribution.map(item => {
+      if (contextIds.has(item.id)) {
+        return item
+      } else if (item.id === "pending-flows") {
+        // Handle pending flows entity specifically
+        return {
+          ...item,
+          name: (t.enums?.productType as any)?.PENDING_FLOWS,
+        }
+      } else {
+        return {
+          ...item,
+          name: (t.enums?.productType as any)?.COMMODITY || item.name,
+        }
+      }
+    })
   }, [entityDistribution, entities, t])
   const totalAssets = getTotalAssets(
     positionsData,
     targetCurrency,
     exchangeRates,
+    pendingFlows,
   )
   const ongoingProjects = getOngoingProjects(
     positionsData,
@@ -279,6 +297,7 @@ export default function DashboardPage() {
     positionsData,
     targetCurrency,
     exchangeRates,
+    pendingFlows,
   )
 
   const fundItems = stockAndFundPositions
@@ -645,6 +664,46 @@ export default function DashboardPage() {
     )
   }
 
+  // Calculate upcoming flows data
+  const upcomingFlowsData = useMemo(() => {
+    const now = new Date()
+    const allFlows = [...periodicFlows, ...pendingFlows]
+      .filter(flow => flow.enabled)
+      .map(flow => {
+        let nextDate = null
+
+        if ("next_date" in flow && flow.next_date) {
+          nextDate = new Date(flow.next_date)
+        } else if ("date" in flow && flow.date) {
+          nextDate = new Date(flow.date)
+        }
+
+        if (!nextDate) return null
+
+        const daysUntil = Math.ceil(
+          (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+        )
+
+        return {
+          ...flow,
+          nextDate,
+          daysUntil,
+          convertedAmount: convertCurrency(
+            parseFloat(flow.amount),
+            flow.currency,
+            targetCurrency,
+            exchangeRates,
+          ),
+        }
+      })
+      .filter((flow): flow is NonNullable<typeof flow> => flow !== null)
+      .filter(flow => flow.daysUntil >= 0) // Filter out outdated flows
+      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
+      .slice(0, 5) // Show only next 5 flows
+
+    return allFlows
+  }, [periodicFlows, pendingFlows, targetCurrency, exchangeRates])
+
   const isLoading = financialDataLoading || transactionsLoading
 
   if (isLoading) {
@@ -685,6 +744,64 @@ export default function DashboardPage() {
         <LoadingSpinner size="lg" />
       </div>
     )
+  }
+
+  // Utility function for date urgency (copied from PendingMoneyPage)
+  const getDateUrgencyInfo = (dateString: string | undefined) => {
+    if (!dateString) return null
+
+    const targetDate = new Date(dateString)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    targetDate.setHours(0, 0, 0, 0)
+
+    const diffTime = targetDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays === 0) {
+      return {
+        show: true,
+        urgencyLevel: "urgent" as const,
+        timeText: t.management.today,
+      }
+    }
+
+    if (diffDays === 1) {
+      return {
+        show: true,
+        urgencyLevel: "urgent" as const,
+        timeText: t.management.tomorrow,
+      }
+    }
+
+    if (diffDays <= 7) {
+      return {
+        show: true,
+        urgencyLevel: "soon" as const,
+        timeText: `${t.management.inDays}`.replace(
+          "{days}",
+          diffDays.toString(),
+        ),
+      }
+    }
+
+    if (diffDays <= 30) {
+      return {
+        show: true,
+        urgencyLevel: "normal" as const,
+        timeText: `${t.management.inDays}`.replace(
+          "{days}",
+          diffDays.toString(),
+        ),
+      }
+    }
+
+    // format date
+    return {
+      show: true,
+      urgencyLevel: "normal" as const,
+      timeText: formatDate(dateString, locale),
+    }
   }
 
   return (
@@ -997,7 +1114,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="md:col-span-5"
+              className="md:col-span-5 space-y-6"
             >
               <Card>
                 <CardHeader>
@@ -1045,6 +1162,86 @@ export default function DashboardPage() {
                   </p>
                 </CardContent>
               </Card>
+
+              {/* Upcoming Flows Card */}
+              {upcomingFlowsData.length > 0 && (
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                    <CardTitle className="text-lg font-bold flex items-center">
+                      <CalendarDays className="h-5 w-5 mr-2 text-primary" />
+                      {t.dashboard.upcomingFlows}
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate("/management")}
+                      className="text-xs px-2 py-1 h-auto min-h-0"
+                    >
+                      <ArrowRight className="h-3 w-3 mr-1" />
+                      {t.dashboard.manageFlows}
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <div className="space-y-3">
+                      {upcomingFlowsData.map((flow, index) => {
+                        const isEarning = flow.flow_type === FlowType.EARNING
+                        const isRecurring = "frequency" in flow
+                        const urgencyInfo = getDateUrgencyInfo(
+                          flow.nextDate.toISOString().split("T")[0],
+                        )
+
+                        return (
+                          <div
+                            key={`${flow.id}-${index}`}
+                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              {isRecurring ? (
+                                <CalendarSync
+                                  className={`h-4 w-4 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                                />
+                              ) : (
+                                <HandCoins
+                                  className={`h-4 w-4 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                                />
+                              )}
+                              <div className="flex items-center gap-2 flex-1">
+                                <p className="font-medium text-sm">
+                                  {flow.name}
+                                </p>
+                                {urgencyInfo?.show && (
+                                  <Badge
+                                    variant={
+                                      urgencyInfo.urgencyLevel === "urgent"
+                                        ? "destructive"
+                                        : urgencyInfo.urgencyLevel === "soon"
+                                          ? "default"
+                                          : "outline"
+                                    }
+                                    className="text-xs px-1 py-0 h-4"
+                                  >
+                                    {urgencyInfo.timeText}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p
+                              className={`font-mono text-sm font-semibold ${isEarning ? "text-green-600" : "text-red-600"}`}
+                            >
+                              {isEarning ? "+" : "-"}
+                              {formatCurrency(
+                                Math.abs(flow.convertedAmount),
+                                locale,
+                                settings.general.defaultCurrency,
+                              )}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </motion.div>
           </div>
 

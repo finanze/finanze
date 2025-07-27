@@ -14,6 +14,9 @@ import CryptoInvestmentPage from "./pages/CryptoInvestmentPage"
 import InvestmentsPage from "./pages/InvestmentsPage"
 import BankingPage from "./pages/BankingPage"
 import LoginPage from "./pages/LoginPage"
+import RecurringMoneyPage from "./pages/RecurringMoneyPage"
+import PendingMoneyPage from "./pages/PendingMoneyPage"
+import ManagementPage from "./pages/ManagementPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
@@ -115,6 +118,12 @@ function App() {
             path="/investments/crypto"
             element={<CryptoInvestmentPage />}
           />
+          <Route path="/management" element={<ManagementPage />} />
+          <Route
+            path="/management/recurring"
+            element={<RecurringMoneyPage />}
+          />
+          <Route path="/management/pending" element={<PendingMoneyPage />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

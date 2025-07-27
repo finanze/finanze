@@ -8,6 +8,7 @@ from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
+from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
@@ -16,12 +17,17 @@ from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
+from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
+from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
+from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
@@ -78,6 +84,12 @@ from infrastructure.repository.crypto_wallets.crypto_wallet_connection_repositor
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.earnings_expenses.pending_flow_repository import (
+    PendingFlowRepository,
+)
+from infrastructure.repository.earnings_expenses.periodic_flow_repository import (
+    PeriodicFlowRepository,
+)
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
@@ -147,6 +159,9 @@ class FinanzeServer:
         external_integration_repository = ExternalIntegrationRepository(
             client=self.db_client
         )
+        periodic_flow_repository = PeriodicFlowRepository(client=self.db_client)
+        pending_flow_repository = PendingFlowRepository(client=self.db_client)
+
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
         metal_price_client = MetalPriceClient()
@@ -278,6 +293,15 @@ class FinanzeServer:
             external_integration_repository, self.config_loader, self.etherscan_client
         )
 
+        save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
+        update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
+        delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
+        get_periodic_flows = GetPeriodicFlowsImpl(periodic_flow_repository)
+        save_pending_flows = SavePendingFlowsImpl(
+            pending_flow_repository, transaction_handler
+        )
+        get_pending_flows = GetPendingFlowsImpl(pending_flow_repository)
+
         self._log.info("Initial component setup completed.")
 
         if args.logged_username and args.logged_password:
@@ -324,6 +348,12 @@ class FinanzeServer:
             get_external_integrations,
             connect_google,
             connect_etherscan,
+            save_periodic_flow,
+            update_periodic_flow,
+            delete_periodic_flow,
+            get_periodic_flows,
+            save_pending_flows,
+            get_pending_flows,
         )
         self._log.info("Completed.")
 
@@ -333,7 +363,10 @@ class FinanzeServer:
             serve(self.flask_app, host="0.0.0.0", port=self.args.port)
         except OSError as e:
             self._log.error(f"Could not start server on port {self.args.port}: {e}")
-            raise
+            if e.errno == 48:
+                self._log.info(f"Port {self.args.port} is already in use.")
+            else:
+                raise
         except Exception:
             self._log.exception(
                 "An unexpected error occurred while running the server."

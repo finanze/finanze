@@ -15,6 +15,7 @@ import {
   TrendingUp,
   PiggyBank,
   Gem,
+  HandCoins,
 } from "lucide-react"
 import { TxType } from "@/types/transactions"
 import { ProductType } from "@/types/position"
@@ -30,6 +31,7 @@ export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
   CROWDLENDING: "#ec4899", // Equivalent to text-pink-500
   CRYPTO: "#f97316", // Equivalent to text-orange-500
   COMMODITY: "#eab308", // Equivalent to text-yellow-500
+  PENDING_FLOWS: "#14b8a6", // Equivalent to text-teal-500
 }
 
 export function getPieSliceColorForAssetType(type: string): string {
@@ -69,6 +71,8 @@ export function getIconForAssetType(type: string): JSX.Element {
       return <Bitcoin className="h-4 w-4 text-orange-500" />
     case "COMMODITY":
       return <Gem className="h-4 w-4 text-yellow-500" />
+    case "PENDING_FLOWS":
+      return <HandCoins className="h-4 w-4 text-teal-500" />
     default:
       return <Coins className="h-4 w-4 text-gray-500" />
   }

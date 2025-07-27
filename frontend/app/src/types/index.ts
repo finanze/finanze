@@ -189,6 +189,9 @@ export enum VirtualFetchResultCode {
 }
 
 export interface Settings {
+  general: {
+    defaultCurrency: string
+  }
   export: {
     sheets: {
       globals: {
@@ -330,4 +333,84 @@ export interface GoogleIntegrationCredentials {
 
 export interface EtherscanIntegrationData {
   api_key: string
+}
+
+export enum FlowType {
+  EARNING = "EARNING",
+  EXPENSE = "EXPENSE",
+}
+
+export enum FlowFrequency {
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY",
+  MONTHLY = "MONTHLY",
+  EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
+  QUARTERLY = "QUARTERLY",
+  EVERY_FOUR_MONTHS = "EVERY_FOUR_MONTHS",
+  SEMIANNUALLY = "SEMIANNUALLY",
+  YEARLY = "YEARLY",
+}
+
+export interface PeriodicFlow {
+  id: string
+  name: string
+  amount: string
+  flow_type: FlowType
+  frequency: FlowFrequency
+  category?: string
+  enabled: boolean
+  since: string
+  until?: string
+  currency: string
+  next_date?: string
+}
+
+export interface PendingFlow {
+  id: string
+  name: string
+  amount: string
+  flow_type: FlowType
+  category?: string
+  enabled: boolean
+  date?: string
+  currency: string
+}
+
+export interface CreatePeriodicFlowRequest {
+  name: string
+  amount: string
+  flow_type: FlowType
+  frequency: FlowFrequency
+  category?: string
+  enabled: boolean
+  since: string
+  until?: string
+  currency: string
+}
+
+export interface UpdatePeriodicFlowRequest {
+  id: string
+  name: string
+  amount: string
+  flow_type: FlowType
+  frequency: FlowFrequency
+  category?: string
+  enabled: boolean
+  since: string
+  until?: string
+  currency: string
+}
+
+export interface CreatePendingFlowRequest {
+  name: string
+  amount: string
+  flow_type: FlowType
+  category?: string
+  enabled: boolean
+  date?: string
+  currency: string
+}
+
+export interface SavePendingFlowsRequest {
+  flows: CreatePendingFlowRequest[]
 }

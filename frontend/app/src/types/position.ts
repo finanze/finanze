@@ -66,6 +66,9 @@ export interface Loan {
   principal_outstanding: number
   principal_paid: number
   name?: string | null
+  creation?: string | null
+  maturity?: string | null
+  unpaid?: number | null
 }
 
 export interface StockDetail {

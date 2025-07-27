@@ -4,6 +4,7 @@ from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 from domain.use_cases.connect_etherscan import ConnectEtherscan
 from domain.use_cases.connect_google import ConnectGoogle
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
+from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
@@ -12,12 +13,17 @@ from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_login_status import GetLoginStatus
+from domain.use_cases.get_pending_flows import GetPendingFlows
+from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
 from domain.use_cases.get_transactions import GetTransactions
 from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.save_commodities import SaveCommodities
+from domain.use_cases.save_pending_flows import SavePendingFlows
+from domain.use_cases.save_periodic_flow import SavePeriodicFlow
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
+from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_sheets import UpdateSheets
 from domain.use_cases.user_login import UserLogin
@@ -31,6 +37,7 @@ from infrastructure.controller.routes.connect_etherscan import connect_etherscan
 from infrastructure.controller.routes.connect_google import connect_google
 from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
+from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
 from infrastructure.controller.routes.exchange_rates import exchange_rates
 from infrastructure.controller.routes.export import export
@@ -40,14 +47,19 @@ from infrastructure.controller.routes.get_available_sources import get_available
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
+from infrastructure.controller.routes.get_pending_flows import get_pending_flows
+from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
 from infrastructure.controller.routes.get_settings import get_settings
 from infrastructure.controller.routes.login_status import login_status
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
 from infrastructure.controller.routes.save_commodities import save_commodities
+from infrastructure.controller.routes.save_pending_flows import save_pending_flows
+from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
 from infrastructure.controller.routes.transactions import transactions
 from infrastructure.controller.routes.update_crypto_wallet import update_crypto_wallet
+from infrastructure.controller.routes.update_periodic_flow import update_periodic_flow
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
@@ -80,6 +92,12 @@ def register_routes(
     get_external_integrations_uc: GetExternalIntegrations,
     connect_google_uc: ConnectGoogle,
     connect_etherscan_uc: ConnectEtherscan,
+    save_periodic_flow_uc: SavePeriodicFlow,
+    update_periodic_flow_uc: UpdatePeriodicFlow,
+    delete_periodic_flow_uc: DeletePeriodicFlow,
+    get_periodic_flows_uc: GetPeriodicFlows,
+    save_pending_flows_uc: SavePendingFlows,
+    get_pending_flows_uc: GetPendingFlows,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -180,3 +198,27 @@ def register_routes(
     @app.route("/api/v1/integrations/etherscan", methods=["POST"])
     def connect_etherscan_route():
         return connect_etherscan(connect_etherscan_uc)
+
+    @app.route("/api/v1/flows/periodic", methods=["POST"])
+    def save_periodic_flow_route():
+        return save_periodic_flow(save_periodic_flow_uc)
+
+    @app.route("/api/v1/flows/periodic", methods=["PUT"])
+    def update_periodic_flow_route():
+        return update_periodic_flow(update_periodic_flow_uc)
+
+    @app.route("/api/v1/flows/periodic/<flow_id>", methods=["DELETE"])
+    def delete_periodic_flow_route(flow_id: str):
+        return delete_periodic_flow(delete_periodic_flow_uc, flow_id)
+
+    @app.route("/api/v1/flows/periodic", methods=["GET"])
+    def get_periodic_flows_route():
+        return get_periodic_flows(get_periodic_flows_uc)
+
+    @app.route("/api/v1/flows/pending", methods=["POST"])
+    async def save_pending_flows_route():
+        return await save_pending_flows(save_pending_flows_uc)
+
+    @app.route("/api/v1/flows/pending", methods=["GET"])
+    def get_pending_flows_route():
+        return get_pending_flows(get_pending_flows_uc)

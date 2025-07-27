@@ -20,10 +20,12 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronUp,
-  User,
   ArrowLeftRight,
   Blocks,
   Banknote,
+  User,
+  Clock,
+  CalendarCog,
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
@@ -56,6 +58,11 @@ export function Sidebar() {
   const [investmentsExpanded, setInvestmentsExpanded] = useState(() => {
     // Expand investments section if we're on an investment page
     return location.pathname.startsWith("/investments")
+  })
+
+  const [managementExpanded, setManagementExpanded] = useState(() => {
+    // Expand management section if we're on a management page
+    return location.pathname.startsWith("/management")
   })
 
   // Get available investment types for the user
@@ -118,6 +125,20 @@ export function Sidebar() {
     return routes
   }, [availableInvestmentTypes, t.common])
 
+  // Management routes are handled differently now - through main management page
+  const managementRoutes = [
+    {
+      path: "/management/recurring",
+      label: t.management.recurringMoney,
+      icon: <ArrowLeftRight size={16} />,
+    },
+    {
+      path: "/management/pending",
+      label: t.management.pendingMoney,
+      icon: <Clock size={16} />,
+    },
+  ]
+
   useEffect(() => {
     const handleResize = () => {
       const isNarrowView = window.innerWidth < 768
@@ -134,6 +155,9 @@ export function Sidebar() {
   useEffect(() => {
     if (location.pathname.startsWith("/investments")) {
       setInvestmentsExpanded(true)
+    }
+    if (location.pathname.startsWith("/management")) {
+      setManagementExpanded(true)
     }
   }, [location.pathname])
 
@@ -177,6 +201,10 @@ export function Sidebar() {
 
   const toggleInvestments = () => {
     setInvestmentsExpanded(!investmentsExpanded)
+  }
+
+  const toggleManagement = () => {
+    setManagementExpanded(!managementExpanded)
   }
 
   const handleLogout = async () => {
@@ -287,7 +315,7 @@ export function Sidebar() {
                           "w-full rounded-none h-10 pl-12",
                           "text-sm justify-start",
                           location.pathname === route.path
-                            ? "bg-gray-300 dark:bg-gray-800 text-primary"
+                            ? "bg-gray-200 dark:bg-gray-900 text-primary"
                             : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
                         )}
                         onClick={() => navigate(route.path)}
@@ -300,6 +328,62 @@ export function Sidebar() {
               )}
             </li>
           )}
+
+          {/* Management Section */}
+          <li>
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full rounded-none h-12",
+                collapsed ? "justify-center" : "justify-between",
+                location.pathname.startsWith("/management")
+                  ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                  : "hover:bg-gray-200 dark:hover:bg-gray-900",
+              )}
+              onClick={
+                collapsed ? () => navigate("/management") : toggleManagement
+              }
+            >
+              <span className="flex items-center">
+                <CalendarCog size={20} />
+                {!collapsed && (
+                  <span className="ml-3">{t.management.title}</span>
+                )}
+              </span>
+              {!collapsed && managementRoutes.length > 0 && (
+                <span className="ml-auto">
+                  {managementExpanded ? (
+                    <ChevronUp size={16} />
+                  ) : (
+                    <ChevronDown size={16} />
+                  )}
+                </span>
+              )}
+            </Button>
+
+            {/* Management Subsections */}
+            {!collapsed && managementExpanded && (
+              <ul className="mt-1 space-y-1">
+                {managementRoutes.map(route => (
+                  <li key={route.path}>
+                    <Button
+                      variant="ghost"
+                      className={cn(
+                        "w-full rounded-none h-10 pl-12",
+                        "text-sm justify-start",
+                        location.pathname === route.path
+                          ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                          : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
+                      )}
+                      onClick={() => navigate(route.path)}
+                    >
+                      {route.label}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
 
           {/* Other navigation items */}
           {navItems.slice(1).map(item => (

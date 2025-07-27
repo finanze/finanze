@@ -8,7 +8,7 @@ import {
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
-import { ExchangeRates } from "@/types"
+import { ExchangeRates, PendingFlow } from "@/types"
 
 export const convertCurrency = (
   amount: number,
@@ -230,6 +230,7 @@ export const getAssetDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows?: any[],
 ): AssetDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -551,6 +552,25 @@ export const getAssetDistribution = (
     }
   })
 
+  // Add pending flows if provided (both earnings and expenses)
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+
+    // Only show pending flows as a category if they're positive (net earnings)
+    if (pendingFlowsTotal > 0) {
+      assetTypes["PENDING_FLOWS"] = {
+        type: "PENDING_FLOWS",
+        value: pendingFlowsTotal, // Use actual positive value
+        percentage: 0,
+        change: 0,
+      }
+      totalValue += pendingFlowsTotal
+    }
+  }
   Object.values(assetTypes).forEach(asset => {
     asset.percentage =
       totalValue > 0 ? Math.round((asset.value / totalValue) * 100) : 0
@@ -563,6 +583,7 @@ export const getEntityDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows?: any[],
 ): EntityDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -809,6 +830,29 @@ export const getEntityDistribution = (
     }
   })
 
+  // Add pending flows as a separate entity if provided
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+
+    // Show pending flows as a separate entity if there's a net positive amount
+    if (pendingFlowsTotal > 0) {
+      const entityId = "pending-flows"
+      const entityName = "PENDING_FLOWS" // Use consistent naming with asset distribution
+
+      entities[entityId] = {
+        name: entityName,
+        value: pendingFlowsTotal, // Use actual positive value
+        percentage: 0,
+        id: entityId,
+      }
+      totalValue += pendingFlowsTotal
+    }
+  }
+
   if (totalValue > 0) {
     const entityList = Object.values(entities)
     let remainingPercentage = 100
@@ -842,6 +886,7 @@ export const getTotalAssets = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
 ): number => {
   if (!positionsData || !positionsData.positions) return 0
 
@@ -1069,6 +1114,16 @@ export const getTotalAssets = (
     }
   })
 
+  // Add pending flows if provided
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+    total += pendingFlowsTotal
+  }
+
   return total
 }
 
@@ -1076,6 +1131,7 @@ export const getTotalInvestedAmount = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
 ): number => {
   if (!positionsData || !positionsData.positions) return 0
 
@@ -1334,6 +1390,16 @@ export const getTotalInvestedAmount = (
       })
     }
   })
+
+  // Add pending flows if provided
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+    totalInvested += pendingFlowsTotal
+  }
 
   return totalInvested
 }
@@ -2508,4 +2574,37 @@ export const getAvailableInvestmentTypes = (
   })
 
   return Array.from(availableTypes)
+}
+
+export const calculatePendingEarningsTotal = (
+  pendingFlows: PendingFlow[],
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!pendingFlows || pendingFlows.length === 0) return 0
+
+  const now = new Date()
+
+  return pendingFlows
+    .filter(flow => flow.enabled)
+    .filter(flow => {
+      // Only include future or current flows
+      if (!flow.date) return true
+      const flowDate = new Date(flow.date)
+      return flowDate >= now
+    })
+    .reduce((total, flow) => {
+      const amount = parseFloat(flow.amount) || 0
+      const convertedAmount = convertCurrency(
+        amount,
+        flow.currency,
+        targetCurrency,
+        exchangeRates,
+      )
+
+      // Add earnings (positive), subtract expenses (negative)
+      return flow.flow_type === "EARNING"
+        ? total + convertedAmount
+        : total - convertedAmount
+    }, 0)
 }

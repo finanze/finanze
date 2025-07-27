@@ -52,8 +52,8 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
             """
             INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
                                         interest_rate, loan_amount, next_payment_date,
-                                        principal_outstanding, principal_paid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        principal_outstanding, principal_paid, creation, maturity, unpaid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(loan.id),
@@ -67,6 +67,9 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
                 loan.next_payment_date.isoformat(),
                 str(loan.principal_outstanding),
                 str(loan.principal_paid),
+                loan.creation.isoformat() if loan.creation else None,
+                loan.maturity.isoformat() if loan.maturity else None,
+                str(loan.unpaid) if loan.unpaid else None,
             ),
         )
 
@@ -628,6 +631,13 @@ class PositionSQLRepository(PositionPort):
                     ).date(),
                     principal_outstanding=Dezimal(row["principal_outstanding"]),
                     principal_paid=Dezimal(row["principal_paid"]),
+                    creation=datetime.fromisoformat(row["creation"]).date()
+                    if row["creation"]
+                    else None,
+                    maturity=datetime.fromisoformat(row["maturity"]).date()
+                    if row["maturity"]
+                    else None,
+                    unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
                 )
                 for row in cursor
             ]

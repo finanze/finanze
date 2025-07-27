@@ -83,6 +83,9 @@ class Loan(BaseData):
     principal_outstanding: Dezimal
     principal_paid: Dezimal
     name: Optional[str] = None
+    creation: Optional[date] = None
+    maturity: Optional[date] = None
+    unpaid: Optional[Dezimal] = None
 
 
 @dataclass

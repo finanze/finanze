@@ -6,22 +6,31 @@ import {
   useRef,
   type ReactNode,
 } from "react"
-import { getPositions, getContributions } from "@/services/api"
+import {
+  getPositions,
+  getContributions,
+  getAllPeriodicFlows,
+  getAllPendingFlows,
+} from "@/services/api"
 import { EntitiesPosition, PositionQueryRequest } from "@/types/position"
 import {
   EntityContributions,
   ContributionQueryRequest,
 } from "@/types/contributions"
+import { PeriodicFlow, PendingFlow } from "@/types"
 import { useAppContext } from "./AppContext"
 import { EntityType } from "@/types"
 
 interface FinancialDataContextType {
   positionsData: EntitiesPosition | null
   contributions: EntityContributions | null
+  periodicFlows: PeriodicFlow[]
+  pendingFlows: PendingFlow[]
   isLoading: boolean
   error: string | null
   refreshData: () => Promise<void>
   refreshEntity: (entityId: string) => Promise<void>
+  refreshFlows: () => Promise<void>
 }
 
 const FinancialDataContext = createContext<
@@ -34,6 +43,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   )
   const [contributions, setContributions] =
     useState<EntityContributions | null>(null)
+  const [periodicFlows, setPeriodicFlows] = useState<PeriodicFlow[]>([])
+  const [pendingFlows, setPendingFlows] = useState<PendingFlow[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const initialFetchDone = useRef(false)
@@ -61,18 +72,41 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         queryParams = { excluded_entities: entityIds }
       }
 
-      const [positionsResponse, contributionsData] = await Promise.all([
+      const [
+        positionsResponse,
+        contributionsData,
+        periodicFlowsData,
+        pendingFlowsData,
+      ] = await Promise.all([
         getPositions(queryParams as PositionQueryRequest),
         getContributions(queryParams as ContributionQueryRequest),
+        getAllPeriodicFlows(),
+        getAllPendingFlows(),
       ])
 
       setPositionsData(positionsResponse)
       setContributions(contributionsData)
+      setPeriodicFlows(periodicFlowsData)
+      setPendingFlows(pendingFlowsData)
     } catch (err) {
       console.error("Error fetching financial data:", err)
       setError("Failed to load financial data. Please try again.")
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const refreshFlows = async () => {
+    try {
+      const [periodicFlowsData, pendingFlowsData] = await Promise.all([
+        getAllPeriodicFlows(),
+        getAllPendingFlows(),
+      ])
+      setPeriodicFlows(periodicFlowsData)
+      setPendingFlows(pendingFlowsData)
+    } catch (err) {
+      console.error("Error refreshing flows:", err)
+      setError("Failed to refresh flows. Please try again.")
     }
   }
 
@@ -197,10 +231,13 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       value={{
         positionsData,
         contributions,
+        periodicFlows,
+        pendingFlows,
         isLoading,
         error,
         refreshData: fetchFinancialData,
         refreshEntity,
+        refreshFlows,
       }}
     >
       {children}

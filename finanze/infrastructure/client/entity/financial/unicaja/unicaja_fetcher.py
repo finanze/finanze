@@ -195,6 +195,13 @@ class UnicajaFetcher(FinancialEntityFetcher):
                 next_payment_date=datetime.strptime(
                     loan_response["fechaProxRecibo"], "%Y-%m-%d"
                 ).date(),
+                creation=datetime.strptime(
+                    loan_response["fechaApertura"], "%Y-%m-%d"
+                ).date(),
+                maturity=datetime.strptime(
+                    loan_response["fechaVencimiento"], "%Y-%m-%d"
+                ).date(),
+                unpaid=Dezimal(loan_response["recibosImpagados"]["cantidad"]),
             )
 
         return None
