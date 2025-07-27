@@ -720,7 +720,7 @@ export default function RecurringMoneyPage() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-6 pb-6">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
@@ -812,7 +812,7 @@ export default function RecurringMoneyPage() {
               })}
 
               {/* Gap between earnings and expenses */}
-              <div className="w-2 bg-white dark:bg-gray-900"></div>
+              <div className="w-2 bg-white dark:bg-black"></div>
 
               {/* Expenses Section */}
               {flowDistribution.expenses

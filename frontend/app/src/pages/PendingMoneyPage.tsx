@@ -330,181 +330,196 @@ export default function PendingMoneyPage() {
             {sectionFlows.map(({ flow, index }) => (
               <div
                 key={flow.id}
-                className={`flex items-center justify-between p-4 border rounded-lg ${
+                className={`${editingFlowId === flow.id ? "flex flex-col gap-4" : "flex items-start justify-between gap-4"} p-4 border rounded-lg ${
                   !flow.enabled ? "opacity-50 bg-gray-50 dark:bg-black" : ""
                 }`}
               >
                 {editingFlowId === flow.id ? (
-                  // Edit mode - inline editing
-                  <div className="flex-1 grid grid-cols-1 md:grid-cols-5 gap-4">
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">
-                        {t.management.name}
-                      </label>
-                      <DebouncedInput
-                        id={`name-${flow.id}`}
-                        value={flow.name}
-                        onChange={value => updateFlow(index, "name", value)}
-                        placeholder={t.management.namePlaceholder}
-                        className={`h-9 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("name") ? "border-red-500" : ""}`}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">
-                        {t.management.amount}
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                          {getCurrencySymbol(flow.currency)}
-                        </span>
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 block mb-1">
+                          {t.management.name}
+                        </label>
                         <DebouncedInput
-                          id={`amount-${flow.id}`}
-                          type="number"
-                          step="0.01"
-                          value={flow.amount}
-                          onChange={value => updateFlow(index, "amount", value)}
-                          placeholder={t.management.amountPlaceholder}
-                          className={`h-9 pl-6 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("amount") ? "border-red-500" : ""}`}
+                          id={`name-${flow.id}`}
+                          value={flow.name}
+                          onChange={value => updateFlow(index, "name", value)}
+                          placeholder={t.management.namePlaceholder}
+                          className={`h-9 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("name") ? "border-red-500" : ""}`}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 block mb-1">
+                          {t.management.amount}
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                            {getCurrencySymbol(flow.currency)}
+                          </span>
+                          <DebouncedInput
+                            id={`amount-${flow.id}`}
+                            type="number"
+                            step="0.01"
+                            value={flow.amount}
+                            onChange={value =>
+                              updateFlow(index, "amount", value)
+                            }
+                            placeholder={t.management.amountPlaceholder}
+                            className={`h-9 pl-6 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("amount") ? "border-red-500" : ""}`}
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 block mb-1">
+                          {t.management.category}
+                        </label>
+                        <CategorySelector
+                          id={`category-${flow.id}`}
+                          value={flow.category || ""}
+                          onChange={value =>
+                            updateFlow(index, "category", value)
+                          }
+                          placeholder={t.management.categoryPlaceholder}
+                          className="h-9"
+                          categories={existingCategories}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 block mb-1">
+                          {t.management.date}
+                        </label>
+                        <DatePicker
+                          value={flow.date || ""}
+                          onChange={value => updateFlow(index, "date", value)}
+                          className={`h-9 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("date") ? "border-red-500" : ""}`}
+                        />
+                      </div>
+
+                      <div
+                        className={`flex flex-col items-center justify-center gap-1 ${!flow.enabled ? "opacity-100" : ""}`}
+                      >
+                        <label className="text-xs font-medium text-gray-500">
+                          {t.management.enabled}
+                        </label>
+                        <Switch
+                          checked={flow.enabled}
+                          onCheckedChange={checked =>
+                            updateFlow(index, "enabled", checked.toString())
+                          }
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">
-                        {t.management.category}
-                      </label>
-                      <CategorySelector
-                        id={`category-${flow.id}`}
-                        value={flow.category || ""}
-                        onChange={value => updateFlow(index, "category", value)}
-                        placeholder={t.management.categoryPlaceholder}
-                        className="h-9"
-                        categories={existingCategories}
-                      />
+                    <div className="flex items-center justify-end gap-1 mt-2 border-t pt-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingFlowId(null)}
+                        className="text-blue-600 hover:text-blue-700 h-8 px-3"
+                      >
+                        Done
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFlow(index)}
+                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
                     </div>
-
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 block mb-1">
-                        {t.management.date}
-                      </label>
-                      <DatePicker
-                        value={flow.date || ""}
-                        onChange={value => updateFlow(index, "date", value)}
-                        className={`h-9 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("date") ? "border-red-500" : ""}`}
-                      />
-                    </div>
-
-                    <div
-                      className={`flex flex-col items-center justify-center gap-1 ${!flow.enabled ? "opacity-100" : ""}`}
-                    >
-                      <label className="text-xs font-medium text-gray-500">
-                        {t.management.enabled}
-                      </label>
-                      <Switch
-                        checked={flow.enabled}
-                        onCheckedChange={checked =>
-                          updateFlow(index, "enabled", checked.toString())
-                        }
-                      />
-                    </div>
-                  </div>
+                  </>
                 ) : (
-                  // Read-only mode - display with amount on the right
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-4">
-                      <h3 className="font-medium">{flow.name}</h3>
-                      {flow.category && (
-                        <Badge
-                          variant="secondary"
-                          className="flex items-center gap-1"
-                        >
-                          <Tag size={12} />
-                          {flow.category}
-                        </Badge>
-                      )}
-                      {(() => {
-                        const urgencyInfo = getDateUrgencyInfo(flow.date)
-                        if (urgencyInfo?.show) {
-                          return (
-                            <Badge
-                              variant={
-                                urgencyInfo.urgencyLevel === "urgent"
-                                  ? "destructive"
-                                  : urgencyInfo.urgencyLevel === "soon"
-                                    ? "default"
-                                    : "outline"
-                              }
-                              className={`flex items-center gap-1 ${
-                                urgencyInfo.urgencyLevel === "urgent"
-                                  ? "bg-red-500 text-white hover:bg-red-600"
-                                  : urgencyInfo.urgencyLevel === "soon"
-                                    ? "bg-orange-500 text-white hover:bg-orange-600"
-                                    : "bg-blue-500 text-white hover:bg-blue-600"
-                              }`}
-                            >
-                              <CalendarDays size={12} />
-                              {urgencyInfo.timeText}
-                            </Badge>
-                          )
-                        } else if (flow.date) {
-                          return (
-                            <Badge
-                              variant="outline"
-                              className="flex items-center gap-1"
-                            >
-                              <Calendar size={12} />
-                              {formatDate(flow.date || "", locale)}
-                            </Badge>
-                          )
-                        }
-                      })()}
-                      {!flow.enabled && (
-                        <span className="text-sm text-gray-500">
-                          {t.management.disabled}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold">
-                        {formatCurrency(
-                          parseFloat(flow.amount),
-                          locale,
-                          flow.currency,
+                  <>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                        <h3 className="font-medium">{flow.name}</h3>
+                        {flow.category && (
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1"
+                          >
+                            <Tag size={12} />
+                            {flow.category}
+                          </Badge>
                         )}
-                      </span>
+                        {(() => {
+                          const urgencyInfo = getDateUrgencyInfo(flow.date)
+                          if (urgencyInfo?.show) {
+                            return (
+                              <Badge
+                                variant={
+                                  urgencyInfo.urgencyLevel === "urgent"
+                                    ? "destructive"
+                                    : urgencyInfo.urgencyLevel === "soon"
+                                      ? "default"
+                                      : "outline"
+                                }
+                                className={`flex items-center gap-1 ${
+                                  urgencyInfo.urgencyLevel === "urgent"
+                                    ? "bg-red-500 text-white hover:bg-red-600"
+                                    : urgencyInfo.urgencyLevel === "soon"
+                                      ? "bg-orange-500 text-white hover:bg-orange-600"
+                                      : "bg-blue-500 text-white hover:bg-blue-600"
+                                }`}
+                              >
+                                <CalendarDays size={12} />
+                                {urgencyInfo.timeText}
+                              </Badge>
+                            )
+                          } else if (flow.date) {
+                            return (
+                              <Badge
+                                variant="outline"
+                                className="flex items-center gap-1"
+                              >
+                                <Calendar size={12} />
+                                {formatDate(flow.date || "", locale)}
+                              </Badge>
+                            )
+                          }
+                        })()}
+                        {!flow.enabled && (
+                          <span className="text-sm text-gray-500">
+                            {t.management.disabled}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-semibold">
+                          {formatCurrency(
+                            parseFloat(flow.amount),
+                            locale,
+                            flow.currency,
+                          )}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                )}
 
-                <div className="flex items-center gap-2">
-                  {editingFlowId === flow.id ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingFlowId(null)}
-                      className="text-blue-600 hover:text-blue-700"
-                    >
-                      Done
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setEditingFlowId(flow.id)}
-                    >
-                      <Edit size={16} />
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeFlow(index)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-                </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingFlowId(flow.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Edit size={16} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeFlow(index)}
+                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -514,8 +529,8 @@ export default function PendingMoneyPage() {
   }
 
   return (
-    <div className="p-6 space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -528,13 +543,14 @@ export default function PendingMoneyPage() {
         </div>
 
         {unsavedChanges && (
-          <div className="flex items-center gap-4 flex-nowrap">
-            <span className="text-sm text-orange-600 whitespace-nowrap">
+          <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-4">
+            <span className="text-sm text-orange-600">
               {t.management.unsavedChanges}
             </span>
             <Button
               onClick={handleSave}
-              className="flex items-center gap-2 whitespace-nowrap"
+              className="flex items-center gap-2"
+              size="sm"
             >
               <Save size={16} />
               {t.common.save}
