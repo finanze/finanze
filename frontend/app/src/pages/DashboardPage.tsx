@@ -1166,7 +1166,7 @@ export default function DashboardPage() {
               {/* Upcoming Flows Card */}
               {upcomingFlowsData.length > 0 && (
                 <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
+                  <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
                     <CardTitle className="text-lg font-bold flex items-center">
                       <CalendarDays className="h-5 w-5 mr-2 text-primary" />
                       {t.dashboard.upcomingFlows}
@@ -1175,7 +1175,7 @@ export default function DashboardPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => navigate("/management")}
-                      className="text-xs px-2 py-1 h-auto min-h-0"
+                      className="text-xs px-2 py-1 h-auto min-h-0 self-start sm:self-auto"
                     >
                       <ArrowRight className="h-3 w-3 mr-1" />
                       {t.dashboard.manageFlows}
@@ -1193,20 +1193,20 @@ export default function DashboardPage() {
                         return (
                           <div
                             key={`${flow.id}-${index}`}
-                            className="flex items-center justify-between p-2 rounded-lg bg-muted/50"
+                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-muted/50"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
                               {isRecurring ? (
                                 <CalendarSync
-                                  className={`h-4 w-4 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                                  className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
                                 />
                               ) : (
                                 <HandCoins
-                                  className={`h-4 w-4 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                                  className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
                                 />
                               )}
-                              <div className="flex items-center gap-2 flex-1">
-                                <p className="font-medium text-sm">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
+                                <p className="font-medium text-sm truncate">
                                   {flow.name}
                                 </p>
                                 {urgencyInfo?.show && (
@@ -1218,7 +1218,7 @@ export default function DashboardPage() {
                                           ? "default"
                                           : "outline"
                                     }
-                                    className="text-xs px-1 py-0 h-4"
+                                    className="text-xs px-1 py-0 h-4 self-start sm:self-auto"
                                   >
                                     {urgencyInfo.timeText}
                                   </Badge>
@@ -1226,7 +1226,7 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <p
-                              className={`font-mono text-sm font-semibold ${isEarning ? "text-green-600" : "text-red-600"}`}
+                              className={`font-mono text-sm font-semibold flex-shrink-0 text-center sm:text-right ${isEarning ? "text-green-600" : "text-red-600"}`}
                             >
                               {isEarning ? "+" : "-"}
                               {formatCurrency(

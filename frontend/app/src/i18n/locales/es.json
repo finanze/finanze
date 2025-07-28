@@ -699,5 +699,8 @@
       "acceptedError": "Error al aceptar sugerencia",
       "found": "encontradas"
     }
+  },
+  "datePicker": {
+    "selectYear": "Seleccionar Año"
   }
 }

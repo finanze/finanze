@@ -700,5 +700,8 @@
       "acceptedError": "Error accepting suggestion",
       "found": "found"
     }
+  },
+  "datePicker": {
+    "selectYear": "Select Year"
   }
 }
