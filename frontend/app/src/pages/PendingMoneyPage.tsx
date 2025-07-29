@@ -237,6 +237,124 @@ export default function PendingMoneyPage() {
       return sum + convertedAmount
     }, 0)
 
+  // Color functions for different shades - traditional red/green palette
+  // Darker colors for bigger amounts (lower index), lighter for smaller amounts
+  const getEarningsColor = (index: number) => {
+    const greenShades = [
+      "bg-green-800", // Darkest for biggest
+      "bg-green-700",
+      "bg-green-600",
+      "bg-green-500",
+      "bg-green-400",
+      "bg-green-300",
+      "bg-green-100",
+    ]
+    return greenShades[index % greenShades.length]
+  }
+
+  const getExpensesColor = (index: number) => {
+    const redShades = [
+      "bg-red-800", // Darkest for biggest
+      "bg-red-700",
+      "bg-red-600",
+      "bg-red-500",
+      "bg-red-400",
+      "bg-red-300",
+      "bg-red-100",
+    ]
+    return redShades[index % redShades.length]
+  }
+
+  // Calculate flow distribution for the horizontal bar charts
+  const flowDistribution = useMemo(() => {
+    const enabledEarnings = earnings.filter(flow => flow.enabled)
+    const enabledExpenses = expenses.filter(flow => flow.enabled)
+
+    // Group earnings by category
+    const earningsGroups = enabledEarnings.reduce(
+      (groups, flow) => {
+        const category = flow.category || flow.name
+        const amount = convertCurrency(
+          parseFloat(flow.amount) || 0,
+          flow.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+
+        if (!groups[category]) {
+          groups[category] = { amount: 0, flows: [] }
+        }
+        groups[category].amount += amount
+        groups[category].flows.push(flow)
+        return groups
+      },
+      {} as Record<string, { amount: number; flows: PendingFlow[] }>,
+    )
+
+    // Group expenses by category
+    const expensesGroups = enabledExpenses.reduce(
+      (groups, flow) => {
+        const category = flow.category || flow.name
+        const amount = convertCurrency(
+          parseFloat(flow.amount) || 0,
+          flow.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+
+        if (!groups[category]) {
+          groups[category] = { amount: 0, flows: [] }
+        }
+        groups[category].amount += amount
+        groups[category].flows.push(flow)
+        return groups
+      },
+      {} as Record<string, { amount: number; flows: PendingFlow[] }>,
+    )
+
+    // Convert to arrays with percentages for earnings
+    const earningsData = Object.entries(earningsGroups).map(
+      ([category, data], index) => ({
+        category,
+        amount: data.amount,
+        percentage:
+          totalPendingEarnings > 0
+            ? (data.amount / totalPendingEarnings) * 100
+            : 0,
+        flows: data.flows,
+        type: "earning" as const,
+        color: getEarningsColor(index),
+      }),
+    )
+
+    // Convert to arrays with percentages for expenses
+    const expensesData = Object.entries(expensesGroups).map(
+      ([category, data], index) => ({
+        category,
+        amount: data.amount,
+        percentage:
+          totalPendingExpenses > 0
+            ? (data.amount / totalPendingExpenses) * 100
+            : 0,
+        flows: data.flows,
+        type: "expense" as const,
+        color: getExpensesColor(index),
+      }),
+    )
+
+    return {
+      earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first
+      expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first
+    }
+  }, [
+    earnings,
+    expenses,
+    totalPendingEarnings,
+    totalPendingExpenses,
+    defaultCurrency,
+    exchangeRates,
+  ])
+
   const getDateUrgencyInfo = (dateString: string | undefined) => {
     if (!dateString) return null
 
@@ -581,6 +699,57 @@ export default function PendingMoneyPage() {
               ? t.management.flowType.EARNING.toLowerCase()
               : t.management.earnings.toLowerCase()}
           </div>
+
+          {/* Earnings Distribution Bar Chart */}
+          {flowDistribution.earnings.length > 0 && (
+            <div className="mt-4">
+              <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                <div className="flex h-full">
+                  {flowDistribution.earnings.map((earning, index) => (
+                    <div
+                      key={`earning-${index}`}
+                      className={`${earning.color} relative group cursor-pointer hover:opacity-80 transition-opacity duration-200`}
+                      style={{ width: `${earning.percentage}%` }}
+                      title={`${earning.category}: ${formatCurrency(
+                        earning.amount,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )} (${earning.percentage.toFixed(1)}%)`}
+                    >
+                      <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Earnings Legend */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {flowDistribution.earnings.map((earning, index) => (
+                  <div
+                    key={`earning-legend-${index}`}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-sm ${earning.color}`}
+                    ></div>
+                    <span
+                      className="truncate max-w-20"
+                      title={earning.category}
+                    >
+                      {earning.category}
+                    </span>
+                    <span className="text-gray-500">
+                      {formatCurrency(
+                        earning.amount,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card className="p-4">
@@ -603,6 +772,57 @@ export default function PendingMoneyPage() {
               ? t.management.flowType.EXPENSE.toLowerCase()
               : t.management.expenses.toLowerCase()}
           </div>
+
+          {/* Expenses Distribution Bar Chart */}
+          {flowDistribution.expenses.length > 0 && (
+            <div className="mt-4">
+              <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+                <div className="flex h-full">
+                  {flowDistribution.expenses.map((expense, index) => (
+                    <div
+                      key={`expense-${index}`}
+                      className={`${expense.color} relative group cursor-pointer hover:opacity-80 transition-opacity duration-200`}
+                      style={{ width: `${expense.percentage}%` }}
+                      title={`${expense.category}: ${formatCurrency(
+                        expense.amount,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )} (${expense.percentage.toFixed(1)}%)`}
+                    >
+                      <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Expenses Legend */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {flowDistribution.expenses.map((expense, index) => (
+                  <div
+                    key={`expense-legend-${index}`}
+                    className="flex items-center gap-1.5 text-xs"
+                  >
+                    <div
+                      className={`w-3 h-3 rounded-sm ${expense.color}`}
+                    ></div>
+                    <span
+                      className="truncate max-w-20"
+                      title={expense.category}
+                    >
+                      {expense.category}
+                    </span>
+                    <span className="text-gray-500">
+                      {formatCurrency(
+                        expense.amount,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
