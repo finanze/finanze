@@ -317,14 +317,9 @@ export default function RecurringMoneyPage() {
             flow.flow_type === FlowType.EXPENSE &&
             Math.abs(parseFloat(flow.amount) - loan.current_installment) <
               0.01 &&
-            // Check by name similarity
-            ((loan.name &&
-              flow.name.toLowerCase().includes(loan.name.toLowerCase())) ||
-              // Check by creation date and until date matches
-              (loan.creation &&
-                flow.since === loan.creation &&
-                loan.maturity &&
-                flow.until === loan.maturity)),
+            // Check by creation date and until date matches
+            loan.creation &&
+            flow.since === loan.creation,
         )
         return !existingExpense
       })

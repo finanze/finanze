@@ -590,6 +590,28 @@ export default function DashboardPage() {
 
   const CustomLegend = (props: any) => {
     const { payload } = props
+
+    const getInvestmentRoute = (assetType: string) => {
+      const routeMap: Record<string, string> = {
+        STOCK_ETF: "/investments/stocks-etfs",
+        FUND: "/investments/funds",
+        DEPOSIT: "/investments/deposits",
+        FACTORING: "/investments/factoring",
+        REAL_ESTATE_CF: "/investments/real-estate",
+        CRYPTO: "/investments/crypto",
+        PENDING_FLOWS: "/management/pending",
+        CASH: "/banking",
+      }
+      return routeMap[assetType] || null
+    }
+
+    const handleLegendClick = (assetType: string) => {
+      const route = getInvestmentRoute(assetType)
+      if (route) {
+        navigate(route)
+      }
+    }
+
     return (
       <ul className="space-y-1.5 text-xs scrollbar-thin pr-0.5">
         {payload.map((entry: any, index: number) => {
@@ -597,12 +619,18 @@ export default function DashboardPage() {
           const assetValue = entry.payload.payload.value
           const assetPercentage = entry.payload.payload.percentage
           const icon = getIconForAssetType(assetType)
+          const hasRoute = getInvestmentRoute(assetType) !== null
 
           return (
             <li
               key={`legend-item-${index}`}
-              className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)`}
+              className={`flex items-center space-x-2 p-1 rounded transition-colors ${
+                hasRoute
+                  ? "hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+                  : "cursor-default"
+              }`}
+              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)${hasRoute ? " - Click to view details" : ""}`}
+              onClick={() => hasRoute && handleLegendClick(assetType)}
             >
               <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                 {icon}
