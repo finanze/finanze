@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { useI18n } from "@/i18n"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
@@ -170,6 +170,18 @@ export function RealEstateFormModal({
     number | null
   >(null)
 
+  // Track existing periodic flow ids already linked in the form to avoid suggesting them again
+  const usedExistingFlowIds = useMemo(() => {
+    const ids: string[] = []
+    for (const f of formData.flows) {
+      const id = (f.periodic_flow_id || f.periodic_flow?.id) as
+        | string
+        | undefined
+      if (id) ids.push(id)
+    }
+    return new Set(ids)
+  }, [formData.flows])
+
   // Reusable helper to infer an icon "kind" from a suggested flow, reused both
   // for suggestion chips and for the icon applied on accepting a suggestion.
   type SuggestionSection = "loans" | "costs" | "utilities" | "rent" | null
@@ -226,6 +238,20 @@ export function RealEstateFormModal({
       if (section === "rent") return "hand-coins"
     }
     return iconKindToName[kind]
+  }
+
+  // Map each generic flow id to the section where it should be suggested
+  // This ensures, for example, that insurance/community/IBI appear under costs,
+  // while electricity/gas/water/internet appear under utilities, and rent under rent.
+  const genericSectionMap: Record<string, "costs" | "utilities" | "rent"> = {
+    "generic-community": "costs",
+    "generic-insurance": "costs",
+    "generic-ibi": "costs",
+    "generic-electricity": "utilities",
+    "generic-gas": "utilities",
+    "generic-water": "utilities",
+    "generic-internet": "utilities",
+    "generic-rent": "rent",
   }
 
   useEffect(() => {
@@ -1906,7 +1932,8 @@ export function RealEstateFormModal({
                           return (
                             flow.flow_type === FlowType.EXPENSE &&
                             !flow.id?.startsWith("generic-") &&
-                            !flow.linked
+                            !flow.linked &&
+                            !usedExistingFlowIds.has(flow.id as string)
                           )
                         })
                         .filter(
@@ -2651,60 +2678,20 @@ export function RealEstateFormModal({
                           // For costs section, exclude loan suggestions and linked flows
                           if (
                             flow.id?.startsWith("loan-suggestion-") ||
-                            flow.linked
+                            flow.linked ||
+                            (flow.id && usedExistingFlowIds.has(flow.id))
                           ) {
                             return false
                           }
 
+                          // If it's a known generic, ensure it's mapped to this section
+                          if (flow.id?.startsWith("generic-")) {
+                            const mapped = genericSectionMap[flow.id]
+                            if (mapped && mapped !== "costs") return false
+                          }
+
                           // Include purchase costs and general property costs
-                          return (
-                            flow.flow_type === FlowType.EXPENSE &&
-                            (flow.category
-                              ?.toLowerCase()
-                              .includes(
-                                t.realEstate.flows.categoryNames.purchaseCosts,
-                              ) ||
-                              flow.category
-                                ?.toLowerCase()
-                                .includes(
-                                  t.realEstate.flows.categoryNames
-                                    .propertyCosts,
-                                ) ||
-                              flow.category
-                                ?.toLowerCase()
-                                .includes(
-                                  t.realEstate.flows.categoryNames.insurance,
-                                ) ||
-                              flow.id?.includes("generic-notary") ||
-                              flow.id?.includes("generic-registry") ||
-                              flow.id?.includes("generic-agency") ||
-                              flow.id?.includes("generic-tax-transfer") ||
-                              flow.id?.includes("generic-community") ||
-                              flow.id?.includes("generic-ibi") ||
-                              (flow.id?.includes("generic-insurance") &&
-                                flow.name
-                                  .toLowerCase()
-                                  .includes(
-                                    t.realEstate.flows.flowNameFilters.home,
-                                  )) ||
-                              // Include non-generic flows that are not utilities or loans
-                              (!flow.id?.startsWith("generic-") &&
-                                !flow.category
-                                  ?.toLowerCase()
-                                  .includes(
-                                    t.realEstate.flows.categoryNames.utilities,
-                                  ) &&
-                                !flow.category
-                                  ?.toLowerCase()
-                                  .includes(
-                                    t.realEstate.flows.categoryNames.loans,
-                                  ) &&
-                                !flow.category
-                                  ?.toLowerCase()
-                                  .includes(
-                                    t.realEstate.flows.categoryNames.mortgages,
-                                  )))
-                          )
+                          return flow.flow_type === FlowType.EXPENSE
                         })
                         .filter(
                           (flow, index, self) =>
@@ -3149,45 +3136,26 @@ export function RealEstateFormModal({
                     <div className="max-h-60 overflow-y-auto space-y-2">
                       {availableFlows
                         .filter(flow => {
-                          return (
-                            flow.flow_type === FlowType.EXPENSE &&
-                            !flow.linked &&
-                            (flow.category
-                              ?.toLowerCase()
-                              .includes(
-                                t.realEstate.flows.categoryNames.utilities,
-                              ) ||
-                              flow.id?.includes("generic-electricity") ||
-                              flow.id?.includes("generic-gas") ||
-                              flow.id?.includes("generic-water") ||
-                              flow.id?.includes("generic-internet") ||
-                              // Include non-generic utility flows
-                              (!flow.id?.startsWith("generic-") &&
-                                (flow.name
-                                  .toLowerCase()
-                                  .includes(
-                                    t.realEstate.flows.flowNameFilters.light,
-                                  ) ||
-                                  flow.name
-                                    .toLowerCase()
-                                    .includes(
-                                      t.realEstate.flows.flowNameFilters.gas,
-                                    ) ||
-                                  flow.name
-                                    .toLowerCase()
-                                    .includes(
-                                      t.realEstate.flows.flowNameFilters.water,
-                                    ) ||
-                                  flow.name
-                                    .toLowerCase()
-                                    .includes("internet") ||
-                                  flow.name
-                                    .toLowerCase()
-                                    .includes(
-                                      t.realEstate.flows.flowNameFilters
-                                        .electricity,
-                                    ))))
-                          )
+                          // Exclude loan suggestions, linked, and already-used
+                          if (
+                            flow.id?.startsWith("loan-suggestion-") ||
+                            flow.linked ||
+                            (flow.id && usedExistingFlowIds.has(flow.id))
+                          ) {
+                            return false
+                          }
+
+                          // Only EXPENSE flows belong here
+                          if (flow.flow_type !== FlowType.EXPENSE) return false
+
+                          // For GENERIC flows, only include ones mapped to utilities
+                          if (flow.id?.startsWith("generic-")) {
+                            const mapped = genericSectionMap[flow.id]
+                            return mapped === "utilities"
+                          }
+
+                          // For non-generic existing flows, include those categorized as utilities
+                          return true
                         })
                         .filter(
                           (flow, index, self) =>
@@ -3570,11 +3538,22 @@ export function RealEstateFormModal({
                       </div>
                       <div className="max-h-60 overflow-y-auto space-y-2">
                         {availableFlows
-                          .filter(
-                            flow =>
-                              flow.flow_type === FlowType.EARNING &&
-                              !flow.linked,
-                          )
+                          .filter(flow => {
+                            if (
+                              flow.linked ||
+                              (flow.id && usedExistingFlowIds.has(flow.id))
+                            )
+                              return false
+                            // Only EARNING flows in rent
+                            if (flow.flow_type !== FlowType.EARNING)
+                              return false
+                            // For generics, ensure they are mapped to rent
+                            if (flow.id?.startsWith("generic-")) {
+                              const mapped = genericSectionMap[flow.id]
+                              return mapped === "rent"
+                            }
+                            return true
+                          })
                           .filter(
                             (flow, index, self) =>
                               self.findIndex(f => f.id === flow.id) === index,

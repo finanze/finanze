@@ -155,6 +155,10 @@ export function PinPad() {
           <ArrowRight className="mr-2 h-4 w-4" />
           {isEntityFetching ? t.common.fetching : t.common.submit}
         </Button>
+
+        <div className="mt-3 text-center text-xs text-muted-foreground">
+          {t.pinpad.codeDelayTip}
+        </div>
       </CardContent>
     </Card>
   )

@@ -167,7 +167,7 @@ export function RealEstateStats({
       }, 0)
   }, [flows])
 
-  const monthlyTaxDeductible = useMemo(() => {
+  const monthlyTaxDeductibleRaw = useMemo(() => {
     const flowCosts = (flows || [])
       .filter(
         f =>
@@ -196,6 +196,16 @@ export function RealEstateStats({
     return flowCosts + loanInterests + monthlyAmorts
   }, [flows, amortizationsAnnual])
 
+  // Deductible cannot exceed taxable base; taxable cannot be negative
+  const taxableBaseMonthly = useMemo(() => {
+    const base = monthlyIncome
+    return Math.max(0, base)
+  }, [monthlyIncome])
+
+  const monthlyTaxDeductible = useMemo(() => {
+    return Math.min(monthlyTaxDeductibleRaw, taxableBaseMonthly)
+  }, [monthlyTaxDeductibleRaw, taxableBaseMonthly])
+
   const totalMonthlyPayments = useMemo(
     () => monthlyCosts + monthlyLoanPayments,
     [monthlyCosts, monthlyLoanPayments],
@@ -205,7 +215,8 @@ export function RealEstateStats({
     [monthlyIncome, totalMonthlyPayments],
   )
   const taxesAnnual = useMemo(() => {
-    return (monthlyIncome - monthlyTaxDeductible) * 12 * (marginalTaxRate ?? 0)
+    const taxableMonthly = Math.max(0, monthlyIncome - monthlyTaxDeductible)
+    return taxableMonthly * 12 * (marginalTaxRate ?? 0)
   }, [monthlyIncome, monthlyTaxDeductible, marginalTaxRate])
   const profitAfterTaxAnnual = useMemo(
     () => netMonthlyProfit * 12 - taxesAnnual,
@@ -427,8 +438,8 @@ export function RealEstateStats({
                   {t.realEstate.labels.taxableAmount}:{" "}
                   {formatCurrency(
                     annual
-                      ? (monthlyIncome - monthlyTaxDeductible) * 12
-                      : monthlyIncome - monthlyTaxDeductible,
+                      ? Math.max(0, monthlyIncome - monthlyTaxDeductible) * 12
+                      : Math.max(0, monthlyIncome - monthlyTaxDeductible),
                     locale,
                     currency,
                   )}

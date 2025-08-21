@@ -159,7 +159,8 @@
     "login": "Iniciar Sesión"
   },
   "pinpad": {
-    "enterCode": "Ingrese Código de {length} Dígitos para"
+    "enterCode": "Ingrese Código de {length} Dígitos para",
+    "codeDelayTip": "Consejo: A veces el código 2FA puede tardar un poco en llegar."
   },
   "errors": {
     "INVALID_CODE": "Código inválido",
@@ -221,7 +222,8 @@
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
-    "availableFeatures": "Características Disponibles"
+    "availableFeatures": "Características Disponibles",
+    "jumpToPin": "¿Ya tienes el código 2FA? Ir al PIN"
   },
   "settings": {
     "title": "Configuración",

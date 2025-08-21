@@ -64,7 +64,7 @@ export default function PendingMoneyPage() {
     setExistingCategories(categories)
   }, [pendingFlows])
 
-  // Sort flows based on selected criteria
+  // Sort flows based on selected criteria (do not sort while editing to avoid jumping UI)
   const sortedFlows = useMemo(() => {
     const flows = [...localPendingFlows].filter(f =>
       categoryFilter.length
@@ -73,6 +73,8 @@ export default function PendingMoneyPage() {
           : false
         : true,
     )
+    // While a flow is being edited, keep the original order for better UX
+    if (editingFlowId) return flows
     if (sortBy === "amount") {
       return flows.sort((a, b) => {
         const amountA = a.amount
@@ -237,7 +239,20 @@ export default function PendingMoneyPage() {
   // Calculate totals for KPIs (excluding disabled flows)
   const defaultCurrency = settings?.general?.defaultCurrency
 
-  const totalPendingEarnings = earnings
+  // Helper to exclude unsaved temporary flows (do not count towards KPIs/charts)
+  const isTempFlow = (flow: PendingFlow) =>
+    typeof flow.id === "string" && flow.id.startsWith("temp-")
+
+  const kpiEarningsSource = useMemo(
+    () => earnings.filter(f => !isTempFlow(f)),
+    [earnings],
+  )
+  const kpiExpensesSource = useMemo(
+    () => expenses.filter(f => !isTempFlow(f)),
+    [expenses],
+  )
+
+  const totalPendingEarnings = kpiEarningsSource
     .filter(flow => flow.enabled)
     .reduce((sum, flow) => {
       const amount = flow.amount
@@ -250,7 +265,7 @@ export default function PendingMoneyPage() {
       return sum + convertedAmount
     }, 0)
 
-  const totalPendingExpenses = expenses
+  const totalPendingExpenses = kpiExpensesSource
     .filter(flow => flow.enabled)
     .reduce((sum, flow) => {
       const amount = flow.amount
@@ -293,8 +308,8 @@ export default function PendingMoneyPage() {
 
   // Calculate flow distribution for the horizontal bar charts
   const flowDistribution = useMemo(() => {
-    const enabledEarnings = earnings.filter(flow => flow.enabled)
-    const enabledExpenses = expenses.filter(flow => flow.enabled)
+    const enabledEarnings = kpiEarningsSource.filter(flow => flow.enabled)
+    const enabledExpenses = kpiExpensesSource.filter(flow => flow.enabled)
 
     // Group earnings by category
     const earningsGroups = enabledEarnings.reduce(
@@ -373,8 +388,8 @@ export default function PendingMoneyPage() {
       expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first
     }
   }, [
-    earnings,
-    expenses,
+    kpiEarningsSource,
+    kpiExpensesSource,
     totalPendingEarnings,
     totalPendingExpenses,
     defaultCurrency,
@@ -738,8 +753,8 @@ export default function PendingMoneyPage() {
             )}
           </div>
           <div className="text-xs text-gray-500">
-            {earnings.filter(flow => flow.enabled).length}{" "}
-            {earnings.filter(flow => flow.enabled).length === 1
+            {kpiEarningsSource.filter(flow => flow.enabled).length}{" "}
+            {kpiEarningsSource.filter(flow => flow.enabled).length === 1
               ? t.management.flowType.EARNING.toLowerCase()
               : t.management.earnings.toLowerCase()}
           </div>
@@ -832,8 +847,8 @@ export default function PendingMoneyPage() {
             )}
           </div>
           <div className="text-xs text-gray-500">
-            {expenses.filter(flow => flow.enabled).length}{" "}
-            {expenses.filter(flow => flow.enabled).length === 1
+            {kpiExpensesSource.filter(flow => flow.enabled).length}{" "}
+            {kpiExpensesSource.filter(flow => flow.enabled).length === 1
               ? t.management.flowType.EXPENSE.toLowerCase()
               : t.management.expenses.toLowerCase()}
           </div>

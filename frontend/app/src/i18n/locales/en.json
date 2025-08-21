@@ -161,7 +161,8 @@
     "login": "Log In"
   },
   "pinpad": {
-    "enterCode": "Enter {length}-Digit Code for"
+    "enterCode": "Enter {length}-Digit Code for",
+    "codeDelayTip": "Tip: Sometimes the 2FA code can take a bit to arrive."
   },
   "errors": {
     "INVALID_CODE": "Invalid code provided",
@@ -223,7 +224,8 @@
     "deepScrape": "Force full fetch",
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
     "advancedOptions": "Advanced options",
-    "availableFeatures": "Available Features"
+    "availableFeatures": "Available Features",
+    "jumpToPin": "Already have the 2FA code? Jump to PIN"
   },
   "settings": {
     "title": "Settings",
