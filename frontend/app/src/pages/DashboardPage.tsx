@@ -11,13 +11,13 @@ import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
+import { Switch } from "@/components/ui/Switch"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import {
-  getIconForProjectType,
   getPieSliceColorForAssetType,
   getIconForAssetType,
   getIconForTxType,
@@ -35,6 +35,9 @@ import {
   CalendarDays,
   CalendarSync,
   HandCoins,
+  CreditCard,
+  Home,
+  SlidersHorizontal,
 } from "lucide-react"
 import {
   PieChart,
@@ -50,8 +53,6 @@ import { EntityRefreshDropdown } from "@/components/EntityRefreshDropdown"
 import {
   getAssetDistribution,
   getEntityDistribution,
-  getTotalAssets,
-  getTotalInvestedAmount,
   convertCurrency,
   getOngoingProjects,
   getStockAndFundPositions,
@@ -59,6 +60,8 @@ import {
   getCommodityPositions,
   getRecentTransactions,
   getDaysStatus,
+  computeAdjustedKpis,
+  filterRealEstateByOptions,
 } from "@/utils/financialDataUtils"
 
 export default function DashboardPage() {
@@ -71,6 +74,7 @@ export default function DashboardPage() {
     isLoading: financialDataLoading,
     error: financialDataError,
     refreshData: refreshFinancialData,
+    realEstateList,
   } = useFinancialData()
   const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
     useAppContext()
@@ -82,6 +86,39 @@ export default function DashboardPage() {
   const [transactionsError, setTransactionsError] = useState<string | null>(
     null,
   )
+
+  // Dashboard options state (persisted in localStorage)
+  type DashboardOptions = {
+    includePending: boolean
+    includeCardExpenses: boolean
+    includeRealEstate: boolean
+    includeResidences: boolean
+  }
+  const [dashboardOptions, setDashboardOptions] = useState<DashboardOptions>(
+    () => {
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("dashboardOptions")
+          if (raw) return JSON.parse(raw)
+        } catch {
+          // ignore
+        }
+      }
+      return {
+        includePending: true,
+        includeCardExpenses: false,
+        includeRealEstate: true,
+        includeResidences: true,
+      }
+    },
+  )
+  useEffect(() => {
+    try {
+      localStorage.setItem("dashboardOptions", JSON.stringify(dashboardOptions))
+    } catch {
+      // ignore
+    }
+  }, [dashboardOptions])
 
   const fetchTransactionsData = async () => {
     if (inactiveEntities && inactiveEntities.length > 0) {
@@ -226,17 +263,26 @@ export default function DashboardPage() {
   }, [inactiveEntities, t])
 
   const targetCurrency = settings.general.defaultCurrency
+  const appliedPendingFlows = dashboardOptions.includePending
+    ? pendingFlows
+    : []
+  const appliedRealEstateList = filterRealEstateByOptions(
+    realEstateList,
+    dashboardOptions,
+  )
   const assetDistribution = getAssetDistribution(
     positionsData,
     targetCurrency,
     exchangeRates,
-    pendingFlows,
+    appliedPendingFlows,
+    appliedRealEstateList,
   )
   const entityDistribution = getEntityDistribution(
     positionsData,
     targetCurrency,
     exchangeRates,
-    pendingFlows,
+    appliedPendingFlows,
+    appliedRealEstateList,
   )
   const { entities } = useAppContext()
   const adjustedEntityDistribution = useMemo(() => {
@@ -250,19 +296,37 @@ export default function DashboardPage() {
           ...item,
           name: (t.enums?.productType as any)?.PENDING_FLOWS,
         }
+      } else if (item.id === "real-estate") {
+        return {
+          ...item,
+          name: (t.enums?.productType as any)?.REAL_ESTATE,
+        }
       } else {
         return {
           ...item,
-          name: (t.enums?.productType as any)?.COMMODITY || item.name,
+          name: (t.enums?.productType as any)?.COMMODITY,
         }
       }
     })
   }, [entityDistribution, entities, t])
-  const totalAssets = getTotalAssets(
-    positionsData,
-    targetCurrency,
-    exchangeRates,
-    pendingFlows,
+  const { adjustedTotalAssets, adjustedInvestedAmount } = useMemo(
+    () =>
+      computeAdjustedKpis(
+        positionsData,
+        targetCurrency,
+        exchangeRates,
+        pendingFlows,
+        realEstateList,
+        dashboardOptions,
+      ),
+    [
+      positionsData,
+      targetCurrency,
+      exchangeRates,
+      pendingFlows,
+      realEstateList,
+      dashboardOptions,
+    ],
   )
   const ongoingProjects = getOngoingProjects(
     positionsData,
@@ -292,12 +356,6 @@ export default function DashboardPage() {
     transactions,
     locale,
     settings.general.defaultCurrency,
-  )
-  const totalInvestedAmount = getTotalInvestedAmount(
-    positionsData,
-    targetCurrency,
-    exchangeRates,
-    pendingFlows,
   )
 
   const fundItems = stockAndFundPositions
@@ -531,11 +589,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 mb-2">
             {getIconForAssetType(data.type)}
             <p className="font-medium text-sm text-popover-foreground">
-              {t.enums &&
-              t.enums.productType &&
-              (t.enums.productType as any)[data.type]
-                ? (t.enums.productType as any)[data.type]
-                : data.type?.toLowerCase().replace(/_/g, " ")}
+              {(t.enums?.productType as any)?.[data.type] ?? data.type}
             </p>
           </div>
           <div className="space-y-1 text-xs text-muted-foreground">
@@ -597,10 +651,11 @@ export default function DashboardPage() {
         FUND: "/investments/funds",
         DEPOSIT: "/investments/deposits",
         FACTORING: "/investments/factoring",
-        REAL_ESTATE_CF: "/investments/real-estate",
+        REAL_ESTATE_CF: "/investments/real-estate-cf",
         CRYPTO: "/investments/crypto",
         PENDING_FLOWS: "/management/pending",
         CASH: "/banking",
+        REAL_ESTATE: "/real-estate",
       }
       return routeMap[assetType] || null
     }
@@ -629,15 +684,14 @@ export default function DashboardPage() {
                   ? "hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
                   : "cursor-default"
               }`}
-              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)${hasRoute ? " - Click to view details" : ""}`}
+              title={`${(t.enums?.productType as any)?.[assetType] ?? assetType}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)${hasRoute ? " - Click to view details" : ""}`}
               onClick={() => hasRoute && handleLegendClick(assetType)}
             >
               <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                 {icon}
               </span>
               <span className="capitalize truncate flex-grow min-w-0">
-                {(t.enums.productType as any)[assetType] ||
-                  assetType.toLowerCase().replace(/_/g, " ")}
+                {(t.enums?.productType as any)?.[assetType] ?? assetType}
               </span>
               <div className="text-right flex space-x-1">
                 <span className="block whitespace-nowrap text-[11px]">
@@ -717,7 +771,7 @@ export default function DashboardPage() {
           nextDate,
           daysUntil,
           convertedAmount: convertCurrency(
-            parseFloat(flow.amount),
+            flow.amount,
             flow.currency,
             targetCurrency,
             exchangeRates,
@@ -837,6 +891,80 @@ export default function DashboardPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t.common.dashboard}</h1>
         <div className="flex gap-2">
+          {/* Dashboard Options */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="flex items-center">
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <HandCoins className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includePendingMoney}
+                  </div>
+                  <Switch
+                    checked={dashboardOptions.includePending}
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includePending: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includeCardExpenses}
+                  </div>
+                  <Switch
+                    checked={dashboardOptions.includeCardExpenses}
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includeCardExpenses: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm flex items-center gap-2">
+                      <Home className="h-4 w-4 text-muted-foreground" />
+                      {t.dashboard.includeRealEstateEquity}
+                    </div>
+                    <Switch
+                      checked={dashboardOptions.includeRealEstate}
+                      onCheckedChange={val =>
+                        setDashboardOptions(prev => ({
+                          ...prev,
+                          includeRealEstate: Boolean(val),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pl-6">
+                    <div className="text-sm text-muted-foreground">
+                      {t.dashboard.includeResidences}
+                    </div>
+                    <Switch
+                      checked={dashboardOptions.includeResidences}
+                      onCheckedChange={val =>
+                        setDashboardOptions(prev => ({
+                          ...prev,
+                          includeResidences: Boolean(val),
+                        }))
+                      }
+                      disabled={!dashboardOptions.includeRealEstate}
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <EntityRefreshDropdown />
         </div>
       </div>
@@ -1155,16 +1283,16 @@ export default function DashboardPage() {
                   <div className="flex justify-between items-baseline">
                     <p className="text-4xl font-bold">
                       {formatCurrency(
-                        totalAssets,
+                        adjustedTotalAssets,
                         locale,
                         settings.general.defaultCurrency,
                       )}
                     </p>
-                    {totalInvestedAmount > 0 &&
+                    {adjustedInvestedAmount > 0 &&
                       (() => {
                         const percentageValue =
-                          ((totalAssets - totalInvestedAmount) /
-                            totalInvestedAmount) *
+                          ((adjustedTotalAssets - adjustedInvestedAmount) /
+                            adjustedInvestedAmount) *
                           100
                         const sign = percentageValue >= 0 ? "+" : "-"
                         return (
@@ -1183,7 +1311,7 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground mt-1">
                     {t.dashboard.investedAmount}{" "}
                     {formatCurrency(
-                      totalInvestedAmount,
+                      adjustedInvestedAmount,
                       locale,
                       settings.general.defaultCurrency,
                     )}
@@ -1348,7 +1476,7 @@ export default function DashboardPage() {
                                       {project.entity}
                                     </Badge>
                                     <div className="flex items-center">
-                                      {getIconForProjectType(project.type)}
+                                      {getIconForAssetType(project.type)}
                                       <span className="ml-1 capitalize text-[10px]">
                                         {t.enums &&
                                         t.enums.productType &&

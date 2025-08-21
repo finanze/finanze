@@ -35,7 +35,10 @@ class PeriodicFlow:
     enabled: bool
     since: date
     until: Optional[date]
+    icon: Optional[str]
+    linked: Optional[bool] = None
     next_date: Optional[date] = None
+    max_amount: Optional[Dezimal] = None
 
 
 @dataclass
@@ -48,3 +51,4 @@ class PendingFlow:
     category: Optional[str]
     enabled: bool
     date: Optional[date]
+    icon: Optional[str]

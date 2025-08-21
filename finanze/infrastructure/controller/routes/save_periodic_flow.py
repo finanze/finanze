@@ -29,6 +29,8 @@ def save_periodic_flow(save_periodic_flow_uc: SavePeriodicFlow):
             enabled=body.get("enabled", True),
             since=since_date,
             until=until_date,
+            icon=body.get("icon"),
+            max_amount=Dezimal(body["max_amount"]) if body.get("max_amount") else None,
         )
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400

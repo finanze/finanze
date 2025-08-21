@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/Button"
+import { AlertTriangle } from "lucide-react"
 import {
   Card,
   CardHeader,
@@ -19,6 +20,7 @@ interface ConfirmationDialogProps {
   onCancel: () => void
   isLoading?: boolean
   description?: string
+  warning?: string
 }
 
 export function ConfirmationDialog({
@@ -31,12 +33,13 @@ export function ConfirmationDialog({
   onCancel,
   isLoading = false,
   description,
+  warning,
 }: ConfirmationDialogProps) {
   const { t } = useI18n() // Added hook usage
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]">
       <Card className="w-full max-w-md mx-4">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
@@ -44,6 +47,15 @@ export function ConfirmationDialog({
         </CardHeader>
         <CardContent>
           <p>{message}</p>
+          {warning && (
+            <div className="mt-3 flex items-start gap-2 pl-3 border-l-2 border-yellow-500/60 text-yellow-700 dark:text-yellow-400">
+              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-medium">{t.common.warning}</div>
+                <div className="text-sm opacity-90">{warning}</div>
+              </div>
+            </div>
+          )}
         </CardContent>
         <CardFooter className="flex justify-end gap-2">
           <Button variant="outline" onClick={onCancel} disabled={isLoading}>

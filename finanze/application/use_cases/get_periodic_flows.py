@@ -67,7 +67,10 @@ class GetPeriodicFlowsImpl(GetPeriodicFlows):
                 enabled=flow.enabled,
                 since=flow.since,
                 until=flow.until,
+                icon=flow.icon,
+                linked=flow.linked,
                 next_date=get_next_date(flow),
+                max_amount=flow.max_amount,
             )
             for flow in flows
         ]

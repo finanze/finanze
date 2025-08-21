@@ -30,15 +30,22 @@
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.14",
+    "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@tanstack/react-virtual": "^3.13.12",
+    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.12.1",
-    "lucide-react": "^0.511.0",
+    "fuse.js": "^7.1.0",
+    "lucide-react": "^0.539.0",
     "react-day-picker": "^9.7.0",
     "react-markdown": "^10.1.0",
-    "recharts": "^2.15.3"
+    "recharts": "^2.15.3",
+    "tailwindcss-animate": "^1.0.7",
+    "usehooks-ts": "^3.1.1"
   },
   "devDependencies": {
     "@eslint/compat": "^1.2.9",

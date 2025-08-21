@@ -25,6 +25,7 @@ async def save_pending_flows(save_pending_flows_uc: SavePendingFlows):
                 category=flow_data.get("category"),
                 enabled=flow_data.get("enabled", True),
                 date=flow_date,
+                icon=flow_data.get("icon"),
             )
             flows.append(flow)
     except (KeyError, ValueError, TypeError) as e:

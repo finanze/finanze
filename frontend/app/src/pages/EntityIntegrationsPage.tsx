@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { useNavigate, useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
   RefreshCw,
@@ -302,6 +302,22 @@ export default function EntityIntegrationsPage() {
     show: { opacity: 1, y: 0 },
   }
 
+  // Scroll to enabled crypto wallets section when URL hash is present
+  const { hash } = useLocation()
+  useEffect(() => {
+    if (hash === "#crypto-enabled") {
+      if (view !== "entities") {
+        setView("entities")
+      }
+      setTimeout(() => {
+        const el = document.getElementById("crypto-enabled")
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      }, 80)
+    }
+  }, [hash, connectedCryptoEntities.length, view])
+
   return (
     <div className="space-y-6 pb-6">
       <div className="flex justify-between items-center">
@@ -374,7 +390,7 @@ export default function EntityIntegrationsPage() {
 
                 {/* Crypto Wallets */}
                 {connectedCryptoEntities.length > 0 && (
-                  <div className="space-y-3">
+                  <div className="space-y-3" id="crypto-enabled">
                     <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
                       <Wallet className="h-5 w-5 mr-2" />
                       {t.entities.cryptoWallets}

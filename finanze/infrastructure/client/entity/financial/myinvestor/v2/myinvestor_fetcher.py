@@ -159,18 +159,22 @@ def _map_deposit_tx(
 
 
 def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
+    amount = round(amount, 2)
+    retentions = round(retentions, 2)
+    net_amount = amount - retentions
     return AccountTx(
         id=uuid4(),
         ref=ref,
         name=name,
-        amount=round(amount, 2),
+        amount=amount,
         currency=currency,
         type=TxType.INTEREST,
         product_type=ProductType.ACCOUNT,
         date=tx_date,
         entity=MY_INVESTOR,
         fees=Dezimal(0),
-        retentions=round(retentions, 2),
+        retentions=retentions,
+        net_amount=net_amount,
         interest_rate=None,
         avg_balance=None,
         is_real=True,

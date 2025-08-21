@@ -31,6 +31,7 @@ from domain.global_position import (
     FundPortfolio,
     FundPortfolios,
     GlobalPosition,
+    InterestType,
     Loan,
     Loans,
     LoanType,
@@ -51,9 +52,10 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
         cursor.execute(
             """
             INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
-                                        interest_rate, loan_amount, next_payment_date,
-                                        principal_outstanding, principal_paid, creation, maturity, unpaid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        interest_rate, interest_type, loan_amount, next_payment_date,
+                                        principal_outstanding, principal_paid, euribor_rate, fixed_years,
+                                        creation, maturity, unpaid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(loan.id),
@@ -63,10 +65,13 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
                 loan.name,
                 str(loan.current_installment),
                 str(loan.interest_rate),
+                loan.interest_type,
                 str(loan.loan_amount),
                 loan.next_payment_date.isoformat(),
                 str(loan.principal_outstanding),
                 str(loan.principal_paid),
+                str(loan.euribor_rate) if loan.euribor_rate else None,
+                str(loan.fixed_years) if loan.fixed_years else None,
                 loan.creation.isoformat() if loan.creation else None,
                 loan.maturity.isoformat() if loan.maturity else None,
                 str(loan.unpaid) if loan.unpaid else None,
@@ -625,12 +630,19 @@ class PositionSQLRepository(PositionPort):
                     name=row["name"],
                     current_installment=Dezimal(row["current_installment"]),
                     interest_rate=Dezimal(row["interest_rate"]),
+                    interest_type=row["interest_type"]
+                    if row["interest_type"]
+                    else InterestType.FIXED,
                     loan_amount=Dezimal(row["loan_amount"]),
                     next_payment_date=datetime.fromisoformat(
                         row["next_payment_date"]
                     ).date(),
                     principal_outstanding=Dezimal(row["principal_outstanding"]),
                     principal_paid=Dezimal(row["principal_paid"]),
+                    euribor_rate=Dezimal(row["euribor_rate"])
+                    if row["euribor_rate"]
+                    else None,
+                    fixed_years=int(row["fixed_years"]) if row["fixed_years"] else None,
                     creation=datetime.fromisoformat(row["creation"]).date()
                     if row["creation"]
                     else None,

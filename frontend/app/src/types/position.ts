@@ -31,6 +31,12 @@ export enum LoanType {
   STANDARD = "STANDARD",
 }
 
+export enum InterestType {
+  FIXED = "FIXED",
+  VARIABLE = "VARIABLE",
+  MIXED = "MIXED",
+}
+
 export interface Account {
   id: string
   total: number
@@ -65,6 +71,9 @@ export interface Loan {
   next_payment_date: string
   principal_outstanding: number
   principal_paid: number
+  interest_type: InterestType
+  euribor_rate?: number | null
+  fixed_years?: number | null
   name?: string | null
   creation?: string | null
   maturity?: string | null

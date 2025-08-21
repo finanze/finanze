@@ -9,7 +9,7 @@ def get_periodic_flows(get_periodic_flows_uc: GetPeriodicFlows):
             {
                 "id": str(flow.id),
                 "name": flow.name,
-                "amount": str(flow.amount),
+                "amount": flow.amount,
                 "currency": flow.currency,
                 "flow_type": flow.flow_type.value,
                 "frequency": flow.frequency.value,
@@ -17,7 +17,10 @@ def get_periodic_flows(get_periodic_flows_uc: GetPeriodicFlows):
                 "enabled": flow.enabled,
                 "since": flow.since.isoformat() if flow.since else None,
                 "until": flow.until.isoformat() if flow.until else None,
+                "linked": flow.linked,
                 "next_date": flow.next_date.isoformat() if flow.next_date else None,
+                "max_amount": flow.max_amount,
+                "icon": flow.icon,
             }
             for flow in flows
         ]

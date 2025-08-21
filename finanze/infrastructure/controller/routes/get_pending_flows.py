@@ -9,12 +9,13 @@ def get_pending_flows(get_pending_flows_uc: GetPendingFlows):
             {
                 "id": str(flow.id),
                 "name": flow.name,
-                "amount": str(flow.amount),
+                "amount": flow.amount,
                 "currency": flow.currency,
                 "flow_type": flow.flow_type.value,
                 "category": flow.category,
                 "enabled": flow.enabled,
                 "date": flow.date.isoformat() if flow.date else None,
+                "icon": flow.icon,
             }
             for flow in flows
         ]

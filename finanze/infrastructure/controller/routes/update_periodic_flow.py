@@ -11,7 +11,6 @@ def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
     body = request.json
 
     try:
-        # Parse dates if they're strings
         since_date = body["since"]
         if isinstance(since_date, str):
             since_date = date.fromisoformat(since_date)
@@ -31,6 +30,8 @@ def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
             enabled=body.get("enabled", True),
             since=since_date,
             until=until_date,
+            icon=body.get("icon"),
+            max_amount=Dezimal(body["max_amount"]) if body.get("max_amount") else None,
         )
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400

@@ -1,14 +1,18 @@
 import argparse
 import logging
+from pathlib import Path
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
+from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
+from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
+from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
@@ -22,12 +26,14 @@ from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
+from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
+from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
@@ -68,6 +74,7 @@ from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
+from infrastructure.file_storage.local_file_storage import LocalFileStorage
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -96,6 +103,9 @@ from infrastructure.repository.external_integration.external_integration_reposit
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
+from infrastructure.repository.real_estate.real_estate_repository import (
+    RealEstateRepository,
+)
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
@@ -117,6 +127,8 @@ class FinanzeServer:
         self.db_client = DBClient()
         self.db_manager = DBManager(self.db_client)
         self.data_manager = UserDataManager(self.args.data_dir)
+
+        static_upload_dir = self.args.data_dir / Path("static")
 
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
@@ -161,6 +173,11 @@ class FinanzeServer:
         )
         periodic_flow_repository = PeriodicFlowRepository(client=self.db_client)
         pending_flow_repository = PendingFlowRepository(client=self.db_client)
+        real_estate_repository = RealEstateRepository(client=self.db_client)
+
+        file_storage_repository = LocalFileStorage(
+            upload_dir=static_upload_dir, static_url_prefix="/static"
+        )
 
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
@@ -302,6 +319,27 @@ class FinanzeServer:
         )
         get_pending_flows = GetPendingFlowsImpl(pending_flow_repository)
 
+        create_real_estate = CreateRealEstateImpl(
+            real_estate_repository,
+            periodic_flow_repository,
+            transaction_handler,
+            file_storage_repository,
+        )
+        update_real_estate = UpdateRealEstateImpl(
+            real_estate_repository,
+            periodic_flow_repository,
+            transaction_handler,
+            file_storage_repository,
+        )
+        delete_real_estate = DeleteRealEstateImpl(
+            real_estate_repository,
+            periodic_flow_repository,
+            transaction_handler,
+            file_storage_repository,
+        )
+        list_real_estate = ListRealEstateImpl(real_estate_repository)
+        calculate_loan = CalculateLoanImpl()
+
         self._log.info("Initial component setup completed.")
 
         if args.logged_username and args.logged_password:
@@ -320,7 +358,7 @@ class FinanzeServer:
 
         self._log.info("Setting up REST API...")
 
-        self.flask_app = flask()
+        self.flask_app = flask(static_upload_dir)
         register_routes(
             self.flask_app,
             user_login,
@@ -354,6 +392,11 @@ class FinanzeServer:
             get_periodic_flows,
             save_pending_flows,
             get_pending_flows,
+            create_real_estate,
+            update_real_estate,
+            delete_real_estate,
+            list_real_estate,
+            calculate_loan,
         )
         self._log.info("Completed.")
 

@@ -13,4 +13,4 @@ __pycache__
 /.env
 .vscode
 
-copilot-instructions.md
+*instructions.md

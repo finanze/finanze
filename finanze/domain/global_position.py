@@ -71,6 +71,12 @@ class LoanType(str, Enum):
     STANDARD = "STANDARD"
 
 
+class InterestType(str, Enum):
+    FIXED = "FIXED"
+    VARIABLE = "VARIABLE"
+    MIXED = "MIXED"
+
+
 @dataclass
 class Loan(BaseData):
     id: UUID
@@ -82,6 +88,9 @@ class Loan(BaseData):
     next_payment_date: date
     principal_outstanding: Dezimal
     principal_paid: Dezimal
+    interest_type: InterestType = InterestType.FIXED
+    euribor_rate: Optional[Dezimal] = None
+    fixed_years: Optional[int] = None
     name: Optional[str] = None
     creation: Optional[date] = None
     maturity: Optional[date] = None

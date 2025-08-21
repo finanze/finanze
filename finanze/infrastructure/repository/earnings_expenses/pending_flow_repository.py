@@ -18,8 +18,8 @@ class PendingFlowRepository(PendingFlowPort):
 
                 cursor.execute(
                     """
-                    INSERT INTO pending_flows (id, name, amount, currency, flow_type, category, enabled, date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO pending_flows (id, name, amount, currency, flow_type, category, enabled, date, icon)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(flow.id),
@@ -30,6 +30,7 @@ class PendingFlowRepository(PendingFlowPort):
                         flow.category,
                         flow.enabled,
                         flow.date,
+                        flow.icon,
                     ),
                 )
 
@@ -50,6 +51,7 @@ class PendingFlowRepository(PendingFlowPort):
                     category=row["category"],
                     enabled=row["enabled"],
                     date=row["date"],
+                    icon=row["icon"],
                 )
                 for row in cursor.fetchall()
             ]

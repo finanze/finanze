@@ -1,4 +1,5 @@
 import abc
+from typing import Optional
 from uuid import UUID
 
 from domain.earnings_expenses import PeriodicFlow
@@ -6,7 +7,7 @@ from domain.earnings_expenses import PeriodicFlow
 
 class PeriodicFlowPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, flow: PeriodicFlow):
+    def save(self, flow: PeriodicFlow) -> PeriodicFlow:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -19,4 +20,8 @@ class PeriodicFlowPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def get_all(self) -> list[PeriodicFlow]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
         raise NotImplementedError

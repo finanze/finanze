@@ -11,6 +11,11 @@ import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card } from "@/components/ui/Card"
 import {
+  MultiSelect,
+  type MultiSelectOption,
+} from "@/components/ui/MultiSelect"
+import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
+import {
   Plus,
   Trash2,
   Save,
@@ -22,7 +27,7 @@ import {
   ArrowLeft,
   CalendarDays,
 } from "lucide-react"
-import { getCurrencySymbol } from "@/lib/utils"
+import { getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import {
@@ -47,6 +52,7 @@ export default function PendingMoneyPage() {
   const [editingFlowId, setEditingFlowId] = useState<string | null>(null)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
   const [localPendingFlows, setLocalPendingFlows] = useState<PendingFlow[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
 
   useEffect(() => {
     setLocalPendingFlows(pendingFlows)
@@ -60,11 +66,17 @@ export default function PendingMoneyPage() {
 
   // Sort flows based on selected criteria
   const sortedFlows = useMemo(() => {
-    const flows = [...localPendingFlows]
+    const flows = [...localPendingFlows].filter(f =>
+      categoryFilter.length
+        ? f.category
+          ? categoryFilter.includes(f.category)
+          : false
+        : true,
+    )
     if (sortBy === "amount") {
       return flows.sort((a, b) => {
-        const amountA = parseFloat(a.amount) || 0
-        const amountB = parseFloat(b.amount) || 0
+        const amountA = a.amount
+        const amountB = b.amount
         return amountB - amountA // Descending order
       })
     } else {
@@ -75,7 +87,7 @@ export default function PendingMoneyPage() {
         return new Date(a.date).getTime() - new Date(b.date).getTime()
       })
     }
-  }, [localPendingFlows, sortBy])
+  }, [localPendingFlows, sortBy, categoryFilter])
 
   // Component for controlled input that doesn't update state on every keystroke
   const DebouncedInput = ({
@@ -114,7 +126,7 @@ export default function PendingMoneyPage() {
   const addNewFlow = (flowType: FlowType) => {
     const newFlow: CreatePendingFlowRequest = {
       name: "",
-      amount: "",
+      amount: 0,
       flow_type: flowType,
       category: "",
       enabled: true,
@@ -160,7 +172,7 @@ export default function PendingMoneyPage() {
     localPendingFlows.forEach((flow, index) => {
       const flowErrors: string[] = []
       if (!flow.name.trim()) flowErrors.push("name")
-      if (!flow.amount.trim()) flowErrors.push("amount")
+      if (!flow.amount) flowErrors.push("amount")
 
       if (flowErrors.length > 0) {
         errors[`flow-${index}`] = flowErrors
@@ -182,6 +194,7 @@ export default function PendingMoneyPage() {
         enabled: flow.enabled,
         date: flow.date,
         currency: flow.currency,
+        icon: (flow as any).icon,
       }))
 
       const request: SavePendingFlowsRequest = {
@@ -208,13 +221,26 @@ export default function PendingMoneyPage() {
     flow => flow.flow_type === FlowType.EXPENSE,
   )
 
+  const toggleCategoryFilter = (category: string) => {
+    setCategoryFilter(prev =>
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category],
+    )
+  }
+
+  const categoryOptions: MultiSelectOption[] = useMemo(
+    () => existingCategories.map(c => ({ value: c, label: c })),
+    [existingCategories],
+  )
+
   // Calculate totals for KPIs (excluding disabled flows)
   const defaultCurrency = settings?.general?.defaultCurrency
 
   const totalPendingEarnings = earnings
     .filter(flow => flow.enabled)
     .reduce((sum, flow) => {
-      const amount = parseFloat(flow.amount) || 0
+      const amount = flow.amount
       const convertedAmount = convertCurrency(
         amount,
         flow.currency,
@@ -227,7 +253,7 @@ export default function PendingMoneyPage() {
   const totalPendingExpenses = expenses
     .filter(flow => flow.enabled)
     .reduce((sum, flow) => {
-      const amount = parseFloat(flow.amount) || 0
+      const amount = flow.amount
       const convertedAmount = convertCurrency(
         amount,
         flow.currency,
@@ -275,7 +301,7 @@ export default function PendingMoneyPage() {
       (groups, flow) => {
         const category = flow.category || flow.name
         const amount = convertCurrency(
-          parseFloat(flow.amount) || 0,
+          flow.amount,
           flow.currency,
           defaultCurrency,
           exchangeRates,
@@ -296,7 +322,7 @@ export default function PendingMoneyPage() {
       (groups, flow) => {
         const category = flow.category || flow.name
         const amount = convertCurrency(
-          parseFloat(flow.amount) || 0,
+          flow.amount,
           flow.currency,
           defaultCurrency,
           exchangeRates,
@@ -424,8 +450,7 @@ export default function PendingMoneyPage() {
           <Button
             onClick={() => addNewFlow(flowType)}
             size="sm"
-            variant="outline"
-            className="h-8 w-8 p-0"
+            className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
           >
             <Plus size={16} />
           </Button>
@@ -448,13 +473,27 @@ export default function PendingMoneyPage() {
             {sectionFlows.map(({ flow, index }) => (
               <div
                 key={flow.id}
-                className={`${editingFlowId === flow.id ? "flex flex-col gap-4" : "flex items-start justify-between gap-4"} p-4 border rounded-lg ${
-                  !flow.enabled ? "opacity-50 bg-gray-50 dark:bg-black" : ""
-                }`}
+                className={`${
+                  !flow.enabled
+                    ? "opacity-50 bg-gray-50 dark:bg-black"
+                    : "bg-card shadow-sm"
+                } ${editingFlowId === flow.id ? "flex flex-col gap-4 opacity-95" : "flex items-start justify-between gap-4"} p-4 border rounded-lg`}
               >
                 {editingFlowId === flow.id ? (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 block mb-1">
+                          {t.management.iconLabel}
+                        </label>
+                        <IconPicker
+                          value={(flow as any).icon as IconName | undefined}
+                          onValueChange={value =>
+                            updateFlow(index, "icon" as any, value as any)
+                          }
+                          modal
+                        />
+                      </div>
                       <div>
                         <label className="text-xs font-medium text-gray-500 block mb-1">
                           {t.management.name}
@@ -480,7 +519,7 @@ export default function PendingMoneyPage() {
                             id={`amount-${flow.id}`}
                             type="number"
                             step="0.01"
-                            value={flow.amount}
+                            value={flow.amount.toString()}
                             onChange={value =>
                               updateFlow(index, "amount", value)
                             }
@@ -555,11 +594,20 @@ export default function PendingMoneyPage() {
                   <>
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
                       <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                        <h3 className="font-medium">{flow.name}</h3>
+                        <div className="flex items-center gap-2">
+                          {(flow as any).icon && (
+                            <Icon
+                              name={(flow as any).icon as IconName}
+                              className="w-5 h-5"
+                            />
+                          )}
+                          <h3 className="font-medium">{flow.name}</h3>
+                        </div>
                         {flow.category && (
                           <Badge
                             variant="secondary"
-                            className="flex items-center gap-1"
+                            onClick={() => toggleCategoryFilter(flow.category!)}
+                            className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
                           >
                             <Tag size={12} />
                             {flow.category}
@@ -609,11 +657,7 @@ export default function PendingMoneyPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-semibold">
-                          {formatCurrency(
-                            parseFloat(flow.amount),
-                            locale,
-                            flow.currency,
-                          )}
+                          {formatCurrency(flow.amount, locale, flow.currency)}
                         </span>
                       </div>
                     </div>
@@ -705,48 +749,69 @@ export default function PendingMoneyPage() {
             <div className="mt-4">
               <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
                 <div className="flex h-full">
-                  {flowDistribution.earnings.map((earning, index) => (
-                    <div
-                      key={`earning-${index}`}
-                      className={`${earning.color} relative group cursor-pointer hover:opacity-80 transition-opacity duration-200`}
-                      style={{ width: `${earning.percentage}%` }}
-                      title={`${earning.category}: ${formatCurrency(
-                        earning.amount,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )} (${earning.percentage.toFixed(1)}%)`}
-                    >
-                      <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                    </div>
-                  ))}
+                  {flowDistribution.earnings.map((earning, index) => {
+                    const isRealCategory = existingCategories.includes(
+                      earning.category,
+                    )
+                    return (
+                      <div
+                        key={`earning-${index}`}
+                        className={`${earning.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                        style={{ width: `${earning.percentage}%` }}
+                        title={`${earning.category}: ${formatCurrency(
+                          earning.amount,
+                          locale,
+                          settings?.general?.defaultCurrency,
+                        )} (${earning.percentage.toFixed(1)}%)`}
+                        onClick={() =>
+                          isRealCategory &&
+                          toggleCategoryFilter(earning.category)
+                        }
+                      >
+                        <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* Earnings Legend */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {flowDistribution.earnings.map((earning, index) => (
-                  <div
-                    key={`earning-legend-${index}`}
-                    className="flex items-center gap-1.5 text-xs"
-                  >
+              <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
+                {flowDistribution.earnings.map((earning, index) => {
+                  const isRealCategory = existingCategories.includes(
+                    earning.category,
+                  )
+                  return (
                     <div
-                      className={`w-3 h-3 rounded-sm ${earning.color}`}
-                    ></div>
-                    <span
-                      className="truncate max-w-20"
-                      title={earning.category}
+                      key={`earning-legend-${index}`}
+                      className={`flex items-center gap-1.5 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
+                        isRealCategory
+                          ? "cursor-pointer"
+                          : "cursor-default opacity-70"
+                      }`}
+                      onClick={() =>
+                        isRealCategory && toggleCategoryFilter(earning.category)
+                      }
                     >
-                      {earning.category}
-                    </span>
-                    <span className="text-gray-500">
-                      {formatCurrency(
-                        earning.amount,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                ))}
+                      <div
+                        className={`w-3 h-3 rounded-sm ${earning.color}`}
+                      ></div>
+                      <span
+                        className="truncate max-w-20"
+                        title={earning.category}
+                      >
+                        {earning.category}
+                      </span>
+                      <span className="text-gray-500">
+                        {formatCurrency(
+                          earning.amount,
+                          locale,
+                          settings?.general?.defaultCurrency,
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -778,48 +843,69 @@ export default function PendingMoneyPage() {
             <div className="mt-4">
               <div className="relative h-6 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
                 <div className="flex h-full">
-                  {flowDistribution.expenses.map((expense, index) => (
-                    <div
-                      key={`expense-${index}`}
-                      className={`${expense.color} relative group cursor-pointer hover:opacity-80 transition-opacity duration-200`}
-                      style={{ width: `${expense.percentage}%` }}
-                      title={`${expense.category}: ${formatCurrency(
-                        expense.amount,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )} (${expense.percentage.toFixed(1)}%)`}
-                    >
-                      <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
-                    </div>
-                  ))}
+                  {flowDistribution.expenses.map((expense, index) => {
+                    const isRealCategory = existingCategories.includes(
+                      expense.category,
+                    )
+                    return (
+                      <div
+                        key={`expense-${index}`}
+                        className={`${expense.color} relative group ${isRealCategory ? "cursor-pointer" : "cursor-default"} hover:opacity-80 transition-opacity duration-200`}
+                        style={{ width: `${expense.percentage}%` }}
+                        title={`${expense.category}: ${formatCurrency(
+                          expense.amount,
+                          locale,
+                          settings?.general?.defaultCurrency,
+                        )} (${expense.percentage.toFixed(1)}%)`}
+                        onClick={() =>
+                          isRealCategory &&
+                          toggleCategoryFilter(expense.category)
+                        }
+                      >
+                        <div className="absolute inset-0 dark:bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-200"></div>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
 
               {/* Expenses Legend */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {flowDistribution.expenses.map((expense, index) => (
-                  <div
-                    key={`expense-legend-${index}`}
-                    className="flex items-center gap-1.5 text-xs"
-                  >
+              <div className="mt-3 flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
+                {flowDistribution.expenses.map((expense, index) => {
+                  const isRealCategory = existingCategories.includes(
+                    expense.category,
+                  )
+                  return (
                     <div
-                      className={`w-3 h-3 rounded-sm ${expense.color}`}
-                    ></div>
-                    <span
-                      className="truncate max-w-20"
-                      title={expense.category}
+                      key={`expense-legend-${index}`}
+                      className={`flex items-center gap-1.5 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px] ${
+                        isRealCategory
+                          ? "cursor-pointer"
+                          : "cursor-default opacity-70"
+                      }`}
+                      onClick={() =>
+                        isRealCategory && toggleCategoryFilter(expense.category)
+                      }
                     >
-                      {expense.category}
-                    </span>
-                    <span className="text-gray-500">
-                      {formatCurrency(
-                        expense.amount,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-                ))}
+                      <div
+                        className={`w-3 h-3 rounded-sm ${expense.color}`}
+                      ></div>
+                      <span
+                        className="truncate max-w-20"
+                        title={expense.category}
+                      >
+                        {expense.category}
+                      </span>
+                      <span className="text-gray-500">
+                        {formatCurrency(
+                          expense.amount,
+                          locale,
+                          settings?.general?.defaultCurrency,
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -827,7 +913,7 @@ export default function PendingMoneyPage() {
       </div>
 
       {/* Sorting Controls */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
             {t.management.sortBy}
@@ -854,6 +940,18 @@ export default function PendingMoneyPage() {
               {t.management.sortByDate}
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm text-muted-foreground">
+            {t.management.category}
+          </span>
+          <MultiSelect
+            options={categoryOptions}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            className="min-w-[220px]"
+          />
         </div>
       </div>
 

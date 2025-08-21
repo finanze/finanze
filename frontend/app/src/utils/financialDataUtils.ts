@@ -8,7 +8,12 @@ import {
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
-import { ExchangeRates, PendingFlow } from "@/types"
+import {
+  ExchangeRates,
+  PendingFlow,
+  RealEstate,
+  RealEstateFlowSubtype,
+} from "@/types"
 
 export const convertCurrency = (
   amount: number,
@@ -231,6 +236,7 @@ export const getAssetDistribution = (
   targetCurrency: string,
   exchangeRates: ExchangeRates,
   pendingFlows?: any[],
+  realEstateList?: RealEstate[],
 ): AssetDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -552,6 +558,40 @@ export const getAssetDistribution = (
     }
   })
 
+  // Include Real Estate owned equity as its own asset category (market value - outstanding debt)
+  if (realEstateList && realEstateList.length > 0) {
+    const realEstateOwnedTotal = realEstateList.reduce((sum, re) => {
+      const market = re.valuation_info?.estimated_market_value || 0
+      const totalOutstanding = (re.flows || [])
+        .filter(f => f.flow_subtype === RealEstateFlowSubtype.LOAN)
+        .reduce((s, f) => {
+          const principal = (f.payload as any)?.principal_outstanding || 0
+          return s + principal
+        }, 0)
+      const owned = Math.max(market - totalOutstanding, 0)
+      const converted = convertCurrency(
+        owned,
+        re.currency,
+        targetCurrency,
+        exchangeRates,
+      )
+      return sum + converted
+    }, 0)
+
+    if (realEstateOwnedTotal > 0) {
+      if (!assetTypes["REAL_ESTATE"]) {
+        assetTypes["REAL_ESTATE"] = {
+          type: "REAL_ESTATE",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      assetTypes["REAL_ESTATE"].value += realEstateOwnedTotal
+      totalValue += realEstateOwnedTotal
+    }
+  }
+
   // Add pending flows if provided (both earnings and expenses)
   if (pendingFlows && pendingFlows.length > 0) {
     const pendingFlowsTotal = calculatePendingEarningsTotal(
@@ -579,11 +619,21 @@ export const getAssetDistribution = (
   return Object.values(assetTypes).sort((a, b) => b.value - a.value)
 }
 
+export const filterRealEstateByOptions = (
+  realEstateList: RealEstate[] | undefined,
+  options: DashboardOptions,
+): RealEstate[] => {
+  if (!options.includeRealEstate) return []
+  if (options.includeResidences) return realEstateList || []
+  return (realEstateList || []).filter(re => !re.basic_info?.is_residence)
+}
+
 export const getEntityDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
   pendingFlows?: any[],
+  realEstateList?: RealEstate[],
 ): EntityDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -850,6 +900,39 @@ export const getEntityDistribution = (
         id: entityId,
       }
       totalValue += pendingFlowsTotal
+    }
+  }
+
+  // Add Real Estate as a separate fake entity, grouping owned equity across all properties
+  if (realEstateList && realEstateList.length > 0) {
+    const realEstateOwnedTotal = realEstateList.reduce((sum, re) => {
+      const market = re.valuation_info?.estimated_market_value || 0
+      const totalOutstanding = (re.flows || [])
+        .filter(f => f.flow_subtype === RealEstateFlowSubtype.LOAN)
+        .reduce((s, f) => {
+          const principal = (f.payload as any)?.principal_outstanding || 0
+          return s + principal
+        }, 0)
+      const owned = Math.max(market - totalOutstanding, 0)
+      const converted = convertCurrency(
+        owned,
+        re.currency,
+        targetCurrency,
+        exchangeRates,
+      )
+      return sum + converted
+    }, 0)
+
+    if (realEstateOwnedTotal > 0) {
+      const entityId = "real-estate"
+      const entityName = "REAL_ESTATE"
+      entities[entityId] = {
+        name: entityName,
+        value: realEstateOwnedTotal,
+        percentage: 0,
+        id: entityId,
+      }
+      totalValue += realEstateOwnedTotal
     }
   }
 
@@ -2594,7 +2677,7 @@ export const calculatePendingEarningsTotal = (
       return flowDate >= now
     })
     .reduce((total, flow) => {
-      const amount = parseFloat(flow.amount) || 0
+      const amount = flow.amount
       const convertedAmount = convertCurrency(
         amount,
         flow.currency,
@@ -2607,4 +2690,104 @@ export const calculatePendingEarningsTotal = (
         ? total + convertedAmount
         : total - convertedAmount
     }, 0)
+}
+
+// Dashboard helpers: centralize computations used by DashboardPage
+export interface DashboardOptions {
+  includePending: boolean
+  includeCardExpenses: boolean
+  includeRealEstate: boolean
+  includeResidences: boolean
+}
+
+export const getTotalCardUsed = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+  let total = 0
+  Object.values(positionsData.positions).forEach((entityPosition: any) => {
+    const cardsProduct = entityPosition.products?.[ProductType.CARD]
+    if (cardsProduct?.entries) {
+      cardsProduct.entries.forEach((card: any) => {
+        total += convertCurrency(
+          card.used || 0,
+          card.currency,
+          targetCurrency,
+          exchangeRates,
+        )
+      })
+    }
+  })
+  return total
+}
+
+export const getRealEstateOwnedEquityTotal = (
+  realEstateList: RealEstate[] | undefined,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!realEstateList || realEstateList.length === 0) return 0
+  return realEstateList.reduce((sum, re) => {
+    const market = re.valuation_info?.estimated_market_value || 0
+    const totalOutstanding = (re.flows || [])
+      .filter(f => f.flow_subtype === RealEstateFlowSubtype.LOAN)
+      .reduce((s, f) => {
+        const principal = (f.payload as any)?.principal_outstanding || 0
+        return s + principal
+      }, 0)
+    const owned = Math.max(market - totalOutstanding, 0)
+    const converted = convertCurrency(
+      owned,
+      re.currency,
+      targetCurrency,
+      exchangeRates,
+    )
+    return sum + converted
+  }, 0)
+}
+
+export const computeAdjustedKpis = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
+  realEstateList: RealEstate[] | undefined,
+  options: DashboardOptions,
+): { adjustedTotalAssets: number; adjustedInvestedAmount: number } => {
+  const baseTotalAssets = getTotalAssets(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+  const baseInvestedAmount = getTotalInvestedAmount(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+
+  const filteredRealEstateList = options.includeRealEstate
+    ? options.includeResidences
+      ? realEstateList
+      : (realEstateList || []).filter(re => !re.basic_info?.is_residence)
+    : []
+
+  const equity = options.includeRealEstate
+    ? getRealEstateOwnedEquityTotal(
+        filteredRealEstateList,
+        targetCurrency,
+        exchangeRates,
+      )
+    : 0
+  const cardUsed = options.includeCardExpenses
+    ? getTotalCardUsed(positionsData, targetCurrency, exchangeRates)
+    : 0
+
+  return {
+    adjustedTotalAssets: baseTotalAssets + equity - cardUsed,
+    adjustedInvestedAmount: baseInvestedAmount + equity - cardUsed,
+  }
 }

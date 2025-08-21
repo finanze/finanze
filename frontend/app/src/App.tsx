@@ -13,6 +13,9 @@ import RealEstateCFInvestmentPage from "./pages/RealEstateCFInvestmentPage"
 import CryptoInvestmentPage from "./pages/CryptoInvestmentPage"
 import InvestmentsPage from "./pages/InvestmentsPage"
 import BankingPage from "./pages/BankingPage"
+import RealEstatePage from "./pages/RealEstatePage"
+import RealEstateDetailsPage from "./pages/RealEstateDetailsPage"
+import RealEstateEditPage from "./pages/RealEstateEditPage"
 import LoginPage from "./pages/LoginPage"
 import RecurringMoneyPage from "./pages/RecurringMoneyPage"
 import PendingMoneyPage from "./pages/PendingMoneyPage"
@@ -94,6 +97,12 @@ function App() {
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/banking" element={<BankingPage />} />
+          <Route path="/real-estate" element={<RealEstatePage />} />
+          <Route path="/real-estate/:id" element={<RealEstateDetailsPage />} />
+          <Route
+            path="/real-estate/:id/edit"
+            element={<RealEstateEditPage />}
+          />
           <Route path="/entities" element={<EntityIntegrationsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/investments" element={<InvestmentsPage />} />
@@ -111,7 +120,7 @@ function App() {
             element={<FactoringInvestmentPage />}
           />
           <Route
-            path="/investments/real-estate"
+            path="/investments/real-estate-cf"
             element={<RealEstateCFInvestmentPage />}
           />
           <Route

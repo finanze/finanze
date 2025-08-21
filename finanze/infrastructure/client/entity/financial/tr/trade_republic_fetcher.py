@@ -121,16 +121,20 @@ def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
         taxes = 0
         accrued = amount_obj["value"]
 
+    accrued = Dezimal(round(accrued, 2))
+    taxes = Dezimal(round(taxes, 2))
+    net_amount = accrued - taxes
     return AccountTx(
         id=uuid4(),
         ref=raw_tx["id"],
         name=name,
-        amount=Dezimal(round(accrued, 2)),
+        amount=accrued,
         currency=currency,
         fees=Dezimal(0),
-        retentions=Dezimal(round(taxes, 2)),
+        retentions=taxes,
         interest_rate=Dezimal(round(annual_rate / 100, 4)),
         avg_balance=Dezimal(round(avg_balance, 2)),
+        net_amount=net_amount,
         type=TxType.INTEREST,
         product_type=ProductType.ACCOUNT,
         date=date,

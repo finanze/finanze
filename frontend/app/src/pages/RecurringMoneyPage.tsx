@@ -12,6 +12,11 @@ import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card } from "@/components/ui/Card"
 import {
+  MultiSelect,
+  type MultiSelectOption,
+} from "@/components/ui/MultiSelect"
+import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
+import {
   Plus,
   Edit,
   Trash2,
@@ -25,8 +30,14 @@ import {
   LightbulbOff,
   X,
   Check,
+  Link2,
 } from "lucide-react"
-import { cn, getCurrencySymbol } from "@/lib/utils"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import {
   FlowType,
@@ -55,9 +66,10 @@ export default function RecurringMoneyPage() {
   const [deletingFlow, setDeletingFlow] = useState<PeriodicFlow | null>(null)
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
-    amount: "",
+    amount: 0,
     flow_type: FlowType.EARNING,
     frequency: FlowFrequency.MONTHLY,
     category: "",
@@ -69,9 +81,14 @@ export default function RecurringMoneyPage() {
 
   // Sort flows by amount or next_date
   const sortedFlows = useMemo(() => {
+    const baseFlows = categoryFilter.length
+      ? periodicFlows.filter(
+          f => f.category && categoryFilter.includes(f.category),
+        )
+      : periodicFlows
     const sortFn = (a: PeriodicFlow, b: PeriodicFlow) => {
       if (sortBy === "amount") {
-        return parseFloat(b.amount) - parseFloat(a.amount)
+        return b.amount - a.amount
       } else {
         // Sort by next_date
         const aDate = a.next_date ? new Date(a.next_date).getTime() : Infinity
@@ -80,7 +97,7 @@ export default function RecurringMoneyPage() {
       }
     }
 
-    const sortedPeriodicFlows = [...periodicFlows].sort(sortFn)
+    const sortedPeriodicFlows = [...baseFlows].sort(sortFn)
 
     return {
       earnings: sortedPeriodicFlows.filter(
@@ -90,10 +107,15 @@ export default function RecurringMoneyPage() {
         flow => flow.flow_type === FlowType.EXPENSE,
       ),
     }
-  }, [periodicFlows, sortBy])
+  }, [periodicFlows, sortBy, categoryFilter])
 
   // Calculate monthly amounts for KPIs
   const monthlyAmounts = useMemo(() => {
+    const baseFlows = categoryFilter.length
+      ? periodicFlows.filter(
+          f => f.category && categoryFilter.includes(f.category),
+        )
+      : periodicFlows
     const getMonthlyMultiplier = (frequency: FlowFrequency): number => {
       switch (frequency) {
         case FlowFrequency.DAILY:
@@ -117,24 +139,24 @@ export default function RecurringMoneyPage() {
       }
     }
 
-    const monthlyEarnings = periodicFlows
+    const monthlyEarnings = baseFlows
       .filter(flow => flow.flow_type === FlowType.EARNING && flow.enabled)
       .reduce((total, flow) => {
-        const amount = parseFloat(flow.amount) || 0
+        const amount = flow.amount
         const multiplier = getMonthlyMultiplier(flow.frequency)
         return total + amount * multiplier
       }, 0)
 
-    const monthlyExpenses = periodicFlows
+    const monthlyExpenses = baseFlows
       .filter(flow => flow.flow_type === FlowType.EXPENSE && flow.enabled)
       .reduce((total, flow) => {
-        const amount = parseFloat(flow.amount) || 0
+        const amount = flow.amount
         const multiplier = getMonthlyMultiplier(flow.frequency)
         return total + amount * multiplier
       }, 0)
 
     return { monthlyEarnings, monthlyExpenses }
-  }, [periodicFlows])
+  }, [periodicFlows, categoryFilter])
 
   // Color functions for different shades - traditional red/green palette
   // Darker colors for bigger amounts (lower index), lighter for smaller amounts
@@ -166,7 +188,12 @@ export default function RecurringMoneyPage() {
 
   // Calculate flow distribution for the horizontal bar chart
   const flowDistribution = useMemo(() => {
-    const enabledFlows = periodicFlows.filter(flow => flow.enabled)
+    const baseFlows = categoryFilter.length
+      ? periodicFlows.filter(
+          f => f.category && categoryFilter.includes(f.category),
+        )
+      : periodicFlows
+    const enabledFlows = baseFlows.filter(flow => flow.enabled)
 
     // Group earnings by category
     const earningsGroups = enabledFlows
@@ -175,7 +202,7 @@ export default function RecurringMoneyPage() {
         (groups, flow) => {
           const category = flow.category || flow.name
           const monthlyAmount =
-            parseFloat(flow.amount) *
+            flow.amount *
             (flow.frequency === FlowFrequency.DAILY
               ? 30
               : flow.frequency === FlowFrequency.WEEKLY
@@ -211,7 +238,7 @@ export default function RecurringMoneyPage() {
         (groups, flow) => {
           const category = flow.category || flow.name
           const monthlyAmount =
-            parseFloat(flow.amount) *
+            flow.amount *
             (flow.frequency === FlowFrequency.DAILY
               ? 30
               : flow.frequency === FlowFrequency.WEEKLY
@@ -274,7 +301,20 @@ export default function RecurringMoneyPage() {
       totalExpenses,
       totalAmount,
     }
-  }, [periodicFlows, monthlyAmounts])
+  }, [periodicFlows, monthlyAmounts, categoryFilter])
+
+  const toggleCategoryFilter = (category: string) => {
+    setCategoryFilter(prev =>
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category],
+    )
+  }
+
+  const categoryOptions: MultiSelectOption[] = useMemo(
+    () => existingCategories.map(c => ({ value: c, label: c })),
+    [existingCategories],
+  )
 
   // Get loan suggestions from positions data
   const loanSuggestions = useMemo(() => {
@@ -315,8 +355,7 @@ export default function RecurringMoneyPage() {
         const existingExpense = periodicFlows.find(
           flow =>
             flow.flow_type === FlowType.EXPENSE &&
-            Math.abs(parseFloat(flow.amount) - loan.current_installment) <
-              0.01 &&
+            Math.abs(flow.amount - loan.current_installment) < 0.01 &&
             // Check by creation date and until date matches
             loan.creation &&
             flow.since === loan.creation,
@@ -340,20 +379,18 @@ export default function RecurringMoneyPage() {
     return filteredLoans
   }, [positionsData, periodicFlows, t.management.loanSuggestions.loanName])
 
-  const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>([])
-  const [showDismissed, setShowDismissed] = useState(false)
-
-  // Load dismissed suggestions from localStorage on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("dismissedLoanSuggestions")
-    if (stored) {
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<string[]>(
+    () => {
       try {
-        setDismissedSuggestions(JSON.parse(stored))
-      } catch (error) {
-        console.error("Error loading dismissed suggestions:", error)
+        if (typeof window === "undefined") return []
+        const stored = localStorage.getItem("dismissedLoanSuggestions")
+        return stored ? JSON.parse(stored) : []
+      } catch {
+        return []
       }
-    }
-  }, [])
+    },
+  )
+  const [showDismissed, setShowDismissed] = useState(false)
 
   const handleDismissSuggestion = (loanId: string) => {
     const newDismissed = [...dismissedSuggestions, loanId]
@@ -413,7 +450,7 @@ export default function RecurringMoneyPage() {
     // Validate required fields
     const errors: string[] = []
     if (!formData.name.trim()) errors.push("name")
-    if (!formData.amount.trim()) errors.push("amount")
+    if (!formData.amount) errors.push("amount")
     if (!formData.since.trim()) errors.push("since")
     if (!formData.frequency.trim()) errors.push("frequency")
 
@@ -426,7 +463,7 @@ export default function RecurringMoneyPage() {
     try {
       if (editingFlow) {
         const updateData: UpdatePeriodicFlowRequest = {
-          id: editingFlow.id,
+          id: editingFlow.id!,
           ...formData,
         }
         await updatePeriodicFlow(updateData)
@@ -448,7 +485,7 @@ export default function RecurringMoneyPage() {
     if (!deletingFlow) return
 
     try {
-      await deletePeriodicFlow(deletingFlow.id)
+      await deletePeriodicFlow(deletingFlow.id!)
       showToast(t.management.deleteSuccess, "success")
       setIsDeleteDialogOpen(false)
       setDeletingFlow(null)
@@ -462,7 +499,7 @@ export default function RecurringMoneyPage() {
   const resetForm = () => {
     setFormData({
       name: "",
-      amount: "",
+      amount: 0,
       flow_type: FlowType.EARNING,
       frequency: FlowFrequency.MONTHLY,
       category: "",
@@ -488,6 +525,7 @@ export default function RecurringMoneyPage() {
       since: flow.since,
       until: flow.until || "",
       currency: flow.currency,
+      icon: flow.icon,
     })
     setIsDialogOpen(true)
   }
@@ -578,8 +616,7 @@ export default function RecurringMoneyPage() {
               setIsDialogOpen(true)
             }}
             size="sm"
-            variant="outline"
-            className="h-8 w-8 p-0"
+            className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
           >
             <Plus size={16} />
           </Button>
@@ -607,18 +644,39 @@ export default function RecurringMoneyPage() {
               <div
                 key={flow.id}
                 className={cn(
-                  "flex items-start justify-between p-4 border rounded-lg",
-                  !flow.enabled && "opacity-50 bg-gray-50 dark:bg-black",
+                  "flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
+                  !flow.enabled
+                    ? "opacity-50 bg-gray-50 dark:bg-black"
+                    : "bg-card shadow-sm",
                 )}
               >
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-4 flex-wrap">
-                      <h3 className="font-medium">{flow.name}</h3>
+                      <div className="flex items-center gap-2 w-full sm:w-auto">
+                        {flow.icon && (
+                          <Icon
+                            name={flow.icon as IconName}
+                            className="w-5 h-5"
+                          />
+                        )}
+                        <h3 className="font-medium">{flow.name}</h3>
+                      </div>
+                      {flow.linked && (
+                        <Link2
+                          size={18}
+                          strokeWidth={2.5}
+                          style={{ transform: "rotate(155deg)" }}
+                        />
+                      )}
                       {flow.category && (
                         <Badge
                           variant="secondary"
-                          className="flex items-center gap-1"
+                          onClick={() => toggleCategoryFilter(flow.category!)}
+                          className={cn(
+                            "flex items-center gap-1 cursor-pointer",
+                            getColorForName(flow.category),
+                          )}
                         >
                           <Tag size={12} />
                           {flow.category}
@@ -671,17 +729,13 @@ export default function RecurringMoneyPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mr-4 self-center">
+                <div className="flex items-center gap-2 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end text-right">
                   <span className="font-mono font-semibold">
-                    {formatCurrency(
-                      parseFloat(flow.amount),
-                      locale,
-                      flow.currency,
-                    )}
+                    {formatCurrency(flow.amount, locale, flow.currency)}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 self-center">
+                <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -781,17 +835,23 @@ export default function RecurringMoneyPage() {
             <div className="flex h-full">
               {/* Earnings Section */}
               {flowDistribution.earnings.map(earning => {
+                const isRealCategory = existingCategories.includes(
+                  earning.category,
+                )
                 const width = earning.percentage
                 return (
                   <div
                     key={`earning-${earning.category}`}
-                    className={`h-full ${earning.color} transition-all duration-300 hover:opacity-80 cursor-pointer relative group`}
+                    className={`h-full ${earning.color} transition-all duration-300 hover:opacity-80 ${isRealCategory ? "cursor-pointer" : "cursor-default"} relative group`}
                     style={{ width: `${width}%` }}
                     title={`${earning.category}: ${formatCurrency(
                       earning.amount,
                       locale,
                       settings?.general?.defaultCurrency,
                     )} (${earning.percentage.toFixed(1)}%)`}
+                    onClick={() =>
+                      isRealCategory && toggleCategoryFilter(earning.category)
+                    }
                   >
                     {/* Tooltip */}
                     <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
@@ -814,17 +874,23 @@ export default function RecurringMoneyPage() {
                 .slice()
                 .reverse()
                 .map(expense => {
+                  const isRealCategory = existingCategories.includes(
+                    expense.category,
+                  )
                   const width = expense.percentage
                   return (
                     <div
                       key={`expense-${expense.category}`}
-                      className={`h-full ${expense.color} transition-all duration-300 hover:opacity-80 cursor-pointer relative group`}
+                      className={`h-full ${expense.color} transition-all duration-300 hover:opacity-80 ${isRealCategory ? "cursor-pointer" : "cursor-default"} relative group`}
                       style={{ width: `${width}%` }}
                       title={`${expense.category}: ${formatCurrency(
                         expense.amount,
                         locale,
                         settings?.general?.defaultCurrency,
                       )} (${expense.percentage.toFixed(1)}%)`}
+                      onClick={() =>
+                        isRealCategory && toggleCategoryFilter(expense.category)
+                      }
                     >
                       {/* Tooltip */}
                       <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
@@ -844,51 +910,80 @@ export default function RecurringMoneyPage() {
           {/* Legend */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Earnings Legend - Left Side */}
-            <div className="flex flex-wrap gap-2">
-              {flowDistribution.earnings.map(earning => (
-                <div
-                  key={`legend-earning-${earning.category}`}
-                  className="flex items-center gap-2 text-xs bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded"
-                >
-                  <div className={`w-3 h-3 rounded ${earning.color}`}></div>
-                  <span className="font-medium">{earning.category}</span>
-                  <span className="font-mono text-green-600">
-                    {formatCurrency(
-                      earning.amount,
-                      locale,
-                      settings?.general?.defaultCurrency,
+            <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
+              {flowDistribution.earnings.map(earning => {
+                const isRealCategory = existingCategories.includes(
+                  earning.category,
+                )
+                return (
+                  <div
+                    key={`legend-earning-${earning.category}`}
+                    className={cn(
+                      "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
+                      isRealCategory
+                        ? "cursor-pointer"
+                        : "cursor-default opacity-70",
                     )}
-                  </span>
-                </div>
-              ))}
+                    onClick={() =>
+                      isRealCategory && toggleCategoryFilter(earning.category)
+                    }
+                  >
+                    <div className={`w-3 h-3 rounded ${earning.color}`}></div>
+                    <span className="font-medium">{earning.category}</span>
+                    <span className="font-mono text-green-600">
+                      {formatCurrency(
+                        earning.amount,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Expenses Legend - Right Side (RTL style) */}
-            <div className="flex flex-wrap gap-2" dir="rtl">
-              {flowDistribution.expenses.map(expense => (
-                <div
-                  key={`legend-expense-${expense.category}`}
-                  className="flex items-center gap-2 text-xs bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded"
-                  dir="ltr"
-                >
-                  <div className={`w-3 h-3 rounded ${expense.color}`}></div>
-                  <span className="font-medium">{expense.category}</span>
-                  <span className="font-mono text-red-600">
-                    {formatCurrency(
-                      expense.amount,
-                      locale,
-                      settings?.general?.defaultCurrency,
+            <div
+              className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto"
+              dir="rtl"
+            >
+              {flowDistribution.expenses.map(expense => {
+                const isRealCategory = existingCategories.includes(
+                  expense.category,
+                )
+                return (
+                  <div
+                    key={`legend-expense-${expense.category}`}
+                    className={cn(
+                      "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
+                      isRealCategory
+                        ? "cursor-pointer"
+                        : "cursor-default opacity-70",
                     )}
-                  </span>
-                </div>
-              ))}
+                    dir="ltr"
+                    onClick={() =>
+                      isRealCategory && toggleCategoryFilter(expense.category)
+                    }
+                  >
+                    <div className={`w-3 h-3 rounded ${expense.color}`}></div>
+                    <span className="font-medium">{expense.category}</span>
+                    <span className="font-mono text-red-600">
+                      {formatCurrency(
+                        expense.amount,
+                        locale,
+                        settings?.general?.defaultCurrency,
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </Card>
       )}
 
       {/* Sorting Controls */}
-      <div className="flex items-center gap-3 pt-4">
+      <div className="flex items-center gap-3 pt-4 flex-wrap">
         <span className="text-sm text-muted-foreground">
           {t.management.sortBy}
         </span>
@@ -913,6 +1008,18 @@ export default function RecurringMoneyPage() {
           >
             {t.management.sortByDate}
           </button>
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-sm text-muted-foreground">
+            {t.management.category}
+          </span>
+          <MultiSelect
+            options={categoryOptions}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            className="min-w-[220px]"
+          />
         </div>
       </div>
 
@@ -1077,14 +1184,50 @@ export default function RecurringMoneyPage() {
       {isDialogOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
-              {editingFlow ? t.common.edit : t.management.addNew}{" "}
-              {formData.flow_type === FlowType.EARNING
-                ? t.management.flowType.EARNING
-                : t.management.flowType.EXPENSE}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">
+                {editingFlow ? t.common.edit : t.management.addNew}{" "}
+                {formData.flow_type === FlowType.EARNING
+                  ? t.management.flowType.EARNING
+                  : t.management.flowType.EXPENSE}
+              </h3>
+              {editingFlow?.linked && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <span className="inline-flex text-muted-foreground">
+                      <Link2
+                        size={18}
+                        strokeWidth={2.5}
+                        style={{ transform: "rotate(155deg)" }}
+                      />
+                    </span>
+                  </PopoverTrigger>
+                  <PopoverContent side="left" className="w-72 text-xs">
+                    {(t.management as any).editLinkedWarning.replace(
+                      "{type}",
+                      (editingFlow?.flow_type === FlowType.EARNING
+                        ? t.management.flowType.EARNING
+                        : t.management.flowType.EXPENSE
+                      ).toLowerCase(),
+                    )}
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium block mb-1">
+                  {t.management.iconLabel}
+                </label>
+                <IconPicker
+                  value={formData.icon as IconName | undefined}
+                  onValueChange={value =>
+                    setFormData(prev => ({ ...prev, icon: value }))
+                  }
+                  modal
+                />
+              </div>
               <div>
                 <label className="text-sm font-medium block mb-1">
                   {t.management.name}
@@ -1116,7 +1259,10 @@ export default function RecurringMoneyPage() {
                     step="0.01"
                     value={formData.amount}
                     onChange={e =>
-                      setFormData(prev => ({ ...prev, amount: e.target.value }))
+                      setFormData(prev => ({
+                        ...prev,
+                        amount: parseFloat(e.target.value),
+                      }))
                     }
                     placeholder={t.management.amountPlaceholder}
                     className={`pl-8 ${validationErrors.includes("amount") ? "border-red-500" : ""}`}
@@ -1236,6 +1382,16 @@ export default function RecurringMoneyPage() {
             ? t.management.flowType.EARNING.toLowerCase()
             : t.management.flowType.EXPENSE.toLowerCase(),
         )}
+        warning={
+          deletingFlow?.linked
+            ? t.management.deleteLinkedWarning.replace(
+                "{type}",
+                deletingFlow?.flow_type === FlowType.EARNING
+                  ? t.management.flowType.EARNING.toLowerCase()
+                  : t.management.flowType.EXPENSE.toLowerCase(),
+              )
+            : undefined
+        }
         confirmText={t.common.delete}
         cancelText={t.common.cancel}
         onConfirm={handleDelete}
