@@ -357,7 +357,7 @@
     "change": "Change",
     "type": "Type",
     "entities": "Entities",
-    "mainCrypto": "Main Crypto",
+    "mainCrypto": "Cryptocurrency",
     "token": "Token",
     "amount": "Amount",
     "noTransactions": "No transactions found",
@@ -636,6 +636,8 @@
     "recurringMoneyDescription": "Manage your recurring income and expenses",
     "pendingMoney": "Pending Money",
     "pendingMoneyDescription": "Manage your one-time income and expenses",
+    "autoContributions": "Auto Contributions",
+    "autoContributionsDescription": "Review your periodic investment contributions",
     "earnings": "Earnings",
     "expenses": "Expenses",
     "addNew": "Add new",
@@ -712,7 +714,29 @@
       "acceptedSuccess": "Loan suggestion accepted",
       "acceptedError": "Error accepting suggestion",
       "found": "found"
-    }
+    },
+    "contributionFrequency": {
+      "WEEKLY": "Weekly",
+      "BIWEEKLY": "Biweekly",
+      "MONTHLY": "Monthly",
+      "BIMONTHLY": "Bimonthly",
+      "QUARTERLY": "Quarterly",
+      "SEMIANNUAL": "Semiannual",
+      "YEARLY": "Yearly"
+    },
+    "monthlyAverageContributions": "Monthly auto contributions",
+    "noContributions": "No contributions configured",
+    "monthlyAverage": "Monthly avg.",
+    "targetType": "Target Type",
+    "target": "Target",
+    "alias": "Alias",
+    "noAutoContributionsTitle": "No auto contributions",
+    "noAutoContributionsDescription": "Configure periodic investment contributions in your integrations to track your automated investing.",
+    "goToIntegrations": "Go to Integrations",
+    "contributionsDistribution": "Contribution distribution",
+    "other": "Other",
+    "monthlyPerTarget": "Monthly by target",
+    "activeContributions": "Active contributions"
   },
   "datePicker": {
     "selectYear": "Select Year"

@@ -18,6 +18,7 @@ export interface PeriodicContribution {
   id: string
   alias?: string
   target: string
+  target_name: string
   target_type: ContributionTargetType
   amount: number
   currency: string
@@ -26,15 +27,14 @@ export interface PeriodicContribution {
   frequency: ContributionFrequency
   active: boolean
   is_real: boolean
+  next_date: string
 }
 
 export interface AutoContributions {
   periodic: PeriodicContribution[]
 }
 
-export interface EntityContributions {
-  contributions: Record<string, AutoContributions>
-}
+export type EntityContributions = Record<string, AutoContributions>
 
 export interface ContributionQueryRequest {
   entities?: string[]

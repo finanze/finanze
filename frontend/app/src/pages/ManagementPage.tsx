@@ -3,7 +3,7 @@ import { useI18n } from "@/i18n"
 import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { CalendarSync, HandCoins } from "lucide-react"
+import { CalendarSync, HandCoins, PiggyBank } from "lucide-react"
 
 export default function ManagementPage() {
   const { t } = useI18n()
@@ -24,6 +24,13 @@ export default function ManagementPage() {
       color:
         "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300",
       description: t.management.pendingMoneyDescription,
+    },
+    {
+      path: "/management/auto-contributions",
+      label: t.management.autoContributions,
+      icon: <PiggyBank className="h-6 w-6" />,
+      color: "bg-pink-100 text-pink-600 dark:bg-pink-900 dark:text-pink-300",
+      description: t.management.autoContributionsDescription,
     },
   ]
 

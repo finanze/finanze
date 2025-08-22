@@ -31,9 +31,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             for contrib in data.periodic:
                 cursor.execute(
                     """
-                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, alias, amount, currency,
+                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, alias, target_name, amount, currency,
                                                         since, until, frequency, active, is_real, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(contrib.id),
@@ -41,6 +41,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         contrib.target,
                         contrib.target_type,
                         contrib.alias,
+                        contrib.target_name,
                         str(contrib.amount),
                         contrib.currency,
                         contrib.since.isoformat(),
@@ -100,6 +101,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         id=UUID(row["pc_id"]),
                         alias=row["alias"],
                         target=row["target"],
+                        target_name=row["target_name"],
                         target_type=ContributionTargetType[row["target_type"]],
                         amount=Dezimal(row["amount"]),
                         currency=row["currency"],

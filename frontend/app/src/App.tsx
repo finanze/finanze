@@ -19,6 +19,7 @@ import RealEstateEditPage from "./pages/RealEstateEditPage"
 import LoginPage from "./pages/LoginPage"
 import RecurringMoneyPage from "./pages/RecurringMoneyPage"
 import PendingMoneyPage from "./pages/PendingMoneyPage"
+import AutoContributionsPage from "./pages/AutoContributionsPage"
 import ManagementPage from "./pages/ManagementPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
@@ -133,6 +134,10 @@ function App() {
             element={<RecurringMoneyPage />}
           />
           <Route path="/management/pending" element={<PendingMoneyPage />} />
+          <Route
+            path="/management/auto-contributions"
+            element={<AutoContributionsPage />}
+          />
           <Route path="/export" element={<ExportPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

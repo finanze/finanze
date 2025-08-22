@@ -449,7 +449,7 @@ export function RealEstateStats({
             {/* space before KPI cards */}
             <div className="mb-4" />
 
-            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-4">
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="flex items-center justify-between">
                   <span className="text-blue-700 dark:text-blue-300 flex items-center gap-2 font-medium">

@@ -186,29 +186,31 @@ export default function RealEstateDetailsPage() {
 
   return (
     <div className="space-y-6 pb-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-snug break-words">
             {property.basic_info.name}
           </h1>
           {property.location.address && (
-            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mt-1">
-              <MapPin className="w-4 h-4" />
-              <span>{property.location.address}</span>
+            <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 mt-2 pr-1">
+              <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <span className="leading-relaxed break-words">
+                {property.location.address}
+              </span>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2 flex-wrap md:flex-nowrap md:justify-end">
           <Button
             onClick={handleEdit}
-            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
+            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black px-3 py-2 h-auto text-sm"
           >
             <Edit className="w-4 h-4 mr-1" /> {t.common.edit}
           </Button>
           <Button
             variant="outline"
             onClick={() => setIsDeleteDialogOpen(true)}
-            className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30"
+            className="text-red-600 border-red-600 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-red-950/30 px-3 py-2 h-auto text-sm"
           >
             <Trash2 className="w-4 h-4 mr-1" /> {t.common.delete}
           </Button>

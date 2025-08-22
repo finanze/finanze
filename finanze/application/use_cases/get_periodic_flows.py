@@ -17,6 +17,9 @@ frequency_delta_map = {
 
 
 def get_next_date(flow: PeriodicFlow) -> Optional[date]:
+    if not flow.enabled:
+        return None
+
     today = date.today()
     since_date = flow.since
     next_date = None

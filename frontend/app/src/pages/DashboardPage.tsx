@@ -38,6 +38,7 @@ import {
   CreditCard,
   Home,
   SlidersHorizontal,
+  PiggyBank,
 } from "lucide-react"
 import {
   PieChart,
@@ -75,6 +76,7 @@ export default function DashboardPage() {
     error: financialDataError,
     refreshData: refreshFinancialData,
     realEstateList,
+    contributions,
   } = useFinancialData()
   const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
     useAppContext()
@@ -746,28 +748,30 @@ export default function DashboardPage() {
     )
   }
 
-  // Calculate upcoming flows data
-  const upcomingFlowsData = useMemo(() => {
+  // Calculate upcoming flows & contributions data (merged)
+  const upcomingEventsData = useMemo(() => {
     const now = new Date()
-    const allFlows = [...periodicFlows, ...pendingFlows]
+
+    // Flows (periodic + pending)
+    const flowItems = [...periodicFlows, ...pendingFlows]
       .filter(flow => flow.enabled)
       .map(flow => {
-        let nextDate = null
-
-        if ("next_date" in flow && flow.next_date) {
+        let nextDate: Date | null = null
+        if ("next_date" in flow && flow.next_date)
           nextDate = new Date(flow.next_date)
-        } else if ("date" in flow && flow.date) {
-          nextDate = new Date(flow.date)
-        }
-
+        else if ("date" in flow && flow.date) nextDate = new Date(flow.date)
         if (!nextDate) return null
-
         const daysUntil = Math.ceil(
           (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
         )
-
         return {
-          ...flow,
+          kind: "flow" as const,
+          id: flow.id,
+          name: flow.name,
+          // unify direction for sign
+          direction: flow.flow_type === FlowType.EARNING ? "in" : "out",
+          recurring: "frequency" in flow,
+          flow_type: flow.flow_type,
           nextDate,
           daysUntil,
           convertedAmount: convertCurrency(
@@ -778,13 +782,50 @@ export default function DashboardPage() {
           ),
         }
       })
-      .filter((flow): flow is NonNullable<typeof flow> => flow !== null)
-      .filter(flow => flow.daysUntil >= 0) // Filter out outdated flows
-      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
-      .slice(0, 5) // Show only next 5 flows
+      .filter((f): f is NonNullable<typeof f> => !!f)
+      .filter(f => f.daysUntil >= 0)
 
-    return allFlows
-  }, [periodicFlows, pendingFlows, targetCurrency, exchangeRates])
+    // Contributions
+    const contributionItems: any[] = []
+    if (contributions) {
+      Object.values(contributions).forEach(entityContrib => {
+        entityContrib.periodic
+          .filter(c => c.active && c.next_date)
+          .forEach(c => {
+            const nextDate = new Date(c.next_date)
+            const daysUntil = Math.ceil(
+              (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+            )
+            if (daysUntil < 0) return
+            contributionItems.push({
+              kind: "contribution" as const,
+              id: c.id,
+              name: c.alias || c.target_name,
+              direction: "out" as const,
+              recurring: true,
+              nextDate,
+              daysUntil,
+              convertedAmount: convertCurrency(
+                c.amount,
+                c.currency,
+                targetCurrency,
+                exchangeRates,
+              ),
+            })
+          })
+      })
+    }
+
+    return [...flowItems, ...contributionItems]
+      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
+      .slice(0, 5)
+  }, [
+    periodicFlows,
+    pendingFlows,
+    contributions,
+    targetCurrency,
+    exchangeRates,
+  ])
 
   const isLoading = financialDataLoading || transactionsLoading
 
@@ -987,12 +1028,12 @@ export default function DashboardPage() {
         </motion.div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="md:col-span-7"
+              className="lg:col-span-7"
             >
               <Card>
                 <CardHeader>
@@ -1270,7 +1311,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="md:col-span-5 space-y-6"
+              className="lg:col-span-5 space-y-6"
             >
               <Card>
                 <CardHeader>
@@ -1319,8 +1360,8 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              {/* Upcoming Flows Card */}
-              {upcomingFlowsData.length > 0 && (
+              {/* Upcoming Flows & Contributions Card */}
+              {upcomingEventsData.length > 0 && (
                 <Card>
                   <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
                     <CardTitle className="text-lg font-bold flex items-center">
@@ -1339,20 +1380,22 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent className="pt-0">
                     <div className="space-y-3">
-                      {upcomingFlowsData.map((flow, index) => {
-                        const isEarning = flow.flow_type === FlowType.EARNING
-                        const isRecurring = "frequency" in flow
+                      {upcomingEventsData.map((item, index) => {
+                        const isEarning = item.direction === "in"
                         const urgencyInfo = getDateUrgencyInfo(
-                          flow.nextDate.toISOString().split("T")[0],
+                          item.nextDate.toISOString().split("T")[0],
                         )
-
+                        const fullName = item.name || ""
+                        const displayName = fullName
                         return (
                           <div
-                            key={`${flow.id}-${index}`}
-                            className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-muted/50"
+                            key={`${item.kind}-${item.id}-${index}`}
+                            className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
                           >
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              {isRecurring ? (
+                              {item.kind === "contribution" ? (
+                                <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                              ) : item.recurring ? (
                                 <CalendarSync
                                   className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
                                 />
@@ -1362,8 +1405,11 @@ export default function DashboardPage() {
                                 />
                               )}
                               <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                                <p className="font-medium text-sm truncate">
-                                  {flow.name}
+                                <p
+                                  className="font-medium text-sm truncate"
+                                  title={fullName}
+                                >
+                                  {displayName}
                                 </p>
                                 {urgencyInfo?.show && (
                                   <Badge
@@ -1374,7 +1420,8 @@ export default function DashboardPage() {
                                           ? "default"
                                           : "outline"
                                     }
-                                    className="text-xs px-1 py-0 h-4 self-start sm:self-auto"
+                                    /* Prevent wrap, keep consistent pill size */
+                                    className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
                                   >
                                     {urgencyInfo.timeText}
                                   </Badge>
@@ -1382,11 +1429,11 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <p
-                              className={`font-mono text-sm font-semibold flex-shrink-0 text-center sm:text-right ${isEarning ? "text-green-600" : "text-red-600"}`}
+                              className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${isEarning ? "text-green-600" : "text-red-600"}`}
                             >
                               {isEarning ? "+" : "-"}
                               {formatCurrency(
-                                Math.abs(flow.convertedAmount),
+                                Math.abs(item.convertedAmount),
                                 locale,
                                 settings.general.defaultCurrency,
                               )}
@@ -1407,13 +1454,14 @@ export default function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
+              {/* Ongoing investments (full-width, no card background) */}
+              <div className="relative w-full">
+                <div className="flex flex-row items-center justify-between pb-3">
                   <div>
-                    <CardTitle className="text-lg font-bold flex items-center">
+                    <h2 className="text-lg font-bold flex items-center">
                       <TrendingUp className="h-5 w-5 mr-2 text-primary" />
                       {t.dashboard.ongoingProjects}
-                    </CardTitle>
+                    </h2>
                   </div>
                   {ongoingProjects.length > 3 && (
                     <div className="flex space-x-1">
@@ -1443,21 +1491,19 @@ export default function DashboardPage() {
                       </Button>
                     </div>
                   )}
-                </CardHeader>
-                <CardContent className="pt-0">
+                </div>
+                {/* Full-bleed horizontal scroller */}
+                <div className="-mx-4 sm:-mx-6">
                   <div
                     ref={projectsContainerRef}
-                    className="flex overflow-x-auto space-x-3 scrollbar-none"
+                    className="flex overflow-x-auto overflow-y-visible space-x-3 scrollbar-none px-4 sm:px-6 pb-4"
                     onScroll={handleScroll}
                     style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                   >
                     {ongoingProjects.map((project, index) => {
                       const status = getDaysStatus(project.maturity, t)
                       return (
-                        <Card
-                          key={index}
-                          className="bg-gray-50 dark:bg-gray-900 border flex-shrink-0 w-[280px]"
-                        >
+                        <Card key={index} className="flex-shrink-0 w-[280px]">
                           <CardContent className="p-3 flex flex-col justify-between h-full">
                             <div>
                               <div className="flex justify-between items-start mb-2">
@@ -1530,17 +1576,17 @@ export default function DashboardPage() {
                       )
                     })}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </motion.div>
           ) : null}
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="md:col-span-7"
+              className="lg:col-span-7"
             >
               <Card className="h-full flex flex-col">
                 <CardHeader>
@@ -2418,7 +2464,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="md:col-span-5"
+              className="lg:col-span-5"
             >
               <Card className="h-full flex flex-col">
                 <CardHeader>

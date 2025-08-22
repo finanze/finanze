@@ -639,9 +639,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         fund_name = auto_contribution.get("fundName")
         isin = auto_contribution.get("isin")
         target_account = auto_contribution.get("toAccountIban")
-        alias = auto_contribution["alias"]
-        alias = alias or fund_name or target_account_alias
+        alias = auto_contribution.get("alias")
 
+        target_name = fund_name or target_account_alias
+        alias = alias or target_name
         target = isin or target_account
         target_type = (
             ContributionTargetType.FUND
@@ -653,6 +654,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             id=uuid4(),
             alias=alias,
             target=target,
+            target_name=target_name,
             target_type=target_type,
             amount=round(Dezimal(auto_contribution["amount"]), 2),
             currency=SYMBOL_CURRENCY_MAP.get(auto_contribution["currency"], "EUR"),

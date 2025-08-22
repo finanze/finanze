@@ -339,6 +339,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             id=uuid4(),
             alias=instrument_name,
             target=isin,
+            target_name=instrument_name,
             target_type=ContributionTargetType.STOCK_ETF,
             amount=amount,
             currency=currency,

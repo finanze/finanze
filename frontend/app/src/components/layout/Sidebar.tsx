@@ -28,6 +28,7 @@ import {
   Home,
   CalendarSync,
   HandCoins,
+  PiggyBank,
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
@@ -135,6 +136,11 @@ export function Sidebar() {
       path: "/management/pending",
       label: t.management.pendingMoney,
       icon: <HandCoins className="h-4 w-4" />,
+    },
+    {
+      path: "/management/auto-contributions",
+      label: t.management.autoContributions,
+      icon: <PiggyBank className="h-4 w-4" />,
     },
   ]
 

@@ -356,7 +356,7 @@
     "change": "Cambio",
     "type": "Tipo",
     "entities": "Entidades",
-    "mainCrypto": "Cripto Principal",
+    "mainCrypto": "Criptomoneda",
     "token": "Token",
     "amount": "Cantidad",
     "noTransactions": "No se han encontrado transacciones",
@@ -635,6 +635,8 @@
     "recurringMoneyDescription": "Gestiona tus ingresos y gastos recurrentes",
     "pendingMoney": "Dinero Pendiente",
     "pendingMoneyDescription": "Gestiona tus ingresos y gastos puntuales",
+    "autoContributions": "Aportaciones automáticas",
+    "autoContributionsDescription": "Revisa tus aportaciones periódicas de inversión",
     "earnings": "Ingresos",
     "expenses": "Gastos",
     "addNew": "Agregar nuevo",
@@ -711,7 +713,29 @@
       "acceptedSuccess": "Sugerencia de préstamo aceptada",
       "acceptedError": "Error al aceptar sugerencia",
       "found": "encontradas"
-    }
+    },
+    "contributionFrequency": {
+      "WEEKLY": "Semanal",
+      "BIWEEKLY": "Quincenal",
+      "MONTHLY": "Mensual",
+      "BIMONTHLY": "Bimestral",
+      "QUARTERLY": "Trimestral",
+      "SEMIANNUAL": "Semestral",
+      "YEARLY": "Anual"
+    },
+    "monthlyAverageContributions": "Aportaciones automáticas mensuales",
+    "noContributions": "No hay aportaciones configuradas",
+    "monthlyAverage": "Prom. mensual",
+    "targetType": "Tipo de Destino",
+    "target": "Destino",
+    "alias": "Alias",
+    "noAutoContributionsTitle": "Sin aportaciones automáticas",
+    "noAutoContributionsDescription": "Configura aportaciones periódicas en tus integraciones para seguir tu inversión automatizada.",
+    "goToIntegrations": "Ir a Integraciones",
+    "contributionsDistribution": "Distribución de aportaciones",
+    "other": "Otros",
+    "monthlyPerTarget": "Mensual por destino",
+    "activeContributions": "Aportaciones activas"
   },
   "datePicker": {
     "selectYear": "Seleccionar Año"

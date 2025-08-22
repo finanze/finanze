@@ -20,6 +20,9 @@ from infrastructure.repository.db.versions.v040_2_var_mixed_loans import V0402
 from infrastructure.repository.db.versions.v040_3_add_account_tx_net_amount import V0403
 from infrastructure.repository.db.versions.v040_4_real_estate import V0404RealEstate
 from infrastructure.repository.db.versions.v040_5_flows_icon import V0405FlowsIcon
+from infrastructure.repository.db.versions.v040_6_contrib_target_name import (
+    V0406ContribTargetName,
+)
 
 versions = [
     V0Genesis(),
@@ -40,4 +43,5 @@ versions = [
     V0403(),
     V0404RealEstate(),
     V0405FlowsIcon(),
+    V0406ContribTargetName(),
 ]
