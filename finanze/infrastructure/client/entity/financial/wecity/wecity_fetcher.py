@@ -114,6 +114,7 @@ class WecityFetcher(FinancialEntityFetcher):
         amount = Dezimal(inv["amount"]["initial"])
         pending = Dezimal(inv["amount"]["current"])
         investments_details = self._client.get_investment_details(inv_id)
+        opportunity = investments_details["opportunity"]
 
         raw_business_type = opportunity["investment_type_id"]
         business_type = raw_business_type
@@ -189,6 +190,7 @@ class WecityFetcher(FinancialEntityFetcher):
             pending_amount=round(pending, 2),
             currency="EUR",
             interest_rate=round(Dezimal(opportunity["annual_profitability"]) / 100, 4),
+            profitability=round(Dezimal(opportunity["total_profitability"]) / 100, 4),
             last_invest_date=last_invest_date,
             maturity=maturity,
             extended_maturity=extended_maturity,

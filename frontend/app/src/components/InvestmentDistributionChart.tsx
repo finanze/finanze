@@ -2,6 +2,8 @@ import React from "react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 import { Card } from "@/components/ui/Card"
 import { formatCurrency } from "@/lib/formatters"
+import { useI18n } from "@/i18n"
+import { PieChart as PieChartIcon } from "lucide-react"
 
 interface ChartDataItem {
   name: string
@@ -19,6 +21,9 @@ interface InvestmentDistributionChartProps {
   locale?: string
   currency?: string
   showOriginalCurrency?: boolean
+  hideLegend?: boolean
+  containerClassName?: string
+  titleIcon?: React.ReactNode
 }
 
 const RADIAN = Math.PI / 180
@@ -87,24 +92,33 @@ export const InvestmentDistributionChart: React.FC<
   locale = "en",
   currency = "USD",
   showOriginalCurrency = false,
+  hideLegend = false,
+  containerClassName = "",
+  titleIcon,
 }) => {
+  const { t } = useI18n()
   if (!data || data.length === 0) {
     return (
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+      <Card className={`p-6 ${containerClassName}`}>
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
+          {title}
+        </h3>
         <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-          No data available
+          {t.common.noDataAvailable}
         </div>
       </Card>
     )
   }
 
   return (
-    <Card className="p-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">{title}</h3>
+    <Card className={`p-6 ${containerClassName}`}>
+      <div className="mb-4 flex items-center gap-2">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
+          {title}
+        </h3>
       </div>
-
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart style={{ userSelect: "none" }}>
@@ -141,8 +155,74 @@ export const InvestmentDistributionChart: React.FC<
           </PieChart>
         </ResponsiveContainer>
       </div>
+      {!hideLegend && (
+        <div className="mt-4 space-y-2">
+          {data.map((item, index) => (
+            <div
+              key={index}
+              className="flex items-center justify-between text-sm"
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: item.color }}
+                />
+                <span
+                  className="text-gray-700 dark:text-gray-300 truncate"
+                  title={item.name}
+                >
+                  {item.name}
+                </span>
+              </div>
+              <div className="text-right flex-shrink-0 ml-2">
+                <div className="font-medium text-gray-900 dark:text-gray-100">
+                  {showOriginalCurrency &&
+                  item.currency &&
+                  item.currency !== currency
+                    ? formatCurrency(item.value, locale, item.currency)
+                    : formatCurrency(item.value, locale, currency)}
+                </div>
+                {showOriginalCurrency &&
+                  item.currency &&
+                  item.currency !== currency &&
+                  item.convertedValue && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {formatCurrency(item.convertedValue, locale, currency)}
+                    </div>
+                  )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
 
-      <div className="mt-4 space-y-2">
+interface LegendProps {
+  data: ChartDataItem[]
+  locale?: string
+  currency?: string
+  showOriginalCurrency?: boolean
+}
+
+export const InvestmentDistributionLegend: React.FC<LegendProps> = ({
+  data,
+  locale = "en",
+  currency = "USD",
+  showOriginalCurrency = false,
+}) => {
+  const { t } = useI18n()
+  if (!data || data.length === 0) {
+    return (
+      <Card className="p-6 h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+        {t.common.noDataAvailable}
+      </Card>
+    )
+  }
+  return (
+    <Card className="p-6">
+      <div className="space-y-2">
         {data.map((item, index) => (
           <div
             key={index}

@@ -23,6 +23,9 @@ from infrastructure.repository.db.versions.v040_5_flows_icon import V0405FlowsIc
 from infrastructure.repository.db.versions.v040_6_contrib_target_name import (
     V0406ContribTargetName,
 )
+from infrastructure.repository.db.versions.v040_7_recf_profitability import (
+    V0407RECFProfitability,
+)
 
 versions = [
     V0Genesis(),
@@ -44,4 +47,5 @@ versions = [
     V0404RealEstate(),
     V0405FlowsIcon(),
     V0406ContribTargetName(),
+    V0407RECFProfitability(),
 ]

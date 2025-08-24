@@ -184,13 +184,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
       setContributions(prevContributions => {
         if (!prevContributions) return contributionsData
-
         return {
           ...prevContributions,
-          contributions: {
-            ...prevContributions.contributions,
-            ...contributionsData.contributions,
-          },
+          ...contributionsData,
         }
       })
 

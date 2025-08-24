@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import {
+  InvestmentDistributionChart,
+  InvestmentDistributionLegend,
+} from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatPercentage } from "@/lib/formatters"
 import { calculateCryptoValue } from "@/utils/financialDataUtils"
 import { ProductType, CryptoCurrencyWallet } from "@/types/position"
@@ -481,13 +484,26 @@ export default function CryptoInvestmentPage() {
             </Card>
           </div>
 
-          {/* Chart */}
-          <InvestmentDistributionChart
-            data={chartData}
-            title={t.common.distributionByAsset}
-            locale={locale}
-            currency={settings.general.defaultCurrency}
-          />
+          {/* Distribution Chart & Legend */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+                hideLegend
+                containerClassName="h-full"
+              />
+            </div>
+            <div className="xl:col-span-1 flex flex-col">
+              <InvestmentDistributionLegend
+                data={chartData}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+              />
+            </div>
+          </div>
 
           {/* Wallets grouped by entity */}
           <motion.div

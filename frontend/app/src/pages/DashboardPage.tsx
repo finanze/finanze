@@ -789,29 +789,36 @@ export default function DashboardPage() {
     const contributionItems: any[] = []
     if (contributions) {
       Object.values(contributions).forEach(entityContrib => {
-        entityContrib.periodic
-          .filter(c => c.active && c.next_date)
+        const list = (entityContrib as any)?.periodic
+        if (!Array.isArray(list)) return
+        list
+          .filter(c => c && c.active && c.next_date)
           .forEach(c => {
-            const nextDate = new Date(c.next_date)
-            const daysUntil = Math.ceil(
-              (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-            )
-            if (daysUntil < 0) return
-            contributionItems.push({
-              kind: "contribution" as const,
-              id: c.id,
-              name: c.alias || c.target_name,
-              direction: "out" as const,
-              recurring: true,
-              nextDate,
-              daysUntil,
-              convertedAmount: convertCurrency(
-                c.amount,
-                c.currency,
-                targetCurrency,
-                exchangeRates,
-              ),
-            })
+            try {
+              const nextDate = new Date(c.next_date)
+              if (isNaN(nextDate.getTime())) return
+              const daysUntil = Math.ceil(
+                (nextDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
+              )
+              if (daysUntil < 0) return
+              contributionItems.push({
+                kind: "contribution" as const,
+                id: c.id,
+                name: c.alias || c.target_name,
+                direction: "out" as const,
+                recurring: true,
+                nextDate,
+                daysUntil,
+                convertedAmount: convertCurrency(
+                  c.amount,
+                  c.currency,
+                  targetCurrency,
+                  exchangeRates,
+                ),
+              })
+            } catch {
+              // ignore malformed entry
+            }
           })
       })
     }
@@ -925,6 +932,17 @@ export default function DashboardPage() {
       urgencyLevel: "normal" as const,
       timeText: formatDate(dateString, locale),
     }
+  }
+
+  // Route mapping for ongoing investments
+  const getInvestmentRouteForProject = (assetType: string) => {
+    const routeMap: Record<string, string> = {
+      FACTORING: "/investments/factoring",
+      DEPOSIT: "/investments/deposits",
+      REAL_ESTATE_CF: "/investments/real-estate-cf",
+      CROWDLENDING: "/investments/crowdlending",
+    }
+    return routeMap[assetType] || null
   }
 
   return (
@@ -1387,6 +1405,18 @@ export default function DashboardPage() {
                         )
                         const fullName = item.name || ""
                         const displayName = fullName
+                        const amountColorClass =
+                          item.kind === "contribution"
+                            ? "text-foreground"
+                            : isEarning
+                              ? "text-green-600"
+                              : "text-red-600"
+                        const amountPrefix =
+                          item.kind === "contribution"
+                            ? ""
+                            : isEarning
+                              ? "+"
+                              : "-"
                         return (
                           <div
                             key={`${item.kind}-${item.id}-${index}`}
@@ -1429,9 +1459,9 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <p
-                              className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${isEarning ? "text-green-600" : "text-red-600"}`}
+                              className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
                             >
-                              {isEarning ? "+" : "-"}
+                              {amountPrefix}
                               {formatCurrency(
                                 Math.abs(item.convertedAmount),
                                 locale,
@@ -1502,8 +1532,21 @@ export default function DashboardPage() {
                   >
                     {ongoingProjects.map((project, index) => {
                       const status = getDaysStatus(project.maturity, t)
+                      const route = getInvestmentRouteForProject(project.type)
                       return (
-                        <Card key={index} className="flex-shrink-0 w-[280px]">
+                        <Card
+                          key={index}
+                          className={`flex-shrink-0 w-[280px] ${route ? "cursor-pointer hover:border-primary/40 transition-colors" : ""}`}
+                          onClick={() => route && navigate(route)}
+                          role={route ? "button" : undefined}
+                          tabIndex={route ? 0 : -1}
+                          onKeyDown={e => {
+                            if (route && (e.key === "Enter" || e.key === " ")) {
+                              e.preventDefault()
+                              navigate(route)
+                            }
+                          }}
+                        >
                           <CardContent className="p-3 flex flex-col justify-between h-full">
                             <div>
                               <div className="flex justify-between items-start mb-2">

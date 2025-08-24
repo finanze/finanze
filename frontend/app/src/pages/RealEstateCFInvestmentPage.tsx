@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import {
+  InvestmentDistributionChart,
+  InvestmentDistributionLegend,
+} from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import {
   convertCurrency,
@@ -28,7 +31,6 @@ export default function RealEstateCFInvestmentPage() {
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
 
-  // Get all real estate positions
   const allRealEstatePositions = useMemo(() => {
     if (!positionsData?.positions) return []
 
@@ -61,6 +63,36 @@ export default function RealEstateCFInvestmentPage() {
                 exchangeRates,
               )
 
+          const profitabilityDecimal = !isNaN(realEstate.profitability)
+            ? realEstate.profitability
+            : null
+          const rawProfit =
+            profitabilityDecimal !== null
+              ? realEstate.amount * profitabilityDecimal
+              : null
+          const rawExpectedAtMaturity =
+            rawProfit !== null ? realEstate.amount + rawProfit : null
+          const convertedExpectedAtMaturity =
+            rawExpectedAtMaturity !== null
+              ? convertCurrency(
+                  rawExpectedAtMaturity,
+                  realEstate.currency,
+                  settings.general.defaultCurrency,
+                  exchangeRates,
+                )
+              : null
+          const convertedProfit =
+            rawProfit !== null
+              ? convertCurrency(
+                  rawProfit,
+                  realEstate.currency,
+                  settings.general.defaultCurrency,
+                  exchangeRates,
+                )
+              : null
+          const profitabilityPct =
+            profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
+
           realEstates.push({
             ...realEstate,
             entity: entityName,
@@ -85,6 +117,25 @@ export default function RealEstateCFInvestmentPage() {
                     settings.general.defaultCurrency,
                   )
                 : null,
+            convertedExpectedAtMaturity,
+            formattedExpectedAtMaturity:
+              convertedExpectedAtMaturity !== null
+                ? formatCurrency(
+                    convertedExpectedAtMaturity,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
+            convertedProfit,
+            formattedProfit:
+              convertedProfit !== null
+                ? formatCurrency(
+                    convertedProfit,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
+            profitabilityPct,
           })
         })
       }
@@ -93,7 +144,6 @@ export default function RealEstateCFInvestmentPage() {
     return realEstates
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
-  // Filter positions based on selected entities
   const filteredRealEstatePositions = useMemo(() => {
     if (selectedEntities.length === 0) {
       return allRealEstatePositions
@@ -103,7 +153,6 @@ export default function RealEstateCFInvestmentPage() {
     )
   }, [allRealEstatePositions, selectedEntities])
 
-  // Get entity options for the filter
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     const entitiesWithRealEstate = getEntitiesWithProductType(
       positionsData,
@@ -119,12 +168,11 @@ export default function RealEstateCFInvestmentPage() {
     )
   }, [entities, positionsData])
 
-  // Calculate chart data
   const chartData = useMemo(() => {
     const mappedPositions = filteredRealEstatePositions.map(position => ({
       ...position,
       symbol: position.name,
-      currentValue: position.convertedPendingAmount, // Use converted amount for chart
+      currentValue: position.convertedPendingAmount,
     }))
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [filteredRealEstatePositions])
@@ -140,23 +188,35 @@ export default function RealEstateCFInvestmentPage() {
     return formatCurrency(totalValue, locale, settings.general.defaultCurrency)
   }, [totalValue, locale, settings.general.defaultCurrency])
 
-  // Calculate weighted average interest rate
-  const weightedAverageInterest = useMemo(() => {
-    if (filteredRealEstatePositions.length === 0) return 0
+  const { weightedAverageInterest, weightedAverageProfitability, totalProfit } =
+    useMemo(() => {
+      if (filteredRealEstatePositions.length === 0) {
+        return {
+          weightedAverageInterest: 0,
+          weightedAverageProfitability: 0,
+          totalProfit: 0,
+        }
+      }
+      let weightedInterestAcc = 0
+      let weightedProfitabilityAcc = 0
+      let profitAcc = 0
+      filteredRealEstatePositions.forEach(p => {
+        const weight = p.convertedPendingAmount || 0
+        weightedInterestAcc += (p.interest_rate || 0) * weight
+        if (p.profitabilityPct !== null && weight) {
+          weightedProfitabilityAcc += p.profitabilityPct * weight
+        }
+        profitAcc += p.convertedProfit || 0
+      })
+      return {
+        weightedAverageInterest:
+          totalValue > 0 ? (weightedInterestAcc / totalValue) * 100 : 0,
+        weightedAverageProfitability:
+          totalValue > 0 ? weightedProfitabilityAcc / totalValue : 0,
+        totalProfit: profitAcc,
+      }
+    }, [filteredRealEstatePositions, totalValue])
 
-    const totalWeightedInterest = filteredRealEstatePositions.reduce(
-      (sum, position) => {
-        const weight = position.convertedPendingAmount || 0
-        const interest = position.interest_rate || 0
-        return sum + weight * interest
-      },
-      0,
-    )
-
-    return totalValue > 0 ? (totalWeightedInterest / totalValue) * 100 : 0
-  }, [filteredRealEstatePositions, totalValue])
-
-  // Calculate percentage within real estate type
   const totalRealEstateValue = useMemo(() => {
     return totalValue
   }, [totalValue])
@@ -182,7 +242,6 @@ export default function RealEstateCFInvestmentPage() {
         <h1 className="text-2xl font-bold">{t.common.realEstateCf}</h1>
       </div>
 
-      {/* Filters */}
       <InvestmentFilters
         entityOptions={entityOptions}
         selectedEntities={selectedEntities}
@@ -205,13 +264,11 @@ export default function RealEstateCFInvestmentPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Market Value Card */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="flex-shrink-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.realEstateCf}
+                  {t.dashboard.investedAmount}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
@@ -219,7 +276,6 @@ export default function RealEstateCFInvestmentPage() {
               </CardContent>
             </Card>
 
-            {/* Number of Assets Card */}
             <Card className="flex-shrink-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -238,7 +294,6 @@ export default function RealEstateCFInvestmentPage() {
               </CardContent>
             </Card>
 
-            {/* Weighted Average Interest Card */}
             <Card className="flex-shrink-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -250,19 +305,53 @@ export default function RealEstateCFInvestmentPage() {
                   {weightedAverageInterest.toFixed(2)}%
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t.investments.annually}
+                  {t.investments.interest} {t.investments.annually}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  {t.investments.expectedProfit}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(
+                    totalProfit,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                  {weightedAverageProfitability.toFixed(2)}%
+                  <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                    {t.investments.profitability}
+                  </span>
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Chart */}
-          <InvestmentDistributionChart
-            data={chartData}
-            title={t.common.distributionByAsset}
-            locale={locale}
-            currency={settings.general.defaultCurrency}
-          />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+                hideLegend
+                containerClassName="h-full"
+              />
+            </div>
+            <div className="xl:col-span-1 flex flex-col">
+              <InvestmentDistributionLegend
+                data={chartData}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+              />
+            </div>
+          </div>
 
           {/* Positions List */}
           <div className="space-y-4 pb-6">
@@ -331,14 +420,37 @@ export default function RealEstateCFInvestmentPage() {
                         </div>
                       </div>
 
-                      {realEstate.formattedPendingAmount && (
-                        <div className="text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {t.investments.pending}:{" "}
-                          </span>
-                          <span className="font-medium text-orange-600 dark:text-orange-400">
-                            {realEstate.formattedPendingAmount}
-                          </span>
+                      {(realEstate.formattedPendingAmount ||
+                        realEstate.formattedProfit) && (
+                        <div className="flex flex-col gap-1 text-sm">
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                            {realEstate.formattedPendingAmount && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  {t.investments.pending}:
+                                </span>
+                                <span className="font-medium text-orange-600 dark:text-orange-400">
+                                  {realEstate.formattedPendingAmount}
+                                </span>
+                              </div>
+                            )}
+                            {realEstate.formattedProfit && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  {t.investments.expectedProfit}:
+                                </span>
+                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                  {realEstate.formattedProfit}
+                                  {realEstate.profitabilityPct !== null && (
+                                    <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                      ({realEstate.profitabilityPct.toFixed(2)}
+                                      %)
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -353,7 +465,7 @@ export default function RealEstateCFInvestmentPage() {
                           {realEstate.formattedConvertedAmount}
                         </div>
                       )}
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">
                         <span className="font-medium text-blue-600 dark:text-blue-400">
                           {percentageOfRealEstate.toFixed(1)}%
                         </span>

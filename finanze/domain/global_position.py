@@ -143,6 +143,7 @@ class FactoringDetail(BaseData):
     amount: Dezimal
     currency: str
     interest_rate: Dezimal
+    profitability: Dezimal
     gross_interest_rate: Dezimal
     last_invest_date: datetime
     maturity: date
@@ -158,6 +159,7 @@ class RealEstateCFDetail(BaseData):
     pending_amount: Dezimal
     currency: str
     interest_rate: Dezimal
+    profitability: Dezimal
     last_invest_date: datetime
     maturity: date
     type: str

@@ -122,6 +122,7 @@ export interface FactoringDetail {
   amount: number
   currency: string
   interest_rate: number
+  profitability: number
   gross_interest_rate: number
   last_invest_date: string
   maturity: string
@@ -136,6 +137,7 @@ export interface RealEstateCFDetail {
   pending_amount: number
   currency: string
   interest_rate: number
+  profitability: number
   last_invest_date: string
   maturity: string
   type: string

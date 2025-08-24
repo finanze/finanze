@@ -266,7 +266,7 @@ export default function AutoContributionsPage() {
           </Card>
         </div>
         {distributionData.length > 0 && (
-          <Card className="p-5 flex flex-col lg:col-span-2">
+          <Card className="p-5 flex flex-col lg:col-span-2 min-w-0">
             <div className="flex items-center justify-between mb-3">
               <h3
                 className="text-sm font-medium text-muted-foreground"
@@ -282,7 +282,8 @@ export default function AutoContributionsPage() {
                 )}
               </span>
             </div>
-            <div className="space-y-3 max-h-72 overflow-auto pr-1 scrollbar-thin scrollbar-thumb-border/30">
+            {/* On small screens allow full height so content isn't visually "cut"; restrict only on large screens */}
+            <div className="space-y-3 overflow-auto lg:max-h-72 pr-1 scrollbar-thin scrollbar-thumb-border/30">
               {distributionData.map((d, i) => (
                 <div key={d.rawKey} className="group">
                   <div className="flex justify-between gap-4 text-xs font-medium mb-1">
@@ -466,6 +467,20 @@ export default function AutoContributionsPage() {
                                     {c.active
                                       ? t.management.enabled
                                       : t.management.disabled}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between gap-4">
+                                  <span className="font-medium text-muted-foreground">
+                                    {t.management.monthlyAverageContribution}
+                                  </span>
+                                  <span>
+                                    {formatCurrency(
+                                      c.amount * monthlyMultiplier(c.frequency),
+                                      locale,
+                                      settings?.general?.defaultCurrency ||
+                                        c.currency,
+                                      c.currency,
+                                    )}
                                   </span>
                                 </div>
                               </div>

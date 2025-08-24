@@ -248,9 +248,9 @@ def _save_real_estate_cf(
         cursor.execute(
             """
             INSERT INTO real_estate_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
-                                                 interest_rate, last_invest_date, maturity, type,
+                                                 interest_rate, profitability, last_invest_date, maturity, type,
                                                  business_type, state, extended_maturity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -260,12 +260,15 @@ def _save_real_estate_cf(
                 str(detail.pending_amount),
                 detail.currency,
                 str(detail.interest_rate),
+                str(detail.profitability),
                 detail.last_invest_date.isoformat(),
                 detail.maturity.isoformat(),
                 detail.type,
                 detail.business_type,
                 detail.state,
-                detail.extended_maturity,
+                detail.extended_maturity.isoformat()
+                if detail.extended_maturity
+                else None,
             ),
         )
 
@@ -275,9 +278,9 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
         cursor.execute(
             """
             INSERT INTO factoring_positions (id, global_position_id, name, amount, currency,
-                                             interest_rate, gross_interest_rate, last_invest_date,
+                                             interest_rate, profitability, gross_interest_rate, last_invest_date,
                                              maturity, type, state)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -286,6 +289,7 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
                 str(detail.amount),
                 detail.currency,
                 str(detail.interest_rate),
+                str(detail.profitability),
                 str(detail.gross_interest_rate),
                 detail.last_invest_date.isoformat()
                 if detail.last_invest_date
@@ -787,6 +791,7 @@ class PositionSQLRepository(PositionPort):
                     amount=Dezimal(row["amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
+                    profitability=Dezimal(row["profitability"]),
                     gross_interest_rate=Dezimal(row["gross_interest_rate"]),
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
@@ -818,6 +823,7 @@ class PositionSQLRepository(PositionPort):
                     pending_amount=Dezimal(row["pending_amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
+                    profitability=Dezimal(row["profitability"]),
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
                     maturity=row["maturity"],
                     type=row["type"],

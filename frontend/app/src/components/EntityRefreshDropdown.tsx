@@ -207,7 +207,7 @@ export function EntityRefreshDropdown() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-popover z-50"
+            className="absolute right-0 mt-2 w-72 rounded-md shadow-md bg-popover z-50 border"
           >
             <div className="py-1" role="menu" aria-orientation="vertical">
               <div className="px-4 py-3 text-sm font-medium flex items-center">

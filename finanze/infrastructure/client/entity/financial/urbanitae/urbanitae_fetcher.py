@@ -82,6 +82,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         months = int(project_details["details"]["investmentPeriod"])
         interest_rate = Dezimal(project_details["fund"]["apreciationProfitability"])
+        profitability = Dezimal(project_details["fund"]["totalNetProfitability"])
         last_invest_date = datetime.strptime(
             inv["lastInvestDate"], self.DATETIME_FORMAT
         )
@@ -104,6 +105,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             pending_amount=pending_amount,
             currency="EUR",
             interest_rate=round(interest_rate / 100, 4),
+            profitability=round(profitability / 100, 4),
             last_invest_date=last_invest_date,
             maturity=(last_invest_date + relativedelta(months=months)).date(),
             extended_maturity=None,

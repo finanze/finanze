@@ -57,6 +57,7 @@
     "cryptoInvestments": "Crypto",
     "distributionByEntity": "Distribution by Entity",
     "distributionByAsset": "Distribution by Asset",
+    "distribution": "Distribution",
     "assets": "Assets",
     "crypto": "Crypto",
     "commodities": "Commodities",
@@ -99,6 +100,10 @@
     "interest": "Interest",
     "annually": "annually",
     "expected": "Expected",
+    "expectedAtMaturity": "Expected at Maturity",
+    "profit": "Profit",
+    "profitability": "profitability",
+    "expectedProfit": "Expected Profit",
     "pending": "Pending",
     "gross": "gross",
     "symbol": "Symbol",
@@ -112,7 +117,8 @@
     "numberOfAssets": "Number of Assets",
     "asset": "asset",
     "assets": "assets",
-    "weightedAverageInterest": "Weighted Avg. Interest"
+    "weightedAverageInterest": "Weighted Avg. Interest",
+    "weightedAverageProfitability": "Weighted Avg. Profitability"
   },
   "toast": {
     "success": "Success",
@@ -169,7 +175,7 @@
     "INVALID_CREDENTIALS": "Invalid credentials",
     "NO_CREDENTIALS_AVAILABLE": "No credentials available",
     "UNEXPECTED_ERROR": "An unexpected error occurred",
-    "NOT_LOGGED": "Not logged in",
+    "NOT_LOGGED": "Session expired, fetch from the integrations section",
     "COOLDOWN": "Please wait before trying again",
     "FEATURE_NOT_SUPPORTED": "Feature not supported",
     "EXTERNAL_LOGIN_FAILED": "External login failed. Please try again.",
@@ -181,7 +187,7 @@
     "connected": "Connected",
     "requiresLogin": "Requires Login",
     "login": "Login Again",
-    "fetchData": "Fetch Data",
+    "fetchData": "Fetch",
     "connect": "Connect",
     "requires": "Requires",
     "integrations": "integrations",
@@ -736,7 +742,8 @@
     "contributionsDistribution": "Contribution distribution",
     "other": "Other",
     "monthlyPerTarget": "Monthly by target",
-    "activeContributions": "Active contributions"
+    "activeContributions": "Active contributions",
+    "monthlyAverageContribution": "Monthly avg. contribution"
   },
   "datePicker": {
     "selectYear": "Select Year"

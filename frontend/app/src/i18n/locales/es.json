@@ -31,6 +31,7 @@
     "cryptoInvestments": "Crypto",
     "distributionByEntity": "Distribución por Entidad",
     "distributionByAsset": "Distribución por Activo",
+    "distribution": "Distribución",
     "stocks": "Acciones",
     "funds": "Fondos",
     "deposits": "Depósitos",
@@ -97,6 +98,10 @@
     "interest": "Interés",
     "annually": "anual",
     "expected": "Esperado",
+    "expectedAtMaturity": "Esperado al vencimiento",
+    "profit": "Beneficio",
+    "profitability": "de rentabilidad",
+    "expectedProfit": "Beneficio esperado",
     "pending": "Pendiente",
     "gross": "bruto",
     "symbol": "Símbolo",
@@ -110,7 +115,8 @@
     "numberOfAssets": "Número de activos",
     "asset": "activo",
     "assets": "activos",
-    "weightedAverageInterest": "Interés ponderado"
+    "weightedAverageInterest": "Interés ponderado",
+    "weightedAverageProfitability": "Rent. ponderada"
   },
   "toast": {
     "success": "Operación exitosa",
@@ -167,7 +173,7 @@
     "INVALID_CREDENTIALS": "Credenciales inválidas",
     "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles",
     "UNEXPECTED_ERROR": "Ocurrió un error inesperado",
-    "NOT_LOGGED": "No ha iniciado sesión",
+    "NOT_LOGGED": "Sesión caducada, recarga desde la sección de integraciones",
     "COOLDOWN": "Por favor espere antes de intentar nuevamente",
     "FEATURE_NOT_SUPPORTED": "Característica no soportada",
     "EXTERNAL_LOGIN_FAILED": "Error en el inicio de sesión externo. Por favor intente de nuevo.",
@@ -179,7 +185,7 @@
     "connected": "Conectado",
     "requiresLogin": "Requiere Inicio de Sesión",
     "login": "Iniciar Sesión de Nuevo",
-    "fetchData": "Obtener Datos",
+    "fetchData": "Actualizar",
     "connect": "Conectar",
     "requires": "Requiere",
     "integrations": "integraciones",
@@ -199,7 +205,7 @@
     "userEnteredDescription": "Importa datos desde tus hojas de Google configuradas para seguimiento manual.",
     "userEnteredAvailableDescription": "Configura Google Sheets para importar datos financieros.",
     "configureInSettings": "Configurar en Ajustes",
-    "relogin": "Reloguearse",
+    "relogin": "Reloguear",
     "disconnect": "Desconectar",
     "confirmDisconnect": "Confirmar Desconexión",
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos.",
@@ -735,7 +741,8 @@
     "contributionsDistribution": "Distribución de aportaciones",
     "other": "Otros",
     "monthlyPerTarget": "Mensual por destino",
-    "activeContributions": "Aportaciones activas"
+    "activeContributions": "Aportaciones activas",
+    "monthlyAverageContribution": "Promedio mensual aportación"
   },
   "datePicker": {
     "selectYear": "Seleccionar Año"
