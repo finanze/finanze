@@ -165,9 +165,17 @@ class SheetsImporter(VirtualFetcher):
                 for fund in positions["products"][ProductType.FUND].entries:
                     if fund.portfolio:
                         if fund.portfolio.name not in required_portfolios:
+                            fund.portfolio.currency = fund.currency
                             required_portfolios[fund.portfolio.name] = fund.portfolio
                         else:
                             fund.portfolio = required_portfolios[fund.portfolio.name]
+
+                        fund.portfolio.initial_investment = (
+                            fund.portfolio.initial_investment or 0
+                        ) + fund.initial_investment or 0
+                        fund.portfolio.market_value = (
+                            fund.portfolio.market_value or 0
+                        ) + fund.market_value or 0
 
             if required_portfolios:
                 positions["products"][ProductType.FUND_PORTFOLIO] = FundPortfolios(

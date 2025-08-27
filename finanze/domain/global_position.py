@@ -120,6 +120,8 @@ class FundPortfolio(BaseData):
     currency: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     market_value: Optional[Dezimal] = None
+    account_id: Optional[UUID] = None
+    account: Optional[Account] = None
 
 
 @dataclass

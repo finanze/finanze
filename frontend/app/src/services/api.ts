@@ -27,6 +27,8 @@ import type {
   DeleteRealEstateRequest,
   LoanCalculationRequest,
   LoanCalculationResult,
+  ForecastRequest,
+  ForecastResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -463,6 +465,21 @@ export async function calculateLoan(
     headers: {
       "Content-Type": "application/json",
     },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getForecast(
+  request: ForecastRequest,
+): Promise<ForecastResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/forecast`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   })
   if (!response.ok) {

@@ -39,6 +39,7 @@ from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
+from application.use_cases.forecast import ForecastImpl
 from domain.data_init import DatasourceInitParams
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
@@ -134,6 +135,14 @@ class FinanzeServer:
         self.sheets_initiator = SheetsServiceLoader()
         self.etherscan_client = EtherscanClient()
 
+        self.crypto_entity_fetchers = {
+            domain.native_entities.BITCOIN: BitcoinFetcher(),
+            domain.native_entities.ETHEREUM: EthereumFetcher(),
+            domain.native_entities.LITECOIN: LitecoinFetcher(),
+            domain.native_entities.TRON: TronFetcher(),
+            domain.native_entities.BSC: BSCFetcher(self.etherscan_client),
+        }
+
         self.financial_entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
             domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
@@ -144,14 +153,6 @@ class FinanzeServer:
             domain.native_entities.MINTOS: MintosFetcher(),
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
-        }
-
-        self.crypto_entity_fetchers = {
-            domain.native_entities.BITCOIN: BitcoinFetcher(),
-            domain.native_entities.ETHEREUM: EthereumFetcher(),
-            domain.native_entities.LITECOIN: LitecoinFetcher(),
-            domain.native_entities.TRON: TronFetcher(),
-            domain.native_entities.BSC: BSCFetcher(self.etherscan_client),
         }
 
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
@@ -339,6 +340,13 @@ class FinanzeServer:
         )
         list_real_estate = ListRealEstateImpl(real_estate_repository)
         calculate_loan = CalculateLoanImpl()
+        forecast = ForecastImpl(
+            position_port=position_repository,
+            auto_contributions_port=auto_contrib_repository,
+            periodic_flow_port=periodic_flow_repository,
+            pending_flow_port=pending_flow_repository,
+            real_estate_port=real_estate_repository,
+        )
 
         self._log.info("Initial component setup completed.")
 
@@ -397,6 +405,7 @@ class FinanzeServer:
             delete_real_estate,
             list_real_estate,
             calculate_loan,
+            forecast,
         )
         self._log.info("Completed.")
 

@@ -373,6 +373,25 @@
     "includeRealEstateEquity": "Include real estate equity",
     "includeResidences": "Include residences"
   },
+  "forecast": {
+    "title": "Forecast",
+    "targetDate": "Target date",
+    "avgAnnualIncrease": "Avg. annual market increase",
+    "avgAnnualIncreaseHint": "Expected average annual growth (%) (Optional)",
+    "run": "Run",
+    "reset": "Reset",
+    "active": "Forecast for {date}",
+    "disclaimer": "All values are estimated for the selected future date. Revaluations configured in real estate are included.",
+    "cashDeltaEntity": "Forecast Cash",
+    "cashDeltaLabel": "Forecast Cash",
+    "notShowing": "This is hidden in forecast mode",
+    "upcomingAt": "Upcoming by {date}",
+    "close": "Close",
+    "pendingPaymentsLegendLabel": "Projected pending payments",
+    "pendingPaymentsLegend": "Projected pending cash payments of {amount} (future outflows not counted in total assets yet)",
+    "negativeCashWarningTitle": "Unfeasible projection",
+    "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows."
+  },
   "export": {
     "moreOptionsNote": "Support for other export formats and destinations will be added in the future.",
     "title": "Export",

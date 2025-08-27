@@ -26,6 +26,9 @@ from infrastructure.repository.db.versions.v040_6_contrib_target_name import (
 from infrastructure.repository.db.versions.v040_7_recf_profitability import (
     V0407RECFProfitability,
 )
+from infrastructure.repository.db.versions.v040_8_add_fund_portfolio_account import (
+    V0408FundPortfolioAccount,
+)
 
 versions = [
     V0Genesis(),
@@ -48,4 +51,5 @@ versions = [
     V0405FlowsIcon(),
     V0406ContribTargetName(),
     V0407RECFProfitability(),
+    V0408FundPortfolioAccount(),
 ]

@@ -74,11 +74,9 @@ function DatePicker({
   const generateYearRange = () => {
     const currentYear = currentMonth.getFullYear()
     const startYear = currentYear - 10
-    const endYear = currentYear + 10
-    const years = []
-    for (let year = startYear; year <= endYear; year++) {
-      years.push(year)
-    }
+    const endYear = currentYear + 30
+    const years: number[] = []
+    for (let year = startYear; year <= endYear; year++) years.push(year)
     return years
   }
 

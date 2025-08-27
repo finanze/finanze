@@ -372,6 +372,25 @@
     "includeRealEstateEquity": "Incluir patrimonio inmobiliario",
     "includeResidences": "Incluir residencias"
   },
+  "forecast": {
+    "title": "Proyección",
+    "targetDate": "Fecha objetivo",
+    "avgAnnualIncrease": "Aumento anual medio de mercado",
+    "avgAnnualIncreaseHint": "Crecimiento anual esperado (%) (Optional)",
+    "run": "Calcular",
+    "reset": "Reiniciar",
+    "active": "Proyección para {date}",
+    "disclaimer": "Todos los valores son estimados para la fecha seleccionada. Se incluyen revalorizaciones configuradas en inmobiliario.",
+    "cashDeltaEntity": "Efectivo Proyección",
+    "cashDeltaLabel": "Efectivo Proyección",
+    "notShowing": "Oculto en modo proyección",
+    "upcomingAt": "Próximos para {date}",
+    "close": "Cerrar",
+    "pendingPaymentsLegendLabel": "Pagos pendientes proyectados",
+    "pendingPaymentsLegend": "Pagos de efectivo pendientes proyectados de {amount} (salidas futuras no contadas aún en activos totales)",
+    "negativeCashWarningTitle": "Proyección inviable",
+    "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible."
+  },
   "export": {
     "moreOptionsNote": "En el futuro se añadirá compatibilidad con otros formatos y destinos de exportación.",
     "title": "Exportar",

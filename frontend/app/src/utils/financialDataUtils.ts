@@ -162,9 +162,11 @@ export interface StockFundPosition {
   price: number
   value: number
   originalValue: number
+  initialInvestment: number
   currency: string
   formattedValue: string
   formattedOriginalValue: string
+  formattedInitialInvestment: string
   type: string
   change: number
   entity: string
@@ -183,8 +185,10 @@ export interface CryptoPosition {
   amount: number
   price: number
   value: number
+  initialInvestment: number
   currency: string
   formattedValue: string
+  formattedInitialInvestment?: string
   type: string
   change: number
   entities: string[]
@@ -209,8 +213,10 @@ export interface CommodityPosition {
   unit: string
   price: number
   value: number
+  initialInvestment: number
   currency: string
   formattedValue: string
+  formattedInitialInvestment?: string
   change: number
   entities: string[]
   showEntityBadge: boolean
@@ -1670,6 +1676,7 @@ export const getStockAndFundPositions = (
           price: stock.average_buy_price || 0,
           value: convertedValue, // Use converted value
           originalValue: originalValue, // Keep original for display
+          initialInvestment: initialInvestment,
           currency: stock.currency,
           formattedValue: formatCurrency(
             convertedValue,
@@ -1678,6 +1685,11 @@ export const getStockAndFundPositions = (
           ),
           formattedOriginalValue: formatCurrency(
             originalValue,
+            locale,
+            stock.currency,
+          ),
+          formattedInitialInvestment: formatCurrency(
+            initialInvestment,
             locale,
             stock.currency,
           ),
@@ -1734,6 +1746,7 @@ export const getStockAndFundPositions = (
           price: fund.average_buy_price || 0,
           value: convertedValue, // Use converted value
           originalValue: originalValue, // Keep original for display
+          initialInvestment: initialInvestment,
           currency: fund.currency,
           formattedValue: formatCurrency(
             convertedValue,
@@ -1742,6 +1755,11 @@ export const getStockAndFundPositions = (
           ),
           formattedOriginalValue: formatCurrency(
             originalValue,
+            locale,
+            fund.currency,
+          ),
+          formattedInitialInvestment: formatCurrency(
+            initialInvestment,
             locale,
             fund.currency,
           ),
@@ -1976,6 +1994,7 @@ export const getCryptoPositions = (
         amount: crypto.amount,
         price: crypto.amount > 0 ? value / crypto.amount : 0,
         value: value,
+        initialInvestment: crypto.initialInvestment,
         currency: defaultCurrency,
         formattedValue: formatCurrency(
           value,
@@ -1983,6 +2002,14 @@ export const getCryptoPositions = (
           defaultCurrency,
           defaultCurrency,
         ),
+        formattedInitialInvestment: crypto.initialInvestment
+          ? formatCurrency(
+              crypto.initialInvestment,
+              locale,
+              defaultCurrency,
+              defaultCurrency,
+            )
+          : undefined,
         type: crypto.type,
         change: change,
         entities: entitiesArray,
@@ -2161,8 +2188,12 @@ export const getCommodityPositions = (
         unit: displayUnit,
         price: pricePerDisplayUnit,
         value: value,
+        initialInvestment: initialInvestment,
         currency: commodity.currency,
         formattedValue: formatCurrency(value, locale, defaultCurrency),
+        formattedInitialInvestment: initialInvestment
+          ? formatCurrency(initialInvestment, locale, commodity.currency)
+          : undefined,
         change: change,
         entities: entities,
         showEntityBadge: entities.length > 1,
@@ -2723,6 +2754,31 @@ export const getTotalCardUsed = (
   return total
 }
 
+// Sum of all account balances (CHECKING/SAVINGS/etc.) across entities
+export const getTotalCash = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+  let total = 0
+  Object.values(positionsData.positions).forEach((entityPosition: any) => {
+    const accountsProduct = entityPosition.products?.[ProductType.ACCOUNT]
+    if (accountsProduct?.entries) {
+      accountsProduct.entries.forEach((acc: any) => {
+        const amt = acc.total || 0
+        total += convertCurrency(
+          amt,
+          acc.currency,
+          targetCurrency,
+          exchangeRates,
+        )
+      })
+    }
+  })
+  return total
+}
+
 export const getRealEstateOwnedEquityTotal = (
   realEstateList: RealEstate[] | undefined,
   targetCurrency: string,
@@ -2789,5 +2845,84 @@ export const computeAdjustedKpis = (
   return {
     adjustedTotalAssets: baseTotalAssets + equity - cardUsed,
     adjustedInvestedAmount: baseInvestedAmount + equity - cardUsed,
+  }
+}
+
+// Forecast KPIs: derive projected total assets and invested amount (which can grow due to automatic contributions)
+// forecastPositionsData: usually forecastResult.positions.positions wrapped like EntitiesPosition
+// forecastRealEstate: list with equity_at_target and equity_now (we only care about equity_at_target)
+// We treat invested amount in forecast as: current invested (adjusted) + net new contributions implied by forecast growth.
+// If the forecast positions already embed the contributions into their initial_investment fields, we re-calc invested from forecast snapshot directly instead of adding delta.
+export const computeForecastKpis = (
+  currentPositions: EntitiesPosition | null,
+  forecastPositions: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
+  realEstateList: RealEstate[] | undefined,
+  forecastRealEstate: { id: string; equity_at_target?: number }[] | undefined,
+  options: DashboardOptions,
+): {
+  projectedTotalAssets: number
+  projectedInvestedAmount: number
+  currentInvestedBase: number
+} => {
+  // Base (today) invested amount using existing helper including optional equity & card adjustments
+  const base = computeAdjustedKpis(
+    currentPositions,
+    targetCurrency,
+    exchangeRates,
+    pendingFlows,
+    realEstateList,
+    options,
+  )
+
+  // Projected total assets: recompute total assets from forecast snapshot then add projected real estate equity
+  const projectedCoreTotal = getTotalAssets(
+    forecastPositions,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+
+  const filteredForecastRealEstate = options.includeRealEstate
+    ? options.includeResidences
+      ? forecastRealEstate
+      : (forecastRealEstate || []).filter((re: any) => {
+          // Need to cross-check original realEstateList to know if it's a residence
+          const original = (realEstateList || []).find(o => o.id === re.id)
+          return !original?.basic_info?.is_residence
+        })
+    : []
+
+  const projectedEquity = options.includeRealEstate
+    ? (filteredForecastRealEstate || []).reduce(
+        (sum, re) => sum + (re.equity_at_target || 0),
+        0,
+      )
+    : 0
+
+  const cardUsed = options.includeCardExpenses
+    ? getTotalCardUsed(forecastPositions, targetCurrency, exchangeRates)
+    : 0
+
+  // Recalculate invested from forecast snapshot so that automatic contributions reflected in new initial_investment numbers are captured.
+  const projectedInvestedRaw = getTotalInvestedAmount(
+    forecastPositions,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+
+  // Add projected equity (considered part of invested capital for consistency with base helper) and subtract card used similar to base logic
+  const projectedInvestedAmount =
+    projectedInvestedRaw + projectedEquity - cardUsed
+
+  const projectedTotalAssets = projectedCoreTotal + projectedEquity - cardUsed
+
+  return {
+    projectedTotalAssets,
+    projectedInvestedAmount,
+    currentInvestedBase: base.adjustedInvestedAmount,
   }
 }

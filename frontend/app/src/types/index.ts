@@ -1,4 +1,10 @@
-import { WeightUnit, CommodityType, LoanType, InterestType } from "./position"
+import {
+  WeightUnit,
+  CommodityType,
+  LoanType,
+  InterestType,
+  EntitiesPosition,
+} from "./position"
 
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
@@ -565,4 +571,33 @@ export interface LoanCalculationResult {
   current_monthly_interests?: number | null
   principal_outstanding?: number | null
   installment_date?: string | null
+}
+
+// Forecast types
+export interface ForecastRequest {
+  target_date: string
+  entities?: string[]
+  excluded_entities?: string[]
+  avg_annual_market_increase?: number | null
+}
+
+export interface CashDelta {
+  currency: string
+  amount: number
+}
+
+export interface RealEstateEquityForecast {
+  id: string
+  equity_now?: number | null
+  equity_at_target?: number | null
+  principal_outstanding_now?: number | null
+  principal_outstanding_at_target?: number | null
+  currency: string
+}
+
+export interface ForecastResult {
+  target_date: string
+  positions: EntitiesPosition
+  cash_delta: CashDelta[]
+  real_estate: RealEstateEquityForecast[]
 }

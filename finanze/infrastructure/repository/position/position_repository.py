@@ -305,8 +305,8 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPort
     for portfolio in portfolios.entries:
         cursor.execute(
             """
-            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value, account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(portfolio.id),
@@ -317,6 +317,7 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPort
                 if portfolio.initial_investment
                 else None,
                 str(portfolio.market_value) if portfolio.market_value else None,
+                str(portfolio.account_id) if portfolio.account_id else None,
             ),
         )
 
@@ -698,22 +699,38 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[FundPortfolios]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM fund_portfolios WHERE global_position_id = ?",
+                """
+                SELECT fp.*, ap.id AS account_id, ap.total, ap.name as account_name, ap.iban
+                FROM fund_portfolios fp
+                         LEFT JOIN account_positions ap ON fp.account_id = ap.id
+                WHERE fp.global_position_id = ?
+                """,
                 (str(global_position_id),),
             )
 
             portfolios = []
             for row in cursor:
+                currency = row["currency"]
                 portfolios.append(
                     FundPortfolio(
                         id=UUID(row["id"]),
                         name=row["name"],
-                        currency=row["currency"],
+                        currency=currency,
                         initial_investment=Dezimal(row["initial_investment"])
                         if row["initial_investment"]
                         else None,
                         market_value=Dezimal(row["market_value"])
                         if row["market_value"]
+                        else None,
+                        account=Account(
+                            id=UUID(row["account_id"]),
+                            total=Dezimal(row["total"]),
+                            currency=currency,
+                            type=AccountType.FUND_PORTFOLIO,
+                            name=row["name"],
+                            iban=row["iban"],
+                        )
+                        if row["account_id"]
                         else None,
                     )
                 )

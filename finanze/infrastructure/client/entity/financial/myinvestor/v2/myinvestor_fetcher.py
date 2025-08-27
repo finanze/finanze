@@ -581,7 +581,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         fund_data = _get_fund_investments(fund_investments)
 
         portfolio_cash_accounts = []
-        for raw_account, _, security_account in account_entries:
+        for raw_account, acc, security_account in account_entries:
             if raw_account["accountType"] != "CASH_PORTFOLIO":
                 continue
 
@@ -611,6 +611,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     currency="EUR",
                     initial_investment=total_invested,
                     market_value=market_value,
+                    account_id=acc.id,
                 )
             )
 
@@ -638,12 +639,12 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         target_account_alias = auto_contribution.get("toAccountAlias")
         fund_name = auto_contribution.get("fundName")
         isin = auto_contribution.get("isin")
-        target_account = auto_contribution.get("toAccountIban")
+        target_cash_account = auto_contribution.get("toAccountIban")
         alias = auto_contribution.get("alias")
 
         target_name = fund_name or target_account_alias
         alias = alias or target_name
-        target = isin or target_account
+        target = isin or target_cash_account
         target_type = (
             ContributionTargetType.FUND
             if fund_name

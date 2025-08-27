@@ -34,6 +34,7 @@ from domain.use_cases.update_sheets import UpdateSheets
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_fetch import VirtualFetch
+from domain.use_cases.forecast import Forecast
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.change_user_password import change_user_password
@@ -73,6 +74,7 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
+from infrastructure.controller.routes.forecast import forecast
 
 
 def register_routes(
@@ -113,6 +115,7 @@ def register_routes(
     delete_real_estate_uc: DeleteRealEstate,
     list_real_estate_uc: ListRealEstate,
     calculate_loan_uc: CalculateLoan,
+    forecast_uc: Forecast,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -257,3 +260,7 @@ def register_routes(
     @app.route("/api/v1/calculation/loan", methods=["POST"])
     def calculate_loan_route():
         return calculate_loan(calculate_loan_uc)
+
+    @app.route("/api/v1/forecast", methods=["POST"])
+    def forecast_route():
+        return forecast(forecast_uc)
