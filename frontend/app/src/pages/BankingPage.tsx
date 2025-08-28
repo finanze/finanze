@@ -236,21 +236,19 @@ export default function BankingPage() {
   }, [loans])
 
   const weightedAverageAccountInterest = useMemo(() => {
-    const accountsWithInterest = accounts.filter(
-      account => account.data.interest && account.data.interest > 0,
-    )
-    if (accountsWithInterest.length === 0) return 0
-
-    const totalWeightedInterest = accountsWithInterest.reduce(
+    if (accounts.length === 0) return 0
+    // Treat undefined/null interest as 0 and include every account in denominator
+    const totalWeightedInterest = accounts.reduce(
       (sum, account) =>
-        sum + account.data.interest * account.data.convertedTotal,
+        sum +
+        (account.data.interest ? account.data.interest : 0) *
+          account.data.convertedTotal,
       0,
     )
-    const totalBalance = accountsWithInterest.reduce(
+    const totalBalance = accounts.reduce(
       (sum, account) => sum + account.data.convertedTotal,
       0,
     )
-
     return totalBalance > 0 ? totalWeightedInterest / totalBalance : 0
   }, [accounts])
 

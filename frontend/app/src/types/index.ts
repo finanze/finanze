@@ -579,6 +579,8 @@ export interface ForecastRequest {
   entities?: string[]
   excluded_entities?: string[]
   avg_annual_market_increase?: number | null
+  avg_annual_crypto_increase?: number | null
+  avg_annual_commodity_increase?: number | null
 }
 
 export interface CashDelta {
@@ -600,4 +602,6 @@ export interface ForecastResult {
   positions: EntitiesPosition
   cash_delta: CashDelta[]
   real_estate: RealEstateEquityForecast[]
+  crypto_appreciation: number
+  commodity_appreciation: number
 }

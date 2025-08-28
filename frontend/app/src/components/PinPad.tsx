@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -73,6 +73,51 @@ export function PinPad() {
 
     // Don't reset PIN - we'll handle it based on response
   }
+
+  const handleKeyboardInput = useCallback(
+    (e: KeyboardEvent) => {
+      // Avoid capturing when typing inside inputs/textareas or editable elements
+      const target = e.target as HTMLElement | null
+      if (target) {
+        const tag = target.tagName
+        if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
+          return
+        }
+      }
+
+      if (isEntityFetching) return
+
+      const { key } = e
+      if (/^[0-9]$/.test(key)) {
+        if (pin.length < pinLength) {
+          setPin(prev => [...prev, key])
+        }
+        return
+      }
+
+      if (key === "Backspace" || key === "Delete") {
+        if (pin.length > 0) setPin(prev => prev.slice(0, -1))
+        return
+      }
+
+      if (key === "Escape") {
+        setPin([])
+        return
+      }
+
+      if (key === "Enter") {
+        if (pin.length === pinLength) {
+          handleSubmit()
+        }
+      }
+    },
+    [pin, pinLength, handleSubmit, isEntityFetching],
+  )
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyboardInput)
+    return () => window.removeEventListener("keydown", handleKeyboardInput)
+  }, [handleKeyboardInput])
 
   const enterCodeText = t.pinpad.enterCode.replace(
     "{length}",

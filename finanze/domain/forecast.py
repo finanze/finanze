@@ -13,6 +13,8 @@ class ForecastRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     avg_annual_market_increase: Optional[Dezimal] = None
+    avg_annual_crypto_increase: Optional[Dezimal] = None
+    avg_annual_commodity_increase: Optional[Dezimal] = None
 
 
 @dataclass
@@ -37,3 +39,5 @@ class ForecastResult:
     positions: EntitiesPosition
     cash_delta: list[CashDelta]
     real_estate: list[RealEstateEquityForecast]
+    crypto_appreciation: Dezimal
+    commodity_appreciation: Dezimal

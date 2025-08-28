@@ -42,6 +42,24 @@ from domain.real_estate import RealEstate, RealEstateFlowSubtype
 from domain.use_cases.forecast import Forecast
 
 
+def _calculate_value_increase(from_date: date, to_date: date, annual_increase: Dezimal):
+    if annual_increase is None or annual_increase <= Dezimal(0):
+        return Dezimal(0)
+    months_delta = relativedelta(to_date, from_date)
+    months = (
+        months_delta.years * 12
+        + months_delta.months
+        + (1 if months_delta.days > 0 else 0)
+    )
+    if months <= 0:
+        return Dezimal(0)
+    monthly_increase = Dezimal(1) + (annual_increase / 12)
+    v = Dezimal(1)
+    for _ in range(months):
+        v = v * monthly_increase
+    return v - Dezimal(1)
+
+
 class ForecastImpl(Forecast):
     def __init__(
         self,
@@ -435,7 +453,7 @@ class ForecastImpl(Forecast):
     ) -> None:
         if ProductType.STOCK_ETF not in gp.products:
             return
-        stock_inv: StockInvestments = gp.products[ProductType.STOCK_ETF]  # type: ignore[index]
+        stock_inv: StockInvestments = gp.products[ProductType.STOCK_ETF]
         for s in stock_inv.entries:
             if getattr(s, "isin", None) == target:
                 s.initial_investment = s.initial_investment + total
@@ -447,7 +465,7 @@ class ForecastImpl(Forecast):
     ) -> None:
         if ProductType.FUND not in gp.products:
             return
-        fund_inv: FundInvestments = gp.products[ProductType.FUND]  # type: ignore[index]
+        fund_inv: FundInvestments = gp.products[ProductType.FUND]
         for f in fund_inv.entries:
             if getattr(f, "isin", None) == target:
                 f.initial_investment = f.initial_investment + total
@@ -462,7 +480,7 @@ class ForecastImpl(Forecast):
             return
         if ProductType.ACCOUNT not in gp.products:
             return
-        accounts: Accounts = gp.products[ProductType.ACCOUNT]  # type: ignore[index]
+        accounts: Accounts = gp.products[ProductType.ACCOUNT]
         acc_match = None
         for acc in accounts.entries:
             if acc.type.name == "FUND_PORTFOLIO" and acc.iban == target:
@@ -473,7 +491,7 @@ class ForecastImpl(Forecast):
         # Find portfolio linked to this account
         portfolio = None
         if ProductType.FUND_PORTFOLIO in gp.products:
-            portfolios: FundPortfolios = gp.products[ProductType.FUND_PORTFOLIO]  # type: ignore[index]
+            portfolios: FundPortfolios = gp.products[ProductType.FUND_PORTFOLIO]
             for p in portfolios.entries:
                 # Match either by account_id or by nested account IBAN when available
                 if (p.account_id and p.account_id == acc_match.id) or (
@@ -486,7 +504,7 @@ class ForecastImpl(Forecast):
         funds_for_portfolio = []
         total_mv = Dezimal(0)
         if portfolio is not None and ProductType.FUND in gp.products:
-            fund_inv: FundInvestments = gp.products[ProductType.FUND]  # type: ignore[index]
+            fund_inv: FundInvestments = gp.products[ProductType.FUND]
             for f in fund_inv.entries:
                 if getattr(f, "portfolio", None) is not None and getattr(
                     f.portfolio, "id", None
@@ -513,7 +531,7 @@ class ForecastImpl(Forecast):
     def _preferred_account(self, gp: GlobalPosition, currency: str):
         if ProductType.ACCOUNT not in gp.products:
             return None
-        accounts: Accounts = gp.products[ProductType.ACCOUNT]  # type: ignore[index]
+        accounts: Accounts = gp.products[ProductType.ACCOUNT]
         priority = [
             AccountType.VIRTUAL_WALLET,
             AccountType.CHECKING,
@@ -572,7 +590,7 @@ class ForecastImpl(Forecast):
     ) -> None:
         if ProductType.DEPOSIT not in gp.products:
             return
-        deposits: Deposits = gp.products[ProductType.DEPOSIT]  # type: ignore[index]
+        deposits: Deposits = gp.products[ProductType.DEPOSIT]
         remaining: list = []
         for d in deposits.entries:
             if d.maturity and d.maturity <= target:
@@ -592,7 +610,7 @@ class ForecastImpl(Forecast):
     ) -> None:
         if ProductType.FACTORING not in gp.products:
             return
-        factoring: FactoringInvestments = gp.products[ProductType.FACTORING]  # type: ignore[index]
+        factoring: FactoringInvestments = gp.products[ProductType.FACTORING]
         remaining: list = []
         for f in factoring.entries:
             if f.maturity and f.maturity <= target:
@@ -614,11 +632,10 @@ class ForecastImpl(Forecast):
     ) -> None:
         if ProductType.REAL_ESTATE_CF not in gp.products:
             return
-        recf: RealEstateCFInvestments = gp.products[ProductType.REAL_ESTATE_CF]  # type: ignore[index]
+        recf: RealEstateCFInvestments = gp.products[ProductType.REAL_ESTATE_CF]
         remaining: list = []
         for r in recf.entries:
-            mat = r.extended_maturity if r.extended_maturity is not None else r.maturity
-            if mat and mat <= target:
+            if r.maturity <= target:
                 rate = (
                     r.profitability if r.profitability is not None else r.interest_rate
                 )
@@ -756,7 +773,7 @@ class ForecastImpl(Forecast):
         equity_now = mkt_now - outstanding_now_total
         equity_target = mkt_target - outstanding_target_total
         return RealEstateEquityForecast(
-            id=re.id,  # type: ignore[arg-type]
+            id=re.id,
             equity_now=equity_now,
             equity_at_target=equity_target,
             principal_outstanding_now=outstanding_now_total,
@@ -840,11 +857,11 @@ class ForecastImpl(Forecast):
     ) -> None:
         factor = Dezimal(1) + monthly_rate
         if ProductType.STOCK_ETF in gp.products:
-            stock_inv: StockInvestments = gp.products[ProductType.STOCK_ETF]  # type: ignore[index]
+            stock_inv: StockInvestments = gp.products[ProductType.STOCK_ETF]
             for s in stock_inv.entries:
                 s.market_value = s.market_value * factor
         if ProductType.FUND in gp.products:
-            fund_inv: FundInvestments = gp.products[ProductType.FUND]  # type: ignore[index]
+            fund_inv: FundInvestments = gp.products[ProductType.FUND]
             for f in fund_inv.entries:
                 f.market_value = f.market_value * factor
 
@@ -914,8 +931,8 @@ class ForecastImpl(Forecast):
             or ProductType.FUND not in gp.products
         ):
             return
-        portfolios: FundPortfolios = gp.products[ProductType.FUND_PORTFOLIO]  # type: ignore[index]
-        fund_inv: FundInvestments = gp.products[ProductType.FUND]  # type: ignore[index]
+        portfolios: FundPortfolios = gp.products[ProductType.FUND_PORTFOLIO]
+        fund_inv: FundInvestments = gp.products[ProductType.FUND]
         sums: dict[Optional[str], tuple[Dezimal, Dezimal]] = {}
         for f in fund_inv.entries:
             pid = getattr(getattr(f, "portfolio", None), "id", None)
@@ -983,9 +1000,18 @@ class ForecastImpl(Forecast):
             CashDelta(currency=k, amount=v) for k, v in cash_delta.items()
         ]
 
+        crypto_appreciation = _calculate_value_increase(
+            date.today(), target, request.avg_annual_crypto_increase
+        )
+        commodity_appreciation = _calculate_value_increase(
+            date.today(), target, request.avg_annual_commodity_increase
+        )
+
         return ForecastResult(
             target_date=target,
             positions=EntitiesPosition(positions=forecast_positions),
             cash_delta=cash_delta_list,
             real_estate=re_equity,
+            crypto_appreciation=crypto_appreciation,
+            commodity_appreciation=commodity_appreciation,
         )

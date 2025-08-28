@@ -60,6 +60,7 @@ import {
   filterRealEstateByOptions,
   getTotalCash,
 } from "@/utils/financialDataUtils"
+import { STABLECOIN_TOKENS } from "@/types/position"
 import {
   PieChart,
   Pie,
@@ -90,7 +91,11 @@ export default function DashboardPage() {
   const [forecastOpen, setForecastOpen] = useState(false)
   const [forecastTargetDate, setForecastTargetDate] = useState<string>("")
   const [forecastAnnualIncrease, setForecastAnnualIncrease] =
-    useState<string>("") // percentage as string input
+    useState<string>("") // market percentage as string input
+  const [forecastAnnualCryptoIncrease, setForecastAnnualCryptoIncrease] =
+    useState<string>("")
+  const [forecastAnnualCommodityIncrease, setForecastAnnualCommodityIncrease] =
+    useState<string>("")
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(
     null,
@@ -366,6 +371,18 @@ export default function DashboardPage() {
         }, 0)
       : 0
     let items = [...assetDistributionBase]
+    // Apply crypto & commodity appreciation percentage on top of base snapshot
+    const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+    const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+    items = items.map(i => {
+      if (i.type === "CRYPTO") {
+        return { ...i, value: i.value * cryptoFactor }
+      }
+      if (i.type === "COMMODITY") {
+        return { ...i, value: i.value * commodityFactor }
+      }
+      return i
+    })
     if (totalEquity > 0) {
       // Replace existing REAL_ESTATE if present
       const idx = items.findIndex(i => i.type === "REAL_ESTATE")
@@ -402,10 +419,66 @@ export default function DashboardPage() {
     appliedPendingFlows,
     appliedRealEstateList,
   )
-  const entityDistribution = useMemo(
-    () => entityDistributionBase,
-    [entityDistributionBase],
-  )
+  const entityDistribution = useMemo(() => {
+    if (!forecastMode || !forecastResult) return entityDistributionBase
+    const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+    const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+    if (cryptoFactor === 1 && commodityFactor === 1)
+      return entityDistributionBase
+    // Build per-entity base crypto & commodity values from raw positions
+    const perEntityDeltas: Record<string, number> = {}
+    const pos = effectivePositionsData?.positions || {}
+    Object.entries(pos).forEach(([entityId, gp]: any) => {
+      let cryptoBase = 0
+      let commodityBase = 0
+      const cryptoProduct = gp.products?.CRYPTO
+      if (cryptoProduct?.entries?.length) {
+        cryptoProduct.entries.forEach((w: any) => {
+          const mv = typeof w.market_value === "number" ? w.market_value : 0
+          const cur = w.currency || targetCurrency
+          cryptoBase += convertCurrency(mv, cur, targetCurrency, exchangeRates)
+        })
+      }
+      const commodityProduct = gp.products?.COMMODITY
+      if (commodityProduct?.entries?.length) {
+        commodityProduct.entries.forEach((c: any) => {
+          const mv = typeof c.market_value === "number" ? c.market_value : 0
+          const cur = c.currency || targetCurrency
+          commodityBase += convertCurrency(
+            mv,
+            cur,
+            targetCurrency,
+            exchangeRates,
+          )
+        })
+      }
+      const delta =
+        cryptoBase * (cryptoFactor - 1) + commodityBase * (commodityFactor - 1)
+      if (delta !== 0) perEntityDeltas[entityId] = delta
+    })
+    // Apply deltas to distribution values
+    const adjusted = entityDistributionBase.map(item => ({
+      ...item,
+      value:
+        item.id in perEntityDeltas
+          ? item.value + perEntityDeltas[item.id]
+          : item.value,
+    }))
+    const total = adjusted.reduce((s, i) => s + i.value, 0)
+    return adjusted
+      .map(i => ({
+        ...i,
+        percentage: total > 0 ? (i.value / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [
+    entityDistributionBase,
+    forecastMode,
+    forecastResult,
+    effectivePositionsData,
+    targetCurrency,
+    exchangeRates,
+  ])
   const { entities } = useAppContext()
   const adjustedEntityDistribution = useMemo(() => {
     const contextIds = new Set(entities.map(e => e.id))
@@ -464,8 +537,35 @@ export default function DashboardPage() {
       })),
       { ...dashboardOptions, includePending: false },
     )
+    // Appreciation deltas (crypto & commodities) not embedded in forecast positions snapshot
+    let projectedTotalAssets = forecastKpis.projectedTotalAssets
+    if (forecastResult) {
+      const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+      const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+      if (cryptoFactor !== 1) {
+        const baseCrypto = getCryptoPositions(
+          positionsData,
+          locale,
+          settings.general.defaultCurrency,
+          exchangeRates,
+        ).reduce((s, c) => s + c.value, 0)
+        const appreciatedCrypto = baseCrypto * cryptoFactor
+        projectedTotalAssets += appreciatedCrypto - baseCrypto
+      }
+      if (commodityFactor !== 1) {
+        const baseCommodity = getCommodityPositions(
+          positionsData,
+          locale,
+          settings.general.defaultCurrency,
+          exchangeRates,
+          settings,
+        ).reduce((s, c) => s + c.value, 0)
+        const appreciatedCommodity = baseCommodity * commodityFactor
+        projectedTotalAssets += appreciatedCommodity - baseCommodity
+      }
+    }
     return {
-      adjustedTotalAssets: forecastKpis.projectedTotalAssets,
+      adjustedTotalAssets: projectedTotalAssets,
       adjustedInvestedAmount: forecastKpis.projectedInvestedAmount,
     }
   }, [
@@ -478,6 +578,8 @@ export default function DashboardPage() {
     realEstateList,
     dashboardOptions,
     forecastResult,
+    locale,
+    settings,
   ])
 
   const forecastCashDeltaTotal = useMemo(() => {
@@ -549,15 +651,126 @@ export default function DashboardPage() {
       id: `${p.symbol}-stock-${index}-${p.entity}`,
     }))
 
-  const cryptoItems = cryptoPositions.map((p, index) => ({
-    ...p,
-    id: `crypto-${p.symbol}-${p.entities.join("-")}-${p.address}-${index}`,
-  }))
+  // Apply appreciation in forecast mode for crypto & commodities (excluding stablecoins)
+  const cryptoItems = useMemo(() => {
+    const factor =
+      forecastMode && forecastResult
+        ? 1 + (forecastResult.crypto_appreciation || 0)
+        : 1
+    // Base total for later percentage recompute
+    const baseOthersTotal = [...fundItems, ...stockItems].reduce(
+      (s, i) => s + i.value,
+      0,
+    )
+    const mapped = cryptoPositions.map((p, index) => {
+      const baseValue = p.value
+      const value =
+        factor !== 1 && !STABLECOIN_TOKENS.has(p.symbol)
+          ? baseValue * factor
+          : baseValue
+      const tokens = p.tokens?.map(tk => {
+        const tVal =
+          factor !== 1 && !STABLECOIN_TOKENS.has(tk.symbol)
+            ? tk.value * factor
+            : tk.value
+        return {
+          ...tk,
+          value: tVal,
+          formattedValue: formatCurrency(
+            tVal,
+            locale,
+            settings.general.defaultCurrency,
+          ),
+        }
+      })
+      let change = p.change
+      if (
+        factor !== 1 &&
+        !STABLECOIN_TOKENS.has(p.symbol) &&
+        p.initialInvestment > 0
+      ) {
+        change = ((value - p.initialInvestment) / p.initialInvestment) * 100
+      }
+      return {
+        ...p,
+        value,
+        change,
+        formattedValue: formatCurrency(
+          value,
+          locale,
+          settings.general.defaultCurrency,
+        ),
+        tokens,
+        id: `crypto-${p.symbol}-${p.entities.join("-")}-${p.address}-${index}`,
+      }
+    })
+    // Recompute percentageOfTotalPortfolio after scaling
+    const total =
+      baseOthersTotal +
+      mapped.reduce((s, i) => s + i.value, 0) +
+      commodityPositions.reduce((s, i) => s + i.value, 0)
+    return mapped.map(m => ({
+      ...m,
+      percentageOfTotalPortfolio: total > 0 ? (m.value / total) * 100 : 0,
+    }))
+  }, [
+    cryptoPositions,
+    forecastMode,
+    forecastResult,
+    locale,
+    settings.general.defaultCurrency,
+    fundItems,
+    stockItems,
+    commodityPositions,
+  ])
 
-  const commodityItems = commodityPositions.map((p, index) => ({
-    ...p,
-    id: `commodity-${p.symbol}-${p.entities.join("-")}-${index}`,
-  }))
+  const commodityItems = useMemo(() => {
+    const factor =
+      forecastMode && forecastResult
+        ? 1 + (forecastResult.commodity_appreciation || 0)
+        : 1
+    const baseOthersTotal = [...fundItems, ...stockItems].reduce(
+      (s, i) => s + i.value,
+      0,
+    )
+    const baseCryptoTotal = cryptoItems.reduce((s, i) => s + i.value, 0)
+    const mapped = commodityPositions.map((p, index) => {
+      const baseValue = p.value
+      const value = factor !== 1 ? baseValue * factor : baseValue
+      let change = p.change
+      if (factor !== 1 && p.initialInvestment > 0) {
+        change = ((value - p.initialInvestment) / p.initialInvestment) * 100
+      }
+      return {
+        ...p,
+        value,
+        change,
+        formattedValue: formatCurrency(
+          value,
+          locale,
+          settings.general.defaultCurrency,
+        ),
+        id: `commodity-${p.symbol}-${p.entities.join("-")}-${index}`,
+      }
+    })
+    const total =
+      baseOthersTotal +
+      baseCryptoTotal +
+      mapped.reduce((s, i) => s + i.value, 0)
+    return mapped.map(m => ({
+      ...m,
+      percentageOfTotalPortfolio: total > 0 ? (m.value / total) * 100 : 0,
+    }))
+  }, [
+    commodityPositions,
+    forecastMode,
+    forecastResult,
+    locale,
+    settings.general.defaultCurrency,
+    fundItems,
+    stockItems,
+    cryptoItems,
+  ])
 
   // Check if there are any detailed assets to display
   const hasDetailedAssets = [
@@ -1215,6 +1428,8 @@ export default function DashboardPage() {
                       setForecastResult(null)
                       setForecastTargetDate("")
                       setForecastAnnualIncrease("")
+                      setForecastAnnualCryptoIncrease("")
+                      setForecastAnnualCommodityIncrease("")
                     }}
                     className="ml-2 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
                     aria-label={t.forecast.close}
@@ -1250,9 +1465,40 @@ export default function DashboardPage() {
                     className="w-full h-9 px-2 rounded-md border bg-background text-sm"
                     placeholder="0.0"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {t.forecast.avgAnnualIncreaseHint}
-                  </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium flex items-center justify-between">
+                    <span>{t.forecast.avgAnnualCryptoIncrease}</span>
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={forecastAnnualCryptoIncrease}
+                    onChange={e =>
+                      setForecastAnnualCryptoIncrease(e.target.value)
+                    }
+                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium flex items-center justify-between">
+                    <span>{t.forecast.avgAnnualCommodityIncrease}</span>
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={forecastAnnualCommodityIncrease}
+                    onChange={e =>
+                      setForecastAnnualCommodityIncrease(e.target.value)
+                    }
+                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                    placeholder="0.0"
+                  />
                 </div>
                 <div className="flex justify-end gap-2">
                   {forecastMode && (
@@ -1263,6 +1509,8 @@ export default function DashboardPage() {
                         setForecastResult(null)
                         setForecastTargetDate("")
                         setForecastAnnualIncrease("")
+                        setForecastAnnualCryptoIncrease("")
+                        setForecastAnnualCommodityIncrease("")
                       }}
                       className="text-xs"
                     >
@@ -1289,6 +1537,15 @@ export default function DashboardPage() {
                           avg_annual_market_increase: forecastAnnualIncrease
                             ? parseFloat(forecastAnnualIncrease) / 100
                             : null,
+                          avg_annual_crypto_increase:
+                            forecastAnnualCryptoIncrease
+                              ? parseFloat(forecastAnnualCryptoIncrease) / 100
+                              : null,
+                          avg_annual_commodity_increase:
+                            forecastAnnualCommodityIncrease
+                              ? parseFloat(forecastAnnualCommodityIncrease) /
+                                100
+                              : null,
                         })
                         setForecastResult(result)
                         setForecastOpen(false)

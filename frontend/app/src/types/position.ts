@@ -254,6 +254,9 @@ export const COMMODITY_SYMBOLS = {
   [CommodityType.PALLADIUM]: "XPD",
 }
 
+// Stablecoin symbols (tokens or main crypto symbols) excluded from forecast appreciation
+export const STABLECOIN_TOKENS: Set<string> = new Set(["USDC", "USDT"])
+
 export const WEIGHT_CONVERSIONS: Record<
   WeightUnit,
   Record<WeightUnit, number>
