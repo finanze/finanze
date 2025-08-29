@@ -27,7 +27,7 @@ import { CommodityRegister } from "../types"
 import { saveCommodity } from "../services/api"
 import { convertWeight } from "../utils/financialDataUtils"
 import { CommodityIcon } from "../utils/commodityIcons"
-import { cn } from "@/lib/utils"
+import { cn, getCurrencySymbol } from "@/lib/utils"
 
 interface ManageCommoditiesViewProps {
   onBack: () => void
@@ -64,19 +64,6 @@ export function ManageCommoditiesView({ onBack }: ManageCommoditiesViewProps) {
     average_buy_price: null,
     currency: settings?.general?.defaultCurrency || null,
   })
-
-  // Currency symbols mapping
-  const getCurrencySymbol = (currency: string | null) => {
-    if (!currency) return ""
-    switch (currency) {
-      case "EUR":
-        return "€"
-      case "USD":
-        return "$"
-      default:
-        return currency
-    }
-  }
 
   // Supported currencies
   const supportedCurrencies = ["EUR", "USD"]

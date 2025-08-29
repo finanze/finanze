@@ -181,13 +181,13 @@ export function EntityCard({
 
     if (entity.type === EntityType.CRYPTO_WALLET) {
       return effectiveStatus === EntityStatus.CONNECTED
-        ? "Fetch"
+        ? t.entities.fetchData
         : t.entities.connect
     }
 
     switch (entity.status) {
       case EntityStatus.CONNECTED:
-        return "Fetch"
+        return t.entities.fetchData
       case EntityStatus.REQUIRES_LOGIN:
         return t.entities.login
       default:
@@ -228,7 +228,7 @@ export function EntityCard({
       >
         <CardHeader className={isDisconnected ? "pb-0" : "pb-2"}>
           <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center min-w-0">
+            <div className="flex items-center min-w-0 max-sm:w-full max-sm:justify-center">
               <div
                 className={`${isDisconnected ? "w-8 h-8 mr-2" : "w-10 h-10 mr-3"} flex-shrink-0 overflow-hidden rounded-md`}
               >
@@ -242,9 +242,9 @@ export function EntityCard({
                   }}
                 />
               </div>
-              <span className="truncate">{entity.name}</span>
+              <span className="truncate max-sm:text-center">{entity.name}</span>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
               <FeaturesBadge features={entity.features} />
               {badgeInfo &&
                 (badgeInfo.isMissingIntegrations ? (
@@ -372,7 +372,7 @@ export function EntityCard({
 
           {/* Button row for connected entities - buttons surrounding the fetch button */}
           {effectiveStatus === EntityStatus.CONNECTED && !entityFetching && (
-            <div className="flex flex-wrap gap-2 mt-4">
+            <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
               {/* Financial institution buttons */}
               {isFinancialInstitution && (
                 <>
@@ -381,7 +381,7 @@ export function EntityCard({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                        className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
                         onClick={onRelogin}
                         disabled={entityFetching}
                       >
@@ -392,7 +392,7 @@ export function EntityCard({
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                        className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
                         disabled={entityFetching}
                         onClick={onSelect}
                       >
@@ -416,7 +416,7 @@ export function EntityCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                    className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
                     onClick={handleDisconnect}
                     disabled={entityFetching}
                   >
@@ -432,7 +432,7 @@ export function EntityCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
                     onClick={onManage}
                     disabled={entityFetching || !onManage}
                   >
@@ -443,7 +443,7 @@ export function EntityCard({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                    className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
                     disabled={entityFetching}
                     onClick={onSelect}
                   >

@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import {
+  InvestmentDistributionChart,
+  InvestmentDistributionLegend,
+} from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import {
   convertCurrency,
@@ -51,14 +54,36 @@ export default function FactoringInvestmentPage() {
             exchangeRates,
           )
 
-          const convertedExpectedAmount = factor.expected_amount
-            ? convertCurrency(
-                factor.expected_amount,
-                factor.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              )
+          // Profitability provided as decimal (e.g. 0.1 = 10%)
+          const profitabilityDecimal = !isNaN(factor.profitability)
+            ? factor.profitability
             : null
+          const rawProfit =
+            profitabilityDecimal !== null
+              ? factor.amount * profitabilityDecimal
+              : null
+          const expectedAtMaturity =
+            rawProfit !== null ? factor.amount + rawProfit : null
+          const convertedExpectedAmount =
+            expectedAtMaturity !== null
+              ? convertCurrency(
+                  expectedAtMaturity,
+                  factor.currency,
+                  settings.general.defaultCurrency,
+                  exchangeRates,
+                )
+              : null
+          const convertedProfit =
+            rawProfit !== null
+              ? convertCurrency(
+                  rawProfit,
+                  factor.currency,
+                  settings.general.defaultCurrency,
+                  exchangeRates,
+                )
+              : null
+          const profitabilityPct =
+            profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
 
           factoring.push({
             ...factor,
@@ -83,6 +108,15 @@ export default function FactoringInvestmentPage() {
                   settings.general.defaultCurrency,
                 )
               : null,
+            convertedProfit,
+            formattedProfit: convertedProfit
+              ? formatCurrency(
+                  convertedProfit,
+                  locale,
+                  settings.general.defaultCurrency,
+                )
+              : null,
+            profitabilityPct,
           })
         })
       }
@@ -154,11 +188,23 @@ export default function FactoringInvestmentPage() {
     return totalValue > 0 ? (totalWeightedInterest / totalValue) * 100 : 0
   }, [filteredFactoringPositions, totalValue])
 
-  const totalExpectedReturn = useMemo(() => {
-    return filteredFactoringPositions.reduce((sum, position) => {
-      return sum + (position.convertedExpectedAmount || 0)
-    }, 0)
-  }, [filteredFactoringPositions])
+  const { weightedAverageProfitability, totalProfit } = useMemo(() => {
+    let weightedProfitabilityAcc = 0
+    let profitAcc = 0
+    filteredFactoringPositions.forEach(position => {
+      profitAcc += position.convertedProfit || 0
+      if (
+        position.profitabilityPct !== null &&
+        !isNaN(position.profitabilityPct) &&
+        position.convertedAmount
+      ) {
+        weightedProfitabilityAcc +=
+          position.profitabilityPct * position.convertedAmount
+      }
+    })
+    const wap = totalValue > 0 ? weightedProfitabilityAcc / totalValue : 0
+    return { totalProfit: profitAcc, weightedAverageProfitability: wap }
+  }, [filteredFactoringPositions, totalValue])
 
   // Calculate percentage within factoring type
   const totalFactoringValue = useMemo(() => {
@@ -209,27 +255,17 @@ export default function FactoringInvestmentPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Market Value Card */}
+          {/* KPI Cards Row (aligned with Real Estate CF layout) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Invested Card */}
             <Card className="flex-shrink-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.factoring}
+                  {t.dashboard.investedAmount}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                {totalExpectedReturn > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.investments.expected}{" "}
-                    {formatCurrency(
-                      totalExpectedReturn,
-                      locale,
-                      settings.general.defaultCurrency,
-                    )}
-                  </p>
-                )}
               </CardContent>
             </Card>
 
@@ -268,15 +304,52 @@ export default function FactoringInvestmentPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {/* Expected Profit Card */}
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  {t.investments.expectedProfit}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(
+                    totalProfit,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </p>
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
+                  {weightedAverageProfitability.toFixed(2)}%
+                  <span className="ml-1 text-gray-500 dark:text-gray-400">
+                    {t.investments.profitability}
+                  </span>
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Chart */}
-          <InvestmentDistributionChart
-            data={chartData}
-            title={t.common.distributionByAsset}
-            locale={locale}
-            currency={settings.general.defaultCurrency}
-          />
+          {/* Distribution Chart & Legend */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+                hideLegend
+                containerClassName="h-full"
+              />
+            </div>
+            <div className="xl:col-span-1 flex flex-col">
+              <InvestmentDistributionLegend
+                data={chartData}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+              />
+            </div>
+          </div>
 
           {/* Positions List */}
           <div className="space-y-4 pb-6">
@@ -308,7 +381,7 @@ export default function FactoringInvestmentPage() {
                               {(factor.interest_rate * 100).toFixed(2)}%
                             </span>
                             {" / "}
-                            <span className="text-blue-600 dark:text-blue-400 font-medium">
+                            <span className="text-blue-600 dark:text-neutral-500 font-medium">
                               {(factor.gross_interest_rate * 100).toFixed(2)}%
                             </span>
                             {" " + t.investments.gross}
@@ -338,14 +411,34 @@ export default function FactoringInvestmentPage() {
                         </span>
                       </div>
 
-                      {factor.formattedExpectedAmount && (
-                        <div className="text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {t.investments.expected}:{" "}
-                          </span>
-                          <span className="font-medium text-green-600 dark:text-green-400">
-                            {factor.formattedExpectedAmount}
-                          </span>
+                      {(factor.formattedExpectedAmount ||
+                        factor.formattedProfit) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
+                          {factor.formattedExpectedAmount && (
+                            <div>
+                              <span className="text-gray-600 dark:text-gray-400">
+                                {t.investments.expectedAtMaturity}:{" "}
+                              </span>
+                              <span className="font-medium text-green-600 dark:text-green-400">
+                                {factor.formattedExpectedAmount}
+                              </span>
+                            </div>
+                          )}
+                          {factor.formattedProfit && (
+                            <div>
+                              <span className="text-gray-600 dark:text-gray-400">
+                                {t.investments.profit}:{" "}
+                              </span>
+                              <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                {factor.formattedProfit}
+                                {factor.profitabilityPct !== null && (
+                                  <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                    ({factor.profitabilityPct.toFixed(2)}%)
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -359,7 +452,7 @@ export default function FactoringInvestmentPage() {
                           {factor.formattedConvertedAmount}
                         </div>
                       )}
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">
                         <span className="font-medium text-blue-600 dark:text-blue-400">
                           {percentageOfFactoring.toFixed(1)}%
                         </span>
@@ -368,6 +461,7 @@ export default function FactoringInvestmentPage() {
                             "{type}",
                             t.common.factoring.toLowerCase(),
                           )}
+                        {/* Profit already shown above; avoid duplication */}
                       </div>
                     </div>
                   </div>

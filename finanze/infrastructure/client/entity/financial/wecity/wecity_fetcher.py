@@ -114,6 +114,7 @@ class WecityFetcher(FinancialEntityFetcher):
         amount = Dezimal(inv["amount"]["initial"])
         pending = Dezimal(inv["amount"]["current"])
         investments_details = self._client.get_investment_details(inv_id)
+        opportunity = investments_details["opportunity"]
 
         raw_business_type = opportunity["investment_type_id"]
         business_type = raw_business_type
@@ -165,11 +166,21 @@ class WecityFetcher(FinancialEntityFetcher):
 
         periods = inv["periods"]
         ordinary_period = periods["ordinary"]
-        start_date = last_invest_date
+        start_date = last_invest_date.date()
+
+        if not start_date:
+            original_start_date = opportunity.get("date_start")
+            if original_start_date:
+                start_date = (
+                    datetime.fromtimestamp(original_start_date)
+                    .replace(tzinfo=tzlocal())
+                    .date()
+                )
+
         if ordinary_period:
-            start_date = ordinary_period.get("fecha_inicio", None)
-            if start_date:
-                start_date = datetime.strptime(start_date, DATE_FORMAT).date()
+            start_date_field = ordinary_period.get("fecha_inicio")
+            if start_date_field:
+                start_date = datetime.strptime(start_date_field, DATE_FORMAT).date()
 
         extended_period = periods.get("prorroga", None)
         if extended_period:
@@ -189,6 +200,7 @@ class WecityFetcher(FinancialEntityFetcher):
             pending_amount=round(pending, 2),
             currency="EUR",
             interest_rate=round(Dezimal(opportunity["annual_profitability"]) / 100, 4),
+            profitability=round(Dezimal(opportunity["total_profitability"]) / 100, 4),
             last_invest_date=last_invest_date,
             maturity=maturity,
             extended_maturity=extended_maturity,

@@ -51,6 +51,7 @@ class AccountTx(BaseTx):
     retentions: Dezimal
     interest_rate: Optional[Dezimal] = None
     avg_balance: Optional[Dezimal] = None
+    net_amount: Optional[Dezimal] = None
 
 
 @dataclass

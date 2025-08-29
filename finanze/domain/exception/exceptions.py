@@ -63,6 +63,14 @@ class IntegrationSetupError(Exception):
     pass
 
 
+class RealEstateNotFound(Exception):
+    pass
+
+
+class FlowNotFound(Exception):
+    pass
+
+
 class ExportException(Exception):
     def __init__(self, details: str):
         self.details = details

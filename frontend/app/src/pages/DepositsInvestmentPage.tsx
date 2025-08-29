@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import {
+  InvestmentDistributionChart,
+  InvestmentDistributionLegend,
+} from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import {
   convertCurrency,
@@ -211,27 +214,17 @@ export default function DepositsInvestmentPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Market Value Card */}
+          {/* KPI Cards Row (aligned with other products) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Invested Card */}
             <Card className="flex-shrink-0">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.deposits}
+                  {t.dashboard.investedAmount}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                {totalExpectedReturn > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.investments.expected}{" "}
-                    {formatCurrency(
-                      totalExpectedReturn,
-                      locale,
-                      settings.general.defaultCurrency,
-                    )}
-                  </p>
-                )}
               </CardContent>
             </Card>
 
@@ -270,15 +263,46 @@ export default function DepositsInvestmentPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {/* Expected Profit (Interests) Card */}
+            <Card className="flex-shrink-0">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                  {t.investments.expectedProfit}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {formatCurrency(
+                    totalExpectedReturn,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )}
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Chart */}
-          <InvestmentDistributionChart
-            data={chartData}
-            title={t.common.distributionByAsset}
-            locale={locale}
-            currency={settings.general.defaultCurrency}
-          />
+          {/* Distribution Chart & Legend */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+                hideLegend
+                containerClassName="h-full"
+              />
+            </div>
+            <div className="xl:col-span-1 flex flex-col">
+              <InvestmentDistributionLegend
+                data={chartData}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+              />
+            </div>
+          </div>
 
           {/* Positions List */}
           <div className="space-y-4 pb-6">
@@ -332,7 +356,7 @@ export default function DepositsInvestmentPage() {
                       {deposit.formattedExpectedAmount && (
                         <div className="text-sm">
                           <span className="text-gray-600 dark:text-gray-400">
-                            {t.investments.expected}:{" "}
+                            {t.investments.expectedProfit}:{" "}
                           </span>
                           <span className="font-medium text-green-600 dark:text-green-400">
                             {deposit.formattedExpectedAmount}

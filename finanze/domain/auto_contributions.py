@@ -29,6 +29,7 @@ class PeriodicContribution:
     id: UUID
     alias: Optional[str]
     target: str
+    target_name: str
     target_type: ContributionTargetType
     amount: Dezimal
     currency: str
@@ -37,6 +38,7 @@ class PeriodicContribution:
     frequency: ContributionFrequency
     active: bool
     is_real: bool
+    next_date: Optional[date] = None
 
 
 @dataclass

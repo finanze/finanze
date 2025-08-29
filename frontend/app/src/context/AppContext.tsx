@@ -36,6 +36,7 @@ import {
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
+import { useNavigate } from "react-router-dom"
 
 const DEFAULT_OPTIONS: FetchOptions = {
   deep: false,
@@ -232,6 +233,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const navigate = useNavigate()
 
   const scrapeManualLogin = useRef<{
     active: boolean
@@ -650,6 +653,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setView("entities")
       } else if (response.code === FetchResultCode.INVALID_CODE) {
         setPinError(true)
+        handleScrapeError(response.code)
+      } else if (response.code === FetchResultCode.NOT_LOGGED) {
+        navigate("/entities")
         handleScrapeError(response.code)
       } else {
         handleScrapeError(response.code || "UNEXPECTED_ERROR")

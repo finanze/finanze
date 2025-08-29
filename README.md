@@ -12,6 +12,8 @@ information.
 <p align="middle">
   <img src="resources/dashboard.png" width="49%" />
   <img src="resources/entitiespage.png" width="49%" /> 
+  <img src="resources/earningsexpenses.png" width="49%" /> 
+  <img src="resources/realestate.png" width="49%" /> 
 </p>
 
 ## Table of Contents
@@ -23,10 +25,17 @@ information.
 
 ## Features
 
-- Scrape financial data from multiple entities
-- Support for various financial products (stocks, funds, real estate crowdfunding, etc.)
-- Dynamic and customizable data export to Google Sheets
-- Virtual scraping for simulated data
+- 🔄 Fetch financial data from multiple entities
+- 💼 Support for various financial products:
+    - 📈 Stocks, funds, portfolios, accounts, real estate crowdfunding, cryptocurrencies, etc. from real sources or
+      imported
+    - 🏠 Real estate investments with a variety of metrics and KPIs
+    - 🪙 Commodities with market value tracking
+- 💵 Earnings and expenses tracking with periodic asset contributions to forecast future positions
+- 💱 Multicurrency support with automatic exchange rate fetching
+- 🔐 Local encrypted database for secure data storage
+- 📤 Dynamic and customizable data export to Google Sheets
+- 📥 Manual data importing
 
 ### Supported Assets by Financial Entity
 
@@ -80,7 +89,8 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** if not using the desktop app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses Akamai for anti
+- **Unicaja** if not using the desktop app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
+  Akamai for anti
   bot protection.
 - **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
 - **Indexa Capital** is not tested, as I don't have an account.
@@ -133,8 +143,9 @@ cd /Applications && xattr -d com.apple.quarantine Finanze.app
 ```
 
 2. Open the application as usual.
-3. *(Disclaimer)* If it still doesn't open, or you get some kind of "Operation not permitted" error in the previous command, then do the following:
-   - Go to `System Settings → Privacy & Security → Full Disk Access` and add or enable `Terminal` in the list.
+3. *(Disclaimer)* If it still doesn't open, or you get some kind of "Operation not permitted" error in the previous
+   command, then do the following:
+    - Go to `System Settings → Privacy & Security → Full Disk Access` and add or enable `Terminal` in the list.
 
 ## Development
 

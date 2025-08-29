@@ -8,7 +8,12 @@ import {
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
-import { ExchangeRates } from "@/types"
+import {
+  ExchangeRates,
+  PendingFlow,
+  RealEstate,
+  RealEstateFlowSubtype,
+} from "@/types"
 
 export const convertCurrency = (
   amount: number,
@@ -157,9 +162,11 @@ export interface StockFundPosition {
   price: number
   value: number
   originalValue: number
+  initialInvestment: number
   currency: string
   formattedValue: string
   formattedOriginalValue: string
+  formattedInitialInvestment: string
   type: string
   change: number
   entity: string
@@ -178,8 +185,10 @@ export interface CryptoPosition {
   amount: number
   price: number
   value: number
+  initialInvestment: number
   currency: string
   formattedValue: string
+  formattedInitialInvestment?: string
   type: string
   change: number
   entities: string[]
@@ -204,8 +213,10 @@ export interface CommodityPosition {
   unit: string
   price: number
   value: number
+  initialInvestment: number
   currency: string
   formattedValue: string
+  formattedInitialInvestment?: string
   change: number
   entities: string[]
   showEntityBadge: boolean
@@ -230,6 +241,8 @@ export const getAssetDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows?: any[],
+  realEstateList?: RealEstate[],
 ): AssetDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -551,6 +564,59 @@ export const getAssetDistribution = (
     }
   })
 
+  // Include Real Estate owned equity as its own asset category (market value - outstanding debt)
+  if (realEstateList && realEstateList.length > 0) {
+    const realEstateOwnedTotal = realEstateList.reduce((sum, re) => {
+      const market = re.valuation_info?.estimated_market_value || 0
+      const totalOutstanding = (re.flows || [])
+        .filter(f => f.flow_subtype === RealEstateFlowSubtype.LOAN)
+        .reduce((s, f) => {
+          const principal = (f.payload as any)?.principal_outstanding || 0
+          return s + principal
+        }, 0)
+      const owned = Math.max(market - totalOutstanding, 0)
+      const converted = convertCurrency(
+        owned,
+        re.currency,
+        targetCurrency,
+        exchangeRates,
+      )
+      return sum + converted
+    }, 0)
+
+    if (realEstateOwnedTotal > 0) {
+      if (!assetTypes["REAL_ESTATE"]) {
+        assetTypes["REAL_ESTATE"] = {
+          type: "REAL_ESTATE",
+          value: 0,
+          percentage: 0,
+          change: 0,
+        }
+      }
+      assetTypes["REAL_ESTATE"].value += realEstateOwnedTotal
+      totalValue += realEstateOwnedTotal
+    }
+  }
+
+  // Add pending flows if provided (both earnings and expenses)
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+
+    // Only show pending flows as a category if they're positive (net earnings)
+    if (pendingFlowsTotal > 0) {
+      assetTypes["PENDING_FLOWS"] = {
+        type: "PENDING_FLOWS",
+        value: pendingFlowsTotal, // Use actual positive value
+        percentage: 0,
+        change: 0,
+      }
+      totalValue += pendingFlowsTotal
+    }
+  }
   Object.values(assetTypes).forEach(asset => {
     asset.percentage =
       totalValue > 0 ? Math.round((asset.value / totalValue) * 100) : 0
@@ -559,10 +625,21 @@ export const getAssetDistribution = (
   return Object.values(assetTypes).sort((a, b) => b.value - a.value)
 }
 
+export const filterRealEstateByOptions = (
+  realEstateList: RealEstate[] | undefined,
+  options: DashboardOptions,
+): RealEstate[] => {
+  if (!options.includeRealEstate) return []
+  if (options.includeResidences) return realEstateList || []
+  return (realEstateList || []).filter(re => !re.basic_info?.is_residence)
+}
+
 export const getEntityDistribution = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows?: any[],
+  realEstateList?: RealEstate[],
 ): EntityDistributionItem[] => {
   if (!positionsData || !positionsData.positions) return []
 
@@ -809,6 +886,62 @@ export const getEntityDistribution = (
     }
   })
 
+  // Add pending flows as a separate entity if provided
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+
+    // Show pending flows as a separate entity if there's a net positive amount
+    if (pendingFlowsTotal > 0) {
+      const entityId = "pending-flows"
+      const entityName = "PENDING_FLOWS" // Use consistent naming with asset distribution
+
+      entities[entityId] = {
+        name: entityName,
+        value: pendingFlowsTotal, // Use actual positive value
+        percentage: 0,
+        id: entityId,
+      }
+      totalValue += pendingFlowsTotal
+    }
+  }
+
+  // Add Real Estate as a separate fake entity, grouping owned equity across all properties
+  if (realEstateList && realEstateList.length > 0) {
+    const realEstateOwnedTotal = realEstateList.reduce((sum, re) => {
+      const market = re.valuation_info?.estimated_market_value || 0
+      const totalOutstanding = (re.flows || [])
+        .filter(f => f.flow_subtype === RealEstateFlowSubtype.LOAN)
+        .reduce((s, f) => {
+          const principal = (f.payload as any)?.principal_outstanding || 0
+          return s + principal
+        }, 0)
+      const owned = Math.max(market - totalOutstanding, 0)
+      const converted = convertCurrency(
+        owned,
+        re.currency,
+        targetCurrency,
+        exchangeRates,
+      )
+      return sum + converted
+    }, 0)
+
+    if (realEstateOwnedTotal > 0) {
+      const entityId = "real-estate"
+      const entityName = "REAL_ESTATE"
+      entities[entityId] = {
+        name: entityName,
+        value: realEstateOwnedTotal,
+        percentage: 0,
+        id: entityId,
+      }
+      totalValue += realEstateOwnedTotal
+    }
+  }
+
   if (totalValue > 0) {
     const entityList = Object.values(entities)
     let remainingPercentage = 100
@@ -842,6 +975,7 @@ export const getTotalAssets = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
 ): number => {
   if (!positionsData || !positionsData.positions) return 0
 
@@ -1069,6 +1203,16 @@ export const getTotalAssets = (
     }
   })
 
+  // Add pending flows if provided
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+    total += pendingFlowsTotal
+  }
+
   return total
 }
 
@@ -1076,6 +1220,7 @@ export const getTotalInvestedAmount = (
   positionsData: EntitiesPosition | null,
   targetCurrency: string,
   exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
 ): number => {
   if (!positionsData || !positionsData.positions) return 0
 
@@ -1335,6 +1480,16 @@ export const getTotalInvestedAmount = (
     }
   })
 
+  // Add pending flows if provided
+  if (pendingFlows && pendingFlows.length > 0) {
+    const pendingFlowsTotal = calculatePendingEarningsTotal(
+      pendingFlows,
+      targetCurrency,
+      exchangeRates,
+    )
+    totalInvested += pendingFlowsTotal
+  }
+
   return totalInvested
 }
 
@@ -1521,6 +1676,7 @@ export const getStockAndFundPositions = (
           price: stock.average_buy_price || 0,
           value: convertedValue, // Use converted value
           originalValue: originalValue, // Keep original for display
+          initialInvestment: initialInvestment,
           currency: stock.currency,
           formattedValue: formatCurrency(
             convertedValue,
@@ -1529,6 +1685,11 @@ export const getStockAndFundPositions = (
           ),
           formattedOriginalValue: formatCurrency(
             originalValue,
+            locale,
+            stock.currency,
+          ),
+          formattedInitialInvestment: formatCurrency(
+            initialInvestment,
             locale,
             stock.currency,
           ),
@@ -1585,6 +1746,7 @@ export const getStockAndFundPositions = (
           price: fund.average_buy_price || 0,
           value: convertedValue, // Use converted value
           originalValue: originalValue, // Keep original for display
+          initialInvestment: initialInvestment,
           currency: fund.currency,
           formattedValue: formatCurrency(
             convertedValue,
@@ -1593,6 +1755,11 @@ export const getStockAndFundPositions = (
           ),
           formattedOriginalValue: formatCurrency(
             originalValue,
+            locale,
+            fund.currency,
+          ),
+          formattedInitialInvestment: formatCurrency(
+            initialInvestment,
             locale,
             fund.currency,
           ),
@@ -1827,6 +1994,7 @@ export const getCryptoPositions = (
         amount: crypto.amount,
         price: crypto.amount > 0 ? value / crypto.amount : 0,
         value: value,
+        initialInvestment: crypto.initialInvestment,
         currency: defaultCurrency,
         formattedValue: formatCurrency(
           value,
@@ -1834,6 +2002,14 @@ export const getCryptoPositions = (
           defaultCurrency,
           defaultCurrency,
         ),
+        formattedInitialInvestment: crypto.initialInvestment
+          ? formatCurrency(
+              crypto.initialInvestment,
+              locale,
+              defaultCurrency,
+              defaultCurrency,
+            )
+          : undefined,
         type: crypto.type,
         change: change,
         entities: entitiesArray,
@@ -2012,8 +2188,12 @@ export const getCommodityPositions = (
         unit: displayUnit,
         price: pricePerDisplayUnit,
         value: value,
+        initialInvestment: initialInvestment,
         currency: commodity.currency,
         formattedValue: formatCurrency(value, locale, defaultCurrency),
+        formattedInitialInvestment: initialInvestment
+          ? formatCurrency(initialInvestment, locale, commodity.currency)
+          : undefined,
         change: change,
         entities: entities,
         showEntityBadge: entities.length > 1,
@@ -2508,4 +2688,241 @@ export const getAvailableInvestmentTypes = (
   })
 
   return Array.from(availableTypes)
+}
+
+export const calculatePendingEarningsTotal = (
+  pendingFlows: PendingFlow[],
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!pendingFlows || pendingFlows.length === 0) return 0
+
+  const now = new Date()
+
+  return pendingFlows
+    .filter(flow => flow.enabled)
+    .filter(flow => {
+      // Only include future or current flows
+      if (!flow.date) return true
+      const flowDate = new Date(flow.date)
+      return flowDate >= now
+    })
+    .reduce((total, flow) => {
+      const amount = flow.amount
+      const convertedAmount = convertCurrency(
+        amount,
+        flow.currency,
+        targetCurrency,
+        exchangeRates,
+      )
+
+      // Add earnings (positive), subtract expenses (negative)
+      return flow.flow_type === "EARNING"
+        ? total + convertedAmount
+        : total - convertedAmount
+    }, 0)
+}
+
+// Dashboard helpers: centralize computations used by DashboardPage
+export interface DashboardOptions {
+  includePending: boolean
+  includeCardExpenses: boolean
+  includeRealEstate: boolean
+  includeResidences: boolean
+}
+
+export const getTotalCardUsed = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+  let total = 0
+  Object.values(positionsData.positions).forEach((entityPosition: any) => {
+    const cardsProduct = entityPosition.products?.[ProductType.CARD]
+    if (cardsProduct?.entries) {
+      cardsProduct.entries.forEach((card: any) => {
+        total += convertCurrency(
+          card.used || 0,
+          card.currency,
+          targetCurrency,
+          exchangeRates,
+        )
+      })
+    }
+  })
+  return total
+}
+
+// Sum of all account balances (CHECKING/SAVINGS/etc.) across entities
+export const getTotalCash = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+  let total = 0
+  Object.values(positionsData.positions).forEach((entityPosition: any) => {
+    const accountsProduct = entityPosition.products?.[ProductType.ACCOUNT]
+    if (accountsProduct?.entries) {
+      accountsProduct.entries.forEach((acc: any) => {
+        const amt = acc.total || 0
+        total += convertCurrency(
+          amt,
+          acc.currency,
+          targetCurrency,
+          exchangeRates,
+        )
+      })
+    }
+  })
+  return total
+}
+
+export const getRealEstateOwnedEquityTotal = (
+  realEstateList: RealEstate[] | undefined,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!realEstateList || realEstateList.length === 0) return 0
+  return realEstateList.reduce((sum, re) => {
+    const market = re.valuation_info?.estimated_market_value || 0
+    const totalOutstanding = (re.flows || [])
+      .filter(f => f.flow_subtype === RealEstateFlowSubtype.LOAN)
+      .reduce((s, f) => {
+        const principal = (f.payload as any)?.principal_outstanding || 0
+        return s + principal
+      }, 0)
+    const owned = Math.max(market - totalOutstanding, 0)
+    const converted = convertCurrency(
+      owned,
+      re.currency,
+      targetCurrency,
+      exchangeRates,
+    )
+    return sum + converted
+  }, 0)
+}
+
+export const computeAdjustedKpis = (
+  positionsData: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
+  realEstateList: RealEstate[] | undefined,
+  options: DashboardOptions,
+): { adjustedTotalAssets: number; adjustedInvestedAmount: number } => {
+  const baseTotalAssets = getTotalAssets(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+  const baseInvestedAmount = getTotalInvestedAmount(
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+
+  const filteredRealEstateList = options.includeRealEstate
+    ? options.includeResidences
+      ? realEstateList
+      : (realEstateList || []).filter(re => !re.basic_info?.is_residence)
+    : []
+
+  const equity = options.includeRealEstate
+    ? getRealEstateOwnedEquityTotal(
+        filteredRealEstateList,
+        targetCurrency,
+        exchangeRates,
+      )
+    : 0
+  const cardUsed = options.includeCardExpenses
+    ? getTotalCardUsed(positionsData, targetCurrency, exchangeRates)
+    : 0
+
+  return {
+    adjustedTotalAssets: baseTotalAssets + equity - cardUsed,
+    adjustedInvestedAmount: baseInvestedAmount + equity - cardUsed,
+  }
+}
+
+// Forecast KPIs: derive projected total assets and invested amount (which can grow due to automatic contributions)
+// forecastPositionsData: usually forecastResult.positions.positions wrapped like EntitiesPosition
+// forecastRealEstate: list with equity_at_target and equity_now (we only care about equity_at_target)
+// We treat invested amount in forecast as: current invested (adjusted) + net new contributions implied by forecast growth.
+// If the forecast positions already embed the contributions into their initial_investment fields, we re-calc invested from forecast snapshot directly instead of adding delta.
+export const computeForecastKpis = (
+  currentPositions: EntitiesPosition | null,
+  forecastPositions: EntitiesPosition | null,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+  pendingFlows: PendingFlow[],
+  realEstateList: RealEstate[] | undefined,
+  forecastRealEstate: { id: string; equity_at_target?: number }[] | undefined,
+  options: DashboardOptions,
+): {
+  projectedTotalAssets: number
+  projectedInvestedAmount: number
+  currentInvestedBase: number
+} => {
+  // Base (today) invested amount using existing helper including optional equity & card adjustments
+  const base = computeAdjustedKpis(
+    currentPositions,
+    targetCurrency,
+    exchangeRates,
+    pendingFlows,
+    realEstateList,
+    options,
+  )
+
+  // Projected total assets: recompute total assets from forecast snapshot then add projected real estate equity
+  const projectedCoreTotal = getTotalAssets(
+    forecastPositions,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+
+  const filteredForecastRealEstate = options.includeRealEstate
+    ? options.includeResidences
+      ? forecastRealEstate
+      : (forecastRealEstate || []).filter((re: any) => {
+          // Need to cross-check original realEstateList to know if it's a residence
+          const original = (realEstateList || []).find(o => o.id === re.id)
+          return !original?.basic_info?.is_residence
+        })
+    : []
+
+  const projectedEquity = options.includeRealEstate
+    ? (filteredForecastRealEstate || []).reduce(
+        (sum, re) => sum + (re.equity_at_target || 0),
+        0,
+      )
+    : 0
+
+  const cardUsed = options.includeCardExpenses
+    ? getTotalCardUsed(forecastPositions, targetCurrency, exchangeRates)
+    : 0
+
+  // Recalculate invested from forecast snapshot so that automatic contributions reflected in new initial_investment numbers are captured.
+  const projectedInvestedRaw = getTotalInvestedAmount(
+    forecastPositions,
+    targetCurrency,
+    exchangeRates,
+    options.includePending ? pendingFlows : ([] as PendingFlow[]),
+  )
+
+  // Add projected equity (considered part of invested capital for consistency with base helper) and subtract card used similar to base logic
+  const projectedInvestedAmount =
+    projectedInvestedRaw + projectedEquity - cardUsed
+
+  const projectedTotalAssets = projectedCoreTotal + projectedEquity - cardUsed
+
+  return {
+    projectedTotalAssets,
+    projectedInvestedAmount,
+    currentInvestedBase: base.adjustedInvestedAmount,
+  }
 }

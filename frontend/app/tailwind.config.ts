@@ -1,9 +1,14 @@
 import type { Config } from "tailwindcss"
+import colors from "tailwindcss/colors"
 
 const config: Config = {
   darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
+    colors: {
+      ...colors,
+      gray: colors.zinc,
+    },
     container: {
       center: true,
       padding: "2rem",

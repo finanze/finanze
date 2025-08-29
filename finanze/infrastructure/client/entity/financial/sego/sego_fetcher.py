@@ -153,7 +153,7 @@ class SegoFetcher(FinancialEntityFetcher):
             state = "COLLECTED"
 
         name = investment["nombreOperacion"].strip()
-        interest_rate = Dezimal(investment["tasaInteres"])
+        gross_interest_rate = Dezimal(investment["tasaInteres"])
 
         last_invest_date = next(
             (
@@ -164,19 +164,31 @@ class SegoFetcher(FinancialEntityFetcher):
             None,
         )
 
+        interest_rate = round(gross_interest_rate * (1 - self.SEGO_FEE) / 100, 4)
+        expected_maturity = (
+            date.fromisoformat(investment["fechaDevolucion"][:10])
+            if investment["fechaDevolucion"]
+            else None
+        )
+
+        profitability = Dezimal(0)
+        if last_invest_date and expected_maturity:
+            days = (expected_maturity - last_invest_date.date()).days
+            if days > 0:
+                profitability = round(
+                    (1 + interest_rate) ** (Dezimal(days) / Dezimal(365)) - 1, 4
+                )
+
         return FactoringDetail(
             id=uuid4(),
             name=name,
             amount=round(Dezimal(investment["importe"]), 2),
             currency="EUR",
-            interest_rate=round(interest_rate * (1 - self.SEGO_FEE) / 100, 4),
-            gross_interest_rate=round(interest_rate / 100, 4),
+            interest_rate=interest_rate,
+            profitability=profitability,
+            gross_interest_rate=round(gross_interest_rate / 100, 4),
             last_invest_date=last_invest_date,
-            maturity=(
-                date.fromisoformat(investment["fechaDevolucion"][:10])
-                if investment["fechaDevolucion"]
-                else None
-            ),
+            maturity=expected_maturity,
             type=proj_type,
             state=state,
         )

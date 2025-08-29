@@ -91,16 +91,6 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                         )
                     )
 
-            fund_portfolios.append(
-                FundPortfolio(
-                    id=fund_portfolio_id,
-                    name=account_name,
-                    currency=account_currency,
-                    initial_investment=total_cash,
-                    market_value=total_cash,
-                )
-            )
-
             account = Account(
                 id=uuid4(),
                 name=account_name,
@@ -111,6 +101,17 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                 type=AccountType.FUND_PORTFOLIO,
             )
             accounts_list.append(account)
+
+            fund_portfolios.append(
+                FundPortfolio(
+                    id=fund_portfolio_id,
+                    name=account_name,
+                    currency=account_currency,
+                    initial_investment=total_cash,
+                    market_value=total_cash,
+                    account_id=account.id,
+                )
+            )
 
         products = {
             ProductType.ACCOUNT: Accounts(accounts_list),

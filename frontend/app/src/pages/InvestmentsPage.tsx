@@ -52,7 +52,7 @@ export default function InvestmentsPage() {
         productType: ProductType.FACTORING,
       },
       {
-        path: "/investments/real-estate",
+        path: "/investments/real-estate-cf",
         label: t.common.realEstateCfInvestments,
         icon: getIconForProductType(ProductType.REAL_ESTATE_CF, "h-6 w-6"),
         color:

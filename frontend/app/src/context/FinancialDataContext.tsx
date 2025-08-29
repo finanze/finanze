@@ -4,24 +4,38 @@ import {
   useState,
   useEffect,
   useRef,
+  useCallback,
   type ReactNode,
 } from "react"
-import { getPositions, getContributions } from "@/services/api"
+import {
+  getPositions,
+  getContributions,
+  getAllPeriodicFlows,
+  getAllPendingFlows,
+} from "@/services/api"
 import { EntitiesPosition, PositionQueryRequest } from "@/types/position"
 import {
   EntityContributions,
   ContributionQueryRequest,
 } from "@/types/contributions"
+import { PeriodicFlow, PendingFlow } from "@/types"
 import { useAppContext } from "./AppContext"
 import { EntityType } from "@/types"
+import { getAllRealEstate } from "@/services/api"
+import type { RealEstate } from "@/types"
 
 interface FinancialDataContextType {
   positionsData: EntitiesPosition | null
   contributions: EntityContributions | null
+  periodicFlows: PeriodicFlow[]
+  pendingFlows: PendingFlow[]
   isLoading: boolean
   error: string | null
   refreshData: () => Promise<void>
   refreshEntity: (entityId: string) => Promise<void>
+  refreshFlows: () => Promise<void>
+  realEstateList: RealEstate[]
+  refreshRealEstate: () => Promise<void>
 }
 
 const FinancialDataContext = createContext<
@@ -34,9 +48,13 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   )
   const [contributions, setContributions] =
     useState<EntityContributions | null>(null)
+  const [periodicFlows, setPeriodicFlows] = useState<PeriodicFlow[]>([])
+  const [pendingFlows, setPendingFlows] = useState<PendingFlow[]>([])
+  const [realEstateList, setRealEstateList] = useState<RealEstate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const initialFetchDone = useRef(false)
+  const realEstateFetchInFlight = useRef<Promise<void> | null>(null)
   const {
     inactiveEntities,
     entities,
@@ -61,13 +79,22 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         queryParams = { excluded_entities: entityIds }
       }
 
-      const [positionsResponse, contributionsData] = await Promise.all([
+      const [
+        positionsResponse,
+        contributionsData,
+        periodicFlowsData,
+        pendingFlowsData,
+      ] = await Promise.all([
         getPositions(queryParams as PositionQueryRequest),
         getContributions(queryParams as ContributionQueryRequest),
+        getAllPeriodicFlows(),
+        getAllPendingFlows(),
       ])
 
       setPositionsData(positionsResponse)
       setContributions(contributionsData)
+      setPeriodicFlows(periodicFlowsData)
+      setPendingFlows(pendingFlowsData)
     } catch (err) {
       console.error("Error fetching financial data:", err)
       setError("Failed to load financial data. Please try again.")
@@ -75,6 +102,39 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     }
   }
+
+  const refreshFlows = useCallback(async () => {
+    try {
+      const [periodicFlowsData, pendingFlowsData] = await Promise.all([
+        getAllPeriodicFlows(),
+        getAllPendingFlows(),
+      ])
+      setPeriodicFlows(periodicFlowsData)
+      setPendingFlows(pendingFlowsData)
+    } catch (err) {
+      console.error("Error refreshing flows:", err)
+      setError("Failed to refresh flows. Please try again.")
+    }
+  }, [])
+
+  const refreshRealEstate = useCallback(async () => {
+    if (realEstateFetchInFlight.current) {
+      return realEstateFetchInFlight.current
+    }
+    const p = (async () => {
+      try {
+        const list = await getAllRealEstate()
+        setRealEstateList(list)
+      } catch (err) {
+        console.error("Error refreshing real estate:", err)
+        setError("Failed to refresh real estate. Please try again.")
+      } finally {
+        realEstateFetchInFlight.current = null
+      }
+    })()
+    realEstateFetchInFlight.current = p
+    return p
+  }, [])
 
   const refreshEntity = async (entityId: string) => {
     setIsLoading(true)
@@ -124,13 +184,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
       setContributions(prevContributions => {
         if (!prevContributions) return contributionsData
-
         return {
           ...prevContributions,
-          contributions: {
-            ...prevContributions.contributions,
-            ...contributionsData.contributions,
-          },
+          ...contributionsData,
         }
       })
 
@@ -169,20 +225,24 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       !initialFetchDone.current
     ) {
       fetchFinancialData()
+      // Also fetch real estate list so dashboard distributions have it available
+      refreshRealEstate()
       initialFetchDone.current = true
     } else if (!entitiesLoaded) {
       // Reset the flag when entities are not loaded (user logged out)
       initialFetchDone.current = false
     }
-  }, [entitiesLoaded, exchangeRatesLoading, exchangeRates])
+  }, [entitiesLoaded, exchangeRatesLoading, exchangeRates, refreshRealEstate])
 
   // Separate effect for inactive entities changes that should trigger refetch
   useEffect(() => {
     // Only refetch if we've already done the initial fetch
     if (initialFetchDone.current) {
       fetchFinancialData()
+      // Keep real estate list in sync when filters change
+      refreshRealEstate()
     }
-  }, [inactiveEntities])
+  }, [inactiveEntities, refreshRealEstate])
 
   // Register the refreshEntity callback with AppContext
   useEffect(() => {
@@ -197,10 +257,15 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       value={{
         positionsData,
         contributions,
+        periodicFlows,
+        pendingFlows,
         isLoading,
         error,
         refreshData: fetchFinancialData,
         refreshEntity,
+        refreshFlows,
+        realEstateList,
+        refreshRealEstate,
       }}
     >
       {children}

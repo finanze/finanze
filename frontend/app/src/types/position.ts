@@ -31,6 +31,12 @@ export enum LoanType {
   STANDARD = "STANDARD",
 }
 
+export enum InterestType {
+  FIXED = "FIXED",
+  VARIABLE = "VARIABLE",
+  MIXED = "MIXED",
+}
+
 export interface Account {
   id: string
   total: number
@@ -65,7 +71,13 @@ export interface Loan {
   next_payment_date: string
   principal_outstanding: number
   principal_paid: number
+  interest_type: InterestType
+  euribor_rate?: number | null
+  fixed_years?: number | null
   name?: string | null
+  creation?: string | null
+  maturity?: string | null
+  unpaid?: number | null
 }
 
 export interface StockDetail {
@@ -110,6 +122,7 @@ export interface FactoringDetail {
   amount: number
   currency: string
   interest_rate: number
+  profitability: number
   gross_interest_rate: number
   last_invest_date: string
   maturity: string
@@ -124,6 +137,7 @@ export interface RealEstateCFDetail {
   pending_amount: number
   currency: string
   interest_rate: number
+  profitability: number
   last_invest_date: string
   maturity: string
   type: string
@@ -239,6 +253,9 @@ export const COMMODITY_SYMBOLS = {
   [CommodityType.PLATINUM]: "XPT",
   [CommodityType.PALLADIUM]: "XPD",
 }
+
+// Stablecoin symbols (tokens or main crypto symbols) excluded from forecast appreciation
+export const STABLECOIN_TOKENS: Set<string> = new Set(["USDC", "USDT"])
 
 export const WEIGHT_CONVERSIONS: Record<
   WeightUnit,

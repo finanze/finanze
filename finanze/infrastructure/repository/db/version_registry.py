@@ -12,6 +12,23 @@ from infrastructure.repository.db.versions.v030_2_re_rename_historic import V030
 from infrastructure.repository.db.versions.v030_3_crypto_initial_investments import (
     V0303CryptoInitialInvestments,
 )
+from infrastructure.repository.db.versions.v040_0_earnings_expenses import (
+    V0400EarningsExpenses,
+)
+from infrastructure.repository.db.versions.v040_1_more_loan_details import V0401
+from infrastructure.repository.db.versions.v040_2_var_mixed_loans import V0402
+from infrastructure.repository.db.versions.v040_3_add_account_tx_net_amount import V0403
+from infrastructure.repository.db.versions.v040_4_real_estate import V0404RealEstate
+from infrastructure.repository.db.versions.v040_5_flows_icon import V0405FlowsIcon
+from infrastructure.repository.db.versions.v040_6_contrib_target_name import (
+    V0406ContribTargetName,
+)
+from infrastructure.repository.db.versions.v040_7_recf_profitability import (
+    V0407RECFProfitability,
+)
+from infrastructure.repository.db.versions.v040_8_add_fund_portfolio_account import (
+    V0408FundPortfolioAccount,
+)
 
 versions = [
     V0Genesis(),
@@ -26,4 +43,13 @@ versions = [
     V0301BSC(),
     V0302(),
     V0303CryptoInitialInvestments(),
+    V0400EarningsExpenses(),
+    V0401(),
+    V0402(),
+    V0403(),
+    V0404RealEstate(),
+    V0405FlowsIcon(),
+    V0406ContribTargetName(),
+    V0407RECFProfitability(),
+    V0408FundPortfolioAccount(),
 ]

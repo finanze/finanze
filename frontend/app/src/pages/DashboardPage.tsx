@@ -1,22 +1,27 @@
+// Removed duplicate imports (consolidated below)
+import { FlowType, type ForecastResult } from "@/types"
+import { getTransactions, getForecast } from "@/services/api"
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { getTransactions } from "@/services/api"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { Button } from "@/components/ui/Button"
+import { DatePicker } from "@/components/ui/DatePicker"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
+import { Switch } from "@/components/ui/Switch"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { Badge } from "@/components/ui/Badge"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import {
-  getIconForProjectType,
   getPieSliceColorForAssetType,
   getIconForAssetType,
   getIconForTxType,
@@ -31,7 +36,31 @@ import {
   ArrowLeftRight,
   BarChart3,
   ArrowRight,
+  CalendarDays,
+  CalendarSync,
+  HandCoins,
+  CreditCard,
+  Home,
+  SlidersHorizontal,
+  PiggyBank,
+  TrendingUpDown,
 } from "lucide-react"
+import {
+  getAssetDistribution,
+  getEntityDistribution,
+  convertCurrency,
+  getOngoingProjects,
+  getStockAndFundPositions,
+  getCryptoPositions,
+  getCommodityPositions,
+  getRecentTransactions,
+  getDaysStatus,
+  computeAdjustedKpis,
+  computeForecastKpis,
+  filterRealEstateByOptions,
+  getTotalCash,
+} from "@/utils/financialDataUtils"
+import { STABLECOIN_TOKENS } from "@/types/position"
 import {
   PieChart,
   Pie,
@@ -40,33 +69,38 @@ import {
   Legend,
   Tooltip,
 } from "recharts"
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
-import { Badge } from "@/components/ui/Badge"
 import { EntityRefreshDropdown } from "@/components/EntityRefreshDropdown"
-import {
-  getAssetDistribution,
-  getEntityDistribution,
-  getTotalAssets,
-  getTotalInvestedAmount,
-  getOngoingProjects,
-  getStockAndFundPositions,
-  getCryptoPositions,
-  getCommodityPositions,
-  getRecentTransactions,
-  getDaysStatus,
-} from "@/utils/financialDataUtils"
 
 export default function DashboardPage() {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const {
     positionsData,
+    periodicFlows,
+    pendingFlows,
     isLoading: financialDataLoading,
     error: financialDataError,
     refreshData: refreshFinancialData,
+    realEstateList,
+    contributions,
   } = useFinancialData()
   const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
     useAppContext()
+
+  // Forecast state
+  const [forecastOpen, setForecastOpen] = useState(false)
+  const [forecastTargetDate, setForecastTargetDate] = useState<string>("")
+  const [forecastAnnualIncrease, setForecastAnnualIncrease] =
+    useState<string>("") // market percentage as string input
+  const [forecastAnnualCryptoIncrease, setForecastAnnualCryptoIncrease] =
+    useState<string>("")
+  const [forecastAnnualCommodityIncrease, setForecastAnnualCommodityIncrease] =
+    useState<string>("")
+  const [forecastLoading, setForecastLoading] = useState(false)
+  const [forecastResult, setForecastResult] = useState<ForecastResult | null>(
+    null,
+  )
+  const forecastMode = !!forecastResult
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
@@ -75,6 +109,39 @@ export default function DashboardPage() {
   const [transactionsError, setTransactionsError] = useState<string | null>(
     null,
   )
+
+  // Dashboard options state (persisted in localStorage)
+  type DashboardOptions = {
+    includePending: boolean
+    includeCardExpenses: boolean
+    includeRealEstate: boolean
+    includeResidences: boolean
+  }
+  const [dashboardOptions, setDashboardOptions] = useState<DashboardOptions>(
+    () => {
+      if (typeof window !== "undefined") {
+        try {
+          const raw = localStorage.getItem("dashboardOptions")
+          if (raw) return JSON.parse(raw)
+        } catch {
+          // ignore
+        }
+      }
+      return {
+        includePending: true,
+        includeCardExpenses: false,
+        includeRealEstate: true,
+        includeResidences: false,
+      }
+    },
+  )
+  useEffect(() => {
+    try {
+      localStorage.setItem("dashboardOptions", JSON.stringify(dashboardOptions))
+    } catch {
+      // ignore
+    }
+  }, [dashboardOptions])
 
   const fetchTransactionsData = async () => {
     if (inactiveEntities && inactiveEntities.length > 0) {
@@ -143,6 +210,44 @@ export default function DashboardPage() {
     positionsData !== null &&
     positionsData.positions &&
     Object.keys(positionsData.positions).length > 0
+
+  // Build derived forecast positions + adjustments (cash delta & remove change data)
+  const forecastAdjustedPositionsData = useMemo(() => {
+    if (!forecastResult) return null
+    // Deep clone positions (shallow is fine for our use) and zero out change-related fields if any
+    const cloned: any = {
+      positions: { ...forecastResult.positions.positions },
+    }
+    // Add synthetic cash delta entity if provided
+    if (forecastResult.cash_delta && forecastResult.cash_delta.length > 0) {
+      const accountEntries = forecastResult.cash_delta.map(cd => ({
+        id: `cash-delta-${cd.currency}`,
+        total: cd.amount,
+        currency: cd.currency,
+        type: "CHECKING",
+        name: t.forecast.cashDeltaLabel,
+      }))
+      cloned.positions["forecast-cash-delta"] = {
+        id: "forecast-cash-delta",
+        entity: {
+          id: "forecast-cash-delta",
+          name: t.forecast.cashDeltaEntity,
+          is_real: true,
+        },
+        date: forecastResult.target_date,
+        is_real: true,
+        products: {
+          ACCOUNT: { entries: accountEntries },
+        },
+      }
+    }
+    return cloned
+  }, [forecastResult, t.forecast.cashDeltaEntity, t.forecast.cashDeltaLabel])
+
+  // Decide which positions data to use for computations
+  const effectivePositionsData = forecastMode
+    ? (forecastAdjustedPositionsData as any) || positionsData
+    : positionsData
 
   useLayoutEffect(() => {
     if (hasData) {
@@ -219,52 +324,308 @@ export default function DashboardPage() {
   }, [inactiveEntities, t])
 
   const targetCurrency = settings.general.defaultCurrency
-  const assetDistribution = getAssetDistribution(
-    positionsData,
+  // In forecast mode we never apply current pending flows separately because they're implicitly reflected in the forecast snapshot by date.
+  const appliedPendingFlows = forecastMode
+    ? []
+    : dashboardOptions.includePending
+      ? pendingFlows
+      : []
+  const appliedRealEstateList = filterRealEstateByOptions(
+    realEstateList,
+    dashboardOptions,
+  )
+  const assetDistributionBase = getAssetDistribution(
+    effectivePositionsData,
     targetCurrency,
     exchangeRates,
+    appliedPendingFlows,
+    appliedRealEstateList,
   )
-  const entityDistribution = getEntityDistribution(
-    positionsData,
+  const assetDistribution = useMemo(() => {
+    if (!forecastMode || !forecastResult) {
+      // Round percentages to 1 decimal also in non-forecast mode
+      return assetDistributionBase.map(i => ({
+        ...i,
+        percentage:
+          i.percentage != null
+            ? Math.round((i.percentage + Number.EPSILON) * 10) / 10
+            : i.percentage,
+      }))
+    }
+    // Sum real estate equity at target (respect dashboard options)
+    const includeRE = dashboardOptions.includeRealEstate
+    // If residences excluded, remove their equity from forecast aggregation
+    const excludedResidenceIds =
+      includeRE && !dashboardOptions.includeResidences
+        ? new Set(
+            (realEstateList || [])
+              .filter(re => re.basic_info?.is_residence)
+              .map(re => re.id),
+          )
+        : null
+    const totalEquity = includeRE
+      ? (forecastResult.real_estate || []).reduce((acc, re) => {
+          if (excludedResidenceIds && excludedResidenceIds.has(re.id))
+            return acc
+          return acc + (re.equity_at_target || 0)
+        }, 0)
+      : 0
+    let items = [...assetDistributionBase]
+    // Apply crypto & commodity appreciation percentage on top of base snapshot
+    const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+    const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+    items = items.map(i => {
+      if (i.type === "CRYPTO") {
+        return { ...i, value: i.value * cryptoFactor }
+      }
+      if (i.type === "COMMODITY") {
+        return { ...i, value: i.value * commodityFactor }
+      }
+      return i
+    })
+    if (totalEquity > 0) {
+      // Replace existing REAL_ESTATE if present
+      const idx = items.findIndex(i => i.type === "REAL_ESTATE")
+      if (idx >= 0) items.splice(idx, 1)
+      items.push({
+        type: "REAL_ESTATE",
+        value: totalEquity,
+        percentage: 0, // will recompute below
+        change: 0,
+      })
+    }
+    const totalValue = items.reduce((acc, i) => acc + i.value, 0)
+    items = items.map(i => ({
+      ...i,
+      percentage:
+        totalValue > 0
+          ? Math.round(((i.value / totalValue) * 100 + Number.EPSILON) * 10) /
+            10
+          : 0,
+    }))
+    return items.sort((a, b) => b.value - a.value)
+  }, [
+    assetDistributionBase,
+    forecastMode,
+    forecastResult,
+    dashboardOptions.includeRealEstate,
+    dashboardOptions.includeResidences,
+    realEstateList,
+  ])
+  const entityDistributionBase = getEntityDistribution(
+    effectivePositionsData,
     targetCurrency,
     exchangeRates,
+    appliedPendingFlows,
+    appliedRealEstateList,
   )
+  const entityDistribution = useMemo(() => {
+    if (!forecastMode || !forecastResult) return entityDistributionBase
+    const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+    const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+    if (cryptoFactor === 1 && commodityFactor === 1)
+      return entityDistributionBase
+    // Build per-entity base crypto & commodity values from raw positions
+    const perEntityDeltas: Record<string, number> = {}
+    const pos = effectivePositionsData?.positions || {}
+    Object.entries(pos).forEach(([entityId, gp]: any) => {
+      let cryptoBase = 0
+      let commodityBase = 0
+      const cryptoProduct = gp.products?.CRYPTO
+      if (cryptoProduct?.entries?.length) {
+        cryptoProduct.entries.forEach((w: any) => {
+          const mv = typeof w.market_value === "number" ? w.market_value : 0
+          const cur = w.currency || targetCurrency
+          cryptoBase += convertCurrency(mv, cur, targetCurrency, exchangeRates)
+        })
+      }
+      const commodityProduct = gp.products?.COMMODITY
+      if (commodityProduct?.entries?.length) {
+        commodityProduct.entries.forEach((c: any) => {
+          const mv = typeof c.market_value === "number" ? c.market_value : 0
+          const cur = c.currency || targetCurrency
+          commodityBase += convertCurrency(
+            mv,
+            cur,
+            targetCurrency,
+            exchangeRates,
+          )
+        })
+      }
+      const delta =
+        cryptoBase * (cryptoFactor - 1) + commodityBase * (commodityFactor - 1)
+      if (delta !== 0) perEntityDeltas[entityId] = delta
+    })
+    // Apply deltas to distribution values
+    const adjusted = entityDistributionBase.map(item => ({
+      ...item,
+      value:
+        item.id in perEntityDeltas
+          ? item.value + perEntityDeltas[item.id]
+          : item.value,
+    }))
+    const total = adjusted.reduce((s, i) => s + i.value, 0)
+    return adjusted
+      .map(i => ({
+        ...i,
+        percentage: total > 0 ? (i.value / total) * 100 : 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+  }, [
+    entityDistributionBase,
+    forecastMode,
+    forecastResult,
+    effectivePositionsData,
+    targetCurrency,
+    exchangeRates,
+  ])
   const { entities } = useAppContext()
   const adjustedEntityDistribution = useMemo(() => {
     const contextIds = new Set(entities.map(e => e.id))
-    return entityDistribution.map(item =>
-      contextIds.has(item.id)
-        ? item
-        : {
-            ...item,
-            name: (t.enums?.productType as any)?.COMMODITY || item.name,
-          },
-    )
+    return entityDistribution.map(item => {
+      if (contextIds.has(item.id)) {
+        return item
+      } else if (item.id === "pending-flows") {
+        // Handle pending flows entity specifically
+        return {
+          ...item,
+          name: (t.enums?.productType as any)?.PENDING_FLOWS,
+        }
+      } else if (item.id === "real-estate") {
+        return {
+          ...item,
+          name: (t.enums?.productType as any)?.REAL_ESTATE,
+        }
+      } else if (item.id === "forecast-cash-delta") {
+        return {
+          ...item,
+          name: t.forecast.cashDeltaEntity,
+        }
+      } else {
+        return {
+          ...item,
+          name: (t.enums?.productType as any)?.COMMODITY,
+        }
+      }
+    })
   }, [entityDistribution, entities, t])
-  const totalAssets = getTotalAssets(
+  const { adjustedTotalAssets, adjustedInvestedAmount } = useMemo(() => {
+    if (!forecastMode) {
+      const currentSnapshot = computeAdjustedKpis(
+        positionsData,
+        targetCurrency,
+        exchangeRates,
+        pendingFlows,
+        realEstateList,
+        dashboardOptions,
+      )
+      return {
+        adjustedTotalAssets: currentSnapshot.adjustedTotalAssets,
+        adjustedInvestedAmount: currentSnapshot.adjustedInvestedAmount,
+      }
+    }
+    const forecastKpis = computeForecastKpis(
+      positionsData,
+      effectivePositionsData as any,
+      targetCurrency,
+      exchangeRates,
+      [],
+      realEstateList,
+      forecastResult?.real_estate?.map(re => ({
+        id: re.id,
+        equity_at_target: re.equity_at_target || 0,
+      })),
+      { ...dashboardOptions, includePending: false },
+    )
+    // Appreciation deltas (crypto & commodities) not embedded in forecast positions snapshot
+    let projectedTotalAssets = forecastKpis.projectedTotalAssets
+    if (forecastResult) {
+      const cryptoFactor = 1 + (forecastResult.crypto_appreciation || 0)
+      const commodityFactor = 1 + (forecastResult.commodity_appreciation || 0)
+      if (cryptoFactor !== 1) {
+        const baseCrypto = getCryptoPositions(
+          positionsData,
+          locale,
+          settings.general.defaultCurrency,
+          exchangeRates,
+        ).reduce((s, c) => s + c.value, 0)
+        const appreciatedCrypto = baseCrypto * cryptoFactor
+        projectedTotalAssets += appreciatedCrypto - baseCrypto
+      }
+      if (commodityFactor !== 1) {
+        const baseCommodity = getCommodityPositions(
+          positionsData,
+          locale,
+          settings.general.defaultCurrency,
+          exchangeRates,
+          settings,
+        ).reduce((s, c) => s + c.value, 0)
+        const appreciatedCommodity = baseCommodity * commodityFactor
+        projectedTotalAssets += appreciatedCommodity - baseCommodity
+      }
+    }
+    return {
+      adjustedTotalAssets: projectedTotalAssets,
+      adjustedInvestedAmount: forecastKpis.projectedInvestedAmount,
+    }
+  }, [
+    forecastMode,
     positionsData,
+    effectivePositionsData,
     targetCurrency,
     exchangeRates,
-  )
-  const ongoingProjects = getOngoingProjects(
+    pendingFlows,
+    realEstateList,
+    dashboardOptions,
+    forecastResult,
+    locale,
+    settings,
+  ])
+
+  const forecastCashDeltaTotal = useMemo(() => {
+    if (
+      !forecastMode ||
+      !forecastResult ||
+      !Array.isArray(forecastResult.cash_delta)
+    )
+      return 0
+    return forecastResult.cash_delta.reduce<number>(
+      (acc, cd) =>
+        acc +
+        convertCurrency(cd.amount, cd.currency, targetCurrency, exchangeRates),
+      0,
+    )
+  }, [forecastMode, forecastResult, targetCurrency, exchangeRates])
+  // Base ongoing projects (unfiltered)
+  const ongoingProjectsBase = getOngoingProjects(
     positionsData,
     locale,
     settings.general.defaultCurrency,
   )
+  // When forecasting, only show projects whose maturity is after the forecast target date
+  const ongoingProjects = useMemo(() => {
+    if (!forecastMode || !forecastResult) return ongoingProjectsBase
+    try {
+      const target = new Date(forecastResult.target_date)
+      return ongoingProjectsBase.filter(p => new Date(p.maturity) >= target)
+    } catch {
+      return ongoingProjectsBase
+    }
+  }, [forecastMode, forecastResult, ongoingProjectsBase])
   const stockAndFundPositions = getStockAndFundPositions(
-    positionsData,
+    effectivePositionsData,
     locale,
     settings.general.defaultCurrency,
     exchangeRates,
   )
   const cryptoPositions = getCryptoPositions(
-    positionsData,
+    effectivePositionsData,
     locale,
     settings.general.defaultCurrency,
     exchangeRates,
   )
   const commodityPositions = getCommodityPositions(
-    positionsData,
+    effectivePositionsData,
     locale,
     settings.general.defaultCurrency,
     exchangeRates,
@@ -274,11 +635,6 @@ export default function DashboardPage() {
     transactions,
     locale,
     settings.general.defaultCurrency,
-  )
-  const totalInvestedAmount = getTotalInvestedAmount(
-    positionsData,
-    targetCurrency,
-    exchangeRates,
   )
 
   const fundItems = stockAndFundPositions
@@ -295,15 +651,126 @@ export default function DashboardPage() {
       id: `${p.symbol}-stock-${index}-${p.entity}`,
     }))
 
-  const cryptoItems = cryptoPositions.map((p, index) => ({
-    ...p,
-    id: `crypto-${p.symbol}-${p.entities.join("-")}-${p.address}-${index}`,
-  }))
+  // Apply appreciation in forecast mode for crypto & commodities (excluding stablecoins)
+  const cryptoItems = useMemo(() => {
+    const factor =
+      forecastMode && forecastResult
+        ? 1 + (forecastResult.crypto_appreciation || 0)
+        : 1
+    // Base total for later percentage recompute
+    const baseOthersTotal = [...fundItems, ...stockItems].reduce(
+      (s, i) => s + i.value,
+      0,
+    )
+    const mapped = cryptoPositions.map((p, index) => {
+      const baseValue = p.value
+      const value =
+        factor !== 1 && !STABLECOIN_TOKENS.has(p.symbol)
+          ? baseValue * factor
+          : baseValue
+      const tokens = p.tokens?.map(tk => {
+        const tVal =
+          factor !== 1 && !STABLECOIN_TOKENS.has(tk.symbol)
+            ? tk.value * factor
+            : tk.value
+        return {
+          ...tk,
+          value: tVal,
+          formattedValue: formatCurrency(
+            tVal,
+            locale,
+            settings.general.defaultCurrency,
+          ),
+        }
+      })
+      let change = p.change
+      if (
+        factor !== 1 &&
+        !STABLECOIN_TOKENS.has(p.symbol) &&
+        p.initialInvestment > 0
+      ) {
+        change = ((value - p.initialInvestment) / p.initialInvestment) * 100
+      }
+      return {
+        ...p,
+        value,
+        change,
+        formattedValue: formatCurrency(
+          value,
+          locale,
+          settings.general.defaultCurrency,
+        ),
+        tokens,
+        id: `crypto-${p.symbol}-${p.entities.join("-")}-${p.address}-${index}`,
+      }
+    })
+    // Recompute percentageOfTotalPortfolio after scaling
+    const total =
+      baseOthersTotal +
+      mapped.reduce((s, i) => s + i.value, 0) +
+      commodityPositions.reduce((s, i) => s + i.value, 0)
+    return mapped.map(m => ({
+      ...m,
+      percentageOfTotalPortfolio: total > 0 ? (m.value / total) * 100 : 0,
+    }))
+  }, [
+    cryptoPositions,
+    forecastMode,
+    forecastResult,
+    locale,
+    settings.general.defaultCurrency,
+    fundItems,
+    stockItems,
+    commodityPositions,
+  ])
 
-  const commodityItems = commodityPositions.map((p, index) => ({
-    ...p,
-    id: `commodity-${p.symbol}-${p.entities.join("-")}-${index}`,
-  }))
+  const commodityItems = useMemo(() => {
+    const factor =
+      forecastMode && forecastResult
+        ? 1 + (forecastResult.commodity_appreciation || 0)
+        : 1
+    const baseOthersTotal = [...fundItems, ...stockItems].reduce(
+      (s, i) => s + i.value,
+      0,
+    )
+    const baseCryptoTotal = cryptoItems.reduce((s, i) => s + i.value, 0)
+    const mapped = commodityPositions.map((p, index) => {
+      const baseValue = p.value
+      const value = factor !== 1 ? baseValue * factor : baseValue
+      let change = p.change
+      if (factor !== 1 && p.initialInvestment > 0) {
+        change = ((value - p.initialInvestment) / p.initialInvestment) * 100
+      }
+      return {
+        ...p,
+        value,
+        change,
+        formattedValue: formatCurrency(
+          value,
+          locale,
+          settings.general.defaultCurrency,
+        ),
+        id: `commodity-${p.symbol}-${p.entities.join("-")}-${index}`,
+      }
+    })
+    const total =
+      baseOthersTotal +
+      baseCryptoTotal +
+      mapped.reduce((s, i) => s + i.value, 0)
+    return mapped.map(m => ({
+      ...m,
+      percentageOfTotalPortfolio: total > 0 ? (m.value / total) * 100 : 0,
+    }))
+  }, [
+    commodityPositions,
+    forecastMode,
+    forecastResult,
+    locale,
+    settings.general.defaultCurrency,
+    fundItems,
+    stockItems,
+    cryptoItems,
+  ])
 
   // Check if there are any detailed assets to display
   const hasDetailedAssets = [
@@ -345,6 +812,20 @@ export default function DashboardPage() {
     })
     return mapping
   }, [fundItems])
+
+  // Projected / current cash for warning (separate from fundPortfolioColorMap memo)
+  const projectedCash = useMemo(() => {
+    if (forecastMode) {
+      return getTotalCash(effectivePositionsData, targetCurrency, exchangeRates)
+    }
+    return getTotalCash(positionsData, targetCurrency, exchangeRates)
+  }, [
+    forecastMode,
+    effectivePositionsData,
+    positionsData,
+    targetCurrency,
+    exchangeRates,
+  ])
 
   const ITEM_FUND_COLORS = [
     "bg-blue-500",
@@ -507,16 +988,16 @@ export default function DashboardPage() {
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
+      // In forecast mode, ensure no change/profit related info leaks
+      if (forecastMode) {
+        data.change = 0
+      }
       return (
         <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-xs">
           <div className="flex items-center gap-2 mb-2">
             {getIconForAssetType(data.type)}
             <p className="font-medium text-sm text-popover-foreground">
-              {t.enums &&
-              t.enums.productType &&
-              (t.enums.productType as any)[data.type]
-                ? (t.enums.productType as any)[data.type]
-                : data.type?.toLowerCase().replace(/_/g, " ")}
+              {(t.enums?.productType as any)?.[data.type] ?? data.type}
             </p>
           </div>
           <div className="space-y-1 text-xs text-muted-foreground">
@@ -571,6 +1052,29 @@ export default function DashboardPage() {
 
   const CustomLegend = (props: any) => {
     const { payload } = props
+
+    const getInvestmentRoute = (assetType: string) => {
+      const routeMap: Record<string, string> = {
+        STOCK_ETF: "/investments/stocks-etfs",
+        FUND: "/investments/funds",
+        DEPOSIT: "/investments/deposits",
+        FACTORING: "/investments/factoring",
+        REAL_ESTATE_CF: "/investments/real-estate-cf",
+        CRYPTO: "/investments/crypto",
+        PENDING_FLOWS: "/management/pending",
+        CASH: "/banking",
+        REAL_ESTATE: "/real-estate",
+      }
+      return routeMap[assetType] || null
+    }
+
+    const handleLegendClick = (assetType: string) => {
+      const route = getInvestmentRoute(assetType)
+      if (route) {
+        navigate(route)
+      }
+    }
+
     return (
       <ul className="space-y-1.5 text-xs scrollbar-thin pr-0.5">
         {payload.map((entry: any, index: number) => {
@@ -578,19 +1082,24 @@ export default function DashboardPage() {
           const assetValue = entry.payload.payload.value
           const assetPercentage = entry.payload.payload.percentage
           const icon = getIconForAssetType(assetType)
+          const hasRoute = getInvestmentRoute(assetType) !== null
 
           return (
             <li
               key={`legend-item-${index}`}
-              className="flex items-center space-x-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
-              title={`${(t.enums.productType as any)[assetType] || assetType.toLowerCase().replace(/_/g, " ")}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)`}
+              className={`flex items-center space-x-2 p-1 rounded transition-colors ${
+                hasRoute
+                  ? "hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer"
+                  : "cursor-default"
+              }`}
+              title={`${(t.enums?.productType as any)?.[assetType] ?? assetType}: ${formatCurrency(assetValue, locale, settings.general.defaultCurrency)} (${assetPercentage}%)${hasRoute ? " - Click to view details" : ""}`}
+              onClick={() => hasRoute && handleLegendClick(assetType)}
             >
               <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center">
                 {icon}
               </span>
               <span className="capitalize truncate flex-grow min-w-0">
-                {(t.enums.productType as any)[assetType] ||
-                  assetType.toLowerCase().replace(/_/g, " ")}
+                {(t.enums?.productType as any)?.[assetType] ?? assetType}
               </span>
               <div className="text-right flex space-x-1">
                 <span className="block whitespace-nowrap text-[11px]">
@@ -604,6 +1113,35 @@ export default function DashboardPage() {
             </li>
           )
         })}
+        {forecastMode && forecastCashDeltaTotal < 0 && (
+          <li
+            className="flex items-center space-x-2 p-1 rounded bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40"
+            title={(t as any).forecast.pendingPaymentsLegend.replace(
+              "{amount}",
+              formatCurrency(
+                Math.abs(forecastCashDeltaTotal),
+                locale,
+                settings.general.defaultCurrency,
+              ),
+            )}
+          >
+            <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-red-600 dark:text-red-400">
+              <AlertCircle className="h-4 w-4" />
+            </span>
+            <span className="truncate flex-grow min-w-0 text-red-700 dark:text-red-300">
+              {(t as any).forecast.pendingPaymentsLegendLabel}
+            </span>
+            <div className="text-right flex space-x-1 text-red-700 dark:text-red-300">
+              <span className="block whitespace-nowrap text-[11px]">
+                {formatCurrency(
+                  Math.abs(forecastCashDeltaTotal),
+                  locale,
+                  settings.general.defaultCurrency,
+                )}
+              </span>
+            </div>
+          </li>
+        )}
       </ul>
     )
   }
@@ -641,13 +1179,131 @@ export default function DashboardPage() {
             </li>
           )
         })}
+        {forecastMode && forecastCashDeltaTotal < 0 && (
+          <li
+            className="flex items-center space-x-2 p-1 rounded bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40"
+            title={(t as any).forecast.pendingPaymentsLegend.replace(
+              "{amount}",
+              formatCurrency(
+                Math.abs(forecastCashDeltaTotal),
+                locale,
+                settings.general.defaultCurrency,
+              ),
+            )}
+          >
+            <span className="flex-shrink-0 w-4 h-4 flex items-center justify-center text-red-600 dark:text-red-400">
+              <AlertCircle className="h-4 w-4" />
+            </span>
+            <span className="truncate flex-grow min-w-0 text-red-700 dark:text-red-300">
+              {(t as any).forecast.pendingPaymentsLegendLabel}
+            </span>
+            <div className="text-right flex space-x-1 text-red-700 dark:text-red-300">
+              <span className="block whitespace-nowrap text-[11px]">
+                {formatCurrency(
+                  Math.abs(forecastCashDeltaTotal),
+                  locale,
+                  settings.general.defaultCurrency,
+                )}
+              </span>
+            </div>
+          </li>
+        )}
       </ul>
     )
   }
 
-  const isLoading = financialDataLoading || transactionsLoading
+  // Calculate upcoming flows & contributions data (empty in forecast mode)
+  const upcomingEventsData = useMemo(() => {
+    if (forecastMode) return []
+    const reference = new Date()
 
-  if (isLoading) {
+    // Flows (periodic + pending)
+    const flowItems = [...periodicFlows, ...pendingFlows]
+      .filter(flow => flow.enabled)
+      .map(flow => {
+        let nextDate: Date | null = null
+        if ("next_date" in flow && flow.next_date)
+          nextDate = new Date(flow.next_date)
+        else if ("date" in flow && flow.date) nextDate = new Date(flow.date)
+        if (!nextDate) return null
+        const daysUntil = Math.ceil(
+          (nextDate.getTime() - reference.getTime()) / (1000 * 60 * 60 * 24),
+        )
+        return {
+          kind: "flow" as const,
+          id: flow.id,
+          name: flow.name,
+          // unify direction for sign
+          direction: flow.flow_type === FlowType.EARNING ? "in" : "out",
+          recurring: "frequency" in flow,
+          flow_type: flow.flow_type,
+          nextDate,
+          daysUntil,
+          convertedAmount: convertCurrency(
+            flow.amount,
+            flow.currency,
+            targetCurrency,
+            exchangeRates,
+          ),
+        }
+      })
+      .filter((f): f is NonNullable<typeof f> => !!f)
+      .filter(f => f.daysUntil >= 0)
+
+    // Contributions
+    const contributionItems: any[] = []
+    if (contributions) {
+      Object.values(contributions).forEach(entityContrib => {
+        const list = (entityContrib as any)?.periodic
+        if (!Array.isArray(list)) return
+        list
+          .filter(c => c && c.active && c.next_date)
+          .forEach(c => {
+            try {
+              const nextDate = new Date(c.next_date)
+              if (isNaN(nextDate.getTime())) return
+              const daysUntil = Math.ceil(
+                (nextDate.getTime() - reference.getTime()) /
+                  (1000 * 60 * 60 * 24),
+              )
+              if (daysUntil < 0) return
+              contributionItems.push({
+                kind: "contribution" as const,
+                id: c.id,
+                name: c.alias || c.target_name,
+                direction: "out" as const,
+                recurring: true,
+                nextDate,
+                daysUntil,
+                convertedAmount: convertCurrency(
+                  c.amount,
+                  c.currency,
+                  targetCurrency,
+                  exchangeRates,
+                ),
+              })
+            } catch {
+              // ignore malformed entry
+            }
+          })
+      })
+    }
+
+    return [...flowItems, ...contributionItems]
+      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
+      .slice(0, 5)
+  }, [
+    periodicFlows,
+    pendingFlows,
+    contributions,
+    targetCurrency,
+    exchangeRates,
+    forecastMode,
+  ])
+
+  const isLoading = financialDataLoading || transactionsLoading
+  // Early returns for loading / errors / prerequisites
+  if (isLoading || forecastLoading) {
     return (
       <div className="flex justify-center items-center h-[70vh]">
         <LoadingSpinner size="lg" />
@@ -656,7 +1312,6 @@ export default function DashboardPage() {
   }
 
   const error = financialDataError || transactionsError
-
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center">
@@ -678,7 +1333,6 @@ export default function DashboardPage() {
     )
   }
 
-  // Don't render until exchange rates are available
   if (!exchangeRates) {
     return (
       <div className="flex justify-center items-center h-[70vh]">
@@ -687,11 +1341,308 @@ export default function DashboardPage() {
     )
   }
 
+  // Utility function for date urgency (copied from PendingMoneyPage)
+  const getDateUrgencyInfo = (dateString: string | undefined) => {
+    if (!dateString) return null
+    const targetDate = new Date(dateString)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    targetDate.setHours(0, 0, 0, 0)
+    const diffTime = targetDate.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    if (diffDays === 0) {
+      return {
+        show: true,
+        urgencyLevel: "urgent" as const,
+        timeText: t.management.today,
+      }
+    }
+    if (diffDays === 1) {
+      return {
+        show: true,
+        urgencyLevel: "urgent" as const,
+        timeText: t.management.tomorrow,
+      }
+    }
+    if (diffDays <= 7) {
+      return {
+        show: true,
+        urgencyLevel: "soon" as const,
+        timeText: `${t.management.inDays}`.replace(
+          "{days}",
+          diffDays.toString(),
+        ),
+      }
+    }
+    if (diffDays <= 30) {
+      return {
+        show: true,
+        urgencyLevel: "normal" as const,
+        timeText: `${t.management.inDays}`.replace(
+          "{days}",
+          diffDays.toString(),
+        ),
+      }
+    }
+    return {
+      show: true,
+      urgencyLevel: "normal" as const,
+      timeText: formatDate(dateString, locale),
+    }
+  }
+
+  const getInvestmentRouteForProject = (assetType: string) => {
+    const routeMap: Record<string, string> = {
+      FACTORING: "/investments/factoring",
+      DEPOSIT: "/investments/deposits",
+      REAL_ESTATE_CF: "/investments/real-estate-cf",
+      CROWDLENDING: "/investments/crowdlending",
+    }
+    return routeMap[assetType] || null
+  }
+
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">{t.common.dashboard}</h1>
-        <div className="flex gap-2">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+        <h1 className="text-3xl font-bold flex-shrink-0">
+          {t.common.dashboard}
+        </h1>
+        <div className="flex flex-wrap gap-2 items-center justify-end">
+          {/* Forecast active indicator / trigger */}
+          <Popover open={forecastOpen} onOpenChange={setForecastOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant={forecastMode ? "default" : "outline"}
+                className="flex items-center h-9 px-3 text-sm"
+              >
+                <TrendingUpDown className="h-4 w-4 mr-1 flex-shrink-0" />
+                <span className="whitespace-nowrap">
+                  {forecastMode && forecastResult
+                    ? formatDate(forecastResult.target_date, locale)
+                    : t.forecast.title}
+                </span>
+                {forecastMode && (
+                  <span
+                    onClick={e => {
+                      e.stopPropagation()
+                      setForecastResult(null)
+                      setForecastTargetDate("")
+                      setForecastAnnualIncrease("")
+                      setForecastAnnualCryptoIncrease("")
+                      setForecastAnnualCommodityIncrease("")
+                    }}
+                    className="ml-2 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
+                    aria-label={t.forecast.close}
+                  >
+                    ×
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">
+                    {t.forecast.targetDate}
+                  </label>
+                  <DatePicker
+                    value={forecastTargetDate}
+                    onChange={setForecastTargetDate}
+                    placeholder={t.forecast.targetDate}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium flex items-center justify-between">
+                    <span>{t.forecast.avgAnnualIncrease}</span>
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={forecastAnnualIncrease}
+                    onChange={e => setForecastAnnualIncrease(e.target.value)}
+                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium flex items-center justify-between">
+                    <span>{t.forecast.avgAnnualCryptoIncrease}</span>
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={forecastAnnualCryptoIncrease}
+                    onChange={e =>
+                      setForecastAnnualCryptoIncrease(e.target.value)
+                    }
+                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium flex items-center justify-between">
+                    <span>{t.forecast.avgAnnualCommodityIncrease}</span>
+                    <span className="text-[10px] text-muted-foreground">%</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={forecastAnnualCommodityIncrease}
+                    onChange={e =>
+                      setForecastAnnualCommodityIncrease(e.target.value)
+                    }
+                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  {forecastMode && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setForecastResult(null)
+                        setForecastTargetDate("")
+                        setForecastAnnualIncrease("")
+                        setForecastAnnualCryptoIncrease("")
+                        setForecastAnnualCommodityIncrease("")
+                      }}
+                      className="text-xs"
+                    >
+                      {t.forecast.reset}
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    disabled={
+                      !forecastTargetDate ||
+                      forecastLoading ||
+                      (!!forecastTargetDate &&
+                        new Date(forecastTargetDate) <= new Date())
+                    }
+                    onClick={async () => {
+                      try {
+                        setForecastLoading(true)
+                        const excludedEntityIds = inactiveEntities?.map(
+                          e => e.id,
+                        )
+                        const result = await getForecast({
+                          target_date: forecastTargetDate,
+                          excluded_entities: excludedEntityIds,
+                          avg_annual_market_increase: forecastAnnualIncrease
+                            ? parseFloat(forecastAnnualIncrease) / 100
+                            : null,
+                          avg_annual_crypto_increase:
+                            forecastAnnualCryptoIncrease
+                              ? parseFloat(forecastAnnualCryptoIncrease) / 100
+                              : null,
+                          avg_annual_commodity_increase:
+                            forecastAnnualCommodityIncrease
+                              ? parseFloat(forecastAnnualCommodityIncrease) /
+                                100
+                              : null,
+                        })
+                        setForecastResult(result)
+                        setForecastOpen(false)
+                      } catch (err) {
+                        console.error("Forecast error", err)
+                      } finally {
+                        setForecastLoading(false)
+                      }
+                    }}
+                    className="text-xs"
+                  >
+                    {forecastLoading ? t.common.loading : t.forecast.run}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {t.forecast.disclaimer}
+                </p>
+              </div>
+            </PopoverContent>
+          </Popover>
+          {/* Dashboard Options */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="flex items-center h-9 px-3">
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <HandCoins className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includePendingMoney}
+                  </div>
+                  <Switch
+                    disabled={forecastMode}
+                    checked={
+                      forecastMode ? false : dashboardOptions.includePending
+                    }
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includePending: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    {t.dashboard.includeCardExpenses}
+                  </div>
+                  <Switch
+                    checked={dashboardOptions.includeCardExpenses}
+                    onCheckedChange={val =>
+                      setDashboardOptions(prev => ({
+                        ...prev,
+                        includeCardExpenses: Boolean(val),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm flex items-center gap-2">
+                      <Home className="h-4 w-4 text-muted-foreground" />
+                      {t.dashboard.includeRealEstateEquity}
+                    </div>
+                    <Switch
+                      checked={dashboardOptions.includeRealEstate}
+                      onCheckedChange={val =>
+                        setDashboardOptions(prev => ({
+                          ...prev,
+                          includeRealEstate: Boolean(val),
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pl-6">
+                    <div className="text-sm text-muted-foreground">
+                      {t.dashboard.includeResidences}
+                    </div>
+                    <Switch
+                      checked={dashboardOptions.includeResidences}
+                      onCheckedChange={val =>
+                        setDashboardOptions(prev => ({
+                          ...prev,
+                          includeResidences: Boolean(val),
+                        }))
+                      }
+                      disabled={!dashboardOptions.includeRealEstate}
+                    />
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
           <EntityRefreshDropdown />
         </div>
       </div>
@@ -714,12 +1665,12 @@ export default function DashboardPage() {
         </motion.div>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="md:col-span-7"
+              className="lg:col-span-7"
             >
               <Card>
                 <CardHeader>
@@ -997,7 +1948,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="md:col-span-5"
+              className="lg:col-span-5 space-y-6"
             >
               <Card>
                 <CardHeader>
@@ -1010,16 +1961,16 @@ export default function DashboardPage() {
                   <div className="flex justify-between items-baseline">
                     <p className="text-4xl font-bold">
                       {formatCurrency(
-                        totalAssets,
+                        adjustedTotalAssets,
                         locale,
                         settings.general.defaultCurrency,
                       )}
                     </p>
-                    {totalInvestedAmount > 0 &&
+                    {adjustedInvestedAmount > 0 &&
                       (() => {
                         const percentageValue =
-                          ((totalAssets - totalInvestedAmount) /
-                            totalInvestedAmount) *
+                          ((adjustedTotalAssets - adjustedInvestedAmount) /
+                            adjustedInvestedAmount) *
                           100
                         const sign = percentageValue >= 0 ? "+" : "-"
                         return (
@@ -1038,11 +1989,146 @@ export default function DashboardPage() {
                   <p className="text-sm text-muted-foreground mt-1">
                     {t.dashboard.investedAmount}{" "}
                     {formatCurrency(
-                      totalInvestedAmount,
+                      adjustedInvestedAmount,
                       locale,
                       settings.general.defaultCurrency,
                     )}
                   </p>
+                  {forecastMode && projectedCash < 0 && (
+                    <div className="mt-3 flex items-start gap-3 rounded-md border border-amber-400/60 bg-amber-100/70 dark:bg-amber-900/40 px-3 py-2.5 text-sm">
+                      <div className="shrink-0 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 p-1.5 ring-1 ring-amber-500/30">
+                        <AlertCircle className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="font-semibold text-amber-800 dark:text-amber-200 tracking-tight">
+                          {t.forecast.negativeCashWarningTitle}
+                        </p>
+                        <p className="text-amber-800/90 dark:text-amber-100/80 leading-snug">
+                          {t.forecast.negativeCashWarning.replace(
+                            "{amount}",
+                            formatCurrency(
+                              projectedCash,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Upcoming Flows & Contributions Card */}
+              {/* Upcoming flows card: always show; empty state in forecast or when no data */}
+              <Card>
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
+                  <CardTitle className="text-lg font-bold flex items-center">
+                    <CalendarDays className="h-5 w-5 mr-2 text-primary" />
+                    {t.dashboard.upcomingFlows}
+                  </CardTitle>
+                  {!forecastMode && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate("/management")}
+                      className="text-xs px-2 py-1 h-auto min-h-0 self-start sm:self-auto"
+                    >
+                      <ArrowRight className="h-3 w-3 mr-1" />
+                      {t.dashboard.manageFlows}
+                    </Button>
+                  )}
+                </CardHeader>
+                <CardContent className="pt-0">
+                  {forecastMode && (
+                    <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
+                      <TrendingUpDown className="h-8 w-8 mb-2 opacity-60" />
+                      <p>{t.forecast.notShowing}</p>
+                    </div>
+                  )}
+                  {!forecastMode && upcomingEventsData.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
+                      <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
+                      <p>-</p>
+                    </div>
+                  )}
+                  {!forecastMode && upcomingEventsData.length > 0 && (
+                    <div className="space-y-3">
+                      {upcomingEventsData.map((item, index) => {
+                        const isEarning = item.direction === "in"
+                        const urgencyInfo = getDateUrgencyInfo(
+                          item.nextDate.toISOString().split("T")[0],
+                        )
+                        const fullName = item.name || ""
+                        const displayName = fullName
+                        const amountColorClass =
+                          item.kind === "contribution"
+                            ? "text-foreground"
+                            : isEarning
+                              ? "text-green-600"
+                              : "text-red-600"
+                        const amountPrefix =
+                          item.kind === "contribution"
+                            ? ""
+                            : isEarning
+                              ? "+"
+                              : "-"
+                        return (
+                          <div
+                            key={`${item.kind}-${item.id}-${index}`}
+                            className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
+                          >
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              {item.kind === "contribution" ? (
+                                <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                              ) : item.recurring ? (
+                                <CalendarSync
+                                  className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                                />
+                              ) : (
+                                <HandCoins
+                                  className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                                />
+                              )}
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
+                                <p
+                                  className="font-medium text-sm truncate"
+                                  title={fullName}
+                                >
+                                  {displayName}
+                                </p>
+                                {urgencyInfo?.show && (
+                                  <Badge
+                                    variant={
+                                      urgencyInfo.urgencyLevel === "urgent"
+                                        ? "destructive"
+                                        : urgencyInfo.urgencyLevel === "soon"
+                                          ? "default"
+                                          : "outline"
+                                    }
+                                    /* Prevent wrap, keep consistent pill size */
+                                    className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
+                                  >
+                                    {urgencyInfo.timeText}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p
+                              className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
+                            >
+                              {amountPrefix}
+                              {formatCurrency(
+                                Math.abs(item.convertedAmount),
+                                locale,
+                                settings.general.defaultCurrency,
+                              )}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -1054,13 +2140,14 @@ export default function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
             >
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
+              {/* Ongoing investments (full-width, no card background) */}
+              <div className="relative w-full">
+                <div className="flex flex-row items-center justify-between pb-3">
                   <div>
-                    <CardTitle className="text-lg font-bold flex items-center">
+                    <h2 className="text-lg font-bold flex items-center">
                       <TrendingUp className="h-5 w-5 mr-2 text-primary" />
                       {t.dashboard.ongoingProjects}
-                    </CardTitle>
+                    </h2>
                   </div>
                   {ongoingProjects.length > 3 && (
                     <div className="flex space-x-1">
@@ -1090,20 +2177,34 @@ export default function DashboardPage() {
                       </Button>
                     </div>
                   )}
-                </CardHeader>
-                <CardContent className="pt-0">
+                </div>
+                {/* Full-bleed horizontal scroller */}
+                <div className="-mx-4 sm:-mx-6">
                   <div
                     ref={projectsContainerRef}
-                    className="flex overflow-x-auto space-x-3 scrollbar-none"
+                    className="flex overflow-x-auto overflow-y-visible space-x-3 scrollbar-none px-4 sm:px-6 pb-4"
                     onScroll={handleScroll}
-                    style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                    style={{
+                      scrollbarWidth: "none",
+                      msOverflowStyle: "none",
+                    }}
                   >
                     {ongoingProjects.map((project, index) => {
                       const status = getDaysStatus(project.maturity, t)
+                      const route = getInvestmentRouteForProject(project.type)
                       return (
                         <Card
                           key={index}
-                          className="bg-gray-50 dark:bg-gray-900 border flex-shrink-0 w-[280px]"
+                          className={`flex-shrink-0 w-[280px] ${route ? "cursor-pointer hover:border-primary/40 transition-colors" : ""}`}
+                          onClick={() => route && navigate(route)}
+                          role={route ? "button" : undefined}
+                          tabIndex={route ? 0 : -1}
+                          onKeyDown={e => {
+                            if (route && (e.key === "Enter" || e.key === " ")) {
+                              e.preventDefault()
+                              navigate(route)
+                            }
+                          }}
                         >
                           <CardContent className="p-3 flex flex-col justify-between h-full">
                             <div>
@@ -1123,7 +2224,7 @@ export default function DashboardPage() {
                                       {project.entity}
                                     </Badge>
                                     <div className="flex items-center">
-                                      {getIconForProjectType(project.type)}
+                                      {getIconForAssetType(project.type)}
                                       <span className="ml-1 capitalize text-[10px]">
                                         {t.enums &&
                                         t.enums.productType &&
@@ -1177,17 +2278,17 @@ export default function DashboardPage() {
                       )
                     })}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </motion.div>
           ) : null}
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="md:col-span-7"
+              className="lg:col-span-7"
             >
               <Card className="h-full flex flex-col">
                 <CardHeader>
@@ -1580,6 +2681,18 @@ export default function DashboardPage() {
                                                   )}
                                             </div>
                                           </div>
+                                          <div className="col-span-2">
+                                            <span className="text-muted-foreground">
+                                              {t.dashboard.investedAmount}:
+                                            </span>
+                                            <div className="font-semibold">
+                                              {(item as any)
+                                                .formattedInitialInvestment ||
+                                                (item as any)
+                                                  .formattedOriginalValue ||
+                                                item.formattedValue}
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                     </PopoverContent>
@@ -1713,6 +2826,18 @@ export default function DashboardPage() {
                                                   )}
                                             </div>
                                           </div>
+                                          <div className="col-span-2">
+                                            <span className="text-muted-foreground">
+                                              {t.dashboard.investedAmount}:
+                                            </span>
+                                            <div className="font-semibold">
+                                              {(item as any)
+                                                .formattedInitialInvestment ||
+                                                (item as any)
+                                                  .formattedOriginalValue ||
+                                                item.formattedValue}
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                     </PopoverContent>
@@ -1779,7 +2904,9 @@ export default function DashboardPage() {
                                               {t.dashboard.value}:
                                             </span>
                                             <div className="font-semibold">
-                                              {item.formattedValue}
+                                              {(item as any)
+                                                .formattedInitialInvestment ||
+                                                item.formattedValue}
                                             </div>
                                           </div>
                                           {item.percentageOfTotalVariableRent <
@@ -1875,6 +3002,14 @@ export default function DashboardPage() {
                                               </div>
                                             </div>
                                           )}
+                                          <div className="col-span-2">
+                                            <span className="text-muted-foreground">
+                                              {t.dashboard.investedAmount}:
+                                            </span>
+                                            <div className="font-semibold">
+                                              {item.formattedValue}
+                                            </div>
+                                          </div>
                                         </div>
                                       </div>
                                     </PopoverContent>
@@ -1952,7 +3087,9 @@ export default function DashboardPage() {
                                                 {t.dashboard.value}:
                                               </span>
                                               <div className="font-semibold">
-                                                {item.formattedValue}
+                                                {(item as any)
+                                                  .formattedInitialInvestment ||
+                                                  item.formattedValue}
                                               </div>
                                             </div>
                                             {item.percentageOfTotalVariableRent <
@@ -2016,6 +3153,14 @@ export default function DashboardPage() {
                                                     )}
                                               </div>
                                             </div>
+                                            <div className="col-span-2">
+                                              <span className="text-muted-foreground">
+                                                {t.dashboard.investedAmount}:
+                                              </span>
+                                              <div className="font-semibold">
+                                                {item.formattedValue}
+                                              </div>
+                                            </div>
                                             {item.showEntityBadge &&
                                               item.entities &&
                                               item.entities.length > 0 && (
@@ -2065,7 +3210,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5 }}
-              className="md:col-span-5"
+              className="lg:col-span-5"
             >
               <Card className="h-full flex flex-col">
                 <CardHeader>
@@ -2074,19 +3219,28 @@ export default function DashboardPage() {
                       <ArrowLeftRight className="h-5 w-5 mr-2 text-primary" />
                       {t.dashboard.recentTransactions}
                     </CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate("/transactions")}
-                      className="flex items-center gap-1"
-                    >
-                      {t.dashboard.viewAll}
-                      <ArrowRight className="h-4 w-4" />
-                    </Button>
+                    {!forecastMode && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate("/transactions")}
+                        className="flex items-center gap-1"
+                      >
+                        {t.dashboard.viewAll}
+                        <ArrowRight className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="flex-grow overflow-y-auto scrollbar-thin min-h-[350px] max-h-[650px]">
-                  {Object.keys(recentTransactions).length > 0 ? (
+                  {forecastMode ? (
+                    <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
+                      <TrendingUpDown className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+                      <p className="text-sm text-muted-foreground mb-1">
+                        {t.forecast.notShowing}
+                      </p>
+                    </div>
+                  ) : Object.keys(recentTransactions).length > 0 ? (
                     <ul className="space-y-0">
                       {Object.entries(recentTransactions).map(
                         ([date, txsOnDate]) => (

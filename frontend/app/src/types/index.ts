@@ -1,4 +1,10 @@
-import { WeightUnit, CommodityType } from "./position"
+import {
+  WeightUnit,
+  CommodityType,
+  LoanType,
+  InterestType,
+  EntitiesPosition,
+} from "./position"
 
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
@@ -189,6 +195,9 @@ export enum VirtualFetchResultCode {
 }
 
 export interface Settings {
+  general: {
+    defaultCurrency: string
+  }
   export: {
     sheets: {
       globals: {
@@ -330,4 +339,269 @@ export interface GoogleIntegrationCredentials {
 
 export interface EtherscanIntegrationData {
   api_key: string
+}
+
+export enum FlowType {
+  EARNING = "EARNING",
+  EXPENSE = "EXPENSE",
+}
+
+export enum FlowFrequency {
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY",
+  MONTHLY = "MONTHLY",
+  EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
+  QUARTERLY = "QUARTERLY",
+  EVERY_FOUR_MONTHS = "EVERY_FOUR_MONTHS",
+  SEMIANNUALLY = "SEMIANNUALLY",
+  YEARLY = "YEARLY",
+}
+
+export interface PeriodicFlow {
+  id?: string
+  name: string
+  amount: number
+  flow_type: FlowType
+  frequency: FlowFrequency
+  category?: string
+  enabled: boolean
+  since: string
+  until?: string
+  currency: string
+  icon?: string
+  linked?: boolean
+  next_date?: string
+  max_amount?: number
+}
+
+export interface PendingFlow {
+  id: string
+  name: string
+  amount: number
+  flow_type: FlowType
+  category?: string
+  enabled: boolean
+  date?: string
+  currency: string
+  icon?: string
+}
+
+export interface CreatePeriodicFlowRequest {
+  name: string
+  amount: number
+  flow_type: FlowType
+  frequency: FlowFrequency
+  category?: string
+  enabled: boolean
+  since: string
+  until?: string
+  currency: string
+  icon?: string
+  max_amount?: number
+}
+
+export interface UpdatePeriodicFlowRequest {
+  id: string
+  name: string
+  amount: number
+  flow_type: FlowType
+  frequency: FlowFrequency
+  category?: string
+  enabled: boolean
+  since: string
+  until?: string
+  currency: string
+  icon?: string
+  max_amount?: number
+}
+
+export interface CreatePendingFlowRequest {
+  name: string
+  amount: number
+  flow_type: FlowType
+  category?: string
+  enabled: boolean
+  date?: string
+  currency: string
+  icon?: string
+  max_amount?: number
+}
+
+export interface SavePendingFlowsRequest {
+  flows: CreatePendingFlowRequest[]
+}
+
+export enum RealEstateFlowSubtype {
+  LOAN = "LOAN",
+  SUPPLY = "SUPPLY",
+  COST = "COST",
+  RENT = "RENT",
+}
+
+export interface LoanPayload {
+  type: LoanType
+  loan_amount?: number | null
+  interest_rate: number
+  euribor_rate?: number | null
+  interest_type: InterestType
+  fixed_years?: number | null
+  principal_outstanding: number
+  monthly_interests?: number | null
+}
+
+export interface RentPayload {}
+
+export interface SupplyPayload {
+  tax_deductible?: boolean
+}
+
+export interface CostPayload {
+  tax_deductible?: boolean
+}
+
+export type RealEstateFlowPayload =
+  | LoanPayload
+  | RentPayload
+  | SupplyPayload
+  | CostPayload
+
+export interface RealEstateFlow {
+  periodic_flow_id?: string | null
+  periodic_flow?: PeriodicFlow | null
+  flow_subtype: RealEstateFlowSubtype
+  description: string
+  payload: RealEstateFlowPayload
+}
+
+export interface PurchaseExpense {
+  concept: string
+  amount: number
+  description?: string | null
+}
+
+export interface Valuation {
+  date: string
+  amount: number
+  notes?: string | null
+}
+
+export interface Location {
+  address?: string | null
+  cadastral_reference?: string | null
+}
+
+export interface BasicInfo {
+  name: string
+  is_residence: boolean
+  is_rented: boolean
+  bathrooms?: number | null
+  bedrooms?: number | null
+  photo_url?: string | null
+}
+
+export interface PurchaseInfo {
+  date: string
+  price: number
+  expenses: PurchaseExpense[]
+}
+
+export interface ValuationInfo {
+  estimated_market_value: number
+  valuations: Valuation[]
+  annual_appreciation?: number | null
+}
+
+export interface Amortization {
+  concept: string
+  base_amount: number
+  percentage: number
+  amount: number
+}
+
+export interface RentalData {
+  marginal_tax_rate?: number | null
+  amortizations: Amortization[]
+  vacancy_rate?: number | null
+}
+
+export interface RealEstate {
+  id?: string | null
+  basic_info: BasicInfo
+  currency: string
+  location: Location
+  purchase_info: PurchaseInfo
+  valuation_info: ValuationInfo
+  flows: RealEstateFlow[]
+  created_at?: string | null
+  updated_at?: string | null
+  rental_data?: RentalData | null
+}
+
+export interface CreateRealEstateRequest {
+  data: Omit<RealEstate, "id" | "created_at" | "updated_at" | "basic_info"> & {
+    basic_info: Omit<BasicInfo, "photo_url">
+  }
+  photo?: File | null
+}
+
+export interface UpdateRealEstateRequest {
+  data: RealEstate & {
+    remove_unassigned_flows: boolean
+  }
+  photo?: File | null
+}
+
+export interface DeleteRealEstateRequest {
+  remove_related_flows: boolean
+}
+
+export interface LoanCalculationRequest {
+  loan_amount?: number | null
+  principal_outstanding?: number | null
+  interest_rate: number
+  interest_type: InterestType
+  euribor_rate?: number | null
+  fixed_years?: number | null
+  start: string
+  end: string
+}
+
+export interface LoanCalculationResult {
+  current_monthly_payment?: number | null
+  current_monthly_interests?: number | null
+  principal_outstanding?: number | null
+  installment_date?: string | null
+}
+
+// Forecast types
+export interface ForecastRequest {
+  target_date: string
+  entities?: string[]
+  excluded_entities?: string[]
+  avg_annual_market_increase?: number | null
+  avg_annual_crypto_increase?: number | null
+  avg_annual_commodity_increase?: number | null
+}
+
+export interface CashDelta {
+  currency: string
+  amount: number
+}
+
+export interface RealEstateEquityForecast {
+  id: string
+  equity_now?: number | null
+  equity_at_target?: number | null
+  principal_outstanding_now?: number | null
+  principal_outstanding_at_target?: number | null
+  currency: string
+}
+
+export interface ForecastResult {
+  target_date: string
+  positions: EntitiesPosition
+  cash_delta: CashDelta[]
+  real_estate: RealEstateEquityForecast[]
+  crypto_appreciation: number
+  commodity_appreciation: number
 }

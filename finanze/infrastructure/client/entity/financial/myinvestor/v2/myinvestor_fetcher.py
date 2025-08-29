@@ -159,18 +159,22 @@ def _map_deposit_tx(
 
 
 def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
+    amount = round(amount, 2)
+    retentions = round(retentions, 2)
+    net_amount = amount - retentions
     return AccountTx(
         id=uuid4(),
         ref=ref,
         name=name,
-        amount=round(amount, 2),
+        amount=amount,
         currency=currency,
         type=TxType.INTEREST,
         product_type=ProductType.ACCOUNT,
         date=tx_date,
         entity=MY_INVESTOR,
         fees=Dezimal(0),
-        retentions=round(retentions, 2),
+        retentions=retentions,
+        net_amount=net_amount,
         interest_rate=None,
         avg_balance=None,
         is_real=True,
@@ -577,7 +581,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         fund_data = _get_fund_investments(fund_investments)
 
         portfolio_cash_accounts = []
-        for raw_account, _, security_account in account_entries:
+        for raw_account, acc, security_account in account_entries:
             if raw_account["accountType"] != "CASH_PORTFOLIO":
                 continue
 
@@ -607,6 +611,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     currency="EUR",
                     initial_investment=total_invested,
                     market_value=market_value,
+                    account_id=acc.id,
                 )
             )
 
@@ -634,11 +639,12 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         target_account_alias = auto_contribution.get("toAccountAlias")
         fund_name = auto_contribution.get("fundName")
         isin = auto_contribution.get("isin")
-        target_account = auto_contribution.get("toAccountIban")
-        alias = auto_contribution["alias"]
-        alias = alias or fund_name or target_account_alias
+        target_cash_account = auto_contribution.get("toAccountIban")
+        alias = auto_contribution.get("alias")
 
-        target = isin or target_account
+        target_name = fund_name or target_account_alias
+        alias = alias or target_name
+        target = isin or target_cash_account
         target_type = (
             ContributionTargetType.FUND
             if fund_name
@@ -649,6 +655,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             id=uuid4(),
             alias=alias,
             target=target,
+            target_name=target_name,
             target_type=target_type,
             amount=round(Dezimal(auto_contribution["amount"]), 2),
             currency=SYMBOL_CURRENCY_MAP.get(auto_contribution["currency"], "EUR"),

@@ -1,4 +1,5 @@
 import type React from "react"
+import { useEffect, useMemo } from "react"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -46,7 +47,17 @@ export function FeatureSelector() {
     setFetchOptions({ ...fetchOptions, deep: value })
   }
 
-  const availableFeatures = selectedEntity.features
+  const availableFeatures = useMemo(
+    () => selectedEntity.features,
+    [selectedEntity],
+  )
+
+  // Default-select all available features when entity changes or when none selected
+  useEffect(() => {
+    if (availableFeatures.length > 0) {
+      setSelectedFeatures(availableFeatures)
+    }
+  }, [availableFeatures, setSelectedFeatures])
 
   const toggleFeature = (feature: Feature) => {
     if (selectedFeatures.includes(feature)) {

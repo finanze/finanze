@@ -41,6 +41,7 @@ export interface AccountTx extends BaseTx {
   retentions: number
   interest_rate?: number
   avg_balance?: number
+  net_amount?: number
 }
 
 // Stock transaction interface

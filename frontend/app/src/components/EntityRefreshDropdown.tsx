@@ -207,11 +207,11 @@ export function EntityRefreshDropdown() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="absolute right-0 mt-2 w-72 rounded-md shadow-lg bg-neutral-950/80 backdrop-blur-md border border-neutral-700/50 z-50"
+            className="absolute right-0 mt-2 w-72 rounded-md shadow-md bg-popover z-50 border"
           >
             <div className="py-1" role="menu" aria-orientation="vertical">
-              <div className="px-4 py-3 text-sm font-medium text-neutral-400 border-b border-neutral-700/50 flex items-center">
-                <History className="h-4 w-4 mr-2 text-neutral-500" />
+              <div className="px-4 py-3 text-sm font-medium flex items-center">
+                <History className="h-4 w-4 mr-2" />
                 {t.entities.refreshEntity}
               </div>
               <div className="max-h-80 overflow-y-auto">
@@ -221,7 +221,7 @@ export function EntityRefreshDropdown() {
                     return (
                       <div
                         key={entity.id}
-                        className="px-4 py-1.5 text-sm text-neutral-100 flex items-center justify-between hover:bg-neutral-800/50 border-b border-neutral-700/60 last:border-b-0"
+                        className="px-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
                         <div>
                           <span>{entity.name}</span>
@@ -243,18 +243,15 @@ export function EntityRefreshDropdown() {
                         </div>
                         {fetchingEntityIds.includes(entity.id) ? (
                           <div className="p-1.5">
-                            <LoadingSpinner
-                              size="sm"
-                              className="text-gray-300 p-1.5"
-                            />
+                            <LoadingSpinner size="sm" className="p-1.5" />
                           </div>
                         ) : (
                           <button
                             onClick={e => handleRefreshEntity(entity, e)}
-                            className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
+                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             aria-label={`Refresh ${entity.name}`}
                           >
-                            <RefreshCw className="h-4 w-4 text-gray-300" />
+                            <RefreshCw className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -276,7 +273,7 @@ export function EntityRefreshDropdown() {
                     return (
                       <div
                         key="crypto-group"
-                        className="px-4 py-1.5 text-sm text-neutral-100 flex items-center justify-between hover:bg-neutral-800/50 border-b border-neutral-700/60 last:border-b-0"
+                        className="px-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
                         <div>
                           <div className="flex items-center gap-2">
@@ -303,18 +300,15 @@ export function EntityRefreshDropdown() {
                         </div>
                         {isCryptoFetching ? (
                           <div className="p-1.5">
-                            <LoadingSpinner
-                              size="sm"
-                              className="text-gray-300 p-1.5"
-                            />
+                            <LoadingSpinner size="sm" className="p-1.5" />
                           </div>
                         ) : (
                           <button
                             onClick={handleRefreshCrypto}
-                            className="p-1.5 rounded-full hover:bg-gray-700 transition-colors"
+                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
                             aria-label={`Refresh ${t.common.crypto}`}
                           >
-                            <RefreshCw className="h-4 w-4 text-gray-300" />
+                            <RefreshCw className="h-4 w-4" />
                           </button>
                         )}
                       </div>

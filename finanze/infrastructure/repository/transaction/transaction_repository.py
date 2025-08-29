@@ -46,6 +46,7 @@ def _map_account_row(row) -> AccountTx:
         retentions=Dezimal(row["retentions"]),
         interest_rate=Dezimal(row["interest_rate"]) if row["interest_rate"] else None,
         avg_balance=Dezimal(row["avg_balance"]) if row["avg_balance"] else None,
+        net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
     )
 
 
@@ -229,8 +230,8 @@ class TransactionSQLRepository(TransactionPort):
                     """
                     INSERT INTO account_transactions (id, ref, name, amount, currency, type, date,
                                                       entity_id, is_real, created_at,
-                                                      fees, retentions, interest_rate, avg_balance)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                      fees, retentions, interest_rate, avg_balance, net_amount)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(tx.id),
@@ -247,6 +248,7 @@ class TransactionSQLRepository(TransactionPort):
                         str(tx.retentions),
                         str(tx.interest_rate) if tx.interest_rate else None,
                         str(tx.avg_balance) if tx.avg_balance else None,
+                        str(tx.net_amount) if tx.net_amount else None,
                     ),
                 )
 
@@ -405,7 +407,7 @@ class TransactionSQLRepository(TransactionPort):
                                 NULL      AS market,
                                 NULL      AS shares,
                                 NULL      AS price,
-                                NULL      AS net_amount,
+                                net_amount,
                                 NULL      AS order_date,
                                 NULL      AS linked_tx,
                                 NULL      AS interests

@@ -71,6 +71,12 @@ class LoanType(str, Enum):
     STANDARD = "STANDARD"
 
 
+class InterestType(str, Enum):
+    FIXED = "FIXED"
+    VARIABLE = "VARIABLE"
+    MIXED = "MIXED"
+
+
 @dataclass
 class Loan(BaseData):
     id: UUID
@@ -82,7 +88,13 @@ class Loan(BaseData):
     next_payment_date: date
     principal_outstanding: Dezimal
     principal_paid: Dezimal
+    interest_type: InterestType = InterestType.FIXED
+    euribor_rate: Optional[Dezimal] = None
+    fixed_years: Optional[int] = None
     name: Optional[str] = None
+    creation: Optional[date] = None
+    maturity: Optional[date] = None
+    unpaid: Optional[Dezimal] = None
 
 
 @dataclass
@@ -108,6 +120,8 @@ class FundPortfolio(BaseData):
     currency: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     market_value: Optional[Dezimal] = None
+    account_id: Optional[UUID] = None
+    account: Optional[Account] = None
 
 
 @dataclass
@@ -131,6 +145,7 @@ class FactoringDetail(BaseData):
     amount: Dezimal
     currency: str
     interest_rate: Dezimal
+    profitability: Dezimal
     gross_interest_rate: Dezimal
     last_invest_date: datetime
     maturity: date
@@ -146,6 +161,7 @@ class RealEstateCFDetail(BaseData):
     pending_amount: Dezimal
     currency: str
     interest_rate: Dezimal
+    profitability: Dezimal
     last_invest_date: datetime
     maturity: date
     type: str

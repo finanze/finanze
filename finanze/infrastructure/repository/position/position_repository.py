@@ -31,6 +31,7 @@ from domain.global_position import (
     FundPortfolio,
     FundPortfolios,
     GlobalPosition,
+    InterestType,
     Loan,
     Loans,
     LoanType,
@@ -51,9 +52,10 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
         cursor.execute(
             """
             INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
-                                        interest_rate, loan_amount, next_payment_date,
-                                        principal_outstanding, principal_paid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        interest_rate, interest_type, loan_amount, next_payment_date,
+                                        principal_outstanding, principal_paid, euribor_rate, fixed_years,
+                                        creation, maturity, unpaid)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(loan.id),
@@ -63,10 +65,16 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
                 loan.name,
                 str(loan.current_installment),
                 str(loan.interest_rate),
+                loan.interest_type,
                 str(loan.loan_amount),
                 loan.next_payment_date.isoformat(),
                 str(loan.principal_outstanding),
                 str(loan.principal_paid),
+                str(loan.euribor_rate) if loan.euribor_rate else None,
+                str(loan.fixed_years) if loan.fixed_years else None,
+                loan.creation.isoformat() if loan.creation else None,
+                loan.maturity.isoformat() if loan.maturity else None,
+                str(loan.unpaid) if loan.unpaid else None,
             ),
         )
 
@@ -240,9 +248,9 @@ def _save_real_estate_cf(
         cursor.execute(
             """
             INSERT INTO real_estate_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
-                                                 interest_rate, last_invest_date, maturity, type,
+                                                 interest_rate, profitability, last_invest_date, maturity, type,
                                                  business_type, state, extended_maturity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -252,12 +260,15 @@ def _save_real_estate_cf(
                 str(detail.pending_amount),
                 detail.currency,
                 str(detail.interest_rate),
+                str(detail.profitability),
                 detail.last_invest_date.isoformat(),
                 detail.maturity.isoformat(),
                 detail.type,
                 detail.business_type,
                 detail.state,
-                detail.extended_maturity,
+                detail.extended_maturity.isoformat()
+                if detail.extended_maturity
+                else None,
             ),
         )
 
@@ -267,9 +278,9 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
         cursor.execute(
             """
             INSERT INTO factoring_positions (id, global_position_id, name, amount, currency,
-                                             interest_rate, gross_interest_rate, last_invest_date,
+                                             interest_rate, profitability, gross_interest_rate, last_invest_date,
                                              maturity, type, state)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -278,6 +289,7 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
                 str(detail.amount),
                 detail.currency,
                 str(detail.interest_rate),
+                str(detail.profitability),
                 str(detail.gross_interest_rate),
                 detail.last_invest_date.isoformat()
                 if detail.last_invest_date
@@ -293,8 +305,8 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPort
     for portfolio in portfolios.entries:
         cursor.execute(
             """
-            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value, account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(portfolio.id),
@@ -305,6 +317,7 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPort
                 if portfolio.initial_investment
                 else None,
                 str(portfolio.market_value) if portfolio.market_value else None,
+                str(portfolio.account_id) if portfolio.account_id else None,
             ),
         )
 
@@ -622,12 +635,26 @@ class PositionSQLRepository(PositionPort):
                     name=row["name"],
                     current_installment=Dezimal(row["current_installment"]),
                     interest_rate=Dezimal(row["interest_rate"]),
+                    interest_type=row["interest_type"]
+                    if row["interest_type"]
+                    else InterestType.FIXED,
                     loan_amount=Dezimal(row["loan_amount"]),
                     next_payment_date=datetime.fromisoformat(
                         row["next_payment_date"]
                     ).date(),
                     principal_outstanding=Dezimal(row["principal_outstanding"]),
                     principal_paid=Dezimal(row["principal_paid"]),
+                    euribor_rate=Dezimal(row["euribor_rate"])
+                    if row["euribor_rate"]
+                    else None,
+                    fixed_years=int(row["fixed_years"]) if row["fixed_years"] else None,
+                    creation=datetime.fromisoformat(row["creation"]).date()
+                    if row["creation"]
+                    else None,
+                    maturity=datetime.fromisoformat(row["maturity"]).date()
+                    if row["maturity"]
+                    else None,
+                    unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
                 )
                 for row in cursor
             ]
@@ -672,22 +699,38 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[FundPortfolios]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM fund_portfolios WHERE global_position_id = ?",
+                """
+                SELECT fp.*, ap.id AS account_id, ap.total, ap.name as account_name, ap.iban
+                FROM fund_portfolios fp
+                         LEFT JOIN account_positions ap ON fp.account_id = ap.id
+                WHERE fp.global_position_id = ?
+                """,
                 (str(global_position_id),),
             )
 
             portfolios = []
             for row in cursor:
+                currency = row["currency"]
                 portfolios.append(
                     FundPortfolio(
                         id=UUID(row["id"]),
                         name=row["name"],
-                        currency=row["currency"],
+                        currency=currency,
                         initial_investment=Dezimal(row["initial_investment"])
                         if row["initial_investment"]
                         else None,
                         market_value=Dezimal(row["market_value"])
                         if row["market_value"]
+                        else None,
+                        account=Account(
+                            id=UUID(row["account_id"]),
+                            total=Dezimal(row["total"]),
+                            currency=currency,
+                            type=AccountType.FUND_PORTFOLIO,
+                            name=row["name"],
+                            iban=row["iban"],
+                        )
+                        if row["account_id"]
                         else None,
                     )
                 )
@@ -765,6 +808,7 @@ class PositionSQLRepository(PositionPort):
                     amount=Dezimal(row["amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
+                    profitability=Dezimal(row["profitability"]),
                     gross_interest_rate=Dezimal(row["gross_interest_rate"]),
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
@@ -796,6 +840,7 @@ class PositionSQLRepository(PositionPort):
                     pending_amount=Dezimal(row["pending_amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
+                    profitability=Dezimal(row["profitability"]),
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
                     maturity=row["maturity"],
                     type=row["type"],

@@ -16,6 +16,19 @@ import type {
   ExternalIntegrations,
   GoogleIntegrationCredentials,
   EtherscanIntegrationData,
+  PeriodicFlow,
+  PendingFlow,
+  CreatePeriodicFlowRequest,
+  UpdatePeriodicFlowRequest,
+  SavePendingFlowsRequest,
+  RealEstate,
+  CreateRealEstateRequest,
+  UpdateRealEstateRequest,
+  DeleteRealEstateRequest,
+  LoanCalculationRequest,
+  LoanCalculationResult,
+  ForecastRequest,
+  ForecastResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -443,6 +456,38 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
   return response.json()
 }
 
+export async function calculateLoan(
+  request: LoanCalculationRequest,
+): Promise<LoanCalculationResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/calculation/loan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getForecast(
+  request: ForecastRequest,
+): Promise<ForecastResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/forecast`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
 export async function createCryptoWallet(
   request: CreateCryptoWalletRequest,
 ): Promise<void> {
@@ -546,4 +591,162 @@ export async function setupEtherscanIntegration(
   if (!response.ok) {
     await handleApiError(response)
   }
+}
+
+export async function createPeriodicFlow(
+  request: CreatePeriodicFlowRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/flows/periodic`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function updatePeriodicFlow(
+  request: UpdatePeriodicFlowRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/flows/periodic`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function getAllPeriodicFlows(): Promise<PeriodicFlow[]> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/flows/periodic`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function deletePeriodicFlow(flowId: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/flows/periodic/${flowId}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function savePendingFlows(
+  request: SavePendingFlowsRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/flows/pending`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function getAllPendingFlows(): Promise<PendingFlow[]> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/flows/pending`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getAllRealEstate(): Promise<RealEstate[]> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/real-estate`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function createRealEstate(
+  request: CreateRealEstateRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+
+  const formData = new FormData()
+  formData.append("data", JSON.stringify(request.data))
+
+  if (request.photo) {
+    formData.append("photo", request.photo)
+  }
+
+  const response = await fetch(`${baseUrl}/real-estate`, {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function updateRealEstate(
+  request: UpdateRealEstateRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+
+  const formData = new FormData()
+  formData.append("data", JSON.stringify(request.data))
+
+  if (request.photo) {
+    formData.append("photo", request.photo)
+  }
+
+  const response = await fetch(`${baseUrl}/real-estate`, {
+    method: "PUT",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function deleteRealEstate(
+  realEstateId: string,
+  request: DeleteRealEstateRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/real-estate/${realEstateId}`, {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function getImageUrl(imagePath: string): Promise<string> {
+  const baseUrl = await ensureApiUrlInitialized()
+  // Remove /api/v1 from the end and add the image path
+  const imageBaseUrl = baseUrl.replace("/api/v1", "")
+  return `${imageBaseUrl}${imagePath}`
 }

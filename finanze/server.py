@@ -1,13 +1,18 @@
 import argparse
 import logging
+from pathlib import Path
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
+from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
+from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
+from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
+from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
@@ -16,17 +21,25 @@ from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
+from application.use_cases.get_pending_flows import GetPendingFlowsImpl
+from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
+from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
+from application.use_cases.save_pending_flows import SavePendingFlowsImpl
+from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
+from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
+from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
+from application.use_cases.forecast import ForecastImpl
 from domain.data_init import DatasourceInitParams
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
@@ -62,6 +75,7 @@ from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
+from infrastructure.file_storage.local_file_storage import LocalFileStorage
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -78,11 +92,20 @@ from infrastructure.repository.crypto_wallets.crypto_wallet_connection_repositor
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
 from infrastructure.repository.db.transaction_handler import TransactionHandler
+from infrastructure.repository.earnings_expenses.pending_flow_repository import (
+    PendingFlowRepository,
+)
+from infrastructure.repository.earnings_expenses.periodic_flow_repository import (
+    PeriodicFlowRepository,
+)
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
+)
+from infrastructure.repository.real_estate.real_estate_repository import (
+    RealEstateRepository,
 )
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
 from infrastructure.repository.virtual.virtual_import_repository import (
@@ -106,9 +129,19 @@ class FinanzeServer:
         self.db_manager = DBManager(self.db_client)
         self.data_manager = UserDataManager(self.args.data_dir)
 
+        static_upload_dir = self.args.data_dir / Path("static")
+
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
         self.etherscan_client = EtherscanClient()
+
+        self.crypto_entity_fetchers = {
+            domain.native_entities.BITCOIN: BitcoinFetcher(),
+            domain.native_entities.ETHEREUM: EthereumFetcher(),
+            domain.native_entities.LITECOIN: LitecoinFetcher(),
+            domain.native_entities.TRON: TronFetcher(),
+            domain.native_entities.BSC: BSCFetcher(self.etherscan_client),
+        }
 
         self.financial_entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
@@ -120,14 +153,6 @@ class FinanzeServer:
             domain.native_entities.MINTOS: MintosFetcher(),
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
-        }
-
-        self.crypto_entity_fetchers = {
-            domain.native_entities.BITCOIN: BitcoinFetcher(),
-            domain.native_entities.ETHEREUM: EthereumFetcher(),
-            domain.native_entities.LITECOIN: LitecoinFetcher(),
-            domain.native_entities.TRON: TronFetcher(),
-            domain.native_entities.BSC: BSCFetcher(self.etherscan_client),
         }
 
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
@@ -147,6 +172,14 @@ class FinanzeServer:
         external_integration_repository = ExternalIntegrationRepository(
             client=self.db_client
         )
+        periodic_flow_repository = PeriodicFlowRepository(client=self.db_client)
+        pending_flow_repository = PendingFlowRepository(client=self.db_client)
+        real_estate_repository = RealEstateRepository(client=self.db_client)
+
+        file_storage_repository = LocalFileStorage(
+            upload_dir=static_upload_dir, static_url_prefix="/static"
+        )
+
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
         metal_price_client = MetalPriceClient()
@@ -278,6 +311,43 @@ class FinanzeServer:
             external_integration_repository, self.config_loader, self.etherscan_client
         )
 
+        save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
+        update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
+        delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
+        get_periodic_flows = GetPeriodicFlowsImpl(periodic_flow_repository)
+        save_pending_flows = SavePendingFlowsImpl(
+            pending_flow_repository, transaction_handler
+        )
+        get_pending_flows = GetPendingFlowsImpl(pending_flow_repository)
+
+        create_real_estate = CreateRealEstateImpl(
+            real_estate_repository,
+            periodic_flow_repository,
+            transaction_handler,
+            file_storage_repository,
+        )
+        update_real_estate = UpdateRealEstateImpl(
+            real_estate_repository,
+            periodic_flow_repository,
+            transaction_handler,
+            file_storage_repository,
+        )
+        delete_real_estate = DeleteRealEstateImpl(
+            real_estate_repository,
+            periodic_flow_repository,
+            transaction_handler,
+            file_storage_repository,
+        )
+        list_real_estate = ListRealEstateImpl(real_estate_repository)
+        calculate_loan = CalculateLoanImpl()
+        forecast = ForecastImpl(
+            position_port=position_repository,
+            auto_contributions_port=auto_contrib_repository,
+            periodic_flow_port=periodic_flow_repository,
+            pending_flow_port=pending_flow_repository,
+            real_estate_port=real_estate_repository,
+        )
+
         self._log.info("Initial component setup completed.")
 
         if args.logged_username and args.logged_password:
@@ -296,7 +366,7 @@ class FinanzeServer:
 
         self._log.info("Setting up REST API...")
 
-        self.flask_app = flask()
+        self.flask_app = flask(static_upload_dir)
         register_routes(
             self.flask_app,
             user_login,
@@ -324,6 +394,18 @@ class FinanzeServer:
             get_external_integrations,
             connect_google,
             connect_etherscan,
+            save_periodic_flow,
+            update_periodic_flow,
+            delete_periodic_flow,
+            get_periodic_flows,
+            save_pending_flows,
+            get_pending_flows,
+            create_real_estate,
+            update_real_estate,
+            delete_real_estate,
+            list_real_estate,
+            calculate_loan,
+            forecast,
         )
         self._log.info("Completed.")
 
@@ -333,7 +415,10 @@ class FinanzeServer:
             serve(self.flask_app, host="0.0.0.0", port=self.args.port)
         except OSError as e:
             self._log.error(f"Could not start server on port {self.args.port}: {e}")
-            raise
+            if e.errno == 48:
+                self._log.info(f"Port {self.args.port} is already in use.")
+            else:
+                raise
         except Exception:
             self._log.exception(
                 "An unexpected error occurred while running the server."

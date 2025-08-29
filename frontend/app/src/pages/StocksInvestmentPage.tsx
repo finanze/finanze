@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import {
+  InvestmentDistributionChart,
+  InvestmentDistributionLegend,
+} from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatPercentage } from "@/lib/formatters"
 import {
   getStockAndFundPositions,
@@ -236,13 +239,26 @@ export default function StocksInvestmentPage() {
             </Card>
           </div>
 
-          {/* Chart */}
-          <InvestmentDistributionChart
-            data={chartData}
-            title={t.common.distributionByAsset}
-            locale={locale}
-            currency={settings.general.defaultCurrency}
-          />
+          {/* Distribution Chart & Legend */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+                hideLegend
+                containerClassName="h-full"
+              />
+            </div>
+            <div className="xl:col-span-1 flex flex-col">
+              <InvestmentDistributionLegend
+                data={chartData}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+              />
+            </div>
+          </div>
 
           {/* Positions List */}
           <div className="space-y-4 pb-6">

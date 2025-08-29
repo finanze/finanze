@@ -6,12 +6,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
+import {
+  InvestmentDistributionChart,
+  InvestmentDistributionLegend,
+} from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatPercentage } from "@/lib/formatters"
 import { calculateCryptoValue } from "@/utils/financialDataUtils"
 import { ProductType, CryptoCurrencyWallet } from "@/types/position"
 import { Entity } from "@/types"
-import { ArrowLeft, Wallet, TrendingUp, Copy, Check } from "lucide-react"
+import {
+  ArrowLeft,
+  Wallet,
+  TrendingUp,
+  Copy,
+  Check,
+  Pencil,
+} from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
@@ -346,15 +356,24 @@ export default function CryptoInvestmentPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/investments")}
+          >
+            <ArrowLeft size={20} />
+          </Button>
+          <h1 className="text-2xl font-bold">{t.common.cryptoInvestments}</h1>
+        </div>
         <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/investments")}
+          variant="default"
+          size="sm"
+          onClick={() => navigate("/entities#crypto-enabled")}
         >
-          <ArrowLeft size={20} />
+          <Pencil className="h-4 w-4 mr-2" /> {t.walletManagement.manage}
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.cryptoInvestments}</h1>
       </div>
 
       {/* Filters */}
@@ -465,13 +484,26 @@ export default function CryptoInvestmentPage() {
             </Card>
           </div>
 
-          {/* Chart */}
-          <InvestmentDistributionChart
-            data={chartData}
-            title={t.common.distributionByAsset}
-            locale={locale}
-            currency={settings.general.defaultCurrency}
-          />
+          {/* Distribution Chart & Legend */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="xl:col-span-2 flex flex-col">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+                hideLegend
+                containerClassName="h-full"
+              />
+            </div>
+            <div className="xl:col-span-1 flex flex-col">
+              <InvestmentDistributionLegend
+                data={chartData}
+                locale={locale}
+                currency={settings.general.defaultCurrency}
+              />
+            </div>
+          </div>
 
           {/* Wallets grouped by entity */}
           <motion.div
