@@ -32,7 +32,7 @@ UNICAJA = NativeFinancialEntity(
     name="Unicaja",
     type=EntityType.FINANCIAL_INSTITUTION,
     is_real=True,
-    features=[Feature.POSITION],
+    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.MANUAL,
     credentials_template={
         "user": CredentialType.ID,

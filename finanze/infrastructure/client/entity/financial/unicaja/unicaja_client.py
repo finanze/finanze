@@ -229,3 +229,16 @@ class UnicajaClient:
 
     def get_currencies(self):
         return self._get_request("/services/rest/api/listadivisas")
+
+    def get_products_summary(self):
+        return self._get_request("/services/rest/api/posicionGlobal/listaProductos")
+
+    def list_fund_accounts(self):
+        return self._get_request("/services/rest/api/productos/listacuentasfondos")
+
+    def get_periodic_subscriptions(self, account):
+        self._get_request("/services/rest/api/fondos/consulta?cuenta=" + account)
+        request = {"opcion": "D"}
+        return self._post_request(
+            "/services/rest/api/fondos/listaSuscripcionesPeriodicas", request
+        )

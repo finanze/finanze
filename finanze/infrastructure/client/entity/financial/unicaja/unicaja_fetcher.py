@@ -1,9 +1,16 @@
+import logging
 import os
 from datetime import date, datetime
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
+from domain.auto_contributions import (
+    AutoContributions,
+    ContributionFrequency,
+    ContributionTargetType,
+    PeriodicContribution,
+)
 from domain.dezimal import Dezimal
 from domain.entity import EntitySetupLoginType
 from domain.entity_login import EntityLoginParams, EntityLoginResult
@@ -23,10 +30,19 @@ from domain.global_position import (
 from domain.native_entities import UNICAJA
 from infrastructure.client.entity.financial.unicaja.unicaja_client import UnicajaClient
 
+CONTRIBUTION_FREQUENCY = {
+    "M": ContributionFrequency.MONTHLY,
+    "T": ContributionFrequency.QUARTERLY,
+    "S": ContributionFrequency.SEMIANNUAL,
+    "A": ContributionFrequency.YEARLY,
+}
+
 
 class UnicajaFetcher(FinancialEntityFetcher):
     def __init__(self):
         self._client = UnicajaClient()
+
+        self._log = logging.getLogger(__name__)
 
         self._abck = os.getenv("UNICAJA_ABCK")
         if self._abck:
@@ -205,3 +221,62 @@ class UnicajaFetcher(FinancialEntityFetcher):
             )
 
         return None
+
+    async def auto_contributions(self) -> AutoContributions:
+        try:
+            fund_accounts = self._client.list_fund_accounts()
+            first_account = (
+                fund_accounts["cuentasFondos"][0]
+                if "cuentasFondos" in fund_accounts and fund_accounts["cuentasFondos"]
+                else None
+            )
+            if not first_account:
+                self._log.info("No fund accounts found for contributions.")
+                return AutoContributions(periodic=[])
+
+            account_code = first_account["cuenta"]
+
+            periodic_subs = self._client.get_periodic_subscriptions(account_code)
+        except Exception as e:
+            self._log.error(
+                f"Error fetching periodic subscriptions, maybe there aren't: {e}"
+            )
+            return AutoContributions(periodic=[])
+
+        if "misSuscripciones" not in periodic_subs:
+            return AutoContributions(periodic=[])
+
+        periodic = []
+        for sub in periodic_subs["misSuscripciones"]:
+            raw_frequency = sub["periodicidad"]
+            frequency = CONTRIBUTION_FREQUENCY.get(raw_frequency)
+            if not frequency:
+                self._log.warning(f"Unknown contribution frequency: {raw_frequency}")
+                continue
+
+            active = sub.get("estado", "DESACTIVADA") == "ACTIVA"
+            isin = sub["isin"]
+            name = sub.get("nombreFondo", isin)
+            amount = Dezimal(sub["impOperPeriodica"]["cantidad"])
+            currency = sub["impOperPeriodica"]["moneda"]
+
+            periodic.append(
+                PeriodicContribution(
+                    id=uuid4(),
+                    alias=name,
+                    target=isin,
+                    target_name=name,
+                    target_type=ContributionTargetType.FUND,
+                    amount=amount,
+                    currency=currency,
+                    since=datetime.strptime(sub["fechaAlta"], "%Y-%m-%d").date(),
+                    until=datetime.strptime(sub["fechaLimite"], "%Y-%m-%d").date()
+                    if sub.get("fechaLimite")
+                    else None,
+                    frequency=frequency,
+                    active=active,
+                    is_real=True,
+                )
+            )
+
+        return AutoContributions(periodic)

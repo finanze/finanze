@@ -72,7 +72,7 @@ Not all entities support the same features, in general we can group data in the 
 | MyInvestor     | ✅               | ✅                         | ✅                              | ❌                      |
 | SEGO           | ✅               | -                         | ✅                              | ✅                      |
 | Trade Republic | ✅               | ✅                         | ✅                              | -                      |
-| Unicaja        | ✅               | -                         | -                              | -                      |
+| Unicaja        | ✅               | ✅                         | -                              | -                      |
 | Wecity         | ✅               | -                         | ✅                              | ✅                      |
 | Mintos         | ✅               | -                         | ❌                              | ❌                      |
 | Freedom24      | ✅               | -                         | ✅                              | ❌                      |
