@@ -1,3 +1,21 @@
+## [0.4.0] - 2025-08-29
+
+### 🚀 Features
+
+- Earnings and expenses
+- Add year picker to date picker
+- Asset navigation shortcut from dashboard
+- Add pending money barcharts
+- Add real estate support, advanced related investment KPIs and linked money flows
+- Minor improvements in entity data fetch process
+- Add entity contributions page and dashboard integration
+- Improve investment asset detail pages data and distribution
+- Add position forecast feature
+- Add pin pad keyboard support and minor improvements
+
+### 🐛 Bug Fixes
+
+- Minor earnings and expenses display improvements
 # Changelog
 
 All notable changes to this project will be documented in this file.
