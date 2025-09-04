@@ -29,7 +29,7 @@ def _next_contribution_date(pc: PeriodicContribution) -> date | None:
     next_date: date | None = None
 
     if since_date > today:
-        next_date = since_date
+        return since_date
 
     if pc.frequency in (ContributionFrequency.WEEKLY, ContributionFrequency.BIWEEKLY):
         weeks_interval = 2 if pc.frequency == ContributionFrequency.BIWEEKLY else 1

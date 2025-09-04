@@ -88,7 +88,9 @@ export interface FetchingEntityState {
 }
 
 export interface FetchOptions {
-  deep: boolean
+  deep?: boolean
+  avoidNewLogin?: boolean
+  code?: string
 }
 
 interface AppContextType {
@@ -138,7 +140,7 @@ interface AppContextType {
   scrape: (
     entity: Entity | null,
     features: Feature[],
-    options?: object,
+    options?: FetchOptions,
   ) => Promise<void>
   runVirtualScrape: () => Promise<VirtualFetchResult | null>
   resetState: () => void
@@ -239,9 +241,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scrapeManualLogin = useRef<{
     active: boolean
     features: Feature[]
+    options: FetchOptions
   }>({
     active: false,
     features: [],
+    options: DEFAULT_OPTIONS,
   })
 
   const onScrapeCompletedRef = useRef<
@@ -475,10 +479,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loginResponse.code === LoginResultCode.RESUMED
       ) {
         const features = scrapeManualLogin.current.features
+        const options = scrapeManualLogin.current.options
 
-        scrapeManualLogin.current = { active: false, features: [] }
+        scrapeManualLogin.current = {
+          active: false,
+          features: [],
+          options: DEFAULT_OPTIONS,
+        }
 
-        await scrape(selectedEntity, features)
+        await scrape(selectedEntity, features, options)
       } else {
         handleLoginError(loginResponse.code)
         resetState()
@@ -581,7 +590,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scrape = async (
     entity: Entity | null,
     features: Feature[],
-    options: object = {},
+    options: FetchOptions = DEFAULT_OPTIONS,
   ) => {
     try {
       setPinError(false)
@@ -613,13 +622,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPinLength(entity?.pin?.positions || 4)
         setCurrentAction("scrape")
       } else if (response.code === FetchResultCode.MANUAL_LOGIN) {
-        if (response.details?.credentials && entity) {
+        if (entity) {
           scrapeManualLogin.current = {
             active: true,
             features: features,
+            options: options,
           }
 
-          await startExternalLogin(entity, response.details.credentials)
+          await startExternalLogin(entity, response.details?.credentials)
         } else {
           console.debug("MANUAL_LOGIN response without credentials or entity")
           showToast(t.common.fetchError, "error")
@@ -713,7 +723,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStoredCredentials(null)
     setPinError(false)
     setExternalLoginInProgress(false)
-    scrapeManualLogin.current = { active: false, features: [] }
+    scrapeManualLogin.current = {
+      active: false,
+      features: [],
+      options: DEFAULT_OPTIONS,
+    }
   }
 
   const updateEntityStatus = (entityId: string, status: EntityStatus) => {

@@ -572,13 +572,13 @@ export default function BankingPage() {
                     </div>
 
                     {/* Additional info */}
-                    {(account.data.interest && account.data.interest > 0) ||
+                    {(Number(account.data.interest) || 0) > 0 ||
                     (account.data.convertedRetained &&
                       account.data.convertedRetained > 0) ||
                     (account.data.convertedPendingTransfers &&
                       account.data.convertedPendingTransfers > 0) ? (
                       <div className="flex justify-between text-xs pt-2 border-t border-gray-100 dark:border-gray-800">
-                        {account.data.interest && account.data.interest > 0 && (
+                        {(Number(account.data.interest) || 0) > 0 && (
                           <Popover>
                             <PopoverTrigger asChild>
                               <div className="text-green-600 dark:text-green-400 flex items-center gap-1 cursor-help">

@@ -74,14 +74,14 @@ def _map_investment_row(row) -> BaseInvestmentTx:
     if row["product_type"] == ProductType.STOCK_ETF.value:
         return StockTx(
             **common,
-            isin=row["isin"] if "isin" in row else None,
+            isin=row["isin"] if row["isin"] else None,
             ticker=row["ticker"],
             market=row["market"],
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
-            retentions=Dezimal(row["retentions"]) if "retentions" in row else None,
+            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
             if "order_date" in row
             else None,
@@ -96,7 +96,7 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             price=Dezimal(row["price"]),
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
-            retentions=Dezimal(row["retentions"]) if "retentions" in row else None,
+            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
             if "order_date" in row
             else None,
@@ -272,6 +272,8 @@ class TransactionSQLRepository(TransactionPort):
                 query += " WHERE it.is_real = ?"
                 params.append(real)
 
+            query += " ORDER BY it.date ASC"
+
             cursor.execute(query, tuple(params))
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
@@ -291,6 +293,8 @@ class TransactionSQLRepository(TransactionPort):
             if real is not None:
                 query += " WHERE at.is_real = ?"
                 params.append(real)
+
+            query += " ORDER BY at.date ASC"
 
             cursor.execute(query, tuple(params))
             return [_map_account_row(row) for row in cursor.fetchall()]

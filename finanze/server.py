@@ -4,8 +4,8 @@ from pathlib import Path
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
-from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
+from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
@@ -16,6 +16,7 @@ from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
+from application.use_cases.forecast import ForecastImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
@@ -39,7 +40,6 @@ from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
-from application.use_cases.forecast import ForecastImpl
 from domain.data_init import DatasourceInitParams
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
@@ -55,6 +55,7 @@ from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
     IndexaCapitalFetcher,
 )
+from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
 from infrastructure.client.entity.financial.mintos.mintos_fetcher import MintosFetcher
 from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
 from infrastructure.client.entity.financial.sego.sego_fetcher import SegoFetcher
@@ -153,6 +154,7 @@ class FinanzeServer:
             domain.native_entities.MINTOS: MintosFetcher(),
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
+            domain.native_entities.ING: INGFetcher(),
         }
 
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)

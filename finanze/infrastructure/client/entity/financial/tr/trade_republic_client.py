@@ -175,13 +175,12 @@ class TradeRepublicClient:
         self,
         since: Optional[datetime] = None,
         already_registered_ids: set[str] = None,
-        force_all: bool = False,
     ):
         dl = TRTimeline(
             self._tr_api,
             since=since,
             requested_data=["timelineTransactions", "timelineDetailV2"],
-            already_registered_ids=None if force_all else already_registered_ids,
+            already_registered_ids=already_registered_ids,
         )
         return await dl.fetch()
 

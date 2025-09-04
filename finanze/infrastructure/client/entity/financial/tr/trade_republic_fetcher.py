@@ -52,97 +52,6 @@ def get_section(d, title):
     return None
 
 
-def map_investment_tx(raw_tx: dict, date: datetime) -> StockTx:
-    name = raw_tx["title"].strip()
-    amount_obj = raw_tx["amount"]
-    currency = amount_obj["currency"]
-    net_amount_val = round(Dezimal(amount_obj["value"]), 2)
-    net_amount = abs(net_amount_val)
-
-    tx_type = TxType.SELL if net_amount_val > 0 else TxType.BUY
-
-    detail_sections = raw_tx["details"]["sections"]
-
-    isin = detail_sections[0]["action"]["payload"]
-    tx_section = get_section(detail_sections, "Transaction")["data"]
-    shares = parse_sub_section_float(get_section(tx_section, "Shares"))
-    taxes = parse_sub_section_float(get_section(tx_section, "Tax"))
-    fees = parse_sub_section_float(get_section(tx_section, "Fee"))
-
-    amount = abs(net_amount_val + fees + taxes)
-    # Provided price sometimes doesn't match with the executed price
-    price = round(amount / shares, 4)
-
-    return StockTx(
-        id=uuid4(),
-        ref=raw_tx["id"],
-        name=name,
-        amount=Dezimal(amount),
-        currency=currency,
-        type=tx_type,
-        date=date,
-        entity=TRADE_REPUBLIC,
-        net_amount=Dezimal(net_amount),
-        isin=isin,
-        ticker=None,
-        shares=Dezimal(shares),
-        price=Dezimal(price),
-        market=None,
-        fees=Dezimal(fees + taxes),
-        retentions=Dezimal(0),
-        order_date=None,
-        product_type=ProductType.STOCK_ETF,
-        linked_tx=None,
-        is_real=True,
-    )
-
-
-def map_account_tx(raw_tx: dict, date: datetime) -> AccountTx:
-    title = raw_tx["title"].strip()
-    subtitle = raw_tx["subtitle"].strip().replace("\xa0", "")
-    name = f"{title} - {subtitle}"
-    amount_obj = raw_tx["amount"]
-    currency = amount_obj["currency"]
-
-    detail_sections = raw_tx["details"]["sections"]
-
-    ov_section = get_section(detail_sections, "Overview")["data"]
-    avg_balance = parse_sub_section_float(get_section(ov_section, "Average balance"))
-    annual_rate = parse_sub_section_float(get_section(ov_section, "Annual rate"))
-
-    if not annual_rate:
-        annual_rate = parse_float(subtitle.split(" ")[0])
-
-    if raw_tx["eventType"] == "INTEREST_PAYOUT":
-        tx_section = get_section(detail_sections, "Transaction")["data"]
-        accrued = parse_sub_section_float(get_section(tx_section, "Accrued"))
-        taxes = parse_sub_section_float(get_section(tx_section, "Tax"))
-    else:
-        taxes = 0
-        accrued = amount_obj["value"]
-
-    accrued = Dezimal(round(accrued, 2))
-    taxes = Dezimal(round(taxes, 2))
-    net_amount = accrued - taxes
-    return AccountTx(
-        id=uuid4(),
-        ref=raw_tx["id"],
-        name=name,
-        amount=accrued,
-        currency=currency,
-        fees=Dezimal(0),
-        retentions=taxes,
-        interest_rate=Dezimal(round(annual_rate / 100, 4)),
-        avg_balance=Dezimal(round(avg_balance, 2)),
-        net_amount=net_amount,
-        type=TxType.INTEREST,
-        product_type=ProductType.ACCOUNT,
-        date=date,
-        entity=TRADE_REPUBLIC,
-        is_real=True,
-    )
-
-
 DATE_FORMAT = "%Y-%m-%d"
 
 CONTRIBUTION_FREQUENCY = {
@@ -190,18 +99,21 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         ticker = details.instrument["homeSymbol"]
         subtype = ""
 
-        if type_id == "FUND":
+        if type_id == "FUND" or type_id == "CRYPTO":
             type_id = "ETF"
 
         elif type_id == "STOCK":
             name = details.stock_details["company"]["name"]
             ticker = details.stock_details["company"]["tickerSymbol"]
 
-        elif type_id == "BOND":
-            name = ""
-            subtype = details.instrument["bondInfo"]["issuerClassification"]
-            # interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
-            # maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
+        # elif type_id == "BOND":
+        # name = ""
+        # subtype = details.instrument["bondInfo"]["issuerClassification"]
+        # interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
+        # maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
+        else:
+            self._log.warning(f"Unknown instrument type: {type_id} for ISIN {isin}")
+            return None
 
         if not subtype:
             subtype = type_id
@@ -254,7 +166,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         investments = []
         for position in raw_portfolio.portfolio["positions"]:
             investment = await self._instrument_mapper(position, currency)
-            investments.append(investment)
+            if investment:
+                investments.append(investment)
 
         await self._client.close()
 
@@ -273,7 +186,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
         raw_txs = await self._client.get_transactions(
-            already_registered_ids=registered_txs, force_all=options.deep
+            already_registered_ids=registered_txs
         )
         await self._client.close()
 
@@ -295,16 +208,25 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                     "INTEREST_PAYOUT",
                     "INTEREST_PAYOUT_CREATED",
                     "TRADING_TRADE_EXECUTED",
+                    "TIMELINE_LEGACY_MIGRATED_EVENTS",
                 ]
             ):
                 continue
 
+            title = raw_tx.get("title", None)
             date = datetime.strptime(raw_tx["timestamp"], self.DATETIME_FORMAT)
 
-            if event_type in ["INTEREST_PAYOUT", "INTEREST_PAYOUT_CREATED"]:
-                account_txs.append(map_account_tx(raw_tx, date))
+            if event_type in [
+                "INTEREST_PAYOUT",
+                "INTEREST_PAYOUT_CREATED",
+            ] or title in ["Interest"]:
+                mapped_tx = self.map_account_tx(raw_tx, date)
+                if mapped_tx:
+                    account_txs.append(mapped_tx)
             else:
-                investment_txs.append(map_investment_tx(raw_tx, date))
+                mapped_tx = self.map_investment_tx(raw_tx, date)
+                if mapped_tx:
+                    investment_txs.append(mapped_tx)
 
         return Transactions(investment=investment_txs, account=account_txs)
 
@@ -313,10 +235,24 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
     ) -> Optional[PeriodicContribution]:
         amount = round(Dezimal(saving_plan["amount"]), 2)
         isin = saving_plan["instrumentId"]
+        currency = saving_plan.get("currency") or currency
 
         frequency = CONTRIBUTION_FREQUENCY.get(saving_plan["interval"])
         if not frequency:
             self._log.warning(f"Unknown contribution frequency: {frequency}")
+            return None
+
+        raw_target_type = saving_plan.get("instrumentType")
+        if raw_target_type == "stock":
+            target_type = ContributionTargetType.STOCK_ETF
+        elif raw_target_type == "fund":
+            target_type = ContributionTargetType.STOCK_ETF
+        elif raw_target_type == "mutualFund":
+            target_type = ContributionTargetType.FUND
+        elif raw_target_type == "crypto":
+            target_type = ContributionTargetType.STOCK_ETF
+        else:
+            self._log.warning(f"Unknown contribution target type: {raw_target_type}")
             return None
 
         active = not saving_plan["paused"]
@@ -340,7 +276,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             alias=instrument_name,
             target=isin,
             target_name=instrument_name,
-            target_type=ContributionTargetType.STOCK_ETF,
+            target_type=target_type,
             amount=amount,
             currency=currency,
             since=since,
@@ -364,3 +300,133 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         ]
 
         return AutoContributions(contributions)
+
+    def map_investment_tx(self, raw_tx: dict, date: datetime) -> Optional[StockTx]:
+        name = raw_tx["title"].strip()
+        subtitle = (raw_tx.get("subtitle") or "").strip().lower()
+        amount_obj = raw_tx["amount"]
+        currency = amount_obj["currency"]
+        net_amount_val = round(Dezimal(amount_obj["value"]), 2)
+        net_amount = abs(net_amount_val)
+
+        if net_amount_val > 0 and "sell" in subtitle:
+            tx_type = TxType.SELL
+        elif net_amount_val < 0 and "buy" in subtitle:
+            tx_type = TxType.BUY
+        else:
+            self._log.warning(f"Unknown transaction type: {subtitle}")
+            return None
+
+        detail_sections = raw_tx["details"]["sections"]
+
+        isin = detail_sections[0]["action"]["payload"]
+        parent_tx_section = get_section(detail_sections, "Transaction")
+        if not parent_tx_section:
+            parent_tx_section = get_section(detail_sections, "Overview")
+        tx_section = parent_tx_section["data"]
+        shares = parse_sub_section_float(get_section(tx_section, "Shares"))
+        taxes = parse_sub_section_float(get_section(tx_section, "Tax"))
+        fees = parse_sub_section_float(get_section(tx_section, "Fee"))
+
+        sub_tx_section = get_section(tx_section, "Transaction")
+        if sub_tx_section:
+            tx_sections = (
+                sub_tx_section.get("detail", {})
+                .get("action", {})
+                .get("payload", {})
+                .get("sections", [])
+            )
+            for section in tx_sections:
+                if "data" not in section:
+                    continue
+                section_data = section["data"]
+                shares = parse_sub_section_float(get_section(section_data, "Shares"))
+                taxes = parse_sub_section_float(get_section(section_data, "Tax"))
+
+        amount = abs(net_amount_val + fees + taxes)
+        # Provided price sometimes doesn't match with the executed price
+        price = round(amount / shares, 4)
+
+        return StockTx(
+            id=uuid4(),
+            ref=raw_tx["id"],
+            name=name,
+            amount=Dezimal(amount),
+            currency=currency,
+            type=tx_type,
+            date=date,
+            entity=TRADE_REPUBLIC,
+            net_amount=Dezimal(net_amount),
+            isin=isin,
+            ticker=None,
+            shares=Dezimal(shares),
+            price=Dezimal(price),
+            market=None,
+            fees=Dezimal(fees + taxes),
+            retentions=Dezimal(0),
+            order_date=None,
+            product_type=ProductType.STOCK_ETF,
+            linked_tx=None,
+            is_real=True,
+        )
+
+    def map_account_tx(self, raw_tx: dict, date: datetime) -> Optional[AccountTx]:
+        title = raw_tx["title"].strip()
+        subtitle = (raw_tx.get("subtitle") or "").strip().replace("\xa0", "")
+        amount_obj = raw_tx["amount"]
+        currency = amount_obj["currency"]
+
+        detail_sections = raw_tx["details"]["sections"]
+
+        ov_section = get_section(detail_sections, "Overview")["data"]
+        avg_balance = parse_sub_section_float(
+            get_section(ov_section, "Average balance")
+        )
+        annual_rate = parse_sub_section_float(get_section(ov_section, "Annual rate"))
+
+        if not annual_rate:
+            if subtitle:
+                annual_rate = parse_float(subtitle.split(" ")[0])
+            else:
+                self._log.warning(f"No interest rate found in tx: {raw_tx['id']}")
+                return None
+
+        if raw_tx["eventType"] == "INTEREST_PAYOUT":
+            tx_section = get_section(detail_sections, "Transaction")["data"]
+            accrued = parse_sub_section_float(get_section(tx_section, "Accrued"))
+            taxes = parse_sub_section_float(get_section(tx_section, "Tax"))
+        else:
+            taxes = 0
+            accrued = amount_obj["value"]
+
+        accrued = Dezimal(round(accrued, 2))
+        avg_balance = Dezimal(round(avg_balance, 2))
+
+        if annual_rate == 0:
+            annual_rate = accrued / avg_balance * 12 * 100
+
+        annual_rate = Dezimal(round(annual_rate / 100, 4))
+        fallback_subtitle = (
+            f"{str(annual_rate * 100).rstrip('0').rstrip('.')}%" if annual_rate else ""
+        )
+        name = f"{title} - {(subtitle or fallback_subtitle)}"
+
+        taxes = Dezimal(round(taxes, 2))
+        net_amount = accrued - taxes
+        return AccountTx(
+            id=uuid4(),
+            ref=raw_tx["id"],
+            name=name,
+            amount=accrued,
+            currency=currency,
+            fees=Dezimal(0),
+            retentions=taxes,
+            interest_rate=annual_rate,
+            avg_balance=avg_balance,
+            net_amount=net_amount,
+            type=TxType.INTEREST,
+            product_type=ProductType.ACCOUNT,
+            date=date,
+            entity=TRADE_REPUBLIC,
+            is_real=True,
+        )

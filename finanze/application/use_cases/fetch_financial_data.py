@@ -203,7 +203,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
                     return FetchResult(FetchResultCode.COOLDOWN, details=details)
 
             credentials = self._credentials_port.get(entity.id)
-            if not credentials:
+            if credentials is None:
                 return FetchResult(FetchResultCode.NO_CREDENTIALS_AVAILABLE)
 
             for cred_name, cred_type in entity.credentials_template.items():

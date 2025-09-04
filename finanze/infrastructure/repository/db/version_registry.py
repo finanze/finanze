@@ -43,6 +43,7 @@ from infrastructure.repository.db.versions.v0.v04.v040_7_recf_profitability impo
 from infrastructure.repository.db.versions.v0.v04.v040_8_add_fund_portfolio_account import (
     V0408FundPortfolioAccount,
 )
+from infrastructure.repository.db.versions.v0.v05.v050_0_ing import V0500ING
 
 versions = [
     V0Genesis(),
@@ -66,4 +67,5 @@ versions = [
     V0406ContribTargetName(),
     V0407RECFProfitability(),
     V0408FundPortfolioAccount(),
+    V0500ING(),
 ]

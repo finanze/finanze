@@ -133,6 +133,22 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     credentials_template={"token": CredentialType.API_TOKEN},
 )
 
+ING = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000010"),
+    name="ING",
+    type=EntityType.FINANCIAL_INSTITUTION,
+    is_real=True,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    setup_login_type=EntitySetupLoginType.MANUAL,
+    credentials_template={
+        "genomaCookie": CredentialType.INTERNAL_TEMP,
+        "genomaSessionId": CredentialType.INTERNAL_TEMP,
+        "apiCookie": CredentialType.INTERNAL_TEMP,
+        "apiAuth": CredentialType.INTERNAL_TEMP,
+        "apiExtendedSessionCtx": CredentialType.INTERNAL_TEMP,
+    },
+)
+
 
 def _create_crypto_entity(
     num: int,
@@ -177,6 +193,7 @@ NATIVE_ENTITIES = [
     MINTOS,
     F24,
     INDEXA_CAPITAL,
+    ING,
     BITCOIN,
     ETHEREUM,
     LITECOIN,

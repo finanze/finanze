@@ -250,7 +250,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
 
             account_related_txs = self._classify_account_txs(
-                account_id, registered_txs, creation_date, options.deep
+                account_id, registered_txs, creation_date
             )
             investment_txs += account_related_txs["deposit"]
             account_txs += account_related_txs["interests"]
@@ -311,9 +311,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return found
 
-    def _classify_account_txs(
-        self, account_id, registered_txs, min_date: date, force_all=False
-    ):
+    def _classify_account_txs(self, account_id, registered_txs, min_date: date):
         deposit_txs = []
         interest_txs = []
         result = {"deposit": deposit_txs, "interests": interest_txs}
@@ -329,10 +327,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             for tx in raw_txs:
                 ref = tx["reference"]
                 if ref in registered_txs:
-                    if force_all:
-                        continue
-                    else:
-                        return result
+                    return result
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
