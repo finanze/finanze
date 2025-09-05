@@ -1,8 +1,10 @@
 import logging
+import os
 from datetime import date
 from typing import Optional
 
 import pyDes
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from curl_cffi import requests
 from dateutil.relativedelta import relativedelta
 from domain.entity_login import EntityLoginResult, LoginResultCode
@@ -10,13 +12,27 @@ from domain.entity_login import EntityLoginResult, LoginResultCode
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
 
-def _encrypt_password(key: str, password: str):
-    return (
-        pyDes.des(key, mode=pyDes.CBC, IV="00000000", pad="\0")
-        .encrypt(password)
-        .hex()
-        .upper()
-    )
+def _encrypt_password(key: str, password: str) -> str:
+    if len(key) == 16:
+        key_bytes = key.encode("utf-8")
+        iv = os.urandom(16)
+        encryptor = Cipher(
+            algorithms.AES(key_bytes),
+            modes.GCM(iv),
+        ).encryptor()
+        ciphertext = encryptor.update(password.encode("utf-8")) + encryptor.finalize()
+        tag = encryptor.tag
+        return (iv + tag + ciphertext).hex()
+
+    if len(key) == 8:
+        return (
+            pyDes.des(key, mode=pyDes.CBC, IV="00000000", pad="\0")
+            .encrypt(password)
+            .hex()
+            .upper()
+        )
+
+    raise ValueError("Unsupported key length for encryption")
 
 
 class UnicajaClient:
@@ -54,7 +70,7 @@ class UnicajaClient:
             )
 
         user_agent = "Mozilla/5.0 (Linux; Android 5.1.1; Lenovo PB1-750M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
-        self._session = requests.Session()
+        self._session = requests.Session(impersonate="chrome120")
         self._session.headers["User-Agent"] = user_agent
 
         ck = self._ck()
@@ -131,7 +147,7 @@ class UnicajaClient:
         )
 
     def _ck(self):
-        return self._get_request("/services/rest/openapi/ck")["ck"]
+        return self._get_request("/services/rest/openapi/v2/ck")["ck"]
 
     def auth(self, username: str, encoded_password: str):
         data = {
