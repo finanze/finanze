@@ -59,7 +59,13 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
         with self._db_client.read() as cursor:
             params = []
             sql = """
-                  SELECT e.id as entity_id, e.name as entity_name, e.type as entity_type, e.is_real as entity_is_real, pc.id as pc_id, pc.*
+                  SELECT e.id         as entity_id,
+                         e.name       as entity_name,
+                         e.natural_id as entity_natural_id,
+                         e.type       as entity_type,
+                         e.origin     as entity_origin,
+                         pc.id        as pc_id,
+                         pc.*
                   FROM periodic_contributions pc
                            JOIN entities e ON pc.entity_id = e.id
                   """
@@ -90,8 +96,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 entity = Entity(
                     id=UUID(row["entity_id"]),
                     name=row["entity_name"],
+                    natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
-                    is_real=row["entity_is_real"],
+                    origin=row["entity_origin"],
                 )
                 if entity not in entities:
                     entities[entity] = []

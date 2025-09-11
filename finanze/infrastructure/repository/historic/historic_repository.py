@@ -6,13 +6,13 @@ from application.ports.historic_port import HistoricPort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.global_position import ProductType
 from domain.historic import (
     BaseHistoricEntry,
     FactoringEntry,
     Historic,
     RealEstateCFEntry,
 )
-from domain.global_position import ProductType
 from domain.transactions import BaseInvestmentTx
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.transaction.transaction_repository import (
@@ -24,8 +24,9 @@ def _map_historic_row(row) -> BaseHistoricEntry:
     entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
+        natural_id=row["entity_natural_id"],
         type=row["entity_type"],
-        is_real=row["entity_is_real"],
+        origin=row["entity_origin"],
     )
 
     common = {
@@ -160,7 +161,12 @@ class HistoricSQLRepository(HistoricPort):
     def get_all(self, fetch_related_txs: bool = False) -> Historic:
         with self._db_client.read() as cursor:
             cursor.execute("""
-                           SELECT h.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
+                           SELECT h.*,
+                                  e.id         AS entity_id,
+                                  e.name       AS entity_name,
+                                  e.natural_id AS entity_natural_id,
+                                  e.type       as entity_type,
+                                  e.origin     as entity_origin
                            FROM investment_historic h
                                     JOIN entities e ON h.entity_id = e.id
                            """)

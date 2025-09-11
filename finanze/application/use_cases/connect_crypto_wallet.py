@@ -14,7 +14,16 @@ from domain.crypto import (
 )
 from domain.entity import Entity, EntityType
 from domain.exception.exceptions import AddressAlreadyExists, EntityNotFound
+from domain.external_integration import EtherscanIntegrationData
+from domain.settings import IntegrationsConfig
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
+
+
+def from_config(config: IntegrationsConfig):
+    etherscan = None
+    if config.etherscan:
+        etherscan = EtherscanIntegrationData(config.etherscan.api_key)
+    return CryptoFetchIntegrations(etherscan=etherscan)
 
 
 class ConnectCryptoWalletImpl(ConnectCryptoWallet):
@@ -45,9 +54,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
                 f"Wallet with address {request.address} already exists"
             )
 
-        integrations = CryptoFetchIntegrations.from_config(
-            self._config_port.load().integrations
-        )
+        integrations = from_config(self._config_port.load().integrations)
 
         specific_fetcher = self._entity_fetchers[entity]
         specific_fetcher.fetch(

@@ -39,26 +39,6 @@ class UnicajaClient:
     BASE_URL = "https://univia.unicajabanco.es"
     AUTH_PATH = "/services/rest/autenticacion"
 
-    LOAN_KEY_MAPPING = {
-        "Tipo de préstamo:": "loanType",
-        "Plazo/período:": "termPeriod",
-        "Interés:": "interestRate",
-        "Estado:": "status",
-        "Fecha solicitud:": "applicationDate",
-        "Fecha de apertura:": "openingDate",
-        "Fecha de próximo recibo:": "nextPaymentDate",
-        "Fecha de vencimiento:": "maturityDate",
-        "Fecha de próxima revisión:": "nextReviewDate",
-        "Cuota actual:": "currentInstallment",
-        "Importe del préstamo:": "loanAmount",
-        "Capital pagado:": "principalPaid",
-        "Capital pendiente:": "principalOutstanding",
-        "Deuda pendiente de pago:": "outstandingDebt",
-        "Importe mínimo:": "minimumAmount",
-        "Comisión por entrega:": "deliveryFee",
-        "Comisión por cancelación:": "cancellationFee",
-    }
-
     def __init__(self):
         self._log = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import logging
 from application.ports.config_port import ConfigPort
 from application.ports.connectable_integration import ConnectableIntegration
 from application.ports.external_integration_port import ExternalIntegrationPort
-from domain.exception.exceptions import IntegrationSetupError
+from domain.exception.exceptions import IntegrationSetupError, IntegrationSetupErrorCode
 from domain.external_integration import (
     EtherscanIntegrationData,
     ExternalIntegrationId,
@@ -29,8 +29,10 @@ class ConnectEtherscanImpl(ConnectEtherscan):
     def execute(self, data: EtherscanIntegrationData):
         try:
             self._integration.setup(data)
+        except IntegrationSetupError as e:
+            raise e
         except Exception as e:
-            raise IntegrationSetupError(e)
+            raise IntegrationSetupError(IntegrationSetupErrorCode.UNKNOWN) from e
 
         config = self._config_port.load()
         config.integrations.etherscan = EtherscanIntegrationConfig(api_key=data.api_key)

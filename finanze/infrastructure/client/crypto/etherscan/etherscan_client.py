@@ -5,7 +5,11 @@ from typing import Optional
 import requests
 from application.ports.connectable_integration import ConnectableIntegration
 from cachetools import TTLCache, cached
-from domain.exception.exceptions import IntegrationSetupError, TooManyRequests
+from domain.exception.exceptions import (
+    IntegrationSetupError,
+    IntegrationSetupErrorCode,
+    TooManyRequests,
+)
 from domain.external_integration import EtherscanIntegrationData
 
 
@@ -74,7 +78,9 @@ class EtherscanClient(ConnectableIntegration[EtherscanIntegrationData]):
         result = data["result"]
         if status == "0":
             if result and "Invalid API Key" in result:
-                raise IntegrationSetupError("Invalid API Key")
+                raise IntegrationSetupError(
+                    IntegrationSetupErrorCode.INVALID_CREDENTIALS
+                )
             elif result and "Max calls" in result:
                 raise TooManyRequests()
             else:

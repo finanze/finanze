@@ -26,3 +26,4 @@ cryptography==44.0.3
 Brotli==1.1.0
 attrs==25.3.0
 h2==4.3.0
+nordigen

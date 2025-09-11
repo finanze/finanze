@@ -31,9 +31,10 @@ class LastFetchesRepository(LastFetchesPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """SELECT lf.entity_id,
-                          e.name    as entity_name,
-                          e.type    as entity_type,
-                          e.is_real as entity_is_real,
+                          e.name       as entity_name,
+                          e.natural_id as entity_natural_id,
+                          e.type       as entity_type,
+                          e.origin     as entity_origin,
                           lf.feature,
                           lf.date
                    FROM last_fetches lf
@@ -48,8 +49,9 @@ class LastFetchesRepository(LastFetchesPort):
                 Entity(
                     id=UUID(row["entity_id"]),
                     name=row["entity_name"],
+                    natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
-                    is_real=row["entity_is_real"],
+                    origin=row["entity_origin"],
                 ): FetchRecord(
                     entity_id=UUID(row["entity_id"]),
                     feature=Feature(row["feature"]),

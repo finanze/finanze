@@ -20,6 +20,13 @@ class EntityType(str, Enum):
     COMMODITY = "COMMODITY"
 
 
+class EntityOrigin(str, Enum):
+    MANUAL = "MANUAL"
+    NATIVE = "NATIVE"
+    EXTERNALLY_PROVIDED = "EXTERNALLY_PROVIDED"
+    INTERNAL = "INTERNAL"
+
+
 @dataclass
 class PinDetails:
     positions: int
@@ -29,8 +36,9 @@ class PinDetails:
 class Entity:
     id: Optional[UUID]
     name: str
+    natural_id: Optional[str]
     type: EntityType
-    is_real: bool
+    origin: EntityOrigin
 
     def __str__(self):
         return self.name

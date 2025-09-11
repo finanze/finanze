@@ -1,4 +1,3 @@
-from domain.exception.exceptions import IntegrationSetupError
 from domain.external_integration import GoogleIntegrationCredentials
 from domain.use_cases.connect_google import ConnectGoogle
 from flask import jsonify, request
@@ -12,9 +11,6 @@ def connect_google(connect_google_uc: ConnectGoogle):
         return jsonify({"message": "Error: missing client_id or client_secret"}), 400
 
     req = GoogleIntegrationCredentials(client_id, client_secret)
-    try:
-        connect_google_uc.execute(req)
-    except IntegrationSetupError as e:
-        return jsonify({"message": str(e)}), 400
+    connect_google_uc.execute(req)
 
     return "", 204

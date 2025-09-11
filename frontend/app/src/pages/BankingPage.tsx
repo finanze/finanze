@@ -861,11 +861,13 @@ export default function BankingPage() {
 
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                      {t.banking.paymentDate || "Payment Date"}
+                      {t.banking.paymentDate}
                     </span>
                     <span className="text-sm font-medium flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {getNextPaymentDate(loan.data.next_payment_date)}
+                      {getNextPaymentDate(
+                        loan.data.creation || loan.data.next_payment_date,
+                      )}
                     </span>
                   </div>
                 </div>

@@ -16,6 +16,7 @@ import type {
   ExternalIntegrations,
   GoogleIntegrationCredentials,
   EtherscanIntegrationData,
+  GoCardlessIntegrationCredentials,
   PeriodicFlow,
   PendingFlow,
   CreatePeriodicFlowRequest,
@@ -29,6 +30,9 @@ import type {
   LoanCalculationResult,
   ForecastRequest,
   ForecastResult,
+  ExternalEntityCandidates,
+  ConnectExternalEntityRequest,
+  ExternalEntityConnectionResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -593,6 +597,23 @@ export async function setupEtherscanIntegration(
   }
 }
 
+export async function setupGoCardlessIntegration(
+  request: GoCardlessIntegrationCredentials,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/integrations/gocardless`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
 export async function createPeriodicFlow(
   request: CreatePeriodicFlowRequest,
 ): Promise<void> {
@@ -749,4 +770,85 @@ export async function getImageUrl(imagePath: string): Promise<string> {
   // Remove /api/v1 from the end and add the image path
   const imageBaseUrl = baseUrl.replace("/api/v1", "")
   return `${imageBaseUrl}${imagePath}`
+}
+
+// External entity endpoints
+export async function getExternalEntityCandidates(
+  country: string,
+): Promise<ExternalEntityCandidates> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams({ country })
+  const response = await fetch(
+    `${baseUrl}/entities/external/candidates?${params.toString()}`,
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function connectExternalEntity(
+  request: ConnectExternalEntityRequest,
+): Promise<ExternalEntityConnectionResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const locale =
+    (typeof window !== "undefined" &&
+      typeof localStorage !== "undefined" &&
+      (localStorage.getItem("locale") || undefined)) ||
+    "en-US"
+  const response = await fetch(`${baseUrl}/entities/external`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Accept-Language": locale,
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function completeExternalEntityConnection(
+  externalEntityId: string,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams({
+    external_entity_id: externalEntityId,
+  })
+  const response = await fetch(
+    `${baseUrl}/entities/external/complete?${params.toString()}`,
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function disconnectExternalEntity(
+  externalEntityId: string,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(
+    `${baseUrl}/entities/external/${externalEntityId}`,
+    { method: "DELETE" },
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function fetchExternalEntity(
+  externalEntityId: string,
+): Promise<FetchResponse> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(
+    `${baseUrl}/fetch/external/${externalEntityId}`,
+    { method: "POST" },
+  )
+  const data = await response.json()
+  if (!response.ok && !data.code) {
+    throw new Error("Fetch failed")
+  }
+  return data
 }

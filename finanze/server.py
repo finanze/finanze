@@ -6,18 +6,30 @@ import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
+from application.use_cases.complete_external_entity_connection import (
+    CompleteExternalEntityConnectionImpl,
+)
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
 from application.use_cases.connect_etherscan import ConnectEtherscanImpl
+from application.use_cases.connect_external_entity import ConnectExternalEntityImpl
+from application.use_cases.connect_gocardless import ConnectGoCardlessImpl
 from application.use_cases.connect_google import ConnectGoogleImpl
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
+from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
+from application.use_cases.fetch_external_financial_data import (
+    FetchExternalFinancialDataImpl,
+)
 from application.use_cases.fetch_financial_data import FetchFinancialDataImpl
 from application.use_cases.forecast import ForecastImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
+from application.use_cases.get_available_external_entities import (
+    GetAvailableExternalEntitiesImpl,
+)
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
@@ -41,6 +53,7 @@ from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
 from domain.data_init import DatasourceInitParams
+from domain.external_integration import ExternalIntegrationId
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
@@ -58,6 +71,9 @@ from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetche
 from infrastructure.client.entity.financial.ing.ing_fetcher import INGFetcher
 from infrastructure.client.entity.financial.mintos.mintos_fetcher import MintosFetcher
 from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
+from infrastructure.client.entity.financial.psd2.gocardless_fetcher import (
+    GoCardlessFetcher,
+)
 from infrastructure.client.entity.financial.sego.sego_fetcher import SegoFetcher
 from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
     TradeRepublicFetcher,
@@ -69,6 +85,9 @@ from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
     UrbanitaeFetcher,
 )
 from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
+from infrastructure.client.financial.gocardless.gocardless_client import (
+    GoCardlessClient,
+)
 from infrastructure.client.rates.crypto_price_client import CryptoPriceClient
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
@@ -98,6 +117,9 @@ from infrastructure.repository.earnings_expenses.pending_flow_repository import 
 )
 from infrastructure.repository.earnings_expenses.periodic_flow_repository import (
     PeriodicFlowRepository,
+)
+from infrastructure.repository.entity.external_entity_repository import (
+    ExternalEntityRepository,
 )
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
@@ -135,6 +157,7 @@ class FinanzeServer:
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
         self.etherscan_client = EtherscanClient()
+        self.gocardless_client = GoCardlessClient(port=self.args.port)
 
         self.crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
@@ -157,6 +180,10 @@ class FinanzeServer:
             domain.native_entities.ING: INGFetcher(),
         }
 
+        self.external_entity_fetchers = {
+            ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(self.gocardless_client),
+        }
+
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
         self.exporter = SheetsExporter(self.sheets_initiator)
 
@@ -177,6 +204,7 @@ class FinanzeServer:
         periodic_flow_repository = PeriodicFlowRepository(client=self.db_client)
         pending_flow_repository = PendingFlowRepository(client=self.db_client)
         real_estate_repository = RealEstateRepository(client=self.db_client)
+        external_entity_repository = ExternalEntityRepository(client=self.db_client)
 
         file_storage_repository = LocalFileStorage(
             upload_dir=static_upload_dir, static_url_prefix="/static"
@@ -220,6 +248,7 @@ class FinanzeServer:
 
         get_available_entities = GetAvailableEntitiesImpl(
             entity_repository,
+            external_entity_repository,
             credentials_port,
             crypto_wallet_connections_repository,
             last_fetches_repository,
@@ -242,6 +271,15 @@ class FinanzeServer:
             self.crypto_entity_fetchers,
             crypto_wallet_connections_repository,
             crypto_price_client,
+            self.config_loader,
+            last_fetches_repository,
+            transaction_handler,
+        )
+        fetch_external_financial_data = FetchExternalFinancialDataImpl(
+            entity_repository,
+            external_entity_repository,
+            position_repository,
+            self.external_entity_fetchers,
             self.config_loader,
             last_fetches_repository,
             transaction_handler,
@@ -283,6 +321,29 @@ class FinanzeServer:
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client, crypto_price_client, metal_price_client
         )
+        connect_external_entity = ConnectExternalEntityImpl(
+            entity_repository,
+            external_entity_repository,
+            self.external_entity_fetchers,
+            self.config_loader,
+            file_storage_repository,
+        )
+        complete_external_entity_connection = CompleteExternalEntityConnectionImpl(
+            external_entity_repository,
+            self.external_entity_fetchers,
+            self.config_loader,
+        )
+        delete_external_entity = DeleteExternalEntityImpl(
+            external_entity_repository,
+            self.external_entity_fetchers,
+            self.config_loader,
+        )
+        get_available_external_entities = GetAvailableExternalEntitiesImpl(
+            entity_repository,
+            external_entity_repository,
+            self.external_entity_fetchers,
+            self.config_loader,
+        )
         connect_crypto_wallet = ConnectCryptoWalletImpl(
             crypto_wallet_connections_repository,
             self.crypto_entity_fetchers,
@@ -311,6 +372,11 @@ class FinanzeServer:
         )
         connect_etherscan = ConnectEtherscanImpl(
             external_integration_repository, self.config_loader, self.etherscan_client
+        )
+        connect_gocardless = ConnectGoCardlessImpl(
+            external_integration_repository,
+            self.config_loader,
+            self.gocardless_client,
         )
 
         save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
@@ -377,6 +443,7 @@ class FinanzeServer:
             get_available_entities,
             fetch_financial_data,
             fetch_crypto_data,
+            fetch_external_financial_data,
             update_sheets,
             virtual_fetch,
             add_entity_credentials,
@@ -389,6 +456,10 @@ class FinanzeServer:
             get_contributions,
             get_transactions,
             get_exchange_rates,
+            connect_external_entity,
+            complete_external_entity_connection,
+            delete_external_entity,
+            get_available_external_entities,
             connect_crypto_wallet,
             update_crypto_wallet,
             delete_crypto_wallet,
@@ -396,6 +467,7 @@ class FinanzeServer:
             get_external_integrations,
             connect_google,
             connect_etherscan,
+            connect_gocardless,
             save_periodic_flow,
             update_periodic_flow,
             delete_periodic_flow,

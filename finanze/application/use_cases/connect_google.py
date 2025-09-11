@@ -3,7 +3,7 @@ import logging
 from application.ports.config_port import ConfigPort
 from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.sheets_initiator import SheetsInitiator
-from domain.exception.exceptions import IntegrationSetupError
+from domain.exception.exceptions import IntegrationSetupError, IntegrationSetupErrorCode
 from domain.external_integration import (
     ExternalIntegrationId,
     ExternalIntegrationStatus,
@@ -30,7 +30,7 @@ class ConnectGoogleImpl(ConnectGoogle):
         try:
             self._sheets_initiator.setup(credentials)
         except Exception as e:
-            raise IntegrationSetupError(e)
+            raise IntegrationSetupError(IntegrationSetupErrorCode.UNKNOWN) from e
 
         config = self._config_port.load()
         config.integrations.sheets = SheetsIntegrationConfig(

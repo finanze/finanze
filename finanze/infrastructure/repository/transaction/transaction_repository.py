@@ -5,7 +5,7 @@ from uuid import UUID
 from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
-from domain.entity import Entity, EntityType
+from domain.entity import Entity
 from domain.global_position import ProductType
 from domain.transactions import (
     AccountTx,
@@ -27,8 +27,9 @@ def _map_account_row(row) -> AccountTx:
     entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
+        natural_id=row["entity_natural_id"],
         type=row["entity_type"],
-        is_real=row["entity_is_real"],
+        origin=row["entity_origin"],
     )
 
     return AccountTx(
@@ -54,8 +55,9 @@ def _map_investment_row(row) -> BaseInvestmentTx:
     entity = Entity(
         id=UUID(row["entity_id"]),
         name=row["entity_name"],
-        type=EntityType[row["entity_type"]],
-        is_real=row["entity_is_real"],
+        natural_id=row["entity_natural_id"],
+        type=row["entity_type"],
+        origin=row["entity_origin"],
     )
 
     common = {
@@ -264,7 +266,12 @@ class TransactionSQLRepository(TransactionPort):
         with self._db_client.read() as cursor:
             params = []
             query = """
-                    SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
+                    SELECT it.*,
+                           e.id         AS entity_id,
+                           e.name       AS entity_name,
+                           e.type       as entity_type,
+                           e.origin     as entity_origin,
+                           e.natural_id AS entity_natural_id
                     FROM investment_transactions it
                              JOIN entities e ON it.entity_id = e.id
                     """
@@ -282,10 +289,11 @@ class TransactionSQLRepository(TransactionPort):
             params = []
             query = """
                     SELECT at.*,
-                           e.name    AS entity_name,
-                           e.id      AS entity_id,
-                           e.type    as entity_type,
-                           e.is_real AS entity_is_real
+                           e.id         AS entity_id,
+                           e.name       AS entity_name,
+                           e.natural_id AS entity_natural_id,
+                           e.type       as entity_type,
+                           e.origin     as entity_origin
                     FROM account_transactions at
                              JOIN entities e ON at.entity_id = e.id
                     """
@@ -303,11 +311,16 @@ class TransactionSQLRepository(TransactionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                           SELECT it.*, e.name AS entity_name, e.id AS entity_id, e.type as entity_type, e.is_real AS entity_is_real
-                           FROM investment_transactions it
-                                    JOIN entities e ON it.entity_id = e.id
-                           WHERE it.entity_id = ?
-                           """,
+                SELECT it.*,
+                       e.name       AS entity_name,
+                       e.id         AS entity_id,
+                       e.type       as entity_type,
+                       e.origin     AS entity_origin,
+                       e.natural_id AS entity_natural_id
+                FROM investment_transactions it
+                         JOIN entities e ON it.entity_id = e.id
+                WHERE it.entity_id = ?
+                """,
                 (str(entity_id),),
             )
             return [_map_investment_row(row) for row in cursor.fetchall()]
@@ -316,11 +329,16 @@ class TransactionSQLRepository(TransactionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                           SELECT at.*, e.name AS entity_name, e.id AS entity_id, e.is_real AS entity_is_real
-                           FROM account_transactions at
-                                    JOIN entities e ON at.entity_id = e.id
-                           WHERE at.entity_id = ?
-                           """,
+                SELECT at.*,
+                       e.id         AS entity_id,
+                       e.name       AS entity_name,
+                       e.natural_id AS entity_natural_id,
+                       e.type       AS entity_type,
+                       e.origin     AS entity_origin
+                FROM account_transactions at
+                         JOIN entities e ON at.entity_id = e.id
+                WHERE at.entity_id = ?
+                """,
                 (str(entity_id),),
             )
             return [_map_account_row(row) for row in cursor.fetchall()]
@@ -366,7 +384,11 @@ class TransactionSQLRepository(TransactionPort):
     def get_by_filters(self, query: TransactionQueryRequest) -> list[BaseTx]:
         params = []
         base_sql = """
-                   SELECT tx.*, e.name AS entity_name, e.type as entity_type, e.is_real AS entity_is_real
+                   SELECT tx.*,
+                          e.name       AS entity_name,
+                          e.type       as entity_type,
+                          e.origin     as entity_origin,
+                          e.natural_id as entity_natural_id
                    FROM (SELECT id,
                                 ref,
                                 name,

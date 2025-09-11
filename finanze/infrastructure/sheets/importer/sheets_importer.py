@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from application.ports.virtual_fetch import VirtualFetcher
-from domain.entity import Entity, EntityType
+from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import MissingFieldsError
 from domain.global_position import (
     Account,
@@ -192,8 +192,9 @@ class SheetsImporter(VirtualFetcher):
                     created_entities[entity] = Entity(
                         id=uuid4(),
                         name=entity,
+                        natural_id=None,
                         type=EntityType.FINANCIAL_INSTITUTION,
-                        is_real=False,
+                        origin=EntityOrigin.MANUAL,
                     )
                 entity = created_entities[entity]
 
@@ -335,8 +336,9 @@ class SheetsImporter(VirtualFetcher):
                     created_entities[entity_name] = Entity(
                         id=uuid4(),
                         name=entity_name,
+                        natural_id=None,
                         type=EntityType.FINANCIAL_INSTITUTION,
-                        is_real=False,
+                        origin=EntityOrigin.MANUAL,
                     )
 
                 tx_dict["entity"] = created_entities[entity_name]

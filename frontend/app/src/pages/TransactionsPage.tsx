@@ -35,6 +35,7 @@ import {
   ChevronUp,
 } from "lucide-react"
 import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
+import { EntityOrigin } from "@/types"
 
 interface TransactionFilters {
   entities: string[]
@@ -847,7 +848,7 @@ export default function TransactionsPage() {
                                   }
                                 >
                                   {tx.entity.name}
-                                  {!tx.entity.is_real && (
+                                  {tx.entity.origin == EntityOrigin.MANUAL && (
                                     <span className="ml-1 opacity-70">(V)</span>
                                   )}
                                 </Badge>
@@ -1026,7 +1027,7 @@ export default function TransactionsPage() {
                         onClick={() => handleBadgeClick("entity", tx.entity.id)}
                       >
                         {tx.entity.name}
-                        {!tx.entity.is_real && (
+                        {tx.entity.origin == EntityOrigin.MANUAL && (
                           <span className="ml-1 opacity-75">(V)</span>
                         )}
                       </Badge>

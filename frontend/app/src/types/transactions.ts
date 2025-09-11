@@ -1,4 +1,5 @@
 import { ProductType } from "./position"
+import { EntityOrigin } from "."
 
 export enum TxType {
   BUY = "BUY",
@@ -26,7 +27,7 @@ export interface BaseTx {
   entity: {
     id: string
     name: string
-    is_real: boolean
+    origin: EntityOrigin
   }
   is_real: boolean
   product_type: ProductType

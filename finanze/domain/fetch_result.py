@@ -22,6 +22,10 @@ class FetchResultCode(str, Enum):
     # Bad user input
     FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED"
 
+    # External entities
+    LINK_EXPIRED = "LINK_EXPIRED"
+    REMOTE_FAILED = "REMOTE_FAILED"
+
     # Login related codes
     CODE_REQUESTED = "CODE_REQUESTED"
     MANUAL_LOGIN = "MANUAL_LOGIN"

@@ -44,6 +44,12 @@ from infrastructure.repository.db.versions.v0.v04.v040_8_add_fund_portfolio_acco
     V0408FundPortfolioAccount,
 )
 from infrastructure.repository.db.versions.v0.v05.v050_0_ing import V0500ING
+from infrastructure.repository.db.versions.v0.v05.v050_1_external_provider import (
+    V0501ExternalEntityProvider,
+)
+from infrastructure.repository.db.versions.v0.v05.v050_2_loan_positions_optional_next_date import (
+    V0502,
+)
 
 versions = [
     V0Genesis(),
@@ -68,4 +74,6 @@ versions = [
     V0407RECFProfitability(),
     V0408FundPortfolioAccount(),
     V0500ING(),
+    V0501ExternalEntityProvider(),
+    V0502(),
 ]
