@@ -1,9 +1,8 @@
 import logging
 
 import requests
-from cachetools import cached, TTLCache
-
-from domain.entity_login import LoginResultCode, EntityLoginResult
+from cachetools import TTLCache, cached
+from domain.entity_login import EntityLoginResult, LoginResultCode
 
 
 class IndexaCapitalClient:
@@ -53,3 +52,9 @@ class IndexaCapitalClient:
 
     def get_portfolio(self, account_number: str) -> dict:
         return self._get_request(f"/accounts/{account_number}/portfolio")
+
+    def get_instrument_transactions(self, account_number: str) -> dict:
+        return self._get_request(f"/accounts/{account_number}/instrument-transactions")
+
+    def get_cash_transactions(self, account_number: str) -> dict:
+        return self._get_request(f"/accounts/{account_number}/cash-transactions")

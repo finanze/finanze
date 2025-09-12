@@ -551,10 +551,8 @@ class PositionSQLRepository(PositionPort):
                 placeholders = ", ".join("?" for _ in query.entities)
                 conditions.append(f"gp.entity_id IN ({placeholders})")
                 params.extend([str(e) for e in query.entities])
-            if query and query.excluded_entities:
-                placeholders = ", ".join("?" for _ in query.excluded_entities)
-                conditions.append(f"gp.entity_id NOT IN ({placeholders})")
-                params.extend([str(e) for e in query.excluded_entities])
+            # We don't handle excluded_entities, as we use it to exclude dangling real data, but we are fetching
+            # only non-real data here
 
             if conditions:
                 sql += " AND " + " AND ".join(conditions)

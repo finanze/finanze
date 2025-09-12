@@ -213,7 +213,7 @@
     "relogin": "Relogin",
     "disconnect": "Disconnect",
     "confirmDisconnect": "Confirm Disconnect",
-    "confirmDisconnectMessage": "Are you sure you want to disconnect {entity}? You will need to log in again to access its data.",
+    "confirmDisconnectMessage": "Are you sure you want to disconnect {entity}? You will need to log in again to access its data, and once disconnected it will not be shown.",
     "refreshEntity": "Update entity data",
     "financialInstitutions": "Financial Institutions",
     "cryptoWallets": "Crypto Wallets",
@@ -372,6 +372,7 @@
     "investedAmount": "Invested",
     "upcomingFlows": "Upcoming",
     "manageFlows": "Manage",
+    "noUpcomingFlows": "No upcoming incomes or expenses",
     "stocksAndFunds": {
       "title": "Detailed assets",
       "funds": "Funds",
@@ -468,6 +469,8 @@
     "interests": "Interests",
     "avgBalance": "Avg Balance",
     "interestRate": "Interest Rate",
+    "portfolioName": "Portfolio Name",
+    "iban": "IBAN",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
@@ -501,9 +504,14 @@
       "REPAYMENT": "Repayment",
       "RIGHT_SELL": "Sell Rights",
       "SUBSCRIPTION": "Subscription",
-      "SWAP_FROM": "Swap From",
-      "SWAP_TO": "Swap To",
-      "INVESTMENT": "Investment"
+      "SWAP_FROM": "S. Swap From",
+      "SWAP_TO": "S. Swap To",
+      "TRANSFER_IN": "F. Transfer In",
+      "TRANSFER_OUT": "F. Transfer Out",
+      "SWITCH_FROM": "F. Switch From",
+      "SWITCH_TO": "F. Switch To",
+      "INVESTMENT": "Investment",
+      "FEE": "Fee"
     },
     "productType": {
       "ACCOUNT": "Account",

@@ -80,7 +80,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 params.extend([str(e) for e in query.entities])
             if query.excluded_entities:
                 placeholders = ", ".join("?" for _ in query.excluded_entities)
-                conditions.append(f"pc.entity_id NOT IN ({placeholders})")
+                conditions.append(
+                    f"(pc.entity_id NOT IN ({placeholders}) OR pc.is_real = FALSE)"
+                )
                 params.extend([str(e) for e in query.excluded_entities])
 
             if conditions:

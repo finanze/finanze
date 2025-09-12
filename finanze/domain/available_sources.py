@@ -32,6 +32,7 @@ class AvailableSource(Entity):
     connected: Optional[list[CryptoWalletConnection]] = None
     required_external_integrations: list[ExternalIntegrationId] = None
     external_entity_id: Optional[UUID] = None
+    has_manual_data: bool = False
 
 
 @dataclass

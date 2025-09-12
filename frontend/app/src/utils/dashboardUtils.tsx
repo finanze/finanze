@@ -17,9 +17,14 @@ import {
   HandCoins,
   Building2,
   House,
+  ArrowDownRight,
+  ArrowUpRight,
+  Wallet,
+  CreditCard,
+  WalletMinimal,
 } from "lucide-react"
 import { TxType } from "@/types/transactions"
-import { ProductType } from "@/types/position"
+import { AccountType, ProductType } from "@/types/position"
 import { JSX } from "react"
 
 export const ASSET_TYPE_TO_COLOR_MAP: Record<string, string> = {
@@ -50,6 +55,10 @@ export function getIconForAssetType(
       return <BarChart3 className={`${size} ${color ?? "text-blue-500"}`} />
     case "FUND":
       return <BarChart3 className={`${size} ${color ?? "text-cyan-500"}`} />
+    case "FUND_PORTFOLIO":
+      return (
+        <WalletMinimal className={`${size} ${color ?? "text-fuchsia-500"}`} />
+      )
     case "REAL_ESTATE_CF":
       return <Building2 className={`${size} ${color ?? "text-green-500"}`} />
     case "REAL_ESTATE":
@@ -102,9 +111,74 @@ export const getIconForTxType = (txType: TxType, size: string = "h-4 w-4") => {
     case TxType.SWAP_FROM:
     case TxType.SWAP_TO:
       return <ArrowLeftRight className={iconClass} />
+    case TxType.TRANSFER_IN:
+    case TxType.SWITCH_FROM:
+      return <ArrowDownRight className={iconClass} />
+    case TxType.TRANSFER_OUT:
+    case TxType.SWITCH_TO:
+      return <ArrowUpRight className={iconClass} />
     case TxType.REPAYMENT:
       return <Undo className={iconClass} />
+    case TxType.FEE:
+      return <FileMinus className={iconClass} />
     default:
       return <DollarSign className={iconClass} />
+  }
+}
+
+export const getProductTypeColor = (type: ProductType): string => {
+  switch (type) {
+    case ProductType.STOCK_ETF:
+      return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100"
+    case ProductType.FUND:
+      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
+    case ProductType.CRYPTO:
+      return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+    case ProductType.ACCOUNT:
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100"
+    case ProductType.DEPOSIT:
+      return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100"
+    case ProductType.FACTORING:
+      return "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100"
+    case ProductType.REAL_ESTATE_CF:
+      return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-100"
+    case ProductType.FUND_PORTFOLIO:
+      return "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-100"
+    default:
+      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
+  }
+}
+
+export const getAccountTypeIcon = (type: AccountType) => {
+  switch (type) {
+    case AccountType.CHECKING:
+      return <Wallet className="h-4 w-4" />
+    case AccountType.SAVINGS:
+      return <Building2 className="h-4 w-4" />
+    case AccountType.BROKERAGE:
+      return <TrendingUp className="h-4 w-4" />
+    case AccountType.VIRTUAL_WALLET:
+      return <CreditCard className="h-4 w-4" />
+    case AccountType.FUND_PORTFOLIO:
+      return <TrendingUp className="h-4 w-4" />
+    default:
+      return <Wallet className="h-4 w-4" />
+  }
+}
+
+export const getAccountTypeColor = (type: AccountType) => {
+  switch (type) {
+    case AccountType.CHECKING:
+      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+    case AccountType.SAVINGS:
+      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+    case AccountType.BROKERAGE:
+      return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+    case AccountType.VIRTUAL_WALLET:
+      return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+    case AccountType.FUND_PORTFOLIO:
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
+    default:
+      return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
   }
 }

@@ -10,9 +10,17 @@ export enum TxType {
   SUBSCRIPTION = "SUBSCRIPTION",
   SWAP_FROM = "SWAP_FROM",
   SWAP_TO = "SWAP_TO",
+
+  TRANSFER_IN = "TRANSFER_IN",
+  TRANSFER_OUT = "TRANSFER_OUT",
+  SWITCH_FROM = "SWITCH_FROM",
+  SWITCH_TO = "SWITCH_TO",
+
   INVESTMENT = "INVESTMENT",
   REPAYMENT = "REPAYMENT",
   INTEREST = "INTEREST",
+
+  FEE = "FEE",
 }
 
 // Base transaction interface
@@ -71,6 +79,11 @@ export interface FundTx extends BaseInvestmentTx {
   order_date?: string
 }
 
+export interface FundPortfolioTx extends BaseInvestmentTx {
+  fees: number
+  iban?: string
+}
+
 // Factoring transaction interface
 export interface FactoringTx extends BaseInvestmentTx {
   net_amount: number
@@ -80,7 +93,7 @@ export interface FactoringTx extends BaseInvestmentTx {
 }
 
 // Real state crowdfunding transaction interface
-export interface realEstateCFTx extends BaseInvestmentTx {
+export interface RealEstateCFTx extends BaseInvestmentTx {
   net_amount: number
   fees: number
   retentions: number
@@ -105,7 +118,7 @@ type Tx = AccountTx &
   StockTx &
   FundTx &
   FactoringTx &
-  realEstateCFTx &
+  RealEstateCFTx &
   DepositTx
 
 // Transaction query result

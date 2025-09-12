@@ -232,6 +232,7 @@ class MyInvestorAPIV2Client:
             "data"
         ]
 
+    @cached(cache=TTLCache(maxsize=10, ttl=30))
     def get_security_account_details(self, security_account_id: str):
         return self._get_request(
             f"/myinvestor-server/api/v2/securities-accounts/{security_account_id}"

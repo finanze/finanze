@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
 import { Card } from "@/components/ui/Card"
 import { formatCurrency } from "@/lib/formatters"
@@ -24,6 +24,8 @@ interface InvestmentDistributionChartProps {
   hideLegend?: boolean
   containerClassName?: string
   titleIcon?: React.ReactNode
+  onSliceClick?: (item: ChartDataItem) => void
+  variant?: "default" | "bare"
 }
 
 const RADIAN = Math.PI / 180
@@ -95,8 +97,99 @@ export const InvestmentDistributionChart: React.FC<
   hideLegend = false,
   containerClassName = "",
   titleIcon,
+  onSliceClick,
+  variant = "default",
 }) => {
   const { t } = useI18n()
+  // Bare variant (no card) dynamic sizing branch
+  if (variant === "bare") {
+    if (!data || data.length === 0) {
+      return (
+        <div className={`flex flex-col justify-center ${containerClassName}`}>
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 px-2">
+            {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
+            {title}
+          </h3>
+          <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            {t.common.noDataAvailable}
+          </div>
+        </div>
+      )
+    }
+    const wrapperRef = useRef<HTMLDivElement | null>(null)
+    const [size, setSize] = useState({ width: 0, height: 0 })
+    useEffect(() => {
+      if (!wrapperRef.current) return
+      const obs = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect
+          if (width || height) setSize({ width, height })
+        }
+      })
+      obs.observe(wrapperRef.current)
+      return () => obs.disconnect()
+    }, [])
+    const chartSide = Math.min(size.width, size.height || 480)
+    // Subtract extra space so the donut never gets visually clipped (top/bottom) and leave room for stroke + labels
+    // Leave a bit more vertical room for outside percentage labels
+    const outerRadius = Math.max(Math.min(chartSide / 2 - 52, 250), 90)
+    const innerRadius = Math.round(outerRadius * 0.6)
+    return (
+      <div
+        className={`relative flex justify-center ${containerClassName}`}
+        ref={wrapperRef}
+      >
+        <div className="w-full flex flex-col">
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 px-4 pt-2">
+            {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
+            {title}
+          </h3>
+          <div className="flex-1 min-h-[360px] h-[400px] sm:h-[460px] xl:h-[520px] 2xl:h-[600px] flex items-center justify-center p-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart style={{ userSelect: "none" }}>
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  isAnimationActive={false}
+                  labelLine={false}
+                  label={renderCustomizedLabel}
+                  outerRadius={outerRadius}
+                  innerRadius={innerRadius}
+                  fill="#8884d8"
+                  dataKey="value"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
+                >
+                  {data.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      style={{
+                        outline: "none",
+                        cursor: onSliceClick ? "pointer" : "default",
+                      }}
+                      onClick={() => onSliceClick?.(entry)}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={
+                    <CustomTooltip
+                      locale={locale}
+                      currency={currency}
+                      showOriginalCurrency={showOriginalCurrency}
+                    />
+                  }
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!data || data.length === 0) {
     return (
       <Card className={`p-6 ${containerClassName}`}>
@@ -126,6 +219,7 @@ export const InvestmentDistributionChart: React.FC<
               data={data}
               cx="50%"
               cy="50%"
+              isAnimationActive={false}
               labelLine={false}
               label={renderCustomizedLabel}
               outerRadius={110}
@@ -139,7 +233,11 @@ export const InvestmentDistributionChart: React.FC<
                 <Cell
                   key={`cell-${index}`}
                   fill={entry.color}
-                  style={{ outline: "none" }}
+                  style={{
+                    outline: "none",
+                    cursor: onSliceClick ? "pointer" : "default",
+                  }}
+                  onClick={() => onSliceClick?.(entry)}
                 />
               ))}
             </Pie>

@@ -13,6 +13,7 @@ from domain.transactions import (
     BaseTx,
     DepositTx,
     FactoringTx,
+    FundPortfolioTx,
     FundTx,
     RealEstateCFTx,
     StockTx,
@@ -103,6 +104,13 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             if "order_date" in row
             else None,
         )
+    elif row["product_type"] == ProductType.FUND_PORTFOLIO.value:
+        return FundPortfolioTx(
+            **common,
+            fees=Dezimal(row["fees"]),
+            portfolio_name=row["portfolio_name"] if row["portfolio_name"] else None,
+            iban=row["iban"] if row["iban"] else None,
+        )
     elif row["product_type"] == ProductType.FACTORING.value:
         return FactoringTx(
             **common,
@@ -167,6 +175,8 @@ class TransactionSQLRepository(TransactionPort):
                     "order_date": None,
                     "linked_tx": None,
                     "interests": None,
+                    "iban": None,
+                    "portfolio_name": None,
                 }
 
                 if isinstance(tx, StockTx):
@@ -201,6 +211,14 @@ class TransactionSQLRepository(TransactionPort):
                             else None,
                         }
                     )
+                elif isinstance(tx, FundPortfolioTx):
+                    entry.update(
+                        {
+                            "fees": str(tx.fees),
+                            "portfolio_name": tx.portfolio_name,
+                            "iban": str(tx.iban) if tx.iban else None,
+                        }
+                    )
                 elif isinstance(tx, (FactoringTx, RealEstateCFTx, DepositTx)):
                     entry.update(
                         {
@@ -216,11 +234,13 @@ class TransactionSQLRepository(TransactionPort):
                     INSERT INTO investment_transactions (id, ref, name, amount, currency, type, date,
                                                          entity_id, is_real, product_type, created_at,
                                                          isin, ticker, market, shares, price, net_amount,
-                                                         fees, retentions, order_date, linked_tx, interests)
+                                                         fees, retentions, order_date, linked_tx, interests,
+                                                         iban, portfolio_name)
                     VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
                             :entity_id, :is_real, :product_type, :created_at,
                             :isin, :ticker, :market, :shares, :price, :net_amount,
-                            :fees, :retentions, :order_date, :linked_tx, :interests)
+                            :fees, :retentions, :order_date, :linked_tx, :interests,
+                            :iban, :portfolio_name)
                     """,
                     entry,
                 )
@@ -411,7 +431,9 @@ class TransactionSQLRepository(TransactionPort):
                                 net_amount,
                                 order_date,
                                 linked_tx,
-                                interests
+                                interests,
+                                iban,
+                                portfolio_name
                          FROM investment_transactions
                          UNION ALL
                          SELECT id,
@@ -436,7 +458,9 @@ class TransactionSQLRepository(TransactionPort):
                                 net_amount,
                                 NULL      AS order_date,
                                 NULL      AS linked_tx,
-                                NULL      AS interests
+                                NULL      AS interests,
+                                NULL      AS iban,
+                                NULL      AS portfolio_name
                          FROM account_transactions) tx
                             JOIN entities e ON tx.entity_id = e.id
                    """
@@ -448,7 +472,9 @@ class TransactionSQLRepository(TransactionPort):
             params.extend([str(e) for e in query.entities])
         if query.excluded_entities:
             placeholders = ", ".join("?" for _ in query.excluded_entities)
-            conditions.append(f"tx.entity_id NOT IN ({placeholders})")
+            conditions.append(
+                f"(tx.entity_id NOT IN ({placeholders}) OR tx.is_real = FALSE)"
+            )
             params.extend([str(e) for e in query.excluded_entities])
         if query.product_types:
             placeholders = ", ".join("?" for _ in query.product_types)

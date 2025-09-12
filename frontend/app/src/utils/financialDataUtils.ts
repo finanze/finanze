@@ -121,6 +121,11 @@ export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
       TxType.SUBSCRIPTION,
       TxType.SWAP_FROM,
       TxType.SWAP_TO,
+      TxType.TRANSFER_OUT,
+      TxType.SWITCH_FROM,
+      TxType.SWITCH_TO,
+      TxType.TRANSFER_IN,
+      TxType.FEE,
     ].includes(txType)
   ) {
     return "out"
@@ -2250,6 +2255,10 @@ export const getRecentTransactions = (
   const groupedTxs: Record<string, GroupedTransaction[]> = {}
 
   transactions.transactions
+    // Filter out internal switch operations (not user-facing)
+    .filter(
+      tx => tx.type !== TxType.SWITCH_FROM && tx.type !== TxType.SWITCH_TO,
+    )
     .map(tx => ({
       date: tx.date,
       description: tx.name,
@@ -2482,7 +2491,8 @@ export const calculateInvestmentDistribution = (
     "#06b6d4",
   ]
   data.forEach((item, index) => {
-    item.color = colors[index]
+    // Cycle through colors to avoid undefined when there are more slices than palette length
+    item.color = colors[index % colors.length]
   })
 
   return data

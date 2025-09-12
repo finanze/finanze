@@ -726,239 +726,224 @@ export default function EntityIntegrationsPage() {
               </motion.div>
             )}
 
-            {(unconnectedEntities.length > 0 || !virtualEnabled) && (
-              <motion.div variants={item} className="space-y-6">
-                <h2 className="text-xl font-semibold">
-                  {t.entities.available}
-                </h2>
+            <motion.div variants={item} className="space-y-6">
+              <h2 className="text-xl font-semibold">{t.entities.available}</h2>
 
-                {/* Financial Institutions */}
-                {unconnectedFinancialEntities.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <Landmark className="h-5 w-5 mr-2" />
-                      {t.entities.financialInstitutions}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {/* Add External Entity Card */}
-                      <Card
-                        className={`transition-all hover:shadow-md border-l-4 border-l-gray-300 ${hasProviderIntegration ? "opacity-100 cursor-pointer hover:shadow-lg" : "opacity-80"}`}
-                        onClick={
-                          hasProviderIntegration
-                            ? openAddExternalEntity
-                            : undefined
-                        }
-                      >
-                        <CardHeader className="pb-0 p-4">
-                          <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center min-w-0">
-                              <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
-                                <div className="absolute inset-0">
-                                  <img
-                                    src="/icons/santander.png"
-                                    alt=""
-                                    className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(-50%,-10%) rotate(-10deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                  <img
-                                    src="/icons/sabadell.png"
-                                    alt=""
-                                    className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(0,-45%) rotate(6deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                  <img
-                                    src="/icons/n26.png"
-                                    alt=""
-                                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(-55%,10%) rotate(9deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                  <img
-                                    src="/icons/vivid.png"
-                                    alt=""
-                                    className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(0%,-45%) rotate(-7deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                </div>
-                              </div>
-                              <span className="truncate">
-                                {t.entities.moreFinancialInstitutionsCard}
-                              </span>
+              {/* Financial Institutions */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                  <Landmark className="h-5 w-5 mr-2" />
+                  {t.entities.financialInstitutions}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Add External Entity Card */}
+                  <Card
+                    className={`transition-all hover:shadow-md border-l-4 border-l-gray-300 ${hasProviderIntegration ? "opacity-100 cursor-pointer hover:shadow-lg" : "opacity-80"}`}
+                    onClick={
+                      hasProviderIntegration ? openAddExternalEntity : undefined
+                    }
+                  >
+                    <CardHeader className="pb-0 p-4">
+                      <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center min-w-0">
+                          <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
+                            <div className="absolute inset-0">
+                              <img
+                                src="/icons/santander.png"
+                                alt=""
+                                className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                style={{
+                                  transform:
+                                    "translate(-50%,-10%) rotate(-10deg)",
+                                }}
+                                draggable={false}
+                              />
+                              <img
+                                src="/icons/sabadell.png"
+                                alt=""
+                                className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                style={{
+                                  transform: "translate(0,-45%) rotate(6deg)",
+                                }}
+                                draggable={false}
+                              />
+                              <img
+                                src="/icons/n26.png"
+                                alt=""
+                                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                style={{
+                                  transform: "translate(-55%,10%) rotate(9deg)",
+                                }}
+                                draggable={false}
+                              />
+                              <img
+                                src="/icons/vivid.png"
+                                alt=""
+                                className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                style={{
+                                  transform: "translate(0%,-45%) rotate(-7deg)",
+                                }}
+                                draggable={false}
+                              />
                             </div>
-                            {!hasProviderIntegration ? (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Badge
-                                    variant="outline"
-                                    className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
-                                  >
-                                    {t.entities.requiresProviderIntegration}
-                                  </Badge>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80">
-                                  <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                      <AlertCircle className="h-9 w-9 text-red-500" />
-                                      <h4 className="font-medium text-sm">
-                                        {t.entities.requiresProviderIntegration}
-                                      </h4>
-                                    </div>
-                                    {providerIntegrations.length > 0 && (
-                                      <div className="space-y-1 ml-11 mt-1">
-                                        {providerIntegrations.map(integ => (
-                                          <div
-                                            key={integ.id}
-                                            className="text-sm text-gray-600 dark:text-gray-300"
-                                          >
-                                            • {integ.name}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    <Button
-                                      size="sm"
-                                      className="w-full mt-4"
-                                      onClick={() =>
-                                        navigate("/settings?tab=integrations")
-                                      }
-                                    >
-                                      <Settings className="mr-2 h-3 w-3" />
-                                      {t.entities.goToSettings}
-                                    </Button>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            ) : null}
-                          </CardTitle>
-                        </CardHeader>
-                      </Card>
-                      {unconnectedFinancialEntities.map(entity => (
-                        <EntityCard
-                          key={entity.id}
-                          entity={entity}
-                          onSelect={() => handleEntitySelect(entity)}
-                          onRelogin={() => handleRelogin(entity)}
-                          onDisconnect={() => handleDisconnect(entity)}
-                          onManage={() => handleManage(entity)}
-                          onExternalContinue={handleContinueExternalEntityLink}
-                          onExternalDisconnect={
-                            handleDisconnectExternalProvided
-                          }
-                          linkingExternalEntityId={linkingExternalEntityId}
-                          onExternalRelink={handleRelinkExternalProvided}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Crypto Wallets */}
-                {unconnectedCryptoEntities.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <Wallet className="h-5 w-5 mr-2" />
-                      {t.entities.cryptoWallets}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {unconnectedCryptoEntities.map(entity => (
-                        <EntityCard
-                          key={entity.id}
-                          entity={entity}
-                          onSelect={() => handleEntitySelect(entity)}
-                          onRelogin={() => handleRelogin(entity)}
-                          onDisconnect={() => handleDisconnect(entity)}
-                          onManage={() => handleManage(entity)}
-                          onExternalContinue={handleContinueExternalEntityLink}
-                          onExternalDisconnect={
-                            handleDisconnectExternalProvided
-                          }
-                          linkingExternalEntityId={linkingExternalEntityId}
-                          onExternalRelink={handleRelinkExternalProvided}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* User Entered (Virtual) and Commodities - Show in Available when disabled */}
-                {(!virtualEnabled || !isCommodityDataEntryAvailable()) && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <User className="h-5 w-5 mr-2" />
-                      {t.entities.manualDataEntry}
-                    </h3>
-                    {(!virtualEnabled || !isCommodityDataEntryAvailable()) && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* User Entered (Virtual) - Show when disabled */}
-                        {!virtualEnabled && (
-                          <Card className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 flex flex-col h-full">
-                            <CardHeader className="pb-2">
-                              <CardTitle className="flex items-center justify-center">
-                                <FileSpreadsheet className="h-5 w-5 mr-2" />
-                                {t.entities.userEntered}
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex flex-col items-center justify-center text-center flex-1">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                {t.entities.userEnteredAvailableDescription}
-                              </p>
-                              <Button
+                          </div>
+                          <span className="truncate">
+                            {t.entities.moreFinancialInstitutionsCard}
+                          </span>
+                        </div>
+                        {!hasProviderIntegration ? (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Badge
                                 variant="outline"
-                                className="w-full"
-                                onClick={handleConfigureVirtual}
+                                className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
                               >
-                                {t.entities.configureInSettings}
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        )}
+                                {t.entities.requiresProviderIntegration}
+                              </Badge>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80">
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="h-9 w-9 text-red-500" />
+                                  <h4 className="font-medium text-sm">
+                                    {t.entities.requiresProviderIntegration}
+                                  </h4>
+                                </div>
+                                {providerIntegrations.length > 0 && (
+                                  <div className="space-y-1 ml-11 mt-1">
+                                    {providerIntegrations.map(integ => (
+                                      <div
+                                        key={integ.id}
+                                        className="text-sm text-gray-600 dark:text-gray-300"
+                                      >
+                                        • {integ.name}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                <Button
+                                  size="sm"
+                                  className="w-full mt-4"
+                                  onClick={() =>
+                                    navigate("/settings?tab=integrations")
+                                  }
+                                >
+                                  <Settings className="mr-2 h-3 w-3" />
+                                  {t.entities.goToSettings}
+                                </Button>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        ) : null}
+                      </CardTitle>
+                    </CardHeader>
+                  </Card>
+                  {unconnectedFinancialEntities.map(entity => (
+                    <EntityCard
+                      key={entity.id}
+                      entity={entity}
+                      onSelect={() => handleEntitySelect(entity)}
+                      onRelogin={() => handleRelogin(entity)}
+                      onDisconnect={() => handleDisconnect(entity)}
+                      onManage={() => handleManage(entity)}
+                      onExternalContinue={handleContinueExternalEntityLink}
+                      onExternalDisconnect={handleDisconnectExternalProvided}
+                      linkingExternalEntityId={linkingExternalEntityId}
+                      onExternalRelink={handleRelinkExternalProvided}
+                    />
+                  ))}
+                </div>
+              </div>
 
-                        {/* Commodity Data Entry - show when disabled */}
-                        {!isCommodityDataEntryAvailable() && (
-                          <Card
-                            className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 opacity-80 cursor-pointer hover:opacity-100 flex flex-col h-full"
-                            onClick={() => {
-                              setShowManageCommodities(true)
-                            }}
-                          >
-                            <CardHeader className="pb-2">
-                              <CardTitle className="flex items-center justify-center">
-                                <CommodityIconsStack
-                                  positionsData={positionsData}
-                                />
-                                <span className="ml-2">
-                                  {t.entities.commodities}
-                                </span>
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex flex-col items-center justify-center text-center flex-1">
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                                {t.entities.commoditiesDescription}
-                              </p>
-                            </CardContent>
-                          </Card>
-                        )}
-                      </div>
-                    )}
+              {/* Crypto Wallets */}
+              {unconnectedCryptoEntities.length > 0 && (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    <Wallet className="h-5 w-5 mr-2" />
+                    {t.entities.cryptoWallets}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {unconnectedCryptoEntities.map(entity => (
+                      <EntityCard
+                        key={entity.id}
+                        entity={entity}
+                        onSelect={() => handleEntitySelect(entity)}
+                        onRelogin={() => handleRelogin(entity)}
+                        onDisconnect={() => handleDisconnect(entity)}
+                        onManage={() => handleManage(entity)}
+                        onExternalContinue={handleContinueExternalEntityLink}
+                        onExternalDisconnect={handleDisconnectExternalProvided}
+                        linkingExternalEntityId={linkingExternalEntityId}
+                        onExternalRelink={handleRelinkExternalProvided}
+                      />
+                    ))}
                   </div>
-                )}
-              </motion.div>
-            )}
+                </div>
+              )}
+
+              {/* User Entered (Virtual) and Commodities - Show in Available when disabled */}
+              {(!virtualEnabled || !isCommodityDataEntryAvailable()) && (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    <User className="h-5 w-5 mr-2" />
+                    {t.entities.manualDataEntry}
+                  </h3>
+                  {(!virtualEnabled || !isCommodityDataEntryAvailable()) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {/* User Entered (Virtual) - Show when disabled */}
+                      {!virtualEnabled && (
+                        <Card className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 flex flex-col h-full">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center justify-center">
+                              <FileSpreadsheet className="h-5 w-5 mr-2" />
+                              {t.entities.userEntered}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                              {t.entities.userEnteredAvailableDescription}
+                            </p>
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={handleConfigureVirtual}
+                            >
+                              {t.entities.configureInSettings}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* Commodity Data Entry - show when disabled */}
+                      {!isCommodityDataEntryAvailable() && (
+                        <Card
+                          className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 opacity-80 cursor-pointer hover:opacity-100 flex flex-col h-full"
+                          onClick={() => {
+                            setShowManageCommodities(true)
+                          }}
+                        >
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center justify-center">
+                              <CommodityIconsStack
+                                positionsData={positionsData}
+                              />
+                              <span className="ml-2">
+                                {t.entities.commodities}
+                              </span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                              {t.entities.commoditiesDescription}
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
           </motion.div>
         ) : null}
 

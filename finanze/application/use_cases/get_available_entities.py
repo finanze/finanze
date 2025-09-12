@@ -69,6 +69,8 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             wallets = None
             external_entity_id = None
 
+            has_manual_data = entity.id in last_virtual_imported_entities
+
             dict_entity = asdict(native_entity or entity)
 
             if entity.origin == EntityOrigin.EXTERNALLY_PROVIDED:
@@ -96,7 +98,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                         if expiration and expiration < datetime.now(tzlocal()):
                             status = FinancialEntityStatus.REQUIRES_LOGIN
                 else:
-                    if entity.id in last_virtual_imported_entities:
+                    if has_manual_data:
                         status = FinancialEntityStatus.CONNECTED
 
             else:
@@ -106,8 +108,11 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
             last_fetch = {}
             if entity.origin != EntityOrigin.MANUAL:
-                last_fetch_records = self._last_fetches_port.get_by_entity_id(entity.id)
-                last_fetch = {r.feature: r.date for r in last_fetch_records}
+                if status != FinancialEntityStatus.DISCONNECTED:
+                    last_fetch_records = self._last_fetches_port.get_by_entity_id(
+                        entity.id
+                    )
+                    last_fetch = {r.feature: r.date for r in last_fetch_records}
             else:
                 dict_entity["features"] = []
 
@@ -129,6 +134,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     connected=wallets,
                     last_fetch=last_fetch,
                     external_entity_id=external_entity_id,
+                    has_manual_data=has_manual_data,
                 )
             )
 

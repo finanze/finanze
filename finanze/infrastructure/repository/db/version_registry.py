@@ -50,6 +50,9 @@ from infrastructure.repository.db.versions.v0.v05.v050_1_external_provider impor
 from infrastructure.repository.db.versions.v0.v05.v050_2_loan_positions_optional_next_date import (
     V0502,
 )
+from infrastructure.repository.db.versions.v0.v05.v050_3_fund_portfolio_txs import (
+    V0503FundPortfolioTxs,
+)
 
 versions = [
     V0Genesis(),
@@ -76,4 +79,5 @@ versions = [
     V0500ING(),
     V0501ExternalEntityProvider(),
     V0502(),
+    V0503FundPortfolioTxs(),
 ]

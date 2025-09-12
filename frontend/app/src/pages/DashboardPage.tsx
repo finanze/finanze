@@ -2071,7 +2071,7 @@ export default function DashboardPage() {
                   {!forecastMode && upcomingEventsData.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
                       <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
-                      <p>-</p>
+                      <p>{t.dashboard.noUpcomingFlows}</p>
                     </div>
                   )}
                   {!forecastMode && upcomingEventsData.length > 0 && (
@@ -3324,10 +3324,16 @@ export default function DashboardPage() {
                                         className={`text-sm font-semibold ${
                                           tx.displayType === "in"
                                             ? "text-green-600 dark:text-green-400"
-                                            : undefined
+                                            : tx.type === TxType.FEE
+                                              ? "text-red-600 dark:text-red-400"
+                                              : undefined
                                         }`}
                                       >
-                                        {tx.displayType === "in" ? "+" : ""}
+                                        {tx.displayType === "in"
+                                          ? "+"
+                                          : tx.type === TxType.FEE
+                                            ? "-"
+                                            : ""}
                                         {tx.formattedAmount}
                                       </p>
                                     </div>

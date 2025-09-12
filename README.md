@@ -49,9 +49,13 @@ information.
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
 | Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
-| Indexa Capital | ✅⚠️      | -     | ✅⚠️   | -              | -        | ✅⚠️        | -                   | -      | -     |                     |
+| Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
+| ING            | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ❌                   | -      | -     |                     |
 
-⚠️ = Not tested
+#### GoCardless Integration
+
+GoCardless provides PSD2 compliant bank account information for many EU/UK banks, for institutions not natively
+supported this is the way to get account related data.
 
 ### Financial Entity Features
 
@@ -62,7 +66,7 @@ Not all entities support the same features, in general we can group data in the 
 - **Periodic Contributions**: automatic periodic contributions made to investments such as Funds (MyInvestor) or
   Stocks/ETFs (Trade Republic).
 - **Transactions**: all the account/investment related transactions, interest payments, stock of fund operations, asset
-  maturity...
+  maturity, fees...
 - **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments (
   deposits are not included here).
 
@@ -76,7 +80,8 @@ Not all entities support the same features, in general we can group data in the 
 | Wecity         | ✅               | -                         | ✅                              | ✅                      |
 | Mintos         | ✅               | -                         | ❌                              | ❌                      |
 | Freedom24      | ✅               | -                         | ✅                              | ❌                      |
-| Indexa Capital | ✅⚠️             | -                         | ❌                              | -                      |
+| Indexa Capital | ✅               | -                         | ✅                              | -                      |
+| ING            | ✅ WIP           | WIP                       | ✅                              | -                      |
 
 ### Financial Entity notes
 
@@ -84,8 +89,9 @@ Some entities require a 2FA to login or get its data, which doesn't allow to bac
 following ones:
 
 - **SEGO** (e-mail)
-- **Trade Republic** (mobile app)
+- **Trade Republic** (mobile app or SMS)
 - **Wecity** (SMS)
+- Sometimes **MyInvestor** (SMS)
 
 Important points to remark:
 
@@ -93,7 +99,7 @@ Important points to remark:
   Akamai for anti
   bot protection.
 - **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
-- **Indexa Capital** is not tested, as I don't have an account.
+- **ING** only works via frontend, as it requires user interaction to log in.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
   removal.
 

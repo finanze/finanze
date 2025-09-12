@@ -138,7 +138,7 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION],
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={"token": CredentialType.API_TOKEN},
 )

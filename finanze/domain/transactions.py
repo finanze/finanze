@@ -3,12 +3,11 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from pydantic.dataclasses import dataclass
-
 from domain.base import BaseData
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.global_position import ProductType
+from pydantic.dataclasses import dataclass
 
 
 class TxType(str, Enum):
@@ -21,9 +20,16 @@ class TxType(str, Enum):
     SWAP_FROM = "SWAP_FROM"
     SWAP_TO = "SWAP_TO"
 
+    TRANSFER_IN = "TRANSFER_IN"
+    TRANSFER_OUT = "TRANSFER_OUT"
+    SWITCH_FROM = "SWITCH_FROM"
+    SWITCH_TO = "SWITCH_TO"
+
     INVESTMENT = "INVESTMENT"
     REPAYMENT = "REPAYMENT"
     INTEREST = "INTEREST"
+
+    FEE = "FEE"
 
 
 @dataclass
@@ -78,6 +84,13 @@ class FundTx(BaseInvestmentTx):
     fees: Dezimal
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
+
+
+@dataclass
+class FundPortfolioTx(BaseInvestmentTx):
+    fees: Dezimal
+    portfolio_name: str
+    iban: Optional[str]
 
 
 @dataclass
