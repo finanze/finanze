@@ -819,6 +819,7 @@
       "MONTHLY": "Mensual",
       "BIMONTHLY": "Bimestral",
       "QUARTERLY": "Trimestral",
+      "EVERY_FOUR_MONTHS": "Cada 4 Meses",
       "SEMIANNUAL": "Semestral",
       "YEARLY": "Anual"
     },

@@ -53,6 +53,9 @@ from infrastructure.repository.db.versions.v0.v05.v050_2_loan_positions_optional
 from infrastructure.repository.db.versions.v0.v05.v050_3_fund_portfolio_txs import (
     V0503FundPortfolioTxs,
 )
+from infrastructure.repository.db.versions.v0.v05.v050_4_fund_market_nullable import (
+    V0504,
+)
 
 versions = [
     V0Genesis(),
@@ -80,4 +83,5 @@ versions = [
     V0501ExternalEntityProvider(),
     V0502(),
     V0503FundPortfolioTxs(),
+    V0504(),
 ]

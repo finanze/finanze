@@ -132,7 +132,7 @@ class FundDetail(BaseData):
     id: UUID
     name: str
     isin: str
-    market: str
+    market: Optional[str]
     shares: Dezimal
     initial_investment: Dezimal
     average_buy_price: Dezimal

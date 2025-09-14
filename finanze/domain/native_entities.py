@@ -149,7 +149,7 @@ ING = NativeFinancialEntity(
     natural_id="INGDESMM",
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
-    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.MANUAL,
     credentials_template={
         "genomaCookie": CredentialType.INTERNAL_TEMP,

@@ -16,6 +16,7 @@ from domain.entity_login import (
 SESSION_LIFETIME = 4 * 60  # 4 minutes
 
 DATE_FORMAT = "%d/%m/%Y"
+DASHED_DATE_FORMAT = "%Y-%m-%d"
 
 
 class INGAPIClient:
@@ -126,24 +127,27 @@ class INGAPIClient:
     def get_user(self) -> dict:
         return self._get_request("/client", api=False)
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    @cached(cache=TTLCache(maxsize=1, ttl=30))
     def get_position(self) -> dict:
         return self._get_request("/position-keeping")
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
+    @cached(cache=TTLCache(maxsize=1, ttl=30))
     def get_orders(
         self,
         product_id: str,
-        from_date: date,
+        type: Optional[str] = "history",
+        order_status: Optional[str] = None,
         offset: int = 0,
         limit: int = 1000,
+        from_date: Optional[date] = None,
         to_date: Optional[date] = None,
     ) -> dict:  # returns {elements[], limit, offset, count, total}
         to_date = to_date or datetime.now().date()
         return self._get_request(
             f"/products/{product_id}/orders",
             params={
-                "type": "history",  # day orders if not provided
+                "type": type,  # day orders if not provided
+                "orderStatus": order_status,
                 "offset": offset,
                 "limit": limit,
                 "fromDate": from_date.strftime(DATE_FORMAT) if from_date else None,
@@ -187,3 +191,29 @@ class INGAPIClient:
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_broker_financial_events(self, product_id: str) -> dict:
         return self._get_request(f"/products/{product_id}/financialEvents")
+
+    @cached(cache=TTLCache(maxsize=1, ttl=86400))
+    def get_investment_catalog_products(self) -> dict:
+        return self._get_request(
+            "/investment-product-offering-portfolio/v1/catalog-products?size=1000"
+        )
+
+    @cached(cache=TTLCache(maxsize=10, ttl=86400))
+    def get_investment_product_details(self, product_code: str) -> dict:
+        return self._get_request(
+            f"/investment-product-offering-portfolio/v1/catalog-products/{product_code}"
+        )
+
+    @cached(cache=TTLCache(maxsize=1, ttl=86400))
+    def get_customer_investment_reporting(
+        self, family: str, start_date: date, end_date: date
+    ) -> dict:
+        return self._get_request(
+            "/customer-investment-reporting/v2/investment-report",
+            params={
+                "families": family,
+                "allProducts": "true",
+                "startDate": start_date.strftime(DASHED_DATE_FORMAT),
+                "endDate": end_date.strftime(DASHED_DATE_FORMAT),
+            },
+        )

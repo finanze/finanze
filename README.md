@@ -50,7 +50,7 @@ information.
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
 | Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING            | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ❌                   | -      | -     |                     |
+| ING            | ✅        | ✅     | ✅️    | ❌              | ❌        | -          | ❌                   | -      | -     |                     |
 
 #### GoCardless Integration
 
@@ -81,7 +81,7 @@ Not all entities support the same features, in general we can group data in the 
 | Mintos         | ✅               | -                         | ❌                              | ❌                      |
 | Freedom24      | ✅               | -                         | ✅                              | ❌                      |
 | Indexa Capital | ✅               | -                         | ✅                              | -                      |
-| ING            | ✅ WIP           | WIP                       | ✅                              | -                      |
+| ING            | ✅               | ✅                         | ✅                              | -                      |
 
 ### Financial Entity notes
 

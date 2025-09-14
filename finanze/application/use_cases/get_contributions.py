@@ -14,6 +14,7 @@ from domain.use_cases.get_contributions import GetContributions
 _contrib_freq_delta_map = {
     ContributionFrequency.MONTHLY: relativedelta(months=1),
     ContributionFrequency.BIMONTHLY: relativedelta(months=2),
+    ContributionFrequency.EVERY_FOUR_MONTHS: relativedelta(months=4),
     ContributionFrequency.QUARTERLY: relativedelta(months=3),
     ContributionFrequency.SEMIANNUAL: relativedelta(months=6),
     ContributionFrequency.YEARLY: relativedelta(years=1),

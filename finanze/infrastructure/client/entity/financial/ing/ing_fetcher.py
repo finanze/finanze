@@ -1,8 +1,15 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
+from domain.auto_contributions import (
+    AutoContributions,
+    ContributionFrequency,
+    ContributionTargetType,
+    PeriodicContribution,
+)
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_result import FetchOptions
@@ -13,12 +20,23 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    FundDetail,
+    FundInvestments,
     GlobalPosition,
     ProductType,
 )
 from domain.native_entities import ING
-from domain.transactions import StockTx, Transactions, TxType
+from domain.transactions import FundTx, StockTx, Transactions, TxType
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
+
+CONTRIBUTION_FREQUENCY = {
+    "MENSUAL": ContributionFrequency.MONTHLY,
+    "BIMESTRAL": ContributionFrequency.BIMONTHLY,
+    "TRIMESTRAL": ContributionFrequency.QUARTERLY,
+    "CUATRIMESTRAL": ContributionFrequency.EVERY_FOUR_MONTHS,
+    "SEMESTRAL": ContributionFrequency.SEMIANNUAL,
+    "ANUAL": ContributionFrequency.YEARLY,
+}
 
 
 def _map_op_type(raw: str | None, stock_type: str | None) -> TxType | None:
@@ -300,11 +318,28 @@ def _build_cards(
     return cards
 
 
+def _map_fund_tran_code(code: str | None) -> TxType | None:
+    if not code:
+        return None
+    c = code.upper()
+    if c == "SUSC":
+        return TxType.BUY
+    if c in {"REIM", "REEM", "REFU"}:
+        return TxType.SELL
+    if c in {"DIV", "DIVI"}:
+        return TxType.DIVIDEND
+    return None
+
+
 class INGFetcher(FinancialEntityFetcher):
     def __init__(self):
         self._client = INGAPIClient()
-        # Cache for market code -> human-readable name (e.g., "000" -> "M.CONTINUO")
+
         self._market_cache: dict[str, str] = {}
+
+        self._fund_product_code_by_uuid: dict[str, str] = {}
+        self._fund_isin_cache: dict[str, str] = {}
+        self._fund_product_codes_loaded: bool = False
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         return self._client.complete_login(
@@ -321,10 +356,17 @@ class INGFetcher(FinancialEntityFetcher):
         _mark_brokerage_account(products, legacy_by_number, accounts_by_number)
         cards = _build_cards(products, legacy_by_number, accounts_by_number)
 
-        product_positions = {
-            ProductType.ACCOUNT: Accounts(accounts),
-            ProductType.CARD: Cards(cards),
-        }
+        funds = self._build_funds(products, legacy_by_number)
+
+        product_positions = {}
+        if accounts:
+            product_positions[ProductType.ACCOUNT] = Accounts(accounts)
+
+        if cards:
+            product_positions[ProductType.CARD] = Cards(cards)
+
+        if funds:
+            product_positions[ProductType.FUND] = FundInvestments(funds)
 
         return GlobalPosition(
             id=uuid4(),
@@ -338,15 +380,211 @@ class INGFetcher(FinancialEntityFetcher):
         position = self._client.get_position()
         products = position.get("products", [])
 
+        investment_txs = self._fetch_broker_txs(products, registered_txs)
+        investment_txs += self._fetch_fund_txs(products, registered_txs)
+
+        return Transactions(investment=investment_txs, account=[])
+
+    async def auto_contributions(self) -> AutoContributions:
+        position = self._client.get_position()
+        products = position.get("products", [])
+
+        periodic_contributions: list[PeriodicContribution] = []
+        in_five_years = datetime.now(tzlocal()).date() + timedelta(days=5 * 365)
+
+        fund_products = [p for p in products if p.get("type") == "FUND"]
+        for fund in fund_products:
+            fund_local_uuid = _get_identifier(fund, "LOCAL_UUID")
+            if not fund_local_uuid:
+                continue
+            orders_resp = (
+                self._client.get_orders(
+                    product_id=fund_local_uuid,
+                    order_status="pending",
+                    to_date=in_five_years,
+                )
+                or {}
+            )
+
+            for order in orders_resp.get("elements") or []:
+                status = order.get("status") or {}
+                if status.get("cod") != "P":
+                    continue
+
+                if order.get("orderType") != "subscription":
+                    continue
+
+                periodicity_raw = (order.get("periodicity") or "").strip().upper()
+                frequency = CONTRIBUTION_FREQUENCY.get(periodicity_raw)
+                if not frequency:
+                    continue
+                since = datetime.strptime(order.get("operationDate"), "%d/%m/%Y").date()
+
+                amount = round(Dezimal(order.get("amount")), 2)
+                currency = order.get("currency")
+
+                isin = self._get_fund_isin(fund)
+                if not isin:
+                    continue
+
+                fund_name = fund.get("commercialName").strip()
+                alias = fund_name
+
+                periodic_contributions.append(
+                    PeriodicContribution(
+                        id=uuid4(),
+                        alias=alias,
+                        target=isin,
+                        target_name=fund_name,
+                        target_type=ContributionTargetType.FUND,
+                        amount=amount,
+                        currency=currency,
+                        since=since,
+                        until=None,
+                        frequency=frequency,
+                        active=True,
+                        is_real=True,
+                    )
+                )
+
+        return AutoContributions(periodic=periodic_contributions)
+
+    def _fetch_broker_txs(self, products, registered_txs: set[str]) -> list[StockTx]:
         broker = next((p for p in products if p.get("type") == "BROKER"), None)
         if not broker:
-            return Transactions(investment=[], account=[])
+            return []
 
-        broker_id = _get_identifier(broker, "LOCAL_UUID") or broker.get("uuid")
+        broker_id = _get_identifier(broker, "LOCAL_UUID")
         opening_date = _parse_broker_opening_date(broker.get("openingDate"))
 
         txs = self._fetch_broker_movements(broker_id, opening_date, registered_txs)
-        return Transactions(investment=txs, account=[])
+        return txs
+
+    def _load_fund_product_codes(self):
+        if self._fund_product_codes_loaded:
+            return
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=7)
+        reporting = (
+            self._client.get_customer_investment_reporting(
+                family="FUNDS", start_date=start_date, end_date=end_date
+            )
+            or {}
+        )
+        for entry in reporting.get("funds") or []:
+            uuid_val = None
+            for ident in entry.get("agreementIdentifiers") or []:
+                if ident.get("type") == "UUID":
+                    uuid_val = ident.get("value")
+                    break
+            if not uuid_val:
+                continue
+            product_code = entry.get("productType")
+            if product_code:
+                self._fund_product_code_by_uuid[uuid_val] = product_code
+        self._fund_product_codes_loaded = True
+
+    def _get_fund_isin(self, fund: dict) -> Optional[str]:
+        uuid_val = fund.get("uuid")
+        if not uuid_val:
+            return fund.get("productNumber")
+        if uuid_val in self._fund_isin_cache:
+            return self._fund_isin_cache[uuid_val]
+
+        self._load_fund_product_codes()
+        product_code = self._fund_product_code_by_uuid.get(uuid_val)
+        isin = None
+        if product_code:
+            details = self._client.get_investment_product_details(product_code)
+            isin = next(
+                (
+                    p.get("value")
+                    for p in (details or {}).get("productPropertyList", [])
+                    if p.get("code") == "isin"
+                ),
+                None,
+            )
+        if not isin:
+            return None
+
+        self._fund_isin_cache[uuid_val] = isin
+
+        return isin
+
+    def _fetch_fund_txs(self, products, registered_txs: set[str]) -> list[FundTx]:
+        fund_products = [p for p in products if p.get("type") == "FUND"]
+        if not fund_products:
+            return []
+
+        self._load_fund_product_codes()
+
+        fund_txs: list[FundTx] = []
+        for fund in fund_products:
+            fund_id = _get_identifier(fund, "LOCAL_UUID")
+            if not fund_id:
+                continue
+            isin = self._get_fund_isin(fund)
+            if not isin:
+                continue
+
+            from_date = _parse_broker_opening_date(fund.get("openingDate"))
+            offset = 0
+            limit = 100
+            continue_next_page = True
+            while continue_next_page:
+                resp = self._client.get_movements(
+                    fund_id, from_date, offset=offset, limit=limit
+                )
+                elements = resp.get("elements") or []
+                for mv in elements:
+                    ref = mv.get("uuid")
+                    if not ref:
+                        continue
+                    if ref in registered_txs:
+                        continue_next_page = False
+                        continue
+                    tx_type = _map_fund_tran_code(mv.get("tranCode"))
+                    if not tx_type:
+                        continue
+
+                    date_dt = _parse_date(mv.get("operationDate") or mv.get("vlpDate"))
+                    order_date = date_dt
+                    gross_amount = Dezimal(mv.get("amount") or 0)
+                    net_amount = gross_amount
+                    fees = Dezimal(0)
+                    retentions = Dezimal(0)
+                    shares_val = Dezimal(mv.get("sharesNumbers") or 0)
+                    price_val = Dezimal(mv.get("vlp") or 0)
+                    currency = mv.get("currency") or fund.get("denominationCurrency")
+                    name = f"{mv.get('description')} {fund.get('commercialName')}"
+                    fund_txs.append(
+                        FundTx(
+                            id=uuid4(),
+                            ref=str(ref),
+                            name=name.strip(),
+                            amount=round(gross_amount, 4),
+                            net_amount=round(net_amount, 4),
+                            currency=currency,
+                            type=tx_type,
+                            order_date=order_date,
+                            entity=ING,
+                            isin=isin,
+                            shares=shares_val,
+                            price=price_val,
+                            market="",
+                            fees=fees,
+                            retentions=retentions,
+                            date=date_dt,
+                            product_type=ProductType.FUND,
+                            is_real=True,
+                        )
+                    )
+                count = resp.get("count") or len(elements)
+                total = resp.get("total") or 0
+                offset += limit
+                if count == 0 or (total and offset >= total) or not continue_next_page:
+                    break
+        return fund_txs
 
     def _resolve_market_name(
         self, market_code: str | None, order_id: str | None
@@ -401,3 +639,49 @@ class INGFetcher(FinancialEntityFetcher):
                 break
 
         return all_elements
+
+    def _build_funds(
+        self, products: list[dict], legacy_by_number: dict[str, dict]
+    ) -> list[FundDetail]:
+        self._load_fund_product_codes()
+        funds: list[FundDetail] = []
+        for prod in products:
+            if prod.get("type") != "FUND":
+                continue
+            suspended = False
+            for st in prod.get("statuses", []) or []:
+                if st.get("type") == "PRODUCT_STATUS" and st.get("value") != "EFF_AR":
+                    suspended = True
+                    break
+            if suspended:
+                continue
+            product_number = _get_identifier(prod, "PRODUCT_NUMBER")
+            legacy = legacy_by_number.get(product_number, {})
+
+            isin = self._get_fund_isin(prod)
+            if not isin:
+                continue
+
+            name = prod.get("commercialName") or legacy.get("name")
+            shares = Dezimal(legacy.get("numberOfShares"))
+            initial_investment = Dezimal(legacy.get("investment"))
+            market_value = Dezimal(legacy.get("assessment"))
+            currency = legacy.get("currency") or prod.get("denominationCurrency")
+            average_buy_price = (
+                initial_investment / shares if shares > 0 else Dezimal(0)
+            )
+            fund = FundDetail(
+                id=uuid4(),
+                name=name,
+                isin=isin,
+                market=None,
+                shares=shares,
+                initial_investment=round(initial_investment, 4),
+                average_buy_price=round(average_buy_price, 4),
+                market_value=round(market_value, 4),
+                currency=currency,
+                portfolio=None,
+            )
+            funds.append(fund)
+
+        return funds
