@@ -208,8 +208,22 @@ class TradeRepublicClient:
         r.raise_for_status()
         return r.json()
 
-    async def get_saving_plans(self) -> dict:
-        await self._tr_api.savings_plan_overview()
+    async def get_portfolio_by_type(self, securities_account_num: Optional[str] = None):
+        request = {"type": "compactPortfolioByType"}
+        if securities_account_num:
+            request["secAccNo"] = securities_account_num
+        await self._tr_api.subscribe(request)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_saving_plans(
+        self, securities_account_num: Optional[str] = None
+    ) -> dict:
+        request = {"type": "savingsPlans"}
+        if securities_account_num:
+            request["secAccNo"] = securities_account_num
+        await self._tr_api.subscribe(request)
         subscription_id, _, response = await self._tr_api.recv()
         await self._tr_api.unsubscribe(subscription_id)
         return response
@@ -222,6 +236,12 @@ class TradeRepublicClient:
 
     async def get_stock_details(self, isin: str) -> dict:
         await self._tr_api.stock_details(isin)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def ticker(self, isin, exchange):
+        await self._tr_api.ticker(isin, exchange=exchange)
         subscription_id, _, response = await self._tr_api.recv()
         await self._tr_api.unsubscribe(subscription_id)
         return response

@@ -1,5 +1,5 @@
-websockets==13.1
-pytr==0.3.1
+websockets==15.0.1
+pytr==0.4.3
 requests==2.32.5
 python-dateutil==2.9.0.post0
 pyDes==2.0.1

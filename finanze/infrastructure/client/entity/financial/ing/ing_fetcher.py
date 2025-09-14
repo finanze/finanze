@@ -571,7 +571,7 @@ class INGFetcher(FinancialEntityFetcher):
                             isin=isin,
                             shares=shares_val,
                             price=price_val,
-                            market="",
+                            market=None,
                             fees=fees,
                             retentions=retentions,
                             date=date_dt,

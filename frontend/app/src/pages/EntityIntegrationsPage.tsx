@@ -749,7 +749,7 @@ export default function EntityIntegrationsPage() {
                           <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
                             <div className="absolute inset-0">
                               <img
-                                src="/icons/santander.png"
+                                src="icons/santander.png"
                                 alt=""
                                 className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
                                 style={{
@@ -759,7 +759,7 @@ export default function EntityIntegrationsPage() {
                                 draggable={false}
                               />
                               <img
-                                src="/icons/sabadell.png"
+                                src="icons/sabadell.png"
                                 alt=""
                                 className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
                                 style={{
@@ -768,7 +768,7 @@ export default function EntityIntegrationsPage() {
                                 draggable={false}
                               />
                               <img
-                                src="/icons/n26.png"
+                                src="icons/n26.png"
                                 alt=""
                                 className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
                                 style={{
@@ -777,7 +777,7 @@ export default function EntityIntegrationsPage() {
                                 draggable={false}
                               />
                               <img
-                                src="/icons/vivid.png"
+                                src="icons/vivid.png"
                                 alt=""
                                 className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
                                 style={{

@@ -80,8 +80,8 @@ class FundTx(BaseInvestmentTx):
     isin: str
     shares: Dezimal
     price: Dezimal
-    market: str
     fees: Dezimal
+    market: Optional[str] = None
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
 

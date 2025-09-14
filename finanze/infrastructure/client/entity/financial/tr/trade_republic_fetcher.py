@@ -18,13 +18,15 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    FundDetail,
+    FundInvestments,
     GlobalPosition,
     ProductType,
     StockDetail,
     StockInvestments,
 )
 from domain.native_entities import TRADE_REPUBLIC
-from domain.transactions import AccountTx, StockTx, Transactions, TxType
+from domain.transactions import AccountTx, FundTx, StockTx, Transactions, TxType
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
 )
@@ -86,14 +88,25 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             session=login_params.session,
         )
 
-    async def _instrument_mapper(self, stock: dict, currency: str):
-        isin = stock["instrumentId"]
-        average_buy = round(Dezimal(stock["averageBuyIn"]), 4)
-        shares = Dezimal(stock["netSize"])
-        market_value = round(Dezimal(stock["netValue"]), 4)
+    async def _instrument_mapper(self, instrument: dict, currency: str):
+        isin = instrument.get("instrumentId") or instrument.get("isin")
+        average_buy = round(Dezimal(instrument["averageBuyIn"]), 4)
+        shares = Dezimal(instrument["netSize"])
+        net_value = instrument.get("netValue")
         initial_investment = round(average_buy * shares, 4)
+        market_value = None
 
         details = await self._client.get_details(isin)
+        if net_value is None:
+            exchange_ids = details.instrument["exchangeIds"]
+            if len(exchange_ids) > 0:
+                ticker = await self._client.ticker(isin, exchange=exchange_ids[0])
+                net_value = Dezimal(ticker["last"]["price"]) * shares
+            else:
+                net_value = initial_investment
+
+            market_value = round(Dezimal(net_value), 4) if net_value else None
+
         type_id = details.instrument["typeId"].upper()
         name = details.instrument["name"]
         ticker = details.instrument["homeSymbol"]
@@ -105,6 +118,20 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         elif type_id == "STOCK":
             name = details.stock_details["company"]["name"]
             ticker = details.stock_details["company"]["tickerSymbol"]
+
+        elif type_id == "MUTUALFUND":
+            name = instrument["name"]
+            return FundDetail(
+                id=uuid4(),
+                name=name,
+                isin=isin,
+                market=", ".join(details.instrument["exchangeIds"]),
+                shares=shares,
+                initial_investment=initial_investment,
+                average_buy_price=average_buy,
+                market_value=market_value,
+                currency=currency,
+            )
 
         # elif type_id == "BOND":
         # name = ""
@@ -123,7 +150,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             name=name,
             ticker=ticker,
             isin=isin,
-            market=", ".join(stock["exchangeIds"]),
+            market=", ".join(instrument["exchangeIds"]),
             shares=shares,
             initial_investment=initial_investment,
             average_buy_price=average_buy,
@@ -159,7 +186,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                     interest=active_interest,
                     currency=currency,
                     iban=iban,
-                    type=AccountType.BROKERAGE,
+                    type=AccountType.CHECKING,
                 )
             )
 
@@ -169,11 +196,26 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             if investment:
                 investments.append(investment)
 
+        securities_account_number = user_info.get("securitiesAccountNumber")
+        if securities_account_number:
+            securities_portfolio = await self._client.get_portfolio_by_type(
+                securities_account_number
+            )
+            for category in securities_portfolio["categories"]:
+                for position in category.get("positions", []):
+                    investment = await self._instrument_mapper(position, currency)
+                    if investment:
+                        investments.append(investment)
+
         await self._client.close()
+
+        stocks = [i for i in investments if isinstance(i, StockDetail)]
+        funds = [i for i in investments if isinstance(i, FundDetail)]
 
         products = {
             ProductType.ACCOUNT: Accounts(accounts),
-            ProductType.STOCK_ETF: StockInvestments(investments),
+            ProductType.STOCK_ETF: StockInvestments(stocks),
+            ProductType.FUND: FundInvestments(funds),
         }
 
         return GlobalPosition(
@@ -209,6 +251,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                     "INTEREST_PAYOUT_CREATED",
                     "TRADING_TRADE_EXECUTED",
                     "TIMELINE_LEGACY_MIGRATED_EVENTS",
+                    "MUTUAL_FUND_TRADE_EXECUTED",
                 ]
             ):
                 continue
@@ -301,13 +344,19 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         return AutoContributions(contributions)
 
-    def map_investment_tx(self, raw_tx: dict, date: datetime) -> Optional[StockTx]:
+    def map_investment_tx(
+        self, raw_tx: dict, date: datetime
+    ) -> Optional[StockTx | FundTx]:
         name = raw_tx["title"].strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().lower()
         amount_obj = raw_tx["amount"]
         currency = amount_obj["currency"]
         net_amount_val = round(Dezimal(amount_obj["value"]), 2)
         net_amount = abs(net_amount_val)
+        event_type = raw_tx["eventType"].strip().upper()
+        product_type = (
+            ProductType.FUND if "MUTUAL_FUND" in event_type else ProductType.STOCK_ETF
+        )
 
         if net_amount_val > 0 and "sell" in subtitle:
             tx_type = TxType.SELL
@@ -347,28 +396,50 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         # Provided price sometimes doesn't match with the executed price
         price = round(amount / shares, 4)
 
-        return StockTx(
-            id=uuid4(),
-            ref=raw_tx["id"],
-            name=name,
-            amount=Dezimal(amount),
-            currency=currency,
-            type=tx_type,
-            date=date,
-            entity=TRADE_REPUBLIC,
-            net_amount=Dezimal(net_amount),
-            isin=isin,
-            ticker=None,
-            shares=Dezimal(shares),
-            price=Dezimal(price),
-            market=None,
-            fees=Dezimal(fees + taxes),
-            retentions=Dezimal(0),
-            order_date=None,
-            product_type=ProductType.STOCK_ETF,
-            linked_tx=None,
-            is_real=True,
-        )
+        if product_type == ProductType.FUND:
+            return FundTx(
+                id=uuid4(),
+                ref=raw_tx["id"],
+                name=name,
+                amount=Dezimal(amount),
+                currency=currency,
+                type=tx_type,
+                date=date,
+                entity=TRADE_REPUBLIC,
+                net_amount=Dezimal(net_amount),
+                isin=isin,
+                shares=Dezimal(shares),
+                price=Dezimal(price),
+                market=None,
+                fees=Dezimal(fees + taxes),
+                retentions=Dezimal(0),
+                order_date=None,
+                product_type=product_type,
+                is_real=True,
+            )
+        else:
+            return StockTx(
+                id=uuid4(),
+                ref=raw_tx["id"],
+                name=name,
+                amount=Dezimal(amount),
+                currency=currency,
+                type=tx_type,
+                date=date,
+                entity=TRADE_REPUBLIC,
+                net_amount=Dezimal(net_amount),
+                isin=isin,
+                ticker=None,
+                shares=Dezimal(shares),
+                price=Dezimal(price),
+                market=None,
+                fees=Dezimal(fees + taxes),
+                retentions=Dezimal(0),
+                order_date=None,
+                product_type=product_type,
+                linked_tx=None,
+                is_real=True,
+            )
 
     def map_account_tx(self, raw_tx: dict, date: datetime) -> Optional[AccountTx]:
         title = raw_tx["title"].strip()
