@@ -70,6 +70,8 @@ class GetExchangeRatesImpl(GetExchangeRates):
             commodity, symbol = commodity_futures[future]
             try:
                 rate_data = future.result()
+                if rate_data is None:
+                    continue
                 commodity_rates[commodity] = (rate_data, symbol)
             except Exception as e:
                 self._log.error(f"Failed to fetch commodity price for {commodity}: {e}")

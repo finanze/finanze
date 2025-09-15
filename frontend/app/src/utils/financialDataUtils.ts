@@ -44,8 +44,11 @@ export const calculateCryptoValue = (
   targetCurrency: string,
   exchangeRates: ExchangeRates,
 ): number => {
-  if (!exchangeRates || !amount || amount <= 0) {
+  if (!amount || amount <= 0) {
     return 0
+  }
+  if (!exchangeRates) {
+    return amount
   }
 
   if (exchangeRates[targetCurrency] && exchangeRates[targetCurrency][symbol]) {
@@ -56,7 +59,7 @@ export const calculateCryptoValue = (
   console.warn(
     `No exchange rate found for cryptocurrency ${symbol} -> ${targetCurrency}`,
   )
-  return 0
+  return amount
 }
 
 export const calculateCommodityValue = (
@@ -66,8 +69,11 @@ export const calculateCommodityValue = (
   exchangeRates: ExchangeRates,
   unit: WeightUnit = WeightUnit.TROY_OUNCE,
 ): number => {
-  if (!exchangeRates || !amount || amount <= 0) {
+  if (!amount || amount <= 0) {
     return 0
+  }
+  if (!exchangeRates) {
+    return amount
   }
 
   // Convert amount to troy ounces since market prices are in troy ounces
@@ -85,7 +91,7 @@ export const calculateCommodityValue = (
   console.warn(
     `No exchange rate found for commodity ${symbol} -> ${targetCurrency}`,
   )
-  return 0
+  return amount
 }
 
 export const convertWeight = (

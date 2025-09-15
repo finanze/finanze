@@ -16,4 +16,4 @@ class ExportOptions:
 @dataclass
 class ExportRequest:
     target: ExportTarget
-    options: ExportOptions
+    options: Optional[ExportOptions] = None

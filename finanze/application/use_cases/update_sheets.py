@@ -111,7 +111,7 @@ class UpdateSheetsImpl(UpdateSheets):
             tx_configs = apply_global_config(config_globals, tx_configs)
             historic_configs = apply_global_config(config_globals, historic_configs)
 
-            real = True if request.options.exclude_non_real else None
+            real = request.options.exclude_non_real if request.options else None
 
             global_position_by_entity = self._position_port.get_last_grouped_by_entity(
                 PositionQueryRequest(real=real)
