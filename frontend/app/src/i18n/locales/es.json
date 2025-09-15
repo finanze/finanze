@@ -801,6 +801,9 @@
     "inDays": "En {days} días",
     "monthlyRecurringEarnings": "Ingresos recurrentes mensuales",
     "monthlyRecurringExpenses": "Gastos recurrentes mensuales",
+    "ofEarnings": "de los ingresos",
+    "expensesOverrunTitle": "Exceso de presupuesto",
+    "expensesOverrunMessage": "Los gastos superan los ingresos en un {percentage}% este mes.",
     "loanSuggestions": {
       "title": "Gastos recurrentes sugeridos",
       "loanPayment": "Cuota de {loanName}",

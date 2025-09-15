@@ -802,6 +802,9 @@
     "inDays": "In {days} days",
     "monthlyRecurringEarnings": "Monthly recurring earnings",
     "monthlyRecurringExpenses": "Monthly recurring expenses",
+    "ofEarnings": "of earnings",
+    "expensesOverrunTitle": "Budget overrun",
+    "expensesOverrunMessage": "Expenses exceed earnings by {percentage}% this month.",
     "loanSuggestions": {
       "title": "Suggested recurring expenses",
       "loanPayment": "{loanName} Payment",
