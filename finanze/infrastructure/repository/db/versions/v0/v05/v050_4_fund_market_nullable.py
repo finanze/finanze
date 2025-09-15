@@ -23,8 +23,15 @@ DDL = """
                   ON DELETE CASCADE ON UPDATE CASCADE
       );
 
-      INSERT INTO fund_positions_new
-      SELECT *
+      INSERT INTO fund_positions_new (
+          id, name, isin, market, shares,
+          initial_investment, average_buy_price, market_value,
+          currency, global_position_id, portfolio_id
+      )
+      SELECT
+          id, name, isin, market, shares,
+          initial_investment, average_buy_price, market_value,
+          currency, global_position_id, portfolio_id
       FROM fund_positions;
 
       DROP TABLE fund_positions;
