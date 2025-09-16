@@ -118,30 +118,6 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
     return StockInvestments(stock_list)
 
 
-def _get_fund_investments(fund_investments, portfolio_id=None) -> FundInvestments:
-    fund_list = []
-    if fund_investments:
-        fund_list = [
-            FundDetail(
-                id=uuid4(),
-                name=fund["investmentName"],
-                isin=fund["isin"],
-                market=fund["marketCode"],
-                shares=fund["shares"],
-                initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
-                average_buy_price=round(
-                    Dezimal(fund["initialInvestment"]) / Dezimal(fund["shares"]), 4
-                ),  # averageCost
-                market_value=round(Dezimal(fund["marketValue"]), 4),
-                currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
-                portfolio=FundPortfolio(id=portfolio_id) if portfolio_id else None,
-            )
-            for fund in fund_investments["investmentList"]
-        ]
-
-    return FundInvestments(fund_list)
-
-
 def _map_deposit_tx(
     ref, tx_type, name, amount, net, retentions, interest, tx_date, currency
 ) -> Optional[DepositTx]:
@@ -623,7 +599,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         stock_data = _get_stock_investments(broker_investments)
 
         fund_investments = investments.get("INDEXED_FUND")
-        fund_data = _get_fund_investments(fund_investments)
+        fund_data = self._get_fund_investments(fund_investments)
 
         portfolio_cash_accounts = []
         for raw_account, acc, security_account in account_entries:
@@ -642,7 +618,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             portfolio_fund_investments = portfolio_account_investments.get(
                 "INDEXED_FUND"
             )
-            portfolio_fund_data = _get_fund_investments(
+            portfolio_fund_data = self._get_fund_investments(
                 portfolio_fund_investments, portfolio_id
             )
 
@@ -889,3 +865,34 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             to_date -= STOCKS_TX_FETCH_STEP
 
         return stock_txs
+
+    def _get_fund_investments(
+        self, fund_investments, portfolio_id=None
+    ) -> FundInvestments:
+        fund_list = []
+        if fund_investments:
+            for fund in fund_investments["investmentList"]:
+                isin = fund.get("isin")
+
+                fund_list.append(
+                    FundDetail(
+                        id=uuid4(),
+                        name=fund["investmentName"],
+                        isin=isin,
+                        market=fund["marketCode"],
+                        shares=fund["shares"],
+                        initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
+                        average_buy_price=round(
+                            Dezimal(fund["initialInvestment"])
+                            / Dezimal(fund["shares"]),
+                            4,
+                        ),  # averageCost
+                        market_value=round(Dezimal(fund["marketValue"]), 4),
+                        currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
+                        portfolio=FundPortfolio(id=portfolio_id)
+                        if portfolio_id
+                        else None,
+                    )
+                )
+
+        return FundInvestments(fund_list)

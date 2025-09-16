@@ -827,6 +827,10 @@
       "YEARLY": "Anual"
     },
     "monthlyAverageContributions": "Aportaciones automáticas mensuales",
+    "contributionsShort": "Aportaciones",
+    "contributionsPopoverTitle": "Aportaciones automáticas",
+    "contributionsPopoverDetails": "{count} aportaciones periódicas activas que suman {amount} al mes.",
+    "contributionsPopoverCta": "Ver más detalles",
     "noContributions": "No hay aportaciones configuradas",
     "monthlyAverage": "Prom. mensual",
     "targetType": "Tipo de Destino",

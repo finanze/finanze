@@ -828,6 +828,10 @@
       "YEARLY": "Yearly"
     },
     "monthlyAverageContributions": "Monthly auto contributions",
+    "contributionsShort": "Contributions",
+    "contributionsPopoverTitle": "Automatic contributions",
+    "contributionsPopoverDetails": "{count} active periodic contributions totaling {amount} monthly.",
+    "contributionsPopoverCta": "See details",
     "noContributions": "No contributions configured",
     "monthlyAverage": "Monthly avg.",
     "targetType": "Target Type",

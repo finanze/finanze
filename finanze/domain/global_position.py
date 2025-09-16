@@ -100,6 +100,11 @@ class Loan(BaseData):
         self.principal_paid = self.loan_amount - self.principal_outstanding
 
 
+class AssetType(str, Enum):
+    EQUITY = "EQUITY"
+    FIXED_INCOME = "FIXED_INCOME"
+
+
 @dataclass
 class StockDetail(BaseData):
     id: UUID

@@ -48,6 +48,7 @@ import {
   UpdatePeriodicFlowRequest,
 } from "@/types"
 import { ProductType, Loan, Loans } from "@/types/position"
+import { ContributionFrequency } from "@/types/contributions"
 import {
   createPeriodicFlow,
   updatePeriodicFlow,
@@ -57,7 +58,8 @@ import {
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings } = useAppContext()
-  const { periodicFlows, refreshFlows, positionsData } = useFinancialData()
+  const { periodicFlows, refreshFlows, positionsData, contributions } =
+    useFinancialData()
   const navigate = useNavigate()
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
@@ -68,6 +70,7 @@ export default function RecurringMoneyPage() {
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [showContributions, setShowContributions] = useState(true)
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
     amount: 0,
@@ -156,8 +159,34 @@ export default function RecurringMoneyPage() {
         return total + amount * multiplier
       }, 0)
 
-    return { monthlyEarnings, monthlyExpenses }
-  }, [periodicFlows, categoryFilter])
+    // Monthly contributions (active only) if enabled
+    let monthlyContributions = 0
+    if (showContributions && contributions) {
+      Object.values(contributions).forEach(group => {
+        if (!group?.periodic) return
+        group.periodic.forEach(c => {
+          if (!c.active) return
+          const freq = c.frequency as ContributionFrequency
+          const multiplier =
+            freq === ContributionFrequency.WEEKLY
+              ? 52 / 12
+              : freq === ContributionFrequency.BIWEEKLY
+                ? 26 / 12
+                : freq === ContributionFrequency.BIMONTHLY
+                  ? 6 / 12
+                  : freq === ContributionFrequency.QUARTERLY
+                    ? 4 / 12
+                    : freq === ContributionFrequency.SEMIANNUAL
+                      ? 2 / 12
+                      : freq === ContributionFrequency.YEARLY
+                        ? 1 / 12
+                        : 1
+          monthlyContributions += c.amount * multiplier
+        })
+      })
+    }
+    return { monthlyEarnings, monthlyExpenses, monthlyContributions }
+  }, [periodicFlows, categoryFilter, contributions, showContributions])
 
   // Utilization badge color scale (starts warm >55%)
   const getUtilizationBadgeClasses = (percent: number) => {
@@ -282,7 +311,10 @@ export default function RecurringMoneyPage() {
       )
 
     const totalEarnings = monthlyAmounts.monthlyEarnings
-    const totalExpenses = monthlyAmounts.monthlyExpenses
+    const totalExpensesBase = monthlyAmounts.monthlyExpenses
+    const totalContributions = monthlyAmounts.monthlyContributions
+    const totalExpenses =
+      totalExpensesBase + (showContributions ? totalContributions : 0)
     const totalAmount = totalEarnings + totalExpenses
 
     // Convert to arrays with percentages
@@ -312,10 +344,11 @@ export default function RecurringMoneyPage() {
       earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first (leftmost)
       expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first (rightmost)
       totalEarnings,
-      totalExpenses,
+      totalExpenses, // includes contributions when toggle on
       totalAmount,
+      contributionsAmount: showContributions ? totalContributions : 0,
     }
-  }, [periodicFlows, monthlyAmounts, categoryFilter])
+  }, [periodicFlows, monthlyAmounts, categoryFilter, showContributions])
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
@@ -836,6 +869,7 @@ export default function RecurringMoneyPage() {
             </div>
             {monthlyAmounts.monthlyEarnings > 0 &&
               (() => {
+                // Percentage intentionally excludes contributions per latest requirement
                 const percent =
                   (monthlyAmounts.monthlyExpenses /
                     Math.max(monthlyAmounts.monthlyEarnings, 1)) *
@@ -883,7 +917,6 @@ export default function RecurringMoneyPage() {
             )
             const earningsOverrun =
               flowDistribution.totalExpenses > flowDistribution.totalEarnings
-            const earningsPct = (flowDistribution.totalEarnings / scale) * 100
             return (
               <div className="space-y-3">
                 {/* Earnings Bar */}
@@ -896,7 +929,7 @@ export default function RecurringMoneyPage() {
                       "relative h-6 rounded-md overflow-hidden bg-green-50 dark:bg-green-950/20",
                     )}
                   >
-                    <div className="flex h-full">
+                    <div className="flex h-full relative">
                       {flowDistribution.earnings.map(earning => {
                         const w = (earning.amount / scale) * 100
                         const isRealCategory = existingCategories.includes(
@@ -924,7 +957,6 @@ export default function RecurringMoneyPage() {
                             )}`}
                           >
                             <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
-                              {earning.category}:{" "}
                               {formatCurrency(
                                 earning.amount,
                                 locale,
@@ -934,55 +966,43 @@ export default function RecurringMoneyPage() {
                           </div>
                         )
                       })}
-                      {/* Overrun warning in gap */}
-                      {/* Overrun yellow segment */}
                       {earningsOverrun &&
                         flowDistribution.totalEarnings > 0 && (
                           <Popover>
                             <PopoverTrigger asChild>
                               <div
-                                className="absolute top-0 bottom-0 cursor-pointer group"
+                                className="absolute inset-y-0 right-0 h-full flex items-stretch cursor-pointer"
                                 style={{
-                                  left: `${earningsPct}%`,
-                                  width: `${Math.min(
-                                    ((flowDistribution.totalExpenses -
-                                      flowDistribution.totalEarnings) /
-                                      scale) *
-                                      100,
-                                    100 - earningsPct,
-                                  )}%`,
+                                  width: `${((flowDistribution.totalExpenses - flowDistribution.totalEarnings) / scale) * 100}%`,
                                 }}
                               >
-                                <div className="w-full h-full bg-yellow-300/80 dark:bg-yellow-500/60 flex items-center justify-center">
-                                  <AlertTriangle
-                                    size={14}
-                                    className="text-yellow-800 dark:text-yellow-200"
-                                  />
-                                </div>
+                                <div className="w-full h-full bg-yellow-300/60 dark:bg-yellow-300/30 backdrop-blur-[1px]" />
                               </div>
                             </PopoverTrigger>
-                            <PopoverContent side="top" className="w-64 text-xs">
+                            <PopoverContent
+                              className="max-w-xs text-xs"
+                              side="bottom"
+                            >
                               <div className="flex items-start gap-2">
-                                <AlertTriangle
-                                  className="text-yellow-500 mt-0.5"
-                                  size={14}
-                                />
-                                <div>
-                                  <div className="font-semibold mb-1">
+                                <AlertTriangle className="text-yellow-600 dark:text-yellow-400 h-4 w-4 mt-0.5" />
+                                <div className="space-y-1">
+                                  <div className="font-semibold text-yellow-700 dark:text-yellow-300 text-xs">
                                     {t.management.expensesOverrunTitle}
                                   </div>
-                                  {t.management.expensesOverrunMessage.replace(
-                                    "{percentage}",
-                                    (
-                                      ((flowDistribution.totalExpenses -
-                                        flowDistribution.totalEarnings) /
-                                        Math.max(
-                                          flowDistribution.totalEarnings,
-                                          1,
-                                        )) *
-                                      100
-                                    ).toFixed(1),
-                                  )}
+                                  <div className="text-muted-foreground leading-snug">
+                                    {t.management.expensesOverrunMessage.replace(
+                                      "{percentage}",
+                                      (
+                                        ((flowDistribution.totalExpenses -
+                                          flowDistribution.totalEarnings) /
+                                          Math.max(
+                                            flowDistribution.totalEarnings,
+                                            1,
+                                          )) *
+                                        100
+                                      ).toFixed(1),
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </PopoverContent>
@@ -992,7 +1012,7 @@ export default function RecurringMoneyPage() {
                   </div>
                 </div>
 
-                {/* Expenses Bar */}
+                {/* Expenses Bar (with optional contributions segment) */}
                 <div className="space-y-1">
                   <div
                     className={cn(
@@ -1009,7 +1029,7 @@ export default function RecurringMoneyPage() {
                       "relative h-6 rounded-md overflow-hidden bg-red-50 dark:bg-red-950/20",
                     )}
                   >
-                    <div className="flex h-full">
+                    <div className="flex h-full relative">
                       {flowDistribution.expenses.map(expense => {
                         const w = (expense.amount / scale) * 100
                         const isRealCategory = existingCategories.includes(
@@ -1047,6 +1067,106 @@ export default function RecurringMoneyPage() {
                           </div>
                         )
                       })}
+                      {(() => {
+                        if (
+                          !showContributions ||
+                          monthlyAmounts.monthlyContributions <= 0
+                        )
+                          return null
+                        const earnings = flowDistribution.totalEarnings
+                        const expensesOnly = monthlyAmounts.monthlyExpenses
+                        const contributionsAmt =
+                          monthlyAmounts.monthlyContributions
+                        const contributionsCount = (() => {
+                          if (!contributions) return 0
+                          let count = 0
+                          Object.values(contributions).forEach(group => {
+                            group?.periodic?.forEach(c => {
+                              if (c.active) count++
+                            })
+                          })
+                          return count
+                        })()
+                        // Gap only if earnings covers expenses + contributions fully
+                        const gap =
+                          earnings >= expensesOnly + contributionsAmt
+                            ? earnings - (expensesOnly + contributionsAmt)
+                            : 0
+                        const gapPct = (gap / scale) * 100
+                        const contribPct = (contributionsAmt / scale) * 100
+                        return (
+                          <>
+                            {gapPct > 0 && (
+                              <div
+                                className="h-full bg-neutral-200 dark:bg-neutral-800/50"
+                                style={{ width: `${gapPct}%` }}
+                                aria-hidden
+                              />
+                            )}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <div
+                                  className="h-full relative group cursor-pointer bg-cyan-700 dark:bg-cyan-600 hover:bg-cyan-600 dark:hover:bg-cyan-500 transition-colors"
+                                  style={{ width: `${contribPct}%` }}
+                                >
+                                  <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                                    {t.management.contributionsShort}:{" "}
+                                    {formatCurrency(
+                                      monthlyAmounts.monthlyContributions,
+                                      locale,
+                                      settings?.general?.defaultCurrency,
+                                    )}
+                                  </div>
+                                </div>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                side="top"
+                                className="text-xs space-y-2 w-64"
+                              >
+                                <div className="font-semibold text-cyan-700 dark:text-cyan-300">
+                                  {t.management.contributionsPopoverTitle}
+                                </div>
+                                <div className="text-muted-foreground leading-snug">
+                                  {(() => {
+                                    const tpl = t.management
+                                      .contributionsPopoverDetails as string
+                                    const formattedAmount = formatCurrency(
+                                      monthlyAmounts.monthlyContributions,
+                                      locale,
+                                      settings?.general?.defaultCurrency,
+                                    )
+                                    return tpl
+                                      .split(/({count}|{amount})/g)
+                                      .map((part, idx) => {
+                                        if (part === "{count}")
+                                          return (
+                                            <strong key={idx}>
+                                              {contributionsCount}
+                                            </strong>
+                                          )
+                                        if (part === "{amount}")
+                                          return (
+                                            <strong key={idx}>
+                                              {formattedAmount}
+                                            </strong>
+                                          )
+                                        return <span key={idx}>{part}</span>
+                                      })
+                                  })()}
+                                </div>
+                                <div
+                                  className="pt-1 text-[11px] text-cyan-600 dark:text-cyan-400/90 hover:text-cyan-500 dark:hover:text-cyan-300 cursor-pointer underline-offset-2"
+                                  onClick={() =>
+                                    navigate("/management/auto-contributions")
+                                  }
+                                >
+                                  {t.management.contributionsPopoverCta}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1151,7 +1271,20 @@ export default function RecurringMoneyPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-4 ml-auto">
+          <Button
+            size="sm"
+            variant={showContributions ? "default" : "outline"}
+            onClick={() => setShowContributions(s => !s)}
+            className={cn(
+              "h-8 px-3 text-xs font-medium",
+              showContributions
+                ? "bg-cyan-600 hover:bg-cyan-600/90 dark:bg-cyan-500 dark:hover:bg-cyan-500/90"
+                : "",
+            )}
+          >
+            {t.management.contributionsShort}
+          </Button>
           <span className="text-sm text-muted-foreground">
             {t.management.category}
           </span>

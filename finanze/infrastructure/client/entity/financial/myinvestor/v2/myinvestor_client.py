@@ -329,3 +329,9 @@ class MyInvestorAPIV2Client:
         return self._get_request(
             f"/ms-lending/api/v2/pledged/guarantees/securities-accounts/{security_account_id}/funds/{fund_isin}"
         )["payload"]["data"]["isPledged"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=86400))
+    def get_fund_details(self, isin: str):
+        return self._get_request(f"/cperf-server/api/v2/funds/{isin}")["payload"][
+            "data"
+        ]
