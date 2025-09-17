@@ -1,3 +1,22 @@
+## [0.5.0] - 2025-09-17
+
+### 🚀 Features
+
+- Add Unicaja fund periodic contribution
+- Add ING support (accounts, cards and broker txs)
+- Add GoCardless integration to increase financial institution variety
+- Add Indexa Capital transaction support, add fee support also in MyInvestor, improve fund details sections and minor portfolio/fund related fixes
+- Add ING fund position, transactions and periodic contributions
+- Add Trade Republic mutual funds
+- Add commodities price timeout
+- Improve earnings and expenses data visualization
+- Show automatic contributions overview in recurring money page
+- Add fund asset type details and distribution (MyInvestor, TR & Indexa Capital)
+- Show last data fetch when selecting features to fetch
+
+### 🐛 Bug Fixes
+
+- Migration error
 ## [0.4.1] - 2025-09-05
 
 ### 🐛 Bug Fixes
