@@ -1,17 +1,28 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
-from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.use_cases.calculate_loan import CalculateLoan
+from domain.use_cases.change_user_password import ChangeUserPassword
+from domain.use_cases.complete_external_entity_connection import (
+    CompleteExternalEntityConnection,
+)
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 from domain.use_cases.connect_etherscan import ConnectEtherscan
+from domain.use_cases.connect_external_entity import ConnectExternalEntity
+from domain.use_cases.connect_gocardless import ConnectGoCardless
 from domain.use_cases.connect_google import ConnectGoogle
 from domain.use_cases.create_real_estate import CreateRealEstate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
+from domain.use_cases.delete_external_entity import DeleteExternalEntity
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.delete_real_estate import DeleteRealEstate
 from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
+from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
+from domain.use_cases.forecast import Forecast
 from domain.use_cases.get_available_entities import GetAvailableEntities
+from domain.use_cases.get_available_external_entities import (
+    GetAvailableExternalEntities,
+)
 from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
@@ -34,24 +45,40 @@ from domain.use_cases.update_sheets import UpdateSheets
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_fetch import VirtualFetch
-from domain.use_cases.forecast import Forecast
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
-from infrastructure.controller.routes.change_user_password import change_user_password
 from infrastructure.controller.routes.calculate_loan import calculate_loan
+from infrastructure.controller.routes.change_user_password import change_user_password
+from infrastructure.controller.routes.complete_external_entity_connection import (
+    complete_external_entity_connection,
+)
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
 from infrastructure.controller.routes.connect_etherscan import connect_etherscan
+from infrastructure.controller.routes.connect_external_entity import (
+    connect_external_entity,
+)
+from infrastructure.controller.routes.connect_gocardless import connect_gocardless
 from infrastructure.controller.routes.connect_google import connect_google
 from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.create_real_estate import create_real_estate
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
+from infrastructure.controller.routes.delete_external_entity import (
+    delete_external_entity,
+)
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
 from infrastructure.controller.routes.delete_real_estate import delete_real_estate
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
 from infrastructure.controller.routes.exchange_rates import exchange_rates
 from infrastructure.controller.routes.export import export
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
+from infrastructure.controller.routes.fetch_external_financial_data import (
+    fetch_external_financial_data,
+)
 from infrastructure.controller.routes.fetch_financial_data import fetch_financial_data
+from infrastructure.controller.routes.forecast import forecast
+from infrastructure.controller.routes.get_available_external_entities import (
+    get_available_external_entities,
+)
 from infrastructure.controller.routes.get_available_sources import get_available_sources
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
@@ -74,7 +101,6 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
-from infrastructure.controller.routes.forecast import forecast
 
 
 def register_routes(
@@ -85,6 +111,7 @@ def register_routes(
     get_available_entities_uc: GetAvailableEntities,
     fetch_financial_data_uc: FetchFinancialData,
     fetch_crypto_data_uc: FetchCryptoData,
+    fetch_external_financial_data_uc: FetchExternalFinancialData,
     update_sheets_uc: UpdateSheets,
     virtual_fetch_uc: VirtualFetch,
     add_entity_credentials_uc: AddEntityCredentials,
@@ -97,6 +124,10 @@ def register_routes(
     get_contributions_uc: GetContributions,
     get_transactions_uc: GetTransactions,
     get_exchange_rates_uc: GetExchangeRates,
+    connect_external_entity_uc: ConnectExternalEntity,
+    complete_external_entity_connection_uc: CompleteExternalEntityConnection,
+    delete_external_entity_uc: DeleteExternalEntity,
+    get_available_external_entities_uc: GetAvailableExternalEntities,
     connect_crypto_wallet_uc: ConnectCryptoWallet,
     update_crypto_wallet_uc: UpdateCryptoWalletConnection,
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
@@ -104,6 +135,7 @@ def register_routes(
     get_external_integrations_uc: GetExternalIntegrations,
     connect_google_uc: ConnectGoogle,
     connect_etherscan_uc: ConnectEtherscan,
+    connect_gocardless_uc: ConnectGoCardless,
     save_periodic_flow_uc: SavePeriodicFlow,
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
@@ -157,6 +189,26 @@ def register_routes(
     async def disconnect_entity_route():
         return await disconnect_entity(disconnect_entity_uc)
 
+    @app.route("/api/v1/entities/external/candidates", methods=["GET"])
+    async def get_external_entity_candidates_route():
+        return await get_available_external_entities(get_available_external_entities_uc)
+
+    @app.route("/api/v1/entities/external", methods=["POST"])
+    async def connect_external_entity_route():
+        return await connect_external_entity(connect_external_entity_uc)
+
+    @app.route("/api/v1/entities/external/complete", methods=["GET"])
+    async def complete_external_entity_connection_route():
+        return await complete_external_entity_connection(
+            complete_external_entity_connection_uc
+        )
+
+    @app.route("/api/v1/entities/external/<external_entity_id>", methods=["DELETE"])
+    async def disconnect_external_entity_route(external_entity_id: str):
+        return await delete_external_entity(
+            delete_external_entity_uc, external_entity_id
+        )
+
     @app.route("/api/v1/fetch/financial", methods=["POST"])
     async def fetch_financial_data_route():
         return await fetch_financial_data(fetch_financial_data_uc)
@@ -168,6 +220,12 @@ def register_routes(
     @app.route("/api/v1/fetch/virtual", methods=["POST"])
     async def virtual_fetch_route():
         return await virtual_fetch(virtual_fetch_uc)
+
+    @app.route("/api/v1/fetch/external/<external_entity_id>", methods=["POST"])
+    async def fetch_external_entity_route(external_entity_id: str):
+        return await fetch_external_financial_data(
+            fetch_external_financial_data_uc, external_entity_id
+        )
 
     @app.route("/api/v1/export", methods=["POST"])
     async def export_route():
@@ -216,6 +274,10 @@ def register_routes(
     @app.route("/api/v1/integrations/etherscan", methods=["POST"])
     def connect_etherscan_route():
         return connect_etherscan(connect_etherscan_uc)
+
+    @app.route("/api/v1/integrations/gocardless", methods=["POST"])
+    def connect_gocardless_route():
+        return connect_gocardless(connect_gocardless_uc)
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])
     def save_periodic_flow_route():

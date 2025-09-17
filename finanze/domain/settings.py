@@ -105,9 +105,16 @@ class EtherscanIntegrationConfig:
 
 
 @dataclass
+class GoCardlessIntegrationConfig:
+    secret_id: str
+    secret_key: str
+
+
+@dataclass
 class IntegrationsConfig:
     sheets: Optional[SheetsIntegrationConfig] = None
     etherscan: Optional[EtherscanIntegrationConfig] = None
+    gocardless: Optional[GoCardlessIntegrationConfig] = None
 
 
 @dataclass

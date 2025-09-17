@@ -9,8 +9,9 @@ import {
   type AccountTx,
   type StockTx,
   type FundTx,
+  type FundPortfolioTx,
   type FactoringTx,
-  type realEstateCFTx,
+  type RealEstateCFTx,
   type DepositTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
@@ -34,7 +35,12 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react"
-import { getIconForTxType, getIconForProductType } from "@/utils/dashboardUtils"
+import {
+  getIconForTxType,
+  getIconForProductType,
+  getProductTypeColor,
+} from "@/utils/dashboardUtils"
+import { EntityOrigin } from "@/types"
 
 interface TransactionFilters {
   entities: string[]
@@ -49,13 +55,13 @@ const ITEMS_PER_PAGE = 20
 
 export default function TransactionsPage() {
   const { t, locale } = useI18n()
-  const { entities, inactiveEntities, settings } = useAppContext()
+  const { entities, inactiveEntities, settings, showToast } = useAppContext()
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
   )
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Removed local error state in favor of global toast notifications
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
@@ -71,7 +77,11 @@ export default function TransactionsPage() {
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     return (
       entities
-        ?.filter(entity => entity.features.includes("TRANSACTIONS"))
+        ?.filter(
+          entity =>
+            "TRANSACTIONS" in entity.last_fetch ||
+            "TRANSACTIONS" in entity.virtual_features,
+        )
         .map(entity => ({
           value: entity.id,
           label: entity.name,
@@ -103,7 +113,7 @@ export default function TransactionsPage() {
     resetPage: boolean = false,
   ) => {
     setLoading(true)
-    setError(null)
+    // Clear previous error toast implicitly by showing a new one only on failure
 
     try {
       const queryParams: TransactionQueryRequest = {
@@ -130,7 +140,7 @@ export default function TransactionsPage() {
       }
     } catch (err) {
       console.error("Error fetching transactions:", err)
-      setError(t.errors.UNEXPECTED_ERROR)
+      showToast(t.errors.UNEXPECTED_ERROR, "error")
     } finally {
       setLoading(false)
     }
@@ -222,27 +232,19 @@ export default function TransactionsPage() {
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
       case TxType.SELL:
       case TxType.REPAYMENT:
-        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
       case TxType.DIVIDEND:
       case TxType.INTEREST:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
-      default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
-    }
-  }
-
-  const getProductTypeColor = (type: ProductType): string => {
-    switch (type) {
-      case ProductType.STOCK_ETF:
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100"
-      case ProductType.FUND:
-        return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
-      case ProductType.CRYPTO:
-        return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
-      case ProductType.ACCOUNT:
-        return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-100"
-      case ProductType.DEPOSIT:
-        return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-100"
+      case TxType.SWAP_FROM:
+      case TxType.SWAP_TO:
+      case TxType.TRANSFER_IN:
+      case TxType.TRANSFER_OUT:
+      case TxType.SWITCH_FROM:
+      case TxType.SWITCH_TO:
+        return "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+      case TxType.FEE:
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
     }
@@ -275,7 +277,7 @@ export default function TransactionsPage() {
                 {stockTx.shares.toLocaleString()}
               </div>
             )}
-            {stockTx.price && (
+            {Number(stockTx.price || 0) !== 0 && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <span className="font-medium">{t.transactions.price}:</span>{" "}
                 {formatCurrency(
@@ -344,6 +346,39 @@ export default function TransactionsPage() {
               <span className="font-medium">{t.transactions.market}:</span>{" "}
               {fundTx.market}
             </div>
+          </>
+        )
+      }
+      case ProductType.FUND_PORTFOLIO: {
+        const fpTx = tx as FundPortfolioTx & { portfolio_name?: string }
+        return (
+          <>
+            {commonFields}
+            {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  fpTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {fpTx.iban && (
+              <div className="text-sm text-gray-600 dark:text-gray-400 break-all">
+                <span className="font-medium">{t.transactions.iban}:</span>{" "}
+                {fpTx.iban}
+              </div>
+            )}
+            {fpTx.portfolio_name && (
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                <span className="font-medium">
+                  {t.transactions.portfolioName}:
+                </span>{" "}
+                {fpTx.portfolio_name}
+              </div>
+            )}
           </>
         )
       }
@@ -447,7 +482,7 @@ export default function TransactionsPage() {
       }
 
       case ProductType.REAL_ESTATE_CF: {
-        const realEstateTx = tx as realEstateCFTx
+        const realEstateTx = tx as RealEstateCFTx
         return (
           <>
             {commonFields}
@@ -700,11 +735,6 @@ export default function TransactionsPage() {
       </Card>
 
       {/* Results */}
-      {error && (
-        <Card className="p-6">
-          <div className="text-red-600 dark:text-red-400">{error}</div>
-        </Card>
-      )}
 
       {transactions && (
         <>
@@ -751,9 +781,10 @@ export default function TransactionsPage() {
                         <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
                           {t.transactions.entity}
                         </th>
-                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-20">
-                          Details
-                        </th>
+                        <th
+                          className="py-4 px-2 w-10"
+                          aria-label="details"
+                        ></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -766,7 +797,8 @@ export default function TransactionsPage() {
                           tx.product_type === ProductType.FACTORING ||
                           tx.product_type === ProductType.REAL_ESTATE_CF ||
                           tx.product_type === ProductType.DEPOSIT ||
-                          tx.product_type === ProductType.CRYPTO
+                          tx.product_type === ProductType.CRYPTO ||
+                          tx.product_type === ProductType.FUND_PORTFOLIO
 
                         return (
                           <React.Fragment key={tx.id}>
@@ -825,12 +857,16 @@ export default function TransactionsPage() {
                                   className={`font-medium ${
                                     getTransactionDisplayType(tx.type) === "in"
                                       ? "text-green-600 dark:text-green-400"
-                                      : ""
+                                      : tx.type === TxType.FEE
+                                        ? "text-red-600 dark:text-red-400"
+                                        : ""
                                   }`}
                                 >
                                   {getTransactionDisplayType(tx.type) === "in"
                                     ? "+"
-                                    : ""}
+                                    : tx.type === TxType.FEE
+                                      ? "-"
+                                      : ""}
                                   {formatCurrency(
                                     tx.net_amount ?? tx.amount,
                                     locale,
@@ -847,16 +883,16 @@ export default function TransactionsPage() {
                                   }
                                 >
                                   {tx.entity.name}
-                                  {!tx.entity.is_real && (
+                                  {tx.entity.origin == EntityOrigin.MANUAL && (
                                     <span className="ml-1 opacity-70">(V)</span>
                                   )}
                                 </Badge>
                               </td>
-                              <td className="py-4 px-3 text-center w-20">
+                              <td className="py-4 px-2 text-center w-10">
                                 {hasDetails && (
                                   <button
                                     onClick={() => toggleCardExpansion(tx.id)}
-                                    className="inline-flex items-center justify-center p-1 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                                    className="inline-flex items-center justify-center p-1 text-gray-500 dark:text-gray-400 hover:text-gray-300 dark:hover:text-gray-200 transition-colors"
                                   >
                                     {isExpanded ? (
                                       <ChevronUp className="h-4 w-4" />
@@ -954,7 +990,8 @@ export default function TransactionsPage() {
                   tx.product_type === ProductType.FACTORING ||
                   tx.product_type === ProductType.REAL_ESTATE_CF ||
                   tx.product_type === ProductType.DEPOSIT ||
-                  tx.product_type === ProductType.CRYPTO
+                  tx.product_type === ProductType.CRYPTO ||
+                  tx.product_type === ProductType.FUND_PORTFOLIO
 
                 return (
                   <Card
@@ -983,12 +1020,16 @@ export default function TransactionsPage() {
                           className={`font-medium ${
                             getTransactionDisplayType(tx.type) === "in"
                               ? "text-green-600 dark:text-green-400"
-                              : ""
+                              : tx.type === TxType.FEE
+                                ? "text-red-600 dark:text-red-400"
+                                : ""
                           }`}
                         >
                           {getTransactionDisplayType(tx.type) === "in"
                             ? "+"
-                            : ""}
+                            : tx.type === TxType.FEE
+                              ? "-"
+                              : ""}
                           {formatCurrency(
                             tx.amount,
                             locale,
@@ -1026,7 +1067,7 @@ export default function TransactionsPage() {
                         onClick={() => handleBadgeClick("entity", tx.entity.id)}
                       >
                         {tx.entity.name}
-                        {!tx.entity.is_real && (
+                        {tx.entity.origin == EntityOrigin.MANUAL && (
                           <span className="ml-1 opacity-75">(V)</span>
                         )}
                       </Badge>

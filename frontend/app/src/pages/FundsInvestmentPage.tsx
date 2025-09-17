@@ -1,16 +1,13 @@
-import React, { useMemo, useState } from "react"
+import React, { useMemo, useRef, useState, useCallback, useEffect } from "react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
-import { Badge } from "@/components/ui/Badge"
-import { InvestmentFilters } from "@/components/InvestmentFilters"
-import {
-  InvestmentDistributionChart,
-  InvestmentDistributionLegend,
-} from "@/components/InvestmentDistributionChart"
+import { getColorForName } from "@/lib/utils"
+// Filters consolidated locally (was using InvestmentFilters) to show entity + portfolio selectors in one bar.
+import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatPercentage } from "@/lib/formatters"
 import {
   getStockAndFundPositions,
@@ -18,10 +15,28 @@ import {
   calculateInvestmentDistribution,
   convertCurrency,
 } from "@/utils/financialDataUtils"
-import { ProductType } from "@/types/position"
-import { ArrowLeft, TrendingUp, TrendingDown } from "lucide-react"
+import { ProductType, AssetType } from "@/types/position"
+import {
+  ArrowLeft,
+  TrendingUp,
+  TrendingDown,
+  Filter,
+  FilterX,
+} from "lucide-react"
+import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
+
+// Local color classes for fund asset types (fund.assigns asset_type)
+// Pastel background colors matching inner donut palette
+const ASSET_CLASS_COLOR_BG: Record<string, string> = {
+  [AssetType.EQUITY]:
+    "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  [AssetType.FIXED_INCOME]:
+    "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [AssetType.OTHER]:
+    "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+}
 
 export default function FundsInvestmentPage() {
   const { t, locale } = useI18n()
@@ -30,6 +45,7 @@ export default function FundsInvestmentPage() {
   const { settings, exchangeRates, entities } = useAppContext()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
+  const [selectedPortfolios, setSelectedPortfolios] = useState<string[]>([])
 
   // Get all fund positions
   const allFundPositions = useMemo(() => {
@@ -59,13 +75,17 @@ export default function FundsInvestmentPage() {
 
   // Filter positions based on selected entities
   const filteredFundPositions = useMemo(() => {
-    if (selectedEntities.length === 0) {
-      return allFundPositions
+    let base = allFundPositions
+    if (selectedEntities.length > 0) {
+      base = base.filter(p => selectedEntities.includes(p.entityId))
     }
-    return allFundPositions.filter(position =>
-      selectedEntities.includes(position.entityId),
-    )
-  }, [allFundPositions, selectedEntities])
+    if (selectedPortfolios.length > 0) {
+      base = base.filter(
+        p => p.portfolioName && selectedPortfolios.includes(p.portfolioName),
+      )
+    }
+    return base
+  }, [allFundPositions, selectedEntities, selectedPortfolios])
 
   // Get entity options for the filter
   const entityOptions: MultiSelectOption[] = useMemo(() => {
@@ -83,6 +103,26 @@ export default function FundsInvestmentPage() {
     )
   }, [entities, positionsData])
 
+  const portfolioOptions: MultiSelectOption[] = useMemo(() => {
+    const names = new Set<string>()
+    allFundPositions.forEach(p => {
+      // If entity filters are active, only consider those entities
+      if (selectedEntities.length > 0 && !selectedEntities.includes(p.entityId))
+        return
+      if (p.portfolioName) names.add(p.portfolioName)
+    })
+    return Array.from(names)
+      .sort()
+      .map(name => ({ value: name, label: name }))
+  }, [allFundPositions, selectedEntities])
+
+  // Remove selected portfolios no longer available after entity filter changes
+  useEffect(() => {
+    setSelectedPortfolios(prev =>
+      prev.filter(p => portfolioOptions.some(o => o.value === p)),
+    )
+  }, [portfolioOptions])
+
   // Calculate chart data - map StockFundPosition to match chart expectations
   const chartData = useMemo(() => {
     const mappedPositions = filteredFundPositions.map(position => ({
@@ -93,24 +133,64 @@ export default function FundsInvestmentPage() {
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [filteredFundPositions])
 
+  // Inner donut (asset class split)
+  const assetTypeInnerData = useMemo(() => {
+    if (!filteredFundPositions.length) return []
+    const agg: Record<string, number> = {}
+    let gapTotal = 0
+    filteredFundPositions.forEach(p => {
+      if (!p.assetType) {
+        gapTotal += p.value || 0
+      } else {
+        agg[p.assetType] = (agg[p.assetType] || 0) + (p.value || 0)
+      }
+    })
+    const total = Object.values(agg).reduce((a, b) => a + b, 0) + gapTotal
+    const pastel = {
+      [AssetType.EQUITY]: "#ff7b7bff", // red-200
+      [AssetType.FIXED_INCOME]: "#7db7ffff", // blue-200
+      [AssetType.OTHER]: "#80ffacff", // green-200
+    } as Record<string, string>
+    const slices = Object.entries(agg).map(([k, v]) => ({
+      name: (t.enums?.assetType as any)?.[k] || k,
+      value: v,
+      color: pastel[k] || "#e5e7eb",
+      percentage: total > 0 ? (v / total) * 100 : 0,
+      rawType: k,
+    }))
+    if (gapTotal > 0) {
+      // Represent gap as transparent slice; include in percentage math
+      slices.push({
+        name: "", // no label
+        value: gapTotal,
+        color: "transparent",
+        percentage: total > 0 ? (gapTotal / total) * 100 : 0,
+        rawType: "__GAP__",
+        isGap: true,
+      } as any)
+    }
+    return slices
+  }, [filteredFundPositions, t.enums])
+
   const totalInitialInvestment = useMemo(() => {
     return filteredFundPositions.reduce((sum, position) => {
-      // Calculate initial investment as shares * average buy price in original currency
-      const initialInvestmentOriginal =
-        (position.shares || 0) * (position.price || 0)
+      // Prefer backend provided initialInvestment (cost basis). Fallback to shares * average buy price.
+      const rawInitialInvestment =
+        position.initialInvestment != null
+          ? position.initialInvestment
+          : (position.shares || 0) * (position.price || 0)
 
-      // Convert to user currency if needed
-      const initialInvestmentConverted =
+      const converted =
         exchangeRates && position.currency !== settings.general.defaultCurrency
           ? convertCurrency(
-              initialInvestmentOriginal,
+              rawInitialInvestment,
               position.currency,
               settings.general.defaultCurrency,
               exchangeRates,
             )
-          : initialInvestmentOriginal
+          : rawInitialInvestment
 
-      return sum + initialInvestmentConverted
+      return sum + converted
     }, 0)
   }, [filteredFundPositions, exchangeRates, settings.general.defaultCurrency])
 
@@ -133,12 +213,33 @@ export default function FundsInvestmentPage() {
     )
   }, [filteredFundPositions])
 
+  // refs map for scrolling/highlighting
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [highlighted, setHighlighted] = useState<string | null>(null)
+
+  const handleSliceClick = useCallback((slice: any) => {
+    const ref = itemRefs.current[slice.name]
+    if (ref) {
+      ref.scrollIntoView({ behavior: "smooth", block: "center" })
+      setHighlighted(slice.name)
+      setTimeout(
+        () => setHighlighted(prev => (prev === slice.name ? null : prev)),
+        1500,
+      )
+    }
+  }, [])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner size="lg" />
       </div>
     )
+  }
+
+  const handleClearAllFilters = () => {
+    setSelectedEntities([])
+    setSelectedPortfolios([])
   }
 
   return (
@@ -154,12 +255,46 @@ export default function FundsInvestmentPage() {
         <h1 className="text-2xl font-bold">{t.common.fundsInvestments}</h1>
       </div>
 
-      {/* Filters */}
-      <InvestmentFilters
-        entityOptions={entityOptions}
-        selectedEntities={selectedEntities}
-        onEntitiesChange={setSelectedEntities}
-      />
+      {/* Unified Filters Bar */}
+      <div className="pb-6 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Filter size={16} />
+            <span>{t.transactions.filters}:</span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <div className="w-full sm:max-w-xs">
+              <MultiSelect
+                options={entityOptions}
+                value={selectedEntities}
+                onChange={setSelectedEntities}
+                placeholder={t.transactions.selectEntities}
+              />
+            </div>
+            {portfolioOptions.length > 0 && (
+              <div className="w-full sm:max-w-xs">
+                <MultiSelect
+                  options={portfolioOptions}
+                  value={selectedPortfolios}
+                  onChange={setSelectedPortfolios}
+                  placeholder={(t.investments as any).portfolio}
+                />
+              </div>
+            )}
+          </div>
+          {(selectedEntities.length > 0 || selectedPortfolios.length > 0) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearAllFilters}
+              className="flex items-center gap-2 self-start lg:self-auto"
+            >
+              <FilterX size={16} />
+              {t.transactions.clear}
+            </Button>
+          )}
+        </div>
+      </div>
 
       {filteredFundPositions.length === 0 ? (
         <Card className="p-8 text-center">
@@ -177,203 +312,286 @@ export default function FundsInvestmentPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Market Value Card */}
-            <Card className="flex-shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.fundsInvestments}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex justify-between items-baseline">
-                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  {totalInitialInvestment > 0 &&
-                    (() => {
-                      const percentageValue =
-                        ((totalValue - totalInitialInvestment) /
-                          totalInitialInvestment) *
-                        100
-                      const sign = percentageValue >= 0 ? "+" : "-"
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            {/* KPI vertical stack */}
+            <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {t.common.fundsInvestments}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex justify-between items-baseline">
+                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
+                    {totalInitialInvestment > 0 &&
+                      (() => {
+                        const percentageValue =
+                          ((totalValue - totalInitialInvestment) /
+                            totalInitialInvestment) *
+                          100
+                        const sign = percentageValue >= 0 ? "+" : "-"
+                        return (
+                          <p
+                            className={`text-sm font-medium ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                          >
+                            {sign}
+                            {formatPercentage(
+                              Math.abs(percentageValue),
+                              locale,
+                            )}
+                          </p>
+                        )
+                      })()}
+                  </div>
+                  {totalInitialInvestment > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t.dashboard.investedAmount}{" "}
+                      {formatCurrency(
+                        totalInitialInvestment,
+                        locale,
+                        settings.general.defaultCurrency,
+                      )}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+              {assetTypeInnerData.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      {t.enums?.kpis?.assetTypeSplit}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {(() => {
+                      const equity =
+                        assetTypeInnerData.find(
+                          d => d.rawType === AssetType.EQUITY,
+                        )?.percentage || 0
+                      const fixed =
+                        assetTypeInnerData.find(
+                          d => d.rawType === AssetType.FIXED_INCOME,
+                        )?.percentage || 0
                       return (
-                        <p
-                          className={`text-sm font-medium ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                        >
-                          {sign}
-                          {formatPercentage(Math.abs(percentageValue), locale)}
-                        </p>
+                        <div>
+                          <p className="text-2xl font-bold">
+                            {Math.round(equity)}/{Math.round(fixed)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {(t.enums?.assetType as any)?.[AssetType.EQUITY]}
+                            {" / "}
+                            {
+                              (t.enums?.assetType as any)?.[
+                                AssetType.FIXED_INCOME
+                              ]
+                            }
+                          </p>
+                        </div>
                       )
                     })()}
-                </div>
-                {totalInitialInvestment > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.dashboard.investedAmount}{" "}
-                    {formatCurrency(
-                      totalInitialInvestment,
-                      locale,
-                      settings.general.defaultCurrency,
-                    )}
+                  </CardContent>
+                </Card>
+              )}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {t.investments.numberOfAssets}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-2xl font-bold">
+                    {filteredFundPositions.length}
                   </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Number of Assets Card */}
-            <Card className="flex-shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.investments.numberOfAssets}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">
-                  {filteredFundPositions.length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {filteredFundPositions.length === 1
-                    ? t.investments.asset
-                    : t.investments.assets}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Distribution Chart & Legend */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-            <div className="xl:col-span-2 flex flex-col">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {filteredFundPositions.length === 1
+                      ? t.investments.asset
+                      : t.investments.assets}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            {/* Chart */}
+            <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
               <InvestmentDistributionChart
                 data={chartData}
                 title={t.common.distribution}
                 locale={locale}
                 currency={settings.general.defaultCurrency}
                 hideLegend
-                containerClassName="h-full"
-              />
-            </div>
-            <div className="xl:col-span-1 flex flex-col">
-              <InvestmentDistributionLegend
-                data={chartData}
-                locale={locale}
-                currency={settings.general.defaultCurrency}
+                containerClassName="overflow-visible w-full"
+                variant="bare"
+                onSliceClick={handleSliceClick}
+                innerData={assetTypeInnerData}
               />
             </div>
           </div>
 
-          {/* Positions List */}
+          {/* Positions List (sorted desc by current value) */}
           <div className="space-y-4 pb-6">
-            {filteredFundPositions.map(position => {
-              const percentageOfFunds =
-                totalFundValue > 0
-                  ? ((position.value || 0) / totalFundValue) * 100
-                  : 0
+            {[...filteredFundPositions]
+              .sort((a, b) => (b.value || 0) - (a.value || 0))
+              .map(position => {
+                const percentageOfFunds =
+                  totalFundValue > 0
+                    ? ((position.value || 0) / totalFundValue) * 100
+                    : 0
 
-              return (
-                <Card key={position.id} className="p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div className="space-y-2 flex-1 min-w-0">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-semibold">
-                          {position.name}
-                        </h3>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{position.entity}</Badge>
-                          {position.portfolioName && (
-                            <Badge variant="secondary" className="text-xs">
-                              {position.portfolioName}
-                            </Badge>
-                          )}
+                const distributionEntry = chartData.find(
+                  c => c.name === (position.name || position.symbol),
+                )
+                const borderColor = distributionEntry?.color || "transparent"
+                const isHighlighted =
+                  highlighted === (position.name || position.symbol)
+
+                return (
+                  <Card
+                    key={position.id}
+                    ref={el => {
+                      itemRefs.current[position.name || position.symbol] = el
+                    }}
+                    className={`p-6 border-l-4 transition-colors ${isHighlighted ? "ring-2 ring-offset-0 ring-primary" : ""}`}
+                    style={{ borderLeftColor: borderColor }}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                      <div className="space-y-2 flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-semibold">
+                            {position.name}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const entityObj = entities?.find(
+                                  e => e.name === position.entity,
+                                )
+                                const id = entityObj?.id || position.entity
+                                setSelectedEntities(prev =>
+                                  prev.includes(id) ? prev : [...prev, id],
+                                )
+                              }}
+                              className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getColorForName(position.entity)} transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary`}
+                            >
+                              {position.entity}
+                            </button>
+                            {position.portfolioName && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPortfolios(prev =>
+                                    prev.includes(position.portfolioName!)
+                                      ? prev
+                                      : [...prev, position.portfolioName!],
+                                  )
+                                }}
+                                className="text-xs inline-flex items-center rounded-full bg-secondary px-2.5 py-0.5 font-medium transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary"
+                              >
+                                {position.portfolioName}
+                              </button>
+                            )}
+                            {position.assetType && (
+                              <span
+                                className={`text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium ${ASSET_CLASS_COLOR_BG[position.assetType] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"}`}
+                              >
+                                {(t.enums?.assetType as any)?.[
+                                  position.assetType
+                                ] || position.assetType}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
-                        {position.isin && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 text-sm">
+                          {position.isin && (
+                            <div>
+                              <span className="text-gray-600 dark:text-gray-400">
+                                {t.transactions.isin}:{" "}
+                              </span>
+                              <span className="font-medium">
+                                {position.isin}
+                              </span>
+                            </div>
+                          )}
                           <div>
                             <span className="text-gray-600 dark:text-gray-400">
-                              {t.transactions.isin}:{" "}
+                              {t.investments.shares}:{" "}
                             </span>
-                            <span className="font-medium">{position.isin}</span>
+                            <span className="font-medium">
+                              {position.shares?.toLocaleString()}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {t.investments.price}:{" "}
+                            </span>
+                            <span className="font-medium">
+                              {formatCurrency(
+                                position.price,
+                                locale,
+                                position.currency,
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-left sm:text-right space-y-1 flex-shrink-0">
+                        <div className="flex items-center gap-2 justify-end">
+                          {position.formattedGainLossAmount && (
+                            <span
+                              className={`text-sm ${
+                                (position.gainLossAmount || 0) >= 0
+                                  ? "text-green-500"
+                                  : "text-red-500"
+                              }`}
+                            >
+                              {position.formattedGainLossAmount}
+                            </span>
+                          )}
+                          <div className="text-xl font-semibold">
+                            {position.formattedOriginalValue ||
+                              position.formattedValue}
+                          </div>
+                        </div>
+                        {position.currency !==
+                          settings.general.defaultCurrency && (
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {position.formattedValue}
                           </div>
                         )}
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {t.investments.shares}:{" "}
+                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                          <span className="font-medium text-blue-600 dark:text-blue-400">
+                            {percentageOfFunds.toFixed(1)}%
                           </span>
-                          <span className="font-medium">
-                            {position.shares?.toLocaleString()}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {t.investments.price}:{" "}
-                          </span>
-                          <span className="font-medium">
-                            {formatCurrency(
-                              position.price,
-                              locale,
-                              position.currency,
+                          {" " +
+                            t.investments.ofInvestmentType.replace(
+                              "{type}",
+                              t.common.funds.toLowerCase(),
                             )}
-                          </span>
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="text-left sm:text-right space-y-1 flex-shrink-0">
-                      <div className="flex items-center gap-2 justify-end">
-                        {position.formattedGainLossAmount && (
+                        <div className="flex items-center gap-1 text-sm justify-end">
+                          {position.change >= 0 ? (
+                            <TrendingUp size={16} className="text-green-500" />
+                          ) : (
+                            <TrendingDown size={16} className="text-red-500" />
+                          )}
                           <span
-                            className={`text-sm ${
-                              (position.gainLossAmount || 0) >= 0
+                            className={
+                              position.change >= 0
                                 ? "text-green-500"
                                 : "text-red-500"
-                            }`}
+                            }
                           >
-                            {position.formattedGainLossAmount}
+                            {position.change >= 0 ? "+" : ""}
+                            {position.change.toFixed(2)}%
                           </span>
-                        )}
-                        <div className="text-xl font-semibold">
-                          {position.formattedOriginalValue ||
-                            position.formattedValue}
                         </div>
-                      </div>
-                      {position.currency !==
-                        settings.general.defaultCurrency && (
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {position.formattedValue}
-                        </div>
-                      )}
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        <span className="font-medium text-blue-600 dark:text-blue-400">
-                          {percentageOfFunds.toFixed(1)}%
-                        </span>
-                        {" " +
-                          t.investments.ofInvestmentType.replace(
-                            "{type}",
-                            t.common.funds.toLowerCase(),
-                          )}
-                      </div>
-                      <div className="flex items-center gap-1 text-sm justify-end">
-                        {position.change >= 0 ? (
-                          <TrendingUp size={16} className="text-green-500" />
-                        ) : (
-                          <TrendingDown size={16} className="text-red-500" />
-                        )}
-                        <span
-                          className={
-                            position.change >= 0
-                              ? "text-green-500"
-                              : "text-red-500"
-                          }
-                        >
-                          {position.change >= 0 ? "+" : ""}
-                          {position.change.toFixed(2)}%
-                        </span>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              )
-            })}
+                  </Card>
+                )
+              })}
           </div>
         </div>
       )}

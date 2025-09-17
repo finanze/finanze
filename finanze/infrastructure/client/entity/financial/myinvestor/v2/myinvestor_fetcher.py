@@ -36,11 +36,13 @@ from domain.global_position import (
     ProductType,
     StockDetail,
     StockInvestments,
+    AssetType,
 )
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
     AccountTx,
     DepositTx,
+    FundPortfolioTx,
     FundTx,
     StockTx,
     Transactions,
@@ -53,15 +55,19 @@ from infrastructure.client.entity.financial.myinvestor.v2.myinvestor_client impo
 DATE_FORMAT = "%Y-%m-%d"
 ISO_DATE_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
-# IIC_SWITCH_REGISTRATION and IIC_SWITCH_DEREGISTRATION
 FUND_INVESTMENT_TXS = [
     "INVESTMENT_FUNDS_SUBSCRIPTION",
     "INVESTMENT_FUNDS_SUBSCRIPTION_SF",
+]
+FUND_TRANSFER_IN_TXS = [
     "INTERNAL_TRANSFER_SUBSCRIPTION",
     "EXTERNAL_TRANSFER_SUBSCRIPTION",
 ]
 FUND_REIMBURSEMENT_TXS = [
     "INVESTMENT_FUND_REIMBURSEMENT",
+    "INVESTMENT_FUND_REIMBURSEMENT_SF",
+]
+FUND_TRANSFER_OUT_TXS = [
     "INTERNAL_TRANSFER_REIMBURSEMENT",
     "EXTERNAL_TRANSFER_REIMBURSEMENT",
 ]
@@ -111,30 +117,6 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
         ]
 
     return StockInvestments(stock_list)
-
-
-def _get_fund_investments(fund_investments, portfolio_id=None) -> FundInvestments:
-    fund_list = []
-    if fund_investments:
-        fund_list = [
-            FundDetail(
-                id=uuid4(),
-                name=fund["investmentName"],
-                isin=fund["isin"],
-                market=fund["marketCode"],
-                shares=fund["shares"],
-                initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
-                average_buy_price=round(
-                    Dezimal(fund["initialInvestment"]) / Dezimal(fund["shares"]), 4
-                ),  # averageCost
-                market_value=round(Dezimal(fund["marketValue"]), 4),
-                currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
-                portfolio=FundPortfolio(id=portfolio_id) if portfolio_id else None,
-            )
-            for fund in fund_investments["investmentList"]
-        ]
-
-    return FundInvestments(fund_list)
 
 
 def _map_deposit_tx(
@@ -250,9 +232,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
 
             account_related_txs = self._classify_account_txs(
-                account_id, registered_txs, creation_date, options.deep
+                account, registered_txs, related_security_account_id, creation_date
             )
             investment_txs += account_related_txs["deposit"]
+            investment_txs += account_related_txs["portfolio"]
             account_txs += account_related_txs["interests"]
 
         return Transactions(investment=investment_txs, account=account_txs)
@@ -312,11 +295,25 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         return found
 
     def _classify_account_txs(
-        self, account_id, registered_txs, min_date: date, force_all=False
+        self, account: dict, registered_txs, related_security_account_id, min_date: date
     ):
+        account_id = account["accountId"]
+        account_type = account.get("accountType")
+        portfolio_account_details = {}
+
+        if account_type == "CASH_PORTFOLIO":
+            portfolio_account_details = self._client.get_security_account_details(
+                related_security_account_id
+            )
+
         deposit_txs = []
         interest_txs = []
-        result = {"deposit": deposit_txs, "interests": interest_txs}
+        portfolio_txs = []
+        result = {
+            "deposit": deposit_txs,
+            "interests": interest_txs,
+            "portfolio": portfolio_txs,
+        }
 
         to_date = from_date = date.today()
         from_date += timedelta(days=1)
@@ -329,10 +326,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             for tx in raw_txs:
                 ref = tx["reference"]
                 if ref in registered_txs:
-                    if force_all:
-                        continue
-                    else:
-                        return result
+                    return result
 
                 tx_class = tx["operationClass"]
                 raw_tx_type = tx["operationType"]
@@ -340,7 +334,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     tzinfo=tzlocal()
                 )
                 currency = tx["currency"]
-                name = tx["concept"]
+                name = tx["concept"].strip()
                 amount = abs(Dezimal(tx["amount"]))
 
                 if tx_class == "MOVIMIENTOS DEPOSITOS":
@@ -415,12 +409,40 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 elif tx_class == "ME":
                     if raw_tx_type == "RETE.LIQUIDA":
                         pass
+
                 elif tx_class == "0":
                     if raw_tx_type == "INTERESES S/F":
                         retentions = amount * CAPITAL_GAINS_BASE_TAX
                         interest_txs.append(
                             _map_account_tx(
                                 ref, name, amount, currency, tx_date, retentions
+                            )
+                        )
+
+                # Portfolio management / custody fees (only for portfolio accounts)
+                elif (
+                    account_type == "CASH_PORTFOLIO"
+                    and "COMISION" in raw_tx_type.upper()
+                ):
+                    account_iban = account.get("iban")
+                    fee_amount = abs(Dezimal(tx["amount"]))
+                    portfolio_name = portfolio_account_details.get("portfolioName")
+                    if fee_amount > 0:
+                        portfolio_txs.append(
+                            FundPortfolioTx(
+                                id=uuid4(),
+                                ref=ref,
+                                name=name,
+                                amount=fee_amount,
+                                currency=currency,
+                                type=TxType.FEE,
+                                date=tx_date,
+                                entity=MY_INVESTOR,
+                                is_real=True,
+                                product_type=ProductType.FUND_PORTFOLIO,
+                                fees=fee_amount,
+                                portfolio_name=portfolio_name,
+                                iban=account_iban,
                             )
                         )
 
@@ -578,7 +600,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         stock_data = _get_stock_investments(broker_investments)
 
         fund_investments = investments.get("INDEXED_FUND")
-        fund_data = _get_fund_investments(fund_investments)
+        fund_data = self._get_fund_investments(fund_investments)
 
         portfolio_cash_accounts = []
         for raw_account, acc, security_account in account_entries:
@@ -597,7 +619,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             portfolio_fund_investments = portfolio_account_investments.get(
                 "INDEXED_FUND"
             )
-            portfolio_fund_data = _get_fund_investments(
+            portfolio_fund_data = self._get_fund_investments(
                 portfolio_fund_investments, portfolio_id
             )
 
@@ -696,6 +718,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 operation_type = TxType.BUY
             elif raw_operation_type in FUND_REIMBURSEMENT_TXS:
                 operation_type = TxType.SELL
+            elif raw_operation_type in FUND_TRANSFER_IN_TXS:
+                operation_type = TxType.TRANSFER_IN
+            elif raw_operation_type in FUND_TRANSFER_OUT_TXS:
+                operation_type = TxType.TRANSFER_OUT
+            elif raw_operation_type in {"IIC_SWITCH_REGISTRATION"}:
+                operation_type = TxType.SWITCH_TO
+            elif raw_operation_type in {"IIC_SWITCH_DEREGISTRATION"}:
+                operation_type = TxType.SWITCH_FROM
             else:
                 self._log.warning(
                     f"Unknown operation type {raw_operation_type} for tx {ref}"
@@ -836,3 +866,42 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             to_date -= STOCKS_TX_FETCH_STEP
 
         return stock_txs
+
+    def _get_fund_investments(
+        self, fund_investments, portfolio_id=None
+    ) -> FundInvestments:
+        fund_list = []
+        if fund_investments:
+            for fund in fund_investments["investmentList"]:
+                isin = fund.get("isin")
+                fund_details = self._client.get_fund_details(isin)
+                raw_asset_type = fund_details.get("assetType")
+                asset_type = None
+                if raw_asset_type == "VARIABLE_INCOME":
+                    asset_type = AssetType.EQUITY
+                elif raw_asset_type == "FIXED_INCOME":
+                    asset_type = AssetType.FIXED_INCOME
+
+                fund_list.append(
+                    FundDetail(
+                        id=uuid4(),
+                        name=fund["investmentName"],
+                        isin=isin,
+                        market=fund["marketCode"],
+                        shares=fund["shares"],
+                        initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
+                        average_buy_price=round(
+                            Dezimal(fund["initialInvestment"])
+                            / Dezimal(fund["shares"]),
+                            4,
+                        ),  # averageCost
+                        market_value=round(Dezimal(fund["marketValue"]), 4),
+                        asset_type=asset_type,
+                        currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
+                        portfolio=FundPortfolio(id=portfolio_id)
+                        if portfolio_id
+                        else None,
+                    )
+                )
+
+        return FundInvestments(fund_list)

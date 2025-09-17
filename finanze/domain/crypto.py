@@ -2,7 +2,6 @@ from typing import Optional
 from uuid import UUID
 
 from domain.external_integration import EtherscanIntegrationData
-from domain.settings import IntegrationsConfig
 from pydantic.dataclasses import dataclass
 
 
@@ -17,13 +16,6 @@ class CryptoWalletConnection:
 @dataclass
 class CryptoFetchIntegrations:
     etherscan: Optional[EtherscanIntegrationData] = None
-
-    @staticmethod
-    def from_config(config: IntegrationsConfig):
-        etherscan = None
-        if config.etherscan:
-            etherscan = EtherscanIntegrationData(config.etherscan.api_key)
-        return CryptoFetchIntegrations(etherscan=etherscan)
 
 
 @dataclass

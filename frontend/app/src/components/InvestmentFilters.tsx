@@ -8,17 +8,34 @@ interface InvestmentFiltersProps {
   entityOptions: MultiSelectOption[]
   selectedEntities: string[]
   onEntitiesChange: (entities: string[]) => void
+  minimal?: boolean // when true show only the selector (no label, icon, border)
+  placeholderOverride?: string
 }
 
 export function InvestmentFilters({
   entityOptions,
   selectedEntities,
   onEntitiesChange,
+  minimal = false,
+  placeholderOverride,
 }: InvestmentFiltersProps) {
   const { t } = useI18n()
 
   const handleClearFilters = () => {
     onEntitiesChange([])
+  }
+
+  if (minimal) {
+    return (
+      <div className="max-w-sm">
+        <MultiSelect
+          options={entityOptions}
+          value={selectedEntities}
+          onChange={onEntitiesChange}
+          placeholder={placeholderOverride || t.transactions.selectEntities}
+        />
+      </div>
+    )
   }
 
   return (
@@ -28,7 +45,6 @@ export function InvestmentFilters({
           <Filter size={16} />
           <span>{t.transactions.filters}:</span>
         </div>
-
         <div className="flex-1 max-w-sm">
           <MultiSelect
             options={entityOptions}
@@ -37,7 +53,6 @@ export function InvestmentFilters({
             placeholder={t.transactions.selectEntities}
           />
         </div>
-
         {selectedEntities.length > 0 && (
           <Button
             variant="outline"

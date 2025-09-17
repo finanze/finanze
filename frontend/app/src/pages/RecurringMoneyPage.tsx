@@ -31,6 +31,8 @@ import {
   X,
   Check,
   Link2,
+  AlertTriangle,
+  PiggyBank,
 } from "lucide-react"
 import {
   Popover,
@@ -47,6 +49,7 @@ import {
   UpdatePeriodicFlowRequest,
 } from "@/types"
 import { ProductType, Loan, Loans } from "@/types/position"
+import { ContributionFrequency } from "@/types/contributions"
 import {
   createPeriodicFlow,
   updatePeriodicFlow,
@@ -56,7 +59,8 @@ import {
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings } = useAppContext()
-  const { periodicFlows, refreshFlows, positionsData } = useFinancialData()
+  const { periodicFlows, refreshFlows, positionsData, contributions } =
+    useFinancialData()
   const navigate = useNavigate()
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
@@ -67,6 +71,10 @@ export default function RecurringMoneyPage() {
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [showContributions, setShowContributions] = useState(true)
+  // When category filter is active we suppress contributions per requirement
+  const effectiveShowContributions =
+    showContributions && categoryFilter.length === 0
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
     amount: 0,
@@ -155,8 +163,47 @@ export default function RecurringMoneyPage() {
         return total + amount * multiplier
       }, 0)
 
-    return { monthlyEarnings, monthlyExpenses }
-  }, [periodicFlows, categoryFilter])
+    // Monthly contributions (active only) if enabled
+    let monthlyContributions = 0
+    if (effectiveShowContributions && contributions) {
+      Object.values(contributions).forEach(group => {
+        if (!group?.periodic) return
+        group.periodic.forEach(c => {
+          if (!c.active) return
+          const freq = c.frequency as ContributionFrequency
+          const multiplier =
+            freq === ContributionFrequency.WEEKLY
+              ? 52 / 12
+              : freq === ContributionFrequency.BIWEEKLY
+                ? 26 / 12
+                : freq === ContributionFrequency.BIMONTHLY
+                  ? 6 / 12
+                  : freq === ContributionFrequency.QUARTERLY
+                    ? 4 / 12
+                    : freq === ContributionFrequency.SEMIANNUAL
+                      ? 2 / 12
+                      : freq === ContributionFrequency.YEARLY
+                        ? 1 / 12
+                        : 1
+          monthlyContributions += c.amount * multiplier
+        })
+      })
+    }
+    return { monthlyEarnings, monthlyExpenses, monthlyContributions }
+  }, [periodicFlows, categoryFilter, contributions, effectiveShowContributions])
+
+  // Utilization badge color scale (starts warm >55%)
+  const getUtilizationBadgeClasses = (percent: number) => {
+    if (percent <= 55)
+      return "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+    if (percent <= 70)
+      return "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
+    if (percent <= 85)
+      return "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+    if (percent <= 100)
+      return "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+    return "bg-red-200 text-red-800 dark:bg-red-950 dark:text-red-200 border border-red-500/40"
+  }
 
   // Color functions for different shades - traditional red/green palette
   // Darker colors for bigger amounts (lower index), lighter for smaller amounts
@@ -268,7 +315,10 @@ export default function RecurringMoneyPage() {
       )
 
     const totalEarnings = monthlyAmounts.monthlyEarnings
-    const totalExpenses = monthlyAmounts.monthlyExpenses
+    const totalExpensesBase = monthlyAmounts.monthlyExpenses
+    const totalContributions = monthlyAmounts.monthlyContributions
+    const totalExpenses =
+      totalExpensesBase + (effectiveShowContributions ? totalContributions : 0)
     const totalAmount = totalEarnings + totalExpenses
 
     // Convert to arrays with percentages
@@ -298,10 +348,16 @@ export default function RecurringMoneyPage() {
       earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first (leftmost)
       expenses: expensesData.sort((a, b) => b.amount - a.amount), // Biggest first (rightmost)
       totalEarnings,
-      totalExpenses,
+      totalExpenses, // includes contributions when toggle on
       totalAmount,
+      contributionsAmount: effectiveShowContributions ? totalContributions : 0,
     }
-  }, [periodicFlows, monthlyAmounts, categoryFilter])
+  }, [
+    periodicFlows,
+    monthlyAmounts,
+    categoryFilter,
+    effectiveShowContributions,
+  ])
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
@@ -812,12 +868,42 @@ export default function RecurringMoneyPage() {
               {t.management.monthlyRecurringExpenses}
             </span>
           </div>
-          <div className="text-2xl font-bold text-red-600">
-            {formatCurrency(
-              monthlyAmounts.monthlyExpenses,
-              locale,
-              settings?.general?.defaultCurrency,
-            )}
+          <div className="flex items-center gap-2">
+            <div className="text-2xl font-bold text-red-600">
+              {formatCurrency(
+                monthlyAmounts.monthlyExpenses,
+                locale,
+                settings?.general?.defaultCurrency,
+              )}
+            </div>
+            {monthlyAmounts.monthlyEarnings > 0 &&
+              (() => {
+                // Percentage intentionally excludes contributions per latest requirement
+                const percent =
+                  (monthlyAmounts.monthlyExpenses /
+                    Math.max(monthlyAmounts.monthlyEarnings, 1)) *
+                  100
+                const overrun = percent > 100
+                return (
+                  <div
+                    className={cn(
+                      "text-xs px-2 py-0.5 rounded-md font-semibold",
+                      getUtilizationBadgeClasses(percent),
+                      overrun && "animate-pulse",
+                    )}
+                    title={
+                      overrun
+                        ? t.management.expensesOverrunMessage.replace(
+                            "{percentage}",
+                            (percent - 100).toFixed(1),
+                          )
+                        : undefined
+                    }
+                  >
+                    {percent.toFixed(1)}%
+                  </div>
+                )
+              })()}
           </div>
           <div className="text-xs text-gray-500">
             {sortedFlows.expenses.filter(flow => flow.enabled).length}{" "}
@@ -828,88 +914,278 @@ export default function RecurringMoneyPage() {
         </Card>
       </div>
 
-      {/* Horizontal Flow Distribution Chart */}
-      {flowDistribution.totalAmount > 0 && (
-        <Card className="p-4">
-          <div className="relative h-10 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-            <div className="flex h-full">
-              {/* Earnings Section */}
-              {flowDistribution.earnings.map(earning => {
-                const isRealCategory = existingCategories.includes(
-                  earning.category,
-                )
-                const width = earning.percentage
-                return (
+      {/* Earnings vs Expenses Consumption Bars */}
+      {(flowDistribution.totalEarnings > 0 ||
+        flowDistribution.totalExpenses > 0) && (
+        <Card className="p-4 space-y-4">
+          {(() => {
+            const scale = Math.max(
+              flowDistribution.totalEarnings,
+              flowDistribution.totalExpenses,
+              1,
+            )
+            const earningsOverrun =
+              flowDistribution.totalExpenses > flowDistribution.totalEarnings
+            return (
+              <div className="space-y-3">
+                {/* Earnings Bar */}
+                <div className="space-y-1">
+                  <div className="text-xs font-medium text-green-600 dark:text-green-400">
+                    {t.management.earnings}
+                  </div>
                   <div
-                    key={`earning-${earning.category}`}
-                    className={`h-full ${earning.color} transition-all duration-300 hover:opacity-80 ${isRealCategory ? "cursor-pointer" : "cursor-default"} relative group`}
-                    style={{ width: `${width}%` }}
-                    title={`${earning.category}: ${formatCurrency(
-                      earning.amount,
-                      locale,
-                      settings?.general?.defaultCurrency,
-                    )} (${earning.percentage.toFixed(1)}%)`}
-                    onClick={() =>
-                      isRealCategory && toggleCategoryFilter(earning.category)
-                    }
+                    className={cn(
+                      "relative h-6 rounded-md overflow-hidden bg-green-50 dark:bg-green-950/20",
+                    )}
                   >
-                    {/* Tooltip */}
-                    <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
-                      {earning.category}:{" "}
-                      {formatCurrency(
-                        earning.amount,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )}
+                    <div className="flex h-full relative">
+                      {flowDistribution.earnings.map(earning => {
+                        const w = (earning.amount / scale) * 100
+                        const isRealCategory = existingCategories.includes(
+                          earning.category,
+                        )
+                        return (
+                          <div
+                            key={`earning-bar-${earning.category}`}
+                            className={cn(
+                              "h-full transition-all duration-300 hover:opacity-80 relative group",
+                              earning.color,
+                              isRealCategory
+                                ? "cursor-pointer"
+                                : "cursor-default opacity-70",
+                            )}
+                            style={{ width: `${w}%` }}
+                            onClick={() =>
+                              isRealCategory &&
+                              toggleCategoryFilter(earning.category)
+                            }
+                            title={`${earning.category}: ${formatCurrency(
+                              earning.amount,
+                              locale,
+                              settings?.general?.defaultCurrency,
+                            )}`}
+                          >
+                            <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                              {formatCurrency(
+                                earning.amount,
+                                locale,
+                                settings?.general?.defaultCurrency,
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {earningsOverrun &&
+                        flowDistribution.totalEarnings > 0 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <div
+                                className="absolute inset-y-0 right-0 h-full flex items-stretch cursor-pointer"
+                                style={{
+                                  width: `${((flowDistribution.totalExpenses - flowDistribution.totalEarnings) / scale) * 100}%`,
+                                }}
+                              >
+                                <div className="w-full h-full bg-yellow-300/60 dark:bg-yellow-300/30 backdrop-blur-[1px]" />
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="max-w-xs text-xs"
+                              side="bottom"
+                            >
+                              <div className="flex items-start gap-2">
+                                <AlertTriangle className="text-yellow-600 dark:text-yellow-400 h-4 w-4 mt-0.5" />
+                                <div className="space-y-1">
+                                  <div className="font-semibold text-yellow-700 dark:text-yellow-300 text-xs">
+                                    {t.management.expensesOverrunTitle}
+                                  </div>
+                                  <div className="text-muted-foreground leading-snug">
+                                    {t.management.expensesOverrunMessage.replace(
+                                      "{percentage}",
+                                      (
+                                        ((flowDistribution.totalExpenses -
+                                          flowDistribution.totalEarnings) /
+                                          Math.max(
+                                            flowDistribution.totalEarnings,
+                                            1,
+                                          )) *
+                                        100
+                                      ).toFixed(1),
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
                     </div>
                   </div>
-                )
-              })}
+                </div>
 
-              {/* Gap between earnings and expenses */}
-              <div className="w-2 bg-white dark:bg-black"></div>
-
-              {/* Expenses Section */}
-              {flowDistribution.expenses
-                .slice()
-                .reverse()
-                .map(expense => {
-                  const isRealCategory = existingCategories.includes(
-                    expense.category,
-                  )
-                  const width = expense.percentage
-                  return (
-                    <div
-                      key={`expense-${expense.category}`}
-                      className={`h-full ${expense.color} transition-all duration-300 hover:opacity-80 ${isRealCategory ? "cursor-pointer" : "cursor-default"} relative group`}
-                      style={{ width: `${width}%` }}
-                      title={`${expense.category}: ${formatCurrency(
-                        expense.amount,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )} (${expense.percentage.toFixed(1)}%)`}
-                      onClick={() =>
-                        isRealCategory && toggleCategoryFilter(expense.category)
-                      }
-                    >
-                      {/* Tooltip */}
-                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap">
-                        {expense.category}:{" "}
-                        {formatCurrency(
-                          expense.amount,
-                          locale,
-                          settings?.general?.defaultCurrency,
-                        )}
-                      </div>
+                {/* Expenses Bar (with optional contributions segment) */}
+                <div className="space-y-1">
+                  <div
+                    className={cn(
+                      "text-xs font-medium",
+                      earningsOverrun
+                        ? "text-red-600 dark:text-red-400"
+                        : "text-red-600 dark:text-red-400",
+                    )}
+                  >
+                    {t.management.expenses}
+                  </div>
+                  <div
+                    className={cn(
+                      "relative h-6 rounded-md overflow-hidden bg-red-50 dark:bg-red-950/20",
+                    )}
+                  >
+                    <div className="flex h-full relative">
+                      {flowDistribution.expenses.map(expense => {
+                        const w = (expense.amount / scale) * 100
+                        const isRealCategory = existingCategories.includes(
+                          expense.category,
+                        )
+                        return (
+                          <div
+                            key={`expense-bar-${expense.category}`}
+                            className={cn(
+                              "h-full transition-all duration-300 hover:opacity-80 relative group",
+                              expense.color,
+                              isRealCategory
+                                ? "cursor-pointer"
+                                : "cursor-default opacity-70",
+                            )}
+                            style={{ width: `${w}%` }}
+                            onClick={() =>
+                              isRealCategory &&
+                              toggleCategoryFilter(expense.category)
+                            }
+                            title={`${expense.category}: ${formatCurrency(
+                              expense.amount,
+                              locale,
+                              settings?.general?.defaultCurrency,
+                            )}`}
+                          >
+                            <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                              {expense.category}:{" "}
+                              {formatCurrency(
+                                expense.amount,
+                                locale,
+                                settings?.general?.defaultCurrency,
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {(() => {
+                        if (
+                          !effectiveShowContributions ||
+                          monthlyAmounts.monthlyContributions <= 0
+                        )
+                          return null
+                        const earnings = flowDistribution.totalEarnings
+                        const expensesOnly = monthlyAmounts.monthlyExpenses
+                        const contributionsAmt =
+                          monthlyAmounts.monthlyContributions
+                        const contributionsCount = (() => {
+                          if (!contributions) return 0
+                          let count = 0
+                          Object.values(contributions).forEach(group => {
+                            group?.periodic?.forEach(c => {
+                              if (c.active) count++
+                            })
+                          })
+                          return count
+                        })()
+                        // Gap only if earnings covers expenses + contributions fully
+                        const gap =
+                          earnings >= expensesOnly + contributionsAmt
+                            ? earnings - (expensesOnly + contributionsAmt)
+                            : 0
+                        const gapPct = (gap / scale) * 100
+                        const contribPct = (contributionsAmt / scale) * 100
+                        return (
+                          <>
+                            {gapPct > 0 && (
+                              <div
+                                className="h-full bg-neutral-200 dark:bg-neutral-800/50"
+                                style={{ width: `${gapPct}%` }}
+                                aria-hidden
+                              />
+                            )}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <div
+                                  className="h-full relative group cursor-pointer bg-cyan-700 dark:bg-cyan-600 hover:bg-cyan-600 dark:hover:bg-cyan-500 transition-colors"
+                                  style={{ width: `${contribPct}%` }}
+                                >
+                                  <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
+                                    {t.management.contributionsShort}:{" "}
+                                    {formatCurrency(
+                                      monthlyAmounts.monthlyContributions,
+                                      locale,
+                                      settings?.general?.defaultCurrency,
+                                    )}
+                                  </div>
+                                </div>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                side="top"
+                                className="text-xs space-y-2 w-64"
+                              >
+                                <div className="font-semibold text-cyan-700 dark:text-cyan-300">
+                                  {t.management.contributionsPopoverTitle}
+                                </div>
+                                <div className="text-muted-foreground leading-snug">
+                                  {(() => {
+                                    const tpl = t.management
+                                      .contributionsPopoverDetails as string
+                                    const formattedAmount = formatCurrency(
+                                      monthlyAmounts.monthlyContributions,
+                                      locale,
+                                      settings?.general?.defaultCurrency,
+                                    )
+                                    return tpl
+                                      .split(/({count}|{amount})/g)
+                                      .map((part, idx) => {
+                                        if (part === "{count}")
+                                          return (
+                                            <strong key={idx}>
+                                              {contributionsCount}
+                                            </strong>
+                                          )
+                                        if (part === "{amount}")
+                                          return (
+                                            <strong key={idx}>
+                                              {formattedAmount}
+                                            </strong>
+                                          )
+                                        return <span key={idx}>{part}</span>
+                                      })
+                                  })()}
+                                </div>
+                                <div
+                                  className="pt-1 text-[11px] text-cyan-600 dark:text-cyan-400/90 hover:text-cyan-500 dark:hover:text-cyan-300 cursor-pointer underline-offset-2"
+                                  onClick={() =>
+                                    navigate("/management/auto-contributions")
+                                  }
+                                >
+                                  {t.management.contributionsPopoverCta}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                          </>
+                        )
+                      })()}
                     </div>
-                  )
-                })}
-            </div>
-          </div>
+                  </div>
+                </div>
+                {/* Removed bottom tiny numbers per new requirement */}
+              </div>
+            )
+          })()}
 
-          {/* Legend */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Earnings Legend - Left Side */}
+          {/* Legends */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
             <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
               {flowDistribution.earnings.map(earning => {
                 const isRealCategory = existingCategories.includes(
@@ -917,7 +1193,7 @@ export default function RecurringMoneyPage() {
                 )
                 return (
                   <div
-                    key={`legend-earning-${earning.category}`}
+                    key={`legend2-earning-${earning.category}`}
                     className={cn(
                       "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
                       isRealCategory
@@ -941,26 +1217,20 @@ export default function RecurringMoneyPage() {
                 )
               })}
             </div>
-
-            {/* Expenses Legend - Right Side (RTL style) */}
-            <div
-              className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto"
-              dir="rtl"
-            >
+            <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto justify-end">
               {flowDistribution.expenses.map(expense => {
                 const isRealCategory = existingCategories.includes(
                   expense.category,
                 )
                 return (
                   <div
-                    key={`legend-expense-${expense.category}`}
+                    key={`legend2-expense-${expense.category}`}
                     className={cn(
                       "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
                       isRealCategory
                         ? "cursor-pointer"
                         : "cursor-default opacity-70",
                     )}
-                    dir="ltr"
                     onClick={() =>
                       isRealCategory && toggleCategoryFilter(expense.category)
                     }
@@ -1010,7 +1280,23 @@ export default function RecurringMoneyPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
+          <Button
+            size="sm"
+            variant={effectiveShowContributions ? "default" : "outline"}
+            onClick={() => setShowContributions(s => !s)}
+            className={cn(
+              "h-8 px-2 text-xs font-medium flex items-center justify-center flex-shrink-0",
+              effectiveShowContributions
+                ? "bg-cyan-600 hover:bg-cyan-600/90 dark:bg-cyan-500 dark:hover:bg-cyan-500/90"
+                : "",
+            )}
+            aria-label={t.management.contributionsShort}
+            title={t.management.contributionsShort}
+          >
+            <PiggyBank className="h-4 w-4" />
+            <span className="sr-only">{t.management.contributionsShort}</span>
+          </Button>
           <span className="text-sm text-muted-foreground">
             {t.management.category}
           </span>
@@ -1018,7 +1304,7 @@ export default function RecurringMoneyPage() {
             options={categoryOptions}
             value={categoryFilter}
             onChange={setCategoryFilter}
-            className="min-w-[220px]"
+            className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
           />
         </div>
       </div>

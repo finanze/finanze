@@ -24,6 +24,7 @@ import {
   RefreshCw,
   FileSpreadsheet,
   FileSearch,
+  Landmark,
   Info,
   AlertCircle,
   Settings,
@@ -39,6 +40,7 @@ import { ProductType, WeightUnit } from "@/types/position"
 import {
   setupGoogleIntegration,
   setupEtherscanIntegration,
+  setupGoCardlessIntegration,
 } from "@/services/api"
 import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
@@ -101,6 +103,7 @@ export default function SettingsPage() {
   const [isSetupLoading, setIsSetupLoading] = useState({
     google: false,
     etherscan: false,
+    gocardless: false,
   })
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
@@ -116,6 +119,7 @@ export default function SettingsPage() {
     virtualTransactions: false,
     googleSheets: false,
     etherscan: false,
+    goCardless: false,
   })
 
   const [validationErrors, setValidationErrors] = useState<
@@ -311,7 +315,10 @@ export default function SettingsPage() {
       await fetchExternalIntegrations()
     } catch (error) {
       console.error(error)
-      showToast(t.common.error, "error")
+      const code = (error as any)?.code
+      // Try to translate known error codes; fallback to generic
+      const translated = (code && (t.errors as any)[code]) || t.common.error
+      showToast(translated, "error")
     } finally {
       setIsSetupLoading(prev => ({ ...prev, google: false }))
     }
@@ -331,9 +338,36 @@ export default function SettingsPage() {
       await fetchExternalIntegrations()
     } catch (error) {
       console.error(error)
-      showToast(t.common.error, "error")
+      const code = (error as any)?.code
+      const translated = (code && (t.errors as any)[code]) || t.common.error
+      showToast(translated, "error")
     } finally {
       setIsSetupLoading(prev => ({ ...prev, etherscan: false }))
+    }
+  }
+
+  const handleSetupGoCardlessIntegration = async () => {
+    const secretId = settings?.integrations?.gocardless?.secret_id
+    const secretKey = settings?.integrations?.gocardless?.secret_key
+    if (!secretId || !secretKey) {
+      return
+    }
+
+    setIsSetupLoading(prev => ({ ...prev, gocardless: true }))
+    try {
+      await setupGoCardlessIntegration({
+        secret_id: secretId,
+        secret_key: secretKey,
+      })
+      showToast(t.common.success, "success")
+      await fetchExternalIntegrations()
+    } catch (error) {
+      console.error(error)
+      const code = (error as any)?.code
+      const translated = (code && (t.errors as any)[code]) || t.common.error
+      showToast(translated, "error")
+    } finally {
+      setIsSetupLoading(prev => ({ ...prev, gocardless: false }))
     }
   }
 
@@ -1853,6 +1887,167 @@ export default function SettingsPage() {
                       }
                     >
                       {isSetupLoading.etherscan ? (
+                        <>
+                          <LoadingSpinner size="sm" className="mr-2" />
+                          {t.common.loading}
+                        </>
+                      ) : (
+                        t.common.setup
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            {/* GoCardless Integration */}
+            <Card>
+              <CardHeader>
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => toggleSection("goCardless")}
+                >
+                  <div className="flex items-center">
+                    <Landmark className="mr-2 h-5 w-5 text-yellow-600" />
+                    <CardTitle>
+                      {(t.settings as any).goCardlessIntegration}
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    {(() => {
+                      const gc = externalIntegrations.find(
+                        i => i.id === "GOCARDLESS",
+                      )
+                      const on = gc?.status === "ON"
+                      return (
+                        <Badge
+                          className={cn(
+                            on
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                          )}
+                        >
+                          {on ? t.common.enabled : t.common.disabled}
+                        </Badge>
+                      )
+                    })()}
+                    {expandedSections.goCardless ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
+                </div>
+                <CardDescription>
+                  {(t.settings as any).goCardlessIntegrationDescription}
+                </CardDescription>
+              </CardHeader>
+              {expandedSections.goCardless && (
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1">
+                      <Label htmlFor="gocardless-secret-id">
+                        {(t.settings as any).goCardlessSecretId}
+                      </Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button type="button">
+                            <Info className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-72 p-2 space-y-1 text-sm">
+                          <p>
+                            {(t.settings as any).goCardlessInfoPrefix}
+                            <a
+                              href="https://bankaccountdata.gocardless.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline text-blue-600"
+                            >
+                              {(t.settings as any).goCardlessInfoLinkText}
+                            </a>
+                            {(t.settings as any).goCardlessInfoMiddle}
+                            <a
+                              href="https://bankaccountdata.gocardless.com/user-secrets/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline text-blue-600"
+                            >
+                              {(t.settings as any).goCardlessInfoUserSecrets}
+                            </a>
+                            {(t.settings as any).goCardlessInfoSuffix}
+                          </p>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <Input
+                      id="gocardless-secret-id"
+                      type="text"
+                      placeholder={
+                        (t.settings as any).goCardlessSecretIdPlaceholder
+                      }
+                      value={
+                        settings?.integrations?.gocardless?.secret_id || ""
+                      }
+                      onChange={e =>
+                        setSettings({
+                          ...settings,
+                          integrations: {
+                            ...settings.integrations,
+                            gocardless: {
+                              ...(settings.integrations?.gocardless || {}),
+                              secret_id: e.target.value,
+                              secret_key:
+                                settings.integrations?.gocardless?.secret_key ||
+                                "",
+                            },
+                          },
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="gocardless-secret-key">
+                      {(t.settings as any).goCardlessSecretKey}
+                    </Label>
+                    <Input
+                      id="gocardless-secret-key"
+                      type="password"
+                      placeholder={
+                        (t.settings as any).goCardlessSecretKeyPlaceholder
+                      }
+                      value={
+                        settings?.integrations?.gocardless?.secret_key || ""
+                      }
+                      onChange={e =>
+                        setSettings({
+                          ...settings,
+                          integrations: {
+                            ...settings.integrations,
+                            gocardless: {
+                              ...(settings.integrations?.gocardless || {}),
+                              secret_id:
+                                settings.integrations?.gocardless?.secret_id ||
+                                "",
+                              secret_key: e.target.value,
+                            },
+                          },
+                        })
+                      }
+                    />
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSetupGoCardlessIntegration}
+                      disabled={
+                        !settings?.integrations?.gocardless?.secret_id ||
+                        !settings?.integrations?.gocardless?.secret_key ||
+                        isSetupLoading.gocardless
+                      }
+                    >
+                      {isSetupLoading.gocardless ? (
                         <>
                           <LoadingSpinner size="sm" className="mr-2" />
                           {t.common.loading}

@@ -14,6 +14,7 @@ from application.ports.crypto_wallet_connection_port import CryptoWalletConnecti
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.use_cases.connect_crypto_wallet import from_config
 from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.crypto import CryptoFetchIntegrations, CryptoFetchRequest
@@ -95,9 +96,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
                 e for e in native_entities.NATIVE_ENTITIES if e.id in connected_entities
             ]
 
-        integrations = CryptoFetchIntegrations.from_config(
-            self._config_port.load().integrations
-        )
+        integrations = from_config(self._config_port.load().integrations)
 
         fetched_data = []
         for entity in entities:

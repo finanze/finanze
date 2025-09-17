@@ -21,7 +21,6 @@ import {
 } from "@/utils/financialDataUtils"
 import {
   ProductType,
-  AccountType,
   CardType,
   LoanType,
   type Account,
@@ -33,7 +32,6 @@ import {
   Building2,
   Wallet,
   TrendingDown,
-  TrendingUp,
   Calendar,
   Percent,
   Shield,
@@ -41,6 +39,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react"
+import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
 
 export default function BankingPage() {
   const { t, locale } = useI18n()
@@ -267,41 +266,6 @@ export default function BankingPage() {
 
     return totalDebt > 0 ? totalWeightedInterest / totalDebt : 0
   }, [loans])
-
-  // Helper functions
-  const getAccountTypeIcon = (type: AccountType) => {
-    switch (type) {
-      case AccountType.CHECKING:
-        return <Wallet className="h-4 w-4" />
-      case AccountType.SAVINGS:
-        return <Building2 className="h-4 w-4" />
-      case AccountType.BROKERAGE:
-        return <TrendingUp className="h-4 w-4" />
-      case AccountType.VIRTUAL_WALLET:
-        return <CreditCard className="h-4 w-4" />
-      case AccountType.FUND_PORTFOLIO:
-        return <TrendingUp className="h-4 w-4" />
-      default:
-        return <Wallet className="h-4 w-4" />
-    }
-  }
-
-  const getAccountTypeColor = (type: AccountType) => {
-    switch (type) {
-      case AccountType.CHECKING:
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-      case AccountType.SAVINGS:
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-      case AccountType.BROKERAGE:
-        return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
-      case AccountType.VIRTUAL_WALLET:
-        return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-      case AccountType.FUND_PORTFOLIO:
-        return "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400"
-      default:
-        return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400"
-    }
-  }
 
   const formatIban = (iban?: string | null) => {
     if (!iban) return null
@@ -572,13 +536,13 @@ export default function BankingPage() {
                     </div>
 
                     {/* Additional info */}
-                    {(account.data.interest && account.data.interest > 0) ||
+                    {(Number(account.data.interest) || 0) > 0 ||
                     (account.data.convertedRetained &&
                       account.data.convertedRetained > 0) ||
                     (account.data.convertedPendingTransfers &&
                       account.data.convertedPendingTransfers > 0) ? (
                       <div className="flex justify-between text-xs pt-2 border-t border-gray-100 dark:border-gray-800">
-                        {account.data.interest && account.data.interest > 0 && (
+                        {(Number(account.data.interest) || 0) > 0 && (
                           <Popover>
                             <PopoverTrigger asChild>
                               <div className="text-green-600 dark:text-green-400 flex items-center gap-1 cursor-help">
@@ -861,11 +825,13 @@ export default function BankingPage() {
 
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                      {t.banking.paymentDate || "Payment Date"}
+                      {t.banking.paymentDate}
                     </span>
                     <span className="text-sm font-medium flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      {getNextPaymentDate(loan.data.next_payment_date)}
+                      {getNextPaymentDate(
+                        loan.data.creation || loan.data.next_payment_date,
+                      )}
                     </span>
                   </div>
                 </div>

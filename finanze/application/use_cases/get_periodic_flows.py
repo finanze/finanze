@@ -25,7 +25,7 @@ def get_next_date(flow: PeriodicFlow) -> Optional[date]:
     next_date = None
 
     if since_date > today:
-        next_date = since_date
+        return since_date
 
     if flow.frequency == FlowFrequency.DAILY:
         next_date = today + timedelta(days=1)

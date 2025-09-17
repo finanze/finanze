@@ -1,7 +1,12 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import type { Entity } from "@/types"
-import { EntityStatus, EntityType, ExternalIntegrationStatus } from "@/types"
+import {
+  EntityStatus,
+  EntityType,
+  ExternalIntegrationStatus,
+  EntityOrigin,
+} from "@/types"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
@@ -25,6 +30,7 @@ import {
 } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useNavigate } from "react-router-dom"
+import { getImageUrl } from "@/services/api"
 
 interface EntityCardProps {
   entity: Entity
@@ -32,6 +38,10 @@ interface EntityCardProps {
   onRelogin: () => void
   onDisconnect: () => void
   onManage?: () => void
+  onExternalContinue?: (entity: Entity) => void
+  onExternalDisconnect?: (entity: Entity) => Promise<void> | void
+  linkingExternalEntityId?: string | null
+  onExternalRelink?: (entity: Entity) => Promise<void> | void
 }
 
 export function EntityCard({
@@ -40,11 +50,21 @@ export function EntityCard({
   onRelogin,
   onDisconnect,
   onManage,
+  onExternalContinue,
+  onExternalDisconnect,
+  linkingExternalEntityId,
+  onExternalRelink,
 }: EntityCardProps) {
   const { t } = useI18n()
   const { fetchingEntityState, externalIntegrations } = useAppContext()
   const navigate = useNavigate()
   const [showConfirmation, setShowConfirmation] = useState(false)
+  const [showExternalConfirmation, setShowExternalConfirmation] =
+    useState(false)
+  const [showRelinkConfirmation, setShowRelinkConfirmation] = useState(false)
+  const [relinkingLoading, setRelinkingLoading] = useState(false)
+  const [externalDisconnectLoading, setExternalDisconnectLoading] =
+    useState(false)
 
   const { fetchingEntityIds } = fetchingEntityState
 
@@ -205,6 +225,32 @@ export function EntityCard({
     setShowConfirmation(false)
   }
 
+  const confirmExternalDisconnect = async () => {
+    if (!onExternalDisconnect) return
+    setExternalDisconnectLoading(true)
+    try {
+      await onExternalDisconnect(entity)
+    } catch {
+      // ignore
+    } finally {
+      setExternalDisconnectLoading(false)
+      setShowExternalConfirmation(false)
+    }
+  }
+
+  const confirmExternalRelink = async () => {
+    if (!onExternalRelink) return
+    setRelinkingLoading(true)
+    try {
+      await onExternalRelink(entity)
+    } catch {
+      // ignore
+    } finally {
+      setRelinkingLoading(false)
+      setShowRelinkConfirmation(false)
+    }
+  }
+
   const cancelDisconnect = () => {
     setShowConfirmation(false)
   }
@@ -216,7 +262,38 @@ export function EntityCard({
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
   const isDisconnected = effectiveStatus === EntityStatus.DISCONNECTED
-  const canConnect = isDisconnected && !missingIntegrations
+  const canConnect =
+    isDisconnected &&
+    !missingIntegrations &&
+    entity.origin !== EntityOrigin.EXTERNALLY_PROVIDED
+  const isExternallyProvided =
+    entity.origin === EntityOrigin.EXTERNALLY_PROVIDED
+  const isLinkingExternal = linkingExternalEntityId === entity.id
+
+  // Image source handling (external vs internal)
+  const [imageSrc, setImageSrc] = useState<string>(`entities/${entity.id}.png`)
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
+        try {
+          const src = await getImageUrl(
+            `/static/entities/logos/${entity.id}.png`,
+          )
+          if (!cancelled) setImageSrc(src)
+        } catch {
+          if (!cancelled) setImageSrc(`entities/${entity.id}.png`)
+        }
+      } else {
+        setImageSrc(`entities/${entity.id}.png`)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [entity.id, entity.origin])
 
   return (
     <>
@@ -233,13 +310,12 @@ export function EntityCard({
                 className={`${isDisconnected ? "w-8 h-8 mr-2" : "w-10 h-10 mr-3"} flex-shrink-0 overflow-hidden rounded-md`}
               >
                 <img
-                  src={`entities/${entity.id}.png`}
-                  alt={`${entity.name} logo`}
+                  src={imageSrc}
+                  alt={entity.name}
                   className="w-full h-full object-contain"
-                  onError={e => {
-                    // If image fails to load, hide it
-                    ;(e.target as HTMLImageElement).style.display = "none"
-                  }}
+                  onError={e =>
+                    (e.currentTarget.src = "entities/entity_placeholder.png")
+                  }
                 />
               </div>
               <span className="truncate max-sm:text-center">{entity.name}</span>
@@ -332,28 +408,67 @@ export function EntityCard({
             </div>
           )}
 
-          {/* Show fetch button only for entities requiring login */}
-          {effectiveStatus === EntityStatus.REQUIRES_LOGIN && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200`}
-              disabled={entityFetching}
-              onClick={onSelect}
-            >
-              {entityFetching ? (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span className="ml-2">{t.common.fetching}</span>
-                </>
-              ) : (
-                <>
-                  <LogIn className="mr-2 h-4 w-4" />
-                  {getButtonText()}
-                </>
-              )}
-            </Button>
-          )}
+          {/* Requires login - internal entities */}
+          {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
+            !isExternallyProvided && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                disabled={entityFetching}
+                onClick={onSelect}
+              >
+                {entityFetching ? (
+                  <>
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">{t.common.loading}</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {getButtonText()}
+                  </>
+                )}
+              </Button>
+            )}
+
+          {/* Requires login - externally provided entities (inline actions) */}
+          {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
+            isExternallyProvided && (
+              <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                  disabled={isLinkingExternal}
+                  onClick={() =>
+                    onExternalContinue && onExternalContinue(entity)
+                  }
+                >
+                  {isLinkingExternal ? (
+                    <>
+                      <LoadingSpinner size="sm" />
+                      <span className="ml-2">{t.common.loading}</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="mr-2 h-4 w-4" />
+                      {t.entities.continueLink}
+                    </>
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
+                  disabled={isLinkingExternal}
+                  onClick={() => setShowExternalConfirmation(true)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
+                  {t.entities.disconnect}
+                </Button>
+              </div>
+            )}
 
           {/* Show loading fetch button for connected entities when fetching */}
           {effectiveStatus === EntityStatus.CONNECTED &&
@@ -370,101 +485,152 @@ export function EntityCard({
               </Button>
             )}
 
-          {/* Button row for connected entities - buttons surrounding the fetch button */}
-          {effectiveStatus === EntityStatus.CONNECTED && !entityFetching && (
-            <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
-              {/* Financial institution buttons */}
-              {isFinancialInstitution && (
-                <>
-                  {!missingIntegrations && (
+          {/* Connected - externally provided entities */}
+          {effectiveStatus === EntityStatus.CONNECTED &&
+            !entityFetching &&
+            isExternallyProvided && (
+              <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
+                  onClick={() => setShowRelinkConfirmation(true)}
+                  disabled={entityFetching}
+                >
+                  <RefreshCw className="mr-1 h-4 w-4 flex-shrink-0" />
+                  {t.entities.relink}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                  disabled={entityFetching}
+                  onClick={onSelect}
+                >
+                  {entityFetching ? (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
-                        onClick={onRelogin}
-                        disabled={entityFetching}
-                      >
-                        <RefreshCw className="mr-1 h-4 w-4 flex-shrink-0" />
-                        {t.entities.relogin}
-                      </Button>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
-                        disabled={entityFetching}
-                        onClick={onSelect}
-                      >
-                        {entityFetching ? (
-                          <>
-                            <LoadingSpinner size="sm" />
-                            <span className="ml-2 flex-shrink-0">
-                              {t.common.fetching}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Download className="mr-2 h-4 w-4 flex-shrink-0" />
-                            {getButtonText()}
-                          </>
-                        )}
-                      </Button>
+                      <LoadingSpinner size="sm" />
+                      <span className="ml-2 flex-shrink-0">
+                        {t.common.fetching}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                      {t.entities.fetchData}
                     </>
                   )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
+                  onClick={() => setShowExternalConfirmation(true)}
+                  disabled={entityFetching}
+                >
+                  <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
+                  {t.entities.disconnect}
+                </Button>
+              </div>
+            )}
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
-                    onClick={handleDisconnect}
-                    disabled={entityFetching}
-                  >
-                    <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
-                    {t.entities.disconnect}
-                  </Button>
-                </>
-              )}
-
-              {/* Crypto wallet buttons */}
-              {!missingIntegrations && isCryptoWallet && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
-                    onClick={onManage}
-                    disabled={entityFetching || !onManage}
-                  >
-                    <Settings className="mr-1 h-4 w-4 flex-shrink-0" />
-                    {t.entities.manage}
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
-                    disabled={entityFetching}
-                    onClick={onSelect}
-                  >
-                    {entityFetching ? (
+          {/* Connected - internal entities */}
+          {effectiveStatus === EntityStatus.CONNECTED &&
+            !entityFetching &&
+            !isExternallyProvided && (
+              <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
+                {/* Financial institution buttons */}
+                {isFinancialInstitution && (
+                  <>
+                    {!missingIntegrations && (
                       <>
-                        <LoadingSpinner size="sm" />
-                        <span className="ml-2 flex-shrink-0">
-                          {t.common.fetching}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Download className="mr-2 h-4 w-4 flex-shrink-0" />
-                        {getButtonText()}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
+                          onClick={onRelogin}
+                          disabled={entityFetching}
+                        >
+                          <RefreshCw className="mr-1 h-4 w-4 flex-shrink-0" />
+                          {t.entities.relogin}
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                          disabled={entityFetching}
+                          onClick={onSelect}
+                        >
+                          {entityFetching ? (
+                            <>
+                              <LoadingSpinner size="sm" />
+                              <span className="ml-2 flex-shrink-0">
+                                {t.common.fetching}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                              {getButtonText()}
+                            </>
+                          )}
+                        </Button>
                       </>
                     )}
-                  </Button>
-                </>
-              )}
-            </div>
-          )}
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
+                      onClick={handleDisconnect}
+                      disabled={entityFetching}
+                    >
+                      <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
+                      {t.entities.disconnect}
+                    </Button>
+                  </>
+                )}
+
+                {/* Crypto wallet buttons */}
+                {!missingIntegrations && isCryptoWallet && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
+                      onClick={onManage}
+                      disabled={entityFetching || !onManage}
+                    >
+                      <Settings className="mr-1 h-4 w-4 flex-shrink-0" />
+                      {t.entities.manage}
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                      disabled={entityFetching}
+                      onClick={onSelect}
+                    >
+                      {entityFetching ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          <span className="ml-2 flex-shrink-0">
+                            {t.common.fetching}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                          {getButtonText()}
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
         </CardContent>
       </Card>
 
@@ -479,6 +645,32 @@ export function EntityCard({
         cancelText={t.common.cancel}
         onConfirm={confirmDisconnect}
         onCancel={cancelDisconnect}
+      />
+      <ConfirmationDialog
+        isOpen={showExternalConfirmation}
+        title={t.entities.confirmDisconnect}
+        message={t.entities.confirmDisconnectMessage.replace(
+          "{entity}",
+          entity.name,
+        )}
+        confirmText={t.entities.disconnect}
+        cancelText={t.common.cancel}
+        onConfirm={confirmExternalDisconnect}
+        onCancel={() => setShowExternalConfirmation(false)}
+        isLoading={externalDisconnectLoading}
+      />
+      <ConfirmationDialog
+        isOpen={showRelinkConfirmation}
+        title={t.entities.confirmRelink}
+        message={t.entities.confirmRelinkMessage.replace(
+          "{entity}",
+          entity.name,
+        )}
+        confirmText={t.entities.relink}
+        cancelText={t.common.cancel}
+        onConfirm={confirmExternalRelink}
+        onCancel={() => setShowRelinkConfirmation(false)}
+        isLoading={relinkingLoading}
       />
     </>
   )

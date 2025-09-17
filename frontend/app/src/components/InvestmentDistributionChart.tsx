@@ -1,5 +1,12 @@
-import React from "react"
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts"
+import React, { useEffect, useRef, useState } from "react"
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  Sector,
+} from "recharts"
 import { Card } from "@/components/ui/Card"
 import { formatCurrency } from "@/lib/formatters"
 import { useI18n } from "@/i18n"
@@ -24,6 +31,17 @@ interface InvestmentDistributionChartProps {
   hideLegend?: boolean
   containerClassName?: string
   titleIcon?: React.ReactNode
+  onSliceClick?: (item: ChartDataItem) => void
+  variant?: "default" | "bare"
+  innerData?: {
+    name: string
+    value: number
+    color: string
+    percentage: number
+    isGap?: boolean
+  }[]
+  onInnerSliceClick?: (item: any) => void
+  maxOuterRadius?: number
 }
 
 const RADIAN = Math.PI / 180
@@ -35,17 +53,14 @@ const renderCustomizedLabel = ({
   outerRadius,
   percent,
 }: any) => {
-  if (percent < 0.03) return null // Don't show labels for slices smaller than 3%
-
+  if (percent < 0.03) return null
   const percentage = percent * 100
   const isLargeSegment = percentage >= 15
   const radius = isLargeSegment
-    ? innerRadius + (outerRadius - innerRadius) * 0.35 // More inner
-    : innerRadius + (outerRadius - innerRadius) * 1.25 // Outside
-
+    ? innerRadius + (outerRadius - innerRadius) * 0.35
+    : innerRadius + (outerRadius - innerRadius) * 1.25
   const x = cx + radius * Math.cos(-midAngle * RADIAN)
   const y = cy + radius * Math.sin(-midAngle * RADIAN)
-
   return (
     <text
       x={x}
@@ -95,8 +110,171 @@ export const InvestmentDistributionChart: React.FC<
   hideLegend = false,
   containerClassName = "",
   titleIcon,
+  onSliceClick,
+  variant = "default",
+  innerData,
+  onInnerSliceClick,
+  maxOuterRadius = 170,
 }) => {
   const { t } = useI18n()
+  const [activeInnerIndex, setActiveInnerIndex] = useState<number>(-1)
+
+  if (variant === "bare") {
+    if (!data || data.length === 0) {
+      return (
+        <div className={`flex flex-col justify-center ${containerClassName}`}>
+          <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
+            {t.common.noDataAvailable}
+          </div>
+        </div>
+      )
+    }
+    const wrapperRef = useRef<HTMLDivElement | null>(null)
+    const chartAreaRef = useRef<HTMLDivElement | null>(null)
+    const [size, setSize] = useState({ width: 0 })
+    const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
+    useEffect(() => {
+      if (!wrapperRef.current) return
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          if (e.contentRect.width) setSize({ width: e.contentRect.width })
+        }
+      })
+      ro.observe(wrapperRef.current)
+      return () => ro.disconnect()
+    }, [])
+    useEffect(() => {
+      if (!chartAreaRef.current) return
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          const { width, height } = e.contentRect
+          if (width || height) setChartSize({ width, height })
+        }
+      })
+      ro.observe(chartAreaRef.current)
+      return () => ro.disconnect()
+    }, [])
+    const effectiveWidth = size.width || 600
+    const effectiveHeight = chartSize.height || 420
+    const limitingSide = Math.min(effectiveWidth, effectiveHeight)
+    const computed = limitingSide / 2 - 42
+    const outerRadius = Math.max(Math.min(computed, maxOuterRadius), 100)
+    const innerRadius = Math.round(outerRadius * 0.62)
+    return (
+      <div
+        ref={wrapperRef}
+        className={`relative flex justify-center ${containerClassName}`}
+      >
+        <div className="w-full flex flex-col max-w-[640px] mx-auto">
+          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 px-4 pt-2">
+            {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
+            {title}
+          </h3>
+          <div
+            ref={chartAreaRef}
+            className="flex-1 min-h-[360px] h-[420px] flex items-center justify-center p-0 overflow-visible"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart style={{ userSelect: "none" }}>
+                {innerData &&
+                  innerData.length > 0 &&
+                  (() => {
+                    const ringOuter = innerRadius - 15
+                    const ringThickness = 5
+                    const ringInner = ringOuter - ringThickness
+                    const activeOuter = ringOuter + 3
+                    const activeInner = ringInner - 2
+                    const activeShape = (props: any) => (
+                      <Sector
+                        {...props}
+                        innerRadius={activeInner}
+                        outerRadius={activeOuter}
+                      />
+                    )
+                    return (
+                      <Pie
+                        data={innerData}
+                        cx="50%"
+                        cy="50%"
+                        isAnimationActive={false}
+                        dataKey="value"
+                        outerRadius={ringOuter}
+                        innerRadius={ringInner}
+                        stroke="hsl(var(--background))"
+                        strokeWidth={2}
+                        paddingAngle={5}
+                        activeIndex={activeInnerIndex}
+                        activeShape={activeShape}
+                      >
+                        {innerData.map((entry, index) => (
+                          <Cell
+                            key={`inner-cell-${index}`}
+                            fill={entry.isGap ? "transparent" : entry.color}
+                            stroke={entry.isGap ? "none" : undefined}
+                            style={{
+                              outline: "none",
+                              cursor: entry.isGap
+                                ? "default"
+                                : onInnerSliceClick
+                                  ? "pointer"
+                                  : "default",
+                              pointerEvents: entry.isGap ? "none" : "auto",
+                            }}
+                            onClick={() =>
+                              !entry.isGap && onInnerSliceClick?.(entry)
+                            }
+                            onMouseEnter={() =>
+                              !entry.isGap && setActiveInnerIndex(index)
+                            }
+                            onMouseLeave={() => setActiveInnerIndex(-1)}
+                          />
+                        ))}
+                      </Pie>
+                    )
+                  })()}
+                <Pie
+                  data={data}
+                  cx="50%"
+                  cy="50%"
+                  isAnimationActive={false}
+                  labelLine={false}
+                  label={renderCustomizedLabel}
+                  outerRadius={outerRadius}
+                  innerRadius={innerRadius}
+                  fill="#8884d8"
+                  dataKey="value"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={2}
+                >
+                  {data.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={entry.color}
+                      style={{
+                        outline: "none",
+                        cursor: onSliceClick ? "pointer" : "default",
+                      }}
+                      onClick={() => onSliceClick?.(entry)}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={
+                    <CustomTooltip
+                      locale={locale}
+                      currency={currency}
+                      showOriginalCurrency={showOriginalCurrency}
+                    />
+                  }
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (!data || data.length === 0) {
     return (
       <Card className={`p-6 ${containerClassName}`}>
@@ -122,14 +300,71 @@ export const InvestmentDistributionChart: React.FC<
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart style={{ userSelect: "none" }}>
+            {innerData &&
+              innerData.length > 0 &&
+              (() => {
+                const mainOuterInnerRadius = innerData.length > 0 ? 75 : 70
+                const ringOuter = mainOuterInnerRadius - 18
+                const ringThickness = 5
+                const ringInner = ringOuter - ringThickness
+                const activeOuter = ringOuter + 3
+                const activeInner = ringInner - 2
+                const activeShape = (props: any) => (
+                  <Sector
+                    {...props}
+                    innerRadius={activeInner}
+                    outerRadius={activeOuter}
+                  />
+                )
+                return (
+                  <Pie
+                    data={innerData}
+                    cx="50%"
+                    cy="50%"
+                    isAnimationActive={false}
+                    dataKey="value"
+                    outerRadius={ringOuter}
+                    innerRadius={ringInner}
+                    stroke="hsl(var(--background))"
+                    strokeWidth={2}
+                    activeIndex={activeInnerIndex}
+                    activeShape={activeShape}
+                  >
+                    {innerData.map((entry, index) => (
+                      <Cell
+                        key={`inner-cell-${index}`}
+                        fill={entry.isGap ? "transparent" : entry.color}
+                        stroke={entry.isGap ? "none" : undefined}
+                        style={{
+                          outline: "none",
+                          cursor: entry.isGap
+                            ? "default"
+                            : onInnerSliceClick
+                              ? "pointer"
+                              : "default",
+                          pointerEvents: entry.isGap ? "none" : "auto",
+                        }}
+                        onClick={() =>
+                          !entry.isGap && onInnerSliceClick?.(entry)
+                        }
+                        onMouseEnter={() =>
+                          !entry.isGap && setActiveInnerIndex(index)
+                        }
+                        onMouseLeave={() => setActiveInnerIndex(-1)}
+                      />
+                    ))}
+                  </Pie>
+                )
+              })()}
             <Pie
               data={data}
               cx="50%"
               cy="50%"
+              isAnimationActive={false}
               labelLine={false}
               label={renderCustomizedLabel}
               outerRadius={110}
-              innerRadius={70}
+              innerRadius={innerData && innerData.length > 0 ? 75 : 70}
               fill="#8884d8"
               dataKey="value"
               stroke="hsl(var(--background))"
@@ -139,7 +374,11 @@ export const InvestmentDistributionChart: React.FC<
                 <Cell
                   key={`cell-${index}`}
                   fill={entry.color}
-                  style={{ outline: "none" }}
+                  style={{
+                    outline: "none",
+                    cursor: onSliceClick ? "pointer" : "default",
+                  }}
+                  onClick={() => onSliceClick?.(entry)}
                 />
               ))}
             </Pie>

@@ -1,5 +1,6 @@
 import { UNICAJA_ID, promptLogin as promptUnicajaLogin } from "./unicaja"
 import { MINTOS_ID, promptLogin as promptMintosLogin } from "./mintos"
+import { ING_ID, promptLogin as promptIngLogin } from "./ing"
 
 export interface ExternalLoginRequestResult {
   success: boolean
@@ -23,6 +24,7 @@ type EntityLoginHandlers = {
 const entityLoginHandlerRegistry: EntityLoginHandlers = {
   [UNICAJA_ID]: promptUnicajaLogin,
   [MINTOS_ID]: promptMintosLogin,
+  [ING_ID]: promptIngLogin,
 }
 
 export async function promptLogin(

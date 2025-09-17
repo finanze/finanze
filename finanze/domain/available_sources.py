@@ -1,6 +1,8 @@
+from dataclasses import field
 from datetime import datetime
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
 from domain.crypto import CryptoWalletConnection
 from domain.entity import (
@@ -30,6 +32,8 @@ class AvailableSource(Entity):
     status: Optional[FinancialEntityStatus] = None
     connected: Optional[list[CryptoWalletConnection]] = None
     required_external_integrations: list[ExternalIntegrationId] = None
+    external_entity_id: Optional[UUID] = None
+    virtual_features: dict[Feature, datetime] = field(default_factory=dict)
 
 
 @dataclass

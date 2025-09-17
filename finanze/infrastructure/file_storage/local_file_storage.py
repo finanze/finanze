@@ -1,5 +1,6 @@
 import uuid
 from pathlib import Path
+from typing import Optional
 
 from application.ports.file_storage_port import FileStoragePort
 from domain.file_upload import FileUpload
@@ -11,15 +12,19 @@ class LocalFileStorage(FileStoragePort):
         self.static_url_prefix = static_url_prefix
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
-    def save(self, file: FileUpload, folder: str) -> str:
+    def save(self, file: FileUpload, folder: str, keep_name: bool = False) -> str:
         if not file.filename:
             raise ValueError("No filename provided")
 
         folder_path = self.upload_dir / folder
         folder_path.mkdir(parents=True, exist_ok=True)
 
-        file_extension = Path(file.filename).suffix.lower()
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        if not keep_name:
+            file_extension = Path(file.filename).suffix.lower()
+            unique_filename = f"{uuid.uuid4()}{file_extension}"
+        else:
+            unique_filename = file.filename
+
         file_path = folder_path / unique_filename
 
         try:
@@ -33,6 +38,30 @@ class LocalFileStorage(FileStoragePort):
             raise ValueError(f"Failed to save file: {str(e)}")
 
         return f"{folder}/{unique_filename}"
+
+    def save_from_url(
+        self, file_url: str, folder: str, filename: Optional[str] = None
+    ) -> str:
+        import requests
+
+        response = requests.get(file_url, stream=True)
+        if response.status_code != 200:
+            raise ValueError(f"Failed to fetch file from URL: {file_url}")
+
+        content_type = response.headers.get("Content-Type", "application/octet-stream")
+        content_length = int(response.headers.get("Content-Length", 0))
+
+        if not filename:
+            filename = file_url.split("/")[-1].split("?")[0] or f"file_{uuid.uuid4()}"
+
+        file_upload = FileUpload(
+            filename=filename,
+            content_type=content_type,
+            content_length=content_length,
+            data=response.raw,
+        )
+
+        return self.save(file_upload, folder, keep_name=True)
 
     def delete(self, file_path: str) -> bool:
         try:

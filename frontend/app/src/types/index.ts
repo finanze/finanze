@@ -18,6 +18,13 @@ export enum EntityType {
   COMMODITY = "COMMODITY",
 }
 
+export enum EntityOrigin {
+  MANUAL = "MANUAL",
+  NATIVE = "NATIVE",
+  EXTERNALLY_PROVIDED = "EXTERNALLY_PROVIDED",
+  INTERNAL = "INTERNAL",
+}
+
 export interface CryptoWalletConnection {
   id: string
   entity_id: string
@@ -29,7 +36,8 @@ export interface Entity {
   id: string
   name: string
   type: EntityType
-  is_real: boolean
+  origin: EntityOrigin
+  natural_id: string
   status?: EntityStatus
   features: Feature[]
   credentials_template?: Record<string, string>
@@ -40,6 +48,8 @@ export interface Entity {
   connected?: CryptoWalletConnection[]
   last_fetch: Record<Feature, string>
   required_external_integrations?: string[]
+  external_entity_id?: string | null
+  virtual_features: Record<Feature, string>
 }
 
 export enum EntitySetupLoginType {
@@ -174,6 +184,10 @@ export enum FetchResultCode {
 
   // Bad user input
   FEATURE_NOT_SUPPORTED = "FEATURE_NOT_SUPPORTED",
+
+  // External entities
+  LINK_EXPIRED = "LINK_EXPIRED",
+  REMOTE_FAILED = "REMOTE_FAILED",
 
   // Login related codes
   CODE_REQUESTED = "CODE_REQUESTED",
@@ -314,6 +328,7 @@ export interface SaveCommodityRequest {
 export enum ExternalIntegrationType {
   CRYPTO_PROVIDER = "CRYPTO_PROVIDER",
   DATA_SOURCE = "DATA_SOURCE",
+  ENTITY_PROVIDER = "ENTITY_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {
@@ -332,6 +347,59 @@ export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
 }
 
+export enum ExternalIntegrationId {
+  GOOGLE_SHEETS = "GOOGLE_SHEETS",
+  ETHERSCAN = "ETHERSCAN",
+  GOCARDLESS = "GOCARDLESS",
+}
+
+export enum ExternalEntityStatus {
+  UNLINKED = "UNLINKED",
+  LINKED = "LINKED",
+}
+
+export interface ExternalEntity {
+  id: string
+  entity_id: string
+  status: ExternalEntityStatus
+  provider: ExternalIntegrationId
+  date: string
+  provider_instance_id: string
+  payload?: Record<string, any> | null
+}
+
+export interface ProviderExternalEntityDetails {
+  id: string
+  name: string
+  bic: string
+  type: EntityType
+  icon?: string | null
+}
+
+export interface ExternalEntityCandidates {
+  entities: ProviderExternalEntityDetails[]
+}
+
+export enum ExternalEntitySetupResponseCode {
+  ALREADY_LINKED = "ALREADY_LINKED",
+  CONTINUE_WITH_LINK = "CONTINUE_WITH_LINK",
+}
+
+export interface ExternalEntityConnectionResult {
+  id?: string | null
+  code: ExternalEntitySetupResponseCode
+  link?: string | null
+  provider_instance_id?: string | null
+  payload?: any
+}
+
+export interface ConnectExternalEntityRequest {
+  institution_id?: string | null
+  external_entity_id?: string | null
+  provider?: ExternalIntegrationId | null
+  relink?: boolean
+}
+
 export interface GoogleIntegrationCredentials {
   client_id: string
   client_secret: string
@@ -339,6 +407,11 @@ export interface GoogleIntegrationCredentials {
 
 export interface EtherscanIntegrationData {
   api_key: string
+}
+
+export interface GoCardlessIntegrationCredentials {
+  secret_id: string
+  secret_key: string
 }
 
 export enum FlowType {
@@ -604,4 +677,13 @@ export interface ForecastResult {
   real_estate: RealEstateEquityForecast[]
   crypto_appreciation: number
   commodity_appreciation: number
+}
+
+// External entity additional requests
+export interface CompleteExternalEntityLinkRequest {
+  payload?: Record<string, any> | null
+}
+
+export interface DeleteExternalEntityRequest {
+  external_entity_id: string
 }

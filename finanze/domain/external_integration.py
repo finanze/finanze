@@ -6,6 +6,7 @@ from pydantic.dataclasses import dataclass
 class ExternalIntegrationType(str, Enum):
     CRYPTO_PROVIDER = "CRYPTO_PROVIDER"
     DATA_SOURCE = "DATA_SOURCE"
+    ENTITY_PROVIDER = "ENTITY_PROVIDER"
 
 
 class ExternalIntegrationStatus(str, Enum):
@@ -16,6 +17,7 @@ class ExternalIntegrationStatus(str, Enum):
 class ExternalIntegrationId(str, Enum):
     GOOGLE_SHEETS = "GOOGLE_SHEETS"
     ETHERSCAN = "ETHERSCAN"
+    GOCARDLESS = "GOCARDLESS"
 
 
 @dataclass
@@ -40,3 +42,9 @@ class GoogleIntegrationCredentials:
 @dataclass
 class EtherscanIntegrationData:
     api_key: str
+
+
+@dataclass
+class GoCardlessIntegrationCredentials:
+    secret_id: str
+    secret_key: str

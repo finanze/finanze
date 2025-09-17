@@ -20,7 +20,9 @@ export function EntityRefreshDropdown() {
 
   const connectedEntities =
     entities?.filter(
-      entity => entity.status !== EntityStatus.DISCONNECTED && entity.is_real,
+      entity =>
+        entity.status !== EntityStatus.DISCONNECTED &&
+        entity.origin !== "MANUAL",
     ) || []
 
   // Separate financial institutions and crypto wallets

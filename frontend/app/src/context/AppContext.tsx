@@ -20,6 +20,7 @@ import {
   type ExchangeRates,
   type VirtualFetchError,
   type ExternalIntegration,
+  EntityOrigin,
 } from "@/types"
 import {
   getEntities,
@@ -32,6 +33,7 @@ import {
   disconnectEntity,
   getExchangeRates,
   getExternalIntegrations,
+  fetchExternalEntity,
 } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
@@ -57,6 +59,10 @@ export interface AppSettings {
     }
     etherscan?: {
       api_key?: string
+    }
+    gocardless?: {
+      secret_id: string
+      secret_key: string
     }
   }
   export?: {
@@ -88,7 +94,9 @@ export interface FetchingEntityState {
 }
 
 export interface FetchOptions {
-  deep: boolean
+  deep?: boolean
+  avoidNewLogin?: boolean
+  code?: string
 }
 
 interface AppContextType {
@@ -138,7 +146,7 @@ interface AppContextType {
   scrape: (
     entity: Entity | null,
     features: Feature[],
-    options?: object,
+    options?: FetchOptions,
   ) => Promise<void>
   runVirtualScrape: () => Promise<VirtualFetchResult | null>
   resetState: () => void
@@ -239,9 +247,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scrapeManualLogin = useRef<{
     active: boolean
     features: Feature[]
+    options: FetchOptions
   }>({
     active: false,
     features: [],
+    options: DEFAULT_OPTIONS,
   })
 
   const onScrapeCompletedRef = useRef<
@@ -475,10 +485,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
         loginResponse.code === LoginResultCode.RESUMED
       ) {
         const features = scrapeManualLogin.current.features
+        const options = scrapeManualLogin.current.options
 
-        scrapeManualLogin.current = { active: false, features: [] }
+        scrapeManualLogin.current = {
+          active: false,
+          features: [],
+          options: DEFAULT_OPTIONS,
+        }
 
-        await scrape(selectedEntity, features)
+        await scrape(selectedEntity, features, options)
       } else {
         handleLoginError(loginResponse.code)
         resetState()
@@ -581,7 +596,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const scrape = async (
     entity: Entity | null,
     features: Feature[],
-    options: object = {},
+    options: FetchOptions = DEFAULT_OPTIONS,
   ) => {
     try {
       setPinError(false)
@@ -593,19 +608,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }))
       }
 
-      const response =
-        entity?.type === EntityType.FINANCIAL_INSTITUTION
-          ? await fetchFinancialEntity({
-              entity: entity?.id,
-              features: features,
-              processId: processId || undefined,
-              ...options,
-            })
-          : await fetchCryptoEntity({
-              entity: entity?.id,
-              features: features,
-              ...options,
-            })
+      let response
+      if (entity) {
+        if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
+          // For externally provided entities use external fetch endpoint
+          try {
+            response = await fetchExternalEntity(
+              entity.external_entity_id || "",
+            )
+          } catch (e: any) {
+            if (e?.status === 429) {
+              showToast(t.errors.COOLDOWN, "warning")
+              throw e
+            }
+            throw e
+          }
+        } else if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+          response = await fetchFinancialEntity({
+            entity: entity.id,
+            features: features,
+            processId: processId || undefined,
+            ...options,
+          })
+        } else {
+          response = await fetchCryptoEntity({
+            entity: entity.id,
+            features: features,
+            ...options,
+          })
+        }
+      } else {
+        // Fallback (should not happen without entity)
+        response = await fetchCryptoEntity({
+          entity: undefined,
+          features: features,
+          ...options,
+        })
+      }
 
       if (response.code === FetchResultCode.CODE_REQUESTED) {
         setPinRequired(true)
@@ -613,13 +652,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setPinLength(entity?.pin?.positions || 4)
         setCurrentAction("scrape")
       } else if (response.code === FetchResultCode.MANUAL_LOGIN) {
-        if (response.details?.credentials && entity) {
+        if (entity) {
           scrapeManualLogin.current = {
             active: true,
             features: features,
+            options: options,
           }
 
-          await startExternalLogin(entity, response.details.credentials)
+          await startExternalLogin(entity, response.details?.credentials)
         } else {
           console.debug("MANUAL_LOGIN response without credentials or entity")
           showToast(t.common.fetchError, "error")
@@ -657,6 +697,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       } else if (response.code === FetchResultCode.NOT_LOGGED) {
         navigate("/entities")
         handleScrapeError(response.code)
+      } else if (response.code === FetchResultCode.LINK_EXPIRED) {
+        // Externally provided session expired
+        showToast(t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED, "warning")
+        if (entity) {
+          updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
+        }
+        resetState()
+      } else if (response.code === FetchResultCode.REMOTE_FAILED) {
+        showToast(t.errors.REMOTE_FAILED, "error")
+        resetState()
       } else {
         handleScrapeError(response.code || "UNEXPECTED_ERROR")
         resetState()
@@ -713,7 +763,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setStoredCredentials(null)
     setPinError(false)
     setExternalLoginInProgress(false)
-    scrapeManualLogin.current = { active: false, features: [] }
+    scrapeManualLogin.current = {
+      active: false,
+      features: [],
+      options: DEFAULT_OPTIONS,
+    }
   }
 
   const updateEntityStatus = (entityId: string, status: EntityStatus) => {

@@ -1,3 +1,5 @@
+import { EntityOrigin } from "."
+
 export enum ProductType {
   ACCOUNT = "ACCOUNT",
   CARD = "CARD",
@@ -68,7 +70,7 @@ export interface Loan {
   current_installment: number
   interest_rate: number
   loan_amount: number
-  next_payment_date: string
+  next_payment_date?: string | null
   principal_outstanding: number
   principal_paid: number
   interest_type: InterestType
@@ -103,6 +105,12 @@ export interface FundPortfolio {
   market_value?: number | null
 }
 
+export enum AssetType {
+  EQUITY = "EQUITY",
+  FIXED_INCOME = "FIXED_INCOME",
+  OTHER = "OTHER",
+}
+
 export interface FundDetail {
   id: string
   name: string
@@ -112,6 +120,7 @@ export interface FundDetail {
   initial_investment: number
   average_buy_price: number
   market_value: number
+  asset_type?: AssetType | null
   currency: string
   portfolio?: FundPortfolio | null
 }
@@ -306,7 +315,7 @@ export type ProductPositions = Record<ProductType, ProductPosition>
 export interface EntitySummary {
   id: string
   name: string
-  is_real: boolean
+  origin: EntityOrigin
 }
 
 export interface GlobalPosition {

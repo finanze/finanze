@@ -51,7 +51,7 @@ class SheetsServiceLoader(SheetsInitiator):
         client_config = _client_config(credentials)
 
         flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-        creds = flow.run_local_server(port=0)
+        creds = flow.run_local_server(port=0, timeout_seconds=180)
 
         with open(token_path, "w") as token:
             token.write(creds.to_json())

@@ -4,6 +4,7 @@ from uuid import UUID
 from domain.entity import (
     CredentialType,
     Entity,
+    EntityOrigin,
     EntitySetupLoginType,
     EntityType,
     Feature,
@@ -16,8 +17,9 @@ from domain.external_integration import ExternalIntegrationId
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
     name="MyInvestor",
+    natural_id="BACAESMM",
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=6),
@@ -30,9 +32,10 @@ MY_INVESTOR = NativeFinancialEntity(
 UNICAJA = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000002"),
     name="Unicaja",
+    natural_id="UCJAES2M",
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
-    features=[Feature.POSITION],
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.MANUAL,
     credentials_template={
         "user": CredentialType.ID,
@@ -44,8 +47,9 @@ UNICAJA = NativeFinancialEntity(
 TRADE_REPUBLIC = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000003"),
     name="Trade Republic",
+    natural_id="TRBKDEBB",
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=4),
@@ -58,8 +62,9 @@ TRADE_REPUBLIC = NativeFinancialEntity(
 URBANITAE = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000004"),
     name="Urbanitae",
+    natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
@@ -71,8 +76,9 @@ URBANITAE = NativeFinancialEntity(
 WECITY = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000005"),
     name="Wecity",
+    natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=6),
@@ -85,8 +91,9 @@ WECITY = NativeFinancialEntity(
 SEGO = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000006"),
     name="SEGO",
+    natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     pin=PinDetails(positions=6),
@@ -99,8 +106,9 @@ SEGO = NativeFinancialEntity(
 MINTOS = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000007"),
     name="Mintos",
+    natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
     setup_login_type=EntitySetupLoginType.MANUAL,
     credentials_template={
@@ -113,8 +121,9 @@ MINTOS = NativeFinancialEntity(
 F24 = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000008"),
     name="Freedom24",
+    natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
+    origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={
@@ -126,11 +135,29 @@ F24 = NativeFinancialEntity(
 INDEXA_CAPITAL = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000009"),
     name="Indexa Capital",
+    natural_id=None,
     type=EntityType.FINANCIAL_INSTITUTION,
-    is_real=True,
-    features=[Feature.POSITION],
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     credentials_template={"token": CredentialType.API_TOKEN},
+)
+
+ING = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000010"),
+    name="ING",
+    natural_id="INGDESMM",
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    setup_login_type=EntitySetupLoginType.MANUAL,
+    credentials_template={
+        "genomaCookie": CredentialType.INTERNAL_TEMP,
+        "genomaSessionId": CredentialType.INTERNAL_TEMP,
+        "apiCookie": CredentialType.INTERNAL_TEMP,
+        "apiAuth": CredentialType.INTERNAL_TEMP,
+        "apiExtendedSessionCtx": CredentialType.INTERNAL_TEMP,
+    },
 )
 
 
@@ -143,8 +170,9 @@ def _create_crypto_entity(
     return NativeCryptoWalletEntity(
         id=UUID(f"c0000000-0000-0000-0000-000000000{num:03d}"),
         name=name,
+        natural_id=None,
         type=EntityType.CRYPTO_WALLET,
-        is_real=True,
+        origin=EntityOrigin.NATIVE,
         features=features,
         required_external_integrations=required_external_integrations,
     )
@@ -163,8 +191,9 @@ BSC = _create_crypto_entity(
 COMMODITIES = Entity(
     id=UUID("ccccdddd-0000-0000-0000-000000000000"),
     name="Commodity Source",
+    natural_id=None,
     type=EntityType.COMMODITY,
-    is_real=True,
+    origin=EntityOrigin.INTERNAL,
 )
 
 NATIVE_ENTITIES = [
@@ -177,6 +206,7 @@ NATIVE_ENTITIES = [
     MINTOS,
     F24,
     INDEXA_CAPITAL,
+    ING,
     BITCOIN,
     ETHEREUM,
     LITECOIN,

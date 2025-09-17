@@ -22,6 +22,7 @@ import {
 import type { Feature } from "@/types"
 import { useI18n } from "@/i18n"
 import { motion } from "framer-motion"
+import { formatTimeAgo } from "@/lib/timeUtils"
 
 export function FeatureSelector() {
   const {
@@ -103,27 +104,44 @@ export function FeatureSelector() {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            {availableFeatures.map(feature => (
-              <motion.div
-                key={feature}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <Button
-                  variant={
-                    selectedFeatures.includes(feature) ? "default" : "outline"
-                  }
-                  className="w-full h-20 flex flex-col justify-center items-center gap-2"
-                  onClick={() => toggleFeature(feature)}
+            {availableFeatures.map(feature => {
+              // Determine last fetch string for this feature
+              const lastFetchRaw = selectedEntity.last_fetch?.[feature]
+              let lastFetchDisplay: string = t.common.never
+              if (lastFetchRaw && lastFetchRaw.trim() !== "") {
+                const date = new Date(lastFetchRaw)
+                if (!isNaN(date.getTime())) {
+                  lastFetchDisplay = formatTimeAgo(date, t)
+                }
+              }
+
+              return (
+                <motion.div
+                  key={feature}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 >
-                  {selectedFeatures.includes(feature) && (
-                    <CheckCircle className="absolute top-2 right-2 h-4 w-4" />
-                  )}
-                  {featureIcons[feature]}
-                  <span>{t.features[feature]}</span>
-                </Button>
-              </motion.div>
-            ))}
+                  <Button
+                    variant={
+                      selectedFeatures.includes(feature) ? "default" : "outline"
+                    }
+                    className="w-full h-24 flex flex-col justify-center items-center gap-1 relative"
+                    onClick={() => toggleFeature(feature)}
+                  >
+                    {selectedFeatures.includes(feature) && (
+                      <CheckCircle className="absolute top-2 right-2 h-4 w-4" />
+                    )}
+                    {featureIcons[feature]}
+                    <span className="text-sm font-medium">
+                      {t.features[feature]}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">
+                      {lastFetchDisplay}
+                    </span>
+                  </Button>
+                </motion.div>
+              )
+            })}
           </div>
 
           <div className="flex justify-center">

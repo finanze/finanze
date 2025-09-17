@@ -13,7 +13,7 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
       <div
         ref={ref}
         className={cn(
-          "fixed bottom-4 right-4 z-50 flex max-w-md items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:slide-in-from-top-full data-[state=open]:slide-in-from-right-full data-[state=closed]:slide-out-to-right-full backdrop-blur-sm",
+          "fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex max-w-md items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:slide-in-from-top-full data-[state=open]:slide-in-from-right-full data-[state=closed]:slide-out-to-right-full backdrop-blur-sm",
           {
             "success group border-green-200 bg-green-50 text-green-900 dark:bg-green-900 dark:border-green-800 dark:text-green-100":
               variant === "success",

@@ -24,6 +24,7 @@
 class TRDetails:
     DATA_TYPES = [
         "stockDetails",
+        "mutualFundDetails",
         "neonNews",
         "ticker",
         "performance",
@@ -38,6 +39,7 @@ class TRDetails:
         self.ticker = None
         self.neon_news = None
         self.stock_details = None
+        self.fund_details = None
 
         self._tr = tr
         self._isin = isin
@@ -46,6 +48,8 @@ class TRDetails:
         recv = 0
         if "stockDetails" in data:
             await self._tr.stock_details(self._isin)
+        if "mutualFundDetails" in data:
+            await self._tr.subscribe({"type": "mutualFundDetails", "id": self._isin})
         if "neonNews" in data:
             await self._tr.news(self._isin)
         # await self.tr.subscribe_news(self.isin)
@@ -69,6 +73,12 @@ class TRDetails:
             if "stockDetails" in data and subscription["type"] == "stockDetails":
                 recv += 1
                 self.stock_details = response
+            elif (
+                "mutualFundDetails" in data
+                and subscription["type"] == "mutualFundDetails"
+            ):
+                recv += 1
+                self.fund_details = response
             elif "neonNews" in data and subscription["type"] == "neonNews":
                 recv += 1
                 self.neon_news = response

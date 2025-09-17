@@ -1,3 +1,6 @@
+from enum import Enum
+from typing import Optional
+
 from domain.external_integration import ExternalIntegrationId
 
 
@@ -59,8 +62,15 @@ class TooManyRequests(Exception):
     pass
 
 
+class IntegrationSetupErrorCode(str, Enum):
+    UNKNOWN = "UNKNOWN"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+
+
 class IntegrationSetupError(Exception):
-    pass
+    def __init__(self, code: IntegrationSetupErrorCode):
+        self.code = code
+        super().__init__()
 
 
 class RealEstateNotFound(Exception):
@@ -76,3 +86,27 @@ class ExportException(Exception):
         self.details = details
         message = f"Error while exporting data: {details}"
         super().__init__(message)
+
+
+class ExternalEntityLinkExpired(Exception):
+    pass
+
+
+class ExternalEntityFailed(Exception):
+    pass
+
+
+class ExternalEntityLinkError(Exception):
+    def __init__(
+        self, orphan_external_entity: bool = False, details: Optional[str] = None
+    ):
+        self.orphan_external_entity = orphan_external_entity
+        self.details = details
+
+
+class ExternalEntityNotFound(Exception):
+    pass
+
+
+class ProviderInstitutionNotFound(Exception):
+    pass

@@ -11,6 +11,7 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    AssetType,
     Card,
     Cards,
     CardType,
@@ -67,13 +68,13 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
                 str(loan.interest_rate),
                 loan.interest_type,
                 str(loan.loan_amount),
-                loan.next_payment_date.isoformat(),
+                loan.next_payment_date.isoformat() if loan.next_payment_date else None,
                 str(loan.principal_outstanding),
-                str(loan.principal_paid),
+                str(loan.principal_paid) if loan.principal_paid else None,
                 str(loan.euribor_rate) if loan.euribor_rate else None,
                 str(loan.fixed_years) if loan.fixed_years else None,
-                loan.creation.isoformat() if loan.creation else None,
-                loan.maturity.isoformat() if loan.maturity else None,
+                loan.creation.isoformat(),
+                loan.maturity.isoformat(),
                 str(loan.unpaid) if loan.unpaid else None,
             ),
         )
@@ -328,19 +329,20 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
             """
             INSERT INTO fund_positions (id, global_position_id, name, isin, market,
                                         shares, initial_investment, average_buy_price,
-                                        market_value, currency, portfolio_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        market_value, asset_type, currency, portfolio_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
                 str(position.id),
                 detail.name,
                 detail.isin,
-                detail.market,
+                detail.market if detail.market else None,
                 str(detail.shares),
                 str(detail.initial_investment),
                 str(detail.average_buy_price),
                 str(detail.market_value),
+                detail.asset_type if detail.asset_type else None,
                 detail.currency,
                 str(detail.portfolio.id) if detail.portfolio else None,
             ),
@@ -462,10 +464,11 @@ class PositionSQLRepository(PositionPort):
                                             WHERE is_real = TRUE
                                             GROUP BY entity_id)
                   SELECT gp.*,
-                         e.name    AS entity_name,
-                         e.id      AS entity_id,
-                         e.type    as entity_type,
-                         e.is_real AS entity_is_real
+                         e.id         AS entity_id,
+                         e.name       AS entity_name,
+                         e.natural_id AS entity_natural_id,
+                         e.type       as entity_type,
+                         e.origin     as entity_origin
                   FROM global_positions gp
                            JOIN latest_positions lp
                                 ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
@@ -497,8 +500,9 @@ class PositionSQLRepository(PositionPort):
             entity = Entity(
                 id=UUID(row["entity_id"]),
                 name=row["entity_name"],
+                natural_id=row["entity_natural_id"],
                 type=row["entity_type"],
-                is_real=row["entity_is_real"],
+                origin=row["entity_origin"],
             )
 
             position = GlobalPosition(
@@ -531,10 +535,11 @@ class PositionSQLRepository(PositionPort):
                                             WHERE gp.is_real = FALSE
                                             GROUP BY gp.entity_id)
                   SELECT gp.*,
-                         e.name    AS entity_name,
-                         e.id      AS entity_id,
-                         e.type    AS entity_type,
-                         e.is_real AS entity_is_real
+                         e.name       AS entity_name,
+                         e.id         AS entity_id,
+                         e.natural_id AS entity_natural_id,
+                         e.type       AS entity_type,
+                         e.origin     AS entity_origin
                   FROM global_positions gp
                            JOIN latest_positions lp
                                 ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
@@ -548,10 +553,8 @@ class PositionSQLRepository(PositionPort):
                 placeholders = ", ".join("?" for _ in query.entities)
                 conditions.append(f"gp.entity_id IN ({placeholders})")
                 params.extend([str(e) for e in query.entities])
-            if query and query.excluded_entities:
-                placeholders = ", ".join("?" for _ in query.excluded_entities)
-                conditions.append(f"gp.entity_id NOT IN ({placeholders})")
-                params.extend([str(e) for e in query.excluded_entities])
+            # We don't handle excluded_entities, as we use it to exclude dangling real data, but we are fetching
+            # only non-real data here
 
             if conditions:
                 sql += " AND " + " AND ".join(conditions)
@@ -641,19 +644,19 @@ class PositionSQLRepository(PositionPort):
                     loan_amount=Dezimal(row["loan_amount"]),
                     next_payment_date=datetime.fromisoformat(
                         row["next_payment_date"]
-                    ).date(),
+                    ).date()
+                    if row["next_payment_date"]
+                    else None,
                     principal_outstanding=Dezimal(row["principal_outstanding"]),
-                    principal_paid=Dezimal(row["principal_paid"]),
+                    principal_paid=Dezimal(row["principal_paid"])
+                    if row["principal_paid"]
+                    else None,
                     euribor_rate=Dezimal(row["euribor_rate"])
                     if row["euribor_rate"]
                     else None,
                     fixed_years=int(row["fixed_years"]) if row["fixed_years"] else None,
-                    creation=datetime.fromisoformat(row["creation"]).date()
-                    if row["creation"]
-                    else None,
-                    maturity=datetime.fromisoformat(row["maturity"]).date()
-                    if row["maturity"]
-                    else None,
+                    creation=datetime.fromisoformat(row["creation"]).date(),
+                    maturity=datetime.fromisoformat(row["maturity"]).date(),
                     unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
                 )
                 for row in cursor
@@ -762,11 +765,14 @@ class PositionSQLRepository(PositionPort):
                     id=UUID(row["id"]),
                     name=row["name"],
                     isin=row["isin"],
-                    market=row["market"],
+                    market=row["market"] if row["market"] else None,
                     shares=Dezimal(row["shares"]),
                     initial_investment=Dezimal(row["initial_investment"]),
                     average_buy_price=Dezimal(row["average_buy_price"]),
                     market_value=Dezimal(row["market_value"]),
+                    asset_type=AssetType[row["asset_type"]]
+                    if row["asset_type"]
+                    else None,
                     currency=row["currency"],
                     portfolio=FundPortfolio(
                         id=UUID(row["portfolio_id"]),

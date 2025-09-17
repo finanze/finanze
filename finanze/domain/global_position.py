@@ -85,16 +85,25 @@ class Loan(BaseData):
     current_installment: Dezimal
     interest_rate: Dezimal
     loan_amount: Dezimal
-    next_payment_date: date
+    creation: date
+    maturity: date
     principal_outstanding: Dezimal
-    principal_paid: Dezimal
+    principal_paid: Optional[Dezimal] = None
     interest_type: InterestType = InterestType.FIXED
+    next_payment_date: Optional[date] = None
     euribor_rate: Optional[Dezimal] = None
     fixed_years: Optional[int] = None
     name: Optional[str] = None
-    creation: Optional[date] = None
-    maturity: Optional[date] = None
     unpaid: Optional[Dezimal] = None
+
+    def __post_init__(self):
+        self.principal_paid = self.loan_amount - self.principal_outstanding
+
+
+class AssetType(str, Enum):
+    EQUITY = "EQUITY"
+    FIXED_INCOME = "FIXED_INCOME"
+    OTHER = "OTHER"
 
 
 @dataclass
@@ -129,12 +138,13 @@ class FundDetail(BaseData):
     id: UUID
     name: str
     isin: str
-    market: str
+    market: Optional[str]
     shares: Dezimal
     initial_investment: Dezimal
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
+    asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
 
 

@@ -14,6 +14,7 @@ from domain.use_cases.get_contributions import GetContributions
 _contrib_freq_delta_map = {
     ContributionFrequency.MONTHLY: relativedelta(months=1),
     ContributionFrequency.BIMONTHLY: relativedelta(months=2),
+    ContributionFrequency.EVERY_FOUR_MONTHS: relativedelta(months=4),
     ContributionFrequency.QUARTERLY: relativedelta(months=3),
     ContributionFrequency.SEMIANNUAL: relativedelta(months=6),
     ContributionFrequency.YEARLY: relativedelta(years=1),
@@ -29,7 +30,7 @@ def _next_contribution_date(pc: PeriodicContribution) -> date | None:
     next_date: date | None = None
 
     if since_date > today:
-        next_date = since_date
+        return since_date
 
     if pc.frequency in (ContributionFrequency.WEEKLY, ContributionFrequency.BIWEEKLY):
         weeks_interval = 2 if pc.frequency == ContributionFrequency.BIWEEKLY else 1

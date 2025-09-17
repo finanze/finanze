@@ -22,6 +22,7 @@ from domain.fetch_record import FetchRecord
 from domain.global_position import Commodities, Commodity, GlobalPosition, ProductType
 from domain.native_entities import COMMODITIES
 from domain.use_cases.save_commodities import SaveCommodities
+from domain.dezimal import Dezimal
 
 
 class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
@@ -97,6 +98,9 @@ class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
             commodity_register_dict["average_buy_price"] = round(avg_buy_price, 4)
 
         exchange_rate = self._metal_price_provider.get_price(commodity_register.type)
+        if exchange_rate is None:
+            commodity_register_dict["market_value"] = initial_investment or Dezimal("0")
+            return Commodity(**commodity_register_dict, id=uuid4())
 
         amount = commodity_register.amount
         if exchange_rate.unit != commodity_register.unit:

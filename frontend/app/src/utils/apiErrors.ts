@@ -29,7 +29,9 @@ export async function handleApiError(response: Response): Promise<never> {
   }
 
   let genericCode = "UNEXPECTED_ERROR"
-  if (response.status === 409) {
+  if (response.status === 401) {
+    genericCode = "UNAUTHORIZED"
+  } else if (response.status === 409) {
     genericCode = "CONFLICT_ERROR"
   } else if (response.status === 429) {
     genericCode = "TOO_MANY_REQUESTS"

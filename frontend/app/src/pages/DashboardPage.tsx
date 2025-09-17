@@ -631,6 +631,16 @@ export default function DashboardPage() {
     exchangeRates,
     settings,
   )
+  // Asset presence flags for conditional forecast inputs
+  const hasMarketAssets = useMemo(
+    () =>
+      stockAndFundPositions.some(
+        p => p.type === "FUND" || p.type === "STOCK_ETF",
+      ),
+    [stockAndFundPositions],
+  )
+  const hasCryptoAssets = cryptoPositions.length > 0
+  const hasCommodityAssets = commodityPositions.length > 0
   const recentTransactions = getRecentTransactions(
     transactions,
     locale,
@@ -1451,55 +1461,67 @@ export default function DashboardPage() {
                     placeholder={t.forecast.targetDate}
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium flex items-center justify-between">
-                    <span>{t.forecast.avgAnnualIncrease}</span>
-                    <span className="text-[10px] text-muted-foreground">%</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={forecastAnnualIncrease}
-                    onChange={e => setForecastAnnualIncrease(e.target.value)}
-                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
-                    placeholder="0.0"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium flex items-center justify-between">
-                    <span>{t.forecast.avgAnnualCryptoIncrease}</span>
-                    <span className="text-[10px] text-muted-foreground">%</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={forecastAnnualCryptoIncrease}
-                    onChange={e =>
-                      setForecastAnnualCryptoIncrease(e.target.value)
-                    }
-                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
-                    placeholder="0.0"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium flex items-center justify-between">
-                    <span>{t.forecast.avgAnnualCommodityIncrease}</span>
-                    <span className="text-[10px] text-muted-foreground">%</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={forecastAnnualCommodityIncrease}
-                    onChange={e =>
-                      setForecastAnnualCommodityIncrease(e.target.value)
-                    }
-                    className="w-full h-9 px-2 rounded-md border bg-background text-sm"
-                    placeholder="0.0"
-                  />
-                </div>
+                {hasMarketAssets && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium flex items-center justify-between">
+                      <span>{t.forecast.avgAnnualIncrease}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        %
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={forecastAnnualIncrease}
+                      onChange={e => setForecastAnnualIncrease(e.target.value)}
+                      className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                      placeholder="0.0"
+                    />
+                  </div>
+                )}
+                {hasCryptoAssets && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium flex items-center justify-between">
+                      <span>{t.forecast.avgAnnualCryptoIncrease}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        %
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={forecastAnnualCryptoIncrease}
+                      onChange={e =>
+                        setForecastAnnualCryptoIncrease(e.target.value)
+                      }
+                      className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                      placeholder="0.0"
+                    />
+                  </div>
+                )}
+                {hasCommodityAssets && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium flex items-center justify-between">
+                      <span>{t.forecast.avgAnnualCommodityIncrease}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        %
+                      </span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={forecastAnnualCommodityIncrease}
+                      onChange={e =>
+                        setForecastAnnualCommodityIncrease(e.target.value)
+                      }
+                      className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                      placeholder="0.0"
+                    />
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   {forecastMode && (
                     <Button
@@ -2049,7 +2071,7 @@ export default function DashboardPage() {
                   {!forecastMode && upcomingEventsData.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
                       <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
-                      <p>-</p>
+                      <p>{t.dashboard.noUpcomingFlows}</p>
                     </div>
                   )}
                   {!forecastMode && upcomingEventsData.length > 0 && (
@@ -3302,10 +3324,16 @@ export default function DashboardPage() {
                                         className={`text-sm font-semibold ${
                                           tx.displayType === "in"
                                             ? "text-green-600 dark:text-green-400"
-                                            : undefined
+                                            : tx.type === TxType.FEE
+                                              ? "text-red-600 dark:text-red-400"
+                                              : undefined
                                         }`}
                                       >
-                                        {tx.displayType === "in" ? "+" : ""}
+                                        {tx.displayType === "in"
+                                          ? "+"
+                                          : tx.type === TxType.FEE
+                                            ? "-"
+                                            : ""}
                                         {tx.formattedAmount}
                                       </p>
                                     </div>

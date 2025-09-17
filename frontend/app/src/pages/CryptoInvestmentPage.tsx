@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from "react"
+import React, { useMemo, useState, useCallback, useRef } from "react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
@@ -6,10 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
-import {
-  InvestmentDistributionChart,
-  InvestmentDistributionLegend,
-} from "@/components/InvestmentDistributionChart"
+import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { formatCurrency, formatPercentage } from "@/lib/formatters"
 import { calculateCryptoValue } from "@/utils/financialDataUtils"
 import { ProductType, CryptoCurrencyWallet } from "@/types/position"
@@ -34,6 +31,8 @@ export default function CryptoInvestmentPage() {
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null)
+  const symbolRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const [highlightedAsset, setHighlightedAsset] = useState<string | null>(null)
 
   // Helper function to get crypto display name
   const getCryptoDisplayName = useCallback(
@@ -172,13 +171,23 @@ export default function CryptoInvestmentPage() {
 
   // Filter wallets based on selected entities
   const filteredCryptoWallets = useMemo(() => {
-    if (selectedEntities.length === 0) {
-      return allCryptoWallets
-    }
-    return allCryptoWallets.filter(item =>
-      selectedEntities.includes(item.entity.id),
-    )
-  }, [allCryptoWallets, selectedEntities])
+    const base =
+      selectedEntities.length === 0
+        ? allCryptoWallets
+        : allCryptoWallets.filter(item =>
+            selectedEntities.includes(item.entity.id),
+          )
+    // sort entities by total value desc
+    return [...base]
+      .sort((a, b) => b.totalValue - a.totalValue)
+      .map(group => ({
+        ...group,
+        // ensure wallets inside each group are sorted desc by wallet total value
+        wallets: [...group.wallets].sort(
+          (a, b) => getTotalWalletValue(b) - getTotalWalletValue(a),
+        ),
+      }))
+  }, [allCryptoWallets, selectedEntities, getTotalWalletValue])
 
   // Get entity options for the filter
   const entityOptions: MultiSelectOption[] = useMemo(() => {
@@ -399,108 +408,111 @@ export default function CryptoInvestmentPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* KPI Cards Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Market Value Card */}
-            <Card className="flex-shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.cryptoInvestments}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex justify-between items-baseline">
-                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  {totalInitialInvestment > 0 &&
-                    (() => {
-                      const percentageValue =
-                        ((totalValue - totalInitialInvestment) /
-                          totalInitialInvestment) *
-                        100
-                      const sign = percentageValue >= 0 ? "+" : "-"
-                      return (
-                        <p
-                          className={`text-sm font-medium ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                        >
-                          {sign}
-                          {formatPercentage(Math.abs(percentageValue), locale)}
-                        </p>
-                      )
-                    })()}
-                </div>
-                {totalInitialInvestment > 0 && (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+            <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {t.common.cryptoInvestments}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="flex justify-between items-baseline">
+                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
+                    {totalInitialInvestment > 0 &&
+                      (() => {
+                        const percentageValue =
+                          ((totalValue - totalInitialInvestment) /
+                            totalInitialInvestment) *
+                          100
+                        const sign = percentageValue >= 0 ? "+" : "-"
+                        return (
+                          <p
+                            className={`text-sm font-medium ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                          >
+                            {sign}
+                            {formatPercentage(
+                              Math.abs(percentageValue),
+                              locale,
+                            )}
+                          </p>
+                        )
+                      })()}
+                  </div>
+                  {totalInitialInvestment > 0 && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {t.dashboard.investedAmount}{" "}
+                      {formatCurrency(
+                        totalInitialInvestment,
+                        locale,
+                        settings.general.defaultCurrency,
+                      )}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {t.investments.numberOfAssets}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-2xl font-bold">{totalCryptoAssets}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.dashboard.investedAmount}{" "}
-                    {formatCurrency(
-                      totalInitialInvestment,
-                      locale,
-                      settings.general.defaultCurrency,
+                    {totalCryptoAssets === 1
+                      ? t.investments.asset
+                      : t.investments.assets}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {t.walletManagement.wallets}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-2xl font-bold">
+                    {filteredCryptoWallets.reduce(
+                      (sum, item) => sum + item.wallets.length,
+                      0,
                     )}
                   </p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Number of Assets Card */}
-            <Card className="flex-shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.investments.numberOfAssets}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">{totalCryptoAssets}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {totalCryptoAssets === 1
-                    ? t.investments.asset
-                    : t.investments.assets}
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Number of Wallets Card */}
-            <Card className="flex-shrink-0">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.walletManagement.wallets}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">
-                  {filteredCryptoWallets.reduce(
-                    (sum, item) => sum + item.wallets.length,
-                    0,
-                  )}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {filteredCryptoWallets.reduce(
-                    (sum, item) => sum + item.wallets.length,
-                    0,
-                  ) === 1
-                    ? t.walletManagement.wallet
-                    : t.walletManagement.wallets}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Distribution Chart & Legend */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-            <div className="xl:col-span-2 flex flex-col">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {filteredCryptoWallets.reduce(
+                      (sum, item) => sum + item.wallets.length,
+                      0,
+                    ) === 1
+                      ? t.walletManagement.wallet
+                      : t.walletManagement.wallets}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
               <InvestmentDistributionChart
                 data={chartData}
                 title={t.common.distribution}
                 locale={locale}
                 currency={settings.general.defaultCurrency}
                 hideLegend
-                containerClassName="h-full"
-              />
-            </div>
-            <div className="xl:col-span-1 flex flex-col">
-              <InvestmentDistributionLegend
-                data={chartData}
-                locale={locale}
-                currency={settings.general.defaultCurrency}
+                containerClassName="overflow-visible w-full"
+                variant="bare"
+                onSliceClick={slice => {
+                  const ref = symbolRefs.current[slice.name]
+                  if (ref) {
+                    ref.scrollIntoView({ behavior: "smooth", block: "center" })
+                    setHighlightedAsset(slice.name)
+                    setTimeout(
+                      () =>
+                        setHighlightedAsset(prev =>
+                          prev === slice.name ? null : prev,
+                        ),
+                      1500,
+                    )
+                  }
+                }}
               />
             </div>
           </div>
@@ -633,7 +645,28 @@ export default function CryptoInvestmentPage() {
 
                           {/* Main Crypto */}
                           {wallet.amount > 0 && wallet.symbol !== "N/A" && (
-                            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-3">
+                            <div
+                              className={`p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-3 border-l-4 ${highlightedAsset && highlightedAsset === getCryptoDisplayName(wallet.symbol, wallet.crypto) ? "ring-2 ring-primary" : ""}`}
+                              ref={el => {
+                                const displayName = getCryptoDisplayName(
+                                  wallet.symbol,
+                                  wallet.crypto,
+                                )
+                                if (!symbolRefs.current[displayName])
+                                  symbolRefs.current[displayName] = el
+                              }}
+                              style={{
+                                borderLeftColor:
+                                  chartData.find(
+                                    c =>
+                                      c.name ===
+                                      getCryptoDisplayName(
+                                        wallet.symbol,
+                                        wallet.crypto,
+                                      ),
+                                  )?.color || "transparent",
+                              }}
+                            >
                               <div className="flex items-center justify-between">
                                 <div>
                                   <p className="font-medium">
@@ -702,57 +735,77 @@ export default function CryptoInvestmentPage() {
                                 Tokens ({wallet.tokens.length})
                               </h5>
                               <div className="space-y-2 max-h-40 overflow-y-auto">
-                                {wallet.tokens.map(token => (
-                                  <div
-                                    key={token.id}
-                                    className="flex items-center justify-between p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-6 h-6 flex items-center justify-center">
-                                        <img
-                                          src={`entities/tokens/${token.symbol.toUpperCase()}.png`}
-                                          alt={token.symbol}
-                                          className="w-6 h-6 object-contain"
-                                          onError={e => {
-                                            e.currentTarget.style.display =
-                                              "none"
-                                            const parent =
-                                              e.currentTarget.parentElement
-                                            if (parent) {
-                                              parent.innerHTML = `<div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center"><span class="text-gray-700 dark:text-gray-300 text-xs font-bold">${token.symbol.slice(0, 2)}</span></div>`
-                                            }
-                                          }}
-                                        />
+                                {wallet.tokens.map(token => {
+                                  const displayName = getCryptoDisplayName(
+                                    token.symbol,
+                                    token.name,
+                                  )
+                                  const color =
+                                    chartData.find(c => c.name === displayName)
+                                      ?.color || "transparent"
+                                  const isHighlighted =
+                                    highlightedAsset === displayName
+                                  return (
+                                    <div
+                                      key={token.id}
+                                      ref={el => {
+                                        if (!symbolRefs.current[displayName])
+                                          symbolRefs.current[displayName] = el
+                                      }}
+                                      className={`flex items-center justify-between p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded border-l-4 ${isHighlighted ? "ring-2 ring-primary" : ""}`}
+                                      // force min border width for visibility in dense layouts
+                                      style={{
+                                        borderLeftColor: color,
+                                        borderLeftWidth: 6,
+                                      }}
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 flex items-center justify-center">
+                                          <img
+                                            src={`entities/tokens/${token.symbol.toUpperCase()}.png`}
+                                            alt={token.symbol}
+                                            className="w-6 h-6 object-contain"
+                                            onError={e => {
+                                              e.currentTarget.style.display =
+                                                "none"
+                                              const parent =
+                                                e.currentTarget.parentElement
+                                              if (parent) {
+                                                parent.innerHTML = `<div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center"><span class="text-gray-700 dark:text-gray-300 text-xs font-bold">${token.symbol.slice(0, 2)}</span></div>`
+                                              }
+                                            }}
+                                          />
+                                        </div>
+                                        <div>
+                                          <p className="text-sm font-medium">
+                                            {getCryptoDisplayName(
+                                              token.symbol,
+                                              token.name,
+                                            )}
+                                          </p>
+                                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                                            {token.amount.toLocaleString()}{" "}
+                                            {token.symbol}
+                                          </p>
+                                        </div>
                                       </div>
-                                      <div>
+                                      <div className="text-right">
                                         <p className="text-sm font-medium">
-                                          {getCryptoDisplayName(
-                                            token.symbol,
-                                            token.name,
+                                          {formatCurrency(
+                                            calculateCryptoValue(
+                                              token.amount,
+                                              token.symbol,
+                                              settings.general.defaultCurrency,
+                                              exchangeRates,
+                                            ),
+                                            locale,
+                                            settings.general.defaultCurrency,
                                           )}
                                         </p>
-                                        <p className="text-xs text-gray-600 dark:text-gray-400">
-                                          {token.amount.toLocaleString()}{" "}
-                                          {token.symbol}
-                                        </p>
                                       </div>
                                     </div>
-                                    <div className="text-right">
-                                      <p className="text-sm font-medium">
-                                        {formatCurrency(
-                                          calculateCryptoValue(
-                                            token.amount,
-                                            token.symbol,
-                                            settings.general.defaultCurrency,
-                                            exchangeRates,
-                                          ),
-                                          locale,
-                                          settings.general.defaultCurrency,
-                                        )}
-                                      </p>
-                                    </div>
-                                  </div>
-                                ))}
+                                  )
+                                })}
                               </div>
                             </div>
                           )}

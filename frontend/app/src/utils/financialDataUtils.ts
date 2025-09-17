@@ -44,8 +44,11 @@ export const calculateCryptoValue = (
   targetCurrency: string,
   exchangeRates: ExchangeRates,
 ): number => {
-  if (!exchangeRates || !amount || amount <= 0) {
+  if (!amount || amount <= 0) {
     return 0
+  }
+  if (!exchangeRates) {
+    return amount
   }
 
   if (exchangeRates[targetCurrency] && exchangeRates[targetCurrency][symbol]) {
@@ -56,7 +59,7 @@ export const calculateCryptoValue = (
   console.warn(
     `No exchange rate found for cryptocurrency ${symbol} -> ${targetCurrency}`,
   )
-  return 0
+  return amount
 }
 
 export const calculateCommodityValue = (
@@ -66,8 +69,11 @@ export const calculateCommodityValue = (
   exchangeRates: ExchangeRates,
   unit: WeightUnit = WeightUnit.TROY_OUNCE,
 ): number => {
-  if (!exchangeRates || !amount || amount <= 0) {
+  if (!amount || amount <= 0) {
     return 0
+  }
+  if (!exchangeRates) {
+    return amount
   }
 
   // Convert amount to troy ounces since market prices are in troy ounces
@@ -85,7 +91,7 @@ export const calculateCommodityValue = (
   console.warn(
     `No exchange rate found for commodity ${symbol} -> ${targetCurrency}`,
   )
-  return 0
+  return amount
 }
 
 export const convertWeight = (
@@ -121,6 +127,11 @@ export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
       TxType.SUBSCRIPTION,
       TxType.SWAP_FROM,
       TxType.SWAP_TO,
+      TxType.TRANSFER_OUT,
+      TxType.SWITCH_FROM,
+      TxType.SWITCH_TO,
+      TxType.TRANSFER_IN,
+      TxType.FEE,
     ].includes(txType)
   ) {
     return "out"
@@ -158,6 +169,7 @@ export interface StockFundPosition {
   symbol: string
   name: string
   portfolioName?: string | null
+  assetType?: string | null
   shares: number
   price: number
   value: number
@@ -1742,6 +1754,7 @@ export const getStockAndFundPositions = (
           symbol: "",
           name: fund.name,
           portfolioName: fund.portfolio?.name || null,
+          assetType: fund.asset_type || null,
           shares: fund.shares || 0,
           price: fund.average_buy_price || 0,
           value: convertedValue, // Use converted value
@@ -2250,6 +2263,10 @@ export const getRecentTransactions = (
   const groupedTxs: Record<string, GroupedTransaction[]> = {}
 
   transactions.transactions
+    // Filter out internal switch operations (not user-facing)
+    .filter(
+      tx => tx.type !== TxType.SWITCH_FROM && tx.type !== TxType.SWITCH_TO,
+    )
     .map(tx => ({
       date: tx.date,
       description: tx.name,
@@ -2482,7 +2499,8 @@ export const calculateInvestmentDistribution = (
     "#06b6d4",
   ]
   data.forEach((item, index) => {
-    item.color = colors[index]
+    // Cycle through colors to avoid undefined when there are more slices than palette length
+    item.color = colors[index % colors.length]
   })
 
   return data
