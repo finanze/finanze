@@ -77,7 +77,11 @@ export default function TransactionsPage() {
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     return (
       entities
-        ?.filter(entity => "TRANSACTIONS" in entity.last_fetch)
+        ?.filter(
+          entity =>
+            "TRANSACTIONS" in entity.last_fetch ||
+            "TRANSACTIONS" in entity.virtual_features,
+        )
         .map(entity => ({
           value: entity.id,
           label: entity.name,

@@ -242,7 +242,7 @@
     "AUTO_CONTRIBUTIONS": "Contribuciones Automáticas",
     "TRANSACTIONS": "Transacciones",
     "HISTORIC": "Datos Históricos",
-    "selectFeatures": "Seleccionar que descargar de",
+    "selectFeatures": "Seleccionar que datos obtener de",
     "selectAll": "Seleccionar todas",
     "fetchSelected": "Obtener datos seleccionados",
     "deepScrape": "Forzar extracción completa",

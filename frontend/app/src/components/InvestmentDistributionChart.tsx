@@ -33,7 +33,6 @@ interface InvestmentDistributionChartProps {
   titleIcon?: React.ReactNode
   onSliceClick?: (item: ChartDataItem) => void
   variant?: "default" | "bare"
-  // Optional inner donut (e.g., by asset type) - values should add up to total of outer data
   innerData?: {
     name: string
     value: number
@@ -42,6 +41,7 @@ interface InvestmentDistributionChartProps {
     isGap?: boolean
   }[]
   onInnerSliceClick?: (item: any) => void
+  maxOuterRadius?: number
 }
 
 const RADIAN = Math.PI / 180
@@ -53,17 +53,14 @@ const renderCustomizedLabel = ({
   outerRadius,
   percent,
 }: any) => {
-  if (percent < 0.03) return null // Don't show labels for slices smaller than 3%
-
+  if (percent < 0.03) return null
   const percentage = percent * 100
   const isLargeSegment = percentage >= 15
   const radius = isLargeSegment
-    ? innerRadius + (outerRadius - innerRadius) * 0.35 // More inner
-    : innerRadius + (outerRadius - innerRadius) * 1.25 // Outside
-
+    ? innerRadius + (outerRadius - innerRadius) * 0.35
+    : innerRadius + (outerRadius - innerRadius) * 1.25
   const x = cx + radius * Math.cos(-midAngle * RADIAN)
   const y = cy + radius * Math.sin(-midAngle * RADIAN)
-
   return (
     <text
       x={x}
@@ -117,18 +114,15 @@ export const InvestmentDistributionChart: React.FC<
   variant = "default",
   innerData,
   onInnerSliceClick,
+  maxOuterRadius = 170,
 }) => {
   const { t } = useI18n()
   const [activeInnerIndex, setActiveInnerIndex] = useState<number>(-1)
-  // Bare variant (no card) dynamic sizing branch
+
   if (variant === "bare") {
     if (!data || data.length === 0) {
       return (
         <div className={`flex flex-col justify-center ${containerClassName}`}>
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 px-2">
-            {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
-            {title}
-          </h3>
           <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
             {t.common.noDataAvailable}
           </div>
@@ -136,34 +130,50 @@ export const InvestmentDistributionChart: React.FC<
       )
     }
     const wrapperRef = useRef<HTMLDivElement | null>(null)
-    const [size, setSize] = useState({ width: 0, height: 0 })
+    const chartAreaRef = useRef<HTMLDivElement | null>(null)
+    const [size, setSize] = useState({ width: 0 })
+    const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
     useEffect(() => {
       if (!wrapperRef.current) return
-      const obs = new ResizeObserver(entries => {
-        for (const entry of entries) {
-          const { width, height } = entry.contentRect
-          if (width || height) setSize({ width, height })
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          if (e.contentRect.width) setSize({ width: e.contentRect.width })
         }
       })
-      obs.observe(wrapperRef.current)
-      return () => obs.disconnect()
+      ro.observe(wrapperRef.current)
+      return () => ro.disconnect()
     }, [])
-    const chartSide = Math.min(size.width, size.height || 480)
-    // Subtract extra space so the donut never gets visually clipped (top/bottom) and leave room for stroke + labels
-    // Leave a bit more vertical room for outside percentage labels
-    const outerRadius = Math.max(Math.min(chartSide / 2 - 52, 250), 90)
+    useEffect(() => {
+      if (!chartAreaRef.current) return
+      const ro = new ResizeObserver(entries => {
+        for (const e of entries) {
+          const { width, height } = e.contentRect
+          if (width || height) setChartSize({ width, height })
+        }
+      })
+      ro.observe(chartAreaRef.current)
+      return () => ro.disconnect()
+    }, [])
+    const effectiveWidth = size.width || 600
+    const effectiveHeight = chartSize.height || 420
+    const limitingSide = Math.min(effectiveWidth, effectiveHeight)
+    const computed = limitingSide / 2 - 42
+    const outerRadius = Math.max(Math.min(computed, maxOuterRadius), 100)
     const innerRadius = Math.round(outerRadius * 0.62)
     return (
       <div
-        className={`relative flex justify-center ${containerClassName}`}
         ref={wrapperRef}
+        className={`relative flex justify-center ${containerClassName}`}
       >
-        <div className="w-full flex flex-col">
+        <div className="w-full flex flex-col max-w-[640px] mx-auto">
           <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 px-4 pt-2">
             {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
             {title}
           </h3>
-          <div className="flex-1 min-h-[360px] h-[400px] sm:h-[460px] xl:h-[520px] 2xl:h-[600px] flex items-center justify-center p-0">
+          <div
+            ref={chartAreaRef}
+            className="flex-1 min-h-[360px] h-[420px] flex items-center justify-center p-0 overflow-visible"
+          >
             <ResponsiveContainer width="100%" height="100%">
               <PieChart style={{ userSelect: "none" }}>
                 {innerData &&
@@ -293,8 +303,7 @@ export const InvestmentDistributionChart: React.FC<
             {innerData &&
               innerData.length > 0 &&
               (() => {
-                const mainOuterInnerRadius =
-                  innerData && innerData.length > 0 ? 75 : 70
+                const mainOuterInnerRadius = innerData.length > 0 ? 75 : 70
                 const ringOuter = mainOuterInnerRadius - 18
                 const ringThickness = 5
                 const ringInner = ringOuter - ringThickness

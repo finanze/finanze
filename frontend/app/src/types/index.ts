@@ -49,7 +49,7 @@ export interface Entity {
   last_fetch: Record<Feature, string>
   required_external_integrations?: string[]
   external_entity_id?: string | null
-  has_manual_data: boolean
+  virtual_features: Record<Feature, string>
 }
 
 export enum EntitySetupLoginType {
