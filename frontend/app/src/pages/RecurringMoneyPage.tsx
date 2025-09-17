@@ -32,6 +32,7 @@ import {
   Check,
   Link2,
   AlertTriangle,
+  PiggyBank,
 } from "lucide-react"
 import {
   Popover,
@@ -71,6 +72,9 @@ export default function RecurringMoneyPage() {
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [showContributions, setShowContributions] = useState(true)
+  // When category filter is active we suppress contributions per requirement
+  const effectiveShowContributions =
+    showContributions && categoryFilter.length === 0
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
     amount: 0,
@@ -161,7 +165,7 @@ export default function RecurringMoneyPage() {
 
     // Monthly contributions (active only) if enabled
     let monthlyContributions = 0
-    if (showContributions && contributions) {
+    if (effectiveShowContributions && contributions) {
       Object.values(contributions).forEach(group => {
         if (!group?.periodic) return
         group.periodic.forEach(c => {
@@ -186,7 +190,7 @@ export default function RecurringMoneyPage() {
       })
     }
     return { monthlyEarnings, monthlyExpenses, monthlyContributions }
-  }, [periodicFlows, categoryFilter, contributions, showContributions])
+  }, [periodicFlows, categoryFilter, contributions, effectiveShowContributions])
 
   // Utilization badge color scale (starts warm >55%)
   const getUtilizationBadgeClasses = (percent: number) => {
@@ -314,7 +318,7 @@ export default function RecurringMoneyPage() {
     const totalExpensesBase = monthlyAmounts.monthlyExpenses
     const totalContributions = monthlyAmounts.monthlyContributions
     const totalExpenses =
-      totalExpensesBase + (showContributions ? totalContributions : 0)
+      totalExpensesBase + (effectiveShowContributions ? totalContributions : 0)
     const totalAmount = totalEarnings + totalExpenses
 
     // Convert to arrays with percentages
@@ -346,9 +350,14 @@ export default function RecurringMoneyPage() {
       totalEarnings,
       totalExpenses, // includes contributions when toggle on
       totalAmount,
-      contributionsAmount: showContributions ? totalContributions : 0,
+      contributionsAmount: effectiveShowContributions ? totalContributions : 0,
     }
-  }, [periodicFlows, monthlyAmounts, categoryFilter, showContributions])
+  }, [
+    periodicFlows,
+    monthlyAmounts,
+    categoryFilter,
+    effectiveShowContributions,
+  ])
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
@@ -1069,7 +1078,7 @@ export default function RecurringMoneyPage() {
                       })}
                       {(() => {
                         if (
-                          !showContributions ||
+                          !effectiveShowContributions ||
                           monthlyAmounts.monthlyContributions <= 0
                         )
                           return null
@@ -1271,19 +1280,22 @@ export default function RecurringMoneyPage() {
           </button>
         </div>
 
-        <div className="flex items-center gap-4 ml-auto">
+        <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
           <Button
             size="sm"
-            variant={showContributions ? "default" : "outline"}
+            variant={effectiveShowContributions ? "default" : "outline"}
             onClick={() => setShowContributions(s => !s)}
             className={cn(
-              "h-8 px-3 text-xs font-medium",
-              showContributions
+              "h-8 px-2 text-xs font-medium flex items-center justify-center flex-shrink-0",
+              effectiveShowContributions
                 ? "bg-cyan-600 hover:bg-cyan-600/90 dark:bg-cyan-500 dark:hover:bg-cyan-500/90"
                 : "",
             )}
+            aria-label={t.management.contributionsShort}
+            title={t.management.contributionsShort}
           >
-            {t.management.contributionsShort}
+            <PiggyBank className="h-4 w-4" />
+            <span className="sr-only">{t.management.contributionsShort}</span>
           </Button>
           <span className="text-sm text-muted-foreground">
             {t.management.category}
@@ -1292,7 +1304,7 @@ export default function RecurringMoneyPage() {
             options={categoryOptions}
             value={categoryFilter}
             onChange={setCategoryFilter}
-            className="min-w-[220px]"
+            className="min-w-[140px] sm:min-w-[180px] md:min-w-[220px] flex-grow max-w-full"
           />
         </div>
       </div>

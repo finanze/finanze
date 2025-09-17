@@ -530,6 +530,14 @@
       "COMMODITY": "Commodity",
       "PENDING_FLOWS": "Pending"
     },
+    "assetType": {
+      "EQUITY": "Equity",
+      "FIXED_INCOME": "Fixed Income",
+      "OTHER": "Other"
+    },
+    "kpis": {
+      "assetTypeSplit": "Asset Type Split"
+    },
     "commodityType": {
       "GOLD": "Gold",
       "SILVER": "Silver",

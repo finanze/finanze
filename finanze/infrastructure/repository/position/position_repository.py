@@ -11,6 +11,7 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    AssetType,
     Card,
     Cards,
     CardType,
@@ -328,8 +329,8 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
             """
             INSERT INTO fund_positions (id, global_position_id, name, isin, market,
                                         shares, initial_investment, average_buy_price,
-                                        market_value, currency, portfolio_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        market_value, asset_type, currency, portfolio_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -341,6 +342,7 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
                 str(detail.initial_investment),
                 str(detail.average_buy_price),
                 str(detail.market_value),
+                detail.asset_type if detail.asset_type else None,
                 detail.currency,
                 str(detail.portfolio.id) if detail.portfolio else None,
             ),
@@ -768,6 +770,9 @@ class PositionSQLRepository(PositionPort):
                     initial_investment=Dezimal(row["initial_investment"]),
                     average_buy_price=Dezimal(row["average_buy_price"]),
                     market_value=Dezimal(row["market_value"]),
+                    asset_type=AssetType[row["asset_type"]]
+                    if row["asset_type"]
+                    else None,
                     currency=row["currency"],
                     portfolio=FundPortfolio(
                         id=UUID(row["portfolio_id"]),

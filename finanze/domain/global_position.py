@@ -103,6 +103,7 @@ class Loan(BaseData):
 class AssetType(str, Enum):
     EQUITY = "EQUITY"
     FIXED_INCOME = "FIXED_INCOME"
+    OTHER = "OTHER"
 
 
 @dataclass
@@ -143,6 +144,7 @@ class FundDetail(BaseData):
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
+    asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
 
 

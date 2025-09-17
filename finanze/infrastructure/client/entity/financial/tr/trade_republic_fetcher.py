@@ -18,6 +18,7 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    AssetType,
     FundDetail,
     FundInvestments,
     GlobalPosition,
@@ -120,7 +121,15 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             ticker = details.stock_details["company"]["tickerSymbol"]
 
         elif type_id == "MUTUALFUND":
-            name = instrument["name"]
+            fund_details = details.fund_details
+            name = fund_details["name"]
+            fund_type = fund_details["fundType"].lower()
+            asset_type = None
+            if "equity" in fund_type:
+                asset_type = AssetType.EQUITY
+            elif "bond" in fund_type:
+                asset_type = AssetType.FIXED_INCOME
+
             return FundDetail(
                 id=uuid4(),
                 name=name,
@@ -130,6 +139,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 initial_investment=initial_investment,
                 average_buy_price=average_buy,
                 market_value=market_value,
+                asset_type=asset_type,
                 currency=currency,
             )
 

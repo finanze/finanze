@@ -36,6 +36,7 @@ from domain.global_position import (
     ProductType,
     StockDetail,
     StockInvestments,
+    AssetType,
 )
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
@@ -873,6 +874,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         if fund_investments:
             for fund in fund_investments["investmentList"]:
                 isin = fund.get("isin")
+                fund_details = self._client.get_fund_details(isin)
+                raw_asset_type = fund_details.get("assetType")
+                asset_type = None
+                if raw_asset_type == "VARIABLE_INCOME":
+                    asset_type = AssetType.EQUITY
+                elif raw_asset_type == "FIXED_INCOME":
+                    asset_type = AssetType.FIXED_INCOME
 
                 fund_list.append(
                     FundDetail(
@@ -888,6 +896,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                             4,
                         ),  # averageCost
                         market_value=round(Dezimal(fund["marketValue"]), 4),
+                        asset_type=asset_type,
                         currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
                         portfolio=FundPortfolio(id=portfolio_id)
                         if portfolio_id

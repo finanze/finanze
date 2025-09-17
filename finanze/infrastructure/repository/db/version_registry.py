@@ -56,6 +56,9 @@ from infrastructure.repository.db.versions.v0.v05.v050_3_fund_portfolio_txs impo
 from infrastructure.repository.db.versions.v0.v05.v050_4_fund_market_nullable import (
     V0504,
 )
+from infrastructure.repository.db.versions.v0.v05.v050_5_add_fund_asset_type import (
+    V0505,
+)
 
 versions = [
     V0Genesis(),
@@ -84,4 +87,5 @@ versions = [
     V0502(),
     V0503FundPortfolioTxs(),
     V0504(),
+    V0505(),
 ]

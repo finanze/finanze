@@ -165,7 +165,9 @@ class TradeRepublicClient:
         return portfolio
 
     async def get_details(
-        self, isin: str, types: list = ["stockDetails", "instrument"]
+        self,
+        isin: str,
+        types: list = ["stockDetails", "mutualFundDetails", "instrument"],
     ):
         details = TRDetails(self._tr_api, isin)
         await details.fetch(types)
@@ -242,6 +244,12 @@ class TradeRepublicClient:
 
     async def ticker(self, isin, exchange):
         await self._tr_api.ticker(isin, exchange=exchange)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_fund_details(self, isin):
+        await self._tr_api.subscribe({"type": "mutualFundDetails", "id": isin})
         subscription_id, _, response = await self._tr_api.recv()
         await self._tr_api.unsubscribe(subscription_id)
         return response

@@ -105,6 +105,12 @@ export interface FundPortfolio {
   market_value?: number | null
 }
 
+export enum AssetType {
+  EQUITY = "EQUITY",
+  FIXED_INCOME = "FIXED_INCOME",
+  OTHER = "OTHER",
+}
+
 export interface FundDetail {
   id: string
   name: string
@@ -114,6 +120,7 @@ export interface FundDetail {
   initial_investment: number
   average_buy_price: number
   market_value: number
+  asset_type?: AssetType | null
   currency: string
   portfolio?: FundPortfolio | null
 }

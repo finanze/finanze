@@ -169,6 +169,7 @@ export interface StockFundPosition {
   symbol: string
   name: string
   portfolioName?: string | null
+  assetType?: string | null
   shares: number
   price: number
   value: number
@@ -1753,6 +1754,7 @@ export const getStockAndFundPositions = (
           symbol: "",
           name: fund.name,
           portfolioName: fund.portfolio?.name || null,
+          assetType: fund.asset_type || null,
           shares: fund.shares || 0,
           price: fund.average_buy_price || 0,
           value: convertedValue, // Use converted value

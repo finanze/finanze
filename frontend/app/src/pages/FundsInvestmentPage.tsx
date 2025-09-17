@@ -15,7 +15,7 @@ import {
   calculateInvestmentDistribution,
   convertCurrency,
 } from "@/utils/financialDataUtils"
-import { ProductType } from "@/types/position"
+import { ProductType, AssetType } from "@/types/position"
 import {
   ArrowLeft,
   TrendingUp,
@@ -26,6 +26,17 @@ import {
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
+
+// Local color classes for fund asset types (fund.assigns asset_type)
+// Pastel background colors matching inner donut palette
+const ASSET_CLASS_COLOR_BG: Record<string, string> = {
+  [AssetType.EQUITY]:
+    "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+  [AssetType.FIXED_INCOME]:
+    "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [AssetType.OTHER]:
+    "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+}
 
 export default function FundsInvestmentPage() {
   const { t, locale } = useI18n()
@@ -121,6 +132,45 @@ export default function FundsInvestmentPage() {
     }))
     return calculateInvestmentDistribution(mappedPositions, "symbol")
   }, [filteredFundPositions])
+
+  // Inner donut (asset class split)
+  const assetTypeInnerData = useMemo(() => {
+    if (!filteredFundPositions.length) return []
+    const agg: Record<string, number> = {}
+    let gapTotal = 0
+    filteredFundPositions.forEach(p => {
+      if (!p.assetType) {
+        gapTotal += p.value || 0
+      } else {
+        agg[p.assetType] = (agg[p.assetType] || 0) + (p.value || 0)
+      }
+    })
+    const total = Object.values(agg).reduce((a, b) => a + b, 0) + gapTotal
+    const pastel = {
+      [AssetType.EQUITY]: "#ff7b7bff", // red-200
+      [AssetType.FIXED_INCOME]: "#7db7ffff", // blue-200
+      [AssetType.OTHER]: "#80ffacff", // green-200
+    } as Record<string, string>
+    const slices = Object.entries(agg).map(([k, v]) => ({
+      name: (t.enums?.assetType as any)?.[k] || k,
+      value: v,
+      color: pastel[k] || "#e5e7eb",
+      percentage: total > 0 ? (v / total) * 100 : 0,
+      rawType: k,
+    }))
+    if (gapTotal > 0) {
+      // Represent gap as transparent slice; include in percentage math
+      slices.push({
+        name: "", // no label
+        value: gapTotal,
+        color: "transparent",
+        percentage: total > 0 ? (gapTotal / total) * 100 : 0,
+        rawType: "__GAP__",
+        isGap: true,
+      } as any)
+    }
+    return slices
+  }, [filteredFundPositions, t.enums])
 
   const totalInitialInvestment = useMemo(() => {
     return filteredFundPositions.reduce((sum, position) => {
@@ -227,7 +277,7 @@ export default function FundsInvestmentPage() {
                   options={portfolioOptions}
                   value={selectedPortfolios}
                   onChange={setSelectedPortfolios}
-                  placeholder={(t.investments as any).portfolio || "Portfolio"}
+                  placeholder={(t.investments as any).portfolio}
                 />
               </div>
             )}
@@ -306,6 +356,43 @@ export default function FundsInvestmentPage() {
                   )}
                 </CardContent>
               </Card>
+              {assetTypeInnerData.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                      {t.enums?.kpis?.assetTypeSplit}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    {(() => {
+                      const equity =
+                        assetTypeInnerData.find(
+                          d => d.rawType === AssetType.EQUITY,
+                        )?.percentage || 0
+                      const fixed =
+                        assetTypeInnerData.find(
+                          d => d.rawType === AssetType.FIXED_INCOME,
+                        )?.percentage || 0
+                      return (
+                        <div>
+                          <p className="text-2xl font-bold">
+                            {Math.round(equity)}/{Math.round(fixed)}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {(t.enums?.assetType as any)?.[AssetType.EQUITY]}
+                            {" / "}
+                            {
+                              (t.enums?.assetType as any)?.[
+                                AssetType.FIXED_INCOME
+                              ]
+                            }
+                          </p>
+                        </div>
+                      )
+                    })()}
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -335,6 +422,7 @@ export default function FundsInvestmentPage() {
                 containerClassName="overflow-visible w-full"
                 variant="bare"
                 onSliceClick={handleSliceClick}
+                innerData={assetTypeInnerData}
               />
             </div>
           </div>
@@ -401,6 +489,15 @@ export default function FundsInvestmentPage() {
                               >
                                 {position.portfolioName}
                               </button>
+                            )}
+                            {position.assetType && (
+                              <span
+                                className={`text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium ${ASSET_CLASS_COLOR_BG[position.assetType] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"}`}
+                              >
+                                {(t.enums?.assetType as any)?.[
+                                  position.assetType
+                                ] || position.assetType}
+                              </span>
                             )}
                           </div>
                         </div>

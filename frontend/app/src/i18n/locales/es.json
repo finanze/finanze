@@ -529,6 +529,14 @@
       "COMMODITY": "Materia Prima",
       "PENDING_FLOWS": "Pendiente"
     },
+    "assetType": {
+      "EQUITY": "Renta Variable",
+      "FIXED_INCOME": "Renta Fija",
+      "OTHER": "Otro"
+    },
+    "kpis": {
+      "assetTypeSplit": "Distribución por tipo"
+    },
     "commodityType": {
       "GOLD": "Oro",
       "SILVER": "Plata",

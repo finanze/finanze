@@ -11,6 +11,7 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    AssetType,
     FundDetail,
     FundInvestments,
     FundPortfolio,
@@ -84,10 +85,10 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                 for pos in positions:
                     market_value = Dezimal(pos.get("amount", 0))
                     instrument = pos.get("instrument", {})
-                    asset_type = instrument.get("asset_class")
+                    raw_asset_type = instrument.get("asset_class")
 
                     # Treat explicit cash instrument differently (current API seems to provide only investable assets)
-                    if asset_type == "cash_euro":
+                    if raw_asset_type == "cash_euro":
                         retained_cash += market_value
                         continue
 
@@ -109,6 +110,12 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     except Exception:
                         continue
 
+                    asset_type = None
+                    if "equity" in raw_asset_type:
+                        asset_type = AssetType.EQUITY
+                    elif "fixed" in raw_asset_type:
+                        asset_type = AssetType.FIXED_INCOME
+
                     fund_details.append(
                         FundDetail(
                             id=uuid4(),
@@ -119,6 +126,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                             initial_investment=initial_investment,
                             average_buy_price=price,
                             market_value=market_value,
+                            asset_type=asset_type,
                             currency=account_currency,
                             portfolio=FundPortfolio(id=fund_portfolio_id),
                         )
