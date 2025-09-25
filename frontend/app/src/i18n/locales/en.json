@@ -342,7 +342,8 @@
     "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
     "goCardlessInfoMiddle": ", then navigate to ",
     "goCardlessInfoUserSecrets": "Developers > User secrets",
-    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials."
+    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials.",
+    "goCardlessHelpButton": "How to get these credentials?"
   },
   "dashboard": {
     "title": "Dashboard",

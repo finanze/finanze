@@ -340,7 +340,8 @@
     "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
     "goCardlessInfoMiddle": ", luego ve a ",
     "goCardlessInfoUserSecrets": "Desarrolladores > User secrets",
-    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales."
+    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales.",
+    "goCardlessHelpButton": "¿Cómo obtengo estas credenciales?"
   },
   "dashboard": {
     "title": "Panel Principal",

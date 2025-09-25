@@ -121,6 +121,8 @@ export default function SettingsPage() {
     etherscan: false,
     goCardless: false,
   })
+  // Track which integration card should receive a temporary highlight
+  const [highlighted, setHighlighted] = useState<string | null>(null)
 
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
@@ -192,6 +194,20 @@ export default function SettingsPage() {
     fetchSettings()
     fetchExternalIntegrations()
   }, [])
+
+  // When arriving with a focus query param (e.g. focus=gocardless) expand & highlight section
+  useEffect(() => {
+    const focus = searchParams.get("focus")
+    if (focus === "gocardless") {
+      // Ensure correct tab selected
+      if (activeTab !== "integrations") setActiveTab("integrations")
+      // Expand GoCardless
+      setExpandedSections(prev => ({ ...prev, goCardless: true }))
+      setHighlighted("gocardless")
+      const timer = setTimeout(() => setHighlighted(null), 3500)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams, activeTab])
 
   // Auto-disable export and virtual settings when Google Sheets integration is disabled
   useEffect(() => {
@@ -1901,7 +1917,14 @@ export default function SettingsPage() {
             </Card>
 
             {/* GoCardless Integration */}
-            <Card>
+            <Card
+              id="gocardless-integration-card"
+              className={cn(
+                highlighted === "gocardless"
+                  ? "ring-2 ring-yellow-500 animate-pulse"
+                  : undefined,
+              )}
+            >
               <CardHeader>
                 <div
                   className="flex items-center justify-between cursor-pointer"
@@ -1945,18 +1968,28 @@ export default function SettingsPage() {
               {expandedSections.goCardless && (
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <div className="flex items-center space-x-1">
-                      <Label htmlFor="gocardless-secret-id">
-                        {(t.settings as any).goCardlessSecretId}
-                      </Label>
+                    <Label
+                      htmlFor="gocardless-secret-id"
+                      className="flex items-center justify-between w-full"
+                    >
+                      <span>{(t.settings as any).goCardlessSecretId}</span>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button type="button">
-                            <Info className="h-4 w-4 text-muted-foreground" />
-                          </button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                            className="ml-2 flex items-center gap-1 h-6 px-2 py-0 text-xs"
+                          >
+                            <Info className="h-3 w-3" />
+                            <span className="text-xs">
+                              {(t.settings as any).goCardlessHelpButton ||
+                                "Help"}
+                            </span>
+                          </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-72 p-2 space-y-1 text-sm">
-                          <p>
+                        <PopoverContent className="w-80 p-3 space-y-1 text-sm">
+                          <p className="leading-relaxed">
                             {(t.settings as any).goCardlessInfoPrefix}
                             <a
                               href="https://bankaccountdata.gocardless.com"
@@ -1979,7 +2012,7 @@ export default function SettingsPage() {
                           </p>
                         </PopoverContent>
                       </Popover>
-                    </div>
+                    </Label>
                     <Input
                       id="gocardless-secret-id"
                       type="text"

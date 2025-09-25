@@ -825,7 +825,9 @@ export default function EntityIntegrationsPage() {
                                   size="sm"
                                   className="w-full mt-4"
                                   onClick={() =>
-                                    navigate("/settings?tab=integrations")
+                                    navigate(
+                                      "/settings?tab=integrations&focus=gocardless",
+                                    )
                                   }
                                 >
                                   <Settings className="mr-2 h-3 w-3" />
