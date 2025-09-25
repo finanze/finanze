@@ -28,3 +28,7 @@ class ExternalEntityPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def delete_by_id(self, ee_id: UUID):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_all(self) -> list[ExternalEntity]:
+        raise NotImplementedError

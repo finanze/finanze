@@ -44,7 +44,10 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
         provider = self._external_entity_fetchers[self.DEFAULT_PROVIDER]
 
         setup_entities = self._entity_port.get_all()
-        setup_entities_natural_ids = {e.natural_id for e in setup_entities}
+        setup_entities_by_natural_ids = {e.natural_id: e for e in setup_entities}
+        setup_external_entities_entity_ids = {
+            ee.entity_id for ee in self._external_entity_port.get_all()
+        }
 
         provider.setup(
             external_entity_provider_integrations_from_config(
@@ -52,7 +55,14 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
             ),
         )
 
-        candidates = await provider.get_entities(country=request.country)
-        candidates = [c for c in candidates if c.bic not in setup_entities_natural_ids]
+        all_candidates = await provider.get_entities(country=request.country)
+        filtered_candidates = []
+        for candidate in all_candidates:
+            entity_by_natural_id = setup_entities_by_natural_ids.get(candidate.bic)
+            if (
+                not entity_by_natural_id
+                or entity_by_natural_id.id not in setup_external_entities_entity_ids
+            ):
+                filtered_candidates.append(candidate)
 
-        return ExternalEntityCandidates(entities=candidates)
+        return ExternalEntityCandidates(entities=filtered_candidates)
