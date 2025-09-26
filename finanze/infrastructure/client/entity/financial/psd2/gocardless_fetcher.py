@@ -214,6 +214,9 @@ class GoCardlessFetcher(ExternalEntityFetcher):
             currency = None
             total_amount = Dezimal("0")
             balance = None
+
+            self._log.info(balances)
+
             for b in balances.get("balances", []):
                 btype = b.get("balanceType")
                 if btype == "forwardAvailable":
@@ -229,7 +232,7 @@ class GoCardlessFetcher(ExternalEntityFetcher):
 
             currency = currency or base_currency
             if not currency:
-                self._log.error("Account without currency", extra=balance)
+                self._log.error("Account without currency", extra=details)
                 continue
 
             account = Account(
