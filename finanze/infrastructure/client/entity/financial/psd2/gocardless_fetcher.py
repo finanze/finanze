@@ -197,7 +197,7 @@ class GoCardlessFetcher(ExternalEntityFetcher):
             if not enabled:
                 continue
             iban = account_info.get("iban")
-            currency = account_info.get("currency")
+            base_currency = account_info.get("currency")
             name = account_info.get("name") or account_info.get("displayName")
             cat = (account_info.get("cashAccountType") or "CACC").upper()
             type_map = {
@@ -211,13 +211,26 @@ class GoCardlessFetcher(ExternalEntityFetcher):
             }
             acc_type = type_map.get(cat, AccountType.CHECKING)
 
+            currency = None
             total_amount = Dezimal("0")
+            balance = None
             for b in balances.get("balances", []):
                 btype = b.get("balanceType")
                 if btype == "forwardAvailable":
                     continue
 
-                total_amount = b.get("balanceAmount", {}).get("amount")
+                balance = b.get("balanceAmount", {})
+                total_amount = balance.get("amount")
+                currency = balance.get("currency")
+
+            if not balance:
+                self._log.error("Account doesn't have balance details", extra=details)
+                continue
+
+            currency = currency or base_currency
+            if not currency:
+                self._log.error("Account without currency", extra=balance)
+                continue
 
             account = Account(
                 id=uuid4(),
