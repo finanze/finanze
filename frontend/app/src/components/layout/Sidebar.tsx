@@ -22,10 +22,8 @@ import {
   ChevronUp,
   ArrowLeftRight,
   Blocks,
-  Banknote,
   User,
   CalendarCog,
-  Home,
   CalendarSync,
   HandCoins,
   PiggyBank,
@@ -40,15 +38,17 @@ import {
 import type { Locale } from "@/i18n"
 import { PlatformType } from "@/types"
 import { ProductType } from "@/types/position"
-import { getAvailableInvestmentTypes } from "@/utils/financialDataUtils"
+// Removed dynamic filtering for assets; all asset subsections always visible
 import { getIconForProductType } from "@/utils/dashboardUtils"
+import { usePinnedAssets } from "@/context/PinnedAssetsContext"
 
 export function Sidebar() {
   const { t, locale, changeLocale } = useI18n()
   const { theme, setThemeMode } = useTheme()
   const { logout, startPasswordChange } = useAuth()
   const { platform } = useAppContext()
-  const { positionsData } = useFinancialData()
+  useFinancialData() // still invoke to keep data fetching side-effects if any
+  const { pinnedAssets } = usePinnedAssets()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -67,64 +67,59 @@ export function Sidebar() {
     return location.pathname.startsWith("/management")
   })
 
-  // Get available investment types for the user
-  const availableInvestmentTypes = useMemo(() => {
-    return getAvailableInvestmentTypes(positionsData)
-  }, [positionsData])
-
-  const investmentRoutes = useMemo(() => {
-    const routes = []
-
-    if (availableInvestmentTypes.includes(ProductType.STOCK_ETF)) {
-      routes.push({
+  const investmentRoutes = useMemo(
+    () => [
+      {
+        path: "/banking",
+        label: t.banking.title,
+        productType: ProductType.ACCOUNT,
+        key: "banking",
+      },
+      {
         path: "/investments/stocks-etfs",
         label: t.common.stocksEtfs,
         productType: ProductType.STOCK_ETF,
-      })
-    }
-
-    if (availableInvestmentTypes.includes(ProductType.FUND)) {
-      routes.push({
+        key: "stocks-etfs",
+      },
+      {
         path: "/investments/funds",
         label: t.common.fundsInvestments,
         productType: ProductType.FUND,
-      })
-    }
-
-    if (availableInvestmentTypes.includes(ProductType.DEPOSIT)) {
-      routes.push({
+        key: "funds",
+      },
+      {
         path: "/investments/deposits",
         label: t.common.depositsInvestments,
         productType: ProductType.DEPOSIT,
-      })
-    }
-
-    if (availableInvestmentTypes.includes(ProductType.FACTORING)) {
-      routes.push({
+        key: "deposits",
+      },
+      {
         path: "/investments/factoring",
         label: t.common.factoringInvestments,
         productType: ProductType.FACTORING,
-      })
-    }
-
-    if (availableInvestmentTypes.includes(ProductType.REAL_ESTATE_CF)) {
-      routes.push({
+        key: "factoring",
+      },
+      {
         path: "/investments/real-estate-cf",
         label: t.common.realEstateCfInvestments,
         productType: ProductType.REAL_ESTATE_CF,
-      })
-    }
-
-    if (availableInvestmentTypes.includes(ProductType.CRYPTO)) {
-      routes.push({
+        key: "real-estate-cf",
+      },
+      {
         path: "/investments/crypto",
         label: t.common.cryptoInvestments,
         productType: ProductType.CRYPTO,
-      })
-    }
-
-    return routes
-  }, [availableInvestmentTypes, t.common])
+        key: "crypto",
+      },
+      {
+        path: "/real-estate",
+        label: t.realEstate.title,
+        productType: ProductType.REAL_ESTATE,
+        key: "real-estate",
+      },
+    ],
+    [t],
+  )
 
   const managementRoutes = [
     {
@@ -172,16 +167,7 @@ export function Sidebar() {
       label: t.common.dashboard,
       icon: <LayoutDashboard size={20} />,
     },
-    {
-      path: "/banking",
-      label: t.banking.title,
-      icon: <Banknote size={20} />,
-    },
-    {
-      path: "/real-estate",
-      label: t.realEstate.title,
-      icon: <Home size={20} />,
-    },
+    // Banking & Real Estate now inside assets section (and can be pinned)
     {
       path: "/transactions",
       label: t.common.transactions,
@@ -286,7 +272,33 @@ export function Sidebar() {
               </Button>
             </li>
 
-            {/* Investments Section */}
+            {/* Pinned assets */}
+            {pinnedAssets.map(p => {
+              const item = investmentRoutes.find(r => r.key === p)
+              if (!item) return null
+              return (
+                <li key={`pinned-${p}`}>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "w-full rounded-none h-12",
+                      collapsed ? "justify-center" : "justify-start",
+                      location.pathname === item.path
+                        ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                        : "hover:bg-gray-200 dark:hover:bg-gray-900",
+                    )}
+                    onClick={() => navigate(item.path)}
+                  >
+                    <span className="flex items-center">
+                      {getIconForProductType(item.productType, "h-4 w-4")}
+                      {!collapsed && <span className="ml-3">{item.label}</span>}
+                    </span>
+                  </Button>
+                </li>
+              )
+            })}
+
+            {/* Assets Section */}
             {investmentRoutes.length > 0 && (
               <li>
                 <Button
@@ -294,9 +306,24 @@ export function Sidebar() {
                   className={cn(
                     "w-full rounded-none h-12",
                     collapsed ? "justify-center" : "justify-between",
-                    location.pathname.startsWith("/investments")
-                      ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                      : "hover:bg-gray-200 dark:hover:bg-gray-900",
+                    (() => {
+                      const isAssetPath =
+                        location.pathname.startsWith("/investments") ||
+                        location.pathname.startsWith("/banking") ||
+                        location.pathname.startsWith("/real-estate")
+                      if (!isAssetPath)
+                        return "hover:bg-gray-200 dark:hover:bg-gray-900"
+                      // If current route is a pinned asset root path, don't highlight section
+                      const pinnedRouteMatch = investmentRoutes.find(
+                        r =>
+                          pinnedAssets.includes(r.key as any) &&
+                          location.pathname === r.path,
+                      )
+                      if (pinnedRouteMatch) {
+                        return "hover:bg-gray-200 dark:hover:bg-gray-900"
+                      }
+                      return "bg-gray-200 dark:bg-gray-900 text-primary"
+                    })(),
                   )}
                   onClick={() => {
                     const isOnInvestmentsSubpage =
@@ -316,7 +343,9 @@ export function Sidebar() {
                   <span className="flex items-center">
                     <TrendingUp size={20} />
                     {!collapsed && (
-                      <span className="ml-3">{t.common.investments}</span>
+                      <span className="ml-3">
+                        {t.common.myAssets || t.common.investments}
+                      </span>
                     )}
                   </span>
                   {!collapsed && investmentRoutes.length > 0 && (
@@ -330,27 +359,32 @@ export function Sidebar() {
                   )}
                 </Button>
 
-                {/* Investment Subsections */}
+                {/* Asset Subsections (exclude pinned to avoid duplication) */}
                 {!collapsed && investmentsExpanded && (
                   <ul className="mt-1 space-y-1">
-                    {investmentRoutes.map(route => (
-                      <li key={route.path}>
-                        <Button
-                          variant="ghost"
-                          className={cn(
-                            "w-full rounded-none h-10 pl-6",
-                            "text-sm justify-start",
-                            location.pathname === route.path
-                              ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                              : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
-                          )}
-                          onClick={() => navigate(route.path)}
-                        >
-                          {getIconForProductType(route.productType, "h-4 w-4")}
-                          <span className="ml-2">{route.label}</span>
-                        </Button>
-                      </li>
-                    ))}
+                    {investmentRoutes
+                      .filter(r => !pinnedAssets.includes(r.key as any))
+                      .map(route => (
+                        <li key={route.path}>
+                          <Button
+                            variant="ghost"
+                            className={cn(
+                              "w-full rounded-none h-10 pl-6",
+                              "text-sm justify-start",
+                              location.pathname === route.path
+                                ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                                : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
+                            )}
+                            onClick={() => navigate(route.path)}
+                          >
+                            {getIconForProductType(
+                              route.productType,
+                              "h-4 w-4",
+                            )}
+                            <span className="ml-2">{route.label}</span>
+                          </Button>
+                        </li>
+                      ))}
                   </ul>
                 )}
               </li>

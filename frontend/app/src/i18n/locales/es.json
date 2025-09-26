@@ -23,6 +23,7 @@
     "transactions": "Transacciones",
     "entities": "Integraciones",
     "investments": "Inversiones",
+    "myAssets": "Mis Activos",
     "stocksEtfs": "Acciones y ETFs",
     "fundsInvestments": "Fondos",
     "depositsInvestments": "Depósitos",
@@ -74,7 +75,11 @@
     "close": "Cerrar",
     "download": "Descargar",
     "viewRelease": "Ver versión",
-    "remindLater": "Recordar después"
+    "remindLater": "Recordar después",
+    "pin": "Fijar",
+    "unpin": "Quitar",
+    "pinAsset": "Fijar activo",
+    "unpinAsset": "Quitar activo"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",

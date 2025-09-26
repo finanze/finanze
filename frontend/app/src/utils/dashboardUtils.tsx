@@ -68,6 +68,7 @@ export function getIconForAssetType(
     case "DEPOSIT":
       return <Landmark className={`${size} ${color ?? "text-purple-500"}`} />
     case "CASH":
+    case "ACCOUNT":
       return <Banknote className={`${size} ${color ?? "text-gray-500"}`} />
     case "CROWDLENDING":
       return <Coins className={`${size} ${color ?? "text-pink-500"}`} />

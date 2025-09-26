@@ -49,6 +49,7 @@
     "transactions": "Transactions",
     "accounts": "Accounts",
     "investments": "Investments",
+    "myAssets": "My Assets",
     "stocksEtfs": "Stocks & ETFs",
     "fundsInvestments": "Funds",
     "depositsInvestments": "Deposits",
@@ -76,7 +77,11 @@
     "close": "Close",
     "download": "Download",
     "viewRelease": "View Release",
-    "remindLater": "Remind Me Later"
+    "remindLater": "Remind Me Later",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinAsset": "Pin asset",
+    "unpinAsset": "Unpin asset"
   },
   "release": {
     "newVersionAvailable": "New Version Available",

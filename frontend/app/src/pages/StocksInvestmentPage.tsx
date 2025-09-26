@@ -18,6 +18,7 @@ import {
 } from "@/utils/financialDataUtils"
 import { ProductType } from "@/types/position"
 import { ArrowLeft, TrendingUp, TrendingDown } from "lucide-react"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 
@@ -163,7 +164,10 @@ export default function StocksInvestmentPage() {
         >
           <ArrowLeft size={20} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.stocksEtfs}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t.common.stocksEtfs}</h1>
+          <PinAssetButton assetId="stocks-etfs" />
+        </div>
       </div>
 
       {/* Filters */}

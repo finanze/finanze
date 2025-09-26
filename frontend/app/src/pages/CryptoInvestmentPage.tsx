@@ -19,6 +19,7 @@ import {
   Check,
   Pencil,
 } from "lucide-react"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
@@ -332,28 +333,17 @@ export default function CryptoInvestmentPage() {
     try {
       await navigator.clipboard.writeText(address)
       setCopiedAddress(address)
-      setTimeout(() => {
-        setCopiedAddress(null)
-      }, 2000)
-    } catch (error) {
-      console.error("Failed to copy address:", error)
+      setTimeout(() => setCopiedAddress(null), 2000)
+    } catch {
+      /* ignore */
     }
   }
 
   const container = {
     hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
   }
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  }
+  const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }
 
   if (isLoading) {
     return (
@@ -374,7 +364,10 @@ export default function CryptoInvestmentPage() {
           >
             <ArrowLeft size={20} />
           </Button>
-          <h1 className="text-2xl font-bold">{t.common.cryptoInvestments}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{t.common.cryptoInvestments}</h1>
+            <PinAssetButton assetId="crypto" />
+          </div>
         </div>
         <Button
           variant="default"

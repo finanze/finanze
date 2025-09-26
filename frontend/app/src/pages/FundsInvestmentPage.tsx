@@ -26,6 +26,7 @@ import {
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 
 // Local color classes for fund asset types (fund.assigns asset_type)
 // Pastel background colors matching inner donut palette
@@ -252,7 +253,10 @@ export default function FundsInvestmentPage() {
         >
           <ArrowLeft size={20} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.fundsInvestments}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t.common.fundsInvestments}</h1>
+          <PinAssetButton assetId="funds" />
+        </div>
       </div>
 
       {/* Unified Filters Bar */}

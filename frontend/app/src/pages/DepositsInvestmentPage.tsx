@@ -15,6 +15,7 @@ import {
   calculateInvestmentDistribution,
 } from "@/utils/financialDataUtils"
 import { ProductType } from "@/types/position"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { ArrowLeft, Calendar, Percent, TrendingUp } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
@@ -199,7 +200,10 @@ export default function DepositsInvestmentPage() {
         >
           <ArrowLeft size={20} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.deposits}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t.common.deposits}</h1>
+          <PinAssetButton assetId="deposits" />
+        </div>
       </div>
 
       {/* Filters */}

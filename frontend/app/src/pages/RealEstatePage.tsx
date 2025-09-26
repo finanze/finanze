@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
@@ -15,6 +16,7 @@ import {
   Calendar,
   Bed,
   Bath,
+  ArrowLeft,
 } from "lucide-react"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import {
@@ -213,10 +215,20 @@ export default function RealEstatePage() {
     <div className="space-y-6 pb-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {t.realEstate.title}
-          </h1>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/investments")}
+          >
+            <ArrowLeft size={20} />
+          </Button>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {t.realEstate.title}
+            </h1>
+            <PinAssetButton assetId="real-estate" />
+          </div>
         </div>
         <Button
           onClick={handleAddProperty}

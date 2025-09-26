@@ -17,6 +17,7 @@ import {
   formatSnakeCaseToHuman,
 } from "@/utils/financialDataUtils"
 import { ProductType } from "@/types/position"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { ArrowLeft, Calendar, Percent, Building, Clock } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
@@ -251,7 +252,10 @@ export default function RealEstateCFInvestmentPage() {
         >
           <ArrowLeft size={20} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.realEstateCf}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t.common.realEstateCf}</h1>
+          <PinAssetButton assetId="real-estate-cf" />
+        </div>
       </div>
 
       <InvestmentFilters
