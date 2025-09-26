@@ -132,6 +132,13 @@ export function Sidebar() {
         hasData: hasProductEntries(ProductType.CRYPTO),
       },
       {
+        path: "/investments/commodities",
+        label: t.common.commodities,
+        productType: ProductType.COMMODITY,
+        key: "commodities",
+        hasData: hasProductEntries(ProductType.COMMODITY),
+      },
+      {
         path: "/real-estate",
         label: t.realEstate.title,
         productType: ProductType.REAL_ESTATE,
@@ -311,7 +318,7 @@ export function Sidebar() {
                     onClick={() => navigate(item.path)}
                   >
                     <span className="flex items-center">
-                      {getIconForProductType(item.productType, "h-4 w-4")}
+                      {getIconForProductType(item.productType, "h-5 w-5")}
                       {!collapsed && <span className="ml-3">{item.label}</span>}
                     </span>
                   </Button>

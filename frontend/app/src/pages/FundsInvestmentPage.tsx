@@ -36,6 +36,8 @@ const ASSET_CLASS_COLOR_BG: Record<string, string> = {
     "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   [AssetType.FIXED_INCOME]:
     "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [AssetType.MIXED]:
+    "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
   [AssetType.OTHER]:
     "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
 }
@@ -136,42 +138,71 @@ export default function FundsInvestmentPage() {
   }, [filteredFundPositions])
 
   // Inner donut (asset class split)
-  const assetTypeInnerData = useMemo(() => {
-    if (!filteredFundPositions.length) return []
-    const agg: Record<string, number> = {}
-    let gapTotal = 0
-    filteredFundPositions.forEach(p => {
-      if (!p.assetType) {
-        gapTotal += p.value || 0
-      } else {
-        agg[p.assetType] = (agg[p.assetType] || 0) + (p.value || 0)
+  const { assetTypeInnerData, assetTypeSplitPercentages } = useMemo(() => {
+    if (!filteredFundPositions.length) {
+      return {
+        assetTypeInnerData: [],
+        assetTypeSplitPercentages: { equity: 0, fixed: 0 },
       }
+    }
+
+    const totals: Record<string, number> = {}
+    let gapTotal = 0
+
+    filteredFundPositions.forEach(p => {
+      const value = p.value || 0
+      if (value <= 0) return
+      if (!p.assetType) {
+        gapTotal += value
+        return
+      }
+      totals[p.assetType] = (totals[p.assetType] || 0) + value
     })
-    const total = Object.values(agg).reduce((a, b) => a + b, 0) + gapTotal
-    const pastel = {
-      [AssetType.EQUITY]: "#ff7b7bff", // red-200
-      [AssetType.FIXED_INCOME]: "#7db7ffff", // blue-200
-      [AssetType.OTHER]: "#80ffacff", // green-200
-    } as Record<string, string>
-    const slices = Object.entries(agg).map(([k, v]) => ({
-      name: (t.enums?.assetType as any)?.[k] || k,
-      value: v,
-      color: pastel[k] || "#e5e7eb",
-      percentage: total > 0 ? (v / total) * 100 : 0,
-      rawType: k,
+
+    const totalValue =
+      Object.values(totals).reduce((acc, amount) => acc + amount, 0) + gapTotal
+
+    const colorMap: Partial<Record<AssetType, string>> = {
+      [AssetType.EQUITY]: "#ff7b7bff",
+      [AssetType.FIXED_INCOME]: "#7db7ffff",
+      [AssetType.MIXED]: "#d8b4fcff",
+      [AssetType.OTHER]: "#80ffacff",
+    }
+
+    const assetTypeLabels = (t.enums?.assetType || {}) as Record<string, string>
+
+    const slices = Object.entries(totals).map(([rawType, value]) => ({
+      name: assetTypeLabels[rawType] || rawType,
+      value,
+      color: colorMap[rawType as AssetType] || "#e5e7eb",
+      percentage: totalValue > 0 ? (value / totalValue) * 100 : 0,
+      rawType,
     }))
+
     if (gapTotal > 0) {
-      // Represent gap as transparent slice; include in percentage math
       slices.push({
-        name: "", // no label
+        name: "",
         value: gapTotal,
         color: "transparent",
-        percentage: total > 0 ? (gapTotal / total) * 100 : 0,
+        percentage: totalValue > 0 ? (gapTotal / totalValue) * 100 : 0,
         rawType: "__GAP__",
         isGap: true,
       } as any)
     }
-    return slices
+
+    const equityValue = totals[AssetType.EQUITY] || 0
+    const fixedIncomeValue = totals[AssetType.FIXED_INCOME] || 0
+    const splitTotal = equityValue + fixedIncomeValue
+
+    const splitPercentages = {
+      equity: splitTotal > 0 ? (equityValue / splitTotal) * 100 : 0,
+      fixed: splitTotal > 0 ? (fixedIncomeValue / splitTotal) * 100 : 0,
+    }
+
+    return {
+      assetTypeInnerData: slices,
+      assetTypeSplitPercentages: splitPercentages,
+    }
   }, [filteredFundPositions, t.enums])
 
   const totalInitialInvestment = useMemo(() => {
@@ -247,11 +278,7 @@ export default function FundsInvestmentPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/investments")}
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
         <div className="flex items-center gap-2">
@@ -375,14 +402,8 @@ export default function FundsInvestmentPage() {
                   </CardHeader>
                   <CardContent className="pt-0">
                     {(() => {
-                      const equity =
-                        assetTypeInnerData.find(
-                          d => d.rawType === AssetType.EQUITY,
-                        )?.percentage || 0
-                      const fixed =
-                        assetTypeInnerData.find(
-                          d => d.rawType === AssetType.FIXED_INCOME,
-                        )?.percentage || 0
+                      const equity = assetTypeSplitPercentages.equity || 0
+                      const fixed = assetTypeSplitPercentages.fixed || 0
                       return (
                         <div>
                           <p className="text-2xl font-bold">

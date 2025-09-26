@@ -15,6 +15,7 @@ export type AssetId =
   | "factoring"
   | "real-estate-cf"
   | "crypto"
+  | "commodities"
   | "real-estate"
 
 interface PinnedAssetsContextType {
@@ -54,6 +55,7 @@ export const PinnedAssetsProvider = ({
             "factoring",
             "real-estate-cf",
             "crypto",
+            "commodities",
             "real-estate",
           ]).includes(id as AssetId),
         ) as AssetId[]

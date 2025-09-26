@@ -1071,6 +1071,7 @@ export default function DashboardPage() {
         FACTORING: "/investments/factoring",
         REAL_ESTATE_CF: "/investments/real-estate-cf",
         CRYPTO: "/investments/crypto",
+        COMMODITY: "/investments/commodities",
         PENDING_FLOWS: "/management/pending",
         CASH: "/banking",
         REAL_ESTATE: "/real-estate",
@@ -1350,6 +1351,114 @@ export default function DashboardPage() {
       </div>
     )
   }
+
+  const renderUpcomingCard = () => (
+    <Card>
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
+        <CardTitle className="text-lg font-bold flex items-center">
+          <CalendarDays className="h-5 w-5 mr-2 text-primary" />
+          {t.dashboard.upcomingFlows}
+        </CardTitle>
+        {!forecastMode && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/management")}
+            className="text-xs px-2 py-1 h-auto min-h-0 self-start sm:self-auto"
+          >
+            <ArrowRight className="h-3 w-3 mr-1" />
+            {t.dashboard.manageFlows}
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="pt-0">
+        {forecastMode && (
+          <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
+            <TrendingUpDown className="h-8 w-8 mb-2 opacity-60" />
+            <p>{t.forecast.notShowing}</p>
+          </div>
+        )}
+        {!forecastMode && upcomingEventsData.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
+            <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
+            <p>{t.dashboard.noUpcomingFlows}</p>
+          </div>
+        )}
+        {!forecastMode && upcomingEventsData.length > 0 && (
+          <div className="space-y-3">
+            {upcomingEventsData.map((item, index) => {
+              const isEarning = item.direction === "in"
+              const urgencyInfo = getDateUrgencyInfo(
+                item.nextDate.toISOString().split("T")[0],
+              )
+              const fullName = item.name || ""
+              const displayName = fullName
+              const amountColorClass =
+                item.kind === "contribution"
+                  ? "text-foreground"
+                  : isEarning
+                    ? "text-green-600"
+                    : "text-red-600"
+              const amountPrefix =
+                item.kind === "contribution" ? "" : isEarning ? "+" : "-"
+              return (
+                <div
+                  key={`${item.kind}-${item.id}-${index}`}
+                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {item.kind === "contribution" ? (
+                      <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                    ) : item.recurring ? (
+                      <CalendarSync
+                        className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                      />
+                    ) : (
+                      <HandCoins
+                        className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                      />
+                    )}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
+                      <p
+                        className="font-medium text-sm truncate"
+                        title={fullName}
+                      >
+                        {displayName}
+                      </p>
+                      {urgencyInfo?.show && (
+                        <Badge
+                          variant={
+                            urgencyInfo.urgencyLevel === "urgent"
+                              ? "destructive"
+                              : urgencyInfo.urgencyLevel === "soon"
+                                ? "default"
+                                : "outline"
+                          }
+                          className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
+                        >
+                          {urgencyInfo.timeText}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <p
+                    className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
+                  >
+                    {amountPrefix}
+                    {formatCurrency(
+                      Math.abs(item.convertedAmount),
+                      locale,
+                      settings.general.defaultCurrency,
+                    )}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
 
   // Utility function for date urgency (copied from PendingMoneyPage)
   const getDateUrgencyInfo = (dateString: string | undefined) => {
@@ -1692,7 +1801,7 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="lg:col-span-7"
+              className="order-2 lg:order-1 lg:col-span-7"
             >
               <Card>
                 <CardHeader>
@@ -1969,8 +2078,17 @@ export default function DashboardPage() {
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="order-3 lg:hidden"
+            >
+              {renderUpcomingCard()}
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="lg:col-span-5 space-y-6"
+              className="order-1 lg:order-2 lg:col-span-5 lg:col-start-8 space-y-6"
             >
               <Card>
                 <CardHeader>
@@ -2040,119 +2158,7 @@ export default function DashboardPage() {
                   )}
                 </CardContent>
               </Card>
-
-              {/* Upcoming Flows & Contributions Card */}
-              {/* Upcoming flows card: always show; empty state in forecast or when no data */}
-              <Card>
-                <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
-                  <CardTitle className="text-lg font-bold flex items-center">
-                    <CalendarDays className="h-5 w-5 mr-2 text-primary" />
-                    {t.dashboard.upcomingFlows}
-                  </CardTitle>
-                  {!forecastMode && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => navigate("/management")}
-                      className="text-xs px-2 py-1 h-auto min-h-0 self-start sm:self-auto"
-                    >
-                      <ArrowRight className="h-3 w-3 mr-1" />
-                      {t.dashboard.manageFlows}
-                    </Button>
-                  )}
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {forecastMode && (
-                    <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
-                      <TrendingUpDown className="h-8 w-8 mb-2 opacity-60" />
-                      <p>{t.forecast.notShowing}</p>
-                    </div>
-                  )}
-                  {!forecastMode && upcomingEventsData.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
-                      <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
-                      <p>{t.dashboard.noUpcomingFlows}</p>
-                    </div>
-                  )}
-                  {!forecastMode && upcomingEventsData.length > 0 && (
-                    <div className="space-y-3">
-                      {upcomingEventsData.map((item, index) => {
-                        const isEarning = item.direction === "in"
-                        const urgencyInfo = getDateUrgencyInfo(
-                          item.nextDate.toISOString().split("T")[0],
-                        )
-                        const fullName = item.name || ""
-                        const displayName = fullName
-                        const amountColorClass =
-                          item.kind === "contribution"
-                            ? "text-foreground"
-                            : isEarning
-                              ? "text-green-600"
-                              : "text-red-600"
-                        const amountPrefix =
-                          item.kind === "contribution"
-                            ? ""
-                            : isEarning
-                              ? "+"
-                              : "-"
-                        return (
-                          <div
-                            key={`${item.kind}-${item.id}-${index}`}
-                            className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
-                          >
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              {item.kind === "contribution" ? (
-                                <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                              ) : item.recurring ? (
-                                <CalendarSync
-                                  className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
-                                />
-                              ) : (
-                                <HandCoins
-                                  className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
-                                />
-                              )}
-                              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                                <p
-                                  className="font-medium text-sm truncate"
-                                  title={fullName}
-                                >
-                                  {displayName}
-                                </p>
-                                {urgencyInfo?.show && (
-                                  <Badge
-                                    variant={
-                                      urgencyInfo.urgencyLevel === "urgent"
-                                        ? "destructive"
-                                        : urgencyInfo.urgencyLevel === "soon"
-                                          ? "default"
-                                          : "outline"
-                                    }
-                                    /* Prevent wrap, keep consistent pill size */
-                                    className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
-                                  >
-                                    {urgencyInfo.timeText}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <p
-                              className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
-                            >
-                              {amountPrefix}
-                              {formatCurrency(
-                                Math.abs(item.convertedAmount),
-                                locale,
-                                settings.general.defaultCurrency,
-                              )}
-                            </p>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="hidden lg:block">{renderUpcomingCard()}</div>
             </motion.div>
           </div>
 

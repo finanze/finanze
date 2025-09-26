@@ -80,6 +80,15 @@ export default function InvestmentsPage() {
         assetId: "crypto" as const,
       },
       {
+        path: "/investments/commodities",
+        label: t.common.commodities,
+        icon: getIconForProductType(ProductType.COMMODITY, "h-6 w-6"),
+        color:
+          "bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300",
+        productType: ProductType.COMMODITY,
+        assetId: "commodities" as const,
+      },
+      {
         path: "/real-estate",
         label: t.realEstate.title,
         icon: getIconForProductType(ProductType.REAL_ESTATE, "h-6 w-6"),

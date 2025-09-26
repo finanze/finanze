@@ -24,6 +24,7 @@ from domain.global_position import (
     FundInvestments,
     GlobalPosition,
     ProductType,
+    AssetType,
 )
 from domain.native_entities import ING
 from domain.transactions import FundTx, StockTx, Transactions, TxType
@@ -686,6 +687,7 @@ class INGFetcher(FinancialEntityFetcher):
                 average_buy_price=round(average_buy_price, 4),
                 market_value=round(market_value, 4),
                 currency=currency,
+                asset_type=AssetType.MIXED,
                 portfolio=None,
             )
             funds.append(fund)

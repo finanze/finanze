@@ -877,11 +877,16 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 isin = fund.get("isin")
                 fund_details = self._client.get_fund_details(isin)
                 raw_asset_type = fund_details.get("assetType")
-                asset_type = None
                 if raw_asset_type == "VARIABLE_INCOME":
                     asset_type = AssetType.EQUITY
-                elif raw_asset_type == "FIXED_INCOME":
+                elif (
+                    raw_asset_type == "FIXED_INCOME" or raw_asset_type == "MONEY_MARKET"
+                ):
                     asset_type = AssetType.FIXED_INCOME
+                elif raw_asset_type == "MIXED":
+                    asset_type = AssetType.MIXED
+                else:
+                    asset_type = AssetType.OTHER
 
                 fund_list.append(
                     FundDetail(
