@@ -23,6 +23,7 @@ import {
   Filter,
   FilterX,
 } from "lucide-react"
+import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
@@ -301,8 +302,13 @@ export default function FundsInvestmentPage() {
       </div>
 
       {filteredFundPositions.length === 0 ? (
-        <Card className="p-8 text-center">
-          <div className="text-gray-500 dark:text-gray-400">
+        <Card className="p-14 text-center flex flex-col items-center gap-4">
+          {getIconForAssetType(
+            ProductType.FUND,
+            "h-16 w-16",
+            "text-gray-400 dark:text-gray-600",
+          )}
+          <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
             {selectedEntities.length > 0
               ? t.investments.noPositionsFound.replace(
                   "{type}",

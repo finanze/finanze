@@ -47,7 +47,7 @@ export function Sidebar() {
   const { theme, setThemeMode } = useTheme()
   const { logout, startPasswordChange } = useAuth()
   const { platform } = useAppContext()
-  useFinancialData() // still invoke to keep data fetching side-effects if any
+  const { positionsData, realEstateList } = useFinancialData()
   const { pinnedAssets } = usePinnedAssets()
   const navigate = useNavigate()
   const location = useLocation()
@@ -67,59 +67,80 @@ export function Sidebar() {
     return location.pathname.startsWith("/management")
   })
 
-  const investmentRoutes = useMemo(
-    () => [
+  const investmentRoutes = useMemo(() => {
+    const hasProductEntries = (pt: ProductType) => {
+      if (!positionsData?.positions) return false
+      return Object.values(positionsData.positions).some((entity: any) => {
+        const product = entity.products[pt]
+        if (!product) return false
+        if (product.entries && product.entries.length > 0) return true
+        // some product structures might store positions differently; fallback checks
+        return Array.isArray(product) && product.length > 0
+      })
+    }
+    const routes = [
       {
         path: "/banking",
         label: t.banking.title,
         productType: ProductType.ACCOUNT,
         key: "banking",
+        hasData:
+          hasProductEntries(ProductType.ACCOUNT) ||
+          hasProductEntries(ProductType.CARD) ||
+          hasProductEntries(ProductType.LOAN),
       },
       {
         path: "/investments/stocks-etfs",
         label: t.common.stocksEtfs,
         productType: ProductType.STOCK_ETF,
         key: "stocks-etfs",
+        hasData: hasProductEntries(ProductType.STOCK_ETF),
       },
       {
         path: "/investments/funds",
         label: t.common.fundsInvestments,
         productType: ProductType.FUND,
         key: "funds",
+        hasData: hasProductEntries(ProductType.FUND),
       },
       {
         path: "/investments/deposits",
         label: t.common.depositsInvestments,
         productType: ProductType.DEPOSIT,
         key: "deposits",
+        hasData: hasProductEntries(ProductType.DEPOSIT),
       },
       {
         path: "/investments/factoring",
         label: t.common.factoringInvestments,
         productType: ProductType.FACTORING,
         key: "factoring",
+        hasData: hasProductEntries(ProductType.FACTORING),
       },
       {
         path: "/investments/real-estate-cf",
         label: t.common.realEstateCfInvestments,
         productType: ProductType.REAL_ESTATE_CF,
         key: "real-estate-cf",
+        hasData: hasProductEntries(ProductType.REAL_ESTATE_CF),
       },
       {
         path: "/investments/crypto",
         label: t.common.cryptoInvestments,
         productType: ProductType.CRYPTO,
         key: "crypto",
+        hasData: hasProductEntries(ProductType.CRYPTO),
       },
       {
         path: "/real-estate",
         label: t.realEstate.title,
         productType: ProductType.REAL_ESTATE,
         key: "real-estate",
+        hasData: (realEstateList?.length || 0) > 0,
       },
-    ],
-    [t],
-  )
+    ]
+    return routes
+  }, [t, positionsData, realEstateList])
 
   const managementRoutes = [
     {
@@ -373,7 +394,9 @@ export function Sidebar() {
                               "text-sm justify-start",
                               location.pathname === route.path
                                 ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                                : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
+                                : route.hasData
+                                  ? "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400"
+                                  : "opacity-50 text-gray-400 dark:text-gray-600 hover:bg-gray-200 dark:hover:bg-gray-900",
                             )}
                             onClick={() => navigate(route.path)}
                           >

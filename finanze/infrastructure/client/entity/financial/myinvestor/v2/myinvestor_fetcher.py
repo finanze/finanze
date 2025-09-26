@@ -22,6 +22,7 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    AssetType,
     Card,
     Cards,
     CardType,
@@ -36,7 +37,6 @@ from domain.global_position import (
     ProductType,
     StockDetail,
     StockInvestments,
-    AssetType,
 )
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
@@ -86,6 +86,8 @@ ACCOUNT_TYPE_MAP = {
     "CASH_ACCOUNT": AccountType.CHECKING,
     "CASH_PORTFOLIO": AccountType.FUND_PORTFOLIO,
 }
+
+FUND_CATEGORIES = ["INDEXED_FUND", "FUND"]
 
 BEGINNING = date.fromisocalendar(2018, 1, 1)
 
@@ -599,8 +601,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         broker_investments = investments.get("BROKER")
         stock_data = _get_stock_investments(broker_investments)
 
-        fund_investments = investments.get("INDEXED_FUND")
-        fund_data = self._get_fund_investments(fund_investments)
+        fund_data = self._get_fund_investments(investments)
 
         portfolio_cash_accounts = []
         for raw_account, acc, security_account in account_entries:
@@ -616,11 +617,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             portfolio_id = uuid4()
 
-            portfolio_fund_investments = portfolio_account_investments.get(
-                "INDEXED_FUND"
-            )
             portfolio_fund_data = self._get_fund_investments(
-                portfolio_fund_investments, portfolio_id
+                portfolio_account_investments, portfolio_id
             )
 
             market_value = Dezimal(portfolio_account_details["marketValue"])
@@ -867,12 +865,15 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return stock_txs
 
-    def _get_fund_investments(
-        self, fund_investments, portfolio_id=None
-    ) -> FundInvestments:
+    def _get_fund_investments(self, investments, portfolio_id=None) -> FundInvestments:
         fund_list = []
-        if fund_investments:
-            for fund in fund_investments["investmentList"]:
+
+        for fund_category in FUND_CATEGORIES:
+            category_investment_data = investments.get(fund_category)
+            if not category_investment_data:
+                continue
+
+            for fund in category_investment_data.get("investmentList", []):
                 isin = fund.get("isin")
                 fund_details = self._client.get_fund_details(isin)
                 raw_asset_type = fund_details.get("assetType")
@@ -888,7 +889,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         name=fund["investmentName"],
                         isin=isin,
                         market=fund["marketCode"],
-                        shares=fund["shares"],
+                        shares=Dezimal(fund["shares"]),
                         initial_investment=round(Dezimal(fund["initialInvestment"]), 4),
                         average_buy_price=round(
                             Dezimal(fund["initialInvestment"])
