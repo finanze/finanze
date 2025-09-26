@@ -3,11 +3,11 @@ import {
   createContext,
   type ReactNode,
   useContext,
+  useLayoutEffect,
   useEffect,
   useState,
+  useCallback,
 } from "react"
-
-type Theme = "light" | "dark"
 
 interface ThemeContextType {
   theme: ThemeMode
@@ -17,46 +17,51 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined)
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<ThemeMode>("dark")
+  // Persisted selection (default to system so we respect user OS on fresh load)
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === "undefined") return "system"
+    const saved = (localStorage.getItem("theme") as ThemeMode) || "system"
+    return saved
+  })
 
-  const resolveTheme: () => Theme = () => {
-    const system = window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light"
-    let targetTheme = system
+  // Apply (or re-apply) the actual theme class early in the commit phase to avoid flash
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return
+    const resolved =
+      theme === "system"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+        : theme
+    document.documentElement.classList.toggle("dark", resolved === "dark")
+  }, [theme])
 
-    if (!window.ipcAPI) {
-      const savedTheme = localStorage.getItem("theme") as ThemeMode
-      if (savedTheme != "system") {
-        targetTheme = savedTheme
-      }
-    }
-
-    return targetTheme as Theme
-  }
-
+  // React to OS theme changes only while in system mode
   useEffect(() => {
-    const resolvedTheme = resolveTheme()
-    setTheme(resolvedTheme)
-    document.documentElement.classList.toggle("dark", resolvedTheme === "dark")
-  }, [])
+    if (theme !== "system") return
+    const media = window.matchMedia("(prefers-color-scheme: dark)")
+    const sync = () => {
+      document.documentElement.classList.toggle("dark", media.matches)
+    }
+    // Initial sync in case it changed between render and effect
+    sync()
+    // Add listener (use both APIs for broader compatibility)
+    if (media.addEventListener) media.addEventListener("change", sync)
+    else media.addListener(sync)
+    return () => {
+      if (media.removeEventListener) media.removeEventListener("change", sync)
+      else media.removeListener(sync)
+    }
+  }, [theme])
 
-  const setThemeMode = (mode: ThemeMode) => {
+  // Stable setter
+  const setThemeMode = useCallback((mode: ThemeMode) => {
     if (!window.ipcAPI) {
       localStorage.setItem("theme", mode)
     }
     window.ipcAPI?.changeThemeMode(mode)
     setTheme(mode)
-
-    setTimeout(() => {
-      if (mode === "system") {
-        mode = window.matchMedia("(prefers-color-scheme: dark)").matches
-          ? "dark"
-          : "light"
-      }
-      document.documentElement.classList.toggle("dark", mode === "dark")
-    }, 80)
-  }
+  }, [])
 
   return (
     <ThemeContext.Provider value={{ theme, setThemeMode }}>
