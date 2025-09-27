@@ -1,3 +1,20 @@
+## [0.5.1] - 2025-09-27
+
+### 🚀 Features
+
+- Add account retained balance support for ING
+- Improve GoCardless instructions
+- Improve investment data presentation with new my asset page and per asset pinning
+- Add MyInvestor support for standard funds
+- Add commodities asset page
+
+### 🐛 Bug Fixes
+
+- Not showing previously disconnected external entities
+- Initial system theme load from browser
+- Skip accounts without currency or balance and fallback to balance currency
+- Trade Republic position fetch trying to get fund details for all asset types
+- Trade Republic failing when only found unknown asset type periodic contributions & prioritize first balance in GoCardless account info
 ## [0.5.0] - 2025-09-17
 
 ### 🚀 Features
