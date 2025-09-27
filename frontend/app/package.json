@@ -1,6 +1,6 @@
 {
   "name": "finanze",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
   "main": "dist-electron/main/index.js",
   "packageManager": "pnpm@10.11.1",
@@ -14,7 +14,7 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "dist": "vite build && pnpm exec electron-builder",

@@ -49,6 +49,7 @@
     "transactions": "Transactions",
     "accounts": "Accounts",
     "investments": "Investments",
+    "myAssets": "My Assets",
     "stocksEtfs": "Stocks & ETFs",
     "fundsInvestments": "Funds",
     "depositsInvestments": "Deposits",
@@ -76,7 +77,11 @@
     "close": "Close",
     "download": "Download",
     "viewRelease": "View Release",
-    "remindLater": "Remind Me Later"
+    "remindLater": "Remind Me Later",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinAsset": "Pin asset",
+    "unpinAsset": "Unpin asset"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -342,7 +347,8 @@
     "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
     "goCardlessInfoMiddle": ", then navigate to ",
     "goCardlessInfoUserSecrets": "Developers > User secrets",
-    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials."
+    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials.",
+    "goCardlessHelpButton": "How to get these credentials?"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -533,6 +539,7 @@
     "assetType": {
       "EQUITY": "Equity",
       "FIXED_INCOME": "Fixed Income",
+      "MIXED": "Mixed",
       "OTHER": "Other"
     },
     "kpis": {
@@ -592,7 +599,7 @@
     "manage": "Manage"
   },
   "commodityManagement": {
-    "title": "Manage Commodities",
+    "title": "Commodities",
     "nameRequired": "Name is required",
     "amountRequired": "Weight must be greater than zero",
     "addEntry": "Add new entry",
@@ -606,7 +613,15 @@
     "currency": "Currency",
     "noCommodities": "No commodities registered",
     "addFirstCommodity": "Add your first commodity entry to get started",
-    "saveError": "Failed to save commodities"
+    "saveError": "Failed to save commodities",
+    "saveSuccess": "Commodities saved successfully",
+    "deleteConfirmTitle": "Delete commodity",
+    "deleteConfirmMessage": "Are you sure you want to delete \"{{name}}\"? This change isn\u2019t applied until you save, so you can still cancel before saving.",
+    "kpis": {
+      "entries": "Entries",
+      "totalWeight": "Total Weight",
+      "initialInvestment": "Investment"
+    }
   },
   "importErrors": {
     "title": "Import Warnings",

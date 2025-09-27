@@ -24,6 +24,7 @@ from domain.global_position import (
     FundInvestments,
     GlobalPosition,
     ProductType,
+    AssetType,
 )
 from domain.native_entities import ING
 from domain.transactions import FundTx, StockTx, Transactions, TxType
@@ -202,8 +203,10 @@ def _build_accounts(
         iban = iban.replace(" ", "") if iban else None
 
         balance = legacy.get("balance")
+        available_balance = legacy.get("availableBalance")
         if balance is None:
             balance = prod.get("balanceToShow", 0)
+            available_balance = balance
         currency = legacy.get("currency") or prod.get("denominationCurrency")
 
         interest = None
@@ -211,14 +214,18 @@ def _build_accounts(
         if tae is not None:
             interest = round(Dezimal(tae) / 100, 4)
 
+        balance = Dezimal(balance)
+        available_balance = Dezimal(available_balance)
+        retained = balance - available_balance
         account_obj = Account(
             id=uuid4(),
-            total=round(Dezimal(balance), 2),
+            total=round(available_balance, 2),
             currency=currency,
             name=name,
             iban=iban,
             type=acc_type,
             interest=interest,
+            retained=round(retained, 2),
         )
 
         accounts.append(account_obj)
@@ -680,6 +687,7 @@ class INGFetcher(FinancialEntityFetcher):
                 average_buy_price=round(average_buy_price, 4),
                 market_value=round(market_value, 4),
                 currency=currency,
+                asset_type=AssetType.MIXED,
                 portfolio=None,
             )
             funds.append(fund)

@@ -89,15 +89,30 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             session=login_params.session,
         )
 
-    async def _instrument_mapper(self, instrument: dict, currency: str):
+    async def _instrument_mapper(
+        self, instrument: dict, currency: str
+    ) -> Optional[StockDetail | FundDetail]:
         isin = instrument.get("instrumentId") or instrument.get("isin")
+        instrument_type = instrument.get("instrumentType", "").upper()
+        if instrument_type not in ["FUND", "STOCK", "CRYPTO", "MUTUALFUND"]:
+            self._log.warning(
+                f"Unknown instrument type: {instrument_type} for ISIN {isin}"
+            )
+            return None
+
         average_buy = round(Dezimal(instrument["averageBuyIn"]), 4)
         shares = Dezimal(instrument["netSize"])
         net_value = instrument.get("netValue")
         initial_investment = round(average_buy * shares, 4)
         market_value = None
 
-        details = await self._client.get_details(isin)
+        detail_topics = ["instrument"]
+        if instrument_type == "MUTUALFUND":
+            detail_topics.append("mutualFundDetails")
+        else:
+            detail_topics.append("stockDetails")
+
+        details = await self._client.get_details(isin, detail_topics)
         if net_value is None:
             exchange_ids = details.instrument["exchangeIds"]
             if len(exchange_ids) > 0:
@@ -108,19 +123,19 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
             market_value = round(Dezimal(net_value), 4) if net_value else None
 
-        type_id = details.instrument["typeId"].upper()
         name = details.instrument["name"]
         ticker = details.instrument["homeSymbol"]
         subtype = ""
+        type_id = instrument_type
 
-        if type_id == "FUND" or type_id == "CRYPTO":
+        if instrument_type == "FUND" or instrument_type == "CRYPTO":
             type_id = "ETF"
 
-        elif type_id == "STOCK":
+        elif instrument_type == "STOCK":
             name = details.stock_details["company"]["name"]
             ticker = details.stock_details["company"]["tickerSymbol"]
 
-        elif type_id == "MUTUALFUND":
+        elif instrument_type == "MUTUALFUND":
             fund_details = details.fund_details
             name = fund_details["name"]
             fund_type = fund_details["fundType"].lower()
@@ -148,19 +163,16 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         # subtype = details.instrument["bondInfo"]["issuerClassification"]
         # interest_rate = Dezimal(details.instrument["bondInfo"]["interestRate"])
         # maturity = datetime.strptime(details.instrument["bondInfo"]["maturityDate"], "%Y-%m-%d").date()
-        else:
-            self._log.warning(f"Unknown instrument type: {type_id} for ISIN {isin}")
-            return None
 
         if not subtype:
-            subtype = type_id
+            subtype = instrument_type
 
         return StockDetail(
             id=uuid4(),
             name=name,
             ticker=ticker,
             isin=isin,
-            market=", ".join(instrument["exchangeIds"]),
+            market=", ".join(details.instrument["exchangeIds"]),
             shares=shares,
             initial_investment=initial_investment,
             average_buy_price=average_buy,
@@ -348,11 +360,15 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         saving_plans = saving_plans_response.get("savingsPlans")
 
-        contributions = [
-            await self._map_saving_plan(sp, user_currency) for sp in saving_plans if sp
-        ]
+        contributions = []
+        for saving_plan in saving_plans:
+            if not saving_plan:
+                continue
+            contribution = await self._map_saving_plan(saving_plan, user_currency)
+            if contribution:
+                contributions.append(contribution)
 
-        return AutoContributions(contributions)
+        return AutoContributions(periodic=contributions)
 
     def map_investment_tx(
         self, raw_tx: dict, date: datetime

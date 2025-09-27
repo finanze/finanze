@@ -23,6 +23,7 @@
     "transactions": "Transacciones",
     "entities": "Integraciones",
     "investments": "Inversiones",
+    "myAssets": "Mis Activos",
     "stocksEtfs": "Acciones y ETFs",
     "fundsInvestments": "Fondos",
     "depositsInvestments": "Depósitos",
@@ -74,7 +75,11 @@
     "close": "Cerrar",
     "download": "Descargar",
     "viewRelease": "Ver versión",
-    "remindLater": "Recordar después"
+    "remindLater": "Recordar después",
+    "pin": "Fijar",
+    "unpin": "Quitar",
+    "pinAsset": "Fijar activo",
+    "unpinAsset": "Quitar activo"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -340,7 +345,8 @@
     "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
     "goCardlessInfoMiddle": ", luego ve a ",
     "goCardlessInfoUserSecrets": "Desarrolladores > User secrets",
-    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales."
+    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales.",
+    "goCardlessHelpButton": "¿Cómo obtengo estas credenciales?"
   },
   "dashboard": {
     "title": "Panel Principal",
@@ -532,6 +538,7 @@
     "assetType": {
       "EQUITY": "Renta Variable",
       "FIXED_INCOME": "Renta Fija",
+      "MIXED": "Mixto",
       "OTHER": "Otro"
     },
     "kpis": {
@@ -591,7 +598,7 @@
     "manage": "Gestionar"
   },
   "commodityManagement": {
-    "title": "Gestionar Materias Primas",
+    "title": "Materias Primas",
     "nameRequired": "El nombre es obligatorio",
     "amountRequired": "El peso debe ser mayor que cero",
     "addEntry": "Nueva entrada",
@@ -605,7 +612,15 @@
     "currency": "Moneda",
     "noCommodities": "No hay materias primas registradas",
     "addFirstCommodity": "Agrega tu primera entrada de materia prima para empezar",
-    "saveError": "Error al guardar las materias primas"
+    "saveError": "Error al guardar las materias primas",
+    "saveSuccess": "Materias primas guardadas correctamente",
+    "deleteConfirmTitle": "Eliminar materia prima",
+    "deleteConfirmMessage": "¿Seguro que deseas eliminar \"{{name}}\"? Este cambio se aplicará cuando guardes, así que aún puedes cancelar antes de guardar.",
+    "kpis": {
+      "entries": "Entradas",
+      "totalWeight": "Peso Total",
+      "initialInvestment": "Inversión"
+    }
   },
   "importErrors": {
     "title": "Advertencias de Importación",

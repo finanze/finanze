@@ -91,3 +91,9 @@ class ExternalEntityRepository(ExternalEntityPort):
                 "DELETE FROM external_entities WHERE id = ?",
                 (str(ee_id),),
             )
+
+    def get_all(self) -> list[ExternalEntity]:
+        with self._db_client.read() as cursor:
+            cursor.execute("SELECT * FROM external_entities")
+            rows = cursor.fetchall()
+            return [_map_row(row) for row in rows]

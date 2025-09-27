@@ -10,6 +10,7 @@ export enum ProductType {
   DEPOSIT = "DEPOSIT",
   FACTORING = "FACTORING",
   REAL_ESTATE_CF = "REAL_ESTATE_CF",
+  REAL_ESTATE = "REAL_ESTATE",
   CROWDLENDING = "CROWDLENDING",
   CRYPTO = "CRYPTO",
   COMMODITY = "COMMODITY",
@@ -108,6 +109,7 @@ export interface FundPortfolio {
 export enum AssetType {
   EQUITY = "EQUITY",
   FIXED_INCOME = "FIXED_INCOME",
+  MIXED = "MIXED",
   OTHER = "OTHER",
 }
 

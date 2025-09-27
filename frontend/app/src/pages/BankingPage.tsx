@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -38,13 +39,16 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  ArrowLeft,
 } from "lucide-react"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
 
 export default function BankingPage() {
   const { t, locale } = useI18n()
   const { positionsData, isLoading } = useFinancialData()
   const { settings, exchangeRates, entities } = useAppContext()
+  const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [showAccountNumbers, setShowAccountNumbers] = useState(false)
@@ -328,7 +332,15 @@ export default function BankingPage() {
       <motion.div variants={item}>
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
           <div>
-            <h1 className="text-2xl font-bold">{t.banking.title}</h1>
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+                <ArrowLeft size={20} />
+              </Button>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">{t.banking.title}</h1>
+                <PinAssetButton assetId="banking" />
+              </div>
+            </div>
             <p className="text-gray-600 dark:text-gray-400">
               {t.banking.subtitle}
             </p>

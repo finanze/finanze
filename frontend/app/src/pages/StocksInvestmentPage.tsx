@@ -18,6 +18,8 @@ import {
 } from "@/utils/financialDataUtils"
 import { ProductType } from "@/types/position"
 import { ArrowLeft, TrendingUp, TrendingDown } from "lucide-react"
+import { getIconForAssetType } from "@/utils/dashboardUtils"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 
@@ -156,14 +158,13 @@ export default function StocksInvestmentPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/investments")}
-        >
+        <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft size={20} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.common.stocksEtfs}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t.common.stocksEtfs}</h1>
+          <PinAssetButton assetId="stocks-etfs" />
+        </div>
       </div>
 
       {/* Filters */}
@@ -174,8 +175,13 @@ export default function StocksInvestmentPage() {
       />
 
       {filteredStockPositions.length === 0 ? (
-        <Card className="p-8 text-center">
-          <div className="text-gray-500 dark:text-gray-400">
+        <Card className="p-14 text-center flex flex-col items-center gap-4">
+          {getIconForAssetType(
+            ProductType.STOCK_ETF,
+            "h-16 w-16",
+            "text-gray-400 dark:text-gray-600",
+          )}
+          <div className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
             {selectedEntities.length > 0
               ? t.investments.noPositionsFound.replace(
                   "{type}",
