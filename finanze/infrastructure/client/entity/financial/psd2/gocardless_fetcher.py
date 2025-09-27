@@ -222,9 +222,12 @@ class GoCardlessFetcher(ExternalEntityFetcher):
                 if btype == "forwardAvailable":
                     continue
 
-                balance = b.get("balanceAmount", {})
+                balance = b.get("balanceAmount")
+                if not balance:
+                    continue
                 total_amount = balance.get("amount")
                 currency = balance.get("currency")
+                break
 
             if not balance:
                 self._log.error("Account doesn't have balance details", extra=details)

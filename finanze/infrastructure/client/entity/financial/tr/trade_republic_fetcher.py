@@ -172,7 +172,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             name=name,
             ticker=ticker,
             isin=isin,
-            market=", ".join(instrument["exchangeIds"]),
+            market=", ".join(details.instrument["exchangeIds"]),
             shares=shares,
             initial_investment=initial_investment,
             average_buy_price=average_buy,
@@ -360,11 +360,15 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         saving_plans = saving_plans_response.get("savingsPlans")
 
-        contributions = [
-            await self._map_saving_plan(sp, user_currency) for sp in saving_plans if sp
-        ]
+        contributions = []
+        for saving_plan in saving_plans:
+            if not saving_plan:
+                continue
+            contribution = await self._map_saving_plan(saving_plan, user_currency)
+            if contribution:
+                contributions.append(contribution)
 
-        return AutoContributions(contributions)
+        return AutoContributions(periodic=contributions)
 
     def map_investment_tx(
         self, raw_tx: dict, date: datetime
