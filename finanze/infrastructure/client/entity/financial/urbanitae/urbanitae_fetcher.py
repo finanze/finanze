@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -178,7 +179,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
                     retentions=retentions,
                     interests=interests,
                     net_amount=net_amount,
-                    is_real=True,
+                    source=DataSource.REAL,
                 )
             )
 

@@ -78,7 +78,7 @@ class GetContributionsImpl(GetContributions):
                         until=pc.until,
                         frequency=pc.frequency,
                         active=pc.active,
-                        is_real=pc.is_real,
+                        source=pc.source,
                         next_date=_next_contribution_date(pc),
                     )
                 )

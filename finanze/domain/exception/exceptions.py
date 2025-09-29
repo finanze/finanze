@@ -110,3 +110,7 @@ class ExternalEntityNotFound(Exception):
 
 class ProviderInstitutionNotFound(Exception):
     pass
+
+
+class TransactionNotFound(Exception):
+    pass

@@ -16,6 +16,7 @@ from dateutil.tz import tzlocal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
 from domain.external_integration import ExternalIntegrationId
+from domain.fetch_record import DataSource
 from domain.use_cases.virtual_fetch import VirtualFetch
 from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
 from domain.virtual_fetch_result import (
@@ -117,7 +118,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
                 existing_entities_by_name,
             )
 
-            self._transaction_port.delete_non_real()
+            self._transaction_port.delete_by_source(DataSource.SHEETS)
             transactions = virtual_txs_result.transactions
             if transactions:
                 for entity in virtual_txs_result.created_entities:

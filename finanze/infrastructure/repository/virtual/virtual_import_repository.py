@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 from uuid import UUID, uuid4
 
 from application.ports.virtual_import_registry import VirtualImportRegistry
@@ -30,12 +31,19 @@ class VirtualImportRepository(VirtualImportRegistry):
                     ),
                 )
 
-    def get_last_import_records(self) -> list[VirtualDataImport]:
-        with self._db_client.tx() as cursor:
-            cursor.execute(
-                """
+    def get_last_import_records(
+        self, source: Optional[VirtualDataSource] = None
+    ) -> list[VirtualDataImport]:
+        params = []
+        where = ""
+        if source:
+            where = " WHERE source = ? "
+            params.append(source)
+
+        query = f"""
                 WITH latest_import_details AS (SELECT import_id
                                                FROM virtual_data_imports
+                                               {where}
                                                ORDER BY date DESC
                                                LIMIT 1)
                 SELECT vdi.*
@@ -43,7 +51,9 @@ class VirtualImportRepository(VirtualImportRegistry):
                          JOIN latest_import_details lid
                               ON vdi.import_id = lid.import_id
                 """
-            )
+
+        with self._db_client.tx() as cursor:
+            cursor.execute(query, params)
 
             rows = cursor.fetchall()
             return [
@@ -59,3 +69,27 @@ class VirtualImportRepository(VirtualImportRegistry):
                 )
                 for row in rows
             ]
+
+    def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                """
+                DELETE
+                FROM virtual_data_imports
+                WHERE import_id = ?
+                  AND feature = ?
+                """,
+                (str(import_id), feature),
+            )
+
+    def delete_by_import_feature_and_entity(
+        self, import_id: UUID, feature: Feature, entity_id: UUID
+    ):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                """
+                DELETE FROM virtual_data_imports
+                WHERE import_id = ? AND feature = ? AND entity_id = ?
+                """,
+                (str(import_id), feature, str(entity_id)),
+            )

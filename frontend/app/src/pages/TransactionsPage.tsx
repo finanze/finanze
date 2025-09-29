@@ -28,6 +28,7 @@ import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { getColorForName } from "@/lib/utils"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
+import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import {
   Search,
   RotateCcw,
@@ -40,7 +41,7 @@ import {
   getIconForProductType,
   getProductTypeColor,
 } from "@/utils/dashboardUtils"
-import { EntityOrigin } from "@/types"
+import { DataSource, EntityOrigin } from "@/types"
 
 interface TransactionFilters {
   entities: string[]
@@ -250,8 +251,29 @@ export default function TransactionsPage() {
     }
   }
 
+  const detailRowClass = "text-sm text-gray-600 dark:text-gray-400"
+  const detailLabelClass = "font-medium text-gray-500 dark:text-gray-300"
+
+  const getSourceInfo = (source: DataSource) => {
+    if (source === DataSource.REAL) {
+      return null
+    }
+
+    const Icon = getSourceIcon(source)
+
+    return (
+      <div className={`${detailRowClass} flex items-center gap-2`}>
+        <span className={detailLabelClass}>{t.transactions.source}:</span>
+        <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400">
+          {Icon && <Icon className="h-3.5 w-3.5" />}
+          {t.enums?.dataSource?.[source] || source}
+        </span>
+      </div>
+    )
+  }
+
   const renderTransactionDetails = (tx: any) => {
-    const commonFields = <></>
+    const commonFields = <>{getSourceInfo(tx.source)}</>
 
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {
@@ -260,26 +282,32 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {stockTx.ticker && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.ticker}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.ticker}:
+                </span>{" "}
                 {stockTx.ticker}
               </div>
             )}
             {stockTx.isin && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.isin}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
                 {stockTx.isin}
               </div>
             )}
             {stockTx.shares && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.shares}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.shares}:
+                </span>{" "}
                 {stockTx.shares.toLocaleString()}
               </div>
             )}
             {Number(stockTx.price || 0) !== 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.price}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
                 {formatCurrency(
                   stockTx.price,
                   locale,
@@ -289,8 +317,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {stockTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   stockTx.fees,
                   locale,
@@ -300,8 +328,10 @@ export default function TransactionsPage() {
               </div>
             )}
             {stockTx.market && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.market}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.market}:
+                </span>{" "}
                 {stockTx.market}
               </div>
             )}
@@ -314,16 +344,16 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.isin}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
               {fundTx.isin}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.shares}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.shares}:</span>{" "}
               {fundTx.shares.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.price}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.price}:</span>{" "}
               {formatCurrency(
                 fundTx.price,
                 locale,
@@ -332,8 +362,8 @@ export default function TransactionsPage() {
               )}
             </div>
             {fundTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   fundTx.fees,
                   locale,
@@ -342,8 +372,8 @@ export default function TransactionsPage() {
                 )}
               </div>
             )}
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.market}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.market}:</span>{" "}
               {fundTx.market}
             </div>
           </>
@@ -355,8 +385,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   fpTx.fees,
                   locale,
@@ -366,14 +396,14 @@ export default function TransactionsPage() {
               </div>
             )}
             {fpTx.iban && (
-              <div className="text-sm text-gray-600 dark:text-gray-400 break-all">
-                <span className="font-medium">{t.transactions.iban}:</span>{" "}
+              <div className={`${detailRowClass} break-all`}>
+                <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
                 {fpTx.iban}
               </div>
             )}
             {fpTx.portfolio_name && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.portfolioName}:
                 </span>{" "}
                 {fpTx.portfolio_name}
@@ -389,8 +419,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {accountTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   accountTx.fees,
                   locale,
@@ -400,8 +430,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {accountTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
@@ -413,16 +443,16 @@ export default function TransactionsPage() {
               </div>
             )}
             {accountTx.interest_rate && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.interestRate}:
                 </span>{" "}
                 {(accountTx.interest_rate * 100).toFixed(2)}%
               </div>
             )}
             {accountTx.avg_balance && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.avgBalance}:
                 </span>{" "}
                 {formatCurrency(
@@ -443,8 +473,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {factoringTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   factoringTx.fees,
                   locale,
@@ -454,8 +484,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {factoringTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
@@ -467,8 +497,10 @@ export default function TransactionsPage() {
               </div>
             )}
             {factoringTx.interests > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.interests}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.interests}:
+                </span>{" "}
                 {formatCurrency(
                   factoringTx.interests,
                   locale,
@@ -487,8 +519,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {realEstateTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   realEstateTx.fees,
                   locale,
@@ -498,8 +530,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {realEstateTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
@@ -511,8 +543,10 @@ export default function TransactionsPage() {
               </div>
             )}
             {realEstateTx.interests > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.interests}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.interests}:
+                </span>{" "}
                 {formatCurrency(
                   realEstateTx.interests,
                   locale,
@@ -531,8 +565,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {depositTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   depositTx.fees,
                   locale,
@@ -542,8 +576,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {depositTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
@@ -555,8 +589,10 @@ export default function TransactionsPage() {
               </div>
             )}
             {depositTx.interests > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.interests}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.interests}:
+                </span>{" "}
                 {formatCurrency(
                   depositTx.interests,
                   locale,
@@ -576,20 +612,26 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {cryptoTx.ticker && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.ticker}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.ticker}:
+                </span>{" "}
                 {cryptoTx.ticker}
               </div>
             )}
             {cryptoTx.shares && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.amount}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.amount}:
+                </span>{" "}
                 {cryptoTx.shares.toLocaleString()}
               </div>
             )}
             {cryptoTx.price && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.price}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
                 {formatCurrency(
                   cryptoTx.price,
                   locale,
@@ -599,8 +641,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {cryptoTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   cryptoTx.fees,
                   locale,
@@ -799,7 +841,6 @@ export default function TransactionsPage() {
                           tx.product_type === ProductType.DEPOSIT ||
                           tx.product_type === ProductType.CRYPTO ||
                           tx.product_type === ProductType.FUND_PORTFOLIO
-
                         return (
                           <React.Fragment key={tx.id}>
                             <tr
@@ -815,14 +856,6 @@ export default function TransactionsPage() {
                               <td className="py-4 px-3">
                                 <div className="font-medium text-sm text-gray-900 dark:text-gray-100 flex items-center gap-2">
                                   {tx.name}
-                                  {!tx.is_real && (
-                                    <span
-                                      className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                                      title="Virtual/User Imported Transaction"
-                                    >
-                                      📝
-                                    </span>
-                                  )}
                                 </div>
                               </td>
                               <td className="py-4 px-3 text-center w-24">
@@ -876,17 +909,27 @@ export default function TransactionsPage() {
                                 </div>
                               </td>
                               <td className="py-4 px-3 text-center">
-                                <Badge
-                                  className={`${getColorForName(tx.entity.name)} whitespace-normal break-words text-xs inline-flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity`}
-                                  onClick={() =>
-                                    handleBadgeClick("entity", tx.entity.id)
-                                  }
-                                >
-                                  {tx.entity.name}
-                                  {tx.entity.origin == EntityOrigin.MANUAL && (
-                                    <span className="ml-1 opacity-70">(V)</span>
-                                  )}
-                                </Badge>
+                                <div className="flex items-center justify-center gap-2">
+                                  <SourceBadge
+                                    source={tx.source}
+                                    title={t.transactions.source}
+                                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+                                  />
+                                  <Badge
+                                    className={`${getColorForName(tx.entity.name)} whitespace-normal break-words text-xs inline-flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity`}
+                                    onClick={() =>
+                                      handleBadgeClick("entity", tx.entity.id)
+                                    }
+                                  >
+                                    {tx.entity.name}
+                                    {tx.entity.origin ==
+                                      EntityOrigin.MANUAL && (
+                                      <span className="ml-1 opacity-70">
+                                        (V)
+                                      </span>
+                                    )}
+                                  </Badge>
+                                </div>
                               </td>
                               <td className="py-4 px-2 text-center w-10">
                                 {hasDetails && (
@@ -992,7 +1035,6 @@ export default function TransactionsPage() {
                   tx.product_type === ProductType.DEPOSIT ||
                   tx.product_type === ProductType.CRYPTO ||
                   tx.product_type === ProductType.FUND_PORTFOLIO
-
                 return (
                   <Card
                     key={tx.id}
@@ -1002,14 +1044,6 @@ export default function TransactionsPage() {
                       <div className="flex-1 min-w-0 pr-3">
                         <div className="font-medium text-gray-900 dark:text-gray-100 flex items-start gap-2 flex-wrap break-words">
                           <span className="break-words min-w-0">{tx.name}</span>
-                          {!tx.is_real && (
-                            <span
-                              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 flex-shrink-0"
-                              title="Virtual/User Imported Transaction"
-                            >
-                              📝
-                            </span>
-                          )}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           {formatDate(tx.date, locale)}
@@ -1062,15 +1096,24 @@ export default function TransactionsPage() {
                         {t.enums?.productType?.[tx.product_type] ||
                           tx.product_type}
                       </Badge>
-                      <Badge
-                        className={`${getColorForName(tx.entity.name)} whitespace-normal break-words inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
-                        onClick={() => handleBadgeClick("entity", tx.entity.id)}
-                      >
-                        {tx.entity.name}
-                        {tx.entity.origin == EntityOrigin.MANUAL && (
-                          <span className="ml-1 opacity-75">(V)</span>
-                        )}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SourceBadge
+                          source={tx.source}
+                          title={t.transactions.source}
+                          className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+                        />
+                        <Badge
+                          className={`${getColorForName(tx.entity.name)} whitespace-normal break-words inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
+                          onClick={() =>
+                            handleBadgeClick("entity", tx.entity.id)
+                          }
+                        >
+                          {tx.entity.name}
+                          {tx.entity.origin == EntityOrigin.MANUAL && (
+                            <span className="ml-1 opacity-75">(V)</span>
+                          )}
+                        </Badge>
+                      </div>
 
                       {hasDetails && (
                         <button

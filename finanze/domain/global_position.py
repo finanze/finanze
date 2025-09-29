@@ -37,7 +37,7 @@ class AccountType(str, Enum):
 
 @dataclass
 class Account(BaseData):
-    id: UUID
+    id: Optional[UUID]
     total: Dezimal
     currency: str
     type: AccountType
@@ -55,7 +55,7 @@ class CardType(str, Enum):
 
 @dataclass
 class Card(BaseData):
-    id: UUID
+    id: Optional[UUID]
     currency: str
     type: CardType
     used: Dezimal
@@ -385,3 +385,9 @@ class PositionQueryRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     real: Optional[bool] = None
+
+
+@dataclass
+class UpdatePositionRequest:
+    entity_id: UUID
+    products: ProductPositions

@@ -6,6 +6,7 @@ from uuid import uuid4
 from application.ports.virtual_fetch import VirtualFetcher
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import MissingFieldsError
+from domain.fetch_record import DataSource
 from domain.global_position import (
     Account,
     Accounts,
@@ -309,7 +310,7 @@ class SheetsImporter(VirtualFetcher):
         def process_entry_fn(row, tx_dict):
             tx_id = uuid4()
             tx_dict["id"] = tx_id
-            tx_dict["is_real"] = False
+            tx_dict["source"] = DataSource.SHEETS
 
             if "product_type" not in tx_dict:
                 raise MissingFieldsError(["product_type"])

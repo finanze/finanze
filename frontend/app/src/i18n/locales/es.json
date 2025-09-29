@@ -462,6 +462,7 @@
     "product": "Producto",
     "amount": "Cantidad",
     "entity": "Entidad",
+    "source": "Fuente",
     "virtual": "(Virtual)",
     "ref": "Ref",
     "ticker": "Ticker",
@@ -500,6 +501,11 @@
     "yearsAgo": "hace {count} años"
   },
   "enums": {
+    "dataSource": {
+      "REAL": "Real",
+      "SHEETS": "Sheets",
+      "MANUAL": "Manual"
+    },
     "transactionType": {
       "BUY": "Compra",
       "SELL": "Venta",
@@ -866,7 +872,8 @@
     "other": "Otros",
     "monthlyPerTarget": "Mensual por destino",
     "activeContributions": "Aportaciones activas",
-    "monthlyAverageContribution": "Promedio mensual aportación"
+    "monthlyAverageContribution": "Promedio mensual aportación",
+    "source": "Origen"
   },
   "datePicker": {
     "selectYear": "Seleccionar Año"

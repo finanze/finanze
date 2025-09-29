@@ -1,6 +1,9 @@
 import abc
+from typing import Optional
+from uuid import UUID
 
-from domain.virtual_fetch import VirtualDataImport
+from domain.entity import Feature
+from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
 
 
 class VirtualImportRegistry(metaclass=abc.ABCMeta):
@@ -9,5 +12,17 @@ class VirtualImportRegistry(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_import_records(self) -> list[VirtualDataImport]:
+    def get_last_import_records(
+        self, source: Optional[VirtualDataSource] = None
+    ) -> list[VirtualDataImport]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_by_import_feature_and_entity(
+        self, import_id: UUID, feature: Feature, entity_id: UUID
+    ):
         raise NotImplementedError

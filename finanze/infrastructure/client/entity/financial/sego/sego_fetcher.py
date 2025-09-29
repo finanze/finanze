@@ -9,6 +9,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -69,7 +70,7 @@ def map_txs(
         retentions=tax,
         interests=interests,
         net_amount=round(net_amount, 2),
-        is_real=True,
+        source=DataSource.REAL,
     )
 
 

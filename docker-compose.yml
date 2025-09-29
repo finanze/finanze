@@ -1,42 +1,44 @@
 services:
   finanze-server:
     restart: unless-stopped
-    build: . # Use the Dockerfile in the current directory
+    # build: .                                        # Use the Dockerfile in the current directory
     # image: marcosav/finanze:latest-selenium
-    # image: marcosav/finanze:latest-no-selenium
+    image: marcosav/finanze:latest-no-selenium
     ports:
       - '7592:7592'
-    environment:
-      # DB_CIPHER_PASSWORD: myVerySecretPasswordToEncryptDB # Provided via API or use .env
-      # Selenium related envs
-      WIRE_ADDRESS: 0.0.0.0
-      WIRE_PORT: 8088
-      WIRE_PROXY_SERVER_ADDRESS: finanze-server
-      WEBDRIVER_ADDRESS: http://selenium:4444
-    env_file:
-      - .env
+    # environment:
+      # USERNAME: myusername                          # Optional, provided via API when logging in, or use .env, this will automatically log in
+      # PASSWORD: myVerySecretPasswordToEncryptDB     # Optional, provided via API when logging in, or use .env, this will automatically log in
+      # Selenium related envs, only if you want to use Selenium with marcosav/finanze:latest-selenium
+      # WIRE_ADDRESS: 0.0.0.0
+      # WIRE_PORT: 8088
+      # WIRE_PROXY_SERVER_ADDRESS: finanze-server
+      # WEBDRIVER_ADDRESS: http://selenium:4444
+    # env_file:
+    #   - .env                                         # Load environment variables from .env file in case you want to provide USERNAME and PASSWORD this way
     volumes:
       - ./.storage/:/.storage
-      - /etc/timezone:/etc/timezone:ro # Use host's timezone
-      - /etc/localtime:/etc/localtime:ro # Use host's localtime
+      - /etc/timezone:/etc/timezone:ro                 # Use host's timezone
+      - /etc/localtime:/etc/localtime:ro               # Use host's localtime
     command: |
       --port 7592
       --data-dir /.storage
       --log-level DEBUG
 
-  selenium:
-    image: selenium/standalone-firefox:latest
-    restart: unless-stopped
-    ports:
-      - "4444:4444"
-      - "7900:7900"
-    shm_size: "2g"
+#  Optional, only if you want to use Selenium with marcosav/finanze:latest-selenium (for Mintos)
+#  selenium:
+#    image: selenium/standalone-firefox:latest
+#    restart: unless-stopped
+#    ports:
+#      - "4444:4444"
+#      - "7900:7900"
+#    shm_size: "2g"
 
   finanze-front:
     restart: unless-stopped
-    build: frontend # Use the Dockerfile in the current directory
-    # image: marcosav/finanze-frontend:latest
+    # build: frontend                                 # Use the Dockerfile in the current directory
+    image: marcosav/finanze-frontend:latest
     ports:
       - "8080:80"
     environment:
-      - FINANZE_BASE_URL=http://localhost:7592
+      - FINANZE_BASE_URL=http://localhost:7592        # Url where the backend is reachable from the frontend

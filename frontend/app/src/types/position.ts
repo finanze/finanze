@@ -337,3 +337,8 @@ export interface PositionQueryRequest {
   entities?: string[] // Add entities filter
   excluded_entities?: string[]
 }
+
+export interface UpdatePositionRequest {
+  entity_id: string
+  products: ProductPositions
+}

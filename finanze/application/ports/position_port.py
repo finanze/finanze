@@ -23,3 +23,11 @@ class PositionPort(metaclass=abc.ABCMeta):
         self, entity_id: UUID, date: datetime.date, is_real: bool
     ):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_by_id(self, position_id: UUID) -> Optional[GlobalPosition]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def delete_by_id(self, position_id: UUID):
+        raise NotImplementedError

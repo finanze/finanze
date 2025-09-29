@@ -1,5 +1,5 @@
 import { ProductType } from "./position"
-import { EntityOrigin } from "."
+import { DataSource, EntityOrigin } from "."
 
 export enum TxType {
   BUY = "BUY",
@@ -37,7 +37,7 @@ export interface BaseTx {
     name: string
     origin: EntityOrigin
   }
-  is_real: boolean
+  source: DataSource
   product_type: ProductType
 }
 
@@ -107,6 +107,15 @@ export interface DepositTx extends BaseInvestmentTx {
   retentions: number
   interests: number
 }
+
+export type ManualTransactionPayload =
+  | AccountTx
+  | StockTx
+  | FundTx
+  | FundPortfolioTx
+  | FactoringTx
+  | RealEstateCFTx
+  | DepositTx
 
 // Transactions container
 export interface Transactions {

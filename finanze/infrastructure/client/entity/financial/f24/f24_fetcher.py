@@ -10,6 +10,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -129,7 +130,7 @@ def _map_account_txs(raw_trades, registered_txs):
             product_type=ProductType.ACCOUNT,
             date=trade_date,
             entity=F24,
-            is_real=True,
+            source=DataSource.REAL,
         )
         account_txs.append(account_tx)
     return account_txs
@@ -160,7 +161,7 @@ def _map_deposit_tx(
         retentions=Dezimal(0),
         interests=interest,
         net_amount=amount,
-        is_real=True,
+        source=DataSource.REAL,
     )
 
 
@@ -425,7 +426,7 @@ class F24Fetcher(FinancialEntityFetcher):
                 order_date=None,
                 product_type=ProductType.STOCK_ETF,
                 linked_tx=None,
-                is_real=True,
+                source=DataSource.REAL,
             )
             investment_tx.append(tx)
 

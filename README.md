@@ -153,17 +153,21 @@ cd /Applications && xattr -d com.apple.quarantine Finanze.app
    command, then do the following:
     - Go to `System Settings → Privacy & Security → Full Disk Access` and add or enable `Terminal` in the list.
 
-## Development
-
 ### Docker
 
-Two Docker images are available, a Selenium one (latest-selenium) and a light one (latest-no-selenium). The first one is
-the default, which currently is
-needed for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO dependencies (like ffmpeg).
+Two Docker images are available, a Selenium one (latest-selenium) and a light one (latest-no-selenium).
+
+The first one is required for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO
+dependencies (like ffmpeg).
+In case you don't use Mintos, latest-no-selenium is highly recommended.
 
 Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
 
 Frontend is available at [marcosav/finanze-frontend](https://hub.docker.com/r/marcosav/finanze-frontend).
+
+Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
+
+## Development
 
 ### Setup
 

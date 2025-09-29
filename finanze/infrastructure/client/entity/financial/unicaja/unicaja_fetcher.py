@@ -14,6 +14,7 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from domain.entity import EntitySetupLoginType
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.global_position import (
     Account,
     Accounts,
@@ -275,7 +276,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
                     else None,
                     frequency=frequency,
                     active=active,
-                    is_real=True,
+                    source=DataSource.REAL,
                 )
             )
 

@@ -47,7 +47,7 @@ class BSCFetcher(CryptoEntityFetcher):
             action="tokentx",
             address=request.address,
             start_block=0,
-            end_block=0,
+            end_block=99999999,
             sort="asc",
             integrations=request.integrations,
         )

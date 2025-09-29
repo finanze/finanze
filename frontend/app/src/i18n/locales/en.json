@@ -463,6 +463,7 @@
     "product": "Product",
     "amount": "Amount",
     "entity": "Entity",
+    "source": "Source",
     "virtual": "(Virtual)",
     "ref": "Ref",
     "ticker": "Ticker",
@@ -501,6 +502,11 @@
     "yearsAgo": "{count} years ago"
   },
   "enums": {
+    "dataSource": {
+      "REAL": "Real",
+      "SHEETS": "Sheets",
+      "MANUAL": "Manual"
+    },
     "transactionType": {
       "BUY": "Buy",
       "SELL": "Sell",
@@ -867,7 +873,8 @@
     "other": "Other",
     "monthlyPerTarget": "Monthly by target",
     "activeContributions": "Active contributions",
-    "monthlyAverageContribution": "Monthly avg. contribution"
+    "monthlyAverageContribution": "Monthly avg. contribution",
+    "source": "Source"
   },
   "datePicker": {
     "selectYear": "Select Year"

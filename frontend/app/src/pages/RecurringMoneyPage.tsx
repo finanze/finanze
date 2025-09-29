@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/Popover"
 import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { convertCurrency } from "@/utils/financialDataUtils"
 import {
   FlowType,
   FlowFrequency,
@@ -58,10 +59,11 @@ import {
 
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
-  const { showToast, settings } = useAppContext()
+  const { showToast, settings, exchangeRates } = useAppContext()
   const { periodicFlows, refreshFlows, positionsData, contributions } =
     useFinancialData()
   const navigate = useNavigate()
+  const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -150,17 +152,29 @@ export default function RecurringMoneyPage() {
     const monthlyEarnings = baseFlows
       .filter(flow => flow.flow_type === FlowType.EARNING && flow.enabled)
       .reduce((total, flow) => {
-        const amount = flow.amount
         const multiplier = getMonthlyMultiplier(flow.frequency)
-        return total + amount * multiplier
+        const normalizedAmount = flow.amount * multiplier
+        const convertedAmount = convertCurrency(
+          normalizedAmount,
+          flow.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+        return total + convertedAmount
       }, 0)
 
     const monthlyExpenses = baseFlows
       .filter(flow => flow.flow_type === FlowType.EXPENSE && flow.enabled)
       .reduce((total, flow) => {
-        const amount = flow.amount
         const multiplier = getMonthlyMultiplier(flow.frequency)
-        return total + amount * multiplier
+        const normalizedAmount = flow.amount * multiplier
+        const convertedAmount = convertCurrency(
+          normalizedAmount,
+          flow.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+        return total + convertedAmount
       }, 0)
 
     // Monthly contributions (active only) if enabled
@@ -185,12 +199,25 @@ export default function RecurringMoneyPage() {
                       : freq === ContributionFrequency.YEARLY
                         ? 1 / 12
                         : 1
-          monthlyContributions += c.amount * multiplier
+          const normalized = c.amount * multiplier
+          monthlyContributions += convertCurrency(
+            normalized,
+            c.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
         })
       })
     }
     return { monthlyEarnings, monthlyExpenses, monthlyContributions }
-  }, [periodicFlows, categoryFilter, contributions, effectiveShowContributions])
+  }, [
+    periodicFlows,
+    categoryFilter,
+    contributions,
+    effectiveShowContributions,
+    exchangeRates,
+    defaultCurrency,
+  ])
 
   // Utilization badge color scale (starts warm >55%)
   const getUtilizationBadgeClasses = (percent: number) => {
@@ -248,9 +275,8 @@ export default function RecurringMoneyPage() {
       .reduce(
         (groups, flow) => {
           const category = flow.category || flow.name
-          const monthlyAmount =
-            flow.amount *
-            (flow.frequency === FlowFrequency.DAILY
+          const multiplier =
+            flow.frequency === FlowFrequency.DAILY
               ? 30
               : flow.frequency === FlowFrequency.WEEKLY
                 ? 4.33
@@ -266,7 +292,14 @@ export default function RecurringMoneyPage() {
                           ? 1 / 6
                           : flow.frequency === FlowFrequency.YEARLY
                             ? 1 / 12
-                            : 1)
+                            : 1
+          const normalized = flow.amount * multiplier
+          const monthlyAmount = convertCurrency(
+            normalized,
+            flow.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
 
           if (!groups[category]) {
             groups[category] = { amount: 0, flows: [] }
@@ -284,9 +317,8 @@ export default function RecurringMoneyPage() {
       .reduce(
         (groups, flow) => {
           const category = flow.category || flow.name
-          const monthlyAmount =
-            flow.amount *
-            (flow.frequency === FlowFrequency.DAILY
+          const multiplier =
+            flow.frequency === FlowFrequency.DAILY
               ? 30
               : flow.frequency === FlowFrequency.WEEKLY
                 ? 4.33
@@ -302,7 +334,14 @@ export default function RecurringMoneyPage() {
                           ? 1 / 6
                           : flow.frequency === FlowFrequency.YEARLY
                             ? 1 / 12
-                            : 1)
+                            : 1
+          const normalized = flow.amount * multiplier
+          const monthlyAmount = convertCurrency(
+            normalized,
+            flow.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
 
           if (!groups[category]) {
             groups[category] = { amount: 0, flows: [] }
@@ -357,6 +396,8 @@ export default function RecurringMoneyPage() {
     monthlyAmounts,
     categoryFilter,
     effectiveShowContributions,
+    exchangeRates,
+    defaultCurrency,
   ])
 
   const toggleCategoryFilter = (category: string) => {
@@ -695,6 +736,13 @@ export default function RecurringMoneyPage() {
         <div className="space-y-2">
           {flows.map(flow => {
             const nextDateInfo = getNextDateInfo(flow.next_date)
+            const convertedAmount = convertCurrency(
+              flow.amount,
+              flow.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+            const showOriginalCurrency = flow.currency !== defaultCurrency
 
             return (
               <div
@@ -785,10 +833,15 @@ export default function RecurringMoneyPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end text-right">
+                <div className="flex flex-col items-end gap-1 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto text-right">
                   <span className="font-mono font-semibold">
-                    {formatCurrency(flow.amount, locale, flow.currency)}
+                    {formatCurrency(convertedAmount, locale, defaultCurrency)}
                   </span>
+                  {showOriginalCurrency && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatCurrency(flow.amount, locale, flow.currency)}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">

@@ -12,6 +12,7 @@ from domain.auto_contributions import (
 )
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -143,7 +144,7 @@ def _map_movement_to_stock_tx(
         retentions=round(retentions, 2),
         date=date_dt,
         product_type=ProductType.STOCK_ETF,
-        is_real=True,
+        source=DataSource.REAL,
         linked_tx=None,
     )
 
@@ -450,7 +451,7 @@ class INGFetcher(FinancialEntityFetcher):
                         until=None,
                         frequency=frequency,
                         active=True,
-                        is_real=True,
+                        source=DataSource.REAL,
                     )
                 )
 
@@ -583,7 +584,7 @@ class INGFetcher(FinancialEntityFetcher):
                             retentions=retentions,
                             date=date_dt,
                             product_type=ProductType.FUND,
-                            is_real=True,
+                            source=DataSource.REAL,
                         )
                     )
                 count = resp.get("count") or len(elements)

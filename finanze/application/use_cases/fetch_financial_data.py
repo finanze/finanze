@@ -23,7 +23,7 @@ from domain.dezimal import Dezimal
 from domain.entity import CredentialType, Entity, EntityType, Feature
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
-from domain.fetch_record import FetchRecord
+from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
     FetchedData,
@@ -299,7 +299,9 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         if Feature.TRANSACTIONS in features:
             registered_txs = {}
             if options.deep:
-                self._transaction_port.delete_for_real_entity(entity.id)
+                self._transaction_port.delete_by_entity_source(
+                    entity.id, DataSource.REAL
+                )
             else:
                 registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
             transactions = await specific_fetcher.transactions(registered_txs, options)
@@ -308,7 +310,9 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             self._position_port.save(position)
 
         if auto_contributions:
-            self._auto_contr_repository.save(entity.id, auto_contributions)
+            self._auto_contr_repository.save(
+                entity.id, auto_contributions, DataSource.REAL
+            )
 
         historic = None
         if transactions:

@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { convertCurrency } from "@/utils/financialDataUtils"
 import {
   Info,
   PiggyBank,
@@ -26,6 +27,8 @@ import {
   ContributionFrequency,
   PeriodicContribution,
 } from "@/types/contributions"
+import { DataSource } from "@/types"
+import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { cn } from "@/lib/utils"
 // Donut chart removed; using progress bar list visualization
 
@@ -52,9 +55,10 @@ const monthlyMultiplier = (f: ContributionFrequency) => {
 
 export default function AutoContributionsPage() {
   const { t, locale } = useI18n()
-  const { settings, entities } = useAppContext()
+  const { settings, entities, exchangeRates } = useAppContext()
   const { contributions } = useFinancialData()
   const navigate = useNavigate()
+  const defaultCurrency = settings.general.defaultCurrency
 
   const getNextDateInfo = (nextDate?: string) => {
     if (!nextDate) return null
@@ -111,18 +115,24 @@ export default function AutoContributionsPage() {
     return acc
   }, [periodicByEntity])
 
-  const monthlyTotal = useMemo(
-    () =>
-      flatContributions.reduce(
-        (acc, { contribution }) =>
-          contribution.active
-            ? acc +
-              contribution.amount * monthlyMultiplier(contribution.frequency)
-            : acc,
-        0,
-      ),
-    [flatContributions],
-  )
+  const monthlyTotal = useMemo(() => {
+    return flatContributions.reduce((acc, { contribution }) => {
+      if (!contribution.active) {
+        return acc
+      }
+
+      const normalized =
+        contribution.amount * monthlyMultiplier(contribution.frequency)
+      const converted = convertCurrency(
+        normalized,
+        contribution.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+
+      return acc + converted
+    }, 0)
+  }, [flatContributions, exchangeRates, defaultCurrency])
 
   const grouped = useMemo(() => {
     const map: Record<string, PeriodicContribution[]> = {}
@@ -164,16 +174,22 @@ export default function AutoContributionsPage() {
       if (!contribution.active) return
       const normalized =
         contribution.amount * monthlyMultiplier(contribution.frequency)
+      const converted = convertCurrency(
+        normalized,
+        contribution.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
       const key =
         (contribution as any).target_name ||
         contribution.target ||
         contribution.target_type
       const byType = !((contribution as any).target_name || contribution.target)
       const existing = map.get(key)
-      if (existing) existing.amount += normalized
+      if (existing) existing.amount += converted
       else
         map.set(key, {
-          amount: normalized,
+          amount: converted,
           type: contribution.target_type,
           byType,
         })
@@ -193,7 +209,7 @@ export default function AutoContributionsPage() {
       percentage: (e.value / total) * 100,
       total,
     }))
-  }, [flatContributions, t])
+  }, [flatContributions, t, exchangeRates, defaultCurrency])
 
   const colors = [
     "#6366F1",
@@ -243,11 +259,7 @@ export default function AutoContributionsPage() {
             </div>
             <div>
               <div className="text-3xl font-bold leading-tight tracking-tight">
-                {formatCurrency(
-                  monthlyTotal,
-                  locale,
-                  settings?.general?.defaultCurrency,
-                )}
+                {formatCurrency(monthlyTotal, locale, defaultCurrency)}
               </div>
             </div>
           </Card>
@@ -278,7 +290,7 @@ export default function AutoContributionsPage() {
                 {formatCurrency(
                   distributionData[0].total,
                   locale,
-                  settings?.general?.defaultCurrency,
+                  defaultCurrency,
                 )}
               </span>
             </div>
@@ -291,12 +303,8 @@ export default function AutoContributionsPage() {
                       {d.name}
                     </span>
                     <span className="shrink-0 tabular-nums text-muted-foreground group-hover:text-foreground transition-colors">
-                      {formatCurrency(
-                        d.value,
-                        locale,
-                        settings?.general?.defaultCurrency,
-                      )}{" "}
-                      · {d.percentage.toFixed(0)}%
+                      {formatCurrency(d.value, locale, defaultCurrency)} ·{" "}
+                      {d.percentage.toFixed(0)}%
                     </span>
                   </div>
                   <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -348,6 +356,22 @@ export default function AutoContributionsPage() {
                   (t.enums?.productType as any)?.[c.target_type] ||
                   c.target_type
                 const nextInfo = c.active ? getNextDateInfo(c.next_date) : null
+                const SourceIcon = getSourceIcon(c.source)
+                const normalizedMonthlyAmount =
+                  c.amount * monthlyMultiplier(c.frequency)
+                const convertedAmount = convertCurrency(
+                  c.amount,
+                  c.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+                const convertedMonthlyAmount = convertCurrency(
+                  normalizedMonthlyAmount,
+                  c.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+                const showOriginalCurrency = c.currency !== defaultCurrency
                 return (
                   <Card
                     key={c.id}
@@ -371,20 +395,34 @@ export default function AutoContributionsPage() {
                       </div>
                       <div className="min-w-0 flex-1 flex flex-col">
                         <div className="flex justify-between gap-3 items-start">
-                          <h3 className="font-semibold text-base leading-snug truncate pr-2">
-                            {c.alias || c.target_name || productTypeLabel}
-                          </h3>
-                          <div className="text-2xl font-semibold tracking-tight leading-none">
-                            {formatCurrency(
-                              c.amount,
-                              locale,
-                              settings?.general?.defaultCurrency || c.currency,
-                              c.currency,
+                          <div className="flex items-start min-w-0">
+                            <h3 className="font-semibold text-base leading-snug truncate pr-2">
+                              {c.alias || c.target_name || productTypeLabel}
+                            </h3>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="text-2xl font-semibold tracking-tight leading-none">
+                              {formatCurrency(
+                                convertedAmount,
+                                locale,
+                                defaultCurrency,
+                              )}
+                            </div>
+                            {showOriginalCurrency && (
+                              <div className="text-xs text-muted-foreground">
+                                {formatCurrency(c.amount, locale, c.currency)}
+                              </div>
                             )}
                           </div>
                         </div>
                         <div className="mt-auto flex items-center justify-between pt-4 text-[0.7rem] font-medium">
                           <div className="flex items-center gap-3">
+                            <SourceBadge
+                              source={c.source}
+                              title={t.management.source}
+                              className="bg-muted text-foreground/80 dark:bg-muted/70 px-2 py-0.5 rounded-full"
+                              iconClassName="h-3 w-3"
+                            />
                             <Badge className="bg-muted text-foreground/80 dark:bg-muted/70 flex items-center gap-1 px-2 py-0.5 rounded-full">
                               <CalendarDays className="h-3 w-3" />{" "}
                               {freqLabel(c.frequency)}
@@ -473,16 +511,39 @@ export default function AutoContributionsPage() {
                                   <span className="font-medium text-muted-foreground">
                                     {t.management.monthlyAverageContribution}
                                   </span>
-                                  <span>
-                                    {formatCurrency(
-                                      c.amount * monthlyMultiplier(c.frequency),
-                                      locale,
-                                      settings?.general?.defaultCurrency ||
-                                        c.currency,
-                                      c.currency,
+                                  <div className="text-right">
+                                    <div className="font-medium">
+                                      {formatCurrency(
+                                        convertedMonthlyAmount,
+                                        locale,
+                                        defaultCurrency,
+                                      )}
+                                    </div>
+                                    {showOriginalCurrency && (
+                                      <div className="text-xs text-muted-foreground">
+                                        {formatCurrency(
+                                          normalizedMonthlyAmount,
+                                          locale,
+                                          c.currency,
+                                        )}
+                                      </div>
                                     )}
-                                  </span>
+                                  </div>
                                 </div>
+                                {c.source !== DataSource.REAL && (
+                                  <div className="flex justify-between gap-4">
+                                    <span className="font-medium text-muted-foreground">
+                                      {t.management.source}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1">
+                                      {SourceIcon ? (
+                                        <SourceIcon className="h-3.5 w-3.5" />
+                                      ) : null}
+                                      {t.enums?.dataSource?.[c.source] ||
+                                        c.source}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </PopoverContent>
                           </Popover>

@@ -9,6 +9,7 @@ from domain.exception.exceptions import (
     IntegrationSetupErrorCode,
     InvalidProvidedCredentials,
     TooManyRequests,
+    TransactionNotFound,
 )
 from flask import jsonify
 
@@ -23,6 +24,10 @@ def handle_invalid_authentication(e):
 
 def handle_entity_not_found(e):
     return jsonify({"code": "ENTITY_NOT_FOUND", "message": str(e)}), 404
+
+
+def handle_tx_not_found(e):
+    return jsonify({"code": "TX_NOT_FOUND", "message": str(e)}), 404
 
 
 def handle_invalid_credentials(e):
@@ -71,6 +76,7 @@ def handle_required_integration(e: ExternalIntegrationRequired):
 
 def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
+    app.register_error_handler(TransactionNotFound, handle_tx_not_found)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
     app.register_error_handler(DataEncryptedError, handle_data_encrypted)
     app.register_error_handler(ExecutionConflict, handle_execution_conflict)

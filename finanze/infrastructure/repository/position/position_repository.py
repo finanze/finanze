@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 from uuid import UUID
 
 from application.ports.position_port import PositionPort
@@ -410,6 +410,18 @@ def _store_position(
         positions[product_type] = position
 
 
+def _aggregate_positions(positions: list[GlobalPosition]) -> GlobalPosition:
+    aggregated_position = None
+
+    for position in positions:
+        if aggregated_position is None:
+            aggregated_position = position
+        else:
+            aggregated_position += position
+
+    return aggregated_position
+
+
 class PositionSQLRepository(PositionPort):
     def __init__(self, client: DBClient):
         self._db_client = client
@@ -436,27 +448,31 @@ class PositionSQLRepository(PositionPort):
         if not query or query.real is None or query.real:
             real_global_position_by_entity = self._get_real_grouped_by_entity(query)
         if not query or query.real is None or not query.real:
-            manual_global_position_by_entity = self._get_non_real_grouped_by_entity(
-                query
+            manual_global_position_by_entity: dict[Entity, list[GlobalPosition]] = (
+                self._get_non_real_grouped_by_entity(query)
             )
 
         global_position_by_entity = {}
         for entity, position in real_global_position_by_entity.items():
             if entity in manual_global_position_by_entity:
-                manual = manual_global_position_by_entity[entity]
-                global_position_by_entity[entity] = position + manual
+                manual_positions = manual_global_position_by_entity[entity]
+                aggregated_manual_position = _aggregate_positions(manual_positions)
+
+                global_position_by_entity[entity] = (
+                    position + aggregated_manual_position
+                )
                 del manual_global_position_by_entity[entity]
             else:
                 global_position_by_entity[entity] = position
 
-        for entity, position in manual_global_position_by_entity.items():
-            global_position_by_entity[entity] = position
+        for entity, manual_positions in manual_global_position_by_entity.items():
+            global_position_by_entity[entity] = _aggregate_positions(manual_positions)
 
         return global_position_by_entity
 
     def _get_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> Dict[Entity, GlobalPosition]:
+    ) -> dict[Entity, GlobalPosition]:
         with self._db_client.read() as cursor:
             sql = """
                   WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
@@ -494,16 +510,43 @@ class PositionSQLRepository(PositionPort):
 
             return self._map_position_rows(cursor)
 
-    def _map_position_rows(self, cursor: DBCursor):
-        positions = {}
-        for row in cursor.fetchall():
-            entity = Entity(
-                id=UUID(row["entity_id"]),
-                name=row["entity_name"],
-                natural_id=row["entity_natural_id"],
-                type=row["entity_type"],
-                origin=row["entity_origin"],
-            )
+    def _map_position_rows(self, cursor: DBCursor, multi: bool = False):
+        rows = cursor.fetchall()
+
+        if not multi:
+            positions: dict[Entity, GlobalPosition] = {}
+            for row in rows:
+                entity = Entity(
+                    id=UUID(row["entity_id"]),
+                    name=row["entity_name"],
+                    natural_id=row["entity_natural_id"],
+                    type=row["entity_type"],
+                    origin=row["entity_origin"],
+                )
+                position = GlobalPosition(
+                    id=UUID(row["id"]),
+                    entity=entity,
+                    date=datetime.fromisoformat(row["date"]),
+                    products=self._get_product_positions(row["id"]),
+                    is_real=row["is_real"],
+                )
+                positions[entity] = position
+            return positions
+
+        entities: dict[UUID, Entity] = {}
+        result: dict[Entity, list[GlobalPosition]] = {}
+
+        for row in rows:
+            ent_id = UUID(row["entity_id"])
+            if ent_id not in entities:
+                entities[ent_id] = Entity(
+                    id=ent_id,
+                    name=row["entity_name"],
+                    natural_id=row["entity_natural_id"],
+                    type=row["entity_type"],
+                    origin=row["entity_origin"],
+                )
+            entity = entities[ent_id]
 
             position = GlobalPosition(
                 id=UUID(row["id"]),
@@ -512,18 +555,27 @@ class PositionSQLRepository(PositionPort):
                 products=self._get_product_positions(row["id"]),
                 is_real=row["is_real"],
             )
-            positions[entity] = position
-        return positions
+
+            lst = result.get(entity)
+            if lst is None:
+                result[entity] = [position]
+            else:
+                lst.append(position)
+
+        return result
 
     def _get_non_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> Dict[Entity, GlobalPosition]:
+    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
         with self._db_client.read() as cursor:
             sql = """
-                  WITH latest_import_details AS (SELECT import_id
-                                                 FROM virtual_data_imports
-                                                 ORDER BY date DESC
-                                                 LIMIT 1),
+                  WITH latest_import_details AS (SELECT vdi.import_id
+                                                 FROM virtual_data_imports vdi
+                                                          JOIN (SELECT source, MAX(date) AS max_date
+                                                                FROM virtual_data_imports
+                                                                GROUP BY source) mx
+                                                               ON mx.source = vdi.source AND mx.max_date = vdi.date
+                                                 GROUP BY vdi.source),
                        last_imported_position_ids AS (SELECT vdi.global_position_id
                                                       FROM virtual_data_imports vdi
                                                                JOIN latest_import_details lid
@@ -561,7 +613,7 @@ class PositionSQLRepository(PositionPort):
 
             cursor.execute(sql, tuple(params))
 
-            return self._map_position_rows(cursor)
+            return self._map_position_rows(cursor, multi=True)
 
     def _get_accounts(self, global_position_id: UUID) -> Optional[Accounts]:
         with self._db_client.read() as cursor:
@@ -1099,4 +1151,38 @@ class PositionSQLRepository(PositionPort):
                   AND is_real = ?
                 """,
                 (str(entity_id), date.isoformat(), is_real),
+            )
+
+    def get_by_id(self, position_id: UUID) -> Optional[GlobalPosition]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                """
+                SELECT gp.*, e.id AS entity_id, e.name AS entity_name, e.natural_id AS entity_natural_id, e.type AS entity_type, e.origin AS entity_origin
+                FROM global_positions gp JOIN entities e ON gp.entity_id = e.id
+                WHERE gp.id = ?
+                """,
+                (str(position_id),),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            entity = Entity(
+                id=UUID(row["entity_id"]),
+                name=row["entity_name"],
+                natural_id=row["entity_natural_id"],
+                type=row["entity_type"],
+                origin=row["entity_origin"],
+            )
+            return GlobalPosition(
+                id=UUID(row["id"]),
+                entity=entity,
+                date=datetime.fromisoformat(row["date"]),
+                products=self._get_product_positions(UUID(row["id"])),
+                is_real=row["is_real"],
+            )
+
+    def delete_by_id(self, position_id: UUID):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM global_positions WHERE id = ?", (str(position_id),)
             )

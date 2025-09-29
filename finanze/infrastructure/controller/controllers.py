@@ -1,4 +1,5 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
+from domain.use_cases.add_manual_transaction import AddManualTransaction
 from domain.use_cases.calculate_loan import CalculateLoan
 from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.use_cases.complete_external_entity_connection import (
@@ -12,6 +13,7 @@ from domain.use_cases.connect_google import ConnectGoogle
 from domain.use_cases.create_real_estate import CreateRealEstate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.delete_external_entity import DeleteExternalEntity
+from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.delete_real_estate import DeleteRealEstate
 from domain.use_cases.disconnect_entity import DisconnectEntity
@@ -37,8 +39,11 @@ from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.save_commodities import SaveCommodities
 from domain.use_cases.save_pending_flows import SavePendingFlows
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
+from domain.use_cases.update_contributions import UpdateContributions
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
+from domain.use_cases.update_manual_transaction import UpdateManualTransaction
 from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
+from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_sheets import UpdateSheets
@@ -47,6 +52,9 @@ from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_fetch import VirtualFetch
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
+from infrastructure.controller.routes.add_manual_transaction import (
+    add_manual_transaction,
+)
 from infrastructure.controller.routes.calculate_loan import calculate_loan
 from infrastructure.controller.routes.change_user_password import change_user_password
 from infrastructure.controller.routes.complete_external_entity_connection import (
@@ -64,6 +72,9 @@ from infrastructure.controller.routes.create_real_estate import create_real_esta
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
 from infrastructure.controller.routes.delete_external_entity import (
     delete_external_entity,
+)
+from infrastructure.controller.routes.delete_manual_transaction import (
+    delete_manual_transaction,
 )
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
 from infrastructure.controller.routes.delete_real_estate import delete_real_estate
@@ -95,8 +106,13 @@ from infrastructure.controller.routes.save_commodities import save_commodities
 from infrastructure.controller.routes.save_pending_flows import save_pending_flows
 from infrastructure.controller.routes.save_periodic_flow import save_periodic_flow
 from infrastructure.controller.routes.transactions import transactions
+from infrastructure.controller.routes.update_contributions import update_contributions
 from infrastructure.controller.routes.update_crypto_wallet import update_crypto_wallet
+from infrastructure.controller.routes.update_manual_transaction import (
+    update_manual_transaction,
+)
 from infrastructure.controller.routes.update_periodic_flow import update_periodic_flow
+from infrastructure.controller.routes.update_position import update_position
 from infrastructure.controller.routes.update_real_estate import update_real_estate
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
@@ -148,6 +164,11 @@ def register_routes(
     list_real_estate_uc: ListRealEstate,
     calculate_loan_uc: CalculateLoan,
     forecast_uc: Forecast,
+    update_contributions_uc: UpdateContributions,
+    update_position_uc: UpdatePosition,
+    add_manual_transaction_uc: AddManualTransaction,
+    update_manual_transaction_uc: UpdateManualTransaction,
+    delete_manual_transaction_uc: DeleteManualTransaction,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -209,19 +230,19 @@ def register_routes(
             delete_external_entity_uc, external_entity_id
         )
 
-    @app.route("/api/v1/fetch/financial", methods=["POST"])
+    @app.route("/api/v1/data/fetch/financial", methods=["POST"])
     async def fetch_financial_data_route():
         return await fetch_financial_data(fetch_financial_data_uc)
 
-    @app.route("/api/v1/fetch/crypto", methods=["POST"])
+    @app.route("/api/v1/data/fetch/crypto", methods=["POST"])
     async def fetch_crypto_data_route():
         return await fetch_crypto_data(fetch_crypto_data_uc)
 
-    @app.route("/api/v1/fetch/virtual", methods=["POST"])
+    @app.route("/api/v1/data/fetch/virtual", methods=["POST"])
     async def virtual_fetch_route():
         return await virtual_fetch(virtual_fetch_uc)
 
-    @app.route("/api/v1/fetch/external/<external_entity_id>", methods=["POST"])
+    @app.route("/api/v1/data/fetch/external/<external_entity_id>", methods=["POST"])
     async def fetch_external_entity_route(external_entity_id: str):
         return await fetch_external_financial_data(
             fetch_external_financial_data_uc, external_entity_id
@@ -326,3 +347,23 @@ def register_routes(
     @app.route("/api/v1/forecast", methods=["POST"])
     def forecast_route():
         return forecast(forecast_uc)
+
+    @app.route("/api/v1/data/manual/contributions", methods=["POST"])
+    async def update_contributions_route():
+        return await update_contributions(update_contributions_uc)
+
+    @app.route("/api/v1/data/manual/positions", methods=["POST"])
+    async def update_position_route():
+        return await update_position(update_position_uc)
+
+    @app.route("/api/v1/data/manual/transactions", methods=["POST"])
+    async def add_manual_transaction_route():
+        return await add_manual_transaction(add_manual_transaction_uc)
+
+    @app.route("/api/v1/data/manual/transactions/<tx_id>", methods=["PUT"])
+    async def update_manual_transaction_route(tx_id: str):
+        return await update_manual_transaction(update_manual_transaction_uc, tx_id)
+
+    @app.route("/api/v1/data/manual/transactions/<tx_id>", methods=["DELETE"])
+    async def delete_manual_transaction_route(tx_id: str):
+        return await delete_manual_transaction(delete_manual_transaction_uc, tx_id)
