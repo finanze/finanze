@@ -874,7 +874,46 @@
     "monthlyPerTarget": "Monthly by target",
     "activeContributions": "Active contributions",
     "monthlyAverageContribution": "Monthly avg. contribution",
-    "source": "Source"
+    "source": "Source",
+    "manualContributions": {
+      "unnamed": "Manual contribution",
+      "add": "Add contribution",
+      "createTitle": "Add manual contribution",
+      "editTitle": "Edit manual contribution",
+      "entity": "Entity",
+      "targetName": "Target name",
+      "targetNameHelper": "Optional friendly name shown in the list",
+      "targetHelper": "ISIN, IBAN or identifier",
+      "currency": "Currency",
+      "suggestions": "Suggestions",
+      "noSuggestions": "No suggestions available",
+      "unsavedBadge": "Unsaved",
+      "warnings": {
+        "isin": "Review the ISIN format (2 letters followed by 10 alphanumeric characters).",
+        "iban": "Review the IBAN format and remove spaces if necessary."
+      },
+      "validation": {
+        "entity": "Select an entity",
+        "name": "Enter a name",
+        "targetType": "Select a target type",
+        "target": "Enter a target identifier",
+        "amount": "Enter a valid amount",
+        "currency": "Select a currency",
+        "since": "Choose a start date"
+      },
+      "cancelDialog": {
+        "title": "Discard changes?",
+        "message": "You have manual contribution updates that haven't been saved yet. Leaving edit mode will discard them.",
+        "confirm": "Discard changes",
+        "cancel": "Keep editing"
+      },
+      "modalDiscardDialog": {
+        "title": "Discard contribution?",
+        "message": "You have unsaved changes in this manual contribution. Do you want to discard them?",
+        "confirm": "Discard",
+        "cancel": "Continue editing"
+      }
+    }
   },
   "datePicker": {
     "selectYear": "Select Year"

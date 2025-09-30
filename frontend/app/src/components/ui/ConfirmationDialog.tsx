@@ -39,7 +39,7 @@ export function ConfirmationDialog({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10005]">
       <Card className="w-full max-w-md mx-4">
         <CardHeader>
           <CardTitle>{title}</CardTitle>

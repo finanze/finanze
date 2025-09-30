@@ -873,7 +873,46 @@
     "monthlyPerTarget": "Mensual por destino",
     "activeContributions": "Aportaciones activas",
     "monthlyAverageContribution": "Promedio mensual aportación",
-    "source": "Origen"
+    "source": "Origen",
+    "manualContributions": {
+      "unnamed": "Aportación manual",
+      "add": "Agregar aportación",
+      "createTitle": "Agregar aportación manual",
+      "editTitle": "Editar aportación manual",
+      "entity": "Entidad",
+      "targetName": "Nombre del destino",
+      "targetNameHelper": "Nombre opcional mostrado en la lista",
+      "targetHelper": "ISIN, IBAN o identificador",
+      "currency": "Moneda",
+      "suggestions": "Sugerencias",
+      "noSuggestions": "Sin sugerencias disponibles",
+      "unsavedBadge": "Sin guardar",
+      "warnings": {
+        "isin": "Revisa el formato del ISIN (2 letras seguidas de 10 caracteres alfanuméricos).",
+        "iban": "Revisa el formato del IBAN y elimina espacios si es necesario."
+      },
+      "validation": {
+        "entity": "Selecciona una entidad",
+        "name": "Ingresa un nombre",
+        "targetType": "Selecciona un tipo de destino",
+        "target": "Ingresa un identificador",
+        "amount": "Ingresa un monto válido",
+        "currency": "Selecciona una moneda",
+        "since": "Elige una fecha de inicio"
+      },
+      "cancelDialog": {
+        "title": "¿Descartar los cambios?",
+        "message": "Tienes cambios en las aportaciones manuales sin guardar. Si sales del modo edición se perderán.",
+        "confirm": "Descartar cambios",
+        "cancel": "Seguir editando"
+      },
+      "modalDiscardDialog": {
+        "title": "¿Descartar la aportación?",
+        "message": "Tienes cambios sin guardar en esta aportación manual. ¿Quieres descartarlos?",
+        "confirm": "Descartar",
+        "cancel": "Seguir editando"
+      }
+    }
   },
   "datePicker": {
     "selectYear": "Seleccionar Año"
