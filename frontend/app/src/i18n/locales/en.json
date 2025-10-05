@@ -28,6 +28,7 @@
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete",
+    "discard": "Discard",
     "notAvailable": "N/A",
     "add": "Add",
     "edit": "Edit",
@@ -280,7 +281,7 @@
     "contributions": "Contributions",
     "transactions": "Transactions",
     "historic": "Historic Data",
-    "scrape": "Data Import",
+    "scrape": "Import & Fetch",
     "scrapeSettings": "Import",
     "scrapeDescription": "Configure general scraping settings",
     "virtual": "Virtual data",
@@ -547,6 +548,26 @@
       "FIXED_INCOME": "Fixed Income",
       "MIXED": "Mixed",
       "OTHER": "Other"
+    },
+    "accountType": {
+      "CHECKING": "Checking",
+      "SAVINGS": "Savings",
+      "BROKERAGE": "Brokerage",
+      "VIRTUAL_WALLET": "Wallet",
+      "FUND_PORTFOLIO": "Fund portfolio"
+    },
+    "cardType": {
+      "CREDIT": "Credit",
+      "DEBIT": "Debit"
+    },
+    "loanType": {
+      "MORTGAGE": "Mortgage",
+      "STANDARD": "Personal loan"
+    },
+    "interestType": {
+      "FIXED": "Fixed",
+      "VARIABLE": "Variable",
+      "MIXED": "Mixed"
     },
     "kpis": {
       "assetTypeSplit": "Asset Type Split"
@@ -912,6 +933,326 @@
         "message": "You have unsaved changes in this manual contribution. Do you want to discard them?",
         "confirm": "Discard",
         "cancel": "Continue editing"
+      }
+    },
+    "manualPositions": {
+      "shared": {
+        "entity": "Entity",
+        "name": "Name",
+        "currency": "Currency",
+        "createEntity": "Create entity",
+        "cancelEntityCreation": "Cancel new entity",
+        "newEntityPlaceholder": "Enter the new entity name",
+        "summary": {
+          "shares": "Shares"
+        },
+        "validation": {
+          "required": "This field is required",
+          "number": "Enter a valid number",
+          "entity": "Select an entity",
+          "entityName": "Enter an entity name",
+          "entityNameExists": "An entity with this name already exists"
+        },
+        "genericError": "We couldn't build that position with the provided values.",
+        "pendingChangesTitle": "Draft manual updates",
+        "pendingChangesDescription": "Review manual assets before saving.",
+        "status": {
+          "new": "New",
+          "updated": "Updated"
+        },
+        "discardChangesTitle": "Discard changes?",
+        "discardChangesMessage": "You have unsaved manual position changes. Discard them?",
+        "deleteTitle": "Delete manual position",
+        "deleteMessage": "This manual position will be removed from the entity."
+      },
+      "bankAccounts": {
+        "title": "Manual bank accounts",
+        "description": "Keep balances for accounts that aren't connected automatically.",
+        "add": "Add bank account",
+        "empty": {
+          "title": "No manual bank accounts",
+          "description": "Add a manual bank account to include its balance in your overview."
+        },
+        "form": {
+          "createTitle": "Add manual bank account",
+          "createDescription": "Fill in the account details to track it manually.",
+          "editTitle": "Edit manual bank account",
+          "editDescription": "Update the selected manual bank account."
+        },
+        "fields": {
+          "type": "Account type",
+          "total": "Balance",
+          "interest": "Interest rate (%)",
+          "retained": "Retained amount",
+          "pendingTransfers": "Pending transfers",
+          "iban": "IBAN"
+        },
+        "helpers": {
+          "ibanRecommendation": "Adding the IBAN helps match transfers and automate reconciliations."
+        },
+        "deleteWarning": {
+          "single": "There's 1 manual card linked to this account. Deleting it will unlink the card, which will remain saved without an associated account.",
+          "plural": "There are {{count}} manual cards linked to this account. Deleting it will unlink them so each card stays saved without an associated account."
+        },
+        "deletePortfolioWarning": {
+          "single": "There's 1 manual fund portfolio linked to this account. Deleting it will unlink the portfolio, which will remain saved without an associated account.",
+          "plural": "There are {{count}} manual fund portfolios linked to this account. Deleting it will unlink them so each portfolio stays saved without an associated account."
+        }
+      },
+      "bankCards": {
+        "title": "Manual cards",
+        "description": "Track credit or debit cards that you manage manually.",
+        "add": "Add card",
+        "empty": {
+          "title": "No manual cards",
+          "description": "Add a manual card to monitor its spending and limit."
+        },
+        "form": {
+          "createTitle": "Add manual card",
+          "createDescription": "Provide the card information to manage it manually.",
+          "editTitle": "Edit manual card",
+          "editDescription": "Update the selected manual card."
+        },
+        "fields": {
+          "type": "Card type",
+          "used": "Used amount",
+          "limit": "Credit limit",
+          "ending": "Last digits",
+          "relatedAccount": "Related account",
+          "active": "Status"
+        },
+        "summary": {
+          "active": "Active",
+          "inactive": "Inactive"
+        }
+      },
+      "bankLoans": {
+        "title": "Manual loans",
+        "description": "Maintain loan data that isn't synced through an integration.",
+        "add": "Add loan",
+        "empty": {
+          "title": "No manual loans",
+          "description": "Add a manual loan to track payments and balances."
+        },
+        "form": {
+          "createTitle": "Add manual loan",
+          "createDescription": "Enter the loan details to manage it manually.",
+          "editTitle": "Edit manual loan",
+          "editDescription": "Update the selected manual loan."
+        },
+        "fields": {
+          "type": "Loan type",
+          "loanAmount": "Original amount",
+          "interestRate": "Interest rate (%)",
+          "currentInstallment": "Current installment",
+          "principalOutstanding": "Principal outstanding",
+          "principalPaid": "Principal paid",
+          "interestType": "Interest type",
+          "nextPaymentDate": "Next payment date",
+          "euriborRate": "Euribor rate",
+          "fixedYears": "Fixed-rate years",
+          "creation": "Start date",
+          "maturity": "Maturity"
+        },
+        "helpers": {
+          "calculationHint": "Use the calculator to estimate the current installment and outstanding principal.",
+          "calculateButton": "Suggest values",
+          "missingFields": "Fill the interest rate, start and maturity dates, and either the principal or loan amount to calculate suggestions.",
+          "missingEuribor": "Add the Euribor rate to calculate loans with variable interest.",
+          "missingFixedYears": "Specify the fixed-rate years to calculate mixed interest loans.",
+          "calculationApplied": "Suggested values were added to the form.",
+          "calculationFailed": "We couldn't calculate the loan suggestion. Try again.",
+          "fixedRateDuration": "Fixed rate: {{years}} years"
+        },
+        "summary": {
+          "interest": "{{rate}}% interest"
+        }
+      },
+      "fundPortfolios": {
+        "title": "Manual fund portfolios",
+        "description": "Organize your manual funds inside dedicated portfolios.",
+        "add": "Add fund portfolio",
+        "empty": {
+          "title": "No manual fund portfolios",
+          "description": "Create a manual fund portfolio to group your investments."
+        },
+        "form": {
+          "createTitle": "Add manual fund portfolio",
+          "createDescription": "Set up a portfolio to group manually tracked funds.",
+          "editTitle": "Edit manual fund portfolio",
+          "editDescription": "Update the selected manual fund portfolio."
+        },
+        "fields": {
+          "name": "Portfolio name",
+          "relatedAccount": "Linked account"
+        },
+        "helpers": {
+          "accountRecommendation": "Link a fund portfolio account to see its balance alongside your funds.",
+          "accountHint": "Choose a manual account created for this portfolio to keep transfers in sync."
+        },
+        "summary": {
+          "relatedAccount": "Linked account"
+        },
+        "quickDrafts": {
+          "title": "Existing fund portfolios",
+          "description": "Review these portfolios before saving to link funds immediately.",
+          "entity": "Entity: {{name}}",
+          "actions": {
+            "edit": "Edit draft portfolio",
+            "delete": "Remove draft portfolio"
+          },
+          "readOnly": "Read only"
+        },
+        "deleteWarning": {
+          "single": "There's 1 manual fund linked to this portfolio. Deleting it will unlink the fund, which will stay listed independently.",
+          "plural": "There are {{count}} manual funds linked to this portfolio. Deleting it will unlink them, keeping each fund saved separately."
+        }
+      },
+      "funds": {
+        "title": "Manual funds",
+        "description": "Capture fund positions that are updated manually.",
+        "add": "Add fund",
+        "empty": {
+          "title": "No manual funds",
+          "description": "Add a manual fund position to include it in your portfolio."
+        },
+        "form": {
+          "createTitle": "Add manual fund",
+          "createDescription": "Fill in the fund details to track it manually.",
+          "editTitle": "Edit manual fund",
+          "editDescription": "Update the selected manual fund."
+        },
+        "fields": {
+          "isin": "ISIN",
+          "shares": "Shares",
+          "averageBuyPrice": "Average buy price",
+          "initialInvestment": "Initial investment",
+          "marketValue": "Market value",
+          "assetType": "Asset type",
+          "portfolio": "Fund portfolio"
+        },
+        "helpers": {
+          "investmentExclusive": "Only one of initial investment or average buy price can be filled.",
+          "portfolioRecommendation": "Create a fund portfolio first to group fund positions under it.",
+          "portfolioLinkHint": "Linking a fund to a portfolio helps aggregate performance across funds.",
+          "unknownLinkedPortfolio": "Previously linked portfolio",
+          "keepingLinkedPortfolio": "We kept the previous portfolio link. Create or refresh fund portfolios to change it."
+        },
+        "validation": {
+          "investment": "Add at least initial investment or average buy price."
+        },
+        "summary": {
+          "portfolio": "Portfolio"
+        }
+      },
+      "stocks": {
+        "title": "Manual stocks",
+        "description": "Track stock or ETF positions managed manually.",
+        "add": "Add stock / ETF",
+        "empty": {
+          "title": "No manual stocks",
+          "description": "Add a manual stock or ETF position to your portfolio."
+        },
+        "form": {
+          "createTitle": "Add manual stock",
+          "createDescription": "Provide the stock details to track it manually.",
+          "editTitle": "Edit manual stock",
+          "editDescription": "Update the selected manual stock."
+        },
+        "fields": {
+          "ticker": "Ticker",
+          "isin": "ISIN",
+          "shares": "Shares",
+          "averageBuyPrice": "Average buy price",
+          "initialInvestment": "Initial investment",
+          "marketValue": "Market value",
+          "type": "Category"
+        },
+        "helpers": {
+          "investmentExclusive": "Only one of initial investment or average buy price can be filled."
+        },
+        "validation": {
+          "ticker": "Enter a ticker or an ISIN.",
+          "isin": "Enter a ticker or an ISIN.",
+          "investment": "Add at least initial investment or average buy price."
+        }
+      },
+      "deposits": {
+        "title": "Manual deposits",
+        "description": "Keep term deposit data updated manually.",
+        "add": "Add deposit",
+        "empty": {
+          "title": "No manual deposits",
+          "description": "Add a manual deposit to track its returns."
+        },
+        "form": {
+          "createTitle": "Add manual deposit",
+          "createDescription": "Enter the deposit information to manage it manually.",
+          "editTitle": "Edit manual deposit",
+          "editDescription": "Update the selected manual deposit."
+        },
+        "fields": {
+          "amount": "Amount",
+          "expectedInterests": "Expected interests",
+          "interestRate": "Interest rate (%)",
+          "creation": "Start date",
+          "maturity": "Maturity"
+        }
+      },
+      "factoring": {
+        "title": "Manual factoring",
+        "description": "Record factoring operations managed outside integrations.",
+        "add": "Add factoring operation",
+        "empty": {
+          "title": "No manual factoring operations",
+          "description": "Add a manual factoring position to include it in your investments."
+        },
+        "form": {
+          "createTitle": "Add manual factoring",
+          "createDescription": "Provide the factoring details to track it manually.",
+          "editTitle": "Edit manual factoring",
+          "editDescription": "Update the selected manual factoring entry."
+        },
+        "fields": {
+          "amount": "Amount",
+          "interestRate": "Interest rate (%)",
+          "profitability": "Profitability (%)",
+          "lastInvestDate": "Last investment date",
+          "maturity": "Maturity",
+          "type": "Type",
+          "state": "State"
+        }
+      },
+      "realEstateCf": {
+        "title": "Manual real estate CF",
+        "description": "Track real estate crowdlending investments added manually.",
+        "add": "Add real estate CF",
+        "empty": {
+          "title": "No manual real estate CF positions",
+          "description": "Add a manual real estate CF position to monitor it."
+        },
+        "form": {
+          "createTitle": "Add manual real estate CF",
+          "createDescription": "Enter the project details to track it manually.",
+          "editTitle": "Edit manual real estate CF",
+          "editDescription": "Update the selected manual real estate CF position."
+        },
+        "fields": {
+          "amount": "Amount",
+          "pendingAmount": "Pending amount",
+          "interestRate": "Interest rate (%)",
+          "profitability": "Profitability (%)",
+          "lastInvestDate": "Last investment date",
+          "maturity": "Maturity",
+          "extendedMaturity": "Extended maturity",
+          "type": "Type",
+          "businessType": "Business type",
+          "state": "State"
+        }
+      },
+      "toasts": {
+        "saveSuccess": "Manual positions saved successfully.",
+        "saveError": "We couldn't save manual positions. Try again."
       }
     }
   },

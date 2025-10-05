@@ -55,6 +55,7 @@
     "disabled": "Deshabilitado",
     "save": "Guardar",
     "delete": "Eliminar",
+    "discard": "Descartar",
     "notAvailable": "N/A",
     "add": "Agregar",
     "edit": "Editar",
@@ -286,7 +287,7 @@
     "contributions": "Contribuciones",
     "transactions": "Transacciones",
     "historic": "Datos Históricos",
-    "scrape": "Importación de datos",
+    "scrape": "Importación",
     "scrapeSettings": "Importación de datos",
     "scrapeDescription": "Configura los ajustes generales de la extracción de datos",
     "virtual": "Datos virtuales",
@@ -546,6 +547,26 @@
       "FIXED_INCOME": "Renta Fija",
       "MIXED": "Mixto",
       "OTHER": "Otro"
+    },
+    "accountType": {
+      "CHECKING": "Corriente",
+      "SAVINGS": "Ahorros",
+      "BROKERAGE": "Inversión",
+      "VIRTUAL_WALLET": "Monedero",
+      "FUND_PORTFOLIO": "Cartera de fondos"
+    },
+    "cardType": {
+      "CREDIT": "Crédito",
+      "DEBIT": "Débito"
+    },
+    "loanType": {
+      "MORTGAGE": "Hipoteca",
+      "STANDARD": "Préstamo personal"
+    },
+    "interestType": {
+      "FIXED": "Fijo",
+      "VARIABLE": "Variable",
+      "MIXED": "Mixto"
     },
     "kpis": {
       "assetTypeSplit": "Distribución por tipo"
@@ -911,6 +932,326 @@
         "message": "Tienes cambios sin guardar en esta aportación manual. ¿Quieres descartarlos?",
         "confirm": "Descartar",
         "cancel": "Seguir editando"
+      }
+    },
+    "manualPositions": {
+      "shared": {
+        "entity": "Entidad",
+        "name": "Nombre",
+        "currency": "Moneda",
+        "createEntity": "Crear entidad",
+        "cancelEntityCreation": "Cancelar nueva entidad",
+        "newEntityPlaceholder": "Introduce el nombre de la nueva entidad",
+        "summary": {
+          "shares": "Participaciones"
+        },
+        "validation": {
+          "required": "Este campo es obligatorio",
+          "number": "Introduce un número válido",
+          "entity": "Selecciona una entidad",
+          "entityName": "Introduce un nombre de entidad",
+          "entityNameExists": "Ya existe una entidad con este nombre"
+        },
+        "genericError": "No pudimos crear la posición con los valores proporcionados.",
+        "pendingChangesTitle": "Actualizaciones manuales en borrador",
+        "pendingChangesDescription": "Revisa las posiciones manuales antes de guardar.",
+        "status": {
+          "new": "Nueva",
+          "updated": "Actualizada"
+        },
+        "discardChangesTitle": "¿Descartar cambios?",
+        "discardChangesMessage": "Tienes cambios manuales sin guardar. ¿Quieres descartarlos?",
+        "deleteTitle": "Eliminar posición manual",
+        "deleteMessage": "Esta posición manual se eliminará de la entidad."
+      },
+      "bankAccounts": {
+        "title": "Cuentas bancarias manuales",
+        "description": "Mantén los saldos de cuentas que no están conectadas automáticamente.",
+        "add": "Añadir cuenta bancaria",
+        "empty": {
+          "title": "No hay cuentas bancarias manuales",
+          "description": "Añade una cuenta manual para incluir su saldo en tu resumen."
+        },
+        "form": {
+          "createTitle": "Añadir cuenta bancaria manual",
+          "createDescription": "Completa los datos de la cuenta para seguirla manualmente.",
+          "editTitle": "Editar cuenta bancaria manual",
+          "editDescription": "Actualiza la cuenta bancaria manual seleccionada."
+        },
+        "fields": {
+          "type": "Tipo de cuenta",
+          "total": "Saldo",
+          "interest": "Interés (%)",
+          "retained": "Importe retenido",
+          "pendingTransfers": "Transferencias pendientes",
+          "iban": "IBAN"
+        },
+        "helpers": {
+          "ibanRecommendation": "Añadir el IBAN ayuda a vincular transferencias y conciliarlas automáticamente."
+        },
+        "deleteWarning": {
+          "single": "Hay 1 tarjeta manual vinculada a esta cuenta. Al eliminarla se desvinculará esa tarjeta, que seguirá guardada sin una cuenta asociada.",
+          "plural": "Hay {{count}} tarjetas manuales vinculadas a esta cuenta. Al eliminarlas se desvincularán y cada tarjeta seguirá guardada sin una cuenta asociada."
+        },
+        "deletePortfolioWarning": {
+          "single": "Hay 1 cartera manual de fondos vinculada a esta cuenta. Al eliminarla se desvinculará la cartera, que seguirá guardada sin una cuenta asociada.",
+          "plural": "Hay {{count}} carteras manuales de fondos vinculadas a esta cuenta. Al eliminarlas se desvincularán y cada cartera quedará guardada sin una cuenta asociada."
+        }
+      },
+      "bankCards": {
+        "title": "Tarjetas manuales",
+        "description": "Controla tarjetas de crédito o débito gestionadas manualmente.",
+        "add": "Añadir tarjeta",
+        "empty": {
+          "title": "No hay tarjetas manuales",
+          "description": "Añade una tarjeta manual para controlar su gasto y límite."
+        },
+        "form": {
+          "createTitle": "Añadir tarjeta manual",
+          "createDescription": "Introduce la información de la tarjeta para gestionarla manualmente.",
+          "editTitle": "Editar tarjeta manual",
+          "editDescription": "Actualiza la tarjeta manual seleccionada."
+        },
+        "fields": {
+          "type": "Tipo de tarjeta",
+          "used": "Importe utilizado",
+          "limit": "Límite de crédito",
+          "ending": "Últimos dígitos",
+          "relatedAccount": "Cuenta asociada",
+          "active": "Estado"
+        },
+        "summary": {
+          "active": "Activa",
+          "inactive": "Inactiva"
+        }
+      },
+      "bankLoans": {
+        "title": "Préstamos manuales",
+        "description": "Mantén datos de préstamos que no se sincronizan mediante integraciones.",
+        "add": "Añadir préstamo",
+        "empty": {
+          "title": "No hay préstamos manuales",
+          "description": "Añade un préstamo manual para seguir sus pagos y saldos."
+        },
+        "form": {
+          "createTitle": "Añadir préstamo manual",
+          "createDescription": "Introduce los datos del préstamo para gestionarlo manualmente.",
+          "editTitle": "Editar préstamo manual",
+          "editDescription": "Actualiza el préstamo manual seleccionado."
+        },
+        "fields": {
+          "type": "Tipo de préstamo",
+          "loanAmount": "Importe original",
+          "interestRate": "Tipo de interés (%)",
+          "currentInstallment": "Cuota actual",
+          "principalOutstanding": "Principal pendiente",
+          "principalPaid": "Principal pagado",
+          "interestType": "Tipo de interés",
+          "nextPaymentDate": "Próxima fecha de pago",
+          "euriborRate": "Euríbor",
+          "fixedYears": "Años a tipo fijo",
+          "creation": "Fecha de inicio",
+          "maturity": "Vencimiento"
+        },
+        "helpers": {
+          "calculationHint": "Usa la calculadora para estimar la cuota actual y el principal pendiente.",
+          "calculateButton": "Sugerir valores",
+          "missingFields": "Completa el tipo de interés, las fechas de inicio y vencimiento y el principal o importe del préstamo para calcular.",
+          "missingEuribor": "Indica el Euríbor para calcular préstamos con interés variable.",
+          "missingFixedYears": "Especifica los años a tipo fijo para calcular préstamos mixtos.",
+          "calculationApplied": "Se añadieron valores sugeridos al formulario.",
+          "calculationFailed": "No pudimos calcular la sugerencia del préstamo. Inténtalo de nuevo.",
+          "fixedRateDuration": "Tipo fijo: {{years}} años"
+        },
+        "summary": {
+          "interest": "{{rate}}% de interés"
+        }
+      },
+      "fundPortfolios": {
+        "title": "Carteras de fondos manuales",
+        "description": "Organiza tus fondos manuales dentro de carteras dedicadas.",
+        "add": "Añadir cartera de fondos",
+        "empty": {
+          "title": "No hay carteras de fondos manuales",
+          "description": "Crea una cartera manual para agrupar tus inversiones en fondos."
+        },
+        "form": {
+          "createTitle": "Añadir cartera de fondos manual",
+          "createDescription": "Configura una cartera para agrupar los fondos gestionados manualmente.",
+          "editTitle": "Editar cartera de fondos manual",
+          "editDescription": "Actualiza la cartera de fondos manual seleccionada."
+        },
+        "fields": {
+          "name": "Nombre de la cartera",
+          "relatedAccount": "Cuenta vinculada"
+        },
+        "helpers": {
+          "accountRecommendation": "Vincula una cuenta de cartera de fondos para ver su saldo junto a los fondos.",
+          "accountHint": "Elige una cuenta manual creada para esta cartera y mantener las transferencias alineadas."
+        },
+        "summary": {
+          "relatedAccount": "Cuenta vinculada"
+        },
+        "quickDrafts": {
+          "title": "Carteras de fondos existentes",
+          "description": "Revisa estas carteras antes de guardar para usarlas al vincular fondos manuales.",
+          "entity": "Entidad: {{name}}",
+          "actions": {
+            "edit": "Editar cartera en borrador",
+            "delete": "Eliminar cartera en borrador"
+          },
+          "readOnly": "Solo lectura"
+        },
+        "deleteWarning": {
+          "single": "Hay 1 fondo manual vinculado a esta cartera. Al eliminarla se desvinculará el fondo, que seguirá guardado por separado.",
+          "plural": "Hay {{count}} fondos manuales vinculados a esta cartera. Al eliminarla se desvincularán y cada fondo seguirá guardado por separado."
+        }
+      },
+      "funds": {
+        "title": "Fondos manuales",
+        "description": "Registra posiciones en fondos que actualizas manualmente.",
+        "add": "Añadir fondo",
+        "empty": {
+          "title": "No hay fondos manuales",
+          "description": "Añade una posición manual de fondo para incluirla en tu cartera."
+        },
+        "form": {
+          "createTitle": "Añadir fondo manual",
+          "createDescription": "Completa los datos del fondo para seguirlo manualmente.",
+          "editTitle": "Editar fondo manual",
+          "editDescription": "Actualiza el fondo manual seleccionado."
+        },
+        "fields": {
+          "isin": "ISIN",
+          "shares": "Participaciones",
+          "averageBuyPrice": "Precio medio de compra",
+          "initialInvestment": "Inversión inicial",
+          "marketValue": "Valor de mercado",
+          "assetType": "Tipo de activo",
+          "portfolio": "Cartera de fondos"
+        },
+        "helpers": {
+          "investmentExclusive": "Solo uno de inversión inicial o precio medio puede completarse.",
+          "portfolioRecommendation": "Crea primero una cartera de fondos para agrupar posiciones bajo ella.",
+          "portfolioLinkHint": "Vincular un fondo a una cartera ayuda a ver el rendimiento combinado.",
+          "unknownLinkedPortfolio": "Cartera vinculada previamente",
+          "keepingLinkedPortfolio": "Mantenemos el vínculo con la cartera anterior. Crea o actualiza carteras para cambiarlo."
+        },
+        "validation": {
+          "investment": "Indica al menos inversión inicial o precio medio."
+        },
+        "summary": {
+          "portfolio": "Cartera"
+        }
+      },
+      "stocks": {
+        "title": "Acciones manuales",
+        "description": "Sigue posiciones en acciones o ETFs gestionadas manualmente.",
+        "add": "Añadir acción / ETF",
+        "empty": {
+          "title": "No hay acciones manuales",
+          "description": "Añade una posición manual de acción o ETF a tu cartera."
+        },
+        "form": {
+          "createTitle": "Añadir acción manual",
+          "createDescription": "Introduce los datos de la acción para seguirla manualmente.",
+          "editTitle": "Editar acción manual",
+          "editDescription": "Actualiza la acción manual seleccionada."
+        },
+        "fields": {
+          "ticker": "Ticker",
+          "isin": "ISIN",
+          "shares": "Participaciones",
+          "averageBuyPrice": "Precio medio de compra",
+          "initialInvestment": "Inversión inicial",
+          "marketValue": "Valor de mercado",
+          "type": "Categoría"
+        },
+        "helpers": {
+          "investmentExclusive": "Solo uno de inversión inicial o precio medio puede completarse."
+        },
+        "validation": {
+          "ticker": "Introduce un ticker o un ISIN.",
+          "isin": "Introduce un ticker o un ISIN.",
+          "investment": "Indica al menos inversión inicial o precio medio."
+        }
+      },
+      "deposits": {
+        "title": "Depósitos manuales",
+        "description": "Mantén los datos de depósitos a plazo de forma manual.",
+        "add": "Añadir depósito",
+        "empty": {
+          "title": "No hay depósitos manuales",
+          "description": "Añade un depósito manual para seguir su rentabilidad."
+        },
+        "form": {
+          "createTitle": "Añadir depósito manual",
+          "createDescription": "Introduce la información del depósito para gestionarlo manualmente.",
+          "editTitle": "Editar depósito manual",
+          "editDescription": "Actualiza el depósito manual seleccionado."
+        },
+        "fields": {
+          "amount": "Importe",
+          "expectedInterests": "Intereses esperados",
+          "interestRate": "Tipo de interés (%)",
+          "creation": "Fecha de inicio",
+          "maturity": "Vencimiento"
+        }
+      },
+      "factoring": {
+        "title": "Factoring manual",
+        "description": "Registra operaciones de factoring gestionadas fuera de las integraciones.",
+        "add": "Añadir operación de factoring",
+        "empty": {
+          "title": "No hay operaciones de factoring manuales",
+          "description": "Añade una posición manual de factoring para incluirla en tus inversiones."
+        },
+        "form": {
+          "createTitle": "Añadir factoring manual",
+          "createDescription": "Introduce los datos de factoring para seguirlos manualmente.",
+          "editTitle": "Editar factoring manual",
+          "editDescription": "Actualiza la operación de factoring seleccionada."
+        },
+        "fields": {
+          "amount": "Importe",
+          "interestRate": "Tipo de interés (%)",
+          "profitability": "Rentabilidad (%)",
+          "lastInvestDate": "Fecha de última inversión",
+          "maturity": "Vencimiento",
+          "type": "Tipo",
+          "state": "Estado"
+        }
+      },
+      "realEstateCf": {
+        "title": "CF inmobiliario manual",
+        "description": "Sigue inversiones de crowdlending inmobiliario añadidas manualmente.",
+        "add": "Añadir CF inmobiliario",
+        "empty": {
+          "title": "No hay posiciones manuales de CF inmobiliario",
+          "description": "Añade una posición manual de CF inmobiliario para monitorizarla."
+        },
+        "form": {
+          "createTitle": "Añadir CF inmobiliario manual",
+          "createDescription": "Introduce los datos del proyecto para seguirlo manualmente.",
+          "editTitle": "Editar CF inmobiliario manual",
+          "editDescription": "Actualiza la posición manual de CF inmobiliario seleccionada."
+        },
+        "fields": {
+          "amount": "Importe",
+          "pendingAmount": "Importe pendiente",
+          "interestRate": "Tipo de interés (%)",
+          "profitability": "Rentabilidad (%)",
+          "lastInvestDate": "Fecha de última inversión",
+          "maturity": "Vencimiento",
+          "extendedMaturity": "Vencimiento extendido",
+          "type": "Tipo",
+          "businessType": "Tipo de negocio",
+          "state": "Estado"
+        }
+      },
+      "toasts": {
+        "saveSuccess": "Posiciones manuales guardadas correctamente.",
+        "saveError": "No pudimos guardar las posiciones manuales. Inténtalo de nuevo."
       }
     }
   },

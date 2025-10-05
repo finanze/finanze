@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useNavigate } from "react-router-dom"
 import {
   ArrowLeft,
@@ -439,12 +440,6 @@ export default function CommoditiesInvestmentPage() {
     [t.enums.commodityType],
   )
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  }
-  const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -772,7 +767,7 @@ export default function CommoditiesInvestmentPage() {
         </Card>
       ) : (
         <motion.div
-          variants={container}
+          variants={fadeListContainer}
           initial="hidden"
           animate="show"
           className="space-y-6"
@@ -783,7 +778,7 @@ export default function CommoditiesInvestmentPage() {
             return (
               <motion.div
                 key={type}
-                variants={item}
+                variants={fadeListItem}
                 ref={el => {
                   groupRefs.current[typedType] = el
                 }}

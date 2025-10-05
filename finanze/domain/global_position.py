@@ -9,6 +9,7 @@ from domain.base import BaseData
 from domain.commodity import CommodityRegister
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.fetch_record import DataSource
 from pydantic.dataclasses import dataclass
 
 
@@ -46,6 +47,7 @@ class Account(BaseData):
     interest: Optional[Dezimal] = None
     retained: Optional[Dezimal] = None
     pending_transfers: Optional[Dezimal] = None
+    source: DataSource = DataSource.REAL
 
 
 class CardType(str, Enum):
@@ -64,6 +66,7 @@ class Card(BaseData):
     name: Optional[str] = None
     ending: Optional[str | int] = None
     related_account: Optional[UUID] = None
+    source: DataSource = DataSource.REAL
 
 
 class LoanType(str, Enum):
@@ -79,7 +82,7 @@ class InterestType(str, Enum):
 
 @dataclass
 class Loan(BaseData):
-    id: UUID
+    id: Optional[UUID]
     type: LoanType
     currency: str
     current_installment: Dezimal
@@ -95,6 +98,7 @@ class Loan(BaseData):
     fixed_years: Optional[int] = None
     name: Optional[str] = None
     unpaid: Optional[Dezimal] = None
+    source: DataSource = DataSource.REAL
 
     def __post_init__(self):
         self.principal_paid = self.loan_amount - self.principal_outstanding
@@ -109,7 +113,7 @@ class AssetType(str, Enum):
 
 @dataclass
 class StockDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     ticker: str
     isin: str
@@ -121,22 +125,24 @@ class StockDetail(BaseData):
     currency: str
     type: str
     subtype: Optional[str] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class FundPortfolio(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: Optional[str] = None
     currency: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     market_value: Optional[Dezimal] = None
     account_id: Optional[UUID] = None
     account: Optional[Account] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class FundDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     isin: str
     market: Optional[str]
@@ -147,11 +153,12 @@ class FundDetail(BaseData):
     currency: str
     asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class FactoringDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     amount: Dezimal
     currency: str
@@ -162,11 +169,12 @@ class FactoringDetail(BaseData):
     maturity: date
     type: str
     state: str
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class RealEstateCFDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     amount: Dezimal
     pending_amount: Dezimal
@@ -179,11 +187,12 @@ class RealEstateCFDetail(BaseData):
     business_type: str
     state: str
     extended_maturity: Optional[date] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class Deposit(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     amount: Dezimal
     currency: str
@@ -191,6 +200,7 @@ class Deposit(BaseData):
     interest_rate: Dezimal
     creation: datetime
     maturity: date
+    source: DataSource = DataSource.REAL
 
 
 class CryptoCurrency(str, Enum):
@@ -363,7 +373,7 @@ class GlobalPosition:
     entity: Entity
     date: Optional[datetime] = None
     products: ProductPositions = field(default_factory=dict)
-    is_real: bool = True
+    source: DataSource = DataSource.REAL
 
     def __post_init__(self):
         if self.date is None:
@@ -389,5 +399,6 @@ class PositionQueryRequest:
 
 @dataclass
 class UpdatePositionRequest:
-    entity_id: UUID
     products: ProductPositions
+    entity_id: Optional[UUID] = None
+    new_entity_name: Optional[str] = None

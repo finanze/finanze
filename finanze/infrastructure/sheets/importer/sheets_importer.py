@@ -202,7 +202,10 @@ class SheetsImporter(VirtualFetcher):
             products = data["products"]
             global_positions.append(
                 GlobalPosition(
-                    id=uuid4(), entity=entity, products=products, is_real=False
+                    id=uuid4(),
+                    entity=entity,
+                    products=products,
+                    source=DataSource.SHEETS,
                 )
             )
 

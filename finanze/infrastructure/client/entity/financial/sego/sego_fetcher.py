@@ -176,8 +176,8 @@ class SegoFetcher(FinancialEntityFetcher):
         if last_invest_date and expected_maturity:
             days = (expected_maturity - last_invest_date.date()).days
             if days > 0:
-                profitability = round(
-                    (1 + interest_rate) ** (Dezimal(days) / Dezimal(365)) - 1, 4
+                profitability = Dezimal(
+                    round(interest_rate * Dezimal(days) / Dezimal(365), 4)
                 )
 
         return FactoringDetail(

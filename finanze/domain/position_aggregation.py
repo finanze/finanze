@@ -10,6 +10,9 @@ from domain.global_position import (
     ProductPositions,
     RealEstateCFInvestments,
     StockInvestments,
+    Accounts,
+    Cards,
+    Loans,
 )
 
 
@@ -87,6 +90,24 @@ def _add_crypto_currencies(
     )
 
 
+def _add_accounts(self: Accounts, other: Accounts) -> Accounts:
+    return Accounts(
+        entries=self.entries + other.entries,
+    )
+
+
+def _add_cards(self: Cards, other: Cards) -> Cards:
+    return Cards(
+        entries=self.entries + other.entries,
+    )
+
+
+def _add_loans(self: Loans, other: Loans) -> Loans:
+    return Loans(
+        entries=self.entries + other.entries,
+    )
+
+
 def _add_products(self: ProductPositions, other: ProductPositions) -> ProductPositions:
     if not other:
         return self
@@ -113,7 +134,7 @@ def _add_position(self: GlobalPosition, other: GlobalPosition) -> GlobalPosition
         entity=self.entity,
         date=self.date,
         products=_add_products(self.products, other.products),
-        is_real=self.is_real and other.is_real,
+        source=self.source,
     )
 
 
@@ -126,4 +147,7 @@ def add_extensions():
     Deposits.__add__ = _add_deposits
     Crowdlending.__add__ = _add_crowdlending
     CryptoCurrencies.__add__ = _add_crypto_currencies
+    Accounts.__add__ = _add_accounts
+    Cards.__add__ = _add_cards
+    Loans.__add__ = _add_loans
     GlobalPosition.__add__ = _add_position

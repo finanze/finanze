@@ -114,7 +114,7 @@ function DatePicker({
           </div>
         )}
 
-        <PopoverContent className="z-[10010] w-auto p-4">
+        <PopoverContent className="z-[18000] w-auto p-4">
           {showYearPicker ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">

@@ -24,6 +24,7 @@ import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 
 export default function CryptoInvestmentPage() {
   const { t, locale } = useI18n()
@@ -340,12 +341,6 @@ export default function CryptoInvestmentPage() {
     }
   }
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  }
-  const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -514,14 +509,14 @@ export default function CryptoInvestmentPage() {
 
           {/* Wallets grouped by entity */}
           <motion.div
-            variants={container}
+            variants={fadeListContainer}
             initial="hidden"
             animate="show"
             className="space-y-6 pb-6"
           >
             {filteredCryptoWallets.map(
               ({ entity, wallets, totalValue: entityTotalValue }) => (
-                <motion.div key={entity.id} variants={item}>
+                <motion.div key={entity.id} variants={fadeListItem}>
                   <Card>
                     <CardHeader className="pb-4">
                       <div className="flex items-center justify-between">

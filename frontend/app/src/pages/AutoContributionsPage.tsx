@@ -6,6 +6,7 @@ import {
   useRef,
   type FormEvent,
 } from "react"
+import { motion } from "framer-motion"
 import { format } from "date-fns"
 import { useNavigate } from "react-router-dom"
 import {
@@ -48,6 +49,7 @@ import { Label } from "@/components/ui/Label"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import {
@@ -57,7 +59,7 @@ import {
   ManualPeriodicContribution,
   PeriodicContribution,
 } from "@/types/contributions"
-import { DataSource } from "@/types"
+import { DataSource, EntityType } from "@/types"
 import {
   AccountType,
   ProductType,
@@ -222,6 +224,27 @@ export default function AutoContributionsPage() {
     "#0EA5E9",
   ]
 
+  const financialEntities = useMemo(
+    () =>
+      (entities ?? []).filter(
+        entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+      ),
+    [entities],
+  )
+
+  const supportedCurrencySet = useMemo(() => {
+    if (typeof Intl.supportedValuesOf !== "function") {
+      return null
+    }
+    try {
+      return new Set(
+        Intl.supportedValuesOf("currency").map(code => code.toUpperCase()),
+      )
+    } catch {
+      return null
+    }
+  }, [])
+
   const distributionData = useMemo(() => {
     const map = new Map<
       string,
@@ -296,12 +319,12 @@ export default function AutoContributionsPage() {
         target_name: contribution.target_name ?? null,
         target_type: contribution.target_type,
         amount: contribution.amount,
-        currency: contribution.currency,
+        currency: (contribution.currency || defaultCurrency).toUpperCase(),
         since: contribution.since,
         until: contribution.until ?? null,
         frequency: contribution.frequency,
       }))
-  }, [flatContributions, t])
+  }, [defaultCurrency, flatContributions, t])
 
   const [manualDrafts, setManualDrafts] = useState<ManualContributionDraft[]>(
     manualEntriesFromData,
@@ -403,13 +426,19 @@ export default function AutoContributionsPage() {
 
   const currencyOptions = useMemo(() => {
     const currencies = new Set<string>()
-    currencies.add(defaultCurrency)
+    currencies.add(defaultCurrency.toUpperCase())
     Object.entries(exchangeRates || {}).forEach(([base, targets]) => {
-      currencies.add(base)
-      Object.keys(targets || {}).forEach(target => currencies.add(target))
+      currencies.add(base.toUpperCase())
+      Object.keys(targets || {}).forEach(target =>
+        currencies.add(target.toUpperCase()),
+      )
     })
-    return Array.from(currencies).sort()
-  }, [exchangeRates, defaultCurrency])
+    const sorted = Array.from(currencies).sort()
+    if (!supportedCurrencySet) {
+      return sorted
+    }
+    return sorted.filter(code => supportedCurrencySet.has(code.toUpperCase()))
+  }, [exchangeRates, defaultCurrency, supportedCurrencySet])
 
   const targetTypeOptions = useMemo(
     () => Object.values(ContributionTargetType),
@@ -482,7 +511,7 @@ export default function AutoContributionsPage() {
       target_name: "",
       target_type: ContributionTargetType.FUND,
       amount: "",
-      currency: defaultCurrency,
+      currency: defaultCurrency.toUpperCase(),
       since: format(new Date(), "yyyy-MM-dd"),
       until: "",
       frequency: ContributionFrequency.MONTHLY,
@@ -1124,8 +1153,16 @@ export default function AutoContributionsPage() {
   useEffect(() => () => abortControllerRef.current?.abort(), [])
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+    <motion.div
+      className="space-y-6 pb-6"
+      variants={fadeListContainer}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div
+        variants={fadeListItem}
+        className="flex items-center justify-between gap-4 flex-wrap"
+      >
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -1143,7 +1180,7 @@ export default function AutoContributionsPage() {
             variant="outline"
             size="sm"
             onClick={handleOpenCreateModal}
-            disabled={entities.length === 0}
+            disabled={financialEntities.length === 0}
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
             {t.management.manualContributions.add}
@@ -1184,16 +1221,19 @@ export default function AutoContributionsPage() {
             </Button>
           )}
         </div>
-      </div>
+      </motion.div>
 
       {isEditMode && hasLocalChanges && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+        <motion.div
+          variants={fadeListItem}
+          className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 dark:bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+        >
           <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
           <div>{t.management.unsavedChanges}</div>
-        </div>
+        </motion.div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <motion.div variants={fadeListItem} className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4">
           <Card className="p-5 flex flex-col justify-between">
             <div className="flex items-center gap-2 mb-3">
@@ -1265,24 +1305,26 @@ export default function AutoContributionsPage() {
             </div>
           </Card>
         )}
-      </div>
+      </motion.div>
 
       {showEmptyState && (
-        <Card className="p-10 flex flex-col items-center gap-4 text-center">
-          <PiggyBank className="h-12 w-12 text-muted-foreground" />
-          <div>
-            <h2 className="text-lg font-semibold mb-1">
-              {t.management.noAutoContributionsTitle}
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-md">
-              {t.management.noAutoContributionsDescription}
-            </p>
-          </div>
-          <Button variant="outline" onClick={() => navigate("/entities")}>
-            <FolderPlus className="h-4 w-4 mr-2" />
-            {t.management.goToIntegrations}
-          </Button>
-        </Card>
+        <motion.div variants={fadeListItem}>
+          <Card className="p-10 flex flex-col items-center gap-4 text-center">
+            <PiggyBank className="h-12 w-12 text-muted-foreground" />
+            <div>
+              <h2 className="text-lg font-semibold mb-1">
+                {t.management.noAutoContributionsTitle}
+              </h2>
+              <p className="text-sm text-muted-foreground max-w-md">
+                {t.management.noAutoContributionsDescription}
+              </p>
+            </div>
+            <Button variant="outline" onClick={() => navigate("/entities")}>
+              <FolderPlus className="h-4 w-4 mr-2" />
+              {t.management.goToIntegrations}
+            </Button>
+          </Card>
+        </motion.div>
       )}
 
       {Array.from(groupedEntries.entries()).map(([entityId, list]) => {
@@ -1292,11 +1334,18 @@ export default function AutoContributionsPage() {
         const unsavedDrafts = draftsForEntity.filter(draft => !draft.originalId)
 
         return (
-          <div key={entityId} className="space-y-4">
+          <motion.div
+            key={entityId}
+            variants={fadeListItem}
+            className="space-y-4"
+          >
             <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
               {entityName}
             </h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <motion.div
+              variants={fadeListContainer}
+              className="grid grid-cols-1 gap-4 md:grid-cols-2"
+            >
               {list.map(c => {
                 const manualDraft = manualDraftByOriginalId.get(c.id)
                 if (
@@ -1309,19 +1358,34 @@ export default function AutoContributionsPage() {
                 const isDirty = manualDraft
                   ? isManualDraftDirty(manualDraft)
                   : false
-                return renderContributionCard(c, entityId, manualDraft, isDirty)
+
+                return (
+                  <motion.div
+                    key={manualDraft?.localId ?? c.id}
+                    variants={fadeListItem}
+                    className="h-full"
+                  >
+                    {renderContributionCard(c, entityId, manualDraft, isDirty)}
+                  </motion.div>
+                )
               })}
               {isEditMode &&
-                unsavedDrafts.map(draft =>
-                  renderContributionCard(
-                    null,
-                    entityId,
-                    draft,
-                    isManualDraftDirty(draft),
-                  ),
-                )}
-            </div>
-          </div>
+                unsavedDrafts.map(draft => (
+                  <motion.div
+                    key={draft.localId}
+                    variants={fadeListItem}
+                    className="h-full"
+                  >
+                    {renderContributionCard(
+                      null,
+                      entityId,
+                      draft,
+                      isManualDraftDirty(draft),
+                    )}
+                  </motion.div>
+                ))}
+            </motion.div>
+          </motion.div>
         )
       })}
 
@@ -1372,7 +1436,7 @@ export default function AutoContributionsPage() {
                       <option value="" disabled>
                         {t.common.selectOptions}
                       </option>
-                      {entities.map(entity => (
+                      {financialEntities.map(entity => (
                         <option key={entity.id} value={entity.id}>
                           {entity.name}
                         </option>
@@ -1710,6 +1774,6 @@ export default function AutoContributionsPage() {
         onConfirm={handleConfirmDiscardModal}
         onCancel={handleDismissDiscardModal}
       />
-    </div>
+    </motion.div>
   )
 }

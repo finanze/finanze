@@ -26,9 +26,9 @@ import {
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency, formatDate } from "@/lib/formatters"
-import { getColorForName } from "@/lib/utils"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
 import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
+import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
   Search,
   RotateCcw,
@@ -41,7 +41,7 @@ import {
   getIconForProductType,
   getProductTypeColor,
 } from "@/utils/dashboardUtils"
-import { DataSource, EntityOrigin } from "@/types"
+import { DataSource } from "@/types"
 
 interface TransactionFilters {
   entities: string[]
@@ -915,20 +915,14 @@ export default function TransactionsPage() {
                                     title={t.transactions.source}
                                     className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
                                   />
-                                  <Badge
-                                    className={`${getColorForName(tx.entity.name)} whitespace-normal break-words text-xs inline-flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity`}
+                                  <EntityBadge
+                                    name={tx.entity.name}
+                                    origin={tx.entity.origin}
                                     onClick={() =>
                                       handleBadgeClick("entity", tx.entity.id)
                                     }
-                                  >
-                                    {tx.entity.name}
-                                    {tx.entity.origin ==
-                                      EntityOrigin.MANUAL && (
-                                      <span className="ml-1 opacity-70">
-                                        (V)
-                                      </span>
-                                    )}
-                                  </Badge>
+                                    className="text-xs"
+                                  />
                                 </div>
                               </td>
                               <td className="py-4 px-2 text-center w-10">
@@ -1102,17 +1096,13 @@ export default function TransactionsPage() {
                           title={t.transactions.source}
                           className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
                         />
-                        <Badge
-                          className={`${getColorForName(tx.entity.name)} whitespace-normal break-words inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
+                        <EntityBadge
+                          name={tx.entity.name}
+                          origin={tx.entity.origin}
                           onClick={() =>
                             handleBadgeClick("entity", tx.entity.id)
                           }
-                        >
-                          {tx.entity.name}
-                          {tx.entity.origin == EntityOrigin.MANUAL && (
-                            <span className="ml-1 opacity-75">(V)</span>
-                          )}
-                        </Badge>
+                        />
                       </div>
 
                       {hasDetails && (
