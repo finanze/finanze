@@ -660,19 +660,6 @@ export default function TransactionsPage() {
                 )}
               </div>
             )}
-            {factoringTx.interests > 0 && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.interests}:
-                </span>{" "}
-                {formatCurrency(
-                  factoringTx.interests,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
           </>
         )
       }
@@ -706,19 +693,6 @@ export default function TransactionsPage() {
                 )}
               </div>
             )}
-            {realEstateTx.interests > 0 && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.interests}:
-                </span>{" "}
-                {formatCurrency(
-                  realEstateTx.interests,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
           </>
         )
       }
@@ -746,19 +720,6 @@ export default function TransactionsPage() {
                 </span>{" "}
                 {formatCurrency(
                   depositTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
-            {depositTx.interests > 0 && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.interests}:
-                </span>{" "}
-                {formatCurrency(
-                  depositTx.interests,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
