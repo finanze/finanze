@@ -51,7 +51,6 @@ def map_txs(
     net_amount: Dezimal,
     fee: Dezimal,
     tax: Dezimal,
-    interests: Dezimal,
 ) -> Optional[FactoringTx]:
     tx_date = tx["date"]
     currency = tx["currency"]
@@ -68,7 +67,6 @@ def map_txs(
         product_type=ProductType.FACTORING,
         fees=fee,
         retentions=tax,
-        interests=interests,
         net_amount=round(net_amount, 2),
         source=DataSource.REAL,
     )
@@ -314,22 +312,13 @@ class SegoFetcher(FinancialEntityFetcher):
                 total_interests = ordinary_interests + extraordinary_interests
                 percentage = amount / total_interests
 
-                interests = amount
                 fee = round(percentage * Dezimal(matching_investment["comision"]), 2)
                 tax = round(percentage * Dezimal(matching_investment["retencion"]), 2)
 
                 net_amount = interests - fee - tax
 
             stored_tx = map_txs(
-                ref,
-                tx,
-                investment_name,
-                tx_type,
-                amount,
-                net_amount,
-                fee,
-                tax,
-                interests,
+                ref, tx, investment_name, tx_type, amount, net_amount, fee, tax
             )
             investment_txs.append(stored_tx)
 

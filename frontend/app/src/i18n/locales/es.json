@@ -466,6 +466,7 @@
     "source": "Fuente",
     "virtual": "(Virtual)",
     "ref": "Ref",
+    "orderDate": "Fecha de orden",
     "ticker": "Ticker",
     "shares": "Acciones",
     "price": "Precio",
@@ -478,13 +479,49 @@
     "interestRate": "Tasa de Interés",
     "portfolioName": "Nombre de Cartera",
     "iban": "IBAN",
+    "currency": "Moneda",
+    "addManualTransaction": "Añadir transacción manual",
     "previous": "Anterior",
     "next": "Siguiente",
     "page": "Página",
     "of": "de",
     "selectEntities": "Seleccionar entidades...",
     "selectProductTypes": "Seleccionar tipos de producto...",
-    "selectTransactionTypes": "Seleccionar tipos de transacción..."
+    "selectTransactionTypes": "Seleccionar tipos de transacción...",
+    "form": {
+      "createTitle": "Añadir transacción manual",
+      "editTitle": "Editar transacción manual",
+      "entity": "Entidad",
+      "transactionType": "Tipo de transacción",
+      "pickDate": "Selecciona una fecha",
+      "detailsSection": "Detalles adicionales",
+      "refHelper": "La referencia se genera automáticamente y no puede cambiarse después de guardar.",
+      "suggestions": {
+        "label": "Sugerencias",
+        "stocks": "Acciones y ETFs",
+        "funds": "Fondos",
+        "portfolios": "Carteras de fondos",
+        "accounts": "Cuentas asociadas"
+      },
+      "netAmountLabel": "Importe neto",
+      "netAmountFormulaIncoming": "importe - comisiones - retenciones",
+      "netAmountFormulaOutgoing": "importe + comisiones + retenciones",
+      "autoAmountHint": "El importe se rellena automáticamente a partir de participaciones × precio cuando ambos valores están presentes.",
+      "createSuccess": "Transacción manual creada correctamente",
+      "updateSuccess": "Transacción manual actualizada correctamente",
+      "submitError": "No se pudo guardar la transacción manual",
+      "deleteSuccess": "Transacción manual eliminada correctamente",
+      "deleteError": "No se pudo eliminar la transacción manual",
+      "errors": {
+        "required": "Este campo es obligatorio",
+        "positive": "Introduce un número positivo",
+        "nonNegative": "Introduce un número mayor o igual que cero",
+        "invalidNumber": "Introduce un número válido"
+      }
+    },
+    "deleteManualTransactionTitle": "Eliminar transacción manual",
+    "deleteManualTransactionMessage": "¿Seguro que quieres eliminar esta transacción manual?",
+    "deleteManualTransactionWarning": "Esta acción no se puede deshacer."
   },
   "time": {
     "justNow": "justo ahora",

@@ -3,13 +3,52 @@ from uuid import UUID, uuid4
 
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
+from domain.dezimal import Dezimal
 from domain.entity import Feature
+from domain.transactions import BaseTx, TxType
 from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
 
 
 class ManualTransactionVirtualImportHelper:
     def __init__(self, virtual_import_registry: VirtualImportRegistry):
         self._virtual_import_registry = virtual_import_registry
+
+    def update_derived_fields(self, tx: BaseTx):
+        if not hasattr(tx, "net_amount"):
+            return tx
+
+        incoming_types = {
+            TxType.SELL,
+            TxType.DIVIDEND,
+            TxType.INTEREST,
+            TxType.REPAYMENT,
+            TxType.RIGHT_SELL,
+            TxType.TRANSFER_IN,
+            TxType.SWITCH_TO,
+            TxType.SWAP_TO,
+        }
+        outgoing_types = {
+            TxType.BUY,
+            TxType.INVESTMENT,
+            TxType.SUBSCRIPTION,
+            TxType.FEE,
+            TxType.RIGHT_ISSUE,
+            TxType.TRANSFER_OUT,
+            TxType.SWITCH_FROM,
+            TxType.SWAP_FROM,
+        }
+
+        fees = getattr(tx, "fees", None) or Dezimal(0)
+        retentions = getattr(tx, "retentions", None) or Dezimal(0)
+
+        if tx.type in incoming_types:
+            tx.net_amount = tx.amount - fees - retentions
+        elif tx.type in outgoing_types:
+            tx.net_amount = tx.amount + fees + retentions
+        else:
+            tx.net_amount = tx.amount - fees - retentions
+
+        return tx
 
     def refresh(self, entity_id: UUID, has_transactions: bool):
         now = datetime.now(tzlocal())

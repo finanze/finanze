@@ -58,7 +58,6 @@ def compute_return_values(related_inv_txs):
     if repayment_txs:
         fees += sum([tx.fees for tx in repayment_txs], start=Dezimal(0))
         retentions += sum([tx.retentions for tx in repayment_txs], start=Dezimal(0))
-        interests += sum([tx.interests for tx in repayment_txs], start=Dezimal(0))
 
         repaid += sum([tx.amount for tx in repayment_txs], start=Dezimal(0))
         returned = repaid
@@ -73,7 +72,7 @@ def compute_return_values(related_inv_txs):
         interest_retentions = sum(
             [tx.retentions for tx in interest_txs], start=Dezimal(0)
         )
-        added_interests = sum([tx.interests for tx in interest_txs], start=Dezimal(0))
+        added_interests = sum([tx.amount for tx in interest_txs], start=Dezimal(0))
 
         fees += interest_fees
         retentions += interest_retentions

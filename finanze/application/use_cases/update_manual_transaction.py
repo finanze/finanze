@@ -44,6 +44,8 @@ class UpdateManualTransactionImpl(UpdateManualTransaction, AtomicUCMixin):
             raise EntityNotFound(tx.entity.id)
         tx.entity = real_entity
 
+        tx = self._helper.update_derived_fields(tx)
+
         self._transaction_port.delete_by_id(tx.id)
 
         if tx.product_type == tx.product_type.ACCOUNT:

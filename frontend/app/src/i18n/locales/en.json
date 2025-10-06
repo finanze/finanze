@@ -467,6 +467,7 @@
     "source": "Source",
     "virtual": "(Virtual)",
     "ref": "Ref",
+    "orderDate": "Order Date",
     "ticker": "Ticker",
     "shares": "Shares",
     "price": "Price",
@@ -479,13 +480,49 @@
     "interestRate": "Interest Rate",
     "portfolioName": "Portfolio Name",
     "iban": "IBAN",
+    "currency": "Currency",
+    "addManualTransaction": "Add manual transaction",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
     "of": "of",
     "selectEntities": "Select entities...",
     "selectProductTypes": "Select product types...",
-    "selectTransactionTypes": "Select transaction types..."
+    "selectTransactionTypes": "Select transaction types...",
+    "form": {
+      "createTitle": "Add manual transaction",
+      "editTitle": "Edit manual transaction",
+      "entity": "Entity",
+      "transactionType": "Transaction type",
+      "pickDate": "Select a date",
+      "detailsSection": "Additional details",
+      "refHelper": "Reference is generated automatically and cannot be changed after saving.",
+      "suggestions": {
+        "label": "Suggestions",
+        "stocks": "Stocks & ETFs",
+        "funds": "Funds",
+        "portfolios": "Fund portfolios",
+        "accounts": "Accounts"
+      },
+      "netAmountLabel": "Net amount",
+      "netAmountFormulaIncoming": "amount - fees - retentions",
+      "netAmountFormulaOutgoing": "amount + fees + retentions",
+      "autoAmountHint": "Amount auto-fills from shares × price when both values are provided.",
+      "createSuccess": "Manual transaction created successfully",
+      "updateSuccess": "Manual transaction updated successfully",
+      "submitError": "Unable to save manual transaction",
+      "deleteSuccess": "Manual transaction deleted successfully",
+      "deleteError": "Unable to delete manual transaction",
+      "errors": {
+        "required": "This field is required",
+        "positive": "Enter a positive number",
+        "nonNegative": "Enter zero or a positive number",
+        "invalidNumber": "Enter a valid number"
+      }
+    },
+    "deleteManualTransactionTitle": "Delete manual transaction",
+    "deleteManualTransactionMessage": "Are you sure you want to delete this manual transaction?",
+    "deleteManualTransactionWarning": "This action cannot be undone."
   },
   "time": {
     "justNow": "just now",

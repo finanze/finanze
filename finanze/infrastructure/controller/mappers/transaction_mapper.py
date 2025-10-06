@@ -36,7 +36,7 @@ def _build_account(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> Base
         if body.get("interest_rate")
         else None,
         avg_balance=Dezimal(body["avg_balance"]) if body.get("avg_balance") else None,
-        net_amount=Dezimal(body["net_amount"]) if body.get("net_amount") else None,
+        net_amount=None,
         **base_kwargs,
     )
 
@@ -48,18 +48,16 @@ def _require(body: dict, product_label: str, required: list[str]):
 
 
 def _build_stock(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
-    _require(
-        body, "STOCK_ETF", ["ticker", "market", "shares", "price", "net_amount", "fees"]
-    )
+    _require(body, "STOCK_ETF", ["shares", "price", "fees"])
     order_date = _parse_datetime(body["order_date"]) if body.get("order_date") else None
     return StockTx(
         id=tx_id,
         isin=body.get("isin"),
-        ticker=body["ticker"],
-        market=body["market"],
+        ticker=body.get("ticker"),
+        market=body.get("market"),
         shares=Dezimal(body["shares"]),
         price=Dezimal(body["price"]),
-        net_amount=Dezimal(body["net_amount"]),
+        net_amount=None,
         fees=Dezimal(body["fees"]),
         retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
         order_date=order_date,
@@ -69,15 +67,15 @@ def _build_stock(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx
 
 
 def _build_fund(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
-    _require(body, "FUND", ["isin", "market", "shares", "price", "net_amount", "fees"])
+    _require(body, "FUND", ["isin", "shares", "price", "fees"])
     order_date = _parse_datetime(body["order_date"]) if body.get("order_date") else None
     return FundTx(
         id=tx_id,
         isin=body["isin"],
-        market=body["market"],
+        market=body.get("market"),
         shares=Dezimal(body["shares"]),
         price=Dezimal(body["price"]),
-        net_amount=Dezimal(body["net_amount"]),
+        net_amount=None,
         fees=Dezimal(body["fees"]),
         retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
         order_date=order_date,
@@ -101,9 +99,8 @@ def _build_fund_portfolio(
 def _build_factoring_like(
     body: dict, base_kwargs: dict, tx_id: Optional[UUID], product_type: ProductType
 ) -> BaseTx:
-    _require(
-        body, product_type.value, ["net_amount", "fees", "retentions", "interests"]
-    )
+    # net_amount removed; only fees and retentions required
+    _require(body, product_type.value, ["fees", "retentions"])
     cls_map = {
         ProductType.FACTORING: FactoringTx,
         ProductType.REAL_ESTATE_CF: RealEstateCFTx,
@@ -112,10 +109,9 @@ def _build_factoring_like(
     cls = cls_map[product_type]
     return cls(
         id=tx_id,
-        net_amount=Dezimal(body["net_amount"]),
+        net_amount=None,
         fees=Dezimal(body["fees"]),
         retentions=Dezimal(body["retentions"]),
-        interests=Dezimal(body["interests"]),
         **base_kwargs,
     )
 

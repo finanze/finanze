@@ -34,6 +34,8 @@ class AddManualTransactionImpl(AddManualTransaction, AtomicUCMixin):
         tx.entity = existing_entity
         tx.id = uuid4()
 
+        tx = self._helper.update_derived_fields(tx)
+
         if tx.product_type == tx.product_type.ACCOUNT:
             if not isinstance(tx, AccountTx):
                 raise ValueError(

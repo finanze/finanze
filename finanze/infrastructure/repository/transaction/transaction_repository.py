@@ -118,7 +118,6 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]),
-            interests=Dezimal(row["interests"]),
         )
     elif row["product_type"] == ProductType.REAL_ESTATE_CF.value:
         return RealEstateCFTx(
@@ -126,7 +125,6 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]),
-            interests=Dezimal(row["interests"]),
         )
     elif row["product_type"] == ProductType.DEPOSIT.value:
         return DepositTx(
@@ -134,7 +132,6 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]),
-            interests=Dezimal(row["interests"]),
         )
     else:
         raise ValueError(f"Unknown product type: {row['product_type']}")
@@ -227,7 +224,6 @@ class TransactionSQLRepository(TransactionPort):
                             "net_amount": str(tx.net_amount),
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions),
-                            "interests": str(tx.interests),
                         }
                     )
 

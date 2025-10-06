@@ -63,7 +63,7 @@ class AccountTx(BaseTx):
 
 @dataclass
 class StockTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     isin: Optional[str]
     shares: Dezimal
     price: Dezimal
@@ -77,7 +77,7 @@ class StockTx(BaseInvestmentTx):
 
 @dataclass
 class FundTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     isin: str
     shares: Dezimal
     price: Dezimal
@@ -96,26 +96,23 @@ class FundPortfolioTx(BaseInvestmentTx):
 
 @dataclass
 class FactoringTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
 class RealEstateCFTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
 class DepositTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass

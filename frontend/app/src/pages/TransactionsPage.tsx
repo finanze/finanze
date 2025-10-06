@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useMemo } from "react"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
-import { getTransactions } from "@/services/api"
+import {
+  getTransactions,
+  createManualTransaction,
+  updateManualTransaction,
+  deleteManualTransaction,
+} from "@/services/api"
 import {
   TransactionsResult,
   TransactionQueryRequest,
@@ -35,13 +40,22 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Plus,
+  Trash2,
 } from "lucide-react"
 import {
   getIconForTxType,
   getIconForProductType,
   getProductTypeColor,
 } from "@/utils/dashboardUtils"
-import { DataSource } from "@/types"
+import { DataSource, EntityOrigin, EntityType } from "@/types"
+import {
+  ManualTransactionDialog,
+  type ManualTransactionEntityOption,
+  type ManualTransactionSubmitResult,
+} from "@/components/transactions/ManualTransactionDialog"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 
 interface TransactionFilters {
   entities: string[]
@@ -52,11 +66,14 @@ interface TransactionFilters {
   to_date: string
 }
 
+type TransactionItem = TransactionsResult["transactions"][number]
+
 const ITEMS_PER_PAGE = 20
 
 export default function TransactionsPage() {
   const { t, locale } = useI18n()
-  const { entities, inactiveEntities, settings, showToast } = useAppContext()
+  const { entities, inactiveEntities, settings, showToast, exchangeRates } =
+    useAppContext()
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
@@ -74,6 +91,15 @@ export default function TransactionsPage() {
     from_date: "",
     to_date: "",
   })
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create")
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<TransactionItem | null>(null)
+  const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<TransactionItem | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeletingTransaction, setIsDeletingTransaction] = useState(false)
 
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     return (
@@ -109,6 +135,51 @@ export default function TransactionsPage() {
     }))
   }, [t])
 
+  const defaultCurrency = settings.general.defaultCurrency
+
+  const supportedCurrencySet = useMemo<Set<string> | null>(() => {
+    if (typeof Intl.supportedValuesOf !== "function") {
+      return null
+    }
+    try {
+      return new Set(Intl.supportedValuesOf("currency"))
+    } catch (error) {
+      console.warn("Failed to read supported currencies", error)
+      return null
+    }
+  }, [])
+
+  const currencyOptions = useMemo(() => {
+    const set = new Set<string>()
+    set.add(defaultCurrency.toUpperCase())
+
+    Object.entries(exchangeRates || {}).forEach(([base, targets]) => {
+      set.add(base.toUpperCase())
+      Object.keys(targets).forEach(code => set.add(code.toUpperCase()))
+    })
+
+    let options = Array.from(set)
+    if (supportedCurrencySet) {
+      options = options.filter(code => supportedCurrencySet.has(code))
+    }
+
+    return options.sort((a, b) => a.localeCompare(b))
+  }, [exchangeRates, defaultCurrency, supportedCurrencySet])
+
+  const manualEntityOptions = useMemo<ManualTransactionEntityOption[]>(() => {
+    if (!entities) return []
+    return entities
+      .filter(entity => entity.type === EntityType.FINANCIAL_INSTITUTION)
+      .map(entity => ({
+        id: entity.id,
+        name: entity.name,
+        origin: entity.origin as EntityOrigin,
+      }))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, locale, { sensitivity: "base" }),
+      )
+  }, [entities, locale])
+
   const fetchTransactions = async (
     page: number = 1,
     resetPage: boolean = false,
@@ -139,9 +210,12 @@ export default function TransactionsPage() {
       if (resetPage) {
         setCurrentPage(1)
       }
+
+      return result
     } catch (err) {
       console.error("Error fetching transactions:", err)
       showToast(t.errors.UNEXPECTED_ERROR, "error")
+      return undefined
     } finally {
       setLoading(false)
     }
@@ -224,6 +298,96 @@ export default function TransactionsPage() {
       }
       return prev
     })
+  }
+
+  const handleOpenCreateDialog = () => {
+    setDialogMode("create")
+    setSelectedTransaction(null)
+    setIsDialogOpen(true)
+  }
+
+  const handleDialogClose = () => {
+    if (isSubmittingTransaction) return
+    setIsDialogOpen(false)
+    setSelectedTransaction(null)
+    setDialogMode("create")
+  }
+
+  const handleEditTransaction = (tx: TransactionItem) => {
+    setDialogMode("edit")
+    setSelectedTransaction(tx)
+    setIsDialogOpen(true)
+  }
+
+  const handleRequestDelete = (tx: TransactionItem) => {
+    setDeleteTarget(tx)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleCancelDelete = () => {
+    if (isDeletingTransaction) return
+    setIsDeleteDialogOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const handleSubmitTransaction = async (
+    result: ManualTransactionSubmitResult,
+  ) => {
+    const isEdit = dialogMode === "edit"
+    setIsSubmittingTransaction(true)
+    try {
+      if (isEdit && result.transactionId) {
+        await updateManualTransaction(result.transactionId, result.payload)
+        showToast(t.transactions.form.updateSuccess, "success")
+      } else {
+        await createManualTransaction(result.payload)
+        showToast(t.transactions.form.createSuccess, "success")
+      }
+
+      setIsDialogOpen(false)
+      setSelectedTransaction(null)
+      setDialogMode("create")
+
+      if (isEdit) {
+        await fetchTransactions(currentPage, false)
+      } else {
+        await fetchTransactions(1, true)
+      }
+    } catch (error) {
+      console.error("Error saving manual transaction:", error)
+      showToast(t.transactions.form.submitError, "error")
+    } finally {
+      setIsSubmittingTransaction(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeletingTransaction(true)
+    const targetId = deleteTarget.id
+    try {
+      await deleteManualTransaction(targetId)
+      showToast(t.transactions.form.deleteSuccess, "success")
+      setIsDeleteDialogOpen(false)
+      setDeleteTarget(null)
+      setExpandedCards(prev => {
+        const next = new Set(prev)
+        next.delete(targetId)
+        return next
+      })
+
+      const current = currentPage
+      const result = await fetchTransactions(current, false)
+      if (result && result.transactions.length === 0 && current > 1) {
+        setCurrentPage(current - 1)
+        await fetchTransactions(current - 1, false)
+      }
+    } catch (error) {
+      console.error("Error deleting manual transaction:", error)
+      showToast(t.transactions.form.deleteError, "error")
+    } finally {
+      setIsDeletingTransaction(false)
+    }
   }
 
   const getTransactionTypeColor = (type: TxType): string => {
@@ -670,10 +834,19 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           {t.transactions.title}
         </h1>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleOpenCreateDialog}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            {t.transactions.addManualTransaction}
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -951,6 +1124,32 @@ export default function TransactionsPage() {
                                 <td colSpan={7} className="px-3 pb-4">
                                   <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
                                     {renderTransactionDetails(tx)}
+                                    {tx.source === DataSource.MANUAL && (
+                                      <div className="flex flex-wrap gap-2 pt-3">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleEditTransaction(tx)
+                                          }
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                          {t.common.edit}
+                                        </Button>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleRequestDelete(tx)
+                                          }
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                          {t.common.delete}
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -1128,6 +1327,28 @@ export default function TransactionsPage() {
                     {hasDetails && isExpanded && (
                       <div className="pt-2 space-y-2 border-t border-gray-100 dark:border-gray-800">
                         {renderTransactionDetails(tx)}
+                        {tx.source === DataSource.MANUAL && (
+                          <div className="flex flex-wrap gap-2 pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditTransaction(tx)}
+                              className="flex items-center gap-2"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              {t.common.edit}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRequestDelete(tx)}
+                              className="flex items-center gap-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t.common.delete}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </Card>
@@ -1167,6 +1388,30 @@ export default function TransactionsPage() {
           )}
         </>
       )}
+
+      <ManualTransactionDialog
+        isOpen={isDialogOpen}
+        mode={dialogMode}
+        transaction={selectedTransaction}
+        entities={manualEntityOptions}
+        currencyOptions={currencyOptions}
+        defaultCurrency={defaultCurrency}
+        onClose={handleDialogClose}
+        onSubmit={handleSubmitTransaction}
+        isSubmitting={isSubmittingTransaction}
+      />
+
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        title={t.transactions.deleteManualTransactionTitle}
+        message={t.transactions.deleteManualTransactionMessage}
+        confirmText={t.common.delete}
+        cancelText={t.common.cancel}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        isLoading={isDeletingTransaction}
+        warning={t.transactions.deleteManualTransactionWarning}
+      />
     </div>
   )
 }

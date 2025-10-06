@@ -141,7 +141,7 @@ def _get_ref(tx_id: str, tx_type: TxType) -> str:
 
 
 def _map_deposit_tx(
-    tx_id, tx_type, name, amount, interest, tx_date, currency, registered_txs
+    tx_id, tx_type, name, amount, tx_date, currency, registered_txs
 ) -> Optional[DepositTx]:
     ref = _get_ref(tx_id, tx_type)
     if ref in registered_txs:
@@ -159,7 +159,6 @@ def _map_deposit_tx(
         product_type=ProductType.DEPOSIT,
         fees=Dezimal(0),
         retentions=Dezimal(0),
-        interests=interest,
         net_amount=amount,
         source=DataSource.REAL,
     )
@@ -332,7 +331,6 @@ class F24Fetcher(FinancialEntityFetcher):
                 tx_type,
                 name,
                 placed_amount,
-                Dezimal(0),
                 placement_date,
                 currency,
                 registered_txs,
@@ -349,7 +347,6 @@ class F24Fetcher(FinancialEntityFetcher):
                 tx_type,
                 name,
                 placed_amount,
-                Dezimal(0),
                 pay_date,
                 currency,
                 registered_txs,
@@ -364,7 +361,6 @@ class F24Fetcher(FinancialEntityFetcher):
                 tx_id,
                 tx_type,
                 name,
-                interest,
                 interest,
                 pay_date,
                 currency,

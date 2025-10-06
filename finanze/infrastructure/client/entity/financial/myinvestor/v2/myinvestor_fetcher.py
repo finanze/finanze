@@ -123,7 +123,7 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
 
 
 def _map_deposit_tx(
-    ref, tx_type, name, amount, net, retentions, interest, tx_date, currency
+    ref, tx_type, name, amount, net, retentions, tx_date, currency
 ) -> Optional[DepositTx]:
     return DepositTx(
         id=uuid4(),
@@ -137,7 +137,6 @@ def _map_deposit_tx(
         product_type=ProductType.DEPOSIT,
         fees=Dezimal(0),
         retentions=round(retentions, 2),
-        interests=round(interest, 2),
         net_amount=round(net, 2),
         source=DataSource.REAL,
     )
@@ -361,7 +360,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 deposit_amount,
                                 deposit_amount,
                                 Dezimal(0),
-                                interest,
                                 tx_date,
                                 currency,
                             )
@@ -375,7 +373,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 interest,
                                 net_interest,
                                 retentions,
-                                interest,
                                 tx_date,
                                 currency,
                             )
@@ -389,7 +386,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 name,
                                 amount,
                                 amount,
-                                Dezimal(0),
                                 Dezimal(0),
                                 tx_date,
                                 currency,
