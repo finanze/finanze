@@ -1,4 +1,4 @@
-import { EntityOrigin } from "."
+import { DataSource, EntityOrigin } from "."
 
 export enum ProductType {
   ACCOUNT = "ACCOUNT",
@@ -50,6 +50,7 @@ export interface Account {
   interest?: number | null
   retained?: number | null
   pending_transfers?: number | null
+  source: DataSource
 }
 
 export interface Card {
@@ -62,6 +63,7 @@ export interface Card {
   name?: string | null
   ending?: string | null
   related_account?: string | null
+  source: DataSource
 }
 
 export interface Loan {
@@ -73,14 +75,15 @@ export interface Loan {
   loan_amount: number
   next_payment_date?: string | null
   principal_outstanding: number
-  principal_paid: number
+  principal_paid: number | null
   interest_type: InterestType
   euribor_rate?: number | null
   fixed_years?: number | null
   name?: string | null
-  creation?: string | null
-  maturity?: string | null
+  creation: string
+  maturity: string
   unpaid?: number | null
+  source: DataSource
 }
 
 export interface StockDetail {
@@ -96,6 +99,7 @@ export interface StockDetail {
   currency: string
   type: string
   subtype?: string | null
+  source: DataSource
 }
 
 export interface FundPortfolio {
@@ -104,6 +108,9 @@ export interface FundPortfolio {
   currency?: string | null
   initial_investment?: number | null
   market_value?: number | null
+  account?: Account | null
+  account_id?: string | null
+  source: DataSource
 }
 
 export enum AssetType {
@@ -125,6 +132,7 @@ export interface FundDetail {
   asset_type?: AssetType | null
   currency: string
   portfolio?: FundPortfolio | null
+  source: DataSource
 }
 
 export interface FactoringDetail {
@@ -139,6 +147,7 @@ export interface FactoringDetail {
   maturity: string
   type: string
   state: string
+  source: DataSource
 }
 
 export interface RealEstateCFDetail {
@@ -155,6 +164,7 @@ export interface RealEstateCFDetail {
   business_type: string
   state: string
   extended_maturity?: string | null
+  source: DataSource
 }
 
 export interface Accounts {
@@ -198,6 +208,7 @@ export interface Deposit {
   interest_rate: number
   creation: string
   maturity: string
+  source: DataSource
 }
 
 export interface Deposits {
@@ -313,6 +324,9 @@ export type ProductPosition =
   | Commodities
 
 export type ProductPositions = Record<ProductType, ProductPosition>
+export type PartialProductPositions = Partial<
+  Record<ProductType, ProductPosition>
+>
 
 export interface EntitySummary {
   id: string
@@ -325,7 +339,7 @@ export interface GlobalPosition {
   entity: EntitySummary
   date: string
   products: ProductPositions
-  is_real: boolean
+  source: DataSource
 }
 
 export interface EntitiesPosition {
@@ -336,4 +350,10 @@ export interface EntitiesPosition {
 export interface PositionQueryRequest {
   entities?: string[] // Add entities filter
   excluded_entities?: string[]
+}
+
+export interface UpdatePositionRequest {
+  entity_id?: string | null
+  new_entity_name?: string | null
+  products: PartialProductPositions
 }

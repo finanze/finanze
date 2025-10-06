@@ -37,11 +37,17 @@ import type {
 import {
   EntityContributions,
   ContributionQueryRequest,
+  ManualContributionsRequest,
 } from "../types/contributions"
-import { EntitiesPosition, PositionQueryRequest } from "../types/position"
+import {
+  EntitiesPosition,
+  PositionQueryRequest,
+  UpdatePositionRequest,
+} from "../types/position"
 import {
   TransactionQueryRequest,
   TransactionsResult,
+  ManualTransactionPayload,
 } from "../types/transactions"
 import { handleApiError } from "@/utils/apiErrors"
 
@@ -128,7 +134,7 @@ export async function fetchFinancialEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/fetch/financial`, {
+  const response = await fetch(`${baseUrl}/data/fetch/financial`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -150,7 +156,7 @@ export async function fetchCryptoEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/fetch/crypto`, {
+  const response = await fetch(`${baseUrl}/data/fetch/crypto`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -170,7 +176,7 @@ export async function fetchCryptoEntity(
 
 export async function virtualFetch(): Promise<VirtualFetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/fetch/virtual`, {
+  const response = await fetch(`${baseUrl}/data/fetch/virtual`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -460,6 +466,22 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
   return response.json()
 }
 
+export async function saveManualContributions(
+  request: ManualContributionsRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/contributions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
 export async function calculateLoan(
   request: LoanCalculationRequest,
 ): Promise<LoanCalculationResult> {
@@ -475,6 +497,65 @@ export async function calculateLoan(
     await handleApiError(response)
   }
   return response.json()
+}
+
+export async function saveManualPositions(
+  request: UpdatePositionRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/positions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function createManualTransaction(
+  request: ManualTransactionPayload,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/transactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function updateManualTransaction(
+  id: string,
+  request: ManualTransactionPayload,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/transactions/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function deleteManualTransaction(id: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/transactions/${id}`, {
+    method: "DELETE",
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
 }
 
 export async function getForecast(
@@ -843,7 +924,7 @@ export async function fetchExternalEntity(
 ): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(
-    `${baseUrl}/fetch/external/${externalEntityId}`,
+    `${baseUrl}/data/fetch/external/${externalEntityId}`,
     { method: "POST" },
   )
   const data = await response.json()

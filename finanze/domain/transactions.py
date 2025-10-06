@@ -6,6 +6,7 @@ from uuid import UUID
 from domain.base import BaseData
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.fetch_record import DataSource
 from domain.global_position import ProductType
 from pydantic.dataclasses import dataclass
 
@@ -34,7 +35,7 @@ class TxType(str, Enum):
 
 @dataclass
 class BaseTx(BaseData):
-    id: UUID
+    id: Optional[UUID]
     ref: str
     name: str
     amount: Dezimal
@@ -42,7 +43,7 @@ class BaseTx(BaseData):
     type: TxType
     date: datetime
     entity: Entity
-    is_real: bool
+    source: DataSource
     product_type: ProductType
 
 
@@ -62,7 +63,7 @@ class AccountTx(BaseTx):
 
 @dataclass
 class StockTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     isin: Optional[str]
     shares: Dezimal
     price: Dezimal
@@ -76,7 +77,7 @@ class StockTx(BaseInvestmentTx):
 
 @dataclass
 class FundTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     isin: str
     shares: Dezimal
     price: Dezimal
@@ -95,26 +96,23 @@ class FundPortfolioTx(BaseInvestmentTx):
 
 @dataclass
 class FactoringTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
 class RealEstateCFTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
 class DepositTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass

@@ -59,6 +59,15 @@ from infrastructure.repository.db.versions.v0.v05.v050_4_fund_market_nullable im
 from infrastructure.repository.db.versions.v0.v05.v050_5_add_fund_asset_type import (
     V0505,
 )
+from infrastructure.repository.db.versions.v0.v06.v060_0_add_source_txs_contributions import (
+    V0600Source,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_1_recreate_position_tables import (
+    V0601RecreatePositionTables,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_2_use_source_positions import (
+    V0602Source,
+)
 
 versions = [
     V0Genesis(),
@@ -88,4 +97,7 @@ versions = [
     V0503FundPortfolioTxs(),
     V0504(),
     V0505(),
+    V0600Source(),
+    V0601RecreatePositionTables(),
+    V0602Source(),
 ]

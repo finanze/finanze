@@ -1,12 +1,13 @@
 import json
 from datetime import datetime
-from typing import Callable, Dict, Optional
+from typing import Callable, Optional
 from uuid import UUID
 
 from application.ports.position_port import PositionPort
 from domain.commodity import CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.fetch_record import DataSource
 from domain.global_position import (
     Account,
     Accounts,
@@ -401,13 +402,25 @@ def _save_product_positions(cursor, position: GlobalPosition):
 
 def _store_position(
     positions: ProductPositions,
-    global_position_id: UUID,
+    global_position: GlobalPosition,
     product_type: ProductType,
     get_fc: Callable,
 ):
-    position = get_fc(global_position_id)
+    position = get_fc(global_position)
     if position:
         positions[product_type] = position
+
+
+def _aggregate_positions(positions: list[GlobalPosition]) -> GlobalPosition:
+    aggregated_position = None
+
+    for position in positions:
+        if aggregated_position is None:
+            aggregated_position = position
+        else:
+            aggregated_position += position
+
+    return aggregated_position
 
 
 class PositionSQLRepository(PositionPort):
@@ -417,12 +430,12 @@ class PositionSQLRepository(PositionPort):
     def save(self, position: GlobalPosition):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "INSERT INTO global_positions (id, date, entity_id, is_real) VALUES (?, ?, ?, ?)",
+                "INSERT INTO global_positions (id, date, entity_id, source) VALUES (?, ?, ?, ?)",
                 (
                     str(position.id),
                     position.date.isoformat(),
                     str(position.entity.id),
-                    position.is_real,
+                    position.source.value,
                 ),
             )
 
@@ -436,32 +449,36 @@ class PositionSQLRepository(PositionPort):
         if not query or query.real is None or query.real:
             real_global_position_by_entity = self._get_real_grouped_by_entity(query)
         if not query or query.real is None or not query.real:
-            manual_global_position_by_entity = self._get_non_real_grouped_by_entity(
-                query
+            manual_global_position_by_entity: dict[Entity, list[GlobalPosition]] = (
+                self._get_non_real_grouped_by_entity(query)
             )
 
         global_position_by_entity = {}
         for entity, position in real_global_position_by_entity.items():
             if entity in manual_global_position_by_entity:
-                manual = manual_global_position_by_entity[entity]
-                global_position_by_entity[entity] = position + manual
+                manual_positions = manual_global_position_by_entity[entity]
+                aggregated_manual_position = _aggregate_positions(manual_positions)
+
+                global_position_by_entity[entity] = (
+                    position + aggregated_manual_position
+                )
                 del manual_global_position_by_entity[entity]
             else:
                 global_position_by_entity[entity] = position
 
-        for entity, position in manual_global_position_by_entity.items():
-            global_position_by_entity[entity] = position
+        for entity, manual_positions in manual_global_position_by_entity.items():
+            global_position_by_entity[entity] = _aggregate_positions(manual_positions)
 
         return global_position_by_entity
 
     def _get_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> Dict[Entity, GlobalPosition]:
+    ) -> dict[Entity, GlobalPosition]:
         with self._db_client.read() as cursor:
             sql = """
                   WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
                                             FROM global_positions
-                                            WHERE is_real = TRUE
+                                            WHERE source = 'REAL'
                                             GROUP BY entity_id)
                   SELECT gp.*,
                          e.id         AS entity_id,
@@ -473,7 +490,7 @@ class PositionSQLRepository(PositionPort):
                            JOIN latest_positions lp
                                 ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
                            JOIN entities e ON gp.entity_id = e.id
-                  WHERE gp.is_real = TRUE
+                  WHERE gp.source = 'REAL'
                   """
 
             params = []
@@ -494,46 +511,81 @@ class PositionSQLRepository(PositionPort):
 
             return self._map_position_rows(cursor)
 
-    def _map_position_rows(self, cursor: DBCursor):
-        positions = {}
-        for row in cursor.fetchall():
-            entity = Entity(
-                id=UUID(row["entity_id"]),
-                name=row["entity_name"],
-                natural_id=row["entity_natural_id"],
-                type=row["entity_type"],
-                origin=row["entity_origin"],
-            )
+    def _map_position_rows(self, cursor: DBCursor, multi: bool = False):
+        rows = cursor.fetchall()
 
+        if not multi:
+            positions: dict[Entity, GlobalPosition] = {}
+            for row in rows:
+                entity = Entity(
+                    id=UUID(row["entity_id"]),
+                    name=row["entity_name"],
+                    natural_id=row["entity_natural_id"],
+                    type=row["entity_type"],
+                    origin=row["entity_origin"],
+                )
+                pos_id = UUID(row["id"])
+                source = DataSource(row["source"])
+                position = GlobalPosition(
+                    id=pos_id,
+                    entity=entity,
+                    date=datetime.fromisoformat(row["date"]),
+                    source=source,
+                )
+                position.products = self._get_product_positions(position)
+                positions[entity] = position
+            return positions
+
+        entities: dict[UUID, Entity] = {}
+        result: dict[Entity, list[GlobalPosition]] = {}
+
+        for row in rows:
+            ent_id = UUID(row["entity_id"])
+            if ent_id not in entities:
+                entities[ent_id] = Entity(
+                    id=ent_id,
+                    name=row["entity_name"],
+                    natural_id=row["entity_natural_id"],
+                    type=row["entity_type"],
+                    origin=row["entity_origin"],
+                )
+            entity = entities[ent_id]
+
+            pos_id = UUID(row["id"])
+            source = DataSource(row["source"])
             position = GlobalPosition(
-                id=UUID(row["id"]),
+                id=pos_id,
                 entity=entity,
                 date=datetime.fromisoformat(row["date"]),
-                products=self._get_product_positions(row["id"]),
-                is_real=row["is_real"],
+                source=source,
             )
-            positions[entity] = position
-        return positions
+            position.products = self._get_product_positions(position)
+
+            lst = result.get(entity)
+            if lst is None:
+                result[entity] = [position]
+            else:
+                lst.append(position)
+
+        return result
 
     def _get_non_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> Dict[Entity, GlobalPosition]:
+    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
         with self._db_client.read() as cursor:
             sql = """
-                  WITH latest_import_details AS (SELECT import_id
-                                                 FROM virtual_data_imports
-                                                 ORDER BY date DESC
-                                                 LIMIT 1),
+                  WITH latest_import_details AS (SELECT vdi.import_id
+                                                 FROM virtual_data_imports vdi
+                                                          JOIN (SELECT source, MAX(date) AS max_date
+                                                                FROM virtual_data_imports
+                                                                GROUP BY source) mx
+                                                               ON mx.source = vdi.source AND mx.max_date = vdi.date
+                                                 GROUP BY vdi.source),
                        last_imported_position_ids AS (SELECT vdi.global_position_id
                                                       FROM virtual_data_imports vdi
                                                                JOIN latest_import_details lid
-                                                                    ON vdi.import_id = lid.import_id),
-                       latest_positions AS (SELECT entity_id, MAX(date) as latest_date
-                                            FROM global_positions gp
-                                                     INNER JOIN last_imported_position_ids lp
-                                                                ON gp.id = lp.global_position_id
-                                            WHERE gp.is_real = FALSE
-                                            GROUP BY gp.entity_id)
+                                                                    ON vdi.import_id = lid.import_id
+                                                      WHERE vdi.global_position_id IS NOT NULL)
                   SELECT gp.*,
                          e.name       AS entity_name,
                          e.id         AS entity_id,
@@ -541,10 +593,9 @@ class PositionSQLRepository(PositionPort):
                          e.type       AS entity_type,
                          e.origin     AS entity_origin
                   FROM global_positions gp
-                           JOIN latest_positions lp
-                                ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
+                           JOIN last_imported_position_ids lp
+                                ON gp.id = lp.global_position_id
                            JOIN entities e ON gp.entity_id = e.id
-                  WHERE gp.is_real = FALSE \
                   """
 
             params = []
@@ -557,13 +608,13 @@ class PositionSQLRepository(PositionPort):
             # only non-real data here
 
             if conditions:
-                sql += " AND " + " AND ".join(conditions)
+                sql += " WHERE " + " AND ".join(conditions)
 
             cursor.execute(sql, tuple(params))
 
-            return self._map_position_rows(cursor)
+            return self._map_position_rows(cursor, multi=True)
 
-    def _get_accounts(self, global_position_id: UUID) -> Optional[Accounts]:
+    def _get_accounts(self, global_position: GlobalPosition) -> Optional[Accounts]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
@@ -571,7 +622,7 @@ class PositionSQLRepository(PositionPort):
                            FROM account_positions
                            WHERE global_position_id = ?
                            """,
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             accounts = [
@@ -587,6 +638,7 @@ class PositionSQLRepository(PositionPort):
                     pending_transfers=Dezimal(row["pending_transfers"])
                     if row["pending_transfers"]
                     else None,
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -596,11 +648,11 @@ class PositionSQLRepository(PositionPort):
 
             return Accounts(accounts)
 
-    def _get_cards(self, global_position_id: UUID) -> Optional[Cards]:
+    def _get_cards(self, global_position: GlobalPosition) -> Optional[Cards]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM card_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             cards = [
@@ -614,6 +666,7 @@ class PositionSQLRepository(PositionPort):
                     used=Dezimal(row["used"]),
                     active=bool(row["active"]),
                     related_account=row["related_account"],
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -623,11 +676,11 @@ class PositionSQLRepository(PositionPort):
 
             return Cards(cards)
 
-    def _get_loans(self, global_position_id: UUID) -> Optional[Loans]:
+    def _get_loans(self, global_position: GlobalPosition) -> Optional[Loans]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM loan_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             loans = [
@@ -658,6 +711,7 @@ class PositionSQLRepository(PositionPort):
                     creation=datetime.fromisoformat(row["creation"]).date(),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -667,11 +721,13 @@ class PositionSQLRepository(PositionPort):
 
             return Loans(loans)
 
-    def _get_stocks(self, global_position_id: UUID) -> Optional[StockInvestments]:
+    def _get_stocks(
+        self, global_position: GlobalPosition
+    ) -> Optional[StockInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM stock_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             details = [
@@ -688,6 +744,7 @@ class PositionSQLRepository(PositionPort):
                     currency=row["currency"],
                     type=row["type"],
                     subtype=row["subtype"],
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -698,7 +755,7 @@ class PositionSQLRepository(PositionPort):
             return StockInvestments(details)
 
     def _get_fund_portfolios(
-        self, global_position_id: UUID
+        self, global_position: GlobalPosition
     ) -> Optional[FundPortfolios]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -708,7 +765,7 @@ class PositionSQLRepository(PositionPort):
                          LEFT JOIN account_positions ap ON fp.account_id = ap.id
                 WHERE fp.global_position_id = ?
                 """,
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             portfolios = []
@@ -727,14 +784,15 @@ class PositionSQLRepository(PositionPort):
                         else None,
                         account=Account(
                             id=UUID(row["account_id"]),
-                            total=Dezimal(row["total"]),
+                            total=Dezimal(0),
                             currency=currency,
                             type=AccountType.FUND_PORTFOLIO,
-                            name=row["name"],
+                            name=row["account_name"],
                             iban=row["iban"],
                         )
                         if row["account_id"]
                         else None,
+                        source=global_position.source,
                     )
                 )
 
@@ -743,7 +801,7 @@ class PositionSQLRepository(PositionPort):
 
             return FundPortfolios(portfolios)
 
-    def _get_funds(self, global_position_id: UUID) -> Optional[FundInvestments]:
+    def _get_funds(self, global_position: GlobalPosition) -> Optional[FundInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
@@ -757,7 +815,7 @@ class PositionSQLRepository(PositionPort):
                                     LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
                            WHERE f.global_position_id = ?
                            """,
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             details = [
@@ -786,9 +844,11 @@ class PositionSQLRepository(PositionPort):
                         market_value=Dezimal(row["portfolio_value"])
                         if row["portfolio_value"]
                         else None,
+                        source=global_position.source,
                     )
                     if row["portfolio_id"]
                     else None,
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -799,12 +859,12 @@ class PositionSQLRepository(PositionPort):
             return FundInvestments(details)
 
     def _get_factoring(
-        self, global_position_id: UUID
+        self, global_position: GlobalPosition
     ) -> Optional[FactoringInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM factoring_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             details = [
@@ -820,6 +880,7 @@ class PositionSQLRepository(PositionPort):
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     type=row["type"],
                     state=row["state"],
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -830,12 +891,12 @@ class PositionSQLRepository(PositionPort):
             return FactoringInvestments(details)
 
     def _get_real_estate_cf(
-        self, global_position_id: UUID
+        self, global_position: GlobalPosition
     ) -> Optional[RealEstateCFInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM real_estate_cf_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             details = [
@@ -853,6 +914,7 @@ class PositionSQLRepository(PositionPort):
                     business_type=row["business_type"],
                     state=row["state"],
                     extended_maturity=row["extended_maturity"],
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -862,11 +924,11 @@ class PositionSQLRepository(PositionPort):
 
             return RealEstateCFInvestments(details)
 
-    def _get_deposits(self, global_position_id: UUID) -> Optional[Deposits]:
+    def _get_deposits(self, global_position: GlobalPosition) -> Optional[Deposits]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM deposit_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             details = [
@@ -879,6 +941,7 @@ class PositionSQLRepository(PositionPort):
                     interest_rate=Dezimal(row["interest_rate"]),
                     creation=datetime.fromisoformat(row["creation"]),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
+                    source=global_position.source,
                 )
                 for row in cursor
             ]
@@ -888,11 +951,13 @@ class PositionSQLRepository(PositionPort):
 
             return Deposits(details)
 
-    def _get_crowdlending(self, global_position_id: UUID) -> Optional[Crowdlending]:
+    def _get_crowdlending(
+        self, global_position: GlobalPosition
+    ) -> Optional[Crowdlending]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM crowdlending_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
             row = cursor.fetchone()
             if not row:
@@ -953,7 +1018,7 @@ class PositionSQLRepository(PositionPort):
             ]
 
     def _get_cryptocurrency(
-        self, global_position_id: UUID
+        self, global_position: GlobalPosition
     ) -> Optional[CryptoCurrencies]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -969,7 +1034,7 @@ class PositionSQLRepository(PositionPort):
                          LEFT JOIN crypto_initial_investments cii ON cii.wallet_connection_id = c.id AND p.symbol = cii.symbol AND cii.type = 'CRYPTO'
                 WHERE global_position_id = ?
                 """,
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
             wallets = []
             for row in cursor:
@@ -1007,11 +1072,13 @@ class PositionSQLRepository(PositionPort):
 
             return CryptoCurrencies(wallets)
 
-    def _get_commodities(self, global_position_id: UUID) -> Optional[Commodities]:
+    def _get_commodities(
+        self, global_position: GlobalPosition
+    ) -> Optional[Commodities]:
         with self._db_client.read() as cursor:
             cursor.execute(
                 "SELECT * FROM commodity_positions WHERE global_position_id = ?",
-                (str(global_position_id),),
+                (str(global_position.id),),
             )
 
             commodities = [
@@ -1038,43 +1105,46 @@ class PositionSQLRepository(PositionPort):
 
             return Commodities(commodities)
 
-    def _get_product_positions(self, g_position_id: UUID) -> ProductPositions:
+    def _get_product_positions(self, g_position: GlobalPosition) -> ProductPositions:
         positions = {}
-        _store_position(
-            positions, g_position_id, ProductType.ACCOUNT, self._get_accounts
-        )
-        _store_position(positions, g_position_id, ProductType.CARD, self._get_cards)
-        _store_position(positions, g_position_id, ProductType.LOAN, self._get_loans)
-        _store_position(
-            positions, g_position_id, ProductType.STOCK_ETF, self._get_stocks
-        )
-        _store_position(positions, g_position_id, ProductType.FUND, self._get_funds)
+        _store_position(positions, g_position, ProductType.ACCOUNT, self._get_accounts)
+        _store_position(positions, g_position, ProductType.CARD, self._get_cards)
+        _store_position(positions, g_position, ProductType.LOAN, self._get_loans)
+        _store_position(positions, g_position, ProductType.STOCK_ETF, self._get_stocks)
+        _store_position(positions, g_position, ProductType.FUND, self._get_funds)
         _store_position(
             positions,
-            g_position_id,
+            g_position,
             ProductType.FUND_PORTFOLIO,
             self._get_fund_portfolios,
         )
         _store_position(
-            positions, g_position_id, ProductType.FACTORING, self._get_factoring
+            positions, g_position, ProductType.FACTORING, self._get_factoring
         )
         _store_position(
             positions,
-            g_position_id,
+            g_position,
             ProductType.REAL_ESTATE_CF,
             self._get_real_estate_cf,
         )
+        _store_position(positions, g_position, ProductType.DEPOSIT, self._get_deposits)
         _store_position(
-            positions, g_position_id, ProductType.DEPOSIT, self._get_deposits
+            positions,
+            g_position,
+            ProductType.CROWDLENDING,
+            self._get_crowdlending,
         )
         _store_position(
-            positions, g_position_id, ProductType.CROWDLENDING, self._get_crowdlending
+            positions,
+            g_position,
+            ProductType.CRYPTO,
+            self._get_cryptocurrency,
         )
         _store_position(
-            positions, g_position_id, ProductType.CRYPTO, self._get_cryptocurrency
-        )
-        _store_position(
-            positions, g_position_id, ProductType.COMMODITY, self._get_commodities
+            positions,
+            g_position,
+            ProductType.COMMODITY,
+            self._get_commodities,
         )
         return positions
 
@@ -1087,7 +1157,7 @@ class PositionSQLRepository(PositionPort):
             return cursor.fetchone()[0]
 
     def delete_position_for_date(
-        self, entity_id: UUID, date: datetime.date, is_real: bool
+        self, entity_id: UUID, date: datetime.date, source: DataSource
     ):
         with self._db_client.tx() as cursor:
             cursor.execute(
@@ -1096,7 +1166,45 @@ class PositionSQLRepository(PositionPort):
                 FROM global_positions
                 WHERE entity_id = ?
                   AND DATE(date) = ?
-                  AND is_real = ?
+                  AND source = ?
                 """,
-                (str(entity_id), date.isoformat(), is_real),
+                (str(entity_id), date.isoformat(), source.value),
+            )
+
+    def get_by_id(self, position_id: UUID) -> Optional[GlobalPosition]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                """
+                SELECT gp.*, e.id AS entity_id, e.name AS entity_name, e.natural_id AS entity_natural_id, e.type AS entity_type, e.origin AS entity_origin
+                FROM global_positions gp JOIN entities e ON gp.entity_id = e.id
+                WHERE gp.id = ?
+                """,
+                (str(position_id),),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            entity = Entity(
+                id=UUID(row["entity_id"]),
+                name=row["entity_name"],
+                natural_id=row["entity_natural_id"],
+                type=row["entity_type"],
+                origin=row["entity_origin"],
+            )
+
+            pos_id = UUID(row["id"])
+            source = DataSource(row["source"])
+            position = GlobalPosition(
+                id=pos_id,
+                entity=entity,
+                date=datetime.fromisoformat(row["date"]),
+                source=source,
+            )
+            position.products = self._get_product_positions(position)
+            return position
+
+    def delete_by_id(self, position_id: UUID):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM global_positions WHERE id = ?", (str(position_id),)
             )

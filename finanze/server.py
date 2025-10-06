@@ -4,6 +4,7 @@ from pathlib import Path
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
@@ -17,6 +18,7 @@ from application.use_cases.connect_google import ConnectGoogleImpl
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
+from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
@@ -44,8 +46,11 @@ from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
+from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
+from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
+from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
@@ -415,6 +420,35 @@ class FinanzeServer:
             pending_flow_port=pending_flow_repository,
             real_estate_port=real_estate_repository,
         )
+        update_contributions = UpdateContributionsImpl(
+            entity_port=entity_repository,
+            auto_contributions_port=auto_contrib_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        update_position = UpdatePositionImpl(
+            entity_port=entity_repository,
+            position_port=position_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        add_manual_transaction = AddManualTransactionImpl(
+            entity_port=entity_repository,
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        update_manual_transaction = UpdateManualTransactionImpl(
+            entity_port=entity_repository,
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        delete_manual_transaction = DeleteManualTransactionImpl(
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
 
         self._log.info("Initial component setup completed.")
 
@@ -480,6 +514,11 @@ class FinanzeServer:
             list_real_estate,
             calculate_loan,
             forecast,
+            update_contributions,
+            update_position,
+            add_manual_transaction,
+            update_manual_transaction,
+            delete_manual_transaction,
         )
         self._log.info("Completed.")
 

@@ -1,321 +1,776 @@
-import React, { useState, useMemo } from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
-import { useI18n } from "@/i18n"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
+import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { MultiSelect } from "@/components/ui/MultiSelect"
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover"
-import type { MultiSelectOption } from "@/components/ui/MultiSelect"
-import { formatCurrency, formatPercentage } from "@/lib/formatters"
+  MultiSelect,
+  type MultiSelectOption,
+} from "@/components/ui/MultiSelect"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
-  convertCurrency,
-  getEntitiesWithProductType,
-} from "@/utils/financialDataUtils"
+  ManualPositionsManager,
+  useManualPositions,
+} from "@/components/manual/ManualPositionsManager"
 import {
-  ProductType,
-  CardType,
-  LoanType,
-  type Account,
-  type Card as CardType2,
-  type Loan,
-} from "@/types/position"
+  mergeManualDisplayItems,
+  type ManualDisplayItem,
+} from "@/components/manual/manualDisplayUtils"
+import type {
+  ManualPositionAsset,
+  ManualPositionDraft,
+  ManualSavePayloadByEntity,
+} from "@/components/manual/manualPositionTypes"
+import { convertCurrency } from "@/utils/financialDataUtils"
+import { formatCurrency, formatDate, formatPercentage } from "@/lib/formatters"
+import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
+import { cn } from "@/lib/utils"
+import { SourceBadge } from "@/components/ui/SourceBadge"
+import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
-  CreditCard,
-  Building2,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  ArrowLeft,
   Wallet,
+  CreditCard,
   TrendingDown,
-  Calendar,
   Percent,
+  Calendar,
   Shield,
   AlertCircle,
   Eye,
   EyeOff,
-  ArrowLeft,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+  X,
+  Building2,
 } from "lucide-react"
-import { PinAssetButton } from "@/components/ui/PinAssetButton"
-import { getAccountTypeColor, getAccountTypeIcon } from "@/utils/dashboardUtils"
+import {
+  ProductType,
+  AccountType,
+  CardType,
+  LoanType,
+  InterestType,
+  type Account,
+  type Card as CardModel,
+  type Loan,
+  type PartialProductPositions,
+  type UpdatePositionRequest,
+} from "@/types/position"
+import {
+  DataSource,
+  EntityOrigin,
+  EntityType,
+  type ExchangeRates,
+} from "@/types"
+import { saveManualPositions } from "@/services/api"
+
+interface AccountPosition extends Account {
+  entityId: string
+  entityName: string
+  entryId: string
+  entityOrigin: EntityOrigin | null
+}
+
+interface CardPosition extends CardModel {
+  entityId: string
+  entityName: string
+  entryId: string
+  entityOrigin: EntityOrigin | null
+}
+
+interface LoanPosition extends Loan {
+  entityId: string
+  entityName: string
+  entryId: string
+  entityOrigin: EntityOrigin | null
+}
+
+interface AccountsSummary {
+  totalBalance: number
+  weightedInterest: number
+  count: number
+}
+
+interface CardsSummary {
+  totalUsed: number
+  count: number
+}
+
+interface LoansSummary {
+  totalDebt: number
+  totalMonthlyPayments: number
+  weightedInterest: number
+  count: number
+}
+
+const formatIban = (iban?: string | null, reveal?: boolean) => {
+  if (!iban) return null
+  if (reveal) {
+    return iban.replace(/(.{4})/g, "$1 ").trim()
+  }
+  return `•••• •••• •••• ${iban.slice(-4)}`
+}
+
+const formatCardNumber = (ending?: string | null) =>
+  ending ? `•••• •••• •••• ${ending}` : "•••• •••• •••• ••••"
+
+const isFiniteNumber = (value: number | null | undefined): value is number =>
+  typeof value === "number" && Number.isFinite(value)
+
+type AccountDraft = ManualPositionDraft<Account>
+type CardDraft = ManualPositionDraft<CardModel>
+type LoanDraft = ManualPositionDraft<Loan>
+
+type AccountDisplay = AccountPosition & {
+  convertedTotal: number
+  convertedRetained: number | null
+  convertedPendingTransfers: number | null
+}
+
+type CardDisplay = CardPosition & {
+  convertedUsed: number
+  convertedLimit: number | null
+}
+
+type LoanDisplay = LoanPosition & {
+  convertedCurrentInstallment: number
+  convertedLoanAmount: number
+  convertedPrincipalOutstanding: number
+  convertedPrincipalPaid: number
+}
+
+const MANUAL_ASSETS_ORDER: ManualPositionAsset[] = [
+  "bankAccounts",
+  "bankCards",
+  "bankLoans",
+]
+
+interface ManualSectionController {
+  asset: ManualPositionAsset
+  assetTitle: string
+  addLabel: string
+  editLabel: string
+  cancelLabel: string
+  saveLabel: string
+  isEditMode: boolean
+  hasLocalChanges: boolean
+  isSaving: boolean
+  canCreate: boolean
+  beginCreate: (options?: { entityId?: string }) => void
+  enterEditMode: () => void
+  requestCancel: () => void
+  requestSave: () => Promise<void>
+  translate: (path: string, params?: Record<string, any>) => string
+  collectSavePayload: () => ManualSavePayloadByEntity
+  setSavingState: (value: boolean) => void
+  handleSaveSuccess: () => void
+}
+
+type ManualControllerRegistrar = (
+  asset: ManualPositionAsset,
+  controller: ManualSectionController | null,
+) => void
+
+function BankingManualControls({
+  controllers,
+  t,
+  showToast,
+  refreshEntity,
+  className,
+}: {
+  controllers: ManualSectionController[]
+  t: Translations
+  showToast: (message: string, type: "success" | "error" | "warning") => void
+  refreshEntity: (entityId: string) => Promise<void>
+  className?: string
+}) {
+  const [isSaving, setIsSaving] = useState(false)
+
+  if (controllers.length === 0) {
+    return null
+  }
+
+  const isAnyEditMode = controllers.some(controller => controller.isEditMode)
+  const isAnySaving =
+    isSaving || controllers.some(controller => controller.isSaving)
+  const hasAnyChanges = controllers.some(
+    controller => controller.hasLocalChanges,
+  )
+  const unsavedControllers = controllers.filter(
+    controller => controller.isEditMode && controller.hasLocalChanges,
+  )
+
+  const handleEnterEdit = useCallback(() => {
+    controllers.forEach(controller => {
+      controller.enterEditMode()
+    })
+  }, [controllers])
+
+  const handleCancel = useCallback(() => {
+    controllers.forEach(controller => {
+      controller.requestCancel()
+    })
+  }, [controllers])
+
+  const handleSave = useCallback(async () => {
+    if (isAnySaving) return
+
+    if (!hasAnyChanges) {
+      controllers.forEach(controller => controller.handleSaveSuccess())
+      return
+    }
+
+    setIsSaving(true)
+    controllers.forEach(controller => controller.setSavingState(true))
+
+    try {
+      const aggregated = new Map<
+        string,
+        {
+          products: PartialProductPositions
+          isNewEntity: boolean
+          newEntityName: string | null
+        }
+      >()
+
+      controllers.forEach(controller => {
+        const payloadMap = controller.collectSavePayload()
+        payloadMap.forEach(
+          ({ productType, entries, isNewEntity, newEntityName }, entityId) => {
+            const record = aggregated.get(entityId) ?? {
+              products: {} as PartialProductPositions,
+              isNewEntity: false,
+              newEntityName: null,
+            }
+
+            const payloadEntries = entries.map(({ payload, draft }) => {
+              const base = { ...payload } as Record<string, any>
+
+              const resolvedId = (() => {
+                if (typeof base.id === "string" && base.id.trim() !== "") {
+                  return base.id
+                }
+                if (typeof draft.originalId === "string" && draft.originalId) {
+                  return draft.originalId
+                }
+                return draft.localId
+              })()
+
+              if (resolvedId) {
+                base.id = resolvedId
+              } else {
+                delete base.id
+              }
+
+              if (productType === ProductType.CARD) {
+                const relatedAccount =
+                  typeof (draft as any).related_account === "string"
+                    ? (draft as any).related_account.trim()
+                    : ""
+                base.related_account = relatedAccount ? relatedAccount : null
+              }
+
+              return base
+            })
+
+            ;(record.products as PartialProductPositions)[productType] = {
+              entries: payloadEntries as any,
+            } as any
+
+            const hasDraftNewEntity = entries.some(entry => {
+              if (entry.draft.isNewEntity) return true
+              const draftEntityId = entry.draft.entityId
+              return (
+                typeof draftEntityId === "string" &&
+                draftEntityId.startsWith("new-")
+              )
+            })
+
+            if (
+              hasDraftNewEntity ||
+              isNewEntity ||
+              (typeof entityId === "string" && entityId.startsWith("new-"))
+            ) {
+              record.isNewEntity = true
+            }
+
+            if (!record.newEntityName) {
+              const candidateName =
+                newEntityName?.trim() ||
+                entries
+                  .map(entry =>
+                    (
+                      entry.draft.newEntityName ??
+                      entry.draft.entityName ??
+                      ""
+                    ).trim(),
+                  )
+                  .find(name => name.length > 0) ||
+                null
+              if (candidateName) {
+                record.newEntityName = candidateName
+              }
+            }
+
+            aggregated.set(entityId, record)
+          },
+        )
+      })
+
+      if (aggregated.size === 0) {
+        controllers.forEach(controller => controller.handleSaveSuccess())
+        return
+      }
+
+      const requestPromises: Promise<void>[] = []
+      let missingNewEntityName = false
+
+      aggregated.forEach(
+        ({ products, isNewEntity, newEntityName }, entityId) => {
+          const treatAsNewEntity =
+            isNewEntity ||
+            (typeof entityId === "string" && entityId.startsWith("new-"))
+
+          const hasEntries = Object.values(products).some(product => {
+            const entries = (product as { entries?: any[] } | undefined)
+              ?.entries
+            return Array.isArray(entries) && entries.length > 0
+          })
+
+          if (treatAsNewEntity && !hasEntries) {
+            return
+          }
+
+          const requestPayload: UpdatePositionRequest = {
+            products,
+          }
+
+          if (treatAsNewEntity) {
+            const trimmedName = newEntityName?.trim()
+            if (!trimmedName) {
+              missingNewEntityName = true
+              return
+            }
+            requestPayload.new_entity_name = trimmedName
+          } else {
+            requestPayload.entity_id = entityId
+          }
+
+          requestPromises.push(
+            saveManualPositions(requestPayload).then(() => {
+              if (requestPayload.entity_id) {
+                return refreshEntity(requestPayload.entity_id)
+              }
+            }),
+          )
+        },
+      )
+
+      if (missingNewEntityName) {
+        const translate = controllers[0]?.translate
+        if (translate) {
+          showToast(
+            translate("management.manualPositions.toasts.saveError"),
+            "error",
+          )
+        } else if (t.common?.error) {
+          showToast(t.common.error, "error")
+        }
+        controllers.forEach(controller => controller.setSavingState(false))
+        setIsSaving(false)
+        return
+      }
+
+      if (requestPromises.length === 0) {
+        controllers.forEach(controller => controller.handleSaveSuccess())
+        return
+      }
+
+      await Promise.all(requestPromises)
+
+      controllers.forEach(controller => controller.handleSaveSuccess())
+
+      const translate = controllers[0]?.translate
+      if (translate) {
+        showToast(
+          translate("management.manualPositions.toasts.saveSuccess"),
+          "success",
+        )
+      }
+    } catch (error) {
+      console.error("Error saving manual positions", error)
+      const translate = controllers[0]?.translate
+      if (translate) {
+        showToast(
+          translate("management.manualPositions.toasts.saveError"),
+          "error",
+        )
+      } else if (t.common?.error) {
+        showToast(t.common.error, "error")
+      }
+    } finally {
+      controllers.forEach(controller => controller.setSavingState(false))
+      setIsSaving(false)
+    }
+  }, [controllers, hasAnyChanges, isAnySaving, refreshEntity, showToast, t])
+
+  return (
+    <div className={cn("flex flex-col gap-2", className)}>
+      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+        {isAnyEditMode ? (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCancel}
+              disabled={isAnySaving}
+              className="flex items-center gap-2"
+            >
+              <X className="h-3.5 w-3.5" />
+              {t.common.cancel}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={isAnySaving || !hasAnyChanges}
+              className="flex items-center gap-2"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {t.common.save}
+            </Button>
+          </>
+        ) : (
+          <Button
+            size="sm"
+            onClick={handleEnterEdit}
+            className="flex items-center gap-2"
+            disabled={isAnySaving}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+            {t.common.edit}
+          </Button>
+        )}
+      </div>
+      {unsavedControllers.length > 0 && (
+        <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <div className="space-y-1">
+            <div>
+              {unsavedControllers[0].translate("management.unsavedChanges")}
+            </div>
+            <div className="text-xs text-amber-700 dark:text-amber-300">
+              {unsavedControllers
+                .map(controller => controller.assetTitle)
+                .join(", ")}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function BankingPage() {
   const { t, locale } = useI18n()
-  const { positionsData, isLoading } = useFinancialData()
-  const { settings, exchangeRates, entities } = useAppContext()
+  const { positionsData, isLoading, refreshEntity } = useFinancialData()
+  const { settings, exchangeRates, entities, showToast } = useAppContext()
   const navigate = useNavigate()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [showAccountNumbers, setShowAccountNumbers] = useState(false)
 
-  // Get all banking data by entity
-  const allBankingData = useMemo(() => {
-    if (!positionsData?.positions) return []
+  const [accountsSummary, setAccountsSummary] = useState<AccountsSummary>({
+    totalBalance: 0,
+    weightedInterest: 0,
+    count: 0,
+  })
+  const [cardsSummary, setCardsSummary] = useState<CardsSummary>({
+    totalUsed: 0,
+    count: 0,
+  })
+  const [loansSummary, setLoansSummary] = useState<LoansSummary>({
+    totalDebt: 0,
+    totalMonthlyPayments: 0,
+    weightedInterest: 0,
+    count: 0,
+  })
 
-    const bankingData: any[] = []
+  const [manualControllersMap, setManualControllersMap] = useState<
+    Partial<Record<ManualPositionAsset, ManualSectionController>>
+  >({})
 
-    Object.values(positionsData.positions).forEach((entityPosition: any) => {
-      const entityInfo = entities?.find(e => e.id === entityPosition.entity.id)
+  const registerManualController = useCallback<ManualControllerRegistrar>(
+    (asset, controller) => {
+      setManualControllersMap(prev => {
+        const previous = prev[asset]
+        if (controller) {
+          if (previous === controller) {
+            return prev
+          }
+          return { ...prev, [asset]: controller }
+        }
+        if (previous === undefined) {
+          return prev
+        }
+        const next = { ...prev }
+        delete next[asset]
+        return next
+      })
+    },
+    [],
+  )
 
-      // Get accounts
-      const accountsProduct = entityPosition.products[ProductType.ACCOUNT]
-      if (accountsProduct?.entries) {
-        accountsProduct.entries.forEach((account: Account) => {
-          bankingData.push({
-            type: "account",
-            entityId: entityPosition.entity.id,
-            entityName: entityInfo?.name || entityPosition.entity.name,
-            data: {
-              ...account,
-              convertedTotal: convertCurrency(
-                account.total,
-                account.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              ),
-              convertedRetained: account.retained
-                ? convertCurrency(
-                    account.retained,
-                    account.currency,
-                    settings.general.defaultCurrency,
-                    exchangeRates,
-                  )
-                : null,
-              convertedPendingTransfers: account.pending_transfers
-                ? convertCurrency(
-                    account.pending_transfers,
-                    account.currency,
-                    settings.general.defaultCurrency,
-                    exchangeRates,
-                  )
-                : null,
-            },
-          })
-        })
-      }
+  const manualControllers = useMemo(
+    () =>
+      MANUAL_ASSETS_ORDER.map(
+        assetKey => manualControllersMap[assetKey],
+      ).filter((controller): controller is ManualSectionController =>
+        Boolean(controller),
+      ),
+    [manualControllersMap],
+  )
 
-      // Get cards
-      const cardsProduct = entityPosition.products[ProductType.CARD]
-      if (cardsProduct?.entries) {
-        cardsProduct.entries.forEach((card: CardType2) => {
-          bankingData.push({
-            type: "card",
-            entityId: entityPosition.entity.id,
-            entityName: entityInfo?.name || entityPosition.entity.name,
-            data: {
-              ...card,
-              convertedUsed: convertCurrency(
-                card.used,
-                card.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              ),
-              convertedLimit: card.limit
-                ? convertCurrency(
-                    card.limit,
-                    card.currency,
-                    settings.general.defaultCurrency,
-                    exchangeRates,
-                  )
-                : null,
-            },
-          })
-        })
-      }
-
-      // Get loans
-      const loansProduct = entityPosition.products[ProductType.LOAN]
-      if (loansProduct?.entries) {
-        loansProduct.entries.forEach((loan: Loan) => {
-          bankingData.push({
-            type: "loan",
-            entityId: entityPosition.entity.id,
-            entityName: entityInfo?.name || entityPosition.entity.name,
-            data: {
-              ...loan,
-              convertedCurrentInstallment: convertCurrency(
-                loan.current_installment,
-                loan.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              ),
-              convertedLoanAmount: convertCurrency(
-                loan.loan_amount,
-                loan.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              ),
-              convertedPrincipalOutstanding: convertCurrency(
-                loan.principal_outstanding,
-                loan.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              ),
-              convertedPrincipalPaid: convertCurrency(
-                loan.principal_paid,
-                loan.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              ),
-            },
-          })
-        })
-      }
+  const enterGlobalEditMode = useCallback(() => {
+    manualControllers.forEach(controller => {
+      controller.enterEditMode()
     })
+  }, [manualControllers])
 
-    return bankingData
-  }, [positionsData, entities, settings.general.defaultCurrency, exchangeRates])
+  const entityOrigins = useMemo<Record<string, EntityOrigin | null>>(() => {
+    const map: Record<string, EntityOrigin | null> = {}
+    entities?.forEach(entity => {
+      map[entity.id] = entity.origin ?? null
+    })
+    return map
+  }, [entities])
 
-  // Filter data based on selected entities
-  const filteredBankingData = useMemo(() => {
-    if (selectedEntities.length === 0) return allBankingData
-    return allBankingData.filter(item =>
-      selectedEntities.includes(item.entityId),
+  const accountPositions = useMemo<AccountPosition[]>(() => {
+    if (!positionsData?.positions) return []
+    return Object.values(positionsData.positions).flatMap(entityPosition => {
+      const entityMeta = entities?.find(
+        entity => entity.id === entityPosition.entity.id,
+      )
+      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
+        return []
+      }
+
+      const product = entityPosition.products[ProductType.ACCOUNT] as
+        | { entries?: Account[] }
+        | undefined
+      if (!product?.entries?.length) return []
+
+      const entityId = entityPosition.entity.id
+      const entityName = entityMeta?.name ?? entityPosition.entity.name
+      const entityOrigin =
+        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+
+      return product.entries.map(account => ({
+        ...account,
+        entityId,
+        entityName,
+        entryId: account.id,
+        entityOrigin,
+      }))
+    })
+  }, [positionsData, entities])
+
+  const cardPositions = useMemo<CardPosition[]>(() => {
+    if (!positionsData?.positions) return []
+    return Object.values(positionsData.positions).flatMap(entityPosition => {
+      const entityMeta = entities?.find(
+        entity => entity.id === entityPosition.entity.id,
+      )
+      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
+        return []
+      }
+
+      const product = entityPosition.products[ProductType.CARD] as
+        | { entries?: CardModel[] }
+        | undefined
+      if (!product?.entries?.length) return []
+
+      const entityId = entityPosition.entity.id
+      const entityName = entityMeta?.name ?? entityPosition.entity.name
+      const entityOrigin =
+        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+
+      return product.entries.map(card => ({
+        ...card,
+        entityId,
+        entityName,
+        entryId: card.id,
+        entityOrigin,
+      }))
+    })
+  }, [positionsData, entities])
+
+  const loanPositions = useMemo<LoanPosition[]>(() => {
+    if (!positionsData?.positions) return []
+    return Object.values(positionsData.positions).flatMap(entityPosition => {
+      const entityMeta = entities?.find(
+        entity => entity.id === entityPosition.entity.id,
+      )
+      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
+        return []
+      }
+
+      const product = entityPosition.products[ProductType.LOAN] as
+        | { entries?: Loan[] }
+        | undefined
+      if (!product?.entries?.length) return []
+
+      const entityId = entityPosition.entity.id
+      const entityName = entityMeta?.name ?? entityPosition.entity.name
+      const entityOrigin =
+        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+
+      return product.entries.map(loan => ({
+        ...loan,
+        entityId,
+        entityName,
+        entryId: loan.id,
+        entityOrigin,
+      }))
+    })
+  }, [positionsData, entities])
+
+  const filteredAccounts = useMemo(() => {
+    if (selectedEntities.length === 0) return accountPositions
+    return accountPositions.filter(account =>
+      selectedEntities.includes(account.entityId),
     )
-  }, [allBankingData, selectedEntities])
+  }, [accountPositions, selectedEntities])
 
-  // Get entity options for the filter
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
-    const entitiesWithBanking = [
-      ...getEntitiesWithProductType(positionsData, ProductType.ACCOUNT),
-      ...getEntitiesWithProductType(positionsData, ProductType.CARD),
-      ...getEntitiesWithProductType(positionsData, ProductType.LOAN),
-    ]
-    const uniqueEntities = Array.from(new Set(entitiesWithBanking))
+  const filteredCards = useMemo(() => {
+    if (selectedEntities.length === 0) return cardPositions
+    return cardPositions.filter(card =>
+      selectedEntities.includes(card.entityId),
+    )
+  }, [cardPositions, selectedEntities])
+
+  const filteredLoans = useMemo(() => {
+    if (selectedEntities.length === 0) return loanPositions
+    return loanPositions.filter(loan =>
+      selectedEntities.includes(loan.entityId),
+    )
+  }, [loanPositions, selectedEntities])
+
+  const bankingEntityOptions: MultiSelectOption[] = useMemo(() => {
+    const ids = new Set<string>()
+    accountPositions.forEach(position => ids.add(position.entityId))
+    cardPositions.forEach(position => ids.add(position.entityId))
+    loanPositions.forEach(position => ids.add(position.entityId))
 
     return (
       entities
-        ?.filter(entity => uniqueEntities.includes(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+        ?.filter(entity => {
+          const entityId = entity.id
+          if (typeof entityId !== "string" || entityId.length === 0) {
+            return false
+          }
+          if (entityId.startsWith("new-")) {
+            return false
+          }
+          if (entity.type !== EntityType.FINANCIAL_INSTITUTION) {
+            return false
+          }
+          return ids.has(entityId)
+        })
+        .map(entity => ({ value: entity.id, label: entity.name })) ?? []
     )
-  }, [entities, positionsData])
+  }, [accountPositions, cardPositions, loanPositions, entities])
 
-  // Separate data by type
-  const accounts = useMemo(
-    () => filteredBankingData.filter(item => item.type === "account"),
-    [filteredBankingData],
-  )
-  const cards = useMemo(
-    () => filteredBankingData.filter(item => item.type === "card"),
-    [filteredBankingData],
-  )
-  const loans = useMemo(
-    () => filteredBankingData.filter(item => item.type === "loan"),
-    [filteredBankingData],
-  )
-
-  // Calculate KPIs
-  const totalAccountBalance = useMemo(() => {
-    return accounts.reduce(
-      (sum, account) => sum + account.data.convertedTotal,
-      0,
-    )
-  }, [accounts])
-
-  const totalCardUsed = useMemo(() => {
-    return cards.reduce((sum, card) => sum + card.data.convertedUsed, 0)
-  }, [cards])
-
-  const totalLoanDebt = useMemo(() => {
-    return loans.reduce(
-      (sum, loan) => sum + loan.data.convertedPrincipalOutstanding,
-      0,
-    )
-  }, [loans])
-
-  const totalMonthlyPayments = useMemo(() => {
-    return loans.reduce(
-      (sum, loan) => sum + loan.data.convertedCurrentInstallment,
-      0,
-    )
-  }, [loans])
-
-  const weightedAverageAccountInterest = useMemo(() => {
-    if (accounts.length === 0) return 0
-    // Treat undefined/null interest as 0 and include every account in denominator
-    const totalWeightedInterest = accounts.reduce(
-      (sum, account) =>
-        sum +
-        (account.data.interest ? account.data.interest : 0) *
-          account.data.convertedTotal,
-      0,
-    )
-    const totalBalance = accounts.reduce(
-      (sum, account) => sum + account.data.convertedTotal,
-      0,
-    )
-    return totalBalance > 0 ? totalWeightedInterest / totalBalance : 0
-  }, [accounts])
-
-  const weightedAverageLoanInterest = useMemo(() => {
-    if (loans.length === 0) return 0
-
-    const totalWeightedInterest = loans.reduce(
-      (sum, loan) =>
-        sum + loan.data.interest_rate * loan.data.convertedPrincipalOutstanding,
-      0,
-    )
-    const totalDebt = loans.reduce(
-      (sum, loan) => sum + loan.data.convertedPrincipalOutstanding,
-      0,
-    )
-
-    return totalDebt > 0 ? totalWeightedInterest / totalDebt : 0
-  }, [loans])
-
-  const formatIban = (iban?: string | null) => {
-    if (!iban) return null
-    if (showAccountNumbers) {
-      return iban.replace(/(.{4})/g, "$1 ").trim()
+  useEffect(() => {
+    if (bankingEntityOptions.length === 0) {
+      if (selectedEntities.length > 0) {
+        setSelectedEntities([])
+      }
+      return
     }
-    return "•••• •••• •••• " + iban.slice(-4)
-  }
 
-  const formatCardNumber = (ending?: string | null) => {
-    if (!ending) return "•••• •••• •••• ••••"
-    return "•••• •••• •••• " + ending
-  }
-
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  }
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  }
-
-  // Helper: compute next expected payment date
-  const getNextPaymentDate = (dateString: string) => {
-    const localeToday = new Date()
-    const nextDate = new Date(dateString)
-    // advance until in the future
-    while (nextDate <= localeToday) {
-      nextDate.setMonth(nextDate.getMonth() + 1)
-    }
-    return nextDate.toLocaleDateString(locale, {
-      day: "numeric",
-      month: "short",
+    const allowed = new Set(bankingEntityOptions.map(option => option.value))
+    setSelectedEntities(prev => {
+      const next = prev.filter(id => allowed.has(id))
+      return next.length === prev.length ? prev : next
     })
-  }
+  }, [bankingEntityOptions, selectedEntities])
+
+  const handleFocusEntity = useCallback(
+    (entityId: string) => {
+      if (!entityId || entityId.startsWith("new-")) {
+        return
+      }
+      const entityType = entities?.find(entity => entity.id === entityId)?.type
+      if (entityType && entityType !== EntityType.FINANCIAL_INSTITUTION) {
+        return
+      }
+      setSelectedEntities(prev =>
+        prev.includes(entityId) ? prev : [...prev, entityId],
+      )
+    },
+    [entities],
+  )
+
+  const updateAccountsSummary = useCallback((summary: AccountsSummary) => {
+    setAccountsSummary(prev =>
+      prev.totalBalance === summary.totalBalance &&
+      prev.weightedInterest === summary.weightedInterest &&
+      prev.count === summary.count
+        ? prev
+        : summary,
+    )
+  }, [])
+
+  const updateCardsSummary = useCallback((summary: CardsSummary) => {
+    setCardsSummary(prev =>
+      prev.totalUsed === summary.totalUsed && prev.count === summary.count
+        ? prev
+        : summary,
+    )
+  }, [])
+
+  const updateLoansSummary = useCallback((summary: LoansSummary) => {
+    setLoansSummary(prev =>
+      prev.totalDebt === summary.totalDebt &&
+      prev.totalMonthlyPayments === summary.totalMonthlyPayments &&
+      prev.weightedInterest === summary.weightedInterest &&
+      prev.count === summary.count
+        ? prev
+        : summary,
+    )
+  }, [])
+
+  const totalAccountBalance = accountsSummary.totalBalance
+  const totalCardUsed = cardsSummary.totalUsed
+  const totalLoanDebt = loansSummary.totalDebt
+  const totalMonthlyPayments = loansSummary.totalMonthlyPayments
+
+  const hasFilteredData =
+    accountsSummary.count > 0 ||
+    cardsSummary.count > 0 ||
+    loansSummary.count > 0
+
+  const hasFilteredRealPositions =
+    filteredAccounts.length > 0 ||
+    filteredCards.length > 0 ||
+    filteredLoans.length > 0
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
+      <div className="flex h-64 items-center justify-center">
         <LoadingSpinner size="lg" />
       </div>
     )
@@ -323,64 +778,74 @@ export default function BankingPage() {
 
   return (
     <motion.div
-      variants={container}
+      variants={fadeListContainer}
       initial="hidden"
       animate="show"
       className="space-y-6 pb-6"
     >
-      {/* Header */}
-      <motion.div variants={item}>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
-          <div>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-                <ArrowLeft size={20} />
-              </Button>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{t.banking.title}</h1>
-                <PinAssetButton assetId="banking" />
+      <motion.div variants={fadeListItem}>
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate(-1)}
+                >
+                  <ArrowLeft size={20} />
+                </Button>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold">{t.banking.title}</h1>
+                  <PinAssetButton assetId="banking" />
+                </div>
               </div>
+              <p className="text-muted-foreground">{t.banking.subtitle}</p>
             </div>
-            <p className="text-gray-600 dark:text-gray-400">
-              {t.banking.subtitle}
-            </p>
+            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAccountNumbers(value => !value)}
+                className="flex items-center gap-2"
+              >
+                {showAccountNumbers ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                {showAccountNumbers
+                  ? t.banking.hideNumbers
+                  : t.banking.showNumbers}
+              </Button>
+              <MultiSelect
+                options={bankingEntityOptions}
+                value={selectedEntities}
+                onChange={setSelectedEntities}
+                placeholder={t.transactions.selectEntities}
+                className="min-w-[200px]"
+              />
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAccountNumbers(!showAccountNumbers)}
-              className="flex items-center gap-2"
-            >
-              {showAccountNumbers ? (
-                <EyeOff className="h-4 w-4" />
-              ) : (
-                <Eye className="h-4 w-4" />
-              )}
-              {showAccountNumbers
-                ? t.banking.hideNumbers
-                : t.banking.showNumbers}
-            </Button>
-            <MultiSelect
-              options={entityOptions}
-              value={selectedEntities}
-              onChange={setSelectedEntities}
-              placeholder={t.transactions.selectEntities}
-              className="min-w-[200px]"
+          {manualControllers.length > 0 && (
+            <BankingManualControls
+              controllers={manualControllers}
+              t={t}
+              showToast={showToast}
+              refreshEntity={refreshEntity}
+              className="md:items-end"
             />
-          </div>
+          )}
         </div>
       </motion.div>
 
-      {/* KPIs Overview */}
-      <motion.div variants={item}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {/* Total Account Balance - only show if there are accounts */}
-          {accounts.length > 0 && (
+      <motion.div variants={fadeListItem}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {accountsSummary.count > 0 && (
             <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex items-center gap-2">
                 <Wallet className="h-5 w-5 text-blue-500" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                <span className="text-sm font-medium text-muted-foreground">
                   {t.banking.totalBalance}
                 </span>
               </div>
@@ -391,25 +856,24 @@ export default function BankingPage() {
                   settings.general.defaultCurrency,
                 )}
               </div>
-              {weightedAverageAccountInterest > 0 && (
-                <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+              {accountsSummary.weightedInterest > 0 && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                   <Percent className="h-3 w-3" />
                   {formatPercentage(
-                    weightedAverageAccountInterest * 100,
+                    accountsSummary.weightedInterest * 100,
                     locale,
-                  )}{" "}
-                  {t.banking.avgInterest}
+                  )}
+                  <span>{t.banking.avgInterest}</span>
                 </div>
               )}
             </Card>
           )}
 
-          {/* Total Card Usage - only show if there are cards */}
-          {cards.length > 0 && (
+          {cardsSummary.count > 0 && (
             <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-orange-500" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                <span className="text-sm font-medium text-muted-foreground">
                   {t.banking.totalCardUsed}
                 </span>
               </div>
@@ -420,18 +884,18 @@ export default function BankingPage() {
                   settings.general.defaultCurrency,
                 )}
               </div>
-              <div className="text-xs text-gray-500">
-                {cards.length}{" "}
-                {cards.length === 1 ? t.banking.card : t.banking.cards}
+              <div className="mt-1 text-xs text-muted-foreground">
+                {cardsSummary.count}{" "}
+                {cardsSummary.count === 1 ? t.banking.card : t.banking.cards}
               </div>
             </Card>
           )}
-          {/* Outstanding Debt - only show if there are loans */}
-          {loans.length > 0 && (
+
+          {loansSummary.count > 0 && (
             <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingDown className="h-5 w-5 text-red-400" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              <div className="mb-2 flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-500" />
+                <span className="text-sm font-medium text-muted-foreground">
                   {t.banking.totalDebt}
                 </span>
               </div>
@@ -442,25 +906,24 @@ export default function BankingPage() {
                   settings.general.defaultCurrency,
                 )}
               </div>
-              {weightedAverageLoanInterest > 0 && (
-                <div className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1">
+              {loansSummary.weightedInterest > 0 && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-red-500 dark:text-red-400">
                   <Percent className="h-3 w-3" />
                   {formatPercentage(
-                    weightedAverageLoanInterest * 100,
+                    loansSummary.weightedInterest * 100,
                     locale,
-                  )}{" "}
-                  {t.banking.avgInterest}
+                  )}
+                  <span>{t.banking.avgInterest}</span>
                 </div>
               )}
             </Card>
           )}
 
-          {/* Monthly Payments - only show if there are loans */}
-          {loans.length > 0 && (
+          {loansSummary.count > 0 && (
             <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="mb-2 flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-purple-500" />
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                <span className="text-sm font-medium text-muted-foreground">
                   {t.banking.monthlyPayments}
                 </span>
               </div>
@@ -471,485 +934,1700 @@ export default function BankingPage() {
                   settings.general.defaultCurrency,
                 )}
               </div>
-              <div className="text-xs text-gray-500">
-                {loans.length}{" "}
-                {loans.length === 1 ? t.banking.loan : t.banking.loans}
+              <div className="mt-1 text-xs text-muted-foreground">
+                {loansSummary.count}{" "}
+                {loansSummary.count === 1 ? t.banking.loan : t.banking.loans}
               </div>
             </Card>
           )}
         </div>
       </motion.div>
+      <ManualPositionsManager asset="bankAccounts">
+        <BankAccountsSection
+          t={t}
+          locale={locale}
+          positions={filteredAccounts}
+          defaultCurrency={settings.general.defaultCurrency}
+          exchangeRates={exchangeRates}
+          showAccountNumbers={showAccountNumbers}
+          onSummaryChange={updateAccountsSummary}
+          onFocusEntity={handleFocusEntity}
+          selectedEntities={selectedEntities}
+          entityOrigins={entityOrigins}
+          onRegisterController={registerManualController}
+          onEnterGlobalEditMode={enterGlobalEditMode}
+        />
+      </ManualPositionsManager>
 
-      {/* Accounts Section */}
-      {accounts.length > 0 && (
-        <motion.div variants={item}>
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <Wallet className="h-5 w-5" />
-            {t.banking.accounts} ({accounts.length})
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-            {accounts.map(account => (
-              <Card
-                key={account.data.id}
-                className="hover:shadow-lg transition-shadow self-center"
-              >
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      {getAccountTypeIcon(account.data.type)}
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs ${getAccountTypeColor(account.data.type)}`}
-                      >
-                        {t.accountTypes[
-                          account.data.type as keyof typeof t.accountTypes
-                        ] || account.data.type}
-                      </Badge>
-                    </div>
-                    <Badge variant="outline" className="text-xs">
-                      {account.entityName}
-                    </Badge>
-                  </div>
+      <ManualPositionsManager asset="bankCards">
+        <BankCardsSection
+          t={t}
+          locale={locale}
+          positions={filteredCards}
+          defaultCurrency={settings.general.defaultCurrency}
+          exchangeRates={exchangeRates}
+          onSummaryChange={updateCardsSummary}
+          onFocusEntity={handleFocusEntity}
+          selectedEntities={selectedEntities}
+          entityOrigins={entityOrigins}
+          onRegisterController={registerManualController}
+          onEnterGlobalEditMode={enterGlobalEditMode}
+        />
+      </ManualPositionsManager>
 
-                  <div className="space-y-2">
-                    {account.data.name && (
-                      <div className="font-semibold text-lg">
-                        {account.data.name}
-                      </div>
-                    )}
+      <ManualPositionsManager asset="bankLoans">
+        <BankLoansSection
+          t={t}
+          locale={locale}
+          positions={filteredLoans}
+          defaultCurrency={settings.general.defaultCurrency}
+          exchangeRates={exchangeRates}
+          onSummaryChange={updateLoansSummary}
+          onFocusEntity={handleFocusEntity}
+          selectedEntities={selectedEntities}
+          entityOrigins={entityOrigins}
+          onRegisterController={registerManualController}
+          onEnterGlobalEditMode={enterGlobalEditMode}
+        />
+      </ManualPositionsManager>
 
-                    {account.data.iban && (
-                      <div className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-                        {formatIban(account.data.iban)}
-                      </div>
-                    )}
-
-                    <div className="text-2xl font-bold">
-                      {formatCurrency(
-                        account.data.convertedTotal,
-                        locale,
-                        settings.general.defaultCurrency,
-                      )}
-                    </div>
-
-                    <div className="text-xs text-gray-500">
-                      {account.data.currency !==
-                        settings.general.defaultCurrency && (
-                        <span>
-                          {formatCurrency(
-                            account.data.total,
-                            locale,
-                            account.data.currency,
-                          )}{" "}
-                          •
-                        </span>
-                      )}
-                      <span className="ml-1">{t.banking.available}</span>
-                    </div>
-
-                    {/* Additional info */}
-                    {(Number(account.data.interest) || 0) > 0 ||
-                    (account.data.convertedRetained &&
-                      account.data.convertedRetained > 0) ||
-                    (account.data.convertedPendingTransfers &&
-                      account.data.convertedPendingTransfers > 0) ? (
-                      <div className="flex justify-between text-xs pt-2 border-t border-gray-100 dark:border-gray-800">
-                        {(Number(account.data.interest) || 0) > 0 && (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <div className="text-green-600 dark:text-green-400 flex items-center gap-1 cursor-help">
-                                <Percent className="h-3 w-3" />
-                                {formatPercentage(
-                                  account.data.interest * 100,
-                                  locale,
-                                )}
-                              </div>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-2 text-xs">
-                              {t.banking.interestRate}
-                            </PopoverContent>
-                          </Popover>
-                        )}
-
-                        {account.data.convertedRetained &&
-                          account.data.convertedRetained > 0 && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <div className="text-orange-600 dark:text-orange-400 flex items-center gap-1 cursor-help">
-                                  <Shield className="h-3 w-3" />
-                                  {formatCurrency(
-                                    account.data.convertedRetained,
-                                    locale,
-                                    settings.general.defaultCurrency,
-                                  )}
-                                </div>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-2 text-xs">
-                                {t.banking.retainedAmount}
-                              </PopoverContent>
-                            </Popover>
-                          )}
-
-                        {account.data.convertedPendingTransfers &&
-                          account.data.convertedPendingTransfers > 0 && (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <div className="text-blue-600 dark:text-blue-400 flex items-center gap-1 cursor-help">
-                                  <AlertCircle className="h-3 w-3" />
-                                  {formatCurrency(
-                                    account.data.convertedPendingTransfers,
-                                    locale,
-                                    settings.general.defaultCurrency,
-                                  )}
-                                </div>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-2 text-xs">
-                                {t.banking.pendingTransfers}
-                              </PopoverContent>
-                            </Popover>
-                          )}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+      {!hasFilteredData && !hasFilteredRealPositions && (
+        <motion.div variants={fadeListItem}>
+          <Card className="p-12 text-center">
+            <div className="mb-4 text-muted-foreground">
+              <Building2 className="mx-auto h-12 w-12" />
+            </div>
+            <h3 className="text-lg font-semibold">{t.banking.noData}</h3>
+            <p className="text-muted-foreground">
+              {t.banking.noDataDescription}
+            </p>
+          </Card>
         </motion.div>
       )}
+    </motion.div>
+  )
+}
 
-      {/* Cards Section */}
-      {cards.length > 0 && (
-        <motion.div variants={item}>
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            {t.banking.cards} ({cards.length})
+interface SectionCommonProps {
+  t: Translations
+  locale: Locale
+  defaultCurrency: string
+  exchangeRates: ExchangeRates | null
+  onFocusEntity: (entityId: string) => void
+  selectedEntities: string[]
+  entityOrigins: Record<string, EntityOrigin | null>
+  onRegisterController: ManualControllerRegistrar
+  onEnterGlobalEditMode: () => void
+}
+
+interface BankAccountsSectionProps extends SectionCommonProps {
+  positions: AccountPosition[]
+  showAccountNumbers: boolean
+  onSummaryChange: (summary: AccountsSummary) => void
+}
+
+function BankAccountsSection({
+  t,
+  locale,
+  positions,
+  defaultCurrency,
+  exchangeRates,
+  showAccountNumbers,
+  onSummaryChange,
+  onFocusEntity,
+  selectedEntities,
+  entityOrigins,
+  onRegisterController,
+  onEnterGlobalEditMode,
+}: BankAccountsSectionProps) {
+  const {
+    asset,
+    drafts,
+    isEditMode,
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    beginCreate,
+    translate: manualTranslate,
+    isEntryDeleted,
+    isDraftDirty: manualIsDraftDirty,
+    assetPath,
+    manualEntities,
+    hasLocalChanges,
+    isSaving,
+    assetTitle,
+    addLabel,
+    editLabel,
+    cancelLabel,
+    saveLabel,
+    requestSave,
+    requestCancel,
+    enterEditMode,
+    collectSavePayload,
+    setSavingState,
+    handleExternalSaveSuccess,
+  } = useManualPositions()
+
+  const accountController = useMemo<ManualSectionController>(
+    () => ({
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      canCreate: manualEntities.length > 0,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      translate: manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleSaveSuccess: handleExternalSaveSuccess,
+    }),
+    [
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      manualEntities.length,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleExternalSaveSuccess,
+    ],
+  )
+
+  useEffect(() => {
+    onRegisterController(asset, accountController)
+    return () => onRegisterController(asset, null)
+  }, [asset, accountController, onRegisterController])
+
+  const defaultEntityId =
+    selectedEntities.length === 1 ? selectedEntities[0] : undefined
+  const canCreate = manualEntities.length > 0
+
+  const accountDrafts = drafts as AccountDraft[]
+
+  const computedPositions = useMemo<AccountDisplay[]>(
+    () =>
+      positions.map(account => {
+        const total = account.total ?? 0
+        const convertedTotal = convertCurrency(
+          total,
+          account.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+
+        const retained = account.retained ?? null
+        const convertedRetained = isFiniteNumber(retained)
+          ? convertCurrency(
+              retained,
+              account.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : null
+
+        const pending = account.pending_transfers ?? null
+        const convertedPending = isFiniteNumber(pending)
+          ? convertCurrency(
+              pending,
+              account.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : null
+
+        return {
+          ...account,
+          convertedTotal,
+          convertedRetained,
+          convertedPendingTransfers: convertedPending,
+        }
+      }),
+    [positions, defaultCurrency, exchangeRates],
+  )
+
+  const buildPositionFromDraft = useCallback(
+    (draft: AccountDraft): AccountDisplay => {
+      const entryId = draft.originalId ?? draft.id ?? draft.localId
+      const total = draft.total ?? 0
+      const retained = draft.retained ?? null
+      const pending = draft.pending_transfers ?? null
+
+      const convertedTotal = convertCurrency(
+        total,
+        draft.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+      const convertedRetained = isFiniteNumber(retained)
+        ? convertCurrency(
+            retained,
+            draft.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
+        : null
+      const convertedPending = isFiniteNumber(pending)
+        ? convertCurrency(
+            pending,
+            draft.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
+        : null
+
+      return {
+        ...draft,
+        id: entryId,
+        entryId,
+        entityId: draft.entityId,
+        entityName: draft.entityName,
+        entityOrigin: entityOrigins[draft.entityId] ?? null,
+        total,
+        retained,
+        pending_transfers: pending,
+        convertedTotal,
+        convertedRetained,
+        convertedPendingTransfers: convertedPending,
+        source: DataSource.MANUAL,
+      }
+    },
+    [defaultCurrency, exchangeRates, entityOrigins],
+  )
+
+  const displayItems = useMemo<
+    ManualDisplayItem<AccountDisplay, AccountDraft>[]
+  >(
+    () =>
+      mergeManualDisplayItems<AccountDisplay, AccountDraft>({
+        positions: computedPositions,
+        manualDrafts: accountDrafts,
+        getPositionOriginalId: (position: AccountDisplay) => position.entryId,
+        getDraftOriginalId: (draft: AccountDraft) => draft.originalId,
+        getDraftLocalId: (draft: AccountDraft) => draft.localId,
+        getPositionKey: (position: AccountDisplay) => position.entryId,
+        buildPositionFromDraft,
+        isManualPosition: (position: AccountDisplay) =>
+          position.source === DataSource.MANUAL,
+        isDraftDirty: manualIsDraftDirty,
+        isEntryDeleted,
+        shouldIncludeDraft: (draft: AccountDraft) =>
+          selectedEntities.length === 0 ||
+          selectedEntities.includes(draft.entityId),
+        mergeDraftMetadata: (
+          position: AccountDisplay,
+          draft: AccountDraft,
+        ) => ({
+          ...position,
+          entityId: draft.entityId,
+          entityName: draft.entityName,
+          entityOrigin: entityOrigins[draft.entityId] ?? null,
+        }),
+      }),
+    [
+      computedPositions,
+      accountDrafts,
+      buildPositionFromDraft,
+      manualIsDraftDirty,
+      isEntryDeleted,
+      selectedEntities,
+      entityOrigins,
+    ],
+  )
+
+  const summary = useMemo<AccountsSummary>(() => {
+    const totals = displayItems.reduce(
+      (accumulator, item) => {
+        if (item.originalId && isEntryDeleted(item.originalId)) {
+          return accumulator
+        }
+
+        const total = item.position.convertedTotal ?? 0
+        accumulator.sum += total
+        const interest = item.position.interest ?? 0
+        if (total > 0 && interest > 0) {
+          accumulator.weighted += interest * total
+        }
+        accumulator.count += 1
+        return accumulator
+      },
+      { sum: 0, weighted: 0, count: 0 },
+    )
+
+    const weightedInterest = totals.sum > 0 ? totals.weighted / totals.sum : 0
+
+    return {
+      totalBalance: totals.sum,
+      weightedInterest,
+      count: totals.count,
+    }
+  }, [displayItems, isEntryDeleted])
+
+  useEffect(() => {
+    onSummaryChange(summary)
+  }, [summary, onSummaryChange])
+
+  const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
+  const manualEmptyDescription = manualTranslate(
+    `${assetPath}.empty.description`,
+  )
+
+  return (
+    <motion.div variants={fadeListItem} className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <Wallet className="h-5 w-5" />
+          <h2 className="text-xl font-semibold">
+            {t.banking.accounts}
+            <span className="ml-2 text-sm text-muted-foreground">
+              ({summary.count})
+            </span>
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cards.map(card => (
-              <Card
-                key={card.data.id}
-                className={`overflow-hidden transition-all hover:shadow-lg self-center ${
-                  !card.data.active ? "opacity-60 grayscale" : ""
-                }`}
-              >
-                {/* Card-like design */}
-                <div
-                  className={`p-6 bg-gradient-to-br ${
-                    card.data.type === CardType.CREDIT
-                      ? "from-blue-600 to-blue-800"
-                      : "from-green-600 to-green-800"
-                  } text-white relative overflow-hidden`}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onEnterGlobalEditMode()
+            beginCreate(
+              defaultEntityId ? { entityId: defaultEntityId } : undefined,
+            )
+          }}
+          disabled={!canCreate}
+          className="flex items-center gap-2 self-start sm:self-auto"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {addLabel}
+        </Button>
+      </div>
+
+      {summary.count === 0 ? (
+        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+          <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
+          <p className="text-sm text-muted-foreground">
+            {manualEmptyDescription}
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              onEnterGlobalEditMode()
+              beginCreate(
+                defaultEntityId ? { entityId: defaultEntityId } : undefined,
+              )
+            }}
+            disabled={!canCreate}
+          >
+            {manualTranslate(`${assetPath}.add`)}
+          </Button>
+        </Card>
+      ) : (
+        <TooltipProvider delayDuration={120}>
+          <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {displayItems.map(item => {
+              const { position, manualDraft, isManual, isDirty, originalId } =
+                item
+
+              if (originalId && isEntryDeleted(originalId)) {
+                return null
+              }
+
+              const hasInterest =
+                isFiniteNumber(position.interest) &&
+                (position.interest ?? 0) > 0
+              const hasRetained =
+                isFiniteNumber(position.convertedRetained) &&
+                Math.abs(position.convertedRetained ?? 0) > 0
+              const hasPendingTransfers =
+                isFiniteNumber(position.convertedPendingTransfers) &&
+                Math.abs(position.convertedPendingTransfers ?? 0) > 0
+              const hasFooter =
+                hasInterest || hasRetained || hasPendingTransfers
+
+              const highlightClass = isDirty
+                ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+                : ""
+              const showActions = isEditMode && isManual
+
+              return (
+                <Card
+                  key={item.key}
+                  className={cn(
+                    "flex w-full flex-col gap-4 self-center p-4 transition-shadow hover:shadow-lg",
+                    highlightClass,
+                  )}
                 >
-                  {/* Entity badge */}
-                  <div className="absolute top-2 right-2">
-                    <Badge
-                      variant="secondary"
-                      className="text-xs bg-white/20 text-white border-white/30"
-                    >
-                      {card.entityName}
-                    </Badge>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      {getAccountTypeIcon(position.type as AccountType)}
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "text-xs",
+                          getAccountTypeColor(position.type),
+                        )}
+                      >
+                        {t.accountTypes[position.type] || position.type}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <SourceBadge source={position.source} />
+                      <EntityBadge
+                        name={position.entityName}
+                        origin={position.entityOrigin}
+                        onClick={() => onFocusEntity(position.entityId)}
+                        className="text-xs"
+                        title={position.entityName}
+                      />
+                    </div>
                   </div>
 
-                  {/* Card type */}
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex flex-1 flex-col justify-between gap-4">
+                    <div className="space-y-2">
+                      {position.name && (
+                        <h3 className="text-lg font-semibold">
+                          {position.name}
+                        </h3>
+                      )}
+                      {position.iban && (
+                        <div className="font-mono text-sm text-muted-foreground">
+                          {formatIban(position.iban, showAccountNumbers)}
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <div className="text-2xl font-bold">
+                          {formatCurrency(
+                            position.convertedTotal,
+                            locale,
+                            defaultCurrency,
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {position.currency !== defaultCurrency && (
+                            <span>
+                              {formatCurrency(
+                                position.total ?? 0,
+                                locale,
+                                position.currency,
+                              )}
+                              <span aria-hidden="true" className="px-1">
+                                •
+                              </span>
+                            </span>
+                          )}
+                          <span>{t.banking.available}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {hasFooter && (
+                      <div className="flex flex-wrap items-center gap-4 border-t border-border pt-3 text-xs">
+                        {hasInterest && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex cursor-help items-center gap-1 text-green-600 transition-colors hover:text-green-500 dark:text-green-400 dark:hover:text-green-300"
+                              >
+                                <Percent className="h-3 w-3" />
+                                {formatPercentage(
+                                  (position.interest ?? 0) * 100,
+                                  locale,
+                                )}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t.banking.interestRate}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {hasRetained && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex cursor-help items-center gap-1 text-orange-500 transition-colors hover:text-orange-400"
+                              >
+                                <Shield className="h-3 w-3" />
+                                {formatCurrency(
+                                  position.convertedRetained ?? 0,
+                                  locale,
+                                  defaultCurrency,
+                                )}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t.banking.retainedAmount}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {hasPendingTransfers && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                className="flex cursor-help items-center gap-1 text-blue-500 transition-colors hover:text-blue-400"
+                              >
+                                <AlertCircle className="h-3 w-3" />
+                                {formatCurrency(
+                                  position.convertedPendingTransfers ?? 0,
+                                  locale,
+                                  defaultCurrency,
+                                )}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {t.banking.pendingTransfers}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    )}
+
+                    {isDirty && (
+                      <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                        {manualTranslate("management.unsavedChanges")}
+                      </p>
+                    )}
+
+                    {showActions && (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-1"
+                          onClick={() => {
+                            if (manualDraft?.originalId) {
+                              editByOriginalId(manualDraft.originalId)
+                            } else if (manualDraft) {
+                              editByLocalId(manualDraft.localId)
+                            } else if (item.originalId) {
+                              editByOriginalId(item.originalId)
+                            }
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          {t.common.edit}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex items-center gap-1 text-red-500 transition-colors hover:text-red-600"
+                          onClick={() => {
+                            if (manualDraft?.originalId) {
+                              deleteByOriginalId(manualDraft.originalId)
+                            } else if (manualDraft) {
+                              deleteByLocalId(manualDraft.localId)
+                            } else if (item.originalId) {
+                              deleteByOriginalId(item.originalId)
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {t.common.delete}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )
+            })}
+          </div>
+        </TooltipProvider>
+      )}
+    </motion.div>
+  )
+}
+
+interface BankCardsSectionProps extends SectionCommonProps {
+  positions: CardPosition[]
+  onSummaryChange: (summary: CardsSummary) => void
+}
+
+function BankCardsSection({
+  t,
+  locale,
+  positions,
+  defaultCurrency,
+  exchangeRates,
+  onSummaryChange,
+  onFocusEntity,
+  selectedEntities,
+  entityOrigins,
+  onRegisterController,
+  onEnterGlobalEditMode,
+}: BankCardsSectionProps) {
+  const {
+    asset,
+    drafts,
+    isEditMode,
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    beginCreate,
+    translate: manualTranslate,
+    isEntryDeleted,
+    isDraftDirty: manualIsDraftDirty,
+    assetPath,
+    manualEntities,
+    hasLocalChanges,
+    isSaving,
+    assetTitle,
+    addLabel,
+    editLabel,
+    cancelLabel,
+    saveLabel,
+    requestSave,
+    requestCancel,
+    enterEditMode,
+    collectSavePayload,
+    setSavingState,
+    handleExternalSaveSuccess,
+  } = useManualPositions()
+
+  const cardController = useMemo<ManualSectionController>(
+    () => ({
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      canCreate: manualEntities.length > 0,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      translate: manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleSaveSuccess: handleExternalSaveSuccess,
+    }),
+    [
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      manualEntities.length,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleExternalSaveSuccess,
+    ],
+  )
+
+  useEffect(() => {
+    onRegisterController(asset, cardController)
+    return () => onRegisterController(asset, null)
+  }, [asset, cardController, onRegisterController])
+
+  const defaultEntityId =
+    selectedEntities.length === 1 ? selectedEntities[0] : undefined
+  const canCreate = manualEntities.length > 0
+
+  const cardDrafts = drafts as CardDraft[]
+
+  const computedPositions = useMemo<CardDisplay[]>(
+    () =>
+      positions.map(card => {
+        const convertedUsed = convertCurrency(
+          card.used ?? 0,
+          card.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+        const convertedLimit = isFiniteNumber(card.limit)
+          ? convertCurrency(
+              card.limit ?? 0,
+              card.currency,
+              defaultCurrency,
+              exchangeRates,
+            )
+          : null
+
+        return {
+          ...card,
+          convertedUsed,
+          convertedLimit,
+        }
+      }),
+    [positions, defaultCurrency, exchangeRates],
+  )
+
+  const buildPositionFromDraft = useCallback(
+    (draft: CardDraft): CardDisplay => {
+      const entryId = draft.originalId ?? draft.id ?? draft.localId
+      const convertedUsed = convertCurrency(
+        draft.used ?? 0,
+        draft.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+      const convertedLimit = isFiniteNumber(draft.limit)
+        ? convertCurrency(
+            draft.limit ?? 0,
+            draft.currency,
+            defaultCurrency,
+            exchangeRates,
+          )
+        : null
+
+      return {
+        ...draft,
+        id: entryId,
+        entryId,
+        entityId: draft.entityId,
+        entityName: draft.entityName,
+        entityOrigin: entityOrigins[draft.entityId] ?? null,
+        convertedUsed,
+        convertedLimit,
+        source: DataSource.MANUAL,
+      }
+    },
+    [defaultCurrency, exchangeRates, entityOrigins],
+  )
+
+  const displayItems = useMemo<ManualDisplayItem<CardDisplay, CardDraft>[]>(
+    () =>
+      mergeManualDisplayItems<CardDisplay, CardDraft>({
+        positions: computedPositions,
+        manualDrafts: cardDrafts,
+        getPositionOriginalId: (position: CardDisplay) => position.entryId,
+        getDraftOriginalId: (draft: CardDraft) => draft.originalId,
+        getDraftLocalId: (draft: CardDraft) => draft.localId,
+        getPositionKey: (position: CardDisplay) => position.entryId,
+        buildPositionFromDraft,
+        isManualPosition: (position: CardDisplay) =>
+          position.source === DataSource.MANUAL,
+        isDraftDirty: manualIsDraftDirty,
+        isEntryDeleted,
+        shouldIncludeDraft: (draft: CardDraft) =>
+          selectedEntities.length === 0 ||
+          selectedEntities.includes(draft.entityId),
+        mergeDraftMetadata: (position: CardDisplay, draft: CardDraft) => ({
+          ...position,
+          entityId: draft.entityId,
+          entityName: draft.entityName,
+          entityOrigin: entityOrigins[draft.entityId] ?? null,
+        }),
+      }),
+    [
+      computedPositions,
+      cardDrafts,
+      buildPositionFromDraft,
+      manualIsDraftDirty,
+      isEntryDeleted,
+      selectedEntities,
+      entityOrigins,
+    ],
+  )
+
+  const summary = useMemo<CardsSummary>(() => {
+    const totals = displayItems.reduce(
+      (accumulator, item) => {
+        if (item.originalId && isEntryDeleted(item.originalId)) {
+          return accumulator
+        }
+
+        accumulator.total += item.position.convertedUsed ?? 0
+        accumulator.count += 1
+        return accumulator
+      },
+      { total: 0, count: 0 },
+    )
+
+    return {
+      totalUsed: totals.total,
+      count: totals.count,
+    }
+  }, [displayItems, isEntryDeleted])
+
+  useEffect(() => {
+    onSummaryChange(summary)
+  }, [summary, onSummaryChange])
+
+  const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
+  const manualEmptyDescription = manualTranslate(
+    `${assetPath}.empty.description`,
+  )
+
+  return (
+    <motion.div variants={fadeListItem} className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <CreditCard className="h-5 w-5" />
+          <h2 className="text-xl font-semibold">
+            {t.banking.cards}
+            <span className="ml-2 text-sm text-muted-foreground">
+              ({summary.count})
+            </span>
+          </h2>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onEnterGlobalEditMode()
+            beginCreate(
+              defaultEntityId ? { entityId: defaultEntityId } : undefined,
+            )
+          }}
+          disabled={!canCreate}
+          className="flex items-center gap-2 self-start sm:self-auto"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {addLabel}
+        </Button>
+      </div>
+
+      {summary.count === 0 ? (
+        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+          <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
+          <p className="text-sm text-muted-foreground">
+            {manualEmptyDescription}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              onEnterGlobalEditMode()
+              beginCreate(
+                defaultEntityId ? { entityId: defaultEntityId } : undefined,
+              )
+            }}
+            disabled={!canCreate}
+          >
+            {manualTranslate(`${assetPath}.add`)}
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-center">
+          {displayItems.map(item => {
+            const { position, manualDraft, isManual, isDirty, originalId } =
+              item
+
+            if (originalId && isEntryDeleted(originalId)) {
+              return null
+            }
+
+            const showActions = isEditMode && isManual
+            const highlightClass = isDirty
+              ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+              : ""
+
+            const gradientClass =
+              position.type === CardType.CREDIT
+                ? "from-blue-600 to-blue-800"
+                : "from-green-600 to-green-800"
+
+            const utilization =
+              position.convertedLimit && position.convertedLimit > 0
+                ? Math.min(
+                    (position.convertedUsed / position.convertedLimit) * 100,
+                    200,
+                  )
+                : 0
+
+            return (
+              <Card
+                key={item.key}
+                className={cn(
+                  "flex flex-col overflow-hidden transition-shadow hover:shadow-lg",
+                  highlightClass,
+                  !position.active && "opacity-60 grayscale",
+                )}
+              >
+                <div
+                  className={cn(
+                    "relative flex flex-col justify-center gap-2 p-6 text-white",
+                    "bg-gradient-to-br",
+                    gradientClass,
+                  )}
+                >
+                  <div className="absolute right-3 top-3 flex items-center gap-2">
+                    <SourceBadge source={position.source} />
+                    <EntityBadge
+                      name={position.entityName}
+                      origin={position.entityOrigin}
+                      onClick={() => onFocusEntity(position.entityId)}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="mb-4 flex items-center gap-2">
                     <CreditCard className="h-5 w-5" />
                     <span className="text-sm font-medium">
-                      {card.data.type === CardType.CREDIT
+                      {position.type === CardType.CREDIT
                         ? t.cardTypes.CREDIT
                         : t.cardTypes.DEBIT}
                     </span>
                   </div>
-
-                  {/* Card number */}
-                  <div className="font-mono text-lg mb-2">
-                    {formatCardNumber(card.data.ending)}
+                  <div className="mb-2 font-mono text-lg">
+                    {formatCardNumber(position.ending)}
                   </div>
-
-                  {/* Card name */}
-                  {card.data.name && (
-                    <div className="text-sm opacity-90 mb-4">
-                      {card.data.name}
-                    </div>
+                  {position.name && (
+                    <div className="text-sm opacity-90">{position.name}</div>
                   )}
-
-                  {/* Status indicator */}
-                  {!card.data.active && (
-                    <div className="absolute bottom-2 left-2">
-                      <Badge variant="destructive" className="text-xs">
-                        {t.banking.inactive}
-                      </Badge>
-                    </div>
+                  {!position.active && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute left-3 bottom-3 text-xs"
+                    >
+                      {manualTranslate(`${assetPath}.summary.inactive`)}
+                    </Badge>
                   )}
                 </div>
-
-                {/* Card details */}
-                <div className="p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="flex flex-1 flex-col space-y-3 p-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
                       {t.banking.used}
                     </span>
                     <span className="font-semibold">
                       {formatCurrency(
-                        card.data.convertedUsed,
+                        position.convertedUsed,
                         locale,
-                        settings.general.defaultCurrency,
+                        defaultCurrency,
                       )}
                     </span>
                   </div>
-
-                  {card.data.convertedLimit && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {position.convertedLimit && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
                         {t.banking.limit}
                       </span>
-                      <span className="text-sm">
+                      <span>
                         {formatCurrency(
-                          card.data.convertedLimit,
+                          position.convertedLimit,
                           locale,
-                          settings.general.defaultCurrency,
+                          defaultCurrency,
                         )}
                       </span>
                     </div>
                   )}
-
-                  {card.data.convertedLimit && card.data.convertedUsed > 0 && (
+                  {position.convertedLimit && position.convertedLimit > 0 && (
                     <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
+                      <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{t.banking.utilization}</span>
                         <span>
-                          {formatPercentage(
-                            (card.data.convertedUsed /
-                              card.data.convertedLimit) *
-                              100,
-                            locale,
-                          )}
+                          {formatPercentage(Math.min(utilization, 100), locale)}
                         </span>
                       </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div className="h-2 w-full rounded-full bg-muted">
                         <div
-                          className={`h-2 rounded-full ${
-                            card.data.convertedUsed / card.data.convertedLimit >
-                            0.8
+                          className={cn(
+                            "h-2 rounded-full",
+                            utilization > 80
                               ? "bg-red-500"
-                              : card.data.convertedUsed /
-                                    card.data.convertedLimit >
-                                  0.6
-                                ? "bg-yellow-500"
-                                : "bg-green-500"
-                          }`}
-                          style={{
-                            width: `${Math.min((card.data.convertedUsed / card.data.convertedLimit) * 100, 100)}%`,
-                          }}
+                              : utilization > 60
+                                ? "bg-yellow-400"
+                                : "bg-emerald-500",
+                          )}
+                          style={{ width: `${Math.min(utilization, 100)}%` }}
                         />
                       </div>
                     </div>
                   )}
-
-                  {card.data.currency !== settings.general.defaultCurrency && (
-                    <div className="text-xs text-gray-500 pt-2 border-t border-gray-100 dark:border-gray-800">
-                      {formatCurrency(
-                        card.data.used,
-                        locale,
-                        card.data.currency,
-                      )}
-                      {card.data.limit &&
-                        ` / ${formatCurrency(card.data.limit, locale, card.data.currency)}`}
+                  {position.currency !== defaultCurrency && (
+                    <div className="border-t border-border pt-2 text-xs text-muted-foreground">
+                      {formatCurrency(position.used, locale, position.currency)}
+                      {isFiniteNumber(position.limit) &&
+                        ` / ${formatCurrency(position.limit ?? 0, locale, position.currency)}`}
+                    </div>
+                  )}
+                  {isDirty && (
+                    <p className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {manualTranslate("management.unsavedChanges")}
+                    </p>
+                  )}
+                  {showActions && (
+                    <div className="mt-auto flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (manualDraft?.originalId) {
+                            editByOriginalId(manualDraft.originalId)
+                          } else if (manualDraft) {
+                            editByLocalId(manualDraft.localId)
+                          } else if (item.originalId) {
+                            editByOriginalId(item.originalId)
+                          }
+                        }}
+                        className="flex items-center gap-1"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        {t.common.edit}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                        onClick={() => {
+                          if (manualDraft?.originalId) {
+                            deleteByOriginalId(manualDraft.originalId)
+                          } else if (manualDraft) {
+                            deleteByLocalId(manualDraft.localId)
+                          } else if (item.originalId) {
+                            deleteByOriginalId(item.originalId)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        {t.common.delete}
+                      </Button>
                     </div>
                   )}
                 </div>
               </Card>
-            ))}
-          </div>
-        </motion.div>
+            )
+          })}
+        </div>
       )}
+    </motion.div>
+  )
+}
 
-      {/* Loans Section */}
-      {loans.length > 0 && (
-        <motion.div variants={item}>
-          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <TrendingDown className="h-5 w-5" />
-            {t.banking.loans} ({loans.length})
+interface BankLoansSectionProps extends SectionCommonProps {
+  positions: LoanPosition[]
+  onSummaryChange: (summary: LoansSummary) => void
+}
+
+function BankLoansSection({
+  t,
+  locale,
+  positions,
+  defaultCurrency,
+  exchangeRates,
+  onSummaryChange,
+  onFocusEntity,
+  selectedEntities,
+  entityOrigins,
+  onRegisterController,
+  onEnterGlobalEditMode,
+}: BankLoansSectionProps) {
+  const {
+    asset,
+    drafts,
+    isEditMode,
+    editByOriginalId,
+    editByLocalId,
+    deleteByOriginalId,
+    deleteByLocalId,
+    beginCreate,
+    translate: manualTranslate,
+    isEntryDeleted,
+    isDraftDirty: manualIsDraftDirty,
+    assetPath,
+    manualEntities,
+    hasLocalChanges,
+    isSaving,
+    assetTitle,
+    addLabel,
+    editLabel,
+    cancelLabel,
+    saveLabel,
+    requestSave,
+    requestCancel,
+    enterEditMode,
+    collectSavePayload,
+    setSavingState,
+    handleExternalSaveSuccess,
+  } = useManualPositions()
+
+  const loanController = useMemo<ManualSectionController>(
+    () => ({
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      canCreate: manualEntities.length > 0,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      translate: manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleSaveSuccess: handleExternalSaveSuccess,
+    }),
+    [
+      asset,
+      assetTitle,
+      addLabel,
+      editLabel,
+      cancelLabel,
+      saveLabel,
+      isEditMode,
+      hasLocalChanges,
+      isSaving,
+      manualEntities.length,
+      beginCreate,
+      enterEditMode,
+      requestCancel,
+      requestSave,
+      manualTranslate,
+      collectSavePayload,
+      setSavingState,
+      handleExternalSaveSuccess,
+    ],
+  )
+
+  useEffect(() => {
+    onRegisterController(asset, loanController)
+    return () => onRegisterController(asset, null)
+  }, [asset, loanController, onRegisterController])
+
+  const defaultEntityId =
+    selectedEntities.length === 1 ? selectedEntities[0] : undefined
+  const canCreate = manualEntities.length > 0
+
+  const loanDrafts = drafts as LoanDraft[]
+
+  const computedPositions = useMemo<LoanDisplay[]>(
+    () =>
+      positions.map(loan => {
+        const convertedCurrentInstallment = convertCurrency(
+          loan.current_installment ?? 0,
+          loan.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+        const convertedLoanAmount = convertCurrency(
+          loan.loan_amount ?? 0,
+          loan.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+        const convertedPrincipalOutstanding = convertCurrency(
+          loan.principal_outstanding ?? 0,
+          loan.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+        const convertedPrincipalPaid = convertCurrency(
+          loan.principal_paid ?? 0,
+          loan.currency,
+          defaultCurrency,
+          exchangeRates,
+        )
+
+        return {
+          ...loan,
+          convertedCurrentInstallment,
+          convertedLoanAmount,
+          convertedPrincipalOutstanding,
+          convertedPrincipalPaid,
+        }
+      }),
+    [positions, defaultCurrency, exchangeRates],
+  )
+
+  const buildPositionFromDraft = useCallback(
+    (draft: LoanDraft): LoanDisplay => {
+      const entryId = draft.originalId ?? draft.id ?? draft.localId
+      const convertedCurrentInstallment = convertCurrency(
+        draft.current_installment ?? 0,
+        draft.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+      const convertedLoanAmount = convertCurrency(
+        draft.loan_amount ?? 0,
+        draft.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+      const convertedPrincipalOutstanding = convertCurrency(
+        draft.principal_outstanding ?? 0,
+        draft.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+      const convertedPrincipalPaid = convertCurrency(
+        draft.principal_paid ?? 0,
+        draft.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+
+      return {
+        ...draft,
+        id: entryId,
+        entryId,
+        entityId: draft.entityId,
+        entityName: draft.entityName,
+        entityOrigin: entityOrigins[draft.entityId] ?? null,
+        convertedCurrentInstallment,
+        convertedLoanAmount,
+        convertedPrincipalOutstanding,
+        convertedPrincipalPaid,
+        source: DataSource.MANUAL,
+      }
+    },
+    [defaultCurrency, exchangeRates, entityOrigins],
+  )
+
+  const displayItems = useMemo<ManualDisplayItem<LoanDisplay, LoanDraft>[]>(
+    () =>
+      mergeManualDisplayItems<LoanDisplay, LoanDraft>({
+        positions: computedPositions,
+        manualDrafts: loanDrafts,
+        getPositionOriginalId: (position: LoanDisplay) => position.entryId,
+        getDraftOriginalId: (draft: LoanDraft) => draft.originalId,
+        getDraftLocalId: (draft: LoanDraft) => draft.localId,
+        getPositionKey: (position: LoanDisplay) => position.entryId,
+        buildPositionFromDraft,
+        isManualPosition: (position: LoanDisplay) =>
+          position.source === DataSource.MANUAL,
+        isDraftDirty: manualIsDraftDirty,
+        isEntryDeleted,
+        shouldIncludeDraft: (draft: LoanDraft) =>
+          selectedEntities.length === 0 ||
+          selectedEntities.includes(draft.entityId),
+        mergeDraftMetadata: (position: LoanDisplay, draft: LoanDraft) => ({
+          ...position,
+          entityId: draft.entityId,
+          entityName: draft.entityName,
+          entityOrigin: entityOrigins[draft.entityId] ?? null,
+        }),
+      }),
+    [
+      computedPositions,
+      loanDrafts,
+      buildPositionFromDraft,
+      manualIsDraftDirty,
+      isEntryDeleted,
+      selectedEntities,
+      entityOrigins,
+    ],
+  )
+
+  const summary = useMemo<LoansSummary>(() => {
+    const aggregates = displayItems.reduce(
+      (accumulator, item) => {
+        if (item.originalId && isEntryDeleted(item.originalId)) {
+          return accumulator
+        }
+
+        const currentOutstanding =
+          item.position.convertedPrincipalOutstanding ?? 0
+        accumulator.debt += currentOutstanding
+        accumulator.monthly += item.position.convertedCurrentInstallment ?? 0
+        const interest = item.position.interest_rate ?? 0
+        if (currentOutstanding > 0 && interest > 0) {
+          accumulator.weighted += interest * currentOutstanding
+        }
+        accumulator.count += 1
+        return accumulator
+      },
+      { debt: 0, monthly: 0, weighted: 0, count: 0 },
+    )
+    const weightedInterest =
+      aggregates.debt > 0 ? aggregates.weighted / aggregates.debt : 0
+
+    return {
+      totalDebt: aggregates.debt,
+      totalMonthlyPayments: aggregates.monthly,
+      weightedInterest,
+      count: aggregates.count,
+    }
+  }, [displayItems, isEntryDeleted])
+
+  useEffect(() => {
+    onSummaryChange(summary)
+  }, [summary, onSummaryChange])
+
+  const manualEmptyTitle = manualTranslate(`${assetPath}.empty.title`)
+  const manualEmptyDescription = manualTranslate(
+    `${assetPath}.empty.description`,
+  )
+
+  return (
+    <motion.div variants={fadeListItem} className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2">
+          <TrendingDown className="h-5 w-5" />
+          <h2 className="text-xl font-semibold">
+            {t.banking.loans}
+            <span className="ml-2 text-sm text-muted-foreground">
+              ({summary.count})
+            </span>
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {loans.map(loan => (
-              <Card key={loan.data.id} className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="secondary"
-                      className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                    >
-                      {loan.data.type === LoanType.MORTGAGE
-                        ? t.loanTypes.MORTGAGE
-                        : t.loanTypes.STANDARD}
-                    </Badge>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {loan.entityName}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onEnterGlobalEditMode()
+            beginCreate(
+              defaultEntityId ? { entityId: defaultEntityId } : undefined,
+            )
+          }}
+          disabled={!canCreate}
+          className="flex items-center gap-2 self-start sm:self-auto"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          {addLabel}
+        </Button>
+      </div>
+
+      {summary.count === 0 ? (
+        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+          <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
+          <p className="text-sm text-muted-foreground">
+            {manualEmptyDescription}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              onEnterGlobalEditMode()
+              beginCreate(
+                defaultEntityId ? { entityId: defaultEntityId } : undefined,
+              )
+            }}
+            disabled={!canCreate}
+          >
+            {manualTranslate(`${assetPath}.add`)}
+          </Button>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+          {displayItems.map(item => {
+            const { position, manualDraft, isManual, isDirty, originalId } =
+              item
+
+            if (originalId && isEntryDeleted(originalId)) {
+              return null
+            }
+
+            const showActions = isEditMode && isManual
+            const highlightClass = isDirty
+              ? "ring-2 ring-offset-0 ring-blue-400/60 dark:ring-blue-500/40"
+              : ""
+            const repaymentProgress =
+              position.convertedLoanAmount > 0
+                ? Math.min(
+                    (position.convertedPrincipalPaid /
+                      position.convertedLoanAmount) *
+                      100,
+                    200,
+                  )
+                : 0
+            const interestTypeKey = position.interest_type
+              ? position.interest_type.toLowerCase()
+              : null
+            const normalizedInterestType =
+              interestTypeKey === "fixed" ||
+              interestTypeKey === "variable" ||
+              interestTypeKey === "mixed"
+                ? interestTypeKey
+                : null
+            const interestTypeLabel =
+              normalizedInterestType &&
+              t.realEstate?.loans?.interestTypes?.[normalizedInterestType]
+                ? t.realEstate.loans.interestTypes[normalizedInterestType]
+                : null
+            const euriborRateText = isFiniteNumber(position.euribor_rate)
+              ? formatPercentage((position.euribor_rate ?? 0) * 100, locale)
+              : null
+            const fixedYearsValue =
+              typeof position.fixed_years === "number"
+                ? position.fixed_years
+                : null
+            return (
+              <Card
+                key={item.key}
+                className={cn(
+                  "flex h-full flex-col gap-4 p-6 transition-shadow hover:shadow-lg",
+                  highlightClass,
+                )}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <Badge
+                    variant="secondary"
+                    className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                  >
+                    {position.type === LoanType.MORTGAGE
+                      ? t.loanTypes.MORTGAGE
+                      : t.loanTypes.STANDARD}
                   </Badge>
+                  <div className="flex items-center gap-2">
+                    <SourceBadge source={position.source} />
+                    <EntityBadge
+                      name={position.entityName}
+                      origin={position.entityOrigin}
+                      onClick={() => onFocusEntity(position.entityId)}
+                      className="text-xs"
+                    />
+                  </div>
                 </div>
 
-                {loan.data.name && (
-                  <h3 className="font-semibold text-lg mb-4">
-                    {loan.data.name}
-                  </h3>
+                {position.name && (
+                  <h3 className="text-lg font-semibold">{position.name}</h3>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                   <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block">
+                    <span className="block text-sm text-muted-foreground">
                       {t.banking.principalOutstanding}
                     </span>
-                    <span className="text-xl font-bold text-red-600 dark:text-red-400">
+                    <span className="text-xl font-semibold text-red-500">
                       {formatCurrency(
-                        loan.data.convertedPrincipalOutstanding,
+                        position.convertedPrincipalOutstanding,
                         locale,
-                        settings.general.defaultCurrency,
+                        defaultCurrency,
                       )}
                     </span>
                   </div>
-
                   <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block">
+                    <span className="block text-sm text-muted-foreground">
                       {t.banking.monthlyInstallment}
                     </span>
                     <span className="text-lg font-semibold">
                       {formatCurrency(
-                        loan.data.convertedCurrentInstallment,
+                        position.convertedCurrentInstallment,
                         locale,
-                        settings.general.defaultCurrency,
+                        defaultCurrency,
                       )}
                     </span>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block">
+                    <span className="block text-sm text-muted-foreground">
                       {t.banking.interestRate}
                     </span>
-                    <span className="text-sm font-medium flex items-center gap-1">
-                      <Percent className="h-3 w-3" />
-                      {formatPercentage(loan.data.interest_rate * 100, locale)}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                      {t.banking.paymentDate}
-                    </span>
-                    <span className="text-sm font-medium flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {getNextPaymentDate(
-                        loan.data.creation || loan.data.next_payment_date,
+                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                      <span className="flex items-center gap-1">
+                        <Percent className="h-3 w-3" />
+                        {formatPercentage(
+                          (position.interest_rate ?? 0) * 100,
+                          locale,
+                        )}
+                      </span>
+                      {euriborRateText && (
+                        <span className="text-xs text-muted-foreground">
+                          {manualTranslate(`${assetPath}.fields.euriborRate`)}:{" "}
+                          {euriborRateText}
+                        </span>
                       )}
                     </span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-2">
                   <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block">
+                    <span className="block text-sm text-muted-foreground">
+                      {t.banking.principalPaid}
+                    </span>
+                    <span className="text-sm">
+                      {formatCurrency(
+                        position.convertedPrincipalPaid,
+                        locale,
+                        defaultCurrency,
+                      )}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm text-muted-foreground">
                       {t.banking.originalAmount}
                     </span>
                     <span className="text-sm">
                       {formatCurrency(
-                        loan.data.convertedLoanAmount,
+                        position.convertedLoanAmount,
                         locale,
-                        settings.general.defaultCurrency,
-                      )}
-                    </span>
-                  </div>
-
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block">
-                      {t.banking.principalPaid}
-                    </span>
-                    <span className="text-sm text-green-600 dark:text-green-400">
-                      {formatCurrency(
-                        loan.data.convertedPrincipalPaid,
-                        locale,
-                        settings.general.defaultCurrency,
+                        defaultCurrency,
                       )}
                     </span>
                   </div>
                 </div>
 
-                {/* Progress bar */}
-                {loan.data.convertedLoanAmount > 0 && (
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 md:grid-cols-3">
+                  <div>
+                    <span className="block text-sm text-muted-foreground">
+                      {t.banking.paymentDate}
+                    </span>
+                    <span className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      {position.next_payment_date
+                        ? formatDate(position.next_payment_date, locale)
+                        : t.common.notAvailable}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm text-muted-foreground">
+                      {manualTranslate(`${assetPath}.fields.creation`)} /{" "}
+                      {manualTranslate(`${assetPath}.fields.maturity`)}
+                    </span>
+                    <span className="text-sm">
+                      {position.creation
+                        ? formatDate(position.creation, locale)
+                        : t.common.notAvailable}
+                      <span aria-hidden="true" className="px-1">
+                        •
+                      </span>
+                      {position.maturity
+                        ? formatDate(position.maturity, locale)
+                        : t.common.notAvailable}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="block text-sm text-muted-foreground">
+                      {manualTranslate(`${assetPath}.fields.interestType`)}
+                    </span>
+                    <div className="text-sm font-medium">
+                      {interestTypeLabel ||
+                        position.interest_type ||
+                        t.common.notAvailable}
+                    </div>
+                    {position.interest_type === InterestType.MIXED &&
+                      fixedYearsValue != null && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {manualTranslate(
+                            `${assetPath}.helpers.fixedRateDuration`,
+                            {
+                              years: fixedYearsValue,
+                            },
+                          )}
+                        </div>
+                      )}
+                  </div>
+                </div>
+
+                {position.convertedLoanAmount > 0 && (
                   <div className="mt-4 space-y-1">
-                    <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
+                    <div className="flex justify-between text-xs text-muted-foreground">
                       <span>{t.banking.repaymentProgress}</span>
                       <span>
                         {formatPercentage(
-                          (loan.data.convertedPrincipalPaid /
-                            loan.data.convertedLoanAmount) *
-                            100,
+                          Math.min(repaymentProgress, 100),
                           locale,
                         )}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div className="h-2 w-full rounded-full bg-muted">
                       <div
-                        className="h-2 rounded-full bg-green-500"
+                        className="h-2 rounded-full bg-emerald-500"
                         style={{
-                          width: `${Math.min((loan.data.convertedPrincipalPaid / loan.data.convertedLoanAmount) * 100, 100)}%`,
+                          width: `${Math.min(repaymentProgress, 100)}%`,
                         }}
                       />
                     </div>
                   </div>
                 )}
 
-                {loan.data.currency !== settings.general.defaultCurrency && (
-                  <div className="text-xs text-gray-500 pt-3 border-t border-gray-100 dark:border-gray-800">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="block">
-                          {t.banking.principalOutstanding}:
-                        </span>
-                        <span>
-                          {formatCurrency(
-                            loan.data.principal_outstanding,
-                            locale,
-                            loan.data.currency,
-                          )}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="block">
-                          {t.banking.monthlyInstallment}:
-                        </span>
-                        <span>
-                          {formatCurrency(
-                            loan.data.current_installment,
-                            locale,
-                            loan.data.currency,
-                          )}
-                        </span>
-                      </div>
+                {position.currency !== defaultCurrency && (
+                  <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border pt-3 text-xs text-muted-foreground md:grid-cols-2">
+                    <div>
+                      <span className="block">
+                        {t.banking.principalOutstanding}:
+                      </span>
+                      <span>
+                        {formatCurrency(
+                          position.principal_outstanding ?? 0,
+                          locale,
+                          position.currency,
+                        )}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block">
+                        {t.banking.monthlyInstallment}:
+                      </span>
+                      <span>
+                        {formatCurrency(
+                          position.current_installment ?? 0,
+                          locale,
+                          position.currency,
+                        )}
+                      </span>
                     </div>
                   </div>
                 )}
-              </Card>
-            ))}
-          </div>
-        </motion.div>
-      )}
 
-      {/* Empty State */}
-      {accounts.length === 0 && cards.length === 0 && loans.length === 0 && (
-        <motion.div variants={item}>
-          <Card className="p-12 text-center">
-            <div className="text-gray-400 dark:text-gray-600 mb-4">
-              <Building2 className="h-12 w-12 mx-auto" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">{t.banking.noData}</h3>
-            <p className="text-gray-600 dark:text-gray-400">
-              {t.banking.noDataDescription}
-            </p>
-          </Card>
-        </motion.div>
+                {isDirty && (
+                  <p className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
+                    {manualTranslate("management.unsavedChanges")}
+                  </p>
+                )}
+
+                {showActions && (
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (manualDraft?.originalId) {
+                          editByOriginalId(manualDraft.originalId)
+                        } else if (manualDraft) {
+                          editByLocalId(manualDraft.localId)
+                        } else if (item.originalId) {
+                          editByOriginalId(item.originalId)
+                        }
+                      }}
+                      className="flex items-center gap-1"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      {t.common.edit}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center gap-1 text-red-500 hover:text-red-600"
+                      onClick={() => {
+                        if (manualDraft?.originalId) {
+                          deleteByOriginalId(manualDraft.originalId)
+                        } else if (manualDraft) {
+                          deleteByLocalId(manualDraft.localId)
+                        } else if (item.originalId) {
+                          deleteByOriginalId(item.originalId)
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {t.common.delete}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
+        </div>
       )}
     </motion.div>
   )

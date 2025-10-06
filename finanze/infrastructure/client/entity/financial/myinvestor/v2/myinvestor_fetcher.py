@@ -17,6 +17,7 @@ from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -122,7 +123,7 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
 
 
 def _map_deposit_tx(
-    ref, tx_type, name, amount, net, retentions, interest, tx_date, currency
+    ref, tx_type, name, amount, net, retentions, tx_date, currency
 ) -> Optional[DepositTx]:
     return DepositTx(
         id=uuid4(),
@@ -136,9 +137,8 @@ def _map_deposit_tx(
         product_type=ProductType.DEPOSIT,
         fees=Dezimal(0),
         retentions=round(retentions, 2),
-        interests=round(interest, 2),
         net_amount=round(net, 2),
-        is_real=True,
+        source=DataSource.REAL,
     )
 
 
@@ -161,7 +161,7 @@ def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
         net_amount=net_amount,
         interest_rate=None,
         avg_balance=None,
-        is_real=True,
+        source=DataSource.REAL,
     )
 
 
@@ -360,7 +360,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 deposit_amount,
                                 deposit_amount,
                                 Dezimal(0),
-                                interest,
                                 tx_date,
                                 currency,
                             )
@@ -374,7 +373,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 interest,
                                 net_interest,
                                 retentions,
-                                interest,
                                 tx_date,
                                 currency,
                             )
@@ -388,7 +386,6 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 name,
                                 amount,
                                 amount,
-                                Dezimal(0),
                                 Dezimal(0),
                                 tx_date,
                                 currency,
@@ -440,7 +437,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                                 type=TxType.FEE,
                                 date=tx_date,
                                 entity=MY_INVESTOR,
-                                is_real=True,
+                                source=DataSource.REAL,
                                 product_type=ProductType.FUND_PORTFOLIO,
                                 fees=fee_amount,
                                 portfolio_name=portfolio_name,
@@ -683,7 +680,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             until=get_date(auto_contribution["contributionTimeFrame"]["endDate"]),
             frequency=frequency,
             active=auto_contribution["status"] == "ACTIVE",
-            is_real=True,
+            source=DataSource.REAL,
         )
 
     def fetch_auto_contributions(self) -> AutoContributions:
@@ -765,7 +762,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     retentions=Dezimal(0),
                     date=execution_date,
                     product_type=ProductType.FUND,
-                    is_real=True,
+                    source=DataSource.REAL,
                 )
             )
 
@@ -856,7 +853,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         retentions=Dezimal(0),
                         date=execution_date,
                         product_type=ProductType.STOCK_ETF,
-                        is_real=True,
+                        source=DataSource.REAL,
                         linked_tx=None,
                     )
                 )

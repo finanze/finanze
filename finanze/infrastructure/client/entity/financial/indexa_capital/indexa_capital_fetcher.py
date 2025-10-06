@@ -6,6 +6,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -283,7 +284,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                         fees=Dezimal(0),
                         retentions=Dezimal(0),
                         product_type=ProductType.FUND,
-                        is_real=True,
+                        source=DataSource.REAL,
                     )
                 )
         return investment_txs
@@ -346,7 +347,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                         type=TxType.FEE,
                         date=date_dt,
                         entity=INDEXA_CAPITAL,
-                        is_real=True,
+                        source=DataSource.REAL,
                         product_type=ProductType.FUND_PORTFOLIO,
                         fees=amount,
                         portfolio_name=portfolio_name,

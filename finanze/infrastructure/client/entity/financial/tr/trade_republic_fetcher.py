@@ -13,6 +13,7 @@ from domain.auto_contributions import (
 )
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -348,7 +349,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             until=None,
             frequency=frequency,
             active=active,
-            is_real=True,
+            source=DataSource.REAL,
         )
 
     async def auto_contributions(self) -> AutoContributions:
@@ -441,7 +442,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 retentions=Dezimal(0),
                 order_date=None,
                 product_type=product_type,
-                is_real=True,
+                source=DataSource.REAL,
             )
         else:
             return StockTx(
@@ -464,7 +465,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 order_date=None,
                 product_type=product_type,
                 linked_tx=None,
-                is_real=True,
+                source=DataSource.REAL,
             )
 
     def map_account_tx(self, raw_tx: dict, date: datetime) -> Optional[AccountTx]:
@@ -525,5 +526,5 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             product_type=ProductType.ACCOUNT,
             date=date,
             entity=TRADE_REPUBLIC,
-            is_real=True,
+            source=DataSource.REAL,
         )

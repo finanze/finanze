@@ -1711,7 +1711,9 @@ export const getStockAndFundPositions = (
               1) *
             100,
           entity: entityPosition.entity?.name,
+          source: stock.source,
           isin: stock.isin,
+          entryId: stock.id,
           gainLossAmount: convertedGainLoss,
           formattedGainLossAmount:
             initialInvestment > 0 && gainLossAmount !== 0
@@ -1782,7 +1784,9 @@ export const getStockAndFundPositions = (
               1) *
             100,
           entity: entityPosition.entity?.name,
+          source: fund.source,
           isin: fund.isin,
+          entryId: fund.id,
           gainLossAmount: convertedGainLoss,
           formattedGainLossAmount:
             initialInvestment > 0 && gainLossAmount !== 0

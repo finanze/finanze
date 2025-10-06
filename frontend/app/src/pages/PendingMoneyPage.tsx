@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
+import { motion } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -29,6 +30,7 @@ import {
 } from "lucide-react"
 import { getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import {
   FlowType,
@@ -452,7 +454,7 @@ export default function PendingMoneyPage() {
     })
 
     return (
-      <div className="space-y-4">
+      <motion.div variants={fadeListItem} className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {flowType === FlowType.EARNING ? (
@@ -472,7 +474,10 @@ export default function PendingMoneyPage() {
         </div>
 
         {sectionFlows.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
+          <motion.div
+            variants={fadeListItem}
+            className="text-center py-12 text-gray-500"
+          >
             <div className="flex justify-center mb-4">
               {flowType === FlowType.EARNING ? (
                 <BanknoteArrowUp className="text-green-400" size={48} />
@@ -482,12 +487,13 @@ export default function PendingMoneyPage() {
             </div>
             <p className="text-lg font-medium mb-2">{emptyMessage}</p>
             <p className="text-sm">{addMessage}</p>
-          </div>
+          </motion.div>
         ) : (
-          <div className="space-y-2">
+          <motion.div variants={fadeListContainer} className="space-y-2">
             {sectionFlows.map(({ flow, index }) => (
-              <div
+              <motion.div
                 key={flow.id}
+                variants={fadeListItem}
                 className={`${
                   !flow.enabled
                     ? "opacity-50 bg-gray-50 dark:bg-black"
@@ -697,17 +703,25 @@ export default function PendingMoneyPage() {
                     </div>
                   </>
                 )}
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
     )
   }
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <motion.div
+      className="space-y-6 pb-6"
+      variants={fadeListContainer}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div
+        variants={fadeListItem}
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+      >
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -720,7 +734,12 @@ export default function PendingMoneyPage() {
         </div>
 
         {unsavedChanges && (
-          <div className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-4">
+          <motion.div
+            variants={fadeListItem}
+            initial="hidden"
+            animate="show"
+            className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-4"
+          >
             <span className="text-sm text-orange-600">
               {t.management.unsavedChanges}
             </span>
@@ -732,12 +751,15 @@ export default function PendingMoneyPage() {
               <Save size={16} />
               {t.common.save}
             </Button>
-          </div>
+          </motion.div>
         )}
-      </div>
+      </motion.div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <motion.div
+        variants={fadeListItem}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
             <BanknoteArrowUp className="h-5 w-5 text-green-500" />
@@ -925,10 +947,13 @@ export default function PendingMoneyPage() {
             </div>
           )}
         </Card>
-      </div>
+      </motion.div>
 
       {/* Sorting Controls */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      <motion.div
+        variants={fadeListItem}
+        className="flex items-center justify-between gap-3 flex-wrap"
+      >
         <div className="flex items-center gap-3">
           <span className="text-sm text-muted-foreground">
             {t.management.sortBy}
@@ -968,7 +993,7 @@ export default function PendingMoneyPage() {
             className="min-w-[220px]"
           />
         </div>
-      </div>
+      </motion.div>
 
       <FlowSection
         title={t.management.pendingEarnings}
@@ -985,6 +1010,6 @@ export default function PendingMoneyPage() {
         emptyMessage={t.management.noPendingExpenses}
         addMessage={t.management.addFirstPendingExpense}
       />
-    </div>
+    </motion.div>
   )
 }

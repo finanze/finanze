@@ -84,6 +84,9 @@ class EtherscanClient(ConnectableIntegration[EtherscanIntegrationData]):
             elif result and "Max calls" in result:
                 raise TooManyRequests()
             else:
+                self._log.error(
+                    f"Error fetching from Etherscan: {response.status_code} {response.text}"
+                )
                 raise ValueError()
 
         time.sleep(self.COOLDOWN)

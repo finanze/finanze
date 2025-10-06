@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -154,14 +155,12 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             amount = round(Dezimal(tx["amount"]), 2)
             fee = round(Dezimal(tx["fee"]), 2)
 
-            interests = Dezimal(0)
             retentions = Dezimal(0)
             net_amount = amount
 
             if tx_type == TxType.INTEREST:
                 amount = net_amount / (1 - CAPITAL_GAINS_BASE_TAX)
                 retentions = amount - net_amount
-                interests = amount
 
             txs.append(
                 RealEstateCFTx(
@@ -176,9 +175,8 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
                     product_type=ProductType.REAL_ESTATE_CF,
                     fees=fee,
                     retentions=retentions,
-                    interests=interests,
                     net_amount=net_amount,
-                    is_real=True,
+                    source=DataSource.REAL,
                 )
             )
 

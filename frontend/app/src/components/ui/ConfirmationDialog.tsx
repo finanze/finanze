@@ -39,7 +39,7 @@ export function ConfirmationDialog({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10001]">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]">
       <Card className="w-full max-w-md mx-4">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
@@ -52,7 +52,18 @@ export function ConfirmationDialog({
               <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <div>
                 <div className="font-medium">{t.common.warning}</div>
-                <div className="text-sm opacity-90">{warning}</div>
+                {warning
+                  .split(/\n+/)
+                  .map(part => part.trim())
+                  .filter(Boolean)
+                  .map((message, index) => (
+                    <p
+                      key={`${message}-${index}`}
+                      className="text-sm opacity-90"
+                    >
+                      {message}
+                    </p>
+                  ))}
               </div>
             </div>
           )}

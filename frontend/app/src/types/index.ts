@@ -25,6 +25,12 @@ export enum EntityOrigin {
   INTERNAL = "INTERNAL",
 }
 
+export enum DataSource {
+  REAL = "REAL",
+  SHEETS = "SHEETS",
+  MANUAL = "MANUAL",
+}
+
 export interface CryptoWalletConnection {
   id: string
   entity_id: string

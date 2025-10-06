@@ -126,9 +126,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 virtual_last_fetch = get_last_fetches_for_virtual(
                     entity_virtual_imports
                 )
-                if entity.origin != EntityOrigin.MANUAL:
-                    last_fetch = {**virtual_last_fetch, **last_fetch}
-                else:
+                if entity.origin == EntityOrigin.MANUAL:
                     last_fetch = virtual_last_fetch
                     dict_entity["features"] = list(virtual_last_fetch.keys())
 
