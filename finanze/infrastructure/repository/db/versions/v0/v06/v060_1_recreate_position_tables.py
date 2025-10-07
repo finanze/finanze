@@ -19,6 +19,7 @@ SQL = """
       create table account_positions_new
       (
           id                 CHAR(36) primary key,
+          global_position_id CHAR(36)    NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           type               VARCHAR(32) not null,
           name               TEXT,
           iban               VARCHAR(32),
@@ -26,13 +27,13 @@ SQL = """
           currency           CHAR(3)     not null,
           interest           TEXT,
           retained           TEXT,
-          pending_transfers  TEXT,
-          global_position_id CHAR(36)    NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE
+          pending_transfers  TEXT
       );
 
       create table card_positions_new
       (
           id                 CHAR(36) primary key,
+          global_position_id CHAR(36)    NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           type               VARCHAR(32) not null,
           name               TEXT,
           currency           CHAR(3)     not null,
@@ -40,16 +41,15 @@ SQL = """
           card_limit         TEXT,
           used               TEXT,
           active             BOOLEAN     not null,
-          related_account    CHAR(36) references account_positions on update cascade on delete cascade,
-          global_position_id CHAR(36)    NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE
+          related_account    CHAR(36) references account_positions on update cascade on delete cascade
       );
 
       create table crowdlending_positions_new
       (
           id                     CHAR(36) primary key,
+          global_position_id     CHAR(36)         NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           currency               CHAR(3)          not null,
           distribution           JSON             not null,
-          global_position_id     CHAR(36)         NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           total                  TEXT default '0' not null,
           weighted_interest_rate TEXT default '0' not null
       );
@@ -57,19 +57,20 @@ SQL = """
       create table deposit_positions_new
       (
           id                 CHAR(36) primary key,
+          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name               TEXT     not null,
           amount             TEXT     not null,
           currency           CHAR(3)  not null,
           expected_interests TEXT     not null,
           interest_rate      TEXT     not null,
           creation           DATETIME not null,
-          maturity           DATE     not null,
-          global_position_id CHAR(36) NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE
+          maturity           DATE     not null
       );
 
       create table factoring_positions_new
       (
           id                  CHAR(36) primary key,
+          global_position_id  CHAR(36)         NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name                TEXT             not null,
           amount              TEXT             not null,
           currency            CHAR(3)          not null,
@@ -79,13 +80,13 @@ SQL = """
           maturity            DATE             not null,
           type                VARCHAR(32)      not null,
           state               VARCHAR(32)      not null,
-          global_position_id  CHAR(36)         NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           profitability       TEXT default '0' not null
       );
 
       create table real_estate_cf_positions_new
       (
           id                 CHAR(36) primary key,
+          global_position_id CHAR(36)         NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           name               TEXT             not null,
           amount             TEXT             not null,
           pending_amount     TEXT             not null,
@@ -97,34 +98,33 @@ SQL = """
           business_type      VARCHAR(32)      not null,
           state              VARCHAR(32)      not null,
           extended_maturity  DATE,
-          global_position_id CHAR(36)         NOT NULL REFERENCES global_positions (id) ON DELETE CASCADE ON UPDATE CASCADE,
           profitability      TEXT default '0' not null
       );
 
       INSERT INTO account_positions_new
       SELECT *
       FROM account_positions
-      WHERE global_position_id IN (SELECT id FROM global_positions);
+      WHERE global_position_id IS NOT NULL AND global_position_id IN (SELECT id FROM global_positions);
       INSERT INTO card_positions_new
       SELECT *
       FROM card_positions
-      WHERE global_position_id IN (SELECT id FROM global_positions);
+      WHERE global_position_id IS NOT NULL AND global_position_id IN (SELECT id FROM global_positions);
       INSERT INTO crowdlending_positions_new
       SELECT *
       FROM crowdlending_positions
-      WHERE global_position_id IN (SELECT id FROM global_positions);
+      WHERE global_position_id IS NOT NULL AND global_position_id IN (SELECT id FROM global_positions);
       INSERT INTO deposit_positions_new
       SELECT *
       FROM deposit_positions
-      WHERE global_position_id IN (SELECT id FROM global_positions);
+      WHERE global_position_id IS NOT NULL AND global_position_id IN (SELECT id FROM global_positions);
       INSERT INTO factoring_positions_new
       SELECT *
       FROM factoring_positions
-      WHERE global_position_id IN (SELECT id FROM global_positions);
+      WHERE global_position_id IS NOT NULL AND global_position_id IN (SELECT id FROM global_positions);
       INSERT INTO real_estate_cf_positions_new
       SELECT *
       FROM real_estate_cf_positions
-      WHERE global_position_id IN (SELECT id FROM global_positions);
+      WHERE global_position_id IS NOT NULL AND global_position_id IN (SELECT id FROM global_positions);
 
       DROP TABLE account_positions;
       DROP TABLE card_positions;
