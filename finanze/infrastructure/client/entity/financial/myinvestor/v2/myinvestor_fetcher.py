@@ -876,10 +876,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 raw_asset_type = fund_details.get("assetType")
                 if raw_asset_type == "VARIABLE_INCOME":
                     asset_type = AssetType.EQUITY
-                elif (
-                    raw_asset_type == "FIXED_INCOME" or raw_asset_type == "MONEY_MARKET"
-                ):
+                elif raw_asset_type == "FIXED_INCOME":
                     asset_type = AssetType.FIXED_INCOME
+                elif raw_asset_type == "MONEY_MARKET":
+                    asset_type = AssetType.MONEY_MARKET
                 elif raw_asset_type == "MIXED":
                     asset_type = AssetType.MIXED
                 else:

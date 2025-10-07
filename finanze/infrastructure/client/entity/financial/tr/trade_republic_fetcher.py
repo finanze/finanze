@@ -140,11 +140,13 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             fund_details = details.fund_details
             name = fund_details["name"]
             fund_type = fund_details["fundType"].lower()
-            asset_type = None
+            asset_type = AssetType.OTHER
             if "equity" in fund_type:
                 asset_type = AssetType.EQUITY
             elif "bond" in fund_type:
                 asset_type = AssetType.FIXED_INCOME
+            elif "money" in fund_type:
+                asset_type = AssetType.MONEY_MARKET
 
             return FundDetail(
                 id=uuid4(),

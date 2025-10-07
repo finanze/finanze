@@ -107,6 +107,7 @@ class Loan(BaseData):
 class AssetType(str, Enum):
     EQUITY = "EQUITY"
     FIXED_INCOME = "FIXED_INCOME"
+    MONEY_MARKET = "MONEY_MARKET"
     MIXED = "MIXED"
     OTHER = "OTHER"
 

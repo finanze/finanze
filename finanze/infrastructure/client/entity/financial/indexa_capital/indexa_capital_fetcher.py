@@ -111,11 +111,13 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     except Exception:
                         continue
 
-                    asset_type = None
+                    asset_type = AssetType.OTHER
                     if "equity" in raw_asset_type:
                         asset_type = AssetType.EQUITY
                     elif "fixed" in raw_asset_type:
                         asset_type = AssetType.FIXED_INCOME
+                    elif "money" in raw_asset_type:
+                        asset_type = AssetType.MONEY_MARKET
 
                     fund_details.append(
                         FundDetail(

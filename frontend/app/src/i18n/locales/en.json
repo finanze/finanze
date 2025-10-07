@@ -583,6 +583,7 @@
     "assetType": {
       "EQUITY": "Equity",
       "FIXED_INCOME": "Fixed Income",
+      "MONEY_MARKET": "Money Market",
       "MIXED": "Mixed",
       "OTHER": "Other"
     },

@@ -582,6 +582,7 @@
     "assetType": {
       "EQUITY": "Renta Variable",
       "FIXED_INCOME": "Renta Fija",
+      "MONEY_MARKET": "Monetario",
       "MIXED": "Mixto",
       "OTHER": "Otro"
     },

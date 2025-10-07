@@ -116,6 +116,7 @@ export interface FundPortfolio {
 export enum AssetType {
   EQUITY = "EQUITY",
   FIXED_INCOME = "FIXED_INCOME",
+  MONEY_MARKET = "MONEY_MARKET",
   MIXED = "MIXED",
   OTHER = "OTHER",
 }

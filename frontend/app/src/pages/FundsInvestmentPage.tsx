@@ -67,15 +67,27 @@ type ManualPositionsContextValue = ReturnType<typeof useManualPositions>
 
 // Local color classes for fund asset types (fund.assigns asset_type)
 // Pastel background colors matching inner donut palette
-const ASSET_CLASS_COLOR_BG: Record<string, string> = {
+const ASSET_CLASS_COLOR_BG: Record<AssetType, string> = {
   [AssetType.EQUITY]:
     "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
   [AssetType.FIXED_INCOME]:
     "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  [AssetType.MONEY_MARKET]:
+    "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
   [AssetType.MIXED]:
     "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
   [AssetType.OTHER]:
     "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+}
+
+const isAssetType = (value: string): value is AssetType => {
+  return (Object.values(AssetType) as string[]).includes(value)
+}
+
+const getAssetTypeBadgeClass = (assetType?: AssetType | string | null) => {
+  if (!assetType) return undefined
+  if (!isAssetType(assetType)) return undefined
+  return ASSET_CLASS_COLOR_BG[assetType]
 }
 
 type FundPositionWithEntity = StockFundPosition & {
@@ -467,6 +479,7 @@ function FundsInvestmentPageContent({
     const colorMap: Partial<Record<AssetType, string>> = {
       [AssetType.EQUITY]: "#ff7b7bff",
       [AssetType.FIXED_INCOME]: "#7db7ffff",
+      [AssetType.MONEY_MARKET]: "#fde047ff",
       [AssetType.MIXED]: "#d8b4fcff",
       [AssetType.OTHER]: "#80ffacff",
     }
@@ -494,11 +507,13 @@ function FundsInvestmentPageContent({
 
     const equityValue = totals[AssetType.EQUITY] || 0
     const fixedIncomeValue = totals[AssetType.FIXED_INCOME] || 0
-    const splitTotal = equityValue + fixedIncomeValue
+    const moneyMarketValue = totals[AssetType.MONEY_MARKET] || 0
+    const fixedAndMoneyMarketValue = fixedIncomeValue + moneyMarketValue
+    const splitTotal = equityValue + fixedAndMoneyMarketValue
 
     const splitPercentages = {
       equity: splitTotal > 0 ? (equityValue / splitTotal) * 100 : 0,
-      fixed: splitTotal > 0 ? (fixedIncomeValue / splitTotal) * 100 : 0,
+      fixed: splitTotal > 0 ? (fixedAndMoneyMarketValue / splitTotal) * 100 : 0,
     }
 
     return {
@@ -903,7 +918,7 @@ function FundsInvestmentPageContent({
                               <span
                                 className={cn(
                                   "text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium",
-                                  ASSET_CLASS_COLOR_BG[position.assetType] ||
+                                  getAssetTypeBadgeClass(position.assetType) ||
                                     "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100",
                                 )}
                               >
