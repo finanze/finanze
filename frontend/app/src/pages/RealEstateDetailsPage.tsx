@@ -30,6 +30,7 @@ import {
   Info,
   Home,
   Calculator,
+  ArrowLeft,
 } from "lucide-react"
 import { Icon } from "@/components/ui/icon-picker"
 import RealEstateStats from "@/components/real-estate/RealEstateStats"
@@ -187,18 +188,28 @@ export default function RealEstateDetailsPage() {
   return (
     <div className="space-y-6 pb-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-snug break-words">
-            {property.basic_info.name}
-          </h1>
-          {property.location.address && (
-            <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 mt-2 pr-1">
-              <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <span className="leading-relaxed break-words">
-                {property.location.address}
-              </span>
-            </div>
-          )}
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate(-1)}
+            aria-label={t.common.back}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white leading-snug break-words">
+              {property.basic_info.name}
+            </h1>
+            {property.location.address && (
+              <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400 mt-2 pr-1">
+                <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span className="leading-relaxed break-words">
+                  {property.location.address}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap md:flex-nowrap md:justify-end">
           <Button
