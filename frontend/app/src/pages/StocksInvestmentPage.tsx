@@ -556,6 +556,69 @@ function StocksViewContent({
 
                 const showActions = isEditMode && isManual
 
+                const symbolSegments = [
+                  position.symbol?.trim(),
+                  position.isin?.trim(),
+                ].filter(Boolean) as string[]
+                const symbolItems: React.ReactNode[] = []
+
+                if (position.entity) {
+                  symbolItems.push(
+                    <button
+                      key="entity"
+                      type="button"
+                      onClick={() => {
+                        const entityObj = entities.find(
+                          entity => entity.name === position.entity,
+                        )
+                        const id = entityObj?.id || position.entity
+                        if (!id) {
+                          return
+                        }
+                        setSelectedEntities(prev =>
+                          prev.includes(id) ? prev : [...prev, id],
+                        )
+                      }}
+                      className={cn(
+                        "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
+                        getColorForName(position.entity),
+                      )}
+                    >
+                      {position.entity}
+                    </button>,
+                  )
+                }
+
+                symbolSegments.forEach((segment, index) => {
+                  symbolItems.push(
+                    <span key={`segment-${index}`}>{segment}</span>,
+                  )
+                })
+
+                const rawShares = position.shares
+                const numericShares =
+                  rawShares !== undefined && rawShares !== null
+                    ? Number(rawShares)
+                    : null
+                const formattedShares =
+                  numericShares !== null && !Number.isNaN(numericShares)
+                    ? numericShares.toLocaleString(locale)
+                    : null
+                const sharesLabelSource = t.investments.shares || ""
+                const sharesLabel = sharesLabelSource
+                  ? sharesLabelSource.toLocaleLowerCase(locale)
+                  : ""
+
+                const rawPrice = position.price
+                const formattedPrice =
+                  rawPrice !== undefined && rawPrice !== null
+                    ? formatCurrency(rawPrice, locale, position.currency)
+                    : null
+                const eachLabelSource = t.common.each || ""
+                const eachLabel = eachLabelSource
+                  ? eachLabelSource.toLocaleLowerCase(locale)
+                  : ""
+
                 return (
                   <Card
                     key={item.key}
@@ -571,30 +634,12 @@ function StocksViewContent({
                     style={{ borderLeftColor: borderColor }}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="space-y-2 flex-1 min-w-0">
+                      <div className="space-y-3 flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
                           <h3 className="text-lg font-semibold">
                             {position.name}
                           </h3>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const entityObj = entities.find(
-                                  entity => entity.name === position.entity,
-                                )
-                                const id = entityObj?.id || position.entity
-                                setSelectedEntities(prev =>
-                                  prev.includes(id) ? prev : [...prev, id],
-                                )
-                              }}
-                              className={cn(
-                                "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
-                                getColorForName(position.entity),
-                              )}
-                            >
-                              {position.entity}
-                            </button>
                             {position.portfolioName && (
                               <Badge variant="secondary" className="text-xs">
                                 {position.portfolioName}
@@ -615,63 +660,53 @@ function StocksViewContent({
                             )}
                           </div>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {t.investments.symbol}:{" "}
-                            </span>
-                            <span className="font-medium">
-                              {position.symbol}
-                            </span>
+                        {symbolItems.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                            {symbolItems.map((item, index) => (
+                              <React.Fragment key={index}>
+                                {index > 0 && (
+                                  <span className="text-gray-400 dark:text-gray-500">
+                                    •
+                                  </span>
+                                )}
+                                {item}
+                              </React.Fragment>
+                            ))}
                           </div>
-                          {position.isin && (
-                            <div>
-                              <span className="text-gray-600 dark:text-gray-400">
-                                {t.transactions.isin}:{" "}
+                        )}
+                        {(formattedShares || formattedPrice) && (
+                          <div className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-300">
+                            {formattedShares && (
+                              <>
+                                <span>{formattedShares}</span>
+                                {sharesLabel && (
+                                  <span className="text-gray-400 dark:text-gray-500 font-medium">
+                                    {sharesLabel}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                            {formattedShares && formattedPrice && (
+                              <span className="text-gray-600 dark:text-gray-300">
+                                ⨯
                               </span>
-                              <span className="font-medium">
-                                {position.isin}
-                              </span>
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {t.investments.shares}:{" "}
-                            </span>
-                            <span className="font-medium">
-                              {position.shares?.toLocaleString()}
-                            </span>
+                            )}
+                            {formattedPrice && (
+                              <>
+                                <span>{formattedPrice}</span>
+                                {formattedShares && eachLabel && (
+                                  <span className="text-gray-400 dark:text-gray-500 font-medium">
+                                    {eachLabel}
+                                  </span>
+                                )}
+                              </>
+                            )}
                           </div>
-                          <div>
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {t.investments.price}:{" "}
-                            </span>
-                            <span className="font-medium">
-                              {formatCurrency(
-                                position.price,
-                                locale,
-                                position.currency,
-                              )}
-                            </span>
-                          </div>
-                        </div>
+                        )}
                       </div>
 
                       <div className="text-left sm:text-right space-y-1 flex-shrink-0">
                         <div className="flex items-center gap-2 justify-end">
-                          {position.formattedGainLossAmount && (
-                            <span
-                              className={cn(
-                                "text-sm",
-                                (position.gainLossAmount || 0) >= 0
-                                  ? "text-green-500"
-                                  : "text-red-500",
-                              )}
-                            >
-                              {position.formattedGainLossAmount}
-                            </span>
-                          )}
                           <div className="text-xl font-semibold">
                             {position.formattedOriginalValue ||
                               position.formattedValue}
@@ -682,6 +717,30 @@ function StocksViewContent({
                             {position.formattedValue}
                           </div>
                         )}
+                        <div className="flex items-center gap-2 text-sm justify-end">
+                          {position.change >= 0 ? (
+                            <TrendingUp size={16} className="text-green-500" />
+                          ) : (
+                            <TrendingDown size={16} className="text-red-500" />
+                          )}
+                          <div
+                            className={cn(
+                              "flex items-baseline gap-1",
+                              position.change >= 0
+                                ? "text-green-500"
+                                : "text-red-500",
+                            )}
+                          >
+                            <span className="text-sm">
+                              {position.change.toFixed(2)}%
+                            </span>
+                            {position.formattedGainLossAmount && (
+                              <span className="text-xs font-medium opacity-80">
+                                {position.formattedGainLossAmount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400">
                           <span className="font-medium text-blue-600 dark:text-blue-400">
                             {percentageOfStocks.toFixed(1)}%
@@ -691,23 +750,6 @@ function StocksViewContent({
                               "{type}",
                               t.common.stocks.toLowerCase(),
                             )}
-                        </div>
-                        <div className="flex items-center gap-1 text-sm justify-end">
-                          {position.change >= 0 ? (
-                            <TrendingUp size={16} className="text-green-500" />
-                          ) : (
-                            <TrendingDown size={16} className="text-red-500" />
-                          )}
-                          <span
-                            className={
-                              position.change >= 0
-                                ? "text-green-500"
-                                : "text-red-500"
-                            }
-                          >
-                            {position.change >= 0 ? "+" : ""}
-                            {position.change.toFixed(2)}%
-                          </span>
                         </div>
                         {showActions && (
                           <div className="flex items-center justify-end gap-2 pt-2">

@@ -27,9 +27,9 @@ import {
   Calendar,
   Percent,
   Building,
-  Clock,
   Pencil,
   Trash2,
+  TrendingUp,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
@@ -305,6 +305,26 @@ function RealEstateViewContent({
       return selectedEntities.includes(position.entityId)
     })
   }, [positions, selectedEntities])
+
+  const investmentStateLabels =
+    (t.investments.states as Record<string, string> | undefined) ?? undefined
+  const investmentProjectTypeLabels =
+    (t.investments.projectTypes as Record<string, string> | undefined) ??
+    undefined
+
+  const translateState = (value?: string | null) => {
+    if (!value) return ""
+    const normalized = value.toUpperCase()
+    return investmentStateLabels?.[normalized] ?? formatSnakeCaseToHuman(value)
+  }
+
+  const translateProjectType = (value?: string | null) => {
+    if (!value) return ""
+    const normalized = value.toUpperCase()
+    return (
+      investmentProjectTypeLabels?.[normalized] ?? formatSnakeCaseToHuman(value)
+    )
+  }
 
   const buildPositionFromDraft = useCallback(
     (draft: RealEstateCFDraft): RealEstatePosition => {
@@ -756,6 +776,53 @@ function RealEstateViewContent({
 
                 const showActions = isEditMode && isManual
 
+                const entityButton = (
+                  <button
+                    key="entity"
+                    type="button"
+                    onClick={() => {
+                      const entityObj = entities.find(
+                        entity => entity.name === position.entity,
+                      )
+                      const id = entityObj?.id || position.entity
+                      setSelectedEntities(prev =>
+                        prev.includes(id) ? prev : [...prev, id],
+                      )
+                    }}
+                    className={cn(
+                      "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
+                      getColorForName(position.entity),
+                    )}
+                  >
+                    {position.entity}
+                  </button>
+                )
+
+                const rawProjectType =
+                  position.investment_project_type ||
+                  position.business_type ||
+                  position.type ||
+                  ""
+
+                const summaryItems: React.ReactNode[] = [
+                  entityButton,
+                  <div key="type" className="flex items-center gap-1">
+                    <Building size={14} />
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {translateProjectType(rawProjectType)}
+                    </span>
+                  </div>,
+                  <div key="interest" className="flex items-center gap-1">
+                    <Percent size={14} />
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                      {(position.interest_rate * 100).toFixed(2)}%
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {t.investments.annually}
+                    </span>
+                  </div>,
+                ]
+
                 return (
                   <Card
                     key={item.key}
@@ -777,26 +844,8 @@ function RealEstateViewContent({
                             {position.name}
                           </h3>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const entityObj = entities.find(
-                                  entity => entity.name === position.entity,
-                                )
-                                const id = entityObj?.id || position.entity
-                                setSelectedEntities(prev =>
-                                  prev.includes(id) ? prev : [...prev, id],
-                                )
-                              }}
-                              className={cn(
-                                "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
-                                getColorForName(position.entity),
-                              )}
-                            >
-                              {position.entity}
-                            </button>
                             <Badge variant="default" className="text-xs">
-                              {formatSnakeCaseToHuman(position.state)}
+                              {translateState(position.state)}
                             </Badge>
                             {position.source &&
                               position.source !== DataSource.REAL && (
@@ -814,83 +863,46 @@ function RealEstateViewContent({
                           </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-600 dark:text-gray-400">
-                          <div className="flex items-center gap-1">
-                            <Building size={14} />
-                            <span>
-                              {t.investments.type}:{" "}
-                              {formatSnakeCaseToHuman(
-                                position.investment_project_type ||
-                                  position.business_type ||
-                                  position.type ||
-                                  "",
+                        <div className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          {summaryItems.map((item, index) => (
+                            <React.Fragment key={index}>
+                              {index > 0 && (
+                                <span className="text-gray-400 dark:text-gray-500">
+                                  •
+                                </span>
                               )}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1">
-                            <Percent size={14} />
-                            <span>
-                              {t.investments.interest}:{" "}
-                              <span className="text-green-600 dark:text-green-400 font-medium">
-                                {(position.interest_rate * 100).toFixed(2)}%
-                              </span>
-                              {" " + t.investments.annually}
-                            </span>
-                          </div>
+                              {item}
+                            </React.Fragment>
+                          ))}
                         </div>
 
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <Calendar size={14} />
-                            <span>
-                              {t.investments.lastInvest}:{" "}
+                          <div className="flex items-center gap-2">
+                            <TrendingUp
+                              size={14}
+                              className="text-gray-400 dark:text-gray-500"
+                            />
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {t.investments.investment}
+                            </span>
+                            <span className="text-gray-900 dark:text-gray-100">
                               {formatDate(position.last_invest_date, locale)}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <Clock size={14} />
-                            <span>
-                              {t.investments.maturity}:{" "}
+                          <div className="flex items-center gap-2">
+                            <Calendar
+                              size={14}
+                              className="text-gray-400 dark:text-gray-500"
+                            />
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {t.investments.maturity}
+                            </span>
+                            <span className="text-gray-900 dark:text-gray-100">
                               {formatDate(position.maturity, locale)}
                             </span>
                           </div>
                         </div>
-
-                        {(position.formattedPendingAmount ||
-                          position.formattedProfit) && (
-                          <div className="flex flex-col gap-1 text-sm">
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                              {position.formattedPendingAmount && (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-gray-600 dark:text-gray-400">
-                                    {t.investments.pending}:
-                                  </span>
-                                  <span className="font-medium text-orange-600 dark:text-orange-400">
-                                    {position.formattedPendingAmount}
-                                  </span>
-                                </div>
-                              )}
-                              {position.formattedProfit && (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-gray-600 dark:text-gray-400">
-                                    {t.investments.expectedProfit}:
-                                  </span>
-                                  <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                    {position.formattedProfit}
-                                    {position.profitabilityPct !== null && (
-                                      <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                        ({position.profitabilityPct.toFixed(2)}
-                                        %)
-                                      </span>
-                                    )}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </div>
 
                       <div className="text-left sm:text-right space-y-1 flex-shrink-0">
@@ -900,6 +912,36 @@ function RealEstateViewContent({
                         {position.currency !== defaultCurrency && (
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {position.formattedConvertedAmount}
+                          </div>
+                        )}
+                        {(position.formattedPendingAmount ||
+                          position.formattedProfit) && (
+                          <div className="space-y-1 text-sm">
+                            {position.formattedPendingAmount && (
+                              <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+                                <span className="text-gray-600 dark:text-gray-400">
+                                  {t.investments.pending}
+                                </span>
+                                <span className="font-medium text-orange-600 dark:text-orange-400">
+                                  {position.formattedPendingAmount}
+                                </span>
+                              </div>
+                            )}
+                            {position.formattedProfit && (
+                              <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  {t.investments.expected}
+                                </span>
+                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                                  {position.formattedProfit}
+                                  {position.profitabilityPct !== null && (
+                                    <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                      ({position.profitabilityPct.toFixed(2)}%)
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         )}
                         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">

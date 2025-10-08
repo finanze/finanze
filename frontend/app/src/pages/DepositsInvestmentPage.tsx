@@ -576,6 +576,11 @@ function DepositsViewContent({
                     ? ((position.convertedAmount || 0) / totalValue) * 100
                     : 0
 
+                const expectedReturnPct =
+                  position.expectedInterests != null && position.amount > 0
+                    ? (position.expectedInterests / position.amount) * 100
+                    : null
+
                 const distributionEntry = chartData.find(
                   entry => entry.name === position.name,
                 )
@@ -589,6 +594,45 @@ function DepositsViewContent({
                     : ""
 
                 const showActions = isEditMode && isManual
+
+                const entitySummaryBadge = (
+                  <EntityBadge
+                    key="entity"
+                    name={position.entity}
+                    origin={position.entityOrigin}
+                    className="text-xs"
+                    title={position.entity}
+                    onClick={() => {
+                      const targetId = position.entityId
+                        ? position.entityId
+                        : (entities.find(e => e.name === position.entity)?.id ??
+                          position.entity)
+                      setSelectedEntities(prev =>
+                        targetId && prev.includes(targetId)
+                          ? prev
+                          : targetId
+                            ? [...prev, targetId]
+                            : prev,
+                      )
+                    }}
+                  />
+                )
+
+                const summaryItems: React.ReactNode[] = [
+                  entitySummaryBadge,
+                  <div key="interest" className="flex items-center gap-2">
+                    <Percent
+                      size={14}
+                      className="text-gray-400 dark:text-gray-500"
+                    />
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                      {(position.interest_rate * 100).toFixed(2)}%
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {t.investments.annually}
+                    </span>
+                  </div>,
+                ]
 
                 return (
                   <Card
@@ -611,26 +655,6 @@ function DepositsViewContent({
                             {position.name}
                           </h3>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <EntityBadge
-                              name={position.entity}
-                              origin={position.entityOrigin}
-                              className="text-xs"
-                              title={position.entity}
-                              onClick={() => {
-                                const targetId = position.entityId
-                                  ? position.entityId
-                                  : (entities.find(
-                                      e => e.name === position.entity,
-                                    )?.id ?? position.entity)
-                                setSelectedEntities(prev =>
-                                  targetId && prev.includes(targetId)
-                                    ? prev
-                                    : targetId
-                                      ? [...prev, targetId]
-                                      : prev,
-                                )
-                              }}
-                            />
                             {position.source &&
                               position.source !== DataSource.REAL && (
                                 <SourceBadge
@@ -647,46 +671,46 @@ function DepositsViewContent({
                           </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-600 dark:text-gray-400">
-                          <div className="flex items-center gap-1">
-                            <Percent size={14} />
-                            <span>
-                              {t.investments.interest}:{" "}
-                              <span className="text-green-600 dark:text-green-400 font-medium">
-                                {(position.interest_rate * 100).toFixed(2)}%
-                              </span>
+                        <div className="flex flex-wrap items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                          {summaryItems.map((item, index) => (
+                            <React.Fragment key={index}>
+                              {index > 0 && (
+                                <span className="text-gray-400 dark:text-gray-500">
+                                  •
+                                </span>
+                              )}
+                              {item}
+                            </React.Fragment>
+                          ))}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp
+                              size={12}
+                              className="text-gray-400 dark:text-gray-500"
+                            />
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {t.investments.investment}
+                            </span>
+                            <span className="text-gray-900 dark:text-gray-100">
+                              {formatDate(position.creation, locale)}
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <Calendar size={14} />
-                            <span>
-                              {t.investments.maturity}:{" "}
+                          <div className="flex items-center gap-2">
+                            <Calendar
+                              size={14}
+                              className="text-gray-400 dark:text-gray-500"
+                            />
+                            <span className="text-gray-500 dark:text-gray-400">
+                              {t.investments.maturity}
+                            </span>
+                            <span className="text-gray-900 dark:text-gray-100">
                               {formatDate(position.maturity, locale)}
                             </span>
                           </div>
                         </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-1">
-                            <TrendingUp size={12} />
-                            <span>
-                              {t.investments.creation}:{" "}
-                              {formatDate(position.creation, locale)}
-                            </span>
-                          </div>
-                        </div>
-
-                        {position.formattedExpectedAmount && (
-                          <div className="text-sm">
-                            <span className="text-gray-600 dark:text-gray-400">
-                              {t.investments.expectedProfit}:{" "}
-                            </span>
-                            <span className="font-medium text-green-600 dark:text-green-400">
-                              {position.formattedExpectedAmount}
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                       <div className="text-left sm:text-right space-y-1 flex-shrink-0">
@@ -696,6 +720,23 @@ function DepositsViewContent({
                         {position.currency !== defaultCurrency && (
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {position.formattedConvertedAmount}
+                          </div>
+                        )}
+                        {position.formattedExpectedAmount && (
+                          <div className="text-sm">
+                            <div className="flex flex-wrap items-center gap-1 sm:justify-end">
+                              <span className="text-gray-500 dark:text-gray-400">
+                                {t.investments.expected}
+                              </span>
+                              <span className="font-medium text-green-600 dark:text-green-400">
+                                {position.formattedExpectedAmount}
+                                {expectedReturnPct !== null && (
+                                  <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                    ({expectedReturnPct.toFixed(2)}%)
+                                  </span>
+                                )}
+                              </span>
+                            </div>
                           </div>
                         )}
                         <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">

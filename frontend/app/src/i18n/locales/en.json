@@ -71,6 +71,7 @@
     "search": "Search...",
     "copy": "Copy",
     "copied": "Copied",
+    "each": "each",
     "incompatibleLoginPlatform": "Use desktop app in order to do manual log in.",
     "selectOptions": "Select options...",
     "searchOptions": "Search options...",
@@ -103,6 +104,7 @@
     "lastInvest": "Last Investment",
     "maturity": "Maturity",
     "creation": "Created",
+    "investment": "Investment",
     "interest": "Interest",
     "annually": "annually",
     "expected": "Expected",
@@ -124,7 +126,32 @@
     "asset": "asset",
     "assets": "assets",
     "weightedAverageInterest": "Weighted Avg. Interest",
-    "weightedAverageProfitability": "Weighted Avg. Profitability"
+    "weightedAverageProfitability": "Weighted Avg. Profitability",
+    "states": {
+      "UNDER_REVIEW": "Under review",
+      "IN_PROGRESS": "In progress",
+      "COMPLETED": "Completed",
+      "DISPUTE": "In dispute",
+      "MATURITY_NOT_REACHED": "In progress",
+      "MANAGING_COLLECTION": "Collecting",
+      "FAILED": "Failed",
+      "COLLECTED": "Collected"
+    },
+    "projectTypes": {
+      "HOUSING": "Housing",
+      "FLOOR": "Floor",
+      "COMMERCIAL_OFFICE": "Commercial office",
+      "HOTEL": "Hotel",
+      "PREMISES": "Premises",
+      "LOFT": "Loft",
+      "RENEWABLES": "Renewables",
+      "HOSPITAL": "Hospital",
+      "LOGISTIC": "Logistics",
+      "INDUSTRIAL_UNIT": "Industrial unit",
+      "PUBLIC_ADMIN": "Public Admin",
+      "INSURED": "Insured",
+      "NON_INSURED": "Non-insured"
+    }
   },
   "toast": {
     "success": "Success",

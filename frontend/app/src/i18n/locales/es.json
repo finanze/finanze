@@ -42,6 +42,7 @@
     "search": "Buscar...",
     "copy": "Copiar",
     "copied": "Copiado",
+    "each": "cada uno",
     "comingSoon": "Próximamente",
     "confirm": "Confirmar",
     "incompatibleLoginPlatform": "Usa la app de escritorio para iniciar sesión manualmente.",
@@ -101,6 +102,7 @@
     "lastInvest": "Última Inversión",
     "maturity": "Vencimiento",
     "creation": "Creado",
+    "investment": "Inversión",
     "interest": "Interés",
     "annually": "anual",
     "expected": "Esperado",
@@ -122,7 +124,32 @@
     "asset": "activo",
     "assets": "activos",
     "weightedAverageInterest": "Interés ponderado",
-    "weightedAverageProfitability": "Rent. ponderada"
+    "weightedAverageProfitability": "Rent. ponderada",
+    "states": {
+      "UNDER_REVIEW": "En revisión",
+      "IN_PROGRESS": "En progreso",
+      "COMPLETED": "Completado",
+      "DISPUTE": "En disputa",
+      "MATURITY_NOT_REACHED": "En progreso",
+      "MANAGING_COLLECTION": "Cobrando",
+      "FAILED": "Fallido",
+      "COLLECTED": "Cobrado"
+    },
+    "projectTypes": {
+      "HOUSING": "Residencial",
+      "FLOOR": "Suelo",
+      "COMMERCIAL_OFFICE": "Oficinas comerciales",
+      "HOTEL": "Hotelero",
+      "PREMISES": "Local",
+      "LOFT": "Loft",
+      "RENEWABLES": "Renovables",
+      "HOSPITAL": "Hospital",
+      "LOGISTIC": "Logístico",
+      "INDUSTRIAL_UNIT": "Nave industrial",
+      "PUBLIC_ADMIN": "Admin pública",
+      "INSURED": "Con seguro",
+      "NON_INSURED": "Sin seguro"
+    }
   },
   "toast": {
     "success": "Operación exitosa",
