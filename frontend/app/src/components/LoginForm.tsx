@@ -1,5 +1,6 @@
 import type React from "react"
 import { useState, useEffect } from "react"
+import { Clock } from "lucide-react"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
@@ -9,8 +10,14 @@ import { useI18n } from "@/i18n"
 import { CredentialType } from "@/types"
 
 export function LoginForm() {
-  const { selectedEntity, login, isLoading, storedCredentials } =
-    useAppContext()
+  const {
+    selectedEntity,
+    login,
+    isLoading,
+    storedCredentials,
+    selectedFeatures,
+    fetchOptions,
+  } = useAppContext()
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const { t } = useI18n()
 
@@ -24,6 +31,16 @@ export function LoginForm() {
   }, [storedCredentials])
 
   if (!selectedEntity) return null
+
+  const lastTransactionsFetchRaw = selectedEntity.last_fetch?.TRANSACTIONS
+  const hasTransactionsHistory =
+    typeof lastTransactionsFetchRaw === "string" &&
+    lastTransactionsFetchRaw.trim() !== ""
+  const isDeepFetch = Boolean(fetchOptions.deep)
+  const showTransactionsLoadingNotice =
+    isLoading &&
+    selectedFeatures.includes("TRANSACTIONS") &&
+    (!hasTransactionsHistory || isDeepFetch)
 
   const handleInputChange = (key: string, value: string) => {
     setCredentials(prev => ({ ...prev, [key]: value }))
@@ -94,6 +111,12 @@ export function LoginForm() {
               </div>
             )
           })}
+          {showTransactionsLoadingNotice && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <Clock className="mt-[2px] h-4 w-4 flex-shrink-0" />
+              <span>{t.features.transactionsLoadingNotice}</span>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? t.common.loading : t.common.submit}
           </Button>

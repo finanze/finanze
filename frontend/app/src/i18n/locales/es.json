@@ -250,11 +250,13 @@
     "HISTORIC": "Datos Históricos",
     "selectFeatures": "Seleccionar que datos obtener de",
     "selectAll": "Seleccionar todas",
+    "unselectAll": "Deseleccionar todas",
     "fetchSelected": "Obtener datos seleccionados",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
     "availableFeatures": "Características Disponibles",
+    "transactionsLoadingNotice": "La primera vez que importas transacciones o al forzar una recarga completa puede tardar varios minutos según la cantidad de datos.",
     "jumpToPin": "¿Ya tienes el código 2FA? Ir al PIN"
   },
   "settings": {

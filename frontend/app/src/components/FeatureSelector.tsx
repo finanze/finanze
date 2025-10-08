@@ -13,6 +13,7 @@ import {
   BarChart,
   CheckCircle,
   ChevronDown,
+  Clock,
   History,
   Receipt,
   Repeat,
@@ -53,6 +54,20 @@ export function FeatureSelector() {
     [selectedEntity],
   )
 
+  const allFeaturesSelected =
+    availableFeatures.length > 0 &&
+    availableFeatures.every(feature => selectedFeatures.includes(feature))
+
+  const hasTransactionsSelected = selectedFeatures.includes("TRANSACTIONS")
+  const lastTransactionsFetchRaw = selectedEntity.last_fetch?.TRANSACTIONS
+  const hasTransactionsHistory =
+    typeof lastTransactionsFetchRaw === "string" &&
+    lastTransactionsFetchRaw.trim() !== ""
+  const showTransactionsLoadingNotice =
+    isEntityFetching &&
+    hasTransactionsSelected &&
+    (!hasTransactionsHistory || deep)
+
   // Default-select all available features when entity changes or when none selected
   useEffect(() => {
     if (availableFeatures.length > 0) {
@@ -70,6 +85,10 @@ export function FeatureSelector() {
 
   const selectAllFeatures = () => {
     setSelectedFeatures([...availableFeatures])
+  }
+
+  const unselectAllFeatures = () => {
+    setSelectedFeatures([])
   }
 
   const handleSubmit = () => {
@@ -97,9 +116,13 @@ export function FeatureSelector() {
             <Button
               variant="outline"
               className="w-full"
-              onClick={selectAllFeatures}
+              onClick={
+                allFeaturesSelected ? unselectAllFeatures : selectAllFeatures
+              }
             >
-              {t.features.selectAll}
+              {allFeaturesSelected
+                ? t.features.unselectAll
+                : t.features.selectAll}
             </Button>
           )}
 
@@ -176,6 +199,13 @@ export function FeatureSelector() {
               </Popover>
             )}
           </div>
+
+          {showTransactionsLoadingNotice && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <Clock className="mt-[2px] h-4 w-4 flex-shrink-0" />
+              <span>{t.features.transactionsLoadingNotice}</span>
+            </div>
+          )}
 
           <Button
             className="w-full mt-4"
