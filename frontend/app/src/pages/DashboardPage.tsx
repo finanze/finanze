@@ -2098,7 +2098,7 @@ export default function DashboardPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex justify-between items-baseline">
+                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-y-1">
                     <p className="text-4xl font-bold">
                       {formatCurrency(
                         adjustedTotalAssets,
@@ -2115,7 +2115,7 @@ export default function DashboardPage() {
                         const sign = percentageValue >= 0 ? "+" : "-"
                         return (
                           <p
-                            className={`text-xl font-medium ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                            className={`text-xl font-medium sm:text-right sm:self-end ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
                           >
                             {sign}
                             {formatPercentage(

@@ -188,7 +188,7 @@ export function EntityRefreshDropdown() {
     <div className="relative">
       <Button
         variant="outline"
-        className="flex items-center gap-1"
+        className="flex items-center gap-1 h-9 px-3 text-sm"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="true"
