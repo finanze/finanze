@@ -13,6 +13,7 @@ import {
   PendingFlow,
   RealEstate,
   RealEstateFlowSubtype,
+  LoanPayload,
 } from "@/types"
 
 export const convertCurrency = (
@@ -2801,6 +2802,45 @@ export const getTotalCash = (
   return total
 }
 
+export const getRealEstateInitialInvestmentTotal = (
+  realEstateList: RealEstate[] | undefined,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!realEstateList || realEstateList.length === 0) return 0
+
+  return realEstateList.reduce((sum, re) => {
+    const purchasePrice = re.purchase_info?.price ?? 0
+    const purchaseExpenses = (re.purchase_info?.expenses || []).reduce(
+      (expenseSum, expense) => expenseSum + (expense.amount ?? 0),
+      0,
+    )
+
+    const financedAmount = (re.flows || [])
+      .filter(flow => flow.flow_subtype === RealEstateFlowSubtype.LOAN)
+      .reduce((loanSum, flow) => {
+        const payload = flow.payload as LoanPayload | undefined
+        const loanValue =
+          payload?.loan_amount != null
+            ? payload.loan_amount
+            : (payload?.principal_outstanding ?? 0)
+        return loanSum + (loanValue || 0)
+      }, 0)
+
+    const invested = Math.max(
+      purchasePrice + purchaseExpenses - financedAmount,
+      0,
+    )
+    const converted = convertCurrency(
+      invested,
+      re.currency,
+      targetCurrency,
+      exchangeRates,
+    )
+    return sum + converted
+  }, 0)
+}
+
 export const getRealEstateOwnedEquityTotal = (
   realEstateList: RealEstate[] | undefined,
   targetCurrency: string,
@@ -2860,13 +2900,21 @@ export const computeAdjustedKpis = (
         exchangeRates,
       )
     : 0
+  const realEstateInitialInvestment = options.includeRealEstate
+    ? getRealEstateInitialInvestmentTotal(
+        filteredRealEstateList,
+        targetCurrency,
+        exchangeRates,
+      )
+    : 0
   const cardUsed = options.includeCardExpenses
     ? getTotalCardUsed(positionsData, targetCurrency, exchangeRates)
     : 0
 
   return {
     adjustedTotalAssets: baseTotalAssets + equity - cardUsed,
-    adjustedInvestedAmount: baseInvestedAmount + equity - cardUsed,
+    adjustedInvestedAmount:
+      baseInvestedAmount + realEstateInitialInvestment - cardUsed,
   }
 }
 
@@ -2907,6 +2955,12 @@ export const computeForecastKpis = (
     options.includePending ? pendingFlows : ([] as PendingFlow[]),
   )
 
+  const filteredRealEstateList = options.includeRealEstate
+    ? options.includeResidences
+      ? realEstateList
+      : (realEstateList || []).filter(re => !re.basic_info?.is_residence)
+    : []
+
   const filteredForecastRealEstate = options.includeRealEstate
     ? options.includeResidences
       ? forecastRealEstate
@@ -2924,6 +2978,14 @@ export const computeForecastKpis = (
       )
     : 0
 
+  const realEstateInitialInvestment = options.includeRealEstate
+    ? getRealEstateInitialInvestmentTotal(
+        filteredRealEstateList,
+        targetCurrency,
+        exchangeRates,
+      )
+    : 0
+
   const cardUsed = options.includeCardExpenses
     ? getTotalCardUsed(forecastPositions, targetCurrency, exchangeRates)
     : 0
@@ -2938,7 +3000,7 @@ export const computeForecastKpis = (
 
   // Add projected equity (considered part of invested capital for consistency with base helper) and subtract card used similar to base logic
   const projectedInvestedAmount =
-    projectedInvestedRaw + projectedEquity - cardUsed
+    projectedInvestedRaw + realEstateInitialInvestment - cardUsed
 
   const projectedTotalAssets = projectedCoreTotal + projectedEquity - cardUsed
 

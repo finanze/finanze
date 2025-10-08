@@ -2094,7 +2094,7 @@ export default function DashboardPage() {
                 <CardHeader>
                   <CardTitle className="text-lg font-bold flex items-center">
                     <Wallet className="h-5 w-5 mr-2 text-primary" />
-                    {t.dashboard.totalAssets}
+                    {t.dashboard.netWorth}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
