@@ -23,7 +23,6 @@ from domain.entity import Entity, EntityType, Feature
 from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
-    ExternalIntegrationRequired,
 )
 from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
@@ -99,6 +98,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
         integrations = from_config(self._config_port.load().integrations)
 
         fetched_data = []
+        partial = False
         for entity in entities:
             lock = self._get_lock(entity.id)
 
@@ -119,10 +119,15 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
                     )
 
                     self._update_last_fetch(entity.id, [Feature.POSITION])
-                except ExternalIntegrationRequired:
-                    pass
+                except Exception:
+                    partial = True
 
-        return FetchResult(FetchResultCode.COMPLETED, data=fetched_data)
+        code = (
+            FetchResultCode.COMPLETED
+            if not partial
+            else FetchResultCode.PARTIALLY_COMPLETED
+        )
+        return FetchResult(code, data=fetched_data)
 
     def get_data(
         self,

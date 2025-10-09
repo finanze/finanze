@@ -214,7 +214,8 @@
     "LOGIN_REQUIRED": "Se requiere iniciar sesión. Por favor inicie sesión nuevamente.",
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente.",
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
-    "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar."
+    "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
+    "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}."
   },
   "entities": {
     "title": "Integraciones",

@@ -672,6 +672,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
         resetState()
         setView("entities")
+      } else if (response.code === FetchResultCode.PARTIALLY_COMPLETED) {
+        const entityName = entity?.name || t.common.crypto
+        const warningMessage = t.errors.PARTIALLY_COMPLETED.replace(
+          "{entity}",
+          entityName,
+        )
+        showToast(warningMessage, "warning")
+
+        if (onScrapeCompletedRef.current) {
+          try {
+            await onScrapeCompletedRef.current(entity?.id || "crypto")
+          } catch (error) {
+            console.error(
+              "Error refreshing financial data after partial scrape:",
+              error,
+            )
+          }
+        }
+
+        resetState()
+        setView("entities")
       } else if (response.code === FetchResultCode.COMPLETED) {
         const successMessage = entity
           ? `${t.common.fetchSuccess}: ${entity.name}`

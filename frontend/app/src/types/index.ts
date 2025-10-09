@@ -184,6 +184,7 @@ export enum LoginResultCode {
 export enum FetchResultCode {
   // Success
   COMPLETED = "COMPLETED",
+  PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED",
 
   // Cooldown
   COOLDOWN = "COOLDOWN",

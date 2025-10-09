@@ -216,7 +216,8 @@
     "LOGIN_REQUIRED": "Login required. Please login again.",
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again.",
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
-    "LINK_EXPIRED": "The connection link expired. Relink the entity to continue."
+    "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
+    "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}."
   },
   "entities": {
     "title": "Integrations",
