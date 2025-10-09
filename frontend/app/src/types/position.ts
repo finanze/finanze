@@ -99,6 +99,7 @@ export interface StockDetail {
   currency: string
   type: string
   subtype?: string | null
+  info_sheet_url?: string | null
   source: DataSource
 }
 
@@ -121,6 +122,12 @@ export enum AssetType {
   OTHER = "OTHER",
 }
 
+export enum FundType {
+  MUTUAL_FUND = "MUTUAL_FUND",
+  PRIVATE_EQUITY = "PRIVATE_EQUITY",
+  PENSION_FUND = "PENSION_FUND",
+}
+
 export interface FundDetail {
   id: string
   name: string
@@ -130,9 +137,11 @@ export interface FundDetail {
   initial_investment: number
   average_buy_price: number
   market_value: number
+  type: FundType
   asset_type?: AssetType | null
   currency: string
   portfolio?: FundPortfolio | null
+  info_sheet_url?: string | null
   source: DataSource
 }
 

@@ -189,6 +189,7 @@ export interface StockFundPosition {
   isin?: string
   gainLossAmount?: number
   formattedGainLossAmount?: string
+  infoSheetUrl?: string | null
 }
 
 export interface CryptoPosition {
@@ -1720,6 +1721,7 @@ export const getStockAndFundPositions = (
             initialInvestment > 0 && gainLossAmount !== 0
               ? formatGainLoss(convertedGainLoss, locale, defaultCurrency)
               : undefined,
+          infoSheetUrl: stock.info_sheet_url || null,
         })
       })
     }
@@ -1793,6 +1795,7 @@ export const getStockAndFundPositions = (
             initialInvestment > 0 && gainLossAmount !== 0
               ? formatGainLoss(convertedGainLoss, locale, defaultCurrency)
               : undefined,
+          infoSheetUrl: fund.info_sheet_url || null,
         })
       })
     }

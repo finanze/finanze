@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 from uuid import uuid4
 
@@ -17,6 +18,7 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolio,
     FundPortfolios,
+    FundType,
     GlobalPosition,
     ProductType,
 )
@@ -111,6 +113,8 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     except Exception:
                         continue
 
+                    fund_details_url = self._parse_fund_details_url(instrument)
+
                     asset_type = AssetType.OTHER
                     if "equity" in raw_asset_type:
                         asset_type = AssetType.EQUITY
@@ -129,8 +133,10 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                             initial_investment=initial_investment,
                             average_buy_price=price,
                             market_value=market_value,
+                            type=FundType.MUTUAL_FUND,
                             asset_type=asset_type,
                             currency=account_currency,
+                            info_sheet_url=fund_details_url,
                             portfolio=FundPortfolio(id=fund_portfolio_id),
                         )
                     )
@@ -170,6 +176,21 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
         }
 
         return GlobalPosition(id=uuid4(), entity=INDEXA_CAPITAL, products=products)
+
+    @staticmethod
+    def _parse_fund_details_url(instrument: dict) -> str | None:
+        if not isinstance(instrument, dict):
+            return None
+        description = instrument.get("description")
+        if not description or not isinstance(description, str):
+            return None
+        match = re.search(r"href=[\'\"]([^\'\"]+)[\'\"]", description, re.IGNORECASE)
+        if not match:
+            return None
+        url = match.group(1).strip()
+        if not url.lower().startswith("http"):
+            return None
+        return url
 
     @staticmethod
     def _parse_date(date_str: str | None, fallback: str | None = None) -> datetime:

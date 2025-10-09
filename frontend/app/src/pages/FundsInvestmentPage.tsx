@@ -43,6 +43,7 @@ import {
   X,
   AlertCircle,
   Lock,
+  ExternalLink,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { MultiSelect } from "@/components/ui/MultiSelect"
@@ -383,6 +384,7 @@ function FundsInvestmentPageContent({
         percentageOfTotalPortfolio: 0,
         id: entryId,
         entityId: draft.entityId,
+        infoSheetUrl: draft.info_sheet_url ?? null,
       }
     },
     [exchangeRates, settings.general.defaultCurrency, locale],
@@ -851,6 +853,7 @@ function FundsInvestmentPageContent({
                   position.isin?.trim(),
                 ].filter(Boolean) as string[]
                 const symbolItems: React.ReactNode[] = []
+                const infoSheetUrl = position.infoSheetUrl?.trim()
 
                 if (position.assetType) {
                   symbolItems.push(
@@ -950,9 +953,25 @@ function FundsInvestmentPageContent({
                     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                       <div className="space-y-3 flex-1 min-w-0">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
-                          <h3 className="text-lg font-semibold">
-                            {position.name}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-semibold">
+                              {position.name}
+                            </h3>
+                            {infoSheetUrl && (
+                              <a
+                                href={infoSheetUrl}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                                aria-label={t.investments.openInfoSheet}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                <span className="sr-only">
+                                  {t.investments.openInfoSheet}
+                                </span>
+                              </a>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 flex-wrap">
                             {position.portfolioName && (
                               <button

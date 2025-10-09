@@ -32,6 +32,7 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolio,
     FundPortfolios,
+    FundType,
     GlobalPosition,
     InterestType,
     Loan,
@@ -330,8 +331,8 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
             """
             INSERT INTO fund_positions (id, global_position_id, name, isin, market,
                                         shares, initial_investment, average_buy_price,
-                                        market_value, asset_type, currency, portfolio_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        market_value, type, asset_type, currency, portfolio_id, info_sheet_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -343,9 +344,11 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
                 str(detail.initial_investment),
                 str(detail.average_buy_price),
                 str(detail.market_value),
+                detail.type,
                 detail.asset_type if detail.asset_type else None,
                 detail.currency,
                 str(detail.portfolio.id) if detail.portfolio else None,
+                detail.info_sheet_url,
             ),
         )
 
@@ -356,8 +359,8 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
             """
             INSERT INTO stock_positions (id, global_position_id, name, ticker, isin, market,
                                          shares, initial_investment, average_buy_price,
-                                         market_value, currency, type, subtype)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                         market_value, currency, type, subtype, info_sheet_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -373,6 +376,7 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
                 detail.currency,
                 detail.type,
                 detail.subtype,
+                detail.info_sheet_url,
             ),
         )
 
@@ -744,6 +748,7 @@ class PositionSQLRepository(PositionPort):
                     currency=row["currency"],
                     type=row["type"],
                     subtype=row["subtype"],
+                    info_sheet_url=row["info_sheet_url"],
                     source=global_position.source,
                 )
                 for row in cursor
@@ -828,6 +833,7 @@ class PositionSQLRepository(PositionPort):
                     initial_investment=Dezimal(row["initial_investment"]),
                     average_buy_price=Dezimal(row["average_buy_price"]),
                     market_value=Dezimal(row["market_value"]),
+                    type=FundType[row["type"]],
                     asset_type=AssetType[row["asset_type"]]
                     if row["asset_type"]
                     else None,
@@ -849,6 +855,7 @@ class PositionSQLRepository(PositionPort):
                     if row["portfolio_id"]
                     else None,
                     source=global_position.source,
+                    info_sheet_url=row["info_sheet_url"],
                 )
                 for row in cursor
             ]

@@ -38,6 +38,7 @@ from domain.global_position import (
     ProductType,
     StockDetail,
     StockInvestments,
+    FundType,
 )
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
@@ -891,7 +892,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 else:
                     asset_type = AssetType.OTHER
 
-                # key_info_sheet = fund_details.get("infoFundUrl")
+                key_info_sheet = fund_details.get("urlKiid")
                 added_values = self._client.get_fund_added_values(
                     security_account_id, isin
                 )
@@ -915,8 +916,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                             4,
                         ),  # averageCost
                         market_value=round(Dezimal(fund["marketValue"]), 4),
+                        type=FundType.MUTUAL_FUND,
                         asset_type=asset_type,
                         currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
+                        info_sheet_url=key_info_sheet,
                         portfolio=FundPortfolio(id=portfolio_id)
                         if portfolio_id
                         else None,

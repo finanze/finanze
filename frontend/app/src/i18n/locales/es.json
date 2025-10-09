@@ -113,6 +113,7 @@
     "pending": "Pendiente",
     "gross": "bruto",
     "symbol": "Símbolo",
+    "openInfoSheet": "Ver ficha del fondo",
     "shares": "Acciones",
     "price": "Precio",
     "isin": "ISIN",
@@ -635,6 +636,11 @@
       "FIXED": "Fijo",
       "VARIABLE": "Variable",
       "MIXED": "Mixto"
+    },
+    "fundType": {
+      "MUTUAL_FUND": "Fondo de inversión",
+      "PRIVATE_EQUITY": "Capital privado",
+      "PENSION_FUND": "Fondo de pensiones"
     },
     "kpis": {
       "assetTypeSplit": "Distribución por tipo"
@@ -1191,6 +1197,7 @@
         },
         "fields": {
           "isin": "ISIN",
+          "type": "Tipo de fondo",
           "shares": "Participaciones",
           "averageBuyPrice": "Precio medio de compra",
           "initialInvestment": "Inversión inicial",

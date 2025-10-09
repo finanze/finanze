@@ -114,6 +114,7 @@
     "expectedProfit": "Expected Profit",
     "pending": "Pending",
     "gross": "gross",
+    "openInfoSheet": "View fund sheet",
     "symbol": "Symbol",
     "shares": "Shares",
     "price": "Price",
@@ -636,6 +637,11 @@
       "FIXED": "Fixed",
       "VARIABLE": "Variable",
       "MIXED": "Mixed"
+    },
+    "fundType": {
+      "MUTUAL_FUND": "Mutual fund",
+      "PRIVATE_EQUITY": "Private equity",
+      "PENSION_FUND": "Pension fund"
     },
     "kpis": {
       "assetTypeSplit": "Asset Type Split"
@@ -1192,6 +1198,7 @@
         },
         "fields": {
           "isin": "ISIN",
+          "type": "Fund type",
           "shares": "Shares",
           "averageBuyPrice": "Average buy price",
           "initialInvestment": "Initial investment",

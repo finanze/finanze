@@ -22,6 +22,7 @@ from domain.global_position import (
     AssetType,
     FundDetail,
     FundInvestments,
+    FundType,
     GlobalPosition,
     ProductType,
     StockDetail,
@@ -140,6 +141,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             fund_details = details.fund_details
             name = fund_details["name"]
             fund_type = fund_details["fundType"].lower()
+            kid_url = details.instrument.get("kidLink")
             asset_type = AssetType.OTHER
             if "equity" in fund_type:
                 asset_type = AssetType.EQUITY
@@ -157,6 +159,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 initial_investment=initial_investment,
                 average_buy_price=average_buy,
                 market_value=market_value,
+                info_sheet_url=kid_url,
+                type=FundType.MUTUAL_FUND,
                 asset_type=asset_type,
                 currency=currency,
             )

@@ -14,6 +14,7 @@ import {
   InterestType,
   FundDetail,
   FundPortfolio,
+  FundType,
   AssetType,
   StockDetail,
   Deposit,
@@ -460,6 +461,7 @@ interface FundFormState extends ManualPositionFormBase {
   initial_investment: string
   market_value: string
   currency: string
+  type: string
   asset_type: string
   portfolio_id: string
   _portfolio_label: string
@@ -1458,6 +1460,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         initial_investment: "",
         market_value: "",
         currency: defaultCurrency,
+        type: FundType.MUTUAL_FUND,
         asset_type: "",
         portfolio_id: "",
         _portfolio_label: "",
@@ -1491,6 +1494,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             ? formatNumberInput(draft.market_value)
             : "",
         currency: draft.currency,
+        type: draft.type ?? FundType.MUTUAL_FUND,
         asset_type: draft.asset_type ?? "",
         portfolio_id: draft.portfolio?.id ?? "",
         _portfolio_label: buildPortfolioLabel(draft.portfolio ?? null),
@@ -1571,6 +1575,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         average_buy_price: resolvedAverageBuy,
         market_value: resolvedMarketValue,
         initial_investment: resolvedInitialInvestment,
+        type: (form.type as FundType) || FundType.MUTUAL_FUND,
         asset_type: (form.asset_type as AssetType) || null,
         currency: form.currency,
         portfolio,
@@ -1586,6 +1591,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.isin.trim()) errors.isin = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
+      if (!form.type) errors.type = requiredField(t)
       const shares = parseNumberInput(form.shares)
       if (shares === null || shares <= 0) errors.shares = numberFieldError(t)
       const avg = parseNumberInput(form.average_buy_price)
@@ -1655,6 +1661,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "isin",
             props.t("management.manualPositions.funds.fields.isin"),
             props,
+          )}
+          {renderSelectInput(
+            "type",
+            props.t("management.manualPositions.funds.fields.type"),
+            props,
+            Object.values(FundType).map(value => ({
+              value,
+              label: props.t(`enums.fundType.${value}`) || value,
+            })),
           )}
           {renderSelectInput(
             "currency",
@@ -1845,6 +1860,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       initial_investment: draft.initial_investment ?? null,
       market_value: draft.market_value ?? null,
       currency: draft.currency,
+      type: draft.type,
       asset_type: draft.asset_type ?? null,
       portfolio_id: draft.portfolio?.id ?? null,
     }),
@@ -1857,6 +1873,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       initial_investment: draft.initial_investment ?? null,
       market_value: draft.market_value ?? null,
       currency: draft.currency,
+      type: draft.type,
       asset_type: draft.asset_type ?? null,
       market: draft.market ?? "",
       portfolio: draft.portfolio

@@ -43,6 +43,7 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
+    FundType,
 )
 
 
@@ -185,6 +186,7 @@ def _map_funds(entries: list[dict]) -> FundInvestments:
                 average_buy_price=avg_buy,
                 market_value=market_value,
                 currency=e["currency"],
+                type=FundType(e["type"]),
                 asset_type=AssetType(e.get("asset_type"))
                 if e.get("asset_type")
                 else None,

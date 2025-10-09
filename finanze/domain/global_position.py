@@ -112,6 +112,12 @@ class AssetType(str, Enum):
     OTHER = "OTHER"
 
 
+class FundType(str, Enum):
+    MUTUAL_FUND = "MUTUAL_FUND"
+    PRIVATE_EQUITY = "PRIVATE_EQUITY"
+    PENSION_FUND = "PENSION_FUND"
+
+
 @dataclass
 class StockDetail(BaseData):
     id: Optional[UUID]
@@ -126,6 +132,7 @@ class StockDetail(BaseData):
     currency: str
     type: str
     subtype: Optional[str] = None
+    info_sheet_url: Optional[str] = None
     source: DataSource = DataSource.REAL
 
 
@@ -152,8 +159,10 @@ class FundDetail(BaseData):
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
+    type: FundType
     asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
+    info_sheet_url: Optional[str] = None
     source: DataSource = DataSource.REAL
 
 
