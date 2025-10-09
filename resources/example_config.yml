@@ -66,8 +66,6 @@ export:
               - MANAGING_COLLECTION
 
 fetch:
-  updateCooldown: 60
-
   virtual:
     enabled: true
 

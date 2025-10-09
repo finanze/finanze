@@ -239,16 +239,6 @@ export default function SettingsPage() {
     })
   }
 
-  const handleUpdateCooldown = (value: string) => {
-    setSettings({
-      ...settings,
-      fetch: {
-        ...settings.fetch,
-        updateCooldown: value === "" ? 60 : Number.parseInt(value) || 60,
-      },
-    })
-  }
-
   const handleExportToggle = (enabled: boolean) => {
     // Don't allow enabling if Google Sheets integration is not enabled
     if (enabled && !isGoogleSheetsIntegrationEnabled()) {
@@ -2261,29 +2251,6 @@ export default function SettingsPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <Card className="mb-4">
-              <CardHeader>
-                <CardTitle>{t.settings.scrapeSettings}</CardTitle>
-                <CardDescription>
-                  {t.settings.scrapeDescription}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="updateCooldown">
-                    {t.settings.updateCooldown}
-                  </Label>
-                  <Input
-                    id="updateCooldown"
-                    type="number"
-                    value={settings.fetch?.updateCooldown ?? 60}
-                    onChange={e => handleUpdateCooldown(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle>{t.settings.virtual}</CardTitle>

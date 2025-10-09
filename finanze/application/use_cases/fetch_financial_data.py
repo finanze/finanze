@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from asyncio import Lock
 from dataclasses import asdict
 from datetime import datetime
@@ -38,6 +39,9 @@ from domain.transactions import TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
 DEFAULT_FEATURES = [Feature.POSITION]
+POSITION_UPDATE_COOLDOWN_SECONDS = int(
+    os.environ.get("POSITION_UPDATE_COOLDOWN_SECONDS", 60)
+)
 
 
 def compute_return_values(related_inv_txs):
@@ -120,6 +124,24 @@ def _historic_inv_by_name(historical_position):
     return investments_by_name
 
 
+def handle_cooldown(last_fetches, update_cooldown) -> Optional[FetchResult]:
+    last_fetch = None
+    if last_fetches:
+        last_fetch = last_fetches[0].date
+
+    if last_fetch and (datetime.now(tzlocal()) - last_fetch).seconds < update_cooldown:
+        remaining_seconds = (
+            update_cooldown - (datetime.now(tzlocal()) - last_fetch).seconds
+        )
+        details = {
+            "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
+            "wait": remaining_seconds,
+        }
+        return FetchResult(FetchResultCode.COOLDOWN, details=details)
+
+    return None
+
+
 class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
     def __init__(
         self,
@@ -175,31 +197,10 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             raise ExecutionConflict()
 
         async with lock:
-            if Feature.POSITION in features:
-                update_cooldown = self._get_position_update_cooldown()
-                last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
-                last_fetch = next(
-                    (
-                        record
-                        for record in last_fetch
-                        if record.feature == Feature.POSITION
-                    ),
-                    None,
-                )
-                if last_fetch:
-                    last_fetch = last_fetch.date
-                if (
-                    last_fetch
-                    and (datetime.now(tzlocal()) - last_fetch).seconds < update_cooldown
-                ):
-                    remaining_seconds = (
-                        update_cooldown - (datetime.now(tzlocal()) - last_fetch).seconds
-                    )
-                    details = {
-                        "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
-                        "wait": remaining_seconds,
-                    }
-                    return FetchResult(FetchResultCode.COOLDOWN, details=details)
+            last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
+            result = handle_cooldown(last_fetch, POSITION_UPDATE_COOLDOWN_SECONDS)
+            if result:
+                return result
 
             credentials = self._credentials_port.get(entity.id)
             if credentials is None:
@@ -428,9 +429,6 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             historic_entries.append(historic_entry)
 
         return historic_entries
-
-    def _get_position_update_cooldown(self) -> int:
-        return self._config_port.load().fetch.updateCooldown
 
     def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())

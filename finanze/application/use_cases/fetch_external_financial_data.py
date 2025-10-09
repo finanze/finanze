@@ -14,6 +14,7 @@ from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
+from application.use_cases.fetch_financial_data import handle_cooldown
 from dateutil.tz import tzlocal
 from domain.entity import Entity, EntityOrigin, Feature
 from domain.exception.exceptions import (
@@ -98,26 +99,11 @@ class FetchExternalFinancialDataImpl(AtomicUCMixin, FetchExternalFinancialData):
 
         async with self._lock:
             last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
-            last_fetch = next(
-                (record for record in last_fetch if record.feature == Feature.POSITION),
-                None,
+            result = handle_cooldown(
+                last_fetch, self.EXTERNALLY_PROVIDED_POSITION_UPDATE_COOLDOWN
             )
-            if last_fetch:
-                last_fetch = last_fetch.date
-            if (
-                last_fetch
-                and (datetime.now(tzlocal()) - last_fetch).seconds
-                < self.EXTERNALLY_PROVIDED_POSITION_UPDATE_COOLDOWN
-            ):
-                remaining_seconds = (
-                    self.EXTERNALLY_PROVIDED_POSITION_UPDATE_COOLDOWN
-                    - (datetime.now(tzlocal()) - last_fetch).seconds
-                )
-                details = {
-                    "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
-                    "wait": remaining_seconds,
-                }
-                return FetchResult(FetchResultCode.COOLDOWN, details=details)
+            if result:
+                return result
 
             external_entity_provider = external_entity.provider
             provider = self._external_entity_fetchers[external_entity_provider]

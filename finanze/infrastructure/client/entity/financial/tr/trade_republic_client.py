@@ -124,12 +124,12 @@ class TradeRepublicClient:
 
         elif not code and not process_id:
             if not login_options.avoid_new_login:
-                countdown = self._tr_api.inititate_weblogin()
+                countdown = self._initiate_weblogin()
                 process_id = self._tr_api._process_id
                 return EntityLoginResult(
                     LoginResultCode.CODE_REQUESTED,
                     process_id=process_id,
-                    details={"countdown": countdown},
+                    details={"wait": countdown},
                 )
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
@@ -145,6 +145,27 @@ class TradeRepublicClient:
             return False
         else:
             return True
+
+    def _initiate_weblogin(self):
+        r = self._tr_api._websession.post(
+            f"{self._tr_api._host}/api/v1/auth/web/login",
+            json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
+        )
+        j = r.json()
+        try:
+            if j.get("errorCode") == "TOO_MANY_REQUESTS":
+                return int(j.get("meta", {}).get("nextAttemptInSeconds", 30))
+
+            self._tr_api._process_id = j["processId"]
+
+        except KeyError:
+            err = j.get("errors")
+            if err:
+                raise ValueError(str(err))
+            else:
+                raise ValueError("processId not in response")
+
+        return int(j["countdownInSeconds"]) + 1
 
     def _export_session(self) -> dict:
         return {"cookies": _json_cookie_jar(self._tr_api._websession.cookies)}

@@ -72,7 +72,6 @@ export interface AppSettings {
     }
   }
   fetch: {
-    updateCooldown: number
     virtual: {
       enabled: boolean
       [key: string]: any
@@ -97,6 +96,10 @@ export interface FetchOptions {
   deep?: boolean
   avoidNewLogin?: boolean
   code?: string
+}
+
+interface ResetStateOptions {
+  preserveSelectedFeatures?: boolean
 }
 
 interface AppContextType {
@@ -149,7 +152,7 @@ interface AppContextType {
     options?: FetchOptions,
   ) => Promise<void>
   runVirtualScrape: () => Promise<VirtualFetchResult | null>
-  resetState: () => void
+  resetState: (options?: ResetStateOptions) => void
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
@@ -177,7 +180,6 @@ const defaultSettings: AppSettings = {
     },
   },
   fetch: {
-    updateCooldown: 60,
     virtual: {
       enabled: false,
     },
@@ -593,6 +595,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const formatCooldownTime = (seconds: number): string => {
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      return "0s"
+    }
+
+    const units = [
+      { label: "d", value: 86400 },
+      { label: "h", value: 3600 },
+      { label: "m", value: 60 },
+      { label: "s", value: 1 },
+    ]
+
+    let remaining = Math.floor(seconds)
+    const parts: string[] = []
+
+    for (const unit of units) {
+      if (remaining >= unit.value) {
+        const amount = Math.floor(remaining / unit.value)
+        parts.push(`${amount}${unit.label}`)
+        remaining -= amount * unit.value
+      }
+
+      if (parts.length === 2) {
+        break
+      }
+    }
+
+    if (parts.length === 0) {
+      return `${Math.max(Math.floor(seconds), 0)}s`
+    }
+
+    return parts.join(" ")
+  }
+
   const scrape = async (
     entity: Entity | null,
     features: Feature[],
@@ -663,14 +699,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } else {
           console.debug("MANUAL_LOGIN response without credentials or entity")
           showToast(t.common.fetchError, "error")
-          resetState()
+          resetState({ preserveSelectedFeatures: true })
         }
+      } else if (response.code === FetchResultCode.COOLDOWN) {
+        const waitSeconds = response.details?.wait ?? null
+        const cooldownMessage = waitSeconds
+          ? t.errors.COOLDOWN_WITH_WAIT.replace(
+              "{time}",
+              formatCooldownTime(waitSeconds),
+            )
+          : t.errors.COOLDOWN
+        showToast(cooldownMessage, "warning")
+        resetState({ preserveSelectedFeatures: true })
       } else if (response.code === FetchResultCode.LOGIN_REQUIRED) {
         showToast(t.errors.LOGIN_REQUIRED_SCRAPE, "warning")
         if (entity) {
           updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
         }
-        resetState()
+        resetState({ preserveSelectedFeatures: true })
         setView("entities")
       } else if (response.code === FetchResultCode.PARTIALLY_COMPLETED) {
         const entityName = entity?.name || t.common.crypto
@@ -724,17 +770,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (entity) {
           updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
         }
-        resetState()
+        resetState({ preserveSelectedFeatures: true })
       } else if (response.code === FetchResultCode.REMOTE_FAILED) {
         showToast(t.errors.REMOTE_FAILED, "error")
-        resetState()
+        resetState({ preserveSelectedFeatures: true })
       } else {
         handleScrapeError(response.code || "UNEXPECTED_ERROR")
-        resetState()
+        resetState({ preserveSelectedFeatures: true })
       }
     } catch {
       showToast(t.common.fetchError, "error")
-      resetState()
+      resetState({ preserveSelectedFeatures: true })
     } finally {
       if (entity) {
         setFetchingEntityState(prev => ({
@@ -775,10 +821,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const resetState = () => {
+  const resetState = (options: ResetStateOptions = {}) => {
+    const { preserveSelectedFeatures = false } = options
     setPinRequired(false)
     setProcessId(null)
-    setSelectedFeatures([])
+    if (!preserveSelectedFeatures) {
+      setSelectedFeatures([])
+    }
     setFetchOptions(DEFAULT_OPTIONS)
     setCurrentAction(null)
     setStoredCredentials(null)

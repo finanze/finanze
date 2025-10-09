@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from asyncio import Lock
 from dataclasses import asdict
 from datetime import datetime
@@ -15,6 +16,7 @@ from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.use_cases.connect_crypto_wallet import from_config
+from application.use_cases.fetch_financial_data import handle_cooldown
 from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.crypto import CryptoFetchIntegrations, CryptoFetchRequest
@@ -43,6 +45,9 @@ from domain.global_position import (
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 
 TARGET_FIAT = "EUR"
+CRYPTO_POSITION_UPDATE_COOLDOWN = int(
+    os.environ.get("CRYPTO_POSITION_UPDATE_COOLDOWN", 120)
+)
 
 
 class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
@@ -94,6 +99,12 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             entities = [
                 e for e in native_entities.NATIVE_ENTITIES if e.id in connected_entities
             ]
+
+        for entity in entities:
+            last_fetch = self._last_fetches_port.get_by_entity_id(entity.id)
+            result = handle_cooldown(last_fetch, CRYPTO_POSITION_UPDATE_COOLDOWN)
+            if result:
+                return result
 
         integrations = from_config(self._config_port.load().integrations)
 

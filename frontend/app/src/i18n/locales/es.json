@@ -216,7 +216,8 @@
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente.",
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
-    "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}."
+    "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
+    "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente."
   },
   "entities": {
     "title": "Integraciones",
@@ -319,8 +320,6 @@
     "transactions": "Transacciones",
     "historic": "Datos Históricos",
     "scrape": "Importación",
-    "scrapeSettings": "Importación de datos",
-    "scrapeDescription": "Configura los ajustes generales de la extracción de datos",
     "virtual": "Datos virtuales",
     "virtualDescription": "Configura los ajustes para la importación de datos virtuales",
     "enabled": "Habilitado",
@@ -342,7 +341,6 @@
     "datetimeFormat": "Formato de Fecha y Hora",
     "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
     "filters": "Filtros",
-    "updateCooldown": "Tiempo de Espera (segundos)",
     "optional": "Opcional",
     "noItems": "No hay elementos configurados",
     "noFilters": "No hay filtros configurados",

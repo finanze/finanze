@@ -15,8 +15,8 @@ import {
   ChevronDown,
   Clock,
   History,
-  Receipt,
-  Repeat,
+  ArrowLeftRight,
+  PiggyBank,
   Send,
   Settings,
 } from "lucide-react"
@@ -98,8 +98,8 @@ export function FeatureSelector() {
   // Map features to icons
   const featureIcons: Record<Feature, React.ReactNode> = {
     POSITION: <BarChart className="h-5 w-5" />,
-    AUTO_CONTRIBUTIONS: <Repeat className="h-5 w-5" />,
-    TRANSACTIONS: <Receipt className="h-5 w-5" />,
+    AUTO_CONTRIBUTIONS: <PiggyBank className="h-5 w-5" />,
+    TRANSACTIONS: <ArrowLeftRight className="h-5 w-5" />,
     HISTORIC: <History className="h-5 w-5" />,
   }
 

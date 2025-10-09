@@ -122,7 +122,7 @@ export interface LoginResponse {
 export interface FetchResponse {
   code: FetchResultCode
   details?: {
-    countdown?: number
+    wait?: number
     processId?: string
     credentials?: Record<string, string>
   }
@@ -233,7 +233,6 @@ export interface Settings {
     }
   }
   fetch: {
-    updateCooldown: number
     virtual: {
       enabled: boolean
       globals: {

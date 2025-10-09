@@ -218,7 +218,8 @@
     "LOGIN_REQUIRED_SCRAPE": "Login required to fetch data. Please login to the entity again.",
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
-    "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}."
+    "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
+    "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again."
   },
   "entities": {
     "title": "Integrations",
@@ -313,8 +314,6 @@
     "transactions": "Transactions",
     "historic": "Historic Data",
     "scrape": "Import & Fetch",
-    "scrapeSettings": "Import",
-    "scrapeDescription": "Configure general scraping settings",
     "virtual": "Virtual data",
     "virtualDescription": "Configure settings for virtual data",
     "enabled": "Enabled",
@@ -336,7 +335,6 @@
     "datetimeFormat": "Datetime Format",
     "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
     "filters": "Filters",
-    "updateCooldown": "Update Cooldown (seconds)",
     "optional": "Optional",
     "noItems": "No items configured",
     "noFilters": "No filters configured",
