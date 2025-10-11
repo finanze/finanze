@@ -824,11 +824,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resetState = (options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
     setPinRequired(false)
-    setProcessId(null)
+
     if (!preserveSelectedFeatures) {
       setSelectedFeatures([])
+      setFetchOptions(DEFAULT_OPTIONS)
+      setProcessId(null)
     }
-    setFetchOptions(DEFAULT_OPTIONS)
     setCurrentAction(null)
     setStoredCredentials(null)
     setPinError(false)

@@ -219,4 +219,5 @@ export interface TransactionQueryRequest {
   from_date?: string
   to_date?: string
   types?: TxType[]
+  historic_entry_id?: string
 }

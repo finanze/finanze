@@ -28,6 +28,7 @@ from domain.use_cases.get_available_external_entities import (
 from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
+from domain.use_cases.get_historic import GetHistoric
 from domain.use_cases.get_login_status import GetLoginStatus
 from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
@@ -117,6 +118,7 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
+from infrastructure.controller.routes.historic import get_historic
 
 
 def register_routes(
@@ -138,6 +140,7 @@ def register_routes(
     disconnect_entity_uc: DisconnectEntity,
     get_position_uc: GetPosition,
     get_contributions_uc: GetContributions,
+    get_historic_uc: GetHistoric,
     get_transactions_uc: GetTransactions,
     get_exchange_rates_uc: GetExchangeRates,
     connect_external_entity_uc: ConnectExternalEntity,
@@ -367,3 +370,7 @@ def register_routes(
     @app.route("/api/v1/data/manual/transactions/<tx_id>", methods=["DELETE"])
     async def delete_manual_transaction_route(tx_id: str):
         return await delete_manual_transaction(delete_manual_transaction_uc, tx_id)
+
+    @app.route("/api/v1/historic", methods=["GET"])
+    def get_historic_route():
+        return get_historic(get_historic_uc)

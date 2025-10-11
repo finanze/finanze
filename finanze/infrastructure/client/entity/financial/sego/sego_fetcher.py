@@ -212,6 +212,9 @@ class SegoFetcher(FinancialEntityFetcher):
 
         normalized_movs = []
         for movement in raw_movements:
+            if "Factoring" not in (movement.get("plataforma") or ""):
+                continue
+
             if (not types or movement["type"] in types) and (
                 not subtypes or movement["tipo"] in subtypes
             ):
@@ -293,7 +296,7 @@ class SegoFetcher(FinancialEntityFetcher):
             if ref in registered_txs:
                 continue
 
-            fee, tax, interests = Dezimal(0), Dezimal(0), Dezimal(0)
+            fee, tax = Dezimal(0), Dezimal(0)
             net_amount = amount
             if tx_type == TxType.INTEREST:
                 matching_investment = next(
@@ -315,7 +318,7 @@ class SegoFetcher(FinancialEntityFetcher):
                 fee = round(percentage * Dezimal(matching_investment["comision"]), 2)
                 tax = round(percentage * Dezimal(matching_investment["retencion"]), 2)
 
-                net_amount = interests - fee - tax
+                net_amount = amount - fee - tax
 
             stored_tx = map_txs(
                 ref, tx, investment_name, tx_type, amount, net_amount, fee, tax

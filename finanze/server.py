@@ -35,6 +35,7 @@ from application.use_cases.get_available_external_entities import (
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
+from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
@@ -322,6 +323,7 @@ class FinanzeServer:
         update_settings = UpdateSettingsImpl(self.config_loader)
         get_entities_position = GetPositionImpl(position_repository)
         get_contributions = GetContributionsImpl(auto_contrib_repository)
+        get_historic = GetHistoricImpl(historic_repository)
         get_transactions = GetTransactionsImpl(transaction_repository)
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client, crypto_price_client, metal_price_client
@@ -488,6 +490,7 @@ class FinanzeServer:
             disconnect_entity,
             get_entities_position,
             get_contributions,
+            get_historic,
             get_transactions,
             get_exchange_rates,
             connect_external_entity,

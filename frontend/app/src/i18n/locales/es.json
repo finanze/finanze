@@ -150,6 +150,35 @@
       "PUBLIC_ADMIN": "Admin pública",
       "INSURED": "Con seguro",
       "NON_INSURED": "Sin seguro"
+    },
+    "historicSection": {
+      "heading": "Inversiones pasadas",
+      "showToggle": "Mostrar completadas",
+      "hideToggle": "Ocultar completadas",
+      "toggleShort": {
+        "show": "Mostrar completadas",
+        "hide": "Ocultar completadas"
+      },
+      "empty": "No hay proyectos de {type} completados.",
+      "emptyFiltered": "No hay proyectos de {type} completados para las entidades seleccionadas.",
+      "invested": "Invertido",
+      "returned": "Retornado",
+      "repaid": "Reembolsado",
+      "netReturn": "Retorno neto",
+      "netProfit": "Beneficio neto",
+      "fees": "Comisiones",
+      "retentions": "Retenciones",
+      "interests": "Intereses",
+      "lastTx": "Última transacción",
+      "transactionsSummary": "Resumen de transacciones",
+      "transactionsSummaryShort": "Resumen",
+      "noTransactions": "No hay transacciones relacionadas.",
+      "viewTransactions": "Ver transacciones",
+      "showDetails": "Ver detalles",
+      "hideDetails": "Ocultar detalles",
+      "originalMaturity": "Vencimiento original",
+      "effectiveMaturity": "Vencimiento efectivo",
+      "extendedMaturity": "Vencimiento extendido"
     }
   },
   "toast": {
@@ -550,7 +579,13 @@
     },
     "deleteManualTransactionTitle": "Eliminar transacción manual",
     "deleteManualTransactionMessage": "¿Seguro que quieres eliminar esta transacción manual?",
-    "deleteManualTransactionWarning": "Esta acción no se puede deshacer."
+    "deleteManualTransactionWarning": "Esta acción no se puede deshacer.",
+    "historicFilter": {
+      "title": "Filtro de proyecto histórico",
+      "description": "Mostrando transacciones para {project}.",
+      "descriptionGeneric": "Filtro histórico activo.",
+      "clear": "Quitar filtro histórico"
+    }
   },
   "time": {
     "justNow": "justo ahora",

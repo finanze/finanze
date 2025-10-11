@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
@@ -56,6 +56,7 @@ import {
   type ManualTransactionSubmitResult,
 } from "@/components/transactions/ManualTransactionDialog"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { useLocation, useNavigate } from "react-router-dom"
 
 interface TransactionFilters {
   entities: string[]
@@ -64,6 +65,7 @@ interface TransactionFilters {
   types: TxType[]
   from_date: string
   to_date: string
+  historic_entry_id: string
 }
 
 type TransactionItem = TransactionsResult["transactions"][number]
@@ -74,6 +76,22 @@ export default function TransactionsPage() {
   const { t, locale } = useI18n()
   const { entities, inactiveEntities, settings, showToast, exchangeRates } =
     useAppContext()
+  const location = useLocation()
+  const navigateRouter = useNavigate()
+
+  const initialHistoricEntryIdRef = useRef(
+    new URLSearchParams(location.search).get("historic_entry_id") ?? "",
+  )
+  const initialHistoricEntryNameRef = useRef<string | null>(
+    new URLSearchParams(location.search).get("historic_entry_name"),
+  )
+  const skipInitialFetchRef = useRef(Boolean(initialHistoricEntryIdRef.current))
+  const latestFetchIdRef = useRef(0)
+  const historicFilterWatchStartedRef = useRef(false)
+  const previousHistoricIdRef = useRef<string>(
+    initialHistoricEntryIdRef.current,
+  )
+  const initialFetchTriggeredRef = useRef(false)
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
@@ -83,14 +101,15 @@ export default function TransactionsPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
-  const [filters, setFilters] = useState<TransactionFilters>({
+  const [filters, setFilters] = useState<TransactionFilters>(() => ({
     entities: [],
     excluded_entities: inactiveEntities?.map(e => e.id) || [],
     product_types: [],
     types: [],
     from_date: "",
     to_date: "",
-  })
+    historic_entry_id: initialHistoricEntryIdRef.current,
+  }))
 
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<"create" | "edit">("create")
@@ -100,6 +119,9 @@ export default function TransactionsPage() {
   const [deleteTarget, setDeleteTarget] = useState<TransactionItem | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeletingTransaction, setIsDeletingTransaction] = useState(false)
+  const [historicEntryName, setHistoricEntryName] = useState<string | null>(
+    initialHistoricEntryNameRef.current,
+  )
 
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     return (
@@ -180,10 +202,29 @@ export default function TransactionsPage() {
       )
   }, [entities, locale])
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const entryIdParam = params.get("historic_entry_id") ?? ""
+    const entryNameParam = params.get("historic_entry_name")
+
+    setHistoricEntryName(entryNameParam ? entryNameParam : null)
+
+    setFilters(prev => {
+      if (prev.historic_entry_id === entryIdParam) {
+        return prev
+      }
+      return {
+        ...prev,
+        historic_entry_id: entryIdParam,
+      }
+    })
+  }, [location.search])
+
   const fetchTransactions = async (
     page: number = 1,
     resetPage: boolean = false,
   ) => {
+    const fetchId = ++latestFetchIdRef.current
     setLoading(true)
     // Clear previous error toast implicitly by showing a new one only on failure
 
@@ -205,25 +246,59 @@ export default function TransactionsPage() {
       })
 
       const result = await getTransactions(queryParams)
-      setTransactions(result)
+      if (latestFetchIdRef.current === fetchId) {
+        setTransactions(result)
 
-      if (resetPage) {
-        setCurrentPage(1)
+        if (resetPage) {
+          setCurrentPage(1)
+        }
       }
 
       return result
     } catch (err) {
       console.error("Error fetching transactions:", err)
-      showToast(t.errors.UNEXPECTED_ERROR, "error")
+      if (latestFetchIdRef.current === fetchId) {
+        showToast(t.errors.UNEXPECTED_ERROR, "error")
+      }
       return undefined
     } finally {
-      setLoading(false)
+      if (latestFetchIdRef.current === fetchId) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
+    if (initialFetchTriggeredRef.current) {
+      return
+    }
+
+    initialFetchTriggeredRef.current = true
+
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false
+      return
+    }
+
     fetchTransactions(1, true)
   }, [])
+
+  useEffect(() => {
+    if (!historicFilterWatchStartedRef.current) {
+      historicFilterWatchStartedRef.current = true
+      previousHistoricIdRef.current = filters.historic_entry_id
+
+      if (filters.historic_entry_id) {
+        fetchTransactions(1, true)
+      }
+      return
+    }
+
+    if (previousHistoricIdRef.current !== filters.historic_entry_id) {
+      previousHistoricIdRef.current = filters.historic_entry_id
+      fetchTransactions(1, true)
+    }
+  }, [filters.historic_entry_id])
 
   const handleFilterChange = (key: keyof TransactionFilters, value: any) => {
     setFilters(prev => ({
@@ -232,11 +307,41 @@ export default function TransactionsPage() {
     }))
   }
 
+  const clearHistoricFilter = useCallback(() => {
+    setFilters(prev => {
+      if (!prev.historic_entry_id) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        historic_entry_id: "",
+      }
+    })
+
+    setHistoricEntryName(null)
+
+    const params = new URLSearchParams(location.search)
+    params.delete("historic_entry_id")
+    params.delete("historic_entry_name")
+
+    const searchString = params.toString()
+
+    navigateRouter(
+      {
+        pathname: location.pathname,
+        search: searchString ? `?${searchString}` : "",
+      },
+      { replace: true },
+    )
+  }, [location.pathname, location.search, navigateRouter])
+
   const handleApplyFilters = () => {
     fetchTransactions(1, true)
   }
 
   const handleClearFilters = () => {
+    clearHistoricFilter()
     setFilters({
       entities: [],
       excluded_entities: inactiveEntities?.map(e => e.id) || [],
@@ -244,6 +349,7 @@ export default function TransactionsPage() {
       types: [],
       from_date: "",
       to_date: "",
+      historic_entry_id: "",
     })
     fetchTransactions(1, true)
   }
@@ -909,6 +1015,32 @@ export default function TransactionsPage() {
           </Button>
         </div>
       </Card>
+
+      {filters.historic_entry_id && (
+        <div className="flex flex-col gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-700 dark:border-blue-500/40 dark:bg-blue-900/20 dark:text-blue-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">
+              {t.transactions.historicFilter.title}
+            </p>
+            <p className="text-xs">
+              {historicEntryName
+                ? t.transactions.historicFilter.description.replace(
+                    "{project}",
+                    historicEntryName,
+                  )
+                : t.transactions.historicFilter.descriptionGeneric}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start sm:self-auto"
+            onClick={clearHistoricFilter}
+          >
+            {t.transactions.historicFilter.clear}
+          </Button>
+        </div>
+      )}
 
       {/* Results */}
 

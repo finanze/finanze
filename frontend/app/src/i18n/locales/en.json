@@ -152,6 +152,35 @@
       "PUBLIC_ADMIN": "Public Admin",
       "INSURED": "Insured",
       "NON_INSURED": "Non-insured"
+    },
+    "historicSection": {
+      "heading": "Past investments",
+      "showToggle": "Show completed",
+      "hideToggle": "Hide completed",
+      "toggleShort": {
+        "show": "Show completed",
+        "hide": "Hide completed"
+      },
+      "empty": "No completed {type} projects available.",
+      "emptyFiltered": "No completed {type} projects for the selected entities.",
+      "invested": "Invested",
+      "returned": "Returned",
+      "repaid": "Repaid",
+      "netReturn": "Net return",
+      "netProfit": "Net profit",
+      "fees": "Fees",
+      "retentions": "Retentions",
+      "interests": "Interests",
+      "lastTx": "Last transaction",
+      "transactionsSummary": "Transactions summary",
+      "transactionsSummaryShort": "Summary",
+      "noTransactions": "No related transactions recorded.",
+      "viewTransactions": "View transactions",
+      "showDetails": "Show details",
+      "hideDetails": "Hide details",
+      "originalMaturity": "Original maturity",
+      "effectiveMaturity": "Effective maturity",
+      "extendedMaturity": "Extended maturity"
     }
   },
   "toast": {
@@ -551,7 +580,13 @@
     },
     "deleteManualTransactionTitle": "Delete manual transaction",
     "deleteManualTransactionMessage": "Are you sure you want to delete this manual transaction?",
-    "deleteManualTransactionWarning": "This action cannot be undone."
+    "deleteManualTransactionWarning": "This action cannot be undone.",
+    "historicFilter": {
+      "title": "Historic project filter",
+      "description": "Showing transactions for {project}.",
+      "descriptionGeneric": "Historic project filter active.",
+      "clear": "Clear historic filter"
+    }
   },
   "time": {
     "justNow": "just now",

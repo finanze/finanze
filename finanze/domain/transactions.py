@@ -141,3 +141,4 @@ class TransactionQueryRequest:
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
     types: Optional[list[TxType]] = None
+    historic_entry_id: Optional[UUID] = None

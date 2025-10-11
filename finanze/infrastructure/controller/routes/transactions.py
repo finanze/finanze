@@ -1,6 +1,7 @@
-from flask import request, jsonify
+from uuid import UUID
 
 from domain.transactions import TransactionQueryRequest
+from flask import jsonify, request
 
 
 def transactions(get_transactions_uc):
@@ -12,6 +13,12 @@ def transactions(get_transactions_uc):
     from_date = request.args.get("from_date")
     to_date = request.args.get("to_date")
     tx_types = request.args.getlist("type")
+    historic_entry_id = request.args.get("historic_entry_id")
+    if historic_entry_id:
+        try:
+            historic_entry_id = UUID(historic_entry_id)
+        except ValueError:
+            return jsonify({"error": "Invalid historic_entry_id format"}), 400
 
     query = TransactionQueryRequest(
         page=page,
@@ -22,6 +29,7 @@ def transactions(get_transactions_uc):
         from_date=from_date,
         to_date=to_date,
         types=[tx_type for tx_type in tx_types] or None,
+        historic_entry_id=historic_entry_id,
     )
 
     result = get_transactions_uc.execute(query)

@@ -356,6 +356,11 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         )
 
         last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
+        effective_maturity = (
+            last_return_tx
+            if (not hasattr(inv, "pending_amount") or inv.pending_amount == 0)
+            else None
+        )
 
         historic_entry_base = {
             "id": uuid4(),
@@ -366,7 +371,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             "currency": inv.currency,
             "last_invest_date": inv.last_invest_date,
             "last_tx_date": last_tx_date,
-            "effective_maturity": last_return_tx,
+            "effective_maturity": effective_maturity,
             "net_return": net_return,
             "fees": fees,
             "retentions": retentions,

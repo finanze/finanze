@@ -53,13 +53,19 @@ def _map_account_row(row) -> AccountTx:
     )
 
 
-def _map_investment_row(row) -> BaseInvestmentTx:
-    entity = Entity(
-        id=UUID(row["entity_id"]),
-        name=row["entity_name"],
-        natural_id=row["entity_natural_id"],
-        type=row["entity_type"],
-        origin=row["entity_origin"],
+def _map_investment_row(
+    row, fallback_entity: Optional[Entity] = None
+) -> BaseInvestmentTx:
+    entity = (
+        Entity(
+            id=UUID(row["entity_id"]),
+            name=row["entity_name"],
+            natural_id=row["entity_natural_id"],
+            type=row["entity_type"],
+            origin=row["entity_origin"],
+        )
+        if row["entity_id"]
+        else fallback_entity
     )
 
     common = {
@@ -87,7 +93,7 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
-            if "order_date" in row
+            if row["order_date"]
             else None,
             linked_tx=row["linked_tx"],
         )
@@ -102,7 +108,7 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
-            if "order_date" in row
+            if row["order_date"]
             else None,
         )
     elif row["product_type"] == ProductType.FUND_PORTFOLIO.value:
@@ -533,6 +539,11 @@ class TransactionSQLRepository(TransactionPort):
         if query.to_date:
             conditions.append("tx.date <= ?")
             params.append(query.to_date.isoformat())
+        if query.historic_entry_id:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM investment_historic_txs ht WHERE ht.tx_id = tx.id AND ht.historic_entry_id = ?)"
+            )
+            params.append(str(query.historic_entry_id))
 
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"

@@ -44,6 +44,7 @@ import {
   PositionQueryRequest,
   UpdatePositionRequest,
 } from "../types/position"
+import type { Historic, HistoricQueryRequest } from "../types/historic"
 import {
   TransactionQueryRequest,
   TransactionsResult,
@@ -410,11 +411,56 @@ export async function getTransactions(
 
     if (queryParams.from_date) params.append("from_date", queryParams.from_date)
     if (queryParams.to_date) params.append("to_date", queryParams.to_date)
+    if (queryParams.historic_entry_id) {
+      params.append("historic_entry_id", queryParams.historic_entry_id)
+    }
 
     queryString = `?${params.toString()}`
   }
 
   const response = await fetch(`${baseUrl}/transactions${queryString}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getHistoric(
+  queryParams?: HistoricQueryRequest,
+): Promise<Historic> {
+  const baseUrl = await ensureApiUrlInitialized()
+
+  let queryString = ""
+  if (queryParams) {
+    const params = new URLSearchParams()
+
+    if (queryParams.entities && queryParams.entities.length > 0) {
+      queryParams.entities.forEach(entity => {
+        params.append("entity", entity)
+      })
+    }
+
+    if (
+      queryParams.excluded_entities &&
+      queryParams.excluded_entities.length > 0
+    ) {
+      queryParams.excluded_entities.forEach(entity => {
+        params.append("excluded_entity", entity)
+      })
+    }
+
+    if (queryParams.product_types && queryParams.product_types.length > 0) {
+      queryParams.product_types.forEach(type => {
+        params.append("product_type", type)
+      })
+    }
+
+    if (params.toString()) {
+      queryString = `?${params.toString()}`
+    }
+  }
+
+  const response = await fetch(`${baseUrl}/historic${queryString}`)
   if (!response.ok) {
     await handleApiError(response)
   }

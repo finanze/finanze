@@ -70,14 +70,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
-      let queryParams:
-        | PositionQueryRequest
-        | ContributionQueryRequest
-        | undefined = undefined
-      if (inactiveEntities && inactiveEntities.length > 0) {
-        const entityIds = inactiveEntities.map(entity => entity.id)
-        queryParams = { excluded_entities: entityIds }
-      }
+      const entityIds = inactiveEntities?.map(entity => entity.id) ?? []
+      const baseQuery =
+        entityIds.length > 0 ? { excluded_entities: entityIds } : undefined
 
       const [
         positionsResponse,
@@ -85,8 +80,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         periodicFlowsData,
         pendingFlowsData,
       ] = await Promise.all([
-        getPositions(queryParams as PositionQueryRequest),
-        getContributions(queryParams as ContributionQueryRequest),
+        getPositions(baseQuery as PositionQueryRequest | undefined),
+        getContributions(baseQuery as ContributionQueryRequest | undefined),
         getAllPeriodicFlows(),
         getAllPendingFlows(),
       ])

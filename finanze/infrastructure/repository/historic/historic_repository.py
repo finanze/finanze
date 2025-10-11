@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List
+from typing import List, Optional
 from uuid import UUID
 
 from application.ports.historic_port import HistoricPort
@@ -11,6 +11,7 @@ from domain.historic import (
     BaseHistoricEntry,
     FactoringEntry,
     Historic,
+    HistoricQueryRequest,
     RealEstateCFEntry,
 )
 from domain.transactions import BaseInvestmentTx
@@ -65,15 +66,19 @@ def _map_historic_row(row) -> BaseHistoricEntry:
             interest_rate=Dezimal(row["interest_rate"]),
             maturity=datetime.fromisoformat(row["maturity"]).date(),
             extended_maturity=row["extended_maturity"]
-            if "extended_maturity" in row
+            if row["extended_maturity"]
             else None,
             type=row["type"],
             business_type=row["business_type"],
         )
+    else:
+        raise ValueError(f"Unsupported historic product type: {common['product_type']}")
 
 
-def _map_transaction_row(row) -> BaseInvestmentTx:
-    return _map_investment_row(row)
+def _map_transaction_row(
+    row, fallback_entity: Optional[Entity] = None
+) -> BaseInvestmentTx:
+    return _map_investment_row(row, fallback_entity)
 
 
 class HistoricSQLRepository(HistoricPort):
@@ -158,6 +163,54 @@ class HistoricSQLRepository(HistoricPort):
                         (str(tx.id), str(entry.id)),
                     )
 
+    def _build_historic_entries(
+        self, entries, fetch_related_txs: bool, cursor
+    ) -> list[BaseHistoricEntry]:
+        if not entries:
+            return []
+
+        tx_mapping: dict[str, list[BaseInvestmentTx]] = {}
+
+        if fetch_related_txs:
+            entry_ids = [str(entry["id"]) for entry in entries]
+            cursor.execute(
+                f"""
+                SELECT t.*,
+                        e.id         AS entity_id,
+                          e.name       AS entity_name,
+                          e.natural_id AS entity_natural_id,
+                          e.type       as entity_type,
+                          e.origin     as entity_origin,
+                        h_txs.historic_entry_id
+                FROM investment_historic_txs h_txs
+                JOIN investment_transactions t ON h_txs.tx_id = t.id
+                JOIN entities e ON t.entity_id = e.id
+                WHERE h_txs.historic_entry_id IN ({",".join(["?"] * len(entry_ids))})
+            """,
+                entry_ids,
+            )
+
+            for row in cursor.fetchall():
+                entry_id = row["historic_entry_id"]
+                tx = _map_transaction_row(
+                    row,
+                )
+                if entry_id not in tx_mapping:
+                    tx_mapping[entry_id] = []
+                tx_mapping[entry_id].append(tx)
+
+        historic_entries: list[BaseHistoricEntry] = []
+
+        for entry_row in entries:
+            entry_id = str(entry_row["id"])
+            historic_entry = _map_historic_row(entry_row)
+            historic_entry.related_txs = (
+                tx_mapping.get(entry_id, []) if fetch_related_txs else []
+            )
+            historic_entries.append(historic_entry)
+
+        return historic_entries
+
     def get_all(self, fetch_related_txs: bool = False) -> Historic:
         with self._db_client.read() as cursor:
             cursor.execute("""
@@ -175,35 +228,9 @@ class HistoricSQLRepository(HistoricPort):
             if not entries:
                 return Historic(entries=[])
 
-            tx_mapping: Dict[str, List[BaseInvestmentTx]] = {}
-
-            if fetch_related_txs:
-                entry_ids = [str(entry["id"]) for entry in entries]
-                cursor.execute(
-                    f"""
-                    SELECT t.*, h_txs.historic_entry_id
-                    FROM investment_historic_txs h_txs
-                    JOIN investment_transactions t ON h_txs.tx_id = t.id
-                    WHERE h_txs.historic_entry_id IN ({",".join(["?"] * len(entry_ids))})
-                """,
-                    entry_ids,
-                )
-
-                for row in cursor.fetchall():
-                    entry_id = row["historic_entry_id"]
-                    tx = _map_transaction_row(row)
-                    if entry_id not in tx_mapping:
-                        tx_mapping[entry_id] = []
-                    tx_mapping[entry_id].append(tx)
-
-            historic_entries = []
-            for entry_row in entries:
-                entry_id = str(entry_row["id"])
-                historic_entry = _map_historic_row(entry_row)
-                historic_entry.related_txs = (
-                    tx_mapping.get(entry_id, []) if fetch_related_txs else []
-                )
-                historic_entries.append(historic_entry)
+            historic_entries = self._build_historic_entries(
+                entries, fetch_related_txs, cursor
+            )
 
             return Historic(entries=historic_entries)
 
@@ -212,3 +239,53 @@ class HistoricSQLRepository(HistoricPort):
             cursor.execute(
                 "DELETE FROM investment_historic WHERE entity_id = ?", (str(entity_id),)
             )
+
+    def get_by_filters(
+        self, query: HistoricQueryRequest, fetch_related_txs: bool = False
+    ) -> Historic:
+        with self._db_client.read() as cursor:
+            base_sql = """
+                       SELECT h.*,
+                              e.id         AS entity_id,
+                              e.name       AS entity_name,
+                              e.natural_id AS entity_natural_id,
+                              e.type       as entity_type,
+                              e.origin     as entity_origin
+                       FROM investment_historic h
+                                JOIN entities e ON h.entity_id = e.id
+                       """
+            conditions = []
+            params: List[str] = []
+
+            if query.entities:
+                placeholders = ",".join(["?"] * len(query.entities))
+                conditions.append(f"h.entity_id IN ({placeholders})")
+                params.extend([str(e) for e in query.entities])
+            if query.excluded_entities:
+                placeholders = ",".join(["?"] * len(query.excluded_entities))
+                conditions.append(f"h.entity_id NOT IN ({placeholders})")
+                params.extend([str(e) for e in query.excluded_entities])
+            if query.product_types:
+                placeholders = ",".join(["?"] * len(query.product_types))
+                conditions.append(f"h.product_type IN ({placeholders})")
+                params.extend(
+                    [
+                        pt.value if hasattr(pt, "value") else str(pt)
+                        for pt in query.product_types
+                    ]
+                )
+
+            final_sql = base_sql
+            if conditions:
+                final_sql += "\nWHERE " + " AND ".join(conditions)
+
+            cursor.execute(final_sql, params)
+            entries = cursor.fetchall()
+            if not entries:
+                return Historic(entries=[])
+
+            historic_entries = self._build_historic_entries(
+                entries, fetch_related_txs, cursor
+            )
+
+            return Historic(entries=historic_entries)
