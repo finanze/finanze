@@ -15,7 +15,7 @@ from flask import jsonify
 
 
 def handle_unexpected_error(e):
-    return {"code": "UNEXPECTED_ERROR"}, 500
+    return {"code": "UNEXPECTED_ERROR", "message": str(e.original_exception)}, 500
 
 
 def handle_invalid_authentication(e):

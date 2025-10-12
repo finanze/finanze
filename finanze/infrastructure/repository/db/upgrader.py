@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List
 
 from dateutil.tz import tzlocal
+from domain.data_init import MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
 
 
@@ -91,6 +92,13 @@ class DatabaseUpgrader:
                         f"Applied: {applied_name}, Current: {current_migration.name}"
                     )
 
+    def requires_upgrade(self) -> bool:
+        """
+        Checks if the database requires an upgrade.
+        """
+        current = self._get_current_version()
+        return current < len(self._versions) - 1
+
     def upgrade(self, target_version=None):
         """
         Upgrades the database to the specified target version.
@@ -116,9 +124,14 @@ class DatabaseUpgrader:
         for version in versions_to_apply:
             with self._db_client.tx() as cursor:
                 migration = self._versions[version]
-                # Execute the migration
+
                 self._log.info(f"Applying migration: {migration.name}")
-                migration.upgrade(cursor)
+                try:
+                    migration.upgrade(cursor)
+                except Exception as e:
+                    raise MigrationError(
+                        f"There was an error while executing migration {migration.name}: {str(e)}"
+                    ) from e
 
                 applied_at = datetime.now(tzlocal())
 

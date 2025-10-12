@@ -9,7 +9,9 @@ import enTranslations from "./locales/en.json"
 import esTranslations from "./locales/es.json"
 
 export type Locale = "en-US" | "es-ES"
-export type Translations = typeof enTranslations | typeof esTranslations
+export type Translations =
+  | (typeof enTranslations & { about: (typeof enTranslations)["about"] })
+  | (typeof esTranslations & { about: (typeof enTranslations)["about"] })
 
 const translations: Record<Locale, Translations> = {
   "en-US": enTranslations,

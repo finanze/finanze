@@ -14,10 +14,16 @@ import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { motion } from "framer-motion"
 import { useAuth } from "@/context/AuthContext"
-import { LockKeyhole, AlertCircle, User, KeyRound } from "lucide-react"
+import { LockKeyhole, AlertCircle, User, KeyRound, Wrench } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { useAppContext } from "@/context/AppContext"
+import { AuthResultCode } from "@/types"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -25,6 +31,8 @@ export default function LoginPage() {
   const [oldPassword, setOldPassword] = useState("")
   const [repeatPassword, setRepeatPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [errorCode, setErrorCode] = useState<AuthResultCode | null>(null)
+  const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [isSignupMode, setIsSignupMode] = useState(false)
   const {
     login,
@@ -56,6 +64,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setErrorCode(null)
+    setErrorDetails(null)
 
     if ((isSignupMode || isChangingPassword) && password !== repeatPassword) {
       setError(t.login.passwordsDontMatch)
@@ -78,9 +88,26 @@ export default function LoginPage() {
           setError(t.login.invalidCredentials)
         }
       } else {
-        const result = await login(username, password)
-        if (!result) {
-          setError(t.login.invalidCredentials)
+        const { code, message } = await login(username, password)
+        switch (code) {
+          case AuthResultCode.SUCCESS:
+            break
+          case AuthResultCode.INVALID_CREDENTIALS:
+            setError(t.login.invalidCredentials)
+            setErrorCode(code)
+            break
+          case AuthResultCode.USER_NOT_FOUND:
+            setError(t.login.userNotFound)
+            setErrorCode(code)
+            break
+          case AuthResultCode.UNEXPECTED_ERROR:
+          default:
+            setError(t.login.unexpectedErrorContact)
+            setErrorCode(AuthResultCode.UNEXPECTED_ERROR)
+            if (message) {
+              setErrorDetails(message)
+            }
+            break
         }
       }
     } catch (error: any) {
@@ -99,7 +126,11 @@ export default function LoginPage() {
           showToast(errorMessage, "error")
         }
       } else {
-        setError(t.login.serverError)
+        setError(t.login.unexpectedErrorContact)
+        setErrorCode(AuthResultCode.UNEXPECTED_ERROR)
+        if (error?.message) {
+          setErrorDetails(error.message)
+        }
       }
     }
   }
@@ -277,8 +308,34 @@ export default function LoginPage() {
                   animate={{ opacity: 1 }}
                   className="text-sm text-red-500 dark:text-red-400 text-center flex items-center justify-center"
                 >
-                  <AlertCircle className="h-4 w-4 mr-1" />
                   {error}
+                  {errorCode === AuthResultCode.UNEXPECTED_ERROR &&
+                    errorDetails && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="ml-2 h-7 w-7 text-red-500"
+                            aria-label={t.login.viewErrorDetails}
+                          >
+                            <Wrench className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          className="w-64 text-left text-sm"
+                          sideOffset={8}
+                        >
+                          <p className="font-medium text-foreground">
+                            {t.login.errorDetailsTitle}
+                          </p>
+                          <p className="mt-2 text-muted-foreground break-words">
+                            {errorDetails}
+                          </p>
+                        </PopoverContent>
+                      </Popover>
+                    )}
                 </motion.div>
               )}
 

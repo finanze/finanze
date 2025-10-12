@@ -86,6 +86,13 @@ export interface AuthRequest {
   password: string
 }
 
+export enum AuthResultCode {
+  SUCCESS = "SUCCESS",
+  INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
+  USER_NOT_FOUND = "USER_NOT_FOUND",
+  UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
+}
+
 export interface ChangePasswordRequest {
   username: string
   oldPassword: string
@@ -275,6 +282,18 @@ export interface PlatformInfo {
 
 export type ThemeMode = "light" | "dark" | "system"
 
+export interface AboutAppInfo {
+  appName: string
+  version: string
+  author?: string | null
+  repository?: string | null
+  homepage?: string | null
+  electronVersion?: string | null
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
+  platform: PlatformInfo
+}
+
 export interface ExchangeRates {
   [baseCurrency: string]: {
     [targetCurrency: string]: number
@@ -300,6 +319,7 @@ declare global {
       platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
+      getAboutInfo: () => Promise<AboutAppInfo>
       requestExternalLogin: (
         id: string,
         request?: any,

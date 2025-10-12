@@ -1,5 +1,5 @@
 from domain.data_init import AlreadyUnlockedError, DecryptionError
-from domain.exception.exceptions import UserNotFound, UserAlreadyLoggedIn
+from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
 from flask import jsonify, request

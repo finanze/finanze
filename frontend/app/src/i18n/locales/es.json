@@ -96,6 +96,31 @@
     "skipThisVersion": "Omitir versión",
     "releasePageLink": "Visitar página de versión"
   },
+  "about": {
+    "title": "Acerca de {appName}",
+    "projectDescription": "{appName} te ayuda a centralizar y seguir tus finanzas en un solo lugar.",
+    "maintainedBy": "Mantenido por {author}.",
+    "unknownAuthor": "Desconocido",
+    "version": "Versión",
+    "author": "Autor",
+    "electronVersion": "Electron",
+    "chromiumVersion": "Chromium",
+    "nodeVersion": "Node.js",
+    "website": "Sitio web",
+    "repository": "Repositorio",
+    "logoAlt": "Logotipo de {appName}",
+    "runtimeSection": "Aplicación",
+    "platformSection": "Plataforma",
+    "linksSection": "Enlaces",
+    "operatingSystem": "Sistema operativo",
+    "architecture": "Arquitectura",
+    "osVersion": "Versión del SO",
+    "platformNames": {
+      "mac": "macOS",
+      "windows": "Windows",
+      "linux": "Linux"
+    }
+  },
   "investments": {
     "type": "Tipo",
     "status": "Estado",
@@ -221,12 +246,16 @@
     "passwordsDontMatch": "Las contraseñas no coinciden",
     "invalidPassword": "Contraseña inválida",
     "invalidCredentials": "Credenciales inválidas",
+    "userNotFound": "Usuario no encontrado",
+    "unexpectedErrorContact": "Ocurrió un error inesperado, contacta al equipo de Finanze.",
     "serverError": "Ha ocurrido un error inesperado. Por favor intenta de nuevo.",
     "changePasswordSuccess": "Contraseña cambiada exitosamente",
     "changePasswordError": "Error al cambiar contraseña",
     "changePassword": "Cambiar Contraseña",
     "signup": "Registrarse",
-    "login": "Iniciar Sesión"
+    "login": "Iniciar Sesión",
+    "viewErrorDetails": "Ver detalles técnicos",
+    "errorDetailsTitle": "Detalles técnicos"
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
@@ -1108,6 +1137,19 @@
           "single": "Hay 1 cartera manual de fondos vinculada a esta cuenta. Al eliminarla se desvinculará la cartera, que seguirá guardada sin una cuenta asociada.",
           "plural": "Hay {{count}} carteras manuales de fondos vinculadas a esta cuenta. Al eliminarlas se desvincularán y cada cartera quedará guardada sin una cuenta asociada."
         }
+      },
+      "about": {
+        "title": "Acerca de {appName}",
+        "projectDescription": "{appName} te ayuda a centralizar y seguir tus finanzas en un solo lugar.",
+        "maintainedBy": "Mantenido por {author}.",
+        "unknownAuthor": "Desconocido",
+        "version": "Versión",
+        "author": "Autor",
+        "electronVersion": "Electron",
+        "chromiumVersion": "Chromium",
+        "nodeVersion": "Node.js",
+        "website": "Sitio web",
+        "repository": "Repositorio"
       },
       "bankCards": {
         "title": "Tarjetas manuales",

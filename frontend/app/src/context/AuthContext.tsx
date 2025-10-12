@@ -12,6 +12,7 @@ import {
   signup as apiSignup,
   changePassword as apiChangePassword,
 } from "@/services/api"
+import { AuthResultCode } from "@/types"
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -20,7 +21,10 @@ interface AuthContextType {
   isChangingPassword: boolean
   lastLoggedUser: string | null
   pendingPasswordChangeUser: string | null
-  login: (username: string, password: string) => Promise<boolean>
+  login: (
+    username: string,
+    password: string,
+  ) => Promise<{ code: AuthResultCode; message?: string }>
   signup: (username: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>
@@ -63,18 +67,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (
     username: string,
     password: string,
-  ): Promise<boolean> => {
+  ): Promise<{ code: AuthResultCode; message?: string }> => {
     setIsLoading(true)
     try {
-      const { success } = await apiLogin({ username, password })
-      setIsAuthenticated(success)
-      if (success) {
+      const result = await apiLogin({ username, password })
+      setIsAuthenticated(result.code === AuthResultCode.SUCCESS)
+      if (result.code === AuthResultCode.SUCCESS) {
         setLastLoggedUser(username)
       }
-      return success
+      return result
     } catch (error) {
       console.error("Login error:", error)
-      return false
+      setIsAuthenticated(false)
+      return {
+        code: AuthResultCode.UNEXPECTED_ERROR,
+        message: error instanceof Error ? error.message : undefined,
+      }
     } finally {
       setIsLoading(false)
     }

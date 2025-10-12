@@ -1,4 +1,4 @@
-import type {
+import {
   EntitiesResponse,
   LoginRequest,
   FetchRequest,
@@ -33,6 +33,7 @@ import type {
   ExternalEntityCandidates,
   ConnectExternalEntityRequest,
   ExternalEntityConnectionResult,
+  AuthResultCode,
 } from "@/types"
 import {
   EntityContributions,
@@ -241,7 +242,7 @@ export async function checkLoginStatus(): Promise<LoginStatusResponse> {
 
 export async function login(
   authRequest: AuthRequest,
-): Promise<{ success: boolean }> {
+): Promise<{ code: AuthResultCode; message?: string }> {
   try {
     const baseUrl = await ensureApiUrlInitialized()
     const response = await fetch(`${baseUrl}/login`, {
@@ -253,14 +254,19 @@ export async function login(
     })
 
     if (response.status === 401) {
-      return { success: false }
+      return { code: AuthResultCode.INVALID_CREDENTIALS }
+    } else if (response.status === 404) {
+      return { code: AuthResultCode.USER_NOT_FOUND }
+    } else if (response.status === 500) {
+      const data = await response.json()
+      return { code: AuthResultCode.UNEXPECTED_ERROR, message: data.message }
     }
 
     if (!response.ok) {
       throw new Error("Failed to login")
     }
 
-    return { success: true }
+    return { code: AuthResultCode.SUCCESS }
   } catch (error) {
     console.error("Login error:", error)
     throw error

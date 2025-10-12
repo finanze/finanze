@@ -98,6 +98,31 @@
     "skipThisVersion": "Skip version",
     "releasePageLink": "Visit Release Page"
   },
+  "about": {
+    "title": "About {appName}",
+    "projectDescription": "{appName} helps you centralize and track your finances across providers.",
+    "maintainedBy": "Maintained by {author}.",
+    "unknownAuthor": "Unknown",
+    "version": "Version",
+    "author": "Author",
+    "electronVersion": "Electron",
+    "chromiumVersion": "Chromium",
+    "nodeVersion": "Node.js",
+    "website": "Website",
+    "repository": "Repository",
+    "logoAlt": "{appName} logo",
+    "runtimeSection": "Application",
+    "platformSection": "Platform",
+    "linksSection": "Links",
+    "operatingSystem": "Operating System",
+    "architecture": "Architecture",
+    "osVersion": "OS Version",
+    "platformNames": {
+      "mac": "macOS",
+      "windows": "Windows",
+      "linux": "Linux"
+    }
+  },
   "investments": {
     "type": "Type",
     "status": "Status",
@@ -223,12 +248,16 @@
     "passwordsDontMatch": "Passwords don't match",
     "invalidPassword": "Invalid password",
     "invalidCredentials": "Invalid credentials",
+    "userNotFound": "User not found",
+    "unexpectedErrorContact": "Something went wrong, please contact the Finanze team.",
     "serverError": "An unexpected error occurred. Please try again.",
     "changePasswordSuccess": "Password changed successfully",
     "changePasswordError": "Failed to change password",
     "changePassword": "Change Password",
     "signup": "Sign Up",
-    "login": "Log In"
+    "login": "Log In",
+    "viewErrorDetails": "View technical details",
+    "errorDetailsTitle": "Technical details"
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",

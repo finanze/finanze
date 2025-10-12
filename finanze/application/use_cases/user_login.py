@@ -37,4 +37,9 @@ class UserLoginImpl(UserLogin):
         self._config_port.connect(user)
         self._sheets_initiator.connect(user)
         params = DatasourceInitParams(user=user, password=login_request.password)
-        self._source_initiator.initialize(params)
+        try:
+            self._source_initiator.initialize(params)
+        except:
+            self._config_port.disconnect()
+            self._sheets_initiator.disconnect()
+            raise
