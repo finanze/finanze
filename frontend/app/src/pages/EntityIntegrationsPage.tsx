@@ -1,4 +1,8 @@
 import { useAppContext } from "@/context/AppContext"
+import {
+  useEntityWorkflow,
+  type VirtualFetchResult,
+} from "@/context/EntityWorkflowContext"
 import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm } from "@/components/AddWalletForm"
@@ -20,7 +24,6 @@ import {
   PopoverContent,
 } from "@/components/ui/Popover"
 import {
-  RefreshCw,
   ExternalLink,
   FileSpreadsheet,
   Landmark,
@@ -51,26 +54,30 @@ import {
   completeExternalEntityConnection,
   getImageUrl,
   disconnectExternalEntity,
+  virtualFetch,
 } from "@/services/api"
 import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
 
 export default function EntityIntegrationsPage() {
   const {
     entities,
-    isLoading,
+    isLoadingEntities,
+    fetchEntities,
+    showToast,
+    settings,
+    externalIntegrations,
+  } = useAppContext()
+  const {
+    isLoggingIn,
     selectedEntity,
     pinRequired,
     selectEntity,
-    fetchEntities,
     scrape,
-    runVirtualScrape,
     view,
     setView,
     startExternalLogin,
-    externalLoginInProgress,
     disconnectEntity,
-    settings,
-  } = useAppContext()
+  } = useEntityWorkflow()
 
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -214,6 +221,37 @@ export default function EntityIntegrationsPage() {
     }
   }
 
+  const runVirtualScrape = async (): Promise<VirtualFetchResult | null> => {
+    try {
+      const response = await virtualFetch()
+
+      if (response.code === "COMPLETED") {
+        let gotData = false
+        if (
+          (
+            response?.data?.positions ||
+            response?.data?.transactions?.account ||
+            response?.data?.transactions?.investment
+          )?.length
+        ) {
+          gotData = true
+          showToast(t.common.virtualScrapeSuccess, "success")
+        }
+
+        return { gotData: gotData, errors: response.errors }
+      } else {
+        const errorMessage =
+          t.errors[response.code as keyof typeof t.errors] ||
+          t.common.fetchError
+        showToast(errorMessage, "error")
+        return null
+      }
+    } catch {
+      showToast(t.common.virtualScrapeError, "error")
+      return null
+    }
+  }
+
   const handleVirtualConfirm = async () => {
     let result
     try {
@@ -258,12 +296,6 @@ export default function EntityIntegrationsPage() {
     }
   }
 
-  const handleBack = () => {
-    setView("entities")
-    setShowAddWallet(false)
-    setShowManageWallets(false)
-  }
-
   const handleAddWallet = async (name: string, address: string) => {
     if (!selectedEntity) return
 
@@ -304,7 +336,6 @@ export default function EntityIntegrationsPage() {
   }
 
   // External integrations helpers
-  const { externalIntegrations } = useAppContext()
   const hasProviderIntegration = externalIntegrations.some(
     integ =>
       integ.type === ExternalIntegrationType.ENTITY_PROVIDER &&
@@ -494,9 +525,6 @@ export default function EntityIntegrationsPage() {
   const { hash } = useLocation()
   useEffect(() => {
     if (hash === "#crypto-enabled") {
-      if (view !== "entities") {
-        setView("entities")
-      }
       setTimeout(() => {
         const el = document.getElementById("crypto-enabled")
         if (el) {
@@ -518,23 +546,11 @@ export default function EntityIntegrationsPage() {
         variants={fadeListItem}
       >
         <h1 className="text-3xl font-bold">{t.entities.title}</h1>
-        {view === "entities" && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={fetchEntities}
-              disabled={isLoading}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
       </motion.div>
 
       <motion.div variants={fadeListItem}>
         <AnimatePresence mode="wait">
-          {isLoading && view === "entities" ? (
+          {isLoadingEntities ? (
             <motion.div
               key="loading"
               initial={{ opacity: 0 }}
@@ -547,7 +563,7 @@ export default function EntityIntegrationsPage() {
                 {t.common.loading}
               </p>
             </motion.div>
-          ) : view === "entities" ? (
+          ) : (
             <motion.div
               key="entities"
               variants={fadeListContainer}
@@ -887,20 +903,28 @@ export default function EntityIntegrationsPage() {
                 )}
               </motion.div>
             </motion.div>
-          ) : null}
+          )}
+        </AnimatePresence>
+      </motion.div>
 
-          {view === "login" && selectedEntity && !pinRequired && (
+      {/* Login Modal */}
+      <AnimatePresence>
+        {view === "login" && selectedEntity && !pinRequired && (
+          <motion.div
+            key="login-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+          >
             <motion.div
-              key="login"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              <Button variant="ghost" onClick={handleBack} className="mb-4">
-                ← {t.common.back}
-              </Button>
-              {isLoading ? (
-                <div className="flex flex-col justify-center items-center h-64">
+              {isLoggingIn ? (
+                <div className="flex flex-col justify-center items-center h-64 rounded-lg border border-border bg-background px-6">
                   <LoadingSpinner size="lg" />
                   <p className="mt-4 text-gray-500 dark:text-gray-400">
                     {t.common.loading}
@@ -910,24 +934,27 @@ export default function EntityIntegrationsPage() {
                 <LoginForm />
               )}
             </motion.div>
-          )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {view === "external-login" && selectedEntity && (
+      {/* External Login Modal */}
+      <AnimatePresence>
+        {view === "external-login" && selectedEntity && (
+          <motion.div
+            key="external-login-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+          >
             <motion.div
-              key="external-login"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              <Button
-                variant="ghost"
-                onClick={handleBack}
-                className="mb-4"
-                disabled={externalLoginInProgress}
-              >
-                ← {t.common.back}
-              </Button>
-              <Card className="w-full max-w-md mx-auto">
+              <Card className="w-full">
                 <CardHeader>
                   <CardTitle className="text-center flex items-center justify-center">
                     <ExternalLink className="mr-2 h-5 w-5" />
@@ -935,74 +962,69 @@ export default function EntityIntegrationsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="text-center">
-                  {externalLoginInProgress ? (
-                    <div className="flex flex-col items-center justify-center py-8">
-                      <LoadingSpinner size="lg" className="mb-4" />
-                      <p>{t.login.externalLoginInProgress}</p>
-                    </div>
-                  ) : (
-                    <div className="py-8">
-                      <p className="mb-4">{t.login.externalLoginComplete}</p>
-                      <Button onClick={handleBack}>{t.common.back}</Button>
-                    </div>
-                  )}
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <LoadingSpinner size="lg" className="mb-4" />
+                    <p>{t.login.externalLoginInProgress}</p>
+                  </div>
                 </CardContent>
               </Card>
             </motion.div>
-          )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {view === "features" && selectedEntity && !pinRequired && (
+      {/* Feature Selector Modal */}
+      <AnimatePresence>
+        {view === "features" && selectedEntity && !pinRequired && (
+          <motion.div
+            key="features-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+          >
             <motion.div
-              key="features"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="min-h-[calc(100vh-18rem)] flex flex-col"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              <Button
-                variant="ghost"
-                onClick={handleBack}
-                className="mb-4 self-start"
-              >
-                ← {t.common.back}
-              </Button>
-              <div className="flex-1 flex justify-center items-center">
-                <FeatureSelector />
-              </div>
+              <FeatureSelector />
             </motion.div>
-          )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          {pinRequired && selectedEntity && (
+      {/* PIN Modal */}
+      <AnimatePresence>
+        {pinRequired && selectedEntity && (
+          <motion.div
+            key="pin-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+          >
             <motion.div
-              key="pinpad"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="min-h-[calc(100vh-18rem)] flex flex-col"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              <Button
-                variant="ghost"
-                onClick={handleBack}
-                className="mb-4 self-start"
-              >
-                ← {t.common.back}
-              </Button>
-              {isLoading ? (
-                <div className="flex flex-col justify-center items-center h-64">
+              {isLoggingIn ? (
+                <div className="flex flex-col justify-center items-center h-64 rounded-lg border border-border bg-background px-6">
                   <LoadingSpinner size="lg" />
                   <p className="mt-4 text-gray-500 dark:text-gray-400">
                     {t.common.loading}
                   </p>
                 </div>
               ) : (
-                <div className="flex-1 flex justify-center items-center">
-                  <PinPad />
-                </div>
+                <PinPad />
               )}
             </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add Wallet Modal */}
       <AnimatePresence>

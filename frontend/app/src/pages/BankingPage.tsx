@@ -1920,21 +1920,21 @@ function BankCardsSection({
                       )}
                     </span>
                   </div>
-                  {position.convertedLimit && (
+                  {Number(position.convertedLimit || 0) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
                         {t.banking.limit}
                       </span>
                       <span>
                         {formatCurrency(
-                          position.convertedLimit,
+                          position.convertedLimit!,
                           locale,
                           defaultCurrency,
                         )}
                       </span>
                     </div>
                   )}
-                  {position.convertedLimit && position.convertedLimit > 0 && (
+                  {Number(position.convertedLimit || 0) > 0 && (
                     <div className="space-y-1">
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>{t.banking.utilization}</span>

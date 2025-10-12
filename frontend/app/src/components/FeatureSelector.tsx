@@ -1,14 +1,6 @@
 import type React from "react"
 import { useEffect, useMemo } from "react"
-import { useAppContext } from "@/context/AppContext"
-import { Button } from "@/components/ui/Button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { Switch } from "@/components/ui/Switch"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover"
+import { motion } from "framer-motion"
 import {
   BarChart,
   CheckCircle,
@@ -19,10 +11,19 @@ import {
   PiggyBank,
   Send,
   Settings,
+  X,
 } from "lucide-react"
-import type { Feature } from "@/types"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
-import { motion } from "framer-motion"
+import { Button } from "@/components/ui/Button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Switch } from "@/components/ui/Switch"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import type { Feature } from "@/types"
 import { formatTimeAgo } from "@/lib/timeUtils"
 
 export function FeatureSelector() {
@@ -34,7 +35,9 @@ export function FeatureSelector() {
     setSelectedFeatures,
     fetchOptions,
     setFetchOptions,
-  } = useAppContext()
+    setView,
+    resetState,
+  } = useEntityWorkflow()
   const { t } = useI18n()
 
   if (!selectedEntity) return null
@@ -68,7 +71,6 @@ export function FeatureSelector() {
     hasTransactionsSelected &&
     (!hasTransactionsHistory || deep)
 
-  // Default-select all available features when entity changes or when none selected
   useEffect(() => {
     if (availableFeatures.length > 0) {
       setSelectedFeatures(availableFeatures)
@@ -92,10 +94,14 @@ export function FeatureSelector() {
   }
 
   const handleSubmit = () => {
-    scrape(selectedEntity, selectedFeatures, { deep: deep })
+    scrape(selectedEntity, selectedFeatures, { deep })
   }
 
-  // Map features to icons
+  const handleCancel = () => {
+    resetState()
+    setView("entities")
+  }
+
   const featureIcons: Record<Feature, React.ReactNode> = {
     POSITION: <BarChart className="h-5 w-5" />,
     AUTO_CONTRIBUTIONS: <PiggyBank className="h-5 w-5" />,
@@ -104,7 +110,7 @@ export function FeatureSelector() {
   }
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-center">
           {t.features.selectFeatures} {selectedEntity.name}
@@ -128,7 +134,6 @@ export function FeatureSelector() {
 
           <div className="grid grid-cols-2 gap-3">
             {availableFeatures.map(feature => {
-              // Determine last fetch string for this feature
               const lastFetchRaw = selectedEntity.last_fetch?.[feature]
               let lastFetchDisplay: string = t.common.never
               if (lastFetchRaw && lastFetchRaw.trim() !== "") {
@@ -148,17 +153,17 @@ export function FeatureSelector() {
                     variant={
                       selectedFeatures.includes(feature) ? "default" : "outline"
                     }
-                    className="w-full h-24 flex flex-col justify-center items-center gap-1 relative"
+                    className="relative flex h-24 w-full flex-col items-center justify-center gap-1"
                     onClick={() => toggleFeature(feature)}
                   >
                     {selectedFeatures.includes(feature) && (
-                      <CheckCircle className="absolute top-2 right-2 h-4 w-4" />
+                      <CheckCircle className="absolute right-2 top-2 h-4 w-4" />
                     )}
                     {featureIcons[feature]}
                     <span className="text-sm font-medium">
                       {t.features[feature]}
                     </span>
-                    <span className="text-[10px] text-muted-foreground leading-tight">
+                    <span className="text-[10px] leading-tight text-muted-foreground">
                       {lastFetchDisplay}
                     </span>
                   </Button>
@@ -207,14 +212,22 @@ export function FeatureSelector() {
             </div>
           )}
 
-          <Button
-            className="w-full mt-4"
-            disabled={selectedFeatures.length === 0 || isEntityFetching}
-            onClick={handleSubmit}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            {isEntityFetching ? t.common.loading : t.features.fetchSelected}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={handleCancel}>
+              <X className="mr-2 h-4 w-4" />
+              {isEntityFetching
+                ? t.common.continueInBackground
+                : t.common.cancel}
+            </Button>
+            <Button
+              className="flex-1"
+              disabled={selectedFeatures.length === 0 || isEntityFetching}
+              onClick={handleSubmit}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {isEntityFetching ? t.common.loading : t.features.fetchSelected}
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

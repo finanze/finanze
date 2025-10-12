@@ -83,7 +83,8 @@
     "pin": "Pin",
     "unpin": "Unpin",
     "pinAsset": "Pin asset",
-    "unpinAsset": "Unpin asset"
+    "unpinAsset": "Unpin asset",
+    "continueInBackground": "Continue in background"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -189,7 +190,7 @@
     "error": "Error"
   },
   "login": {
-    "enterCredentials": "Enter Credentials for",
+    "enterCredentials": "Enter credentials for",
     "externalLogin": "External Login for",
     "externalLoginInProgress": "Login in progress. Please complete the login in the opened window.",
     "externalLoginComplete": "Login completed successfully.",
@@ -230,8 +231,11 @@
     "login": "Log In"
   },
   "pinpad": {
-    "enterCode": "Enter {length}-Digit Code for",
-    "codeDelayTip": "Tip: Sometimes the 2FA code can take a bit to arrive."
+    "enterCode": "Enter {length}-digit code for",
+    "codeDelayTip": "Info: Sometimes the 2FA code can take a bit to arrive",
+    "cancelConfirmationTitle": "Cancel verification?",
+    "cancelLoginDescription": "Do you want to leave the login process?",
+    "cancelFetchDescription": "Do you want to leave the fetch process?"
   },
   "errors": {
     "INVALID_CODE": "Invalid code provided",
@@ -248,7 +252,8 @@
     "REMOTE_FAILED": "The entity did not respond correctly, please try again later.",
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
-    "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again."
+    "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again.",
+    "DISABLED": "Virtual data fetch disabled in settings."
   },
   "entities": {
     "title": "Integrations",
@@ -539,7 +544,7 @@
     "portfolioName": "Portfolio Name",
     "iban": "IBAN",
     "currency": "Currency",
-    "addManualTransaction": "Add manual transaction",
+    "addManualTransaction": "Add transaction",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",
@@ -695,17 +700,16 @@
     }
   },
   "walletForm": {
-    "title": "Add Wallet",
-    "description": "Add a new wallet for {{entityName}}",
+    "title": "Add {{entityName}} wallet",
     "fields": {
-      "name": "Wallet Name",
-      "address": "Wallet Address"
+      "name": "Name",
+      "address": "Address"
     },
     "placeholders": {
       "name": "e.g. My Bitcoin Wallet",
       "address": "Enter wallet address"
     },
-    "submit": "Add Wallet",
+    "submit": "Add",
     "errors": {
       "nameRequired": "Wallet name is required",
       "addressRequired": "Wallet address is required",
@@ -1005,7 +1009,7 @@
     "source": "Source",
     "manualContributions": {
       "unnamed": "Manual contribution",
-      "add": "Add contribution",
+      "add": "New contribution",
       "createTitle": "Add manual contribution",
       "editTitle": "Edit manual contribution",
       "entity": "Entity",
@@ -1075,7 +1079,7 @@
       "bankAccounts": {
         "title": "Manual bank accounts",
         "description": "Keep balances for accounts that aren't connected automatically.",
-        "add": "Add bank account",
+        "add": "Add",
         "empty": {
           "title": "No manual bank accounts",
           "description": "Add a manual bank account to include its balance in your overview."
@@ -1109,7 +1113,7 @@
       "bankCards": {
         "title": "Manual cards",
         "description": "Track credit or debit cards that you manage manually.",
-        "add": "Add card",
+        "add": "Add",
         "empty": {
           "title": "No manual cards",
           "description": "Add a manual card to monitor its spending and limit."
@@ -1136,7 +1140,7 @@
       "bankLoans": {
         "title": "Manual loans",
         "description": "Maintain loan data that isn't synced through an integration.",
-        "add": "Add loan",
+        "add": "Add",
         "empty": {
           "title": "No manual loans",
           "description": "Add a manual loan to track payments and balances."
@@ -1178,7 +1182,7 @@
       "fundPortfolios": {
         "title": "Manual fund portfolios",
         "description": "Organize your manual funds inside dedicated portfolios.",
-        "add": "Add fund portfolio",
+        "add": "Portfolio",
         "empty": {
           "title": "No manual fund portfolios",
           "description": "Create a manual fund portfolio to group your investments."
@@ -1218,7 +1222,7 @@
       "funds": {
         "title": "Manual funds",
         "description": "Capture fund positions that are updated manually.",
-        "add": "Add fund",
+        "add": "Fund",
         "empty": {
           "title": "No manual funds",
           "description": "Add a manual fund position to include it in your portfolio."
@@ -1256,7 +1260,7 @@
       "stocks": {
         "title": "Manual stocks",
         "description": "Track stock or ETF positions managed manually.",
-        "add": "Add stock / ETF",
+        "add": "Add",
         "empty": {
           "title": "No manual stocks",
           "description": "Add a manual stock or ETF position to your portfolio."
@@ -1288,7 +1292,7 @@
       "deposits": {
         "title": "Manual deposits",
         "description": "Keep term deposit data updated manually.",
-        "add": "Add deposit",
+        "add": "Add",
         "empty": {
           "title": "No manual deposits",
           "description": "Add a manual deposit to track its returns."
@@ -1310,7 +1314,7 @@
       "factoring": {
         "title": "Manual factoring",
         "description": "Record factoring operations managed outside integrations.",
-        "add": "Add factoring operation",
+        "add": "Add",
         "empty": {
           "title": "No manual factoring operations",
           "description": "Add a manual factoring position to include it in your investments."
@@ -1334,7 +1338,7 @@
       "realEstateCf": {
         "title": "Manual real estate CF",
         "description": "Track real estate crowdlending investments added manually.",
-        "add": "Add real estate CF",
+        "add": "Add",
         "empty": {
           "title": "No manual real estate CF positions",
           "description": "Add a manual real estate CF position to monitor it."

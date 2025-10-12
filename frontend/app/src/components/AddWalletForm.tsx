@@ -2,14 +2,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/Card"
-import { Loader2, ArrowLeft } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Loader2 } from "lucide-react"
 import { Entity } from "@/types"
 import { useI18n } from "@/i18n"
 import { ApiErrorException } from "@/utils/apiErrors"
@@ -85,19 +79,10 @@ export function AddWalletForm({
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onCancel}
-            className="p-1 h-6 w-6"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
           <div>
-            <CardTitle className="text-lg">{t.walletForm.title}</CardTitle>
-            <CardDescription>
-              {t.walletForm.description.replace("{{entityName}}", entity.name)}
-            </CardDescription>
+            <CardTitle className="text-lg">
+              {t.walletForm.title.replace("{{entityName}}", entity.name)}
+            </CardTitle>
           </div>
         </div>
       </CardHeader>

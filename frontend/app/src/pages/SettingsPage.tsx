@@ -93,7 +93,7 @@ export default function SettingsPage() {
     fetchSettings,
     settings: storedSettings,
     saveSettings,
-    isLoading,
+    isLoadingSettings,
     externalIntegrations,
     fetchExternalIntegrations,
     platform,
@@ -1484,7 +1484,7 @@ export default function SettingsPage() {
     )
   }
 
-  if (isLoading || !settings) {
+  if (isLoadingSettings || !settings) {
     return (
       <div className="flex justify-center items-center h-64">
         <LoadingSpinner size="lg" />
@@ -1504,11 +1504,11 @@ export default function SettingsPage() {
               fetchSettings()
               fetchExternalIntegrations()
             }}
-            disabled={isLoading || isSaving}
+            disabled={isLoadingSettings || isSaving}
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isLoading}>
+          <Button onClick={handleSave} disabled={isSaving || isLoadingSettings}>
             {isSaving ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />

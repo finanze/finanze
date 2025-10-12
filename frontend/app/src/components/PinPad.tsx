@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from "react"
-import { useAppContext } from "@/context/AppContext"
+import { motion, AnimatePresence } from "framer-motion"
+import { ArrowRight, Delete, X } from "lucide-react"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
+import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { X, ArrowRight, Delete } from "lucide-react"
-import { useI18n } from "@/i18n"
-import { motion, AnimatePresence } from "framer-motion"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 
 export function PinPad() {
   const {
@@ -19,8 +20,11 @@ export function PinPad() {
     pinError,
     clearPinError,
     fetchingEntityState,
-  } = useAppContext()
+    resetState,
+    setView,
+  } = useEntityWorkflow()
   const [pin, setPin] = useState<string[]>([])
+  const [showCancelDialog, setShowCancelDialog] = useState(false)
   const { t } = useI18n()
 
   if (!selectedEntity) return null
@@ -28,6 +32,14 @@ export function PinPad() {
   const isEntityFetching = fetchingEntityState.fetchingEntityIds.includes(
     selectedEntity.id,
   )
+  const isBackgroundFetch = currentAction === "scrape" && isEntityFetching
+  const cancelButtonLabel = isBackgroundFetch
+    ? t.common.continueInBackground
+    : t.common.cancel
+  const cancelMessage =
+    currentAction === "scrape"
+      ? t.pinpad.cancelFetchDescription
+      : t.pinpad.cancelLoginDescription
 
   useEffect(() => {
     // Reset PIN when component mounts
@@ -40,8 +52,6 @@ export function PinPad() {
       clearPinError()
     }
   }, [pinError, clearPinError])
-
-  if (!selectedEntity) return null
 
   const handleNumberClick = (num: string) => {
     if (pin.length < pinLength) {
@@ -70,8 +80,24 @@ export function PinPad() {
         deep: fetchOptions.deep,
       })
     }
+  }
 
-    // Don't reset PIN - we'll handle it based on response
+  const handleCancelRequest = () => {
+    if (isBackgroundFetch) {
+      handleCancelConfirm()
+      return
+    }
+    setShowCancelDialog(true)
+  }
+
+  const handleCancelConfirm = () => {
+    setShowCancelDialog(false)
+    resetState()
+    setView("entities")
+  }
+
+  const handleCancelDismiss = () => {
+    setShowCancelDialog(false)
   }
 
   const handleKeyboardInput = useCallback(
@@ -125,7 +151,7 @@ export function PinPad() {
   )
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-center">
           {enterCodeText} {selectedEntity.name}
@@ -192,19 +218,38 @@ export function PinPad() {
           </Button>
         </div>
 
-        <Button
-          className="w-full mt-6"
-          disabled={pin.length < pinLength || isEntityFetching}
-          onClick={handleSubmit}
-        >
-          <ArrowRight className="mr-2 h-4 w-4" />
-          {isEntityFetching ? t.common.fetching : t.common.submit}
-        </Button>
+        <div className="mt-6 flex gap-2">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={handleCancelRequest}
+          >
+            <X className="mr-2 h-4 w-4" />
+            {cancelButtonLabel}
+          </Button>
+          <Button
+            className="flex-1"
+            disabled={pin.length < pinLength || isEntityFetching}
+            onClick={handleSubmit}
+          >
+            <ArrowRight className="mr-2 h-4 w-4" />
+            {isEntityFetching ? t.common.fetching : t.common.submit}
+          </Button>
+        </div>
 
         <div className="mt-3 text-center text-xs text-muted-foreground">
           {t.pinpad.codeDelayTip}
         </div>
       </CardContent>
+      <ConfirmationDialog
+        isOpen={showCancelDialog}
+        title={t.pinpad.cancelConfirmationTitle}
+        message={cancelMessage}
+        confirmText={t.common.confirm}
+        cancelText={t.common.cancel}
+        onConfirm={handleCancelConfirm}
+        onCancel={handleCancelDismiss}
+      />
     </Card>
   )
 }

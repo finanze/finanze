@@ -625,7 +625,7 @@ function FundsInvestmentPageContent({
             </div>
           </div>
           <FundsCombinedControls
-            className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-end"
+            className="flex justify-center sm:flex-row gap-2 sm:items-center sm:justify-end"
             fundsContext={fundsContext}
             portfolioContext={portfolioContext}
           />

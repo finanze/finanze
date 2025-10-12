@@ -1,7 +1,7 @@
 {
   "common": {
     "back": "Volver",
-    "submit": "Enviar",
+    "submit": "Continuar",
     "loading": "Cargando...",
     "fetching": "Obteniendo...",
     "saving": "Guardando...",
@@ -81,7 +81,8 @@
     "pin": "Fijar",
     "unpin": "Quitar",
     "pinAsset": "Fijar activo",
-    "unpinAsset": "Quitar activo"
+    "unpinAsset": "Quitar activo",
+    "continueInBackground": "Continuar en segundo plano"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -187,8 +188,8 @@
     "error": "Error"
   },
   "login": {
-    "enterCredentials": "Ingrese Credenciales para",
-    "externalLogin": "Inicio de Sesión Externo para",
+    "enterCredentials": "Ingresa las credenciales de",
+    "externalLogin": "Inicio de Sesión Externo de",
     "externalLoginInProgress": "Inicio de sesión en progreso. Por favor complete el inicio de sesión en la ventana abierta.",
     "externalLoginComplete": "Inicio de sesión completado con éxito.",
     "credentials": {
@@ -228,8 +229,11 @@
     "login": "Iniciar Sesión"
   },
   "pinpad": {
-    "enterCode": "Ingrese Código de {length} Dígitos para",
-    "codeDelayTip": "Consejo: A veces el código 2FA puede tardar un poco en llegar."
+    "enterCode": "Ingresa el código de {length} dígitos de",
+    "codeDelayTip": "Info: A veces el código 2FA puede tardar un poco en llegar",
+    "cancelConfirmationTitle": "¿Cancelar verificación?",
+    "cancelLoginDescription": "¿Quieres salir del proceso de inicio de sesión?",
+    "cancelFetchDescription": "¿Quieres salir del proceso de actualización?"
   },
   "errors": {
     "INVALID_CODE": "Código inválido",
@@ -246,7 +250,8 @@
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
-    "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente."
+    "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente.",
+    "DISABLED": "Extracción de datos virtuales deshabilitada en configuración."
   },
   "entities": {
     "title": "Integraciones",
@@ -279,7 +284,7 @@
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos, y una vez desconectada no se tendrán en cuenta.",
     "refreshEntity": "Actualizar datos de entidades",
     "financialInstitutions": "Instituciones Financieras",
-    "cryptoWallets": "Carteras Crypto",
+    "cryptoWallets": "Billeteras Crypto",
     "commodities": "Materias Primas",
     "commoditiesDescription": "Integra tus materias primas con valor de mercado en tiempo real",
     "manualDataEntry": "Datos de usuario",
@@ -538,7 +543,7 @@
     "portfolioName": "Nombre de Cartera",
     "iban": "IBAN",
     "currency": "Moneda",
-    "addManualTransaction": "Añadir transacción manual",
+    "addManualTransaction": "Añadir transacción",
     "previous": "Anterior",
     "next": "Siguiente",
     "page": "Página",
@@ -655,7 +660,7 @@
       "SAVINGS": "Ahorros",
       "BROKERAGE": "Inversión",
       "VIRTUAL_WALLET": "Monedero",
-      "FUND_PORTFOLIO": "Cartera de fondos"
+      "FUND_PORTFOLIO": "Cartera de Fondos"
     },
     "cardType": {
       "CREDIT": "Crédito",
@@ -694,41 +699,40 @@
     }
   },
   "walletForm": {
-    "title": "Agregar Cartera",
-    "description": "Agregar una nueva cartera para {{entityName}}",
+    "title": "Agregar billetera de {{entityName}}",
     "fields": {
-      "name": "Nombre de la Cartera",
-      "address": "Dirección de la Cartera"
+      "name": "Nombre",
+      "address": "Dirección"
     },
     "placeholders": {
-      "name": "ej. Mi Cartera Bitcoin",
-      "address": "Introduce la dirección de la cartera"
+      "name": "ej. Mi Billetera Bitcoin",
+      "address": "Introduce la dirección de la billetera"
     },
-    "submit": "Agregar Cartera",
+    "submit": "Agregar",
     "errors": {
-      "nameRequired": "El nombre de la cartera es obligatorio",
-      "addressRequired": "La dirección de la cartera es obligatoria",
-      "addressTooShort": "La dirección de la cartera parece demasiado corta",
-      "generic": "Error al agregar cartera",
-      "ADDRESS_ALREADY_EXISTS": "Esta dirección de cartera ya está conectada",
-      "ADDRESS_NOT_FOUND": "Dirección de cartera no encontrada",
+      "nameRequired": "El nombre de la billetera es obligatorio",
+      "addressRequired": "La dirección de la billetera es obligatoria",
+      "addressTooShort": "La dirección de la billetera parece demasiado corta",
+      "generic": "Error al agregar billetera",
+      "ADDRESS_ALREADY_EXISTS": "Esta dirección de billetera ya está conectada",
+      "ADDRESS_NOT_FOUND": "Dirección de billetera no encontrada",
       "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Por favor espera un momento antes de intentar de nuevo"
     }
   },
   "walletManagement": {
-    "title": "Gestionar carteras",
-    "subtitle": "Carteras conectadas para {{entityName}}",
-    "addWallet": "Agregar cartera",
-    "noWallets": "No hay carteras conectadas",
-    "noWalletsDescription": "Comienza agregando tu primera cartera a esta entidad cripto",
-    "addFirstWallet": "Agregar tu primera cartera",
+    "title": "Gestionar billeteras",
+    "subtitle": "Billeteras conectadas para {{entityName}}",
+    "addWallet": "Agregar billetera",
+    "noWallets": "No hay billeteras conectadas",
+    "noWalletsDescription": "Comienza agregando tu primera billetera a esta entidad cripto",
+    "addFirstWallet": "Agregar tu primera billetera",
     "tokens": "Tokens",
     "totalValue": "Valor total",
-    "deleteWalletConfirm": "¿Estás seguro de que quieres eliminar la cartera \"{{walletName}}\"? Esta acción no se puede deshacer.",
-    "editWalletName": "Editar nombre de cartera",
-    "walletNamePlaceholder": "Ingrese el nombre de la cartera",
-    "wallets": "carteras",
-    "wallet": "cartera",
+    "deleteWalletConfirm": "¿Estás seguro de que quieres eliminar la billetera \"{{walletName}}\"? Esta acción no se puede deshacer.",
+    "editWalletName": "Editar nombre de billetera",
+    "walletNamePlaceholder": "Ingrese el nombre de la billetera",
+    "wallets": "billeteras",
+    "wallet": "billetera",
     "manage": "Gestionar"
   },
   "commodityManagement": {
@@ -1004,7 +1008,7 @@
     "source": "Origen",
     "manualContributions": {
       "unnamed": "Aportación manual",
-      "add": "Agregar aportación",
+      "add": "Nueva aportación",
       "createTitle": "Agregar aportación manual",
       "editTitle": "Editar aportación manual",
       "entity": "Entidad",
@@ -1074,7 +1078,7 @@
       "bankAccounts": {
         "title": "Cuentas bancarias manuales",
         "description": "Mantén los saldos de cuentas que no están conectadas automáticamente.",
-        "add": "Añadir cuenta bancaria",
+        "add": "Añadir",
         "empty": {
           "title": "No hay cuentas bancarias manuales",
           "description": "Añade una cuenta manual para incluir su saldo en tu resumen."
@@ -1108,7 +1112,7 @@
       "bankCards": {
         "title": "Tarjetas manuales",
         "description": "Controla tarjetas de crédito o débito gestionadas manualmente.",
-        "add": "Añadir tarjeta",
+        "add": "Añadir",
         "empty": {
           "title": "No hay tarjetas manuales",
           "description": "Añade una tarjeta manual para controlar su gasto y límite."
@@ -1135,7 +1139,7 @@
       "bankLoans": {
         "title": "Préstamos manuales",
         "description": "Mantén datos de préstamos que no se sincronizan mediante integraciones.",
-        "add": "Añadir préstamo",
+        "add": "Añadir",
         "empty": {
           "title": "No hay préstamos manuales",
           "description": "Añade un préstamo manual para seguir sus pagos y saldos."
@@ -1177,7 +1181,7 @@
       "fundPortfolios": {
         "title": "Carteras de fondos manuales",
         "description": "Organiza tus fondos manuales dentro de carteras dedicadas.",
-        "add": "Añadir cartera de fondos",
+        "add": "Cartera",
         "empty": {
           "title": "No hay carteras de fondos manuales",
           "description": "Crea una cartera manual para agrupar tus inversiones en fondos."
@@ -1217,7 +1221,7 @@
       "funds": {
         "title": "Fondos manuales",
         "description": "Registra posiciones en fondos que actualizas manualmente.",
-        "add": "Añadir fondo",
+        "add": "Fondo",
         "empty": {
           "title": "No hay fondos manuales",
           "description": "Añade una posición manual de fondo para incluirla en tu cartera."
@@ -1255,7 +1259,7 @@
       "stocks": {
         "title": "Acciones manuales",
         "description": "Sigue posiciones en acciones o ETFs gestionadas manualmente.",
-        "add": "Añadir acción / ETF",
+        "add": "Añadir",
         "empty": {
           "title": "No hay acciones manuales",
           "description": "Añade una posición manual de acción o ETF a tu cartera."
@@ -1287,7 +1291,7 @@
       "deposits": {
         "title": "Depósitos manuales",
         "description": "Mantén los datos de depósitos a plazo de forma manual.",
-        "add": "Añadir depósito",
+        "add": "Añadir",
         "empty": {
           "title": "No hay depósitos manuales",
           "description": "Añade un depósito manual para seguir su rentabilidad."
@@ -1309,7 +1313,7 @@
       "factoring": {
         "title": "Factoring manual",
         "description": "Registra operaciones de factoring gestionadas fuera de las integraciones.",
-        "add": "Añadir operación de factoring",
+        "add": "Añadir",
         "empty": {
           "title": "No hay operaciones de factoring manuales",
           "description": "Añade una posición manual de factoring para incluirla en tus inversiones."
@@ -1333,7 +1337,7 @@
       "realEstateCf": {
         "title": "CF inmobiliario manual",
         "description": "Sigue inversiones de crowdlending inmobiliario añadidas manualmente.",
-        "add": "Añadir CF inmobiliario",
+        "add": "Añadir",
         "empty": {
           "title": "No hay posiciones manuales de CF inmobiliario",
           "description": "Añade una posición manual de CF inmobiliario para monitorizarla."

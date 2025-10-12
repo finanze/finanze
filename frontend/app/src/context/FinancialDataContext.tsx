@@ -20,6 +20,7 @@ import {
 } from "@/types/contributions"
 import { PeriodicFlow, PendingFlow } from "@/types"
 import { useAppContext } from "./AppContext"
+import { useEntityWorkflow } from "./EntityWorkflowContext"
 import { EntityType } from "@/types"
 import { getAllRealEstate } from "@/services/api"
 import type { RealEstate } from "@/types"
@@ -59,11 +60,11 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     inactiveEntities,
     entities,
     entitiesLoaded,
-    setOnScrapeCompleted,
     fetchEntities,
     exchangeRates,
     exchangeRatesLoading,
   } = useAppContext()
+  const { setOnScrapeCompleted } = useEntityWorkflow()
 
   const fetchFinancialData = async () => {
     setIsLoading(true)

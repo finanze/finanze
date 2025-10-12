@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { useState, useMemo } from "react"
 import { Button } from "@/components/ui/Button"
 import { useAppContext } from "@/context/AppContext"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Entity, EntityStatus, EntityType } from "@/types"
 import { Database, RefreshCw, History, ChevronDown } from "lucide-react"
@@ -11,8 +12,9 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { formatTimeAgo } from "@/lib/timeUtils"
 
 export function EntityRefreshDropdown() {
-  const { entities, scrape, fetchingEntityState, setFetchingEntityState } =
-    useAppContext()
+  const { entities } = useAppContext()
+  const { scrape, fetchingEntityState, setFetchingEntityState } =
+    useEntityWorkflow()
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
 

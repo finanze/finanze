@@ -1,23 +1,24 @@
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Clock } from "lucide-react"
-import { useAppContext } from "@/context/AppContext"
+import { ArrowRight, Clock, X } from "lucide-react"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
+import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { useI18n } from "@/i18n"
 import { CredentialType } from "@/types"
 
 export function LoginForm() {
   const {
     selectedEntity,
     login,
-    isLoading,
     storedCredentials,
     selectedFeatures,
     fetchOptions,
-  } = useAppContext()
+    setView,
+    resetState,
+  } = useEntityWorkflow()
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const { t } = useI18n()
 
@@ -38,7 +39,6 @@ export function LoginForm() {
     lastTransactionsFetchRaw.trim() !== ""
   const isDeepFetch = Boolean(fetchOptions.deep)
   const showTransactionsLoadingNotice =
-    isLoading &&
     selectedFeatures.includes("TRANSACTIONS") &&
     (!hasTransactionsHistory || isDeepFetch)
 
@@ -49,6 +49,11 @@ export function LoginForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     login(credentials)
+  }
+
+  const handleCancel = () => {
+    resetState()
+    setView("entities")
   }
 
   // Get credential fields and sort them (password/PIN types last)
@@ -76,7 +81,7 @@ export function LoginForm() {
   })
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-center">
           {t.login.enterCredentials} {selectedEntity.name}
@@ -117,9 +122,21 @@ export function LoginForm() {
               <span>{t.features.transactionsLoadingNotice}</span>
             </div>
           )}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? t.common.loading : t.common.submit}
-          </Button>
+          <div className="mt-6 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={handleCancel}
+            >
+              <X className="mr-2 h-4 w-4" />
+              {t.common.cancel}
+            </Button>
+            <Button type="submit" className="flex-1">
+              <ArrowRight className="mr-2 h-4 w-4" />
+              {t.common.submit}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>
