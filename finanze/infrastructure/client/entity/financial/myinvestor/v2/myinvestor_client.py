@@ -177,9 +177,9 @@ class MyInvestorAPIV2Client:
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_cash_accounts(self):
-        return self._get_request("/myinvestor-server/api/v2/cash-accounts/self")[
-            "payload"
-        ]["data"]
+        return self._get_request("/cperf-server/api/v2/cash-accounts/self")["payload"][
+            "data"
+        ]
 
     def get_account_remuneration(self, account_id):
         return self._get_request(

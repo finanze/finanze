@@ -520,6 +520,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 credit_card_tx = self._client.get_card_totals(credit_card["cardId"])
                 credit_pan = credit_card["pan"].split(" ")[-1]
                 credit_active = credit_card["status"] == "ACTIVATE"
+                credit_limit = credit_card_tx.get("limit")
+                used = credit_card_tx.get("consumedMonth") or 0
 
                 cards.append(
                     Card(
@@ -527,8 +529,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         ending=credit_pan,
                         currency="EUR",
                         type=CardType.CREDIT,
-                        limit=Dezimal(credit_card_tx["limit"]),
-                        used=abs(Dezimal(credit_card_tx["consumedMonth"])),
+                        limit=Dezimal(credit_limit) if credit_limit else None,
+                        used=abs(Dezimal(used)),
                         active=credit_active,
                         related_account=account.id,
                     )
@@ -536,8 +538,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             if debit_card:
                 debit_pan = debit_card["pan"].split(" ")[-1]
-                debit_card_tx = self._client.get_card_totals(debit_card["cardId"])
+                debit_card_totals = self._client.get_card_totals(debit_card["cardId"])
                 debit_active = debit_card["status"] == "ACTIVATE"
+                disposable = debit_card_totals.get("disposable")
+                used = debit_card_totals.get("consumedMonth") or 0
 
                 cards.append(
                     Card(
@@ -545,8 +549,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         ending=debit_pan,
                         currency="EUR",
                         type=CardType.DEBIT,
-                        limit=Dezimal(debit_card_tx["disposable"]),
-                        used=abs(Dezimal(debit_card_tx["consumedMonth"])),
+                        limit=Dezimal(disposable) if disposable else None,
+                        used=abs(Dezimal(used)),
                         active=debit_active,
                         related_account=account.id,
                     )
