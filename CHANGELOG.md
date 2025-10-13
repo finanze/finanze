@@ -1,3 +1,8 @@
+## [0.5.2] - 2025-10-13
+
+### 🐛 Bug Fixes
+
+- MyInvestor API patch
 ## [0.5.1] - 2025-09-27
 
 ### 🚀 Features
