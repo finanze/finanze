@@ -29,6 +29,8 @@ from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
+from domain.use_cases.get_instrument_info import GetInstrumentInfo
+from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_login_status import GetLoginStatus
 from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
@@ -98,6 +100,9 @@ from infrastructure.controller.routes.get_external_integrations import (
 from infrastructure.controller.routes.get_pending_flows import get_pending_flows
 from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
 from infrastructure.controller.routes.get_settings import get_settings
+from infrastructure.controller.routes.historic import get_historic
+from infrastructure.controller.routes.instrument_details import instrument_details
+from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
 from infrastructure.controller.routes.login_status import login_status
 from infrastructure.controller.routes.logout import logout
@@ -118,7 +123,6 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
-from infrastructure.controller.routes.historic import get_historic
 
 
 def register_routes(
@@ -172,6 +176,8 @@ def register_routes(
     add_manual_transaction_uc: AddManualTransaction,
     update_manual_transaction_uc: UpdateManualTransaction,
     delete_manual_transaction_uc: DeleteManualTransaction,
+    get_instruments_uc: GetInstruments,
+    get_instrument_info_uc: GetInstrumentInfo,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -374,3 +380,11 @@ def register_routes(
     @app.route("/api/v1/historic", methods=["GET"])
     def get_historic_route():
         return get_historic(get_historic_uc)
+
+    @app.route("/api/v1/instruments", methods=["GET"])
+    def instruments_route():
+        return instruments(get_instruments_uc)
+
+    @app.route("/api/v1/instruments/details", methods=["GET"])
+    def instrument_details_route():
+        return instrument_details(get_instrument_info_uc)

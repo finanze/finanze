@@ -118,6 +118,11 @@ class FundType(str, Enum):
     PENSION_FUND = "PENSION_FUND"
 
 
+class EquityType(str, Enum):
+    STOCK = "STOCK"
+    ETF = "ETF"
+
+
 @dataclass
 class StockDetail(BaseData):
     id: Optional[UUID]
@@ -130,7 +135,7 @@ class StockDetail(BaseData):
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
-    type: str
+    type: EquityType
     subtype: Optional[str] = None
     info_sheet_url: Optional[str] = None
     source: DataSource = DataSource.REAL

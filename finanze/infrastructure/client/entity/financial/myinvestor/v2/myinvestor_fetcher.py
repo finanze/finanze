@@ -33,12 +33,13 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolio,
     FundPortfolios,
+    FundType,
     GlobalPosition,
     ProductPositions,
     ProductType,
     StockDetail,
     StockInvestments,
-    FundType,
+    EquityType,
 )
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
@@ -100,25 +101,31 @@ STOCKS_TX_FETCH_STEP = relativedelta(months=4)
 def _get_stock_investments(broker_investments) -> StockInvestments:
     stock_list = []
     if broker_investments:
-        stock_list = [
-            StockDetail(
-                id=uuid4(),
-                name=stock["investmentName"],
-                ticker=stock.get("ticker", ""),
-                isin=stock["isin"],
-                market=stock["marketCode"],
-                shares=Dezimal(stock["shares"]),
-                initial_investment=round(Dezimal(stock["initialInvestment"]), 4),
-                average_buy_price=round(
-                    Dezimal(stock["initialInvestment"]) / Dezimal(stock["shares"]), 4
-                ),
-                market_value=round(Dezimal(stock["marketValue"]), 4),
-                currency=stock["liquidationValueCurrency"],
-                type=stock["brokerProductType"],
-                subtype=stock.get("activeTypeCode"),
+        for stock in broker_investments["investmentList"]:
+            product_type = (
+                EquityType.STOCK
+                if stock["brokerProductType"] == "RV"
+                else EquityType.ETF
             )
-            for stock in broker_investments["investmentList"]
-        ]
+            stock_list.append(
+                StockDetail(
+                    id=uuid4(),
+                    name=stock["investmentName"],
+                    ticker=stock.get("ticker", ""),
+                    isin=stock["isin"],
+                    market=stock["marketCode"],
+                    shares=Dezimal(stock["shares"]),
+                    initial_investment=round(Dezimal(stock["initialInvestment"]), 4),
+                    average_buy_price=round(
+                        Dezimal(stock["initialInvestment"]) / Dezimal(stock["shares"]),
+                        4,
+                    ),
+                    market_value=round(Dezimal(stock["marketValue"]), 4),
+                    currency=stock["liquidationValueCurrency"],
+                    type=product_type,
+                    subtype=stock.get("activeTypeCode"),
+                )
+            )
 
     return StockInvestments(stock_list)
 

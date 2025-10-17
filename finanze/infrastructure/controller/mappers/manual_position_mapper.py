@@ -5,7 +5,6 @@ from typing import Any, Dict
 from uuid import UUID
 
 from dateutil.tz import tzlocal
-
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import MissingFieldsError
 from domain.fetch_record import DataSource
@@ -33,6 +32,7 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolio,
     FundPortfolios,
+    FundType,
     InterestType,
     Loan,
     Loans,
@@ -43,7 +43,7 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
-    FundType,
+    EquityType,
 )
 
 
@@ -367,7 +367,7 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
                 average_buy_price=avg_buy,
                 market_value=market_value,
                 currency=e["currency"],
-                type=e["type"],
+                type=EquityType(e["type"]),
                 subtype=e.get("subtype"),
                 source=DataSource.MANUAL,
             )

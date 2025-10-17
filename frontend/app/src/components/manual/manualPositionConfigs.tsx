@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
 import { DatePicker } from "@/components/ui/DatePicker"
@@ -21,8 +21,15 @@ import {
   FactoringDetail,
   RealEstateCFDetail,
   ProductType,
+  EquityType,
 } from "@/types/position"
-import { DataSource } from "@/types"
+import {
+  DataSource,
+  InstrumentDataRequest,
+  InstrumentInfo,
+  InstrumentOverview,
+  InstrumentType,
+} from "@/types"
 import type { LoanCalculationRequest } from "@/types"
 import { calculateLoan } from "@/services/api"
 import { useAppContext } from "@/context/AppContext"
@@ -38,7 +45,8 @@ import {
   formatNumberInput,
   normalizeDateInput,
 } from "@/utils/manualData"
-import { Calculator, Loader2, Plus, X } from "lucide-react"
+import { Calculator, Loader2, Plus, Search, X } from "lucide-react"
+import { getInstrumentDetails, getInstruments } from "@/services/api"
 
 const renderTextInput = <FormState extends ManualPositionFormBase>(
   field: keyof FormState,
@@ -469,6 +477,701 @@ interface FundFormState extends ManualPositionFormBase {
   _portfolio_name: string
   _portfolio_currency: string
   _last_investment_field: string
+  _suggested_market_price: string
+}
+
+interface StockFormState extends ManualPositionFormBase {
+  name: string
+  ticker: string
+  isin: string
+  shares: string
+  average_buy_price: string
+  initial_investment: string
+  market_value: string
+  currency: string
+  type: string
+  _last_investment_field: string
+  _suggested_market_price: string
+}
+
+const MAX_INSTRUMENT_RESULTS = 15
+
+const buildInstrumentPrimaryLabel = (
+  entry: InstrumentInfo,
+  t: ManualFormFieldRenderProps<any>["t"],
+) => {
+  if (entry.name) return entry.name
+  if (entry.symbol) return entry.symbol
+  if (entry.isin) return entry.isin
+  return t("common.notAvailable")
+}
+
+const buildInstrumentSecondaryInfo = (
+  entry: InstrumentInfo,
+  labels: { isin: string; ticker: string },
+) => {
+  const parts: string[] = []
+  if (entry.isin) {
+    parts.push(`${labels.isin}: ${entry.isin}`)
+  }
+  if (entry.symbol) {
+    parts.push(`${labels.ticker}: ${entry.symbol}`)
+  }
+  return parts.join(" • ")
+}
+
+const formatInstrumentPriceLabel = (entry: InstrumentInfo, locale: string) => {
+  if (entry.price == null) return null
+  const formatted = entry.price.toLocaleString(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  })
+  const currency = entry.currency?.toUpperCase()
+  return currency ? `${currency} ${formatted}` : formatted
+}
+
+const mapEquityTypeToInstrumentType = (
+  value?: string | null,
+): InstrumentType | null => {
+  if (value === EquityType.STOCK) return InstrumentType.STOCK
+  if (value === EquityType.ETF) return InstrumentType.ETF
+  return null
+}
+
+const mapInstrumentTypeToEquityType = (
+  value?: InstrumentType | null,
+): EquityType | null => {
+  if (value === InstrumentType.STOCK) return EquityType.STOCK
+  if (value === InstrumentType.ETF) return EquityType.ETF
+  return null
+}
+
+const useInstrumentDropdown = (isOpen: boolean, onClose: () => void) => {
+  const ref = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!ref.current) return
+      const target = event.target as Node | null
+      if (target && !ref.current.contains(target)) {
+        onClose()
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose()
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("touchstart", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("touchstart", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isOpen, onClose])
+
+  return ref
+}
+
+interface FundInstrumentSearchFieldProps {
+  field: "name" | "isin"
+  label: string
+  formProps: ManualFormFieldRenderProps<FundFormState>
+}
+
+function FundInstrumentSearchField({
+  field,
+  label,
+  formProps,
+}: FundInstrumentSearchFieldProps) {
+  const { form, updateField, clearError, errors, t, locale } = formProps
+  const [results, setResults] = useState<InstrumentInfo[]>([])
+  const [hasSearched, setHasSearched] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null)
+  const dropdownLabels = {
+    isin: t("management.manualPositions.funds.fields.isin"),
+    ticker: t("management.manualPositions.stocks.fields.ticker"),
+  }
+
+  const inputValue = (form[field] as string) ?? ""
+
+  useEffect(() => {
+    setResults([])
+    setHasSearched(false)
+    setSearchError(null)
+  }, [inputValue])
+
+  const closeDropdown = useCallback(() => {
+    setHasSearched(false)
+    setSearchError(null)
+    setResults([])
+  }, [])
+
+  const containerRef = useInstrumentDropdown(
+    hasSearched || Boolean(searchError),
+    closeDropdown,
+  )
+
+  const handleSearch = async () => {
+    const normalizedValue =
+      field === "isin" ? inputValue.trim().toUpperCase() : inputValue.trim()
+    if (!normalizedValue || isSearching) return
+
+    const request: InstrumentDataRequest = {
+      type: InstrumentType.MUTUAL_FUND,
+    }
+
+    if (field === "name") {
+      request.name = normalizedValue
+    } else {
+      request.isin = normalizedValue
+    }
+
+    setIsSearching(true)
+    setSearchError(null)
+    setHasSearched(false)
+
+    try {
+      const response = await getInstruments(request)
+      const entries = (response.entries ?? []).slice(0, MAX_INSTRUMENT_RESULTS)
+      setResults(entries)
+      setHasSearched(true)
+    } catch (error) {
+      console.error("Instrument search failed", error)
+      setSearchError(t("common.error"))
+      setResults([])
+      setHasSearched(true)
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleSelect = async (entry: InstrumentInfo, index: number) => {
+    if (detailsLoadingId) return
+
+    const entryKey = entry.isin ?? entry.symbol ?? entry.name ?? String(index)
+    const detailsRequest: InstrumentDataRequest = {
+      type: InstrumentType.MUTUAL_FUND,
+    }
+
+    if (entry.isin) {
+      detailsRequest.isin = entry.isin
+    }
+
+    if (entry.name) {
+      detailsRequest.name = entry.name
+    }
+
+    if (entry.symbol) {
+      detailsRequest.ticker = entry.symbol
+    }
+
+    const applySelection = (details: InstrumentOverview | null) => {
+      const resolvedName = (
+        entry.name ??
+        details?.name ??
+        form.name ??
+        ""
+      ).trim()
+      if (resolvedName) {
+        updateField("name", resolvedName)
+        clearError("name")
+      }
+
+      const resolvedIsin = (entry.isin ?? details?.isin ?? form.isin ?? "")
+        .trim()
+        .toUpperCase()
+      if (resolvedIsin) {
+        updateField("isin", resolvedIsin)
+        clearError("isin")
+      }
+
+      const resolvedCurrency = (
+        entry.currency ??
+        details?.currency ??
+        form.currency ??
+        ""
+      ).toString()
+      if (resolvedCurrency) {
+        updateField("currency", resolvedCurrency.toUpperCase())
+        clearError("currency")
+      }
+
+      updateField("type", FundType.MUTUAL_FUND)
+      clearError("type")
+
+      const resolvedPriceValue =
+        details?.price != null
+          ? details.price
+          : entry.price != null
+            ? entry.price
+            : null
+
+      if (resolvedPriceValue != null) {
+        const formattedPrice = formatNumberInput(resolvedPriceValue, {
+          maximumFractionDigits: 6,
+        })
+
+        if (formattedPrice) {
+          updateField("_suggested_market_price", formattedPrice)
+
+          const sharesValue = parseNumberInput(form.shares)
+          if (sharesValue != null && sharesValue > 0) {
+            const totalValue = sharesValue * resolvedPriceValue
+            const formattedTotal = formatNumberInput(totalValue)
+            if (formattedTotal) {
+              updateField("market_value", formattedTotal)
+            } else {
+              updateField("market_value", formattedPrice)
+            }
+          } else {
+            updateField("market_value", formattedPrice)
+          }
+
+          clearError("market_value")
+        }
+      } else {
+        updateField("_suggested_market_price", "")
+      }
+    }
+
+    setDetailsLoadingId(entryKey)
+    let details: InstrumentOverview | null = null
+
+    try {
+      details = await getInstrumentDetails(detailsRequest)
+    } catch (error) {
+      console.error("Instrument details fetch failed", error)
+    } finally {
+      setDetailsLoadingId(null)
+    }
+
+    applySelection(details)
+    closeDropdown()
+  }
+
+  const disabled = !inputValue.trim() || isSearching
+
+  return (
+    <div ref={containerRef} className="space-y-1.5">
+      <Label htmlFor={field}>{label}</Label>
+      <div className="relative">
+        <Input
+          id={field}
+          value={inputValue}
+          onChange={event => {
+            const value = event.target.value
+            updateField(field, value)
+            clearError(field)
+            if (form._suggested_market_price) {
+              updateField("_suggested_market_price", "")
+            }
+          }}
+          onKeyDown={event => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              handleSearch()
+            }
+          }}
+          className="pr-10"
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md p-1 text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={handleSearch}
+          disabled={disabled}
+          title={t("common.search")}
+        >
+          {isSearching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+        </button>
+        {(hasSearched || searchError) && (
+          <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+            {searchError ? (
+              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                {searchError}
+              </p>
+            ) : results.length > 0 ? (
+              <div className="max-h-60 overflow-y-auto py-1">
+                {results.map((entry, index) => {
+                  const entryKey =
+                    entry.isin ?? entry.symbol ?? entry.name ?? String(index)
+                  const waiting = detailsLoadingId === entryKey
+                  const priceLabel = formatInstrumentPriceLabel(entry, locale)
+                  const secondaryInfo = buildInstrumentSecondaryInfo(
+                    entry,
+                    dropdownLabels,
+                  )
+                  return (
+                    <button
+                      key={entryKey + index}
+                      type="button"
+                      className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                      onClick={() => handleSelect(entry, index)}
+                      disabled={Boolean(detailsLoadingId)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {buildInstrumentPrimaryLabel(entry, t)}
+                        </span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {entry.currency && (
+                            <span>{entry.currency.toUpperCase()}</span>
+                          )}
+                          {priceLabel && <span>{priceLabel}</span>}
+                          {waiting && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )}
+                        </div>
+                      </div>
+                      {secondaryInfo && (
+                        <p className="text-xs text-muted-foreground">
+                          {secondaryInfo}
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {t("common.noOptionsFound")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {errors[field]}
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface StockInstrumentSearchFieldProps {
+  field: "name" | "ticker" | "isin"
+  label: string
+  formProps: ManualFormFieldRenderProps<StockFormState>
+}
+
+function StockInstrumentSearchField({
+  field,
+  label,
+  formProps,
+}: StockInstrumentSearchFieldProps) {
+  const { form, updateField, clearError, errors, t, locale } = formProps
+  const [results, setResults] = useState<InstrumentInfo[]>([])
+  const [hasSearched, setHasSearched] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null)
+  const dropdownLabels = {
+    isin: t("management.manualPositions.stocks.fields.isin"),
+    ticker: t("management.manualPositions.stocks.fields.ticker"),
+  }
+
+  const inputValue = (form[field] as string) ?? ""
+  const selectedInstrumentType = mapEquityTypeToInstrumentType(form.type)
+
+  useEffect(() => {
+    setResults([])
+    setHasSearched(false)
+    setSearchError(null)
+  }, [inputValue, form.type])
+
+  const closeDropdown = useCallback(() => {
+    setHasSearched(false)
+    setSearchError(null)
+    setResults([])
+  }, [])
+
+  const containerRef = useInstrumentDropdown(
+    hasSearched || Boolean(searchError),
+    closeDropdown,
+  )
+
+  const handleSearch = async () => {
+    const query = inputValue.trim()
+    if (!query || isSearching || !selectedInstrumentType) return
+
+    const trimmedValue = inputValue.trim()
+    if (!trimmedValue) return
+
+    const request: InstrumentDataRequest = {
+      type: selectedInstrumentType,
+    }
+
+    if (field === "name") {
+      request.name = trimmedValue
+    } else if (field === "ticker") {
+      request.ticker = trimmedValue.toUpperCase()
+    } else {
+      request.isin = trimmedValue.toUpperCase()
+    }
+
+    setIsSearching(true)
+    setSearchError(null)
+    setHasSearched(false)
+
+    try {
+      const response = await getInstruments(request)
+      const entries = (response.entries ?? []).slice(0, MAX_INSTRUMENT_RESULTS)
+      setResults(entries)
+      setHasSearched(true)
+    } catch (error) {
+      console.error("Instrument search failed", error)
+      setSearchError(t("common.error"))
+      setResults([])
+      setHasSearched(true)
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleSelect = async (entry: InstrumentInfo, index: number) => {
+    if (detailsLoadingId) return
+
+    const entryKey = entry.isin ?? entry.symbol ?? entry.name ?? String(index)
+    const requestType = entry.type ?? selectedInstrumentType
+    const detailsRequest: InstrumentDataRequest = {
+      type: requestType ?? InstrumentType.STOCK,
+    }
+
+    if (entry.isin) {
+      detailsRequest.isin = entry.isin
+    }
+    if (entry.name) {
+      detailsRequest.name = entry.name
+    }
+    if (entry.symbol) {
+      detailsRequest.ticker = entry.symbol
+    }
+
+    const applySelection = (details: InstrumentOverview | null) => {
+      const resolvedName = (
+        entry.name ??
+        details?.name ??
+        form.name ??
+        ""
+      ).trim()
+      if (resolvedName) {
+        updateField("name", resolvedName)
+        clearError("name")
+      }
+
+      const resolvedTicker = (
+        entry.symbol ??
+        details?.symbol ??
+        form.ticker ??
+        ""
+      )
+        .trim()
+        .toUpperCase()
+      if (resolvedTicker) {
+        updateField("ticker", resolvedTicker)
+        clearError("ticker")
+      }
+
+      const resolvedIsin = (entry.isin ?? details?.isin ?? form.isin ?? "")
+        .trim()
+        .toUpperCase()
+      if (resolvedIsin) {
+        updateField("isin", resolvedIsin)
+        clearError("isin")
+      }
+
+      const resolvedCurrency = (
+        entry.currency ??
+        details?.currency ??
+        form.currency ??
+        ""
+      ).toString()
+      if (resolvedCurrency) {
+        updateField("currency", resolvedCurrency.toUpperCase())
+        clearError("currency")
+      }
+
+      const mappedType = mapInstrumentTypeToEquityType(
+        details?.type ?? entry.type ?? requestType ?? null,
+      )
+      if (mappedType) {
+        updateField("type", mappedType)
+        clearError("type")
+      }
+
+      const resolvedPriceValue =
+        details?.price != null
+          ? details.price
+          : entry.price != null
+            ? entry.price
+            : null
+
+      if (resolvedPriceValue != null) {
+        const formattedPrice = formatNumberInput(resolvedPriceValue, {
+          maximumFractionDigits: 6,
+        })
+
+        if (formattedPrice) {
+          updateField("_suggested_market_price", formattedPrice)
+
+          const sharesValue = parseNumberInput(form.shares)
+          if (sharesValue != null && sharesValue > 0) {
+            const totalValue = sharesValue * resolvedPriceValue
+            const formattedTotal = formatNumberInput(totalValue)
+            if (formattedTotal) {
+              updateField("market_value", formattedTotal)
+            } else {
+              updateField("market_value", formattedPrice)
+            }
+          } else {
+            updateField("market_value", formattedPrice)
+          }
+
+          clearError("market_value")
+        }
+      } else {
+        updateField("_suggested_market_price", "")
+      }
+    }
+
+    setDetailsLoadingId(entryKey)
+    let details: InstrumentOverview | null = null
+
+    try {
+      details = await getInstrumentDetails(detailsRequest)
+    } catch (error) {
+      console.error("Instrument details fetch failed", error)
+    } finally {
+      setDetailsLoadingId(null)
+    }
+
+    applySelection(details)
+    closeDropdown()
+  }
+
+  const disabled =
+    !inputValue.trim() ||
+    isSearching ||
+    !selectedInstrumentType ||
+    !!detailsLoadingId
+
+  return (
+    <div ref={containerRef} className="space-y-1.5">
+      <Label htmlFor={field}>{label}</Label>
+      <div className="relative">
+        <Input
+          id={field}
+          value={inputValue}
+          onChange={event => {
+            const rawValue = event.target.value
+            const value =
+              field === "ticker" || field === "isin"
+                ? rawValue.toUpperCase()
+                : rawValue
+            updateField(field, value)
+            clearError(field)
+            if (form._suggested_market_price) {
+              updateField("_suggested_market_price", "")
+            }
+          }}
+          onKeyDown={event => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              handleSearch()
+            }
+          }}
+          className="pr-10"
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md p-1 text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          onClick={handleSearch}
+          disabled={disabled}
+          title={t("common.search")}
+        >
+          {isSearching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+        </button>
+        {(hasSearched || searchError) && (
+          <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-md border border-border bg-popover shadow-lg">
+            {searchError ? (
+              <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                {searchError}
+              </p>
+            ) : results.length > 0 ? (
+              <div className="max-h-60 overflow-y-auto py-1">
+                {results.map((entry, index) => {
+                  const entryKey =
+                    entry.isin ?? entry.symbol ?? entry.name ?? String(index)
+                  const waiting = detailsLoadingId === entryKey
+                  const priceLabel = formatInstrumentPriceLabel(entry, locale)
+                  const secondaryInfo = buildInstrumentSecondaryInfo(
+                    entry,
+                    dropdownLabels,
+                  )
+                  return (
+                    <button
+                      key={entryKey + index}
+                      type="button"
+                      className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                      onClick={() => handleSelect(entry, index)}
+                      disabled={Boolean(detailsLoadingId)}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium">
+                          {buildInstrumentPrimaryLabel(entry, t)}
+                        </span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          {entry.currency && (
+                            <span>{entry.currency.toUpperCase()}</span>
+                          )}
+                          {priceLabel && <span>{priceLabel}</span>}
+                          {waiting && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )}
+                        </div>
+                      </div>
+                      {secondaryInfo && (
+                        <p className="text-xs text-muted-foreground">
+                          {secondaryInfo}
+                        </p>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                {t("common.noOptionsFound")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {errors[field]}
+        </p>
+      )}
+    </div>
+  )
 }
 
 const manualPositionConfigs: ManualPositionConfigMap = {
@@ -584,11 +1287,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               props.t(`enums.accountType.${value}`) ||
               value.charAt(0) + value.slice(1).toLowerCase(),
           })),
-        )}
-        {renderTextInput(
-          "name",
-          props.t("management.manualPositions.shared.name"),
-          props,
         )}
         {renderSelectInput(
           "currency",
@@ -1468,6 +2166,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         _portfolio_name: "",
         _portfolio_currency: "",
         _last_investment_field: "",
+        _suggested_market_price: "",
       }
       return form
     },
@@ -1502,6 +2201,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         _portfolio_name: draft.portfolio?.name?.trim() ?? "",
         _portfolio_currency: draft.portfolio?.currency?.toUpperCase() ?? "",
         _last_investment_field: "average",
+        _suggested_market_price: "",
       }
       return form
     },
@@ -1652,16 +2352,16 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {renderEntityField(props)}
-          {renderTextInput(
-            "name",
-            props.t("management.manualPositions.shared.name"),
-            props,
-          )}
-          {renderTextInput(
-            "isin",
-            props.t("management.manualPositions.funds.fields.isin"),
-            props,
-          )}
+          <FundInstrumentSearchField
+            field="name"
+            label={props.t("management.manualPositions.shared.name")}
+            formProps={props}
+          />
+          <FundInstrumentSearchField
+            field="isin"
+            label={props.t("management.manualPositions.funds.fields.isin")}
+            formProps={props}
+          />
           {renderSelectInput(
             "type",
             props.t("management.manualPositions.funds.fields.type"),
@@ -1681,7 +2381,29 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "shares",
             props.t("management.manualPositions.funds.fields.shares"),
             props,
-            { type: "number", step: "0.0001", inputMode: "decimal" },
+            {
+              type: "number",
+              step: "0.0001",
+              inputMode: "decimal",
+              onValueChange: (value, helpers) => {
+                const suggestedPriceString =
+                  helpers.form._suggested_market_price?.trim() ?? ""
+                if (!suggestedPriceString) return
+
+                const price = parseNumberInput(suggestedPriceString)
+                const sharesValue = parseNumberInput(value)
+
+                if (price === null || sharesValue === null || sharesValue <= 0)
+                  return
+
+                const total = price * sharesValue
+                const formattedTotal = formatNumberInput(total)
+                if (formattedTotal) {
+                  helpers.updateField("market_value", formattedTotal)
+                  helpers.clearError("market_value")
+                }
+              },
+            },
           )}
           <div className="space-y-1.5">
             <Label>
@@ -1740,7 +2462,16 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             "market_value",
             props.t("management.manualPositions.funds.fields.marketValue"),
             props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
+            {
+              type: "number",
+              step: "0.01",
+              inputMode: "decimal",
+              onValueChange: (_value, helpers) => {
+                if (helpers.form._suggested_market_price) {
+                  helpers.updateField("_suggested_market_price", "")
+                }
+              },
+            },
           )}
           {renderSelectInput(
             "asset_type",
@@ -1815,11 +2546,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 )}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              {props.t(
-                "management.manualPositions.funds.helpers.portfolioLinkHint",
-              )}
-            </p>
           </div>
         </div>
       )
@@ -1930,6 +2656,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: defaultCurrency,
       type: "",
       _last_investment_field: "",
+      _suggested_market_price: "",
     }),
     draftToForm: draft => ({
       entity_id: draft.isNewEntity ? "" : draft.entityId,
@@ -1954,6 +2681,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       currency: draft.currency,
       type: draft.type ?? "",
       _last_investment_field: "average",
+      _suggested_market_price: "",
     }),
     buildEntryFromForm: (form, { previous }) => {
       const shares = parseNumberInput(form.shares)
@@ -1986,7 +2714,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         market_value: resolvedMarketValue,
         initial_investment: resolvedInitialInvestment,
         currency: form.currency,
-        type: form.type || previous?.type || "",
+        type: (form.type as EquityType) || EquityType.STOCK,
         subtype: previous?.subtype ?? null,
         source: DataSource.MANUAL,
       }
@@ -1999,6 +2727,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const errors: ManualFormErrors<typeof form> = {}
       if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
+      if (!form.type) errors.type = requiredField(t)
       if (!form.ticker.trim() && !form.isin.trim()) {
         errors.ticker = t("management.manualPositions.stocks.validation.ticker")
         errors.isin = t("management.manualPositions.stocks.validation.isin")
@@ -2026,21 +2755,47 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     renderFormFields: props => (
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {renderEntityField(props)}
-        {renderTextInput(
-          "name",
-          props.t("management.manualPositions.shared.name"),
-          props,
-        )}
-        {renderTextInput(
-          "ticker",
-          props.t("management.manualPositions.stocks.fields.ticker"),
-          props,
-        )}
-        {renderTextInput(
-          "isin",
-          props.t("management.manualPositions.stocks.fields.isin"),
-          props,
-        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="type">
+            {props.t("management.manualPositions.stocks.fields.type")}
+          </Label>
+          <select
+            id="type"
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            value={(props.form.type as string) ?? ""}
+            onChange={event => {
+              props.updateField("type", event.target.value)
+              props.clearError("type")
+            }}
+          >
+            <option value="">{props.t("common.selectOptions")}</option>
+            {Object.values(EquityType).map(value => (
+              <option key={value} value={value}>
+                {props.t(`enums.equityType.${value}`) || value}
+              </option>
+            ))}
+          </select>
+          {props.errors.type && (
+            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+              {props.errors.type}
+            </p>
+          )}
+        </div>
+        <StockInstrumentSearchField
+          field="name"
+          label={props.t("management.manualPositions.shared.name")}
+          formProps={props as ManualFormFieldRenderProps<StockFormState>}
+        />
+        <StockInstrumentSearchField
+          field="ticker"
+          label={props.t("management.manualPositions.stocks.fields.ticker")}
+          formProps={props as ManualFormFieldRenderProps<StockFormState>}
+        />
+        <StockInstrumentSearchField
+          field="isin"
+          label={props.t("management.manualPositions.stocks.fields.isin")}
+          formProps={props as ManualFormFieldRenderProps<StockFormState>}
+        />
         {renderSelectInput(
           "currency",
           props.t("management.manualPositions.shared.currency"),
@@ -2051,7 +2806,29 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "shares",
           props.t("management.manualPositions.stocks.fields.shares"),
           props,
-          { type: "number", step: "0.0001", inputMode: "decimal" },
+          {
+            type: "number",
+            step: "0.0001",
+            inputMode: "decimal",
+            onValueChange: (value, helpers) => {
+              const suggestedPriceString =
+                helpers.form._suggested_market_price?.trim() ?? ""
+              if (!suggestedPriceString) return
+
+              const price = parseNumberInput(suggestedPriceString)
+              const sharesValue = parseNumberInput(value)
+
+              if (price === null || sharesValue === null || sharesValue <= 0)
+                return
+
+              const total = price * sharesValue
+              const formattedTotal = formatNumberInput(total)
+              if (formattedTotal) {
+                helpers.updateField("market_value", formattedTotal)
+                helpers.clearError("market_value")
+              }
+            },
+          },
         )}
         <div className="space-y-1.5">
           <Label>
@@ -2110,12 +2887,16 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           "market_value",
           props.t("management.manualPositions.stocks.fields.marketValue"),
           props,
-          { type: "number", step: "0.01", inputMode: "decimal" },
-        )}
-        {renderTextInput(
-          "type",
-          props.t("management.manualPositions.stocks.fields.type"),
-          props,
+          {
+            type: "number",
+            step: "0.01",
+            inputMode: "decimal",
+            onValueChange: (_value, helpers) => {
+              if (helpers.form._suggested_market_price) {
+                helpers.updateField("_suggested_market_price", "")
+              }
+            },
+          },
         )}
       </div>
     ),
@@ -2146,7 +2927,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       initial_investment: draft.initial_investment ?? null,
       market_value: draft.market_value ?? null,
       currency: draft.currency,
-      type: draft.type ?? "",
+      type: draft.type ?? EquityType.STOCK,
     }),
     toPayloadEntry: draft => ({
       id: draft.id || draft.originalId,
@@ -2158,7 +2939,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       initial_investment: draft.initial_investment ?? null,
       market_value: draft.market_value ?? null,
       currency: draft.currency,
-      type: draft.type ?? "",
+      type: (draft.type ?? EquityType.STOCK) as EquityType,
       market: draft.market ?? "",
       subtype: draft.subtype ?? null,
     }),

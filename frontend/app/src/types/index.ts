@@ -713,3 +713,39 @@ export interface CompleteExternalEntityLinkRequest {
 export interface DeleteExternalEntityRequest {
   external_entity_id: string
 }
+
+export enum InstrumentType {
+  STOCK = "STOCK",
+  ETF = "ETF",
+  MUTUAL_FUND = "MUTUAL_FUND",
+}
+
+export interface InstrumentDataRequest {
+  type: InstrumentType
+  isin?: string | null
+  name?: string | null
+  ticker?: string | null
+}
+
+export interface InstrumentOverview {
+  isin?: string | null
+  name?: string | null
+  currency?: string | null
+  symbol?: string | null
+  type?: InstrumentType | null
+  market?: string | null
+  price?: number | null
+}
+
+export interface InstrumentInfo {
+  name?: string | null
+  currency?: string | null
+  type: InstrumentType
+  price?: number | null
+  symbol?: string | null
+  isin?: string | null
+}
+
+export interface InstrumentsResponse {
+  entries: InstrumentInfo[]
+}

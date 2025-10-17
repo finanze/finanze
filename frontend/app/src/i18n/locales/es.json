@@ -709,6 +709,10 @@
       "PRIVATE_EQUITY": "Capital privado",
       "PENSION_FUND": "Fondo de pensiones"
     },
+    "equityType": {
+      "STOCK": "Acción",
+      "ETF": "ETF"
+    },
     "kpis": {
       "assetTypeSplit": "Distribución por tipo"
     },

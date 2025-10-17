@@ -34,6 +34,9 @@ import {
   ConnectExternalEntityRequest,
   ExternalEntityConnectionResult,
   AuthResultCode,
+  InstrumentDataRequest,
+  InstrumentOverview,
+  InstrumentsResponse,
 } from "@/types"
 import {
   EntityContributions,
@@ -984,4 +987,42 @@ export async function fetchExternalEntity(
     throw new Error("Fetch failed")
   }
   return data
+}
+
+export async function getInstruments(
+  request: InstrumentDataRequest,
+): Promise<InstrumentsResponse> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
+
+  params.append("type", request.type)
+  if (request.isin) params.append("isin", request.isin)
+  if (request.name) params.append("name", request.name)
+  if (request.ticker) params.append("ticker", request.ticker)
+
+  const response = await fetch(`${baseUrl}/instruments?${params.toString()}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getInstrumentDetails(
+  request: InstrumentDataRequest,
+): Promise<InstrumentOverview> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
+
+  params.append("type", request.type)
+  if (request.isin) params.append("isin", request.isin)
+  if (request.name) params.append("name", request.name)
+  if (request.ticker) params.append("ticker", request.ticker)
+
+  const response = await fetch(
+    `${baseUrl}/instruments/details?${params.toString()}`,
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
 }

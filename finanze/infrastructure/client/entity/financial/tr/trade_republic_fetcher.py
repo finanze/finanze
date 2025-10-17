@@ -27,6 +27,7 @@ from domain.global_position import (
     ProductType,
     StockDetail,
     StockInvestments,
+    EquityType,
 )
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import AccountTx, FundTx, StockTx, Transactions, TxType
@@ -174,6 +175,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         if not subtype:
             subtype = instrument_type
 
+        equity_type = EquityType.STOCK if type_id == "STOCK" else EquityType.ETF
+
         return StockDetail(
             id=uuid4(),
             name=name,
@@ -185,7 +188,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             average_buy_price=average_buy,
             market_value=market_value,
             currency=currency,
-            type=type_id,
+            type=equity_type,
             subtype=subtype,
         )
 

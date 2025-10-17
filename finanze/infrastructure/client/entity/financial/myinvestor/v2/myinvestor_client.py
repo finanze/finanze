@@ -13,7 +13,7 @@ DATE_FORMAT = "%Y-%m-%d"
 
 class MyInvestorAPIV2Client:
     LOGIN_URL = "https://api.myinvestor.es"
-    BASE_URL = "https://app.myinvestor.es"
+    BASE_URL = "https://api.myinvestor.es"
 
     def __init__(self):
         self._headers = {}

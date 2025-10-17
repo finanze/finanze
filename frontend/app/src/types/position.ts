@@ -86,6 +86,11 @@ export interface Loan {
   source: DataSource
 }
 
+export enum EquityType {
+  STOCK = "STOCK",
+  ETF = "ETF",
+}
+
 export interface StockDetail {
   id: string
   name: string
@@ -97,7 +102,7 @@ export interface StockDetail {
   average_buy_price: number
   market_value: number
   currency: string
-  type: string
+  type: EquityType
   subtype?: string | null
   info_sheet_url?: string | null
   source: DataSource

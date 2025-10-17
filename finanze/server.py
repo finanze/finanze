@@ -36,6 +36,8 @@ from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
+from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
+from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
@@ -93,6 +95,9 @@ from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
 from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
+)
+from infrastructure.client.instrument.instrument_provider_adapter import (
+    InstrumentProviderAdapter,
 )
 from infrastructure.client.rates.crypto_price_client import CryptoPriceClient
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
@@ -219,6 +224,7 @@ class FinanzeServer:
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
         metal_price_client = MetalPriceClient()
+        instrument_provider = InstrumentProviderAdapter()
 
         credentials_storage_mode = self.args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -386,6 +392,9 @@ class FinanzeServer:
             self.gocardless_client,
         )
 
+        get_instruments = GetInstrumentsImpl(instrument_provider)
+        get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
+
         save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
         update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
         delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
@@ -522,6 +531,8 @@ class FinanzeServer:
             add_manual_transaction,
             update_manual_transaction,
             delete_manual_transaction,
+            get_instruments,
+            get_instrument_info,
         )
         self._log.info("Completed.")
 

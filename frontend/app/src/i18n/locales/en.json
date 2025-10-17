@@ -710,6 +710,10 @@
       "PRIVATE_EQUITY": "Private equity",
       "PENSION_FUND": "Pension fund"
     },
+    "equityType": {
+      "STOCK": "Stock",
+      "ETF": "ETF"
+    },
     "kpis": {
       "assetTypeSplit": "Asset Type Split"
     },

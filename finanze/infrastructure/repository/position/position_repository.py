@@ -45,6 +45,7 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
+    EquityType,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient, DBCursor
@@ -374,7 +375,7 @@ def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
                 str(detail.average_buy_price),
                 str(detail.market_value),
                 detail.currency,
-                detail.type,
+                detail.type.value,
                 detail.subtype,
                 detail.info_sheet_url,
             ),
@@ -746,7 +747,7 @@ class PositionSQLRepository(PositionPort):
                     average_buy_price=Dezimal(row["average_buy_price"]),
                     market_value=Dezimal(row["market_value"]),
                     currency=row["currency"],
-                    type=row["type"],
+                    type=EquityType(row["type"]),
                     subtype=row["subtype"],
                     info_sheet_url=row["info_sheet_url"],
                     source=global_position.source,
