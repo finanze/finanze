@@ -70,26 +70,22 @@ class FtClient:
             return []
 
         params = {"partial": partial, "only": "equities", "count": str(count)}
-        try:
-            response = self._session.get(self.BASE_URL, params=params, timeout=10)
-            if response.ok:
-                data = response.json()
-                if (
-                    isinstance(data, dict)
-                    and "equities" in data
-                    and isinstance(data["equities"], list)
-                ):
-                    return data["equities"]
+        response = self._session.get(self.BASE_URL, params=params, timeout=10)
+        if response.ok:
+            data = response.json()
+            if (
+                isinstance(data, dict)
+                and "equities" in data
+                and isinstance(data["equities"], list)
+            ):
+                return data["equities"]
 
-                return []
+            return []
 
-            self._log.error(
-                "FT Client error status=%s body=%s", response.status_code, response.text
-            )
-            response.raise_for_status()
-
-        except requests.RequestException as e:
-            self._log.exception("FT Client request failed: %s", e)
+        self._log.error(
+            "FT Client error status=%s body=%s", response.status_code, response.text
+        )
+        response.raise_for_status()
 
         return []
 

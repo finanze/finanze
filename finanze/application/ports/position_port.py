@@ -3,9 +3,16 @@ import datetime
 from typing import Optional
 from uuid import UUID
 
+from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
-from domain.global_position import GlobalPosition, PositionQueryRequest
+from domain.global_position import (
+    FundDetail,
+    GlobalPosition,
+    PositionQueryRequest,
+    ProductType,
+    StockDetail,
+)
 
 
 class PositionPort(metaclass=abc.ABCMeta):
@@ -31,4 +38,18 @@ class PositionPort(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def delete_by_id(self, position_id: UUID):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_stock_detail(self, entry_id: UUID) -> Optional[StockDetail]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def update_market_value(
+        self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
+    ):
         raise NotImplementedError

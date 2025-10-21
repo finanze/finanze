@@ -11,15 +11,22 @@ from domain.instrument import (
     InstrumentOverview,
     InstrumentType,
 )
+from infrastructure.client.instrument.extraetf_client import ExtraEtfClient
+from infrastructure.client.instrument.finect_client import FinectClient
 from infrastructure.client.instrument.ft_client import FtClient
+from infrastructure.client.instrument.tradingview_client import TradingViewClient
 from infrastructure.client.instrument.yfinance_client import YFinanceClient
+
+MAX_INSTRUMENTS_RETURNED = 15
 
 
 class InstrumentProviderAdapter(InstrumentInfoProvider):
     def __init__(self):
         self._ft = FtClient()
         self._yf = YFinanceClient()
-        # self._finect = FinectClient()
+        self._finect = FinectClient()
+        self._tv = TradingViewClient()
+        self._ee = ExtraEtfClient()
         self._log = logging.getLogger(__name__)
 
     def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
@@ -27,23 +34,94 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         if not query:
             return []
 
-        if request.type == InstrumentType.STOCK:
-            results = self._yf.lookup(request)
-        else:
-            results = self._ft.search(request)
+        try:
+            if request.type == InstrumentType.STOCK:
+                results = self._stock_search(request)
+            else:
+                results = self._fund_etf_search(request)
+        except Exception:
+            self._log.exception(
+                "InstrumentProviderAdapter lookup failed, returning empty list"
+            )
+            return []
 
-        return [self._normalize_overview(o) for o in results]
+        return [
+            self._normalize_overview(overview)
+            for overview in results[:MAX_INSTRUMENTS_RETURNED]
+        ]
+
+    def _stock_search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+        try:
+            return self._tv.search(request)
+        except Exception:
+            self._log.exception(
+                "TradingViewClient search failed, falling back to YFinanceClient"
+            )
+
+        return self._yf.lookup(request)
+
+    def _fund_etf_search(
+        self, request: InstrumentDataRequest
+    ) -> list[InstrumentOverview]:
+        try:
+            return self._finect.search(request)
+        except Exception:
+            self._log.exception("FinectClient search failed, falling back to FtClient")
+
+        try:
+            return self._ft.search(request)
+        except Exception:
+            self._log.exception(
+                "FinectClient search failed, falling back to YFinanceClient"
+            )
+
+        if request.type == InstrumentType.ETF:
+            try:
+                return self._ee.search(request)
+            except Exception:
+                self._log.exception(
+                    "ExtraEtfClient search failed, falling back to FinectClient"
+                )
+
+        return self._yf.lookup(request)
 
     def get_info(self, request: InstrumentDataRequest) -> Optional[InstrumentInfo]:
         query = request.ticker or request.isin or request.name
         if not query:
             return None
 
-        info = self._yf.get_instrument_info(query, request.type)
+        try:
+            if request.type != InstrumentType.STOCK:
+                info = self._get_instrument_info(query, request.type)
+            else:
+                info = self._yf.get_instrument_info(query, request.type)
+        except Exception:
+            self._log.exception(
+                "InstrumentProviderAdapter get_info failed, returning None"
+            )
+            return None
+
         if info is None:
             return None
 
         return self._normalize_info(info)
+
+    def _get_instrument_info(
+        self, query: str, instrument_type: InstrumentType
+    ) -> Optional[InstrumentInfo]:
+        try:
+            info = self._finect.get_instrument_info(query, instrument_type)
+            if info:
+                return info
+            else:
+                self._log.warning(
+                    "FinectClient returned no info, falling back to Yfinance"
+                )
+        except Exception:
+            self._log.exception(
+                "FinectClient get_instrument_info failed, falling back to Yfinance"
+            )
+        return self._yf.get_instrument_info(query, instrument_type)
 
     @staticmethod
     def _is_gbp_pence_currency(currency: Optional[str]) -> bool:

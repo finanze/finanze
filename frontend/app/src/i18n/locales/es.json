@@ -1031,7 +1031,7 @@
     "target": "Destino",
     "alias": "Alias",
     "noAutoContributionsTitle": "Sin aportaciones automáticas",
-    "noAutoContributionsDescription": "Configura aportaciones periódicas en tus integraciones para seguir tu inversión automatizada.",
+    "noAutoContributionsDescription": "Configura aportaciones periódicas en tus integraciones para seguir tu inversión automatizada, o añade aportaciones manuales desde aquí.",
     "goToIntegrations": "Ir a Integraciones",
     "contributionsDistribution": "Distribución de aportaciones",
     "other": "Otros",
@@ -1086,6 +1086,9 @@
         "createEntity": "Crear entidad",
         "cancelEntityCreation": "Cancelar nueva entidad",
         "newEntityPlaceholder": "Introduce el nombre de la nueva entidad",
+        "trackPrice": "Seguir precio",
+        "trackPriceUnavailable": "Selecciona un instrumento para habilitar el seguimiento de precio.",
+        "currencyConversionWarning": "La moneda del instrumento difiere de la seleccionada. La conversión usa las últimas tasas disponibles y puede variar.",
         "summary": {
           "shares": "Participaciones"
         },

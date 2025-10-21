@@ -570,6 +570,19 @@ export async function saveManualPositions(
   }
 }
 
+export async function updateQuotesManualPositions(): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(
+    `${baseUrl}/data/manual/positions/update-quotes`,
+    {
+      method: "POST",
+    },
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
 export async function createManualTransaction(
   request: ManualTransactionPayload,
 ): Promise<void> {

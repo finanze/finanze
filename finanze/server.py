@@ -60,6 +60,7 @@ from application.use_cases.update_sheets import UpdateSheetsImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
+from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from domain.data_init import DatasourceInitParams
 from domain.external_integration import ExternalIntegrationId
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
@@ -138,6 +139,9 @@ from infrastructure.repository.external_integration.external_integration_reposit
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
 )
+from infrastructure.repository.position.manual_position_data_repository import (
+    ManualPositionDataSQLRepository,
+)
 from infrastructure.repository.real_estate.real_estate_repository import (
     RealEstateRepository,
 )
@@ -199,6 +203,9 @@ class FinanzeServer:
         self.exporter = SheetsExporter(self.sheets_initiator)
 
         position_repository = PositionRepository(client=self.db_client)
+        manual_position_data_repository = ManualPositionDataSQLRepository(
+            client=self.db_client
+        )
         auto_contrib_repository = AutoContributionsRepository(client=self.db_client)
         transaction_repository = TransactionRepository(client=self.db_client)
         historic_repository = HistoricRepository(client=self.db_client)
@@ -440,6 +447,7 @@ class FinanzeServer:
         update_position = UpdatePositionImpl(
             entity_port=entity_repository,
             position_port=position_repository,
+            manual_position_data_port=manual_position_data_repository,
             virtual_import_registry=virtual_import_repository,
             transaction_handler_port=transaction_handler,
         )
@@ -458,6 +466,13 @@ class FinanzeServer:
         delete_manual_transaction = DeleteManualTransactionImpl(
             transaction_port=transaction_repository,
             virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        update_tracked_quotes = UpdateTrackedQuotesImpl(
+            position_port=position_repository,
+            manual_position_data_port=manual_position_data_repository,
+            instrument_info_provider=instrument_provider,
+            exchange_rate_provider=exchange_rate_client,
             transaction_handler_port=transaction_handler,
         )
 
@@ -533,6 +548,7 @@ class FinanzeServer:
             delete_manual_transaction,
             get_instruments,
             get_instrument_info,
+            update_tracked_quotes,
         )
         self._log.info("Completed.")
 

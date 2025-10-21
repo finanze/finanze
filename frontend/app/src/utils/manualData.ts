@@ -43,3 +43,9 @@ export const normalizeDateInput = (value: string) => {
   if (Number.isNaN(parsed.getTime())) return ""
   return format(parsed, "yyyy-MM-dd")
 }
+
+export const isValidIsin = (value: string | null | undefined) => {
+  if (!value) return false
+  const normalized = value.trim().toUpperCase()
+  return /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(normalized)
+}

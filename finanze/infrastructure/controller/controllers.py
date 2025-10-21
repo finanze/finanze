@@ -50,6 +50,7 @@ from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_sheets import UpdateSheets
+from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
 from domain.use_cases.virtual_fetch import VirtualFetch
@@ -121,6 +122,7 @@ from infrastructure.controller.routes.update_periodic_flow import update_periodi
 from infrastructure.controller.routes.update_position import update_position
 from infrastructure.controller.routes.update_real_estate import update_real_estate
 from infrastructure.controller.routes.update_settings import update_settings
+from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.virtual_fetch import virtual_fetch
 
@@ -178,6 +180,7 @@ def register_routes(
     delete_manual_transaction_uc: DeleteManualTransaction,
     get_instruments_uc: GetInstruments,
     get_instrument_info_uc: GetInstrumentInfo,
+    update_tracked_quotes_uc: UpdateTrackedQuotes,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -388,3 +391,7 @@ def register_routes(
     @app.route("/api/v1/instruments/details", methods=["GET"])
     def instrument_details_route():
         return instrument_details(get_instrument_info_uc)
+
+    @app.route("/api/v1/data/manual/positions/update-quotes", methods=["POST"])
+    async def update_tracked_quotes_route():
+        return await update_tracked_quotes(update_tracked_quotes_uc)

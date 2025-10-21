@@ -26,6 +26,7 @@ from domain.global_position import (
     CryptoToken,
     Deposit,
     Deposits,
+    EquityType,
     FactoringDetail,
     FactoringInvestments,
     FundDetail,
@@ -37,13 +38,13 @@ from domain.global_position import (
     Loan,
     Loans,
     LoanType,
+    ManualEntryData,
     ProductPositions,
     ProductType,
     RealEstateCFDetail,
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
-    EquityType,
 )
 
 
@@ -84,7 +85,10 @@ def _dt(value: Any):
     raise ValueError(f"Invalid datetime value: {value}")
 
 
-# Mapper functions now avoid business logic (profitability / expected interests) which are computed in the use case.
+def _map_manual_data(entry: dict) -> ManualEntryData:
+    return ManualEntryData(
+        tracker_key=entry.get("tracker_key"),
+    )
 
 
 def _map_accounts(entries: list[dict]) -> Accounts:
@@ -153,12 +157,7 @@ def _map_fund_portfolios(entries: list[dict]) -> FundPortfolios:
 def _map_funds(entries: list[dict]) -> FundInvestments:
     result = []
     for e in entries:
-        for req in (
-            "name",
-            "isin",
-            "shares",
-            "currency",
-        ):
+        for req in ("name", "isin", "shares", "currency", "manual_data"):
             if req not in e:
                 raise MissingFieldsError([req])
         portfolio_data = e.get("portfolio")
@@ -191,6 +190,7 @@ def _map_funds(entries: list[dict]) -> FundInvestments:
                 if e.get("asset_type")
                 else None,
                 portfolio=portfolio,
+                manual_data=_map_manual_data(e["manual_data"]),
                 source=DataSource.MANUAL,
             )
         )
@@ -349,6 +349,7 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
             "shares",
             "currency",
             "type",
+            "manual_data",
         ):
             if req not in e:
                 raise MissingFieldsError([req])
@@ -369,6 +370,7 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
                 currency=e["currency"],
                 type=EquityType(e["type"]),
                 subtype=e.get("subtype"),
+                manual_data=_map_manual_data(e["manual_data"]),
                 source=DataSource.MANUAL,
             )
         )

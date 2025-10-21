@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import type { Entity, DataSource } from "@/types"
+import type { Entity, DataSource, ExchangeRates } from "@/types"
 import type { EntitiesPosition, ProductType } from "@/types/position"
 
 export type ManualPositionAsset =
@@ -45,6 +45,7 @@ export interface ManualFormFieldRenderProps<
   locale: string
   mode: "create" | "edit"
   canEditEntity: boolean
+  exchangeRates: ExchangeRates | null
   accountOptions?: (
     entityId?: string | null,
   ) => { value: string; label: string }[]

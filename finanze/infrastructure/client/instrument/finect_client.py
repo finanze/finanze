@@ -4,7 +4,13 @@ from typing import Optional
 
 import requests
 from cachetools import TTLCache, cached
-from domain.instrument import InstrumentDataRequest, InstrumentOverview, InstrumentType
+from domain.dezimal import Dezimal
+from domain.instrument import (
+    InstrumentDataRequest,
+    InstrumentInfo,
+    InstrumentOverview,
+    InstrumentType,
+)
 
 
 class FinectClient:
@@ -84,25 +90,84 @@ class FinectClient:
             return []
 
         params = {"q": query}
-        try:
-            response = self._session.get(
-                f"{self.BASE_URL}/search", params=params, timeout=10
-            )
-            if response.ok:
-                data = response.json()
-                if isinstance(data, dict):
-                    items = data.get("data")
-                    if isinstance(items, list):
-                        return items
-                    return []
+        response = self._session.get(
+            f"{self.BASE_URL}/search", params=params, timeout=10
+        )
+        if response.ok:
+            data = response.json()
+            if isinstance(data, dict):
+                items = data.get("data")
+                if isinstance(items, list):
+                    return items
                 return []
+            return []
 
+        self._log.error(
+            "Finect Client error status=%s body=%s",
+            response.status_code,
+            response.text,
+        )
+        response.raise_for_status()
+        return []
+
+    @cached(cache=TTLCache(maxsize=200, ttl=43200))
+    def get_instrument_info(
+        self, query: str, instrument_type: InstrumentType
+    ) -> Optional[InstrumentInfo]:
+        if not query:
+            return None
+
+        isin = query.strip()
+        params = {"expand": "documents,breakdown,stats/performance"}
+        product_type = (
+            "funds" if instrument_type == InstrumentType.MUTUAL_FUND else "etfs"
+        )
+        response = self._session.get(
+            f"{self.BASE_URL}/products/collectives/{product_type}/{isin}",
+            params=params,
+            timeout=10,
+        )
+        if not response.ok:
             self._log.error(
-                "Finect Client error status=%s body=%s",
+                "Finect get_instrument_info error status=%s body=%s",
                 response.status_code,
                 response.text,
             )
+            if response.status_code == 404:
+                return None
             response.raise_for_status()
-        except requests.RequestException as e:
-            self._log.exception("Finect Client request failed: %s", e)
-        return []
+
+        data = response.json()
+        if not isinstance(data, dict):
+            return None
+
+        item = data.get("data")
+        if not isinstance(item, dict):
+            return None
+
+        name = (item.get("class") or {}).get("name") or item.get("name")
+        currency = (item.get("currency") or {}).get("code")
+
+        last_quote = (
+            item.get("lastQuote") if isinstance(item.get("lastQuote"), dict) else {}
+        )
+        price_val = last_quote.get("price")
+
+        if name is None or currency is None or price_val is None:
+            return None
+
+        try:
+            price = Dezimal(price_val)
+        except Exception:
+            self._log.exception(
+                "Failed to parse price for isin=%s price=%s", isin, price_val
+            )
+            return None
+
+        return InstrumentInfo(
+            name=name,
+            currency=currency,
+            type=instrument_type,
+            price=price,
+            symbol=None,
+        )

@@ -12,7 +12,6 @@ import { useNavigate } from "react-router-dom"
 import {
   Info,
   PiggyBank,
-  FolderPlus,
   CalendarDays,
   ArrowLeft,
   TrendingUp,
@@ -1175,7 +1174,7 @@ export default function AutoContributionsPage() {
             {t.management.autoContributions}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -1319,10 +1318,6 @@ export default function AutoContributionsPage() {
                 {t.management.noAutoContributionsDescription}
               </p>
             </div>
-            <Button variant="outline" onClick={() => navigate("/entities")}>
-              <FolderPlus className="h-4 w-4 mr-2" />
-              {t.management.goToIntegrations}
-            </Button>
           </Card>
         </motion.div>
       )}
@@ -1391,8 +1386,8 @@ export default function AutoContributionsPage() {
 
       {isModalOpen && modalForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]">
-          <Card className="w-full max-w-2xl">
-            <CardHeader className="pb-4">
+          <Card className="w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col">
+            <CardHeader className="pb-4 shrink-0">
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle className="text-xl">
@@ -1410,8 +1405,11 @@ export default function AutoContributionsPage() {
                 </Button>
               </div>
             </CardHeader>
-            <form onSubmit={handleModalSubmit}>
-              <CardContent className="space-y-4">
+            <form
+              onSubmit={handleModalSubmit}
+              className="flex flex-1 flex-col overflow-hidden"
+            >
+              <CardContent className="space-y-4 flex-1 overflow-y-auto pr-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="entity">
@@ -1738,7 +1736,7 @@ export default function AutoContributionsPage() {
                   )}
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-end gap-2">
+              <CardFooter className="flex justify-end gap-2 shrink-0">
                 <Button
                   type="button"
                   variant="outline"

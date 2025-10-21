@@ -11,7 +11,15 @@ import {
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
-import { manualPositionConfigs } from "./manualPositionConfigs"
+import {
+  manualPositionConfigs,
+  getFundTrackerCandidate,
+  getStockTrackerCandidate,
+  manualPositionConvertPriceToCurrency,
+  manualPositionFormatNumberInput,
+  FundFormState,
+  StockFormState,
+} from "./manualPositionConfigs"
 import type {
   ManualFormErrors,
   ManualPositionAsset,
@@ -1763,18 +1771,124 @@ export function ManualPositionsManager({
                   formMode === "create" ||
                   !activeDraft?.originalId ||
                   Boolean(activeDraft?.isNewEntity),
+                exchangeRates,
                 accountOptions: linkedAccountOptions,
                 portfolioOptions: linkedPortfolioOptions,
               })}
             </CardContent>
-            <CardFooter className="flex justify-end gap-2">
-              <Button variant="outline" onClick={handleCloseForm}>
-                {translate("common.cancel")}
-              </Button>
-              <Button onClick={handleSubmitForm}>
-                {translate("common.save")}
-              </Button>
-            </CardFooter>
+            {(() => {
+              if (!formState) return null
+
+              let trackerCandidate: string | null = null
+              let trackerStatus: "auto" | "on" | "off" = "auto"
+
+              if (asset === "funds") {
+                const fundForm = formState as unknown as FundFormState
+                trackerCandidate = getFundTrackerCandidate(fundForm)
+                trackerStatus = fundForm._tracker_status ?? "auto"
+              } else if (asset === "stocks") {
+                const stockForm = formState as unknown as StockFormState
+                trackerCandidate = getStockTrackerCandidate(stockForm)
+                trackerStatus = stockForm._tracker_status ?? "auto"
+              }
+
+              const isTrackingAvailable = Boolean(trackerCandidate)
+              const isTrackingActive =
+                isTrackingAvailable &&
+                (trackerStatus === "on" || trackerStatus === "auto")
+
+              const handleToggleTrack = () => {
+                if (!isTrackingAvailable) return
+                const nextStatus = isTrackingActive ? "off" : "on"
+                updateField("_tracker_status", nextStatus)
+
+                // When re-enabling tracking, recalculate market value
+                if (nextStatus === "on") {
+                  const form = formState as any
+                  const instrumentPriceString =
+                    form._instrument_price_value?.trim() ?? ""
+                  const instrumentPrice =
+                    instrumentPriceString &&
+                    !isNaN(Number(instrumentPriceString))
+                      ? Number(instrumentPriceString)
+                      : null
+
+                  if (
+                    instrumentPrice != null &&
+                    Number.isFinite(instrumentPrice)
+                  ) {
+                    const instrumentCurrency =
+                      form._instrument_currency?.trim().toUpperCase() ?? ""
+                    const selectedCurrency =
+                      form.currency?.trim().toUpperCase() ?? ""
+
+                    const priceInSelectedCurrency =
+                      manualPositionConvertPriceToCurrency(
+                        instrumentPrice,
+                        instrumentCurrency || null,
+                        selectedCurrency || null,
+                        exchangeRates ?? null,
+                      )
+
+                    const sharesString = form.shares?.trim() ?? ""
+                    const shares =
+                      sharesString && !isNaN(Number(sharesString))
+                        ? Number(sharesString)
+                        : null
+
+                    if (shares != null && shares > 0) {
+                      const total = priceInSelectedCurrency * shares
+                      const formattedTotal = manualPositionFormatNumberInput(
+                        total,
+                        {
+                          maximumFractionDigits: 4,
+                        },
+                      )
+                      if (formattedTotal) {
+                        updateField("market_value", formattedTotal)
+                        clearError("market_value")
+                      }
+                    }
+                  }
+                }
+              }
+
+              return (
+                <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2">
+                    {asset !== "funds" && asset !== "stocks" ? null : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isTrackingActive ? "secondary" : "outline"}
+                        onClick={handleToggleTrack}
+                        disabled={!isTrackingAvailable}
+                        aria-pressed={isTrackingActive}
+                        title={
+                          isTrackingAvailable
+                            ? undefined
+                            : translate(
+                                "management.manualPositions.shared.trackPriceUnavailable",
+                              )
+                        }
+                      >
+                        {translate(
+                          "management.manualPositions.shared.trackPrice",
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex w-full justify-end gap-2 sm:w-auto">
+                    <Button variant="outline" onClick={handleCloseForm}>
+                      {translate("common.cancel")}
+                    </Button>
+                    <Button onClick={handleSubmitForm}>
+                      {translate("common.save")}
+                    </Button>
+                  </div>
+                </CardFooter>
+              )
+            })()}
           </Card>
         </div>
       )}

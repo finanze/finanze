@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Any, Set
+from typing import Any, Optional, Set
 from uuid import uuid4
 
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.entity_port import EntityPort
+from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
@@ -25,6 +26,7 @@ from domain.global_position import (
     FactoringInvestments,
     FundInvestments,
     GlobalPosition,
+    ManualPositionData,
     PositionQueryRequest,
     ProductType,
     RealEstateCFInvestments,
@@ -40,12 +42,14 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self,
         entity_port: EntityPort,
         position_port: PositionPort,
+        manual_position_data_port: ManualPositionDataPort,
         virtual_import_registry: VirtualImportRegistry,
         transaction_handler_port: TransactionHandlerPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
         self._entity_port = entity_port
         self._position_port = position_port
+        self._manual_position_data_port = manual_position_data_port
         self._virtual_import_registry = virtual_import_registry
 
     @staticmethod
@@ -480,8 +484,39 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 if hasattr(entry, "id"):
                     entry.id = uuid4()
 
+    @staticmethod
+    def _map_manual_position_data(
+        entry, position: GlobalPosition, product_type: ProductType
+    ) -> Optional[ManualPositionData]:
+        if (
+            entry is None
+            or not hasattr(entry, "manual_data")
+            or entry.manual_data is None
+        ):
+            return None
+
+        return ManualPositionData(
+            entry_id=entry.id,
+            global_position_id=position.id,
+            product_type=product_type,
+            data=entry.manual_data,
+        )
+
+    def _create_manual_position_data_entries(
+        self, position: GlobalPosition, request: UpdatePositionRequest
+    ) -> list[ManualPositionData]:
+        entries = []
+        for product_type, container in request.products.items():
+            if not (container and hasattr(container, "entries")):
+                continue
+            for entry in container.entries:
+                entries.append(
+                    self._map_manual_position_data(entry, position, product_type)
+                )
+
+        return entries
+
     async def execute(self, request: UpdatePositionRequest):
-        entity: Entity | None = None
         if request.entity_id:
             entity = self._entity_port.get_by_id(request.entity_id)
             if entity is None:
@@ -511,16 +546,25 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         last_manual_imports = self._virtual_import_registry.get_last_import_records(
             source=VirtualDataSource.MANUAL
         )
+
         prior_position_entry = None
         for entry in last_manual_imports:
             if entry.feature == Feature.POSITION and entry.entity_id == req_entity_id:
                 prior_position_entry = entry
                 break
+
         prior_position = None
         if prior_position_entry:
             prior_position = self._position_port.get_by_id(
                 prior_position_entry.global_position_id
             )
+
+        if prior_position_entry:
+            for product_type in request.products.keys():
+                self._manual_position_data_port.delete_by_position_id_and_type(
+                    prior_position_entry.global_position_id, product_type
+                )
+
         base_position = self._build_base_position(entity, prior_position, now, request)
         self._prepare_relationship_mappings(entity, base_position, request)
         self._assign_nested_component_ids(request)
@@ -528,10 +572,15 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._compute_derived_financials(base_position)
         self._ensure_all_unique(base_position)
         self._regenerate_snapshot_ids(base_position)
+        manual_data_entries = self._create_manual_position_data_entries(
+            base_position, request
+        )
+
         today = now.date()
         is_same_day = (
             last_manual_imports and last_manual_imports[0].date.date() == today
         )
+
         if is_same_day:
             import_id = last_manual_imports[0].import_id
             self._virtual_import_registry.delete_by_import_feature_and_entity(
@@ -542,6 +591,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     prior_position_entry.global_position_id
                 )
             self._position_port.save(base_position)
+            self._manual_position_data_port.save(manual_data_entries)
+
             new_entries = [
                 VirtualDataImport(
                     import_id=import_id,
@@ -554,9 +605,12 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             ]
             self._virtual_import_registry.insert(new_entries)
             return
+
         import_id = uuid4()
         self._position_port.save(base_position)
+        self._manual_position_data_port.save(manual_data_entries)
         cloned_entries = []
+
         for entry in last_manual_imports:
             if entry.feature == Feature.POSITION and entry.entity_id == req_entity_id:
                 continue
@@ -570,6 +624,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     entity_id=entry.entity_id,
                 )
             )
+
         cloned_entries.append(
             VirtualDataImport(
                 import_id=import_id,
@@ -580,4 +635,5 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 entity_id=req_entity_id,
             )
         )
+
         self._virtual_import_registry.insert(cloned_entries)

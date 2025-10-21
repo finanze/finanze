@@ -13,6 +13,11 @@ from domain.fetch_record import DataSource
 from pydantic.dataclasses import dataclass
 
 
+@dataclass
+class ManualEntryData:
+    tracker_key: Optional[str] = None
+
+
 class ProductType(str, Enum):
     ACCOUNT = "ACCOUNT"
     CARD = "CARD"
@@ -138,6 +143,7 @@ class StockDetail(BaseData):
     type: EquityType
     subtype: Optional[str] = None
     info_sheet_url: Optional[str] = None
+    manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
 
 
@@ -168,6 +174,7 @@ class FundDetail(BaseData):
     asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
     info_sheet_url: Optional[str] = None
+    manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
 
 
@@ -417,3 +424,11 @@ class UpdatePositionRequest:
     products: ProductPositions
     entity_id: Optional[UUID] = None
     new_entity_name: Optional[str] = None
+
+
+@dataclass
+class ManualPositionData:
+    entry_id: UUID
+    global_position_id: UUID
+    product_type: ProductType
+    data: ManualEntryData

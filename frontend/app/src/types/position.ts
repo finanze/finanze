@@ -1,5 +1,9 @@
 import { DataSource, EntityOrigin } from "."
 
+export interface ManualEntryData {
+  tracker_key?: string | null
+}
+
 export enum ProductType {
   ACCOUNT = "ACCOUNT",
   CARD = "CARD",
@@ -105,6 +109,7 @@ export interface StockDetail {
   type: EquityType
   subtype?: string | null
   info_sheet_url?: string | null
+  manual_data?: ManualEntryData | null
   source: DataSource
 }
 
@@ -147,6 +152,7 @@ export interface FundDetail {
   currency: string
   portfolio?: FundPortfolio | null
   info_sheet_url?: string | null
+  manual_data?: ManualEntryData | null
   source: DataSource
 }
 

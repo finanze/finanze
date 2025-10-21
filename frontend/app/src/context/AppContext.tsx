@@ -21,6 +21,7 @@ import {
   saveSettings,
   getExchangeRates,
   getExternalIntegrations,
+  updateQuotesManualPositions,
 } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
@@ -147,6 +148,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
+  const SIX_HOURS_MS = 6 * 60 * 60 * 1000
 
   useEffect(() => {
     const getPlatformInfo = async () => {
@@ -314,11 +318,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const updateQuotesIfNeeded = useCallback(async () => {
+    const now = Date.now()
+
+    const lastCallTimeStr = localStorage.getItem(LAST_UPDATE_QUOTES_KEY)
+    const lastCallTime = lastCallTimeStr ? parseInt(lastCallTimeStr, 10) : null
+
+    if (lastCallTime === null || now - lastCallTime >= SIX_HOURS_MS) {
+      try {
+        await updateQuotesManualPositions()
+        localStorage.setItem(LAST_UPDATE_QUOTES_KEY, now.toString())
+      } catch (error) {
+        console.error("Error updating manual positions quotes:", error)
+      }
+    }
+  }, [LAST_UPDATE_QUOTES_KEY, SIX_HOURS_MS])
+
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
       fetchExternalIntegrations()
+      updateQuotesIfNeeded()
       initialFetchDone.current = true
     } else if (!isAuthenticated) {
       stopExchangeRatesTimer()
@@ -331,6 +352,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchSettings,
     isAuthenticated,
     stopExchangeRatesTimer,
+    updateQuotesIfNeeded,
   ])
 
   useEffect(() => {

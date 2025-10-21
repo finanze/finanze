@@ -71,6 +71,9 @@ from infrastructure.repository.db.versions.v0.v06.v060_2_use_source_positions im
 from infrastructure.repository.db.versions.v0.v06.v060_3_fund_etf_data_sheet_and_type import (
     V0603FundETFFields,
 )
+from infrastructure.repository.db.versions.v0.v06.v060_4_manual_position_data import (
+    V0604ManualPositionData,
+)
 
 versions = [
     V0Genesis(),
@@ -104,4 +107,5 @@ versions = [
     V0601RecreatePositionTables(),
     V0602Source(),
     V0603FundETFFields(),
+    V0604ManualPositionData(),
 ]

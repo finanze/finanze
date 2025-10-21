@@ -1032,7 +1032,7 @@
     "target": "Target",
     "alias": "Alias",
     "noAutoContributionsTitle": "No auto contributions",
-    "noAutoContributionsDescription": "Configure periodic investment contributions in your integrations to track your automated investing.",
+    "noAutoContributionsDescription": "Configure periodic investment contributions in your integrations to track your automated investing, you can also add them manually here!",
     "goToIntegrations": "Go to Integrations",
     "contributionsDistribution": "Contribution distribution",
     "other": "Other",
@@ -1087,6 +1087,9 @@
         "createEntity": "Create entity",
         "cancelEntityCreation": "Cancel new entity",
         "newEntityPlaceholder": "Enter the new entity name",
+        "trackPrice": "Track price",
+        "trackPriceUnavailable": "Select an instrument to enable price tracking.",
+        "currencyConversionWarning": "Instrument currency differs from the selected currency. Conversion uses the latest rates and may vary.",
         "summary": {
           "shares": "Shares"
         },

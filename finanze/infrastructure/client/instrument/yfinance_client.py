@@ -21,47 +21,42 @@ class YFinanceClient:
         if not query:
             return []
 
-        try:
-            result = yf.Lookup(query)
-            df = None
-            if request.type == InstrumentType.MUTUAL_FUND:
-                df = result.get_mutualfund()
+        result = yf.Lookup(query)
+        df = None
+        if request.type == InstrumentType.MUTUAL_FUND:
+            df = result.get_mutualfund()
 
-            elif request.type == InstrumentType.ETF:
-                df = result.get_etf()
+        elif request.type == InstrumentType.ETF:
+            df = result.get_etf()
 
-            elif request.type == InstrumentType.STOCK:
-                df = result.get_stock()
+        elif request.type == InstrumentType.STOCK:
+            df = result.get_stock()
 
-            if df is None or df.empty:
-                return []
-
-            results: list[InstrumentOverview] = []
-            for _, row in df.iterrows():
-                name = row.get("shortName") or row.get("longName") or row.get("name")
-                symbol = row.name
-                currency = row.get("currency")
-                market = row.get("exchange")
-                price = row.get("regularMarketPrice")
-                price = round(Dezimal(price), 2) if price is not None else None
-
-                results.append(
-                    InstrumentOverview(
-                        isin=None,
-                        name=name,
-                        currency=str(currency) if currency else None,
-                        symbol=symbol,
-                        market=market,
-                        price=price,
-                        type=request.type,
-                    )
-                )
-
-            return results
-
-        except Exception as e:
-            self._log.exception("yfinance lookup failed for %s: %s", query, e)
+        if df is None or df.empty:
             return []
+
+        results: list[InstrumentOverview] = []
+        for _, row in df.iterrows():
+            name = row.get("shortName") or row.get("longName") or row.get("name")
+            symbol = row.name
+            currency = row.get("currency")
+            market = row.get("exchange")
+            price = row.get("regularMarketPrice")
+            price = round(Dezimal(price), 2) if price is not None else None
+
+            results.append(
+                InstrumentOverview(
+                    isin=None,
+                    name=name,
+                    currency=str(currency) if currency else None,
+                    symbol=symbol,
+                    market=market,
+                    price=price,
+                    type=request.type,
+                )
+            )
+
+        return results
 
     @cached(cache=TTLCache(maxsize=100, ttl=86400))
     def _resolve_symbol(
@@ -70,25 +65,21 @@ class YFinanceClient:
         if not query:
             return None
 
-        try:
-            result = yf.Lookup(query)
-            if instrument_type == InstrumentType.MUTUAL_FUND:
-                df = result.get_mutualfund()
-                if df is not None and not df.empty:
-                    return df.iloc[0].name
+        result = yf.Lookup(query)
+        if instrument_type == InstrumentType.MUTUAL_FUND:
+            df = result.get_mutualfund()
+            if df is not None and not df.empty:
+                return df.iloc[0].name
 
-            elif instrument_type == InstrumentType.ETF:
-                df = result.get_etf()
-                if df is not None and not df.empty:
-                    return df.iloc[0].name
+        elif instrument_type == InstrumentType.ETF:
+            df = result.get_etf()
+            if df is not None and not df.empty:
+                return df.iloc[0].name
 
-            elif instrument_type == InstrumentType.STOCK:
-                df = result.get_stock()
-                if df is not None and not df.empty:
-                    return df.iloc[0].name
-
-        except Exception as e:
-            self._log.exception("yfinance lookup failed for %s: %s", query, e)
+        elif instrument_type == InstrumentType.STOCK:
+            df = result.get_stock()
+            if df is not None and not df.empty:
+                return df.iloc[0].name
 
         return query
 
@@ -100,42 +91,38 @@ class YFinanceClient:
         if not symbol:
             return None
 
-        try:
-            ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(symbol)
 
-            price = None
-            currency = None
-            quote_type = None
+        price = None
+        currency = None
+        quote_type = None
 
-            fast_info = getattr(ticker, "fast_info", None)
-            if fast_info:
-                price = fast_info.get("last_price")
-                currency = fast_info.get("currency")
-                quote_type = fast_info.get("quote_type")
+        fast_info = getattr(ticker, "fast_info", None)
+        if fast_info:
+            price = fast_info.get("last_price")
+            currency = fast_info.get("currency")
+            quote_type = fast_info.get("quote_type")
 
-            info = getattr(ticker, "info", {}) or {}
+        info = getattr(ticker, "info", {}) or {}
 
-            if not price:
-                price = info.get("regularMarketPrice") or info.get("previousClose")
-            currency = currency or info.get("currency")
-            name = info.get("longName") or info.get("shortName") or symbol
-            quote_type = quote_type or info.get("quoteType")
+        if not price:
+            price = info.get("regularMarketPrice") or info.get("previousClose")
+        currency = currency or info.get("currency")
+        name = info.get("longName") or info.get("shortName") or symbol
+        quote_type = quote_type or info.get("quoteType")
 
-            if price is None or currency is None:
-                return None
-
-            resolved_type = instrument_type or self._map_quote_type(quote_type)
-
-            return InstrumentInfo(
-                name=name,
-                currency=str(currency),
-                type=resolved_type,
-                price=Dezimal(price),
-                symbol=symbol,
-            )
-        except Exception as e:
-            self._log.exception("yfinance ticker fetch failed for %s: %s", symbol, e)
+        if price is None or currency is None:
             return None
+
+        resolved_type = instrument_type or self._map_quote_type(quote_type)
+
+        return InstrumentInfo(
+            name=name,
+            currency=str(currency),
+            type=resolved_type,
+            price=Dezimal(price),
+            symbol=symbol,
+        )
 
     @staticmethod
     def _map_quote_type(quote_type: Optional[str]) -> Optional[InstrumentType]:

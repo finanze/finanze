@@ -1,5 +1,5 @@
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Callable, Optional
 from uuid import UUID
 
@@ -26,6 +26,7 @@ from domain.global_position import (
     CryptoToken,
     Deposit,
     Deposits,
+    EquityType,
     FactoringDetail,
     FactoringInvestments,
     FundDetail,
@@ -38,6 +39,7 @@ from domain.global_position import (
     Loan,
     Loans,
     LoanType,
+    ManualEntryData,
     PositionQueryRequest,
     ProductPositions,
     ProductType,
@@ -45,10 +47,11 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
-    EquityType,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.db.client import DBClient, DBCursor
+
+_AND = " AND "
 
 
 def _save_loans(cursor, position: GlobalPosition, loans: Loans):
@@ -428,6 +431,13 @@ def _aggregate_positions(positions: list[GlobalPosition]) -> GlobalPosition:
     return aggregated_position
 
 
+def _map_manual_entry_data(row) -> Optional[ManualEntryData]:
+    if row is None or row["track_ticker"] is None:
+        return None
+
+    return ManualEntryData(tracker_key=row["tracker_key"])
+
+
 class PositionSQLRepository(PositionPort):
     def __init__(self, client: DBClient):
         self._db_client = client
@@ -510,7 +520,7 @@ class PositionSQLRepository(PositionPort):
                 params.extend([str(e) for e in query.excluded_entities])
 
             if conditions:
-                sql += " AND " + " AND ".join(conditions)
+                sql += _AND + _AND.join(conditions)
 
             cursor.execute(sql, tuple(params))
 
@@ -635,7 +645,7 @@ class PositionSQLRepository(PositionPort):
                     id=UUID(row["id"]),
                     total=Dezimal(row["total"]),
                     currency=row["currency"],
-                    type=AccountType[row["type"]],
+                    type=AccountType(row["type"]),
                     name=row["name"],
                     iban=row["iban"],
                     interest=Dezimal(row["interest"]) if row["interest"] else None,
@@ -666,7 +676,7 @@ class PositionSQLRepository(PositionPort):
                     name=row["name"],
                     currency=row["currency"],
                     ending=row["ending"],
-                    type=CardType[row["type"]],
+                    type=CardType(row["type"]),
                     limit=Dezimal(row["card_limit"]) if row["card_limit"] else None,
                     used=Dezimal(row["used"]),
                     active=bool(row["active"]),
@@ -691,7 +701,7 @@ class PositionSQLRepository(PositionPort):
             loans = [
                 Loan(
                     id=UUID(row["id"]),
-                    type=LoanType[row["type"]],
+                    type=LoanType(row["type"]),
                     currency=row["currency"],
                     name=row["name"],
                     current_installment=Dezimal(row["current_installment"]),
@@ -731,7 +741,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[StockInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM stock_positions WHERE global_position_id = ?",
+                "SELECT * FROM stock_positions s LEFT JOIN manual_position_data mpd ON mpd.entry_id = s.id WHERE s.global_position_id = ?",
                 (str(global_position.id),),
             )
 
@@ -751,6 +761,7 @@ class PositionSQLRepository(PositionPort):
                     subtype=row["subtype"],
                     info_sheet_url=row["info_sheet_url"],
                     source=global_position.source,
+                    manual_data=_map_manual_entry_data(row),
                 )
                 for row in cursor
             ]
@@ -811,16 +822,18 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                           SELECT f.*,
-                                  p.id                 AS portfolio_id,
-                                  p.name               AS portfolio_name,
-                                  p.currency           AS portfolio_currency,
-                                  p.initial_investment AS portfolio_investment,
-                                  p.market_value       AS portfolio_value
-                           FROM fund_positions f
-                                    LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
-                           WHERE f.global_position_id = ?
-                           """,
+                SELECT f.*,
+                       mpd.*,
+                       p.id                 AS portfolio_id,
+                       p.name               AS portfolio_name,
+                       p.currency           AS portfolio_currency,
+                       p.initial_investment AS portfolio_investment,
+                       p.market_value       AS portfolio_value
+                FROM fund_positions f
+                         LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
+                         LEFT JOIN manual_position_data mpd ON mpd.entry_id = f.id
+                WHERE f.global_position_id = ?
+                """,
                 (str(global_position.id),),
             )
 
@@ -834,8 +847,8 @@ class PositionSQLRepository(PositionPort):
                     initial_investment=Dezimal(row["initial_investment"]),
                     average_buy_price=Dezimal(row["average_buy_price"]),
                     market_value=Dezimal(row["market_value"]),
-                    type=FundType[row["type"]],
-                    asset_type=AssetType[row["asset_type"]]
+                    type=FundType(row["type"]),
+                    asset_type=AssetType(row["asset_type"])
                     if row["asset_type"]
                     else None,
                     currency=row["currency"],
@@ -857,6 +870,7 @@ class PositionSQLRepository(PositionPort):
                     else None,
                     source=global_position.source,
                     info_sheet_url=row["info_sheet_url"],
+                    manual_data=_map_manual_entry_data(row),
                 )
                 for row in cursor
             ]
@@ -1164,9 +1178,7 @@ class PositionSQLRepository(PositionPort):
             )
             return cursor.fetchone()[0]
 
-    def delete_position_for_date(
-        self, entity_id: UUID, date: datetime.date, source: DataSource
-    ):
+    def delete_position_for_date(self, entity_id: UUID, date: date, source: DataSource):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 """
@@ -1215,4 +1227,81 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 "DELETE FROM global_positions WHERE id = ?", (str(position_id),)
+            )
+
+    def get_stock_detail(self, entry_id: UUID) -> Optional[StockDetail]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                """
+                SELECT s.*, gp.source
+                FROM stock_positions s
+                JOIN global_positions gp ON gp.id = s.global_position_id
+                WHERE s.id = ?
+                """,
+                (str(entry_id),),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return StockDetail(
+                id=UUID(row["id"]),
+                name=row["name"],
+                ticker=row["ticker"],
+                isin=row["isin"],
+                market=row["market"],
+                shares=Dezimal(row["shares"]),
+                initial_investment=Dezimal(row["initial_investment"]),
+                average_buy_price=Dezimal(row["average_buy_price"]),
+                market_value=Dezimal(row["market_value"]),
+                currency=row["currency"],
+                type=EquityType(row["type"]),
+                subtype=row["subtype"],
+                info_sheet_url=row["info_sheet_url"],
+                source=DataSource(row["source"]),
+            )
+
+    def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                """
+                SELECT f.*, gp.source
+                FROM fund_positions f
+                JOIN global_positions gp ON gp.id = f.global_position_id
+                WHERE f.id = ?
+                """,
+                (str(entry_id),),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+
+            return FundDetail(
+                id=UUID(row["id"]),
+                name=row["name"],
+                isin=row["isin"],
+                market=row["market"],
+                shares=Dezimal(row["shares"]),
+                initial_investment=Dezimal(row["initial_investment"]),
+                average_buy_price=Dezimal(row["average_buy_price"]),
+                market_value=Dezimal(row["market_value"]),
+                currency=row["currency"],
+                type=FundType(row["type"]),
+                asset_type=AssetType(row["asset_type"]) if row["asset_type"] else None,
+                info_sheet_url=row["info_sheet_url"],
+                source=DataSource(row["source"]),
+            )
+
+    def update_market_value(
+        self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
+    ):
+        if product_type == ProductType.STOCK_ETF:
+            table = "stock_positions"
+        elif product_type == ProductType.FUND:
+            table = "fund_positions"
+        else:
+            return
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                f"UPDATE {table} SET market_value = ? WHERE id = ?",
+                (str(market_value), str(entry_id)),
             )
