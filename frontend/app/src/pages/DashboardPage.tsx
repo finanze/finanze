@@ -1,4 +1,3 @@
-// Removed duplicate imports (consolidated below)
 import { FlowType, type ForecastResult } from "@/types"
 import { getTransactions, getForecast } from "@/services/api"
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"

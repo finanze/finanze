@@ -146,6 +146,7 @@ export interface AssetDistributionItem {
   value: number
   percentage: number
   change: number
+  [key: string]: any
 }
 
 export interface EntityDistributionItem {
