@@ -1,4 +1,5 @@
 import logging
+import time
 from uuid import uuid4
 
 import requests
@@ -19,6 +20,7 @@ class TronFetcher(CryptoEntityFetcher):
     TTL = 60
     BASE_URL = "https://apilist.tronscan.org/api/account"
     TRX_SCALE = Dezimal("1e-6")
+    COOLDOWN = 0.2
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -86,6 +88,8 @@ class TronFetcher(CryptoEntityFetcher):
 
     def _fetch(self, url: str) -> dict:
         response = requests.get(url)
+
+        time.sleep(self.COOLDOWN)
 
         if not response.ok:
             if response.status_code == 429:

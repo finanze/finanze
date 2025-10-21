@@ -151,16 +151,27 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             entity.id
         )
 
-        wallets = []
+        fetch_requests = []
         for connection in existing_connections:
-            wallet = specific_fetcher.fetch(
+            fetch_requests.append(
                 CryptoFetchRequest(
                     connection_id=connection.id,
                     address=connection.address,
                     integrations=integrations,
                 )
             )
-            wallet = self._update_market_value(wallet)
+
+        candidate_wallets = []
+        try:
+            candidate_wallets = specific_fetcher.fetch_multiple(fetch_requests)
+        except NotImplementedError:
+            for fetch_request in fetch_requests:
+                wallet = specific_fetcher.fetch(fetch_request)
+                candidate_wallets.append(wallet)
+
+        wallets = []
+        for w in candidate_wallets:
+            wallet = self._update_market_value(w)
             wallets.append(wallet)
 
         products = {ProductType.CRYPTO: CryptoCurrencies(wallets)}

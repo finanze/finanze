@@ -1065,9 +1065,9 @@ export default function EntityIntegrationsPage() {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] overflow-hidden"
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden"
             >
-              <div className="h-full overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-6 min-h-0">
                 <ManageWalletsView
                   entityId={selectedEntity.id}
                   onBack={handleBackFromManageWallets}

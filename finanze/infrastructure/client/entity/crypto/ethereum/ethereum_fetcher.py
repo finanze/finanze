@@ -1,4 +1,5 @@
 import logging
+import time
 from uuid import uuid4
 
 import requests
@@ -19,6 +20,7 @@ class EthereumFetcher(CryptoEntityFetcher):
     TTL = 60
     BASE_URL = "https://api.ethplorer.io/getAddressInfo"
     API_KEY = "freekey"
+    COOLDOWN = 0.4
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -84,6 +86,7 @@ class EthereumFetcher(CryptoEntityFetcher):
 
     def _fetch(self, url: str) -> dict:
         response = requests.get(url)
+        time.sleep(self.COOLDOWN)
 
         if not response.ok:
             if response.status_code == 429:
