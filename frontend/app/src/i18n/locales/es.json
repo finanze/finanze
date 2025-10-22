@@ -204,7 +204,9 @@
       "hideDetails": "Ocultar detalles",
       "originalMaturity": "Vencimiento original",
       "effectiveMaturity": "Vencimiento efectivo",
-      "extendedMaturity": "Vencimiento extendido"
+      "extendedMaturity": "Vencimiento extendido",
+      "extendableMaturity": "Vencimiento prolongable",
+      "initialMaturityDate": "Fecha de vencimiento inicial"
     }
   },
   "toast": {

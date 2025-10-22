@@ -90,6 +90,9 @@ interface RealEstatePosition extends Record<string, unknown> {
   business_type?: string | null
   formattedExpectedAtMaturity?: string | null
   convertedExpectedAtMaturity?: number | null
+  extendedMaturity?: string | null
+  displayMaturity?: string
+  maturityInfo?: { isExtended: boolean; label: string } | null
 }
 
 type RealEstateCFDraft = ManualPositionDraft<RealEstateCFDetail>
@@ -131,6 +134,11 @@ interface HistoricDisplayItem {
   effectiveMaturity: string
   originalMaturity: string
   extendedMaturity: string | null
+  displayMaturity: string
+  maturityInfo: {
+    isExtended: boolean
+    label: string
+  } | null
 }
 
 interface RealEstateViewContentProps {
@@ -242,6 +250,32 @@ export default function RealEstateCFInvestmentPage() {
           const source =
             (realEstate.source as DataSource | undefined) ?? DataSource.REAL
 
+          const today = new Date()
+          today.setHours(0, 0, 0, 0)
+          const maturityDate = realEstate.maturity
+            ? new Date(realEstate.maturity)
+            : null
+          maturityDate?.setHours(0, 0, 0, 0)
+
+          const isMaturityPassed = maturityDate && today > maturityDate
+          const hasExtendedMaturity = realEstate.extended_maturity != null
+
+          let displayMaturity = realEstate.maturity
+          let maturityInfo: { isExtended: boolean; label: string } | null = null
+
+          if (isMaturityPassed && hasExtendedMaturity) {
+            displayMaturity = realEstate.extended_maturity
+            maturityInfo = {
+              isExtended: true,
+              label: t.investments.historicSection.initialMaturityDate,
+            }
+          } else if (hasExtendedMaturity) {
+            maturityInfo = {
+              isExtended: false,
+              label: t.investments.historicSection.extendedMaturity,
+            }
+          }
+
           realEstates.push({
             ...(realEstate as RealEstatePosition),
             entryId,
@@ -288,6 +322,9 @@ export default function RealEstateCFInvestmentPage() {
                 : null,
             profitabilityPct,
             source,
+            extendedMaturity: realEstate.extended_maturity ?? undefined,
+            displayMaturity,
+            maturityInfo,
           })
         })
       }
@@ -652,6 +689,34 @@ function RealEstateViewContent({
           entry.type || entry.business_type || "",
         )
 
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        const originalMaturityDate = entry.maturity
+          ? new Date(entry.maturity)
+          : null
+        originalMaturityDate?.setHours(0, 0, 0, 0)
+
+        const isMaturityPassed =
+          originalMaturityDate && today > originalMaturityDate
+        const hasExtendedMaturity = entry.extended_maturity != null
+
+        let displayMaturity = formatDateSafe(entry.effective_maturity)
+        let maturityInfo: { isExtended: boolean; label: string } | null = null
+
+        if (isMaturityPassed && hasExtendedMaturity) {
+          displayMaturity =
+            extendedMaturity || formatDateSafe(entry.effective_maturity)
+          maturityInfo = {
+            isExtended: true,
+            label: t.investments.historicSection.initialMaturityDate,
+          }
+        } else if (hasExtendedMaturity) {
+          maturityInfo = {
+            isExtended: false,
+            label: t.investments.historicSection.extendedMaturity,
+          }
+        }
+
         return {
           entry,
           entityId: entry.entity.id,
@@ -672,6 +737,8 @@ function RealEstateViewContent({
           effectiveMaturity: formatDateSafe(entry.effective_maturity),
           originalMaturity: formatDateSafe(entry.maturity),
           extendedMaturity,
+          displayMaturity,
+          maturityInfo,
         }
       })
   }, [
@@ -1299,8 +1366,54 @@ function RealEstateViewContent({
                               {t.investments.maturity}
                             </span>
                             <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(position.maturity, locale)}
+                              {formatDate(
+                                position.displayMaturity || position.maturity,
+                                locale,
+                              )}
                             </span>
+                            {position.maturityInfo && (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4"
+                                    aria-label={position.maturityInfo.label}
+                                  >
+                                    <Info size={12} />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  align="start"
+                                  className="w-56 space-y-2"
+                                >
+                                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                    {position.maturityInfo.isExtended
+                                      ? t.investments.historicSection
+                                          .initialMaturityDate
+                                      : t.investments.historicSection
+                                          .extendableMaturity}
+                                  </p>
+                                  <div className="space-y-2 text-sm">
+                                    <div>
+                                      <p className="font-medium text-gray-900 dark:text-gray-100">
+                                        {position.maturityInfo.isExtended
+                                          ? formatDate(
+                                              position.maturity,
+                                              locale,
+                                            )
+                                          : formatDate(
+                                              position.extendedMaturity ||
+                                                position.maturity,
+                                              locale,
+                                            )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1405,6 +1518,8 @@ function RealEstateViewContent({
         <motion.section
           ref={historicSectionRef}
           variants={fadeListItem}
+          initial="hidden"
+          animate="show"
           className="space-y-4 pb-6"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">

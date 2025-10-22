@@ -76,6 +76,7 @@ export default function RecurringMoneyPage() {
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [showContributions, setShowContributions] = useState(true)
+  const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   // When category filter is active we suppress contributions per requirement
   const effectiveShowContributions =
     showContributions && categoryFilter.length === 0
@@ -545,6 +546,14 @@ export default function RecurringMoneyPage() {
     setExistingCategories(categories)
   }, [periodicFlows])
 
+  useEffect(() => {
+    // Delay disabling animation to allow entrance animation to complete
+    const timer = setTimeout(() => {
+      setRunEntranceAnimation(false)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [])
+
   const handleSubmit = async () => {
     // Validate required fields
     const errors: string[] = []
@@ -688,6 +697,7 @@ export default function RecurringMoneyPage() {
     emptyMessage,
     addMessage,
     extraButton,
+    runEntranceAnimation,
   }: {
     title: string
     flows: PeriodicFlow[]
@@ -695,181 +705,204 @@ export default function RecurringMoneyPage() {
     emptyMessage: string
     addMessage: string
     extraButton?: any
-  }) => (
-    <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {flowType === FlowType.EARNING ? (
-            <BanknoteArrowUp className="text-green-600" size={24} />
-          ) : (
-            <BanknoteArrowDown className="text-red-600" size={24} />
-          )}
-          <h2 className="text-xl font-semibold">{title}</h2>
-        </div>
-        <div className="flex items-center gap-2">
-          {extraButton}
-          <Button
-            onClick={() => {
-              resetForm()
-              setFormData(prev => ({ ...prev, flow_type: flowType }))
-              setIsDialogOpen(true)
-            }}
-            size="sm"
-            className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
-          >
-            <Plus size={16} />
-          </Button>
-        </div>
-      </div>
+    runEntranceAnimation: boolean
+  }) => {
+    const initialVariant = runEntranceAnimation ? "hidden" : false
 
-      {flows.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <div className="flex justify-center mb-4">
+    return (
+      <motion.div
+        variants={fadeListItem}
+        initial={initialVariant}
+        animate="show"
+        className="space-y-4"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
             {flowType === FlowType.EARNING ? (
-              <BanknoteArrowUp className="text-green-400" size={48} />
+              <BanknoteArrowUp className="text-green-600" size={24} />
             ) : (
-              <BanknoteArrowDown className="text-red-400" size={48} />
+              <BanknoteArrowDown className="text-red-600" size={24} />
             )}
+            <h2 className="text-xl font-semibold">{title}</h2>
           </div>
-          <p className="text-lg font-medium mb-2">{emptyMessage}</p>
-          <p className="text-sm">{addMessage}</p>
+          <div className="flex items-center gap-2">
+            {extraButton}
+            <Button
+              onClick={() => {
+                resetForm()
+                setFormData(prev => ({ ...prev, flow_type: flowType }))
+                setIsDialogOpen(true)
+              }}
+              size="sm"
+              className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
+            >
+              <Plus size={16} />
+            </Button>
+          </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {flows.map(flow => {
-            const nextDateInfo = getNextDateInfo(flow.next_date)
-            const convertedAmount = convertCurrency(
-              flow.amount,
-              flow.currency,
-              defaultCurrency,
-              exchangeRates,
-            )
-            const showOriginalCurrency = flow.currency !== defaultCurrency
 
-            return (
-              <div
-                key={flow.id}
-                className={cn(
-                  "flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
-                  !flow.enabled
-                    ? "opacity-50 bg-gray-50 dark:bg-black"
-                    : "bg-card shadow-sm",
-                )}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <div className="flex items-center gap-2 w-full sm:w-auto">
-                        {flow.icon && (
-                          <Icon
-                            name={flow.icon as IconName}
-                            className="w-5 h-5"
+        {flows.length === 0 ? (
+          <motion.div
+            variants={fadeListItem}
+            initial={initialVariant}
+            animate="show"
+            className="text-center py-12 text-gray-500"
+          >
+            <div className="flex justify-center mb-4">
+              {flowType === FlowType.EARNING ? (
+                <BanknoteArrowUp className="text-green-400" size={48} />
+              ) : (
+                <BanknoteArrowDown className="text-red-400" size={48} />
+              )}
+            </div>
+            <p className="text-lg font-medium mb-2">{emptyMessage}</p>
+            <p className="text-sm">{addMessage}</p>
+          </motion.div>
+        ) : (
+          <motion.div
+            variants={fadeListContainer}
+            initial={initialVariant}
+            animate="show"
+            className="space-y-2"
+          >
+            {flows.map(flow => {
+              const nextDateInfo = getNextDateInfo(flow.next_date)
+              const convertedAmount = convertCurrency(
+                flow.amount,
+                flow.currency,
+                defaultCurrency,
+                exchangeRates,
+              )
+              const showOriginalCurrency = flow.currency !== defaultCurrency
+
+              return (
+                <motion.div
+                  key={flow.id}
+                  className={cn(
+                    "flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
+                    !flow.enabled
+                      ? "opacity-50 bg-gray-50 dark:bg-black"
+                      : "bg-card shadow-sm",
+                  )}
+                  variants={fadeListItem}
+                  initial={initialVariant}
+                  animate="show"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          {flow.icon && (
+                            <Icon
+                              name={flow.icon as IconName}
+                              className="w-5 h-5"
+                            />
+                          )}
+                          <h3 className="font-medium">{flow.name}</h3>
+                        </div>
+                        {flow.linked && (
+                          <Link2
+                            size={18}
+                            strokeWidth={2.5}
+                            style={{ transform: "rotate(155deg)" }}
                           />
                         )}
-                        <h3 className="font-medium">{flow.name}</h3>
-                      </div>
-                      {flow.linked && (
-                        <Link2
-                          size={18}
-                          strokeWidth={2.5}
-                          style={{ transform: "rotate(155deg)" }}
-                        />
-                      )}
-                      {flow.category && (
+                        {flow.category && (
+                          <Badge
+                            variant="secondary"
+                            onClick={() => toggleCategoryFilter(flow.category!)}
+                            className={cn(
+                              "flex items-center gap-1 cursor-pointer",
+                              getColorForName(flow.category),
+                            )}
+                          >
+                            <Tag size={12} />
+                            {flow.category}
+                          </Badge>
+                        )}
                         <Badge
-                          variant="secondary"
-                          onClick={() => toggleCategoryFilter(flow.category!)}
-                          className={cn(
-                            "flex items-center gap-1 cursor-pointer",
-                            getColorForName(flow.category),
-                          )}
+                          variant="outline"
+                          className="flex items-center gap-1"
                         >
-                          <Tag size={12} />
-                          {flow.category}
+                          <Clock size={12} />
+                          {getFrequencyLabel(flow.frequency)}
                         </Badge>
-                      )}
-                      <Badge
-                        variant="outline"
-                        className="flex items-center gap-1"
-                      >
-                        <Clock size={12} />
-                        {getFrequencyLabel(flow.frequency)}
-                      </Badge>
 
-                      {/* Next Date Badge */}
-                      {nextDateInfo && (
-                        <Badge
-                          variant={
-                            nextDateInfo.urgencyLevel === "urgent"
-                              ? "destructive"
-                              : nextDateInfo.urgencyLevel === "soon"
-                                ? "default"
-                                : "secondary"
-                          }
-                          className={cn(
-                            "flex items-center gap-1 font-medium",
-                            nextDateInfo.urgencyLevel === "urgent" &&
-                              "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-                            nextDateInfo.urgencyLevel === "soon" &&
-                              "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-                            nextDateInfo.urgencyLevel === "normal" &&
-                              "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-                          )}
-                          title={`${t.management.nextPayment}: ${nextDateInfo.formattedDate}`}
-                        >
-                          <CalendarDays size={12} />
-                          {nextDateInfo.timeText}
-                        </Badge>
-                      )}
-                      {!flow.enabled && (
-                        <span className="text-sm text-gray-500">
-                          {t.management.disabled}
-                        </span>
-                      )}
+                        {/* Next Date Badge */}
+                        {nextDateInfo && (
+                          <Badge
+                            variant={
+                              nextDateInfo.urgencyLevel === "urgent"
+                                ? "destructive"
+                                : nextDateInfo.urgencyLevel === "soon"
+                                  ? "default"
+                                  : "secondary"
+                            }
+                            className={cn(
+                              "flex items-center gap-1 font-medium",
+                              nextDateInfo.urgencyLevel === "urgent" &&
+                                "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                              nextDateInfo.urgencyLevel === "soon" &&
+                                "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+                              nextDateInfo.urgencyLevel === "normal" &&
+                                "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                            )}
+                            title={`${t.management.nextPayment}: ${nextDateInfo.formattedDate}`}
+                          >
+                            <CalendarDays size={12} />
+                            {nextDateInfo.timeText}
+                          </Badge>
+                        )}
+                        {!flow.enabled && (
+                          <span className="text-sm text-gray-500">
+                            {t.management.disabled}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      {t.management.since}: {formatDate(flow.since, locale)}
+                      {flow.until &&
+                        ` • ${t.management.until}: ${formatDate(flow.until, locale)}`}
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500 mt-1">
-                    {t.management.since}: {formatDate(flow.since, locale)}
-                    {flow.until &&
-                      ` • ${t.management.until}: ${formatDate(flow.until, locale)}`}
-                  </div>
-                </div>
 
-                <div className="flex flex-col items-end gap-1 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto text-right">
-                  <span className="font-mono font-semibold">
-                    {formatCurrency(convertedAmount, locale, defaultCurrency)}
-                  </span>
-                  {showOriginalCurrency && (
-                    <span className="text-xs text-muted-foreground">
-                      {formatCurrency(flow.amount, locale, flow.currency)}
+                  <div className="flex flex-col items-end gap-1 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto text-right">
+                    <span className="font-mono font-semibold">
+                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
                     </span>
-                  )}
-                </div>
+                    {showOriginalCurrency && (
+                      <span className="text-xs text-muted-foreground">
+                        {formatCurrency(flow.amount, locale, flow.currency)}
+                      </span>
+                    )}
+                  </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditDialog(flow)}
-                  >
-                    <Edit size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openDeleteDialog(flow)}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </motion.div>
-  )
+                  <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(flow)}
+                    >
+                      <Edit size={16} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openDeleteDialog(flow)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </motion.div>
+        )}
+      </motion.div>
+    )
+  }
 
   if (loading) {
     return (
@@ -883,10 +916,15 @@ export default function RecurringMoneyPage() {
     <motion.div
       className="space-y-6 pb-6"
       variants={fadeListContainer}
-      initial="hidden"
+      initial={runEntranceAnimation ? "hidden" : false}
       animate="show"
     >
-      <motion.div variants={fadeListItem} className="flex items-center gap-4">
+      <motion.div
+        variants={fadeListItem}
+        initial={runEntranceAnimation ? "hidden" : false}
+        animate="show"
+        className="flex items-center gap-4"
+      >
         <Button
           variant="ghost"
           size="sm"
@@ -900,6 +938,8 @@ export default function RecurringMoneyPage() {
       {/* KPI Cards */}
       <motion.div
         variants={fadeListItem}
+        initial={runEntranceAnimation ? "hidden" : false}
+        animate="show"
         className="grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         <Card className="p-4">
@@ -1320,6 +1360,8 @@ export default function RecurringMoneyPage() {
       {/* Sorting Controls */}
       <motion.div
         variants={fadeListItem}
+        initial={runEntranceAnimation ? "hidden" : false}
+        animate="show"
         className="flex items-center gap-3 pt-4 flex-wrap"
       >
         <span className="text-sm text-muted-foreground">
@@ -1382,7 +1424,12 @@ export default function RecurringMoneyPage() {
         suggestion => !dismissedSuggestions.includes(suggestion.id),
       ).length > 0 ||
         showDismissed) && (
-        <motion.div variants={fadeListItem} className="space-y-4">
+        <motion.div
+          variants={fadeListItem}
+          initial={runEntranceAnimation ? "hidden" : false}
+          animate="show"
+          className="space-y-4"
+        >
           <div className="flex items-center gap-2">
             <Lightbulb className="text-yellow-500" size={20} />
             <h2 className="text-lg font-semibold">
@@ -1392,7 +1439,12 @@ export default function RecurringMoneyPage() {
               ({loanSuggestions.length} {t.management.loanSuggestions.found})
             </span>
           </div>
-          <motion.div variants={fadeListContainer} className="space-y-3">
+          <motion.div
+            variants={fadeListContainer}
+            initial={runEntranceAnimation ? "hidden" : false}
+            animate="show"
+            className="space-y-3"
+          >
             {loanSuggestions
               .filter(
                 suggestion =>
@@ -1405,6 +1457,8 @@ export default function RecurringMoneyPage() {
                   <motion.div
                     key={suggestion.id}
                     variants={fadeListItem}
+                    initial={runEntranceAnimation ? "hidden" : false}
+                    animate="show"
                     className={`flex items-start justify-between p-4 border rounded-lg ${
                       isDismissed
                         ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 opacity-70"
@@ -1505,6 +1559,7 @@ export default function RecurringMoneyPage() {
           flowType={FlowType.EARNING}
           emptyMessage={t.management.noEarnings}
           addMessage={t.management.addFirstEarning}
+          runEntranceAnimation={runEntranceAnimation}
         />
       </motion.div>
 
@@ -1534,6 +1589,7 @@ export default function RecurringMoneyPage() {
               </Button>
             ) : undefined
           }
+          runEntranceAnimation={runEntranceAnimation}
         />
       </motion.div>
 

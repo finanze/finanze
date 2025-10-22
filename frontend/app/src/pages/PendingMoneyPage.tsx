@@ -55,6 +55,7 @@ export default function PendingMoneyPage() {
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
   const [localPendingFlows, setLocalPendingFlows] = useState<PendingFlow[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
+  const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
 
   useEffect(() => {
     setLocalPendingFlows(pendingFlows)
@@ -65,6 +66,14 @@ export default function PendingMoneyPage() {
       .filter((category, index, arr) => arr.indexOf(category) === index)
     setExistingCategories(categories)
   }, [pendingFlows])
+
+  useEffect(() => {
+    // Delay disabling animation to allow entrance animation to complete
+    const timer = setTimeout(() => {
+      setRunEntranceAnimation(false)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [])
 
   // Sort flows based on selected criteria (do not sort while editing to avoid jumping UI)
   const sortedFlows = useMemo(() => {
@@ -139,7 +148,7 @@ export default function PendingMoneyPage() {
     }
     // Use a more stable ID for temporary flows
     const tempId = `temp-${flowType}-${localPendingFlows.length}-${Date.now()}`
-    setLocalPendingFlows(prev => [...prev, { ...newFlow, id: tempId }])
+    setLocalPendingFlows(prev => [{ ...newFlow, id: tempId }, ...prev])
     setUnsavedChanges(true)
     // Automatically set the new flow in edit mode
     setEditingFlowId(tempId)
@@ -441,20 +450,28 @@ export default function PendingMoneyPage() {
     flowType,
     emptyMessage,
     addMessage,
+    runEntranceAnimation,
   }: {
     title: string
     flows: PendingFlow[]
     flowType: FlowType
     emptyMessage: string
     addMessage: string
+    runEntranceAnimation: boolean
   }) => {
     const sectionFlows = flows.map(flow => {
       const sectionIndex = localPendingFlows.findIndex(f => f === flow)
       return { flow, index: sectionIndex }
     })
+    const initialVariant = runEntranceAnimation ? "hidden" : false
 
     return (
-      <motion.div variants={fadeListItem} className="space-y-4">
+      <motion.div
+        variants={fadeListItem}
+        initial={initialVariant}
+        animate="show"
+        className="space-y-4"
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {flowType === FlowType.EARNING ? (
@@ -476,6 +493,8 @@ export default function PendingMoneyPage() {
         {sectionFlows.length === 0 ? (
           <motion.div
             variants={fadeListItem}
+            initial={initialVariant}
+            animate="show"
             className="text-center py-12 text-gray-500"
           >
             <div className="flex justify-center mb-4">
@@ -489,11 +508,18 @@ export default function PendingMoneyPage() {
             <p className="text-sm">{addMessage}</p>
           </motion.div>
         ) : (
-          <motion.div variants={fadeListContainer} className="space-y-2">
+          <motion.div
+            variants={fadeListContainer}
+            initial={initialVariant}
+            animate="show"
+            className="space-y-2"
+          >
             {sectionFlows.map(({ flow, index }) => (
               <motion.div
                 key={flow.id}
                 variants={fadeListItem}
+                initial={initialVariant}
+                animate="show"
                 className={`${
                   !flow.enabled
                     ? "opacity-50 bg-gray-50 dark:bg-black"
@@ -596,7 +622,21 @@ export default function PendingMoneyPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setEditingFlowId(null)}
+                        onClick={() => {
+                          const flowErrors: string[] = []
+                          if (!flow.name.trim()) flowErrors.push("name")
+                          if (!flow.amount) flowErrors.push("amount")
+
+                          if (flowErrors.length > 0) {
+                            setHasTriedSave(true)
+                            setValidationErrors({
+                              [`flow-${index}`]: flowErrors,
+                            })
+                            return
+                          }
+                          setEditingFlowId(null)
+                          setValidationErrors({})
+                        }}
                         className="text-blue-600 hover:text-blue-700 h-8 px-3"
                       >
                         Done
@@ -715,11 +755,13 @@ export default function PendingMoneyPage() {
     <motion.div
       className="space-y-6 pb-6"
       variants={fadeListContainer}
-      initial="hidden"
+      initial={runEntranceAnimation ? "hidden" : false}
       animate="show"
     >
       <motion.div
         variants={fadeListItem}
+        initial={runEntranceAnimation ? "hidden" : false}
+        animate="show"
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
       >
         <div className="flex items-center gap-4">
@@ -736,7 +778,7 @@ export default function PendingMoneyPage() {
         {unsavedChanges && (
           <motion.div
             variants={fadeListItem}
-            initial="hidden"
+            initial={runEntranceAnimation ? "hidden" : false}
             animate="show"
             className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-4"
           >
@@ -758,6 +800,8 @@ export default function PendingMoneyPage() {
       {/* KPI Cards */}
       <motion.div
         variants={fadeListItem}
+        initial={runEntranceAnimation ? "hidden" : false}
+        animate="show"
         className="grid grid-cols-1 md:grid-cols-2 gap-4"
       >
         <Card className="p-4">
@@ -952,6 +996,8 @@ export default function PendingMoneyPage() {
       {/* Sorting Controls */}
       <motion.div
         variants={fadeListItem}
+        initial={runEntranceAnimation ? "hidden" : false}
+        animate="show"
         className="flex items-center justify-between gap-3 flex-wrap"
       >
         <div className="flex items-center gap-3">
@@ -1001,6 +1047,7 @@ export default function PendingMoneyPage() {
         flowType={FlowType.EARNING}
         emptyMessage={t.management.noPendingEarnings}
         addMessage={t.management.addFirstPendingEarning}
+        runEntranceAnimation={runEntranceAnimation}
       />
 
       <FlowSection
@@ -1009,6 +1056,7 @@ export default function PendingMoneyPage() {
         flowType={FlowType.EXPENSE}
         emptyMessage={t.management.noPendingExpenses}
         addMessage={t.management.addFirstPendingExpense}
+        runEntranceAnimation={runEntranceAnimation}
       />
     </motion.div>
   )

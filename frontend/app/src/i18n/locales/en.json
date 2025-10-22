@@ -206,7 +206,9 @@
       "hideDetails": "Hide details",
       "originalMaturity": "Original maturity",
       "effectiveMaturity": "Effective maturity",
-      "extendedMaturity": "Extended maturity"
+      "extendedMaturity": "Extended maturity",
+      "extendableMaturity": "Extendable maturity",
+      "initialMaturityDate": "Initial maturity date"
     }
   },
   "toast": {
