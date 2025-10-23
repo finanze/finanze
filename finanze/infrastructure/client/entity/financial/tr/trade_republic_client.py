@@ -122,7 +122,7 @@ class TradeRepublicClient:
             )
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-        elif not code and not process_id:
+        elif not code or not process_id:
             if not login_options.avoid_new_login:
                 countdown = self._initiate_weblogin()
                 process_id = self._tr_api._process_id
@@ -133,9 +133,6 @@ class TradeRepublicClient:
                 )
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
-
-        else:
-            raise ValueError("Invalid login data")
 
     def _resumable_session(self) -> bool:
         try:
@@ -251,12 +248,14 @@ class TradeRepublicClient:
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    @cached(ttl=60, noself=True)
     async def get_instrument_details(self, isin: str) -> dict:
         await self._tr_api.instrument_details(isin)
         subscription_id, _, response = await self._tr_api.recv()
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    @cached(ttl=60, noself=True)
     async def get_stock_details(self, isin: str) -> dict:
         await self._tr_api.stock_details(isin)
         subscription_id, _, response = await self._tr_api.recv()
@@ -269,6 +268,7 @@ class TradeRepublicClient:
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    @cached(ttl=43200, noself=True)
     async def get_fund_details(self, isin):
         await self._tr_api.subscribe({"type": "mutualFundDetails", "id": isin})
         subscription_id, _, response = await self._tr_api.recv()

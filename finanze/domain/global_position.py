@@ -31,6 +31,8 @@ class ProductType(str, Enum):
     CROWDLENDING = "CROWDLENDING"
     CRYPTO = "CRYPTO"
     COMMODITY = "COMMODITY"
+    BOND = "BOND"
+    DERIVATIVE = "DERIVATIVE"
 
 
 class AccountType(str, Enum):

@@ -62,6 +62,7 @@ def _build_stock(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx
         retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
         order_date=order_date,
         linked_tx=body.get("linked_tx"),
+        equity_type=body.get("equity_type"),
         **base_kwargs,
     )
 
@@ -79,6 +80,7 @@ def _build_fund(body: dict, base_kwargs: dict, tx_id: Optional[UUID]) -> BaseTx:
         fees=Dezimal(body["fees"]),
         retentions=Dezimal(body["retentions"]) if body.get("retentions") else None,
         order_date=order_date,
+        fund_type=body.get("fund_type"),
         **base_kwargs,
     )
 

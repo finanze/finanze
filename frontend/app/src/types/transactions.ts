@@ -1,4 +1,4 @@
-import { ProductType } from "./position"
+import { EquityType, FundType, ProductType } from "./position"
 import { DataSource, EntityOrigin } from "."
 
 export enum TxType {
@@ -65,6 +65,7 @@ export interface StockTx extends BaseInvestmentTx {
   retentions?: number
   order_date?: string
   linked_tx?: string
+  equity_type?: EquityType
 }
 
 // Fund transaction interface
@@ -77,6 +78,7 @@ export interface FundTx extends BaseInvestmentTx {
   fees: number
   retentions?: number
   order_date?: string
+  fund_type?: FundType
 }
 
 export interface FundPortfolioTx extends BaseInvestmentTx {

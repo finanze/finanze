@@ -74,6 +74,9 @@ from infrastructure.repository.db.versions.v0.v06.v060_3_fund_etf_data_sheet_and
 from infrastructure.repository.db.versions.v0.v06.v060_4_manual_position_data import (
     V0604ManualPositionData,
 )
+from infrastructure.repository.db.versions.v0.v06.v060_5_add_tx_product_subype import (
+    V0605TxProductSubtype,
+)
 
 versions = [
     V0Genesis(),
@@ -108,4 +111,5 @@ versions = [
     V0602Source(),
     V0603FundETFFields(),
     V0604ManualPositionData(),
+    V0605TxProductSubtype(),
 ]

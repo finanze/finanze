@@ -7,7 +7,7 @@ from domain.base import BaseData
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
-from domain.global_position import ProductType
+from domain.global_position import EquityType, FundType, ProductType
 from pydantic.dataclasses import dataclass
 
 
@@ -73,6 +73,7 @@ class StockTx(BaseInvestmentTx):
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
     linked_tx: Optional[str] = None
+    equity_type: Optional[EquityType] = None
 
 
 @dataclass
@@ -85,6 +86,7 @@ class FundTx(BaseInvestmentTx):
     market: Optional[str] = None
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
+    fund_type: Optional[FundType] = None
 
 
 @dataclass

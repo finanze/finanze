@@ -154,6 +154,7 @@
     "weightedAverageProfitability": "Rent. ponderada",
     "states": {
       "UNDER_REVIEW": "En revisión",
+      "FUNDED": "Financiado",
       "IN_PROGRESS": "En progreso",
       "COMPLETED": "Completado",
       "DISPUTE": "En disputa",
@@ -677,7 +678,9 @@
       "CROWDLENDING": "Crowdlending",
       "CRYPTO": "Criptomonedas",
       "COMMODITY": "Materia Prima",
-      "PENDING_FLOWS": "Pendiente"
+      "PENDING_FLOWS": "Pendiente",
+      "BOND": "Bono",
+      "DERIVATIVE": "Derivado"
     },
     "assetType": {
       "EQUITY": "Renta Variable",

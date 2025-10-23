@@ -156,6 +156,7 @@
     "weightedAverageProfitability": "Weighted Avg. Profitability",
     "states": {
       "UNDER_REVIEW": "Under review",
+      "FUNDED": "Funded",
       "IN_PROGRESS": "In progress",
       "COMPLETED": "Completed",
       "DISPUTE": "In dispute",
@@ -678,7 +679,9 @@
       "CROWDLENDING": "Crowdlending",
       "CRYPTO": "Crypto",
       "COMMODITY": "Commodity",
-      "PENDING_FLOWS": "Pending"
+      "PENDING_FLOWS": "Pending",
+      "BOND": "Bond",
+      "DERIVATIVE": "Derivative"
     },
     "assetType": {
       "EQUITY": "Equity",

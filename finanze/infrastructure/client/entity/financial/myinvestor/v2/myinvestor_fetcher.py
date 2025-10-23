@@ -29,6 +29,7 @@ from domain.global_position import (
     CardType,
     Deposit,
     Deposits,
+    EquityType,
     FundDetail,
     FundInvestments,
     FundPortfolio,
@@ -39,7 +40,6 @@ from domain.global_position import (
     ProductType,
     StockDetail,
     StockInvestments,
-    EquityType,
 )
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
@@ -778,6 +778,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     retentions=Dezimal(0),
                     date=execution_date,
                     product_type=ProductType.FUND,
+                    fund_type=FundType.MUTUAL_FUND,
                     source=DataSource.REAL,
                 )
             )

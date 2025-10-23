@@ -7,7 +7,7 @@ from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
-from domain.global_position import ProductType
+from domain.global_position import EquityType, FundType, ProductType
 from domain.transactions import (
     AccountTx,
     BaseInvestmentTx,
@@ -96,6 +96,9 @@ def _map_investment_row(
             if row["order_date"]
             else None,
             linked_tx=row["linked_tx"],
+            equity_type=EquityType(row["product_subtype"])
+            if row["product_subtype"]
+            else None,
         )
     elif row["product_type"] == ProductType.FUND.value:
         return FundTx(
@@ -109,6 +112,9 @@ def _map_investment_row(
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
             if row["order_date"]
+            else None,
+            fund_type=FundType(row["product_subtype"])
+            if row["product_subtype"]
             else None,
         )
     elif row["product_type"] == ProductType.FUND_PORTFOLIO.value:
@@ -182,6 +188,7 @@ class TransactionSQLRepository(TransactionPort):
                     "interests": None,
                     "iban": None,
                     "portfolio_name": None,
+                    "product_subtype": None,
                 }
 
                 if isinstance(tx, StockTx):
@@ -199,6 +206,9 @@ class TransactionSQLRepository(TransactionPort):
                             if tx.order_date
                             else None,
                             "linked_tx": tx.linked_tx,
+                            "product_subtype": tx.equity_type.value
+                            if tx.equity_type
+                            else None,
                         }
                     )
                 elif isinstance(tx, FundTx):
@@ -213,6 +223,9 @@ class TransactionSQLRepository(TransactionPort):
                             "retentions": str(tx.retentions) if tx.retentions else None,
                             "order_date": tx.order_date.isoformat()
                             if tx.order_date
+                            else None,
+                            "product_subtype": tx.fund_type.value
+                            if tx.fund_type
                             else None,
                         }
                     )
@@ -239,12 +252,12 @@ class TransactionSQLRepository(TransactionPort):
                                                          entity_id, is_real, source, product_type, created_at,
                                                          isin, ticker, market, shares, price, net_amount,
                                                          fees, retentions, order_date, linked_tx, interests,
-                                                         iban, portfolio_name)
+                                                         iban, portfolio_name, product_subtype)
                     VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
                             :entity_id, :is_real, :source, :product_type, :created_at,
                             :isin, :ticker, :market, :shares, :price, :net_amount,
                             :fees, :retentions, :order_date, :linked_tx, :interests,
-                            :iban, :portfolio_name)
+                            :iban, :portfolio_name, :product_subtype)
                     """,
                     entry,
                 )
@@ -481,7 +494,8 @@ class TransactionSQLRepository(TransactionPort):
                                 linked_tx,
                                 interests,
                                 iban,
-                                portfolio_name
+                                portfolio_name,
+                                product_subtype
                          FROM investment_transactions
                          UNION ALL
                          SELECT id,
@@ -509,7 +523,8 @@ class TransactionSQLRepository(TransactionPort):
                                 NULL      AS linked_tx,
                                 NULL      AS interests,
                                 NULL      AS iban,
-                                NULL      AS portfolio_name
+                                NULL      AS portfolio_name,
+                                NULL      AS product_subtype
                          FROM account_transactions) tx
                             JOIN entities e ON tx.entity_id = e.id
                    """

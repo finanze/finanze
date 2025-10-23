@@ -18,6 +18,8 @@ export enum ProductType {
   CROWDLENDING = "CROWDLENDING",
   CRYPTO = "CRYPTO",
   COMMODITY = "COMMODITY",
+  BOND = "BOND",
+  DERIVATIVE = "DERIVATIVE",
 }
 
 export enum AccountType {

@@ -18,15 +18,15 @@ from domain.global_position import (
     Account,
     Accounts,
     AccountType,
+    AssetType,
     Card,
     Cards,
     CardType,
     FundDetail,
     FundInvestments,
+    FundType,
     GlobalPosition,
     ProductType,
-    AssetType,
-    FundType,
 )
 from domain.native_entities import ING
 from domain.transactions import FundTx, StockTx, Transactions, TxType
@@ -585,6 +585,7 @@ class INGFetcher(FinancialEntityFetcher):
                             retentions=retentions,
                             date=date_dt,
                             product_type=ProductType.FUND,
+                            fund_type=FundType.MUTUAL_FUND,
                             source=DataSource.REAL,
                         )
                     )

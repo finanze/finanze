@@ -22,6 +22,7 @@ import {
   Wallet,
   CreditCard,
   WalletMinimal,
+  FlaskConical,
 } from "lucide-react"
 import { TxType } from "@/types/transactions"
 import { AccountType, ProductType } from "@/types/position"
@@ -78,6 +79,10 @@ export function getIconForAssetType(
       return <Gem className={`${size} ${color ?? "text-yellow-500"}`} />
     case "PENDING_FLOWS":
       return <HandCoins className={`${size} ${color ?? "text-teal-500"}`} />
+    case "BOND":
+      return <FileText className={`${size} ${color ?? "text-indigo-500"}`} />
+    case "DERIVATIVE":
+      return <FlaskConical className={`${size} ${color ?? "text-brown-500"}`} />
     default:
       return <Coins className={`${size} ${color ?? "text-gray-500"}`} />
   }
@@ -145,6 +150,10 @@ export const getProductTypeColor = (type: ProductType): string => {
       return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-100"
     case ProductType.FUND_PORTFOLIO:
       return "bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900 dark:text-fuchsia-100"
+    case ProductType.BOND:
+      return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
+    case ProductType.DERIVATIVE:
+      return "bg-brown-100 text-brown-800 dark:bg-brown-900 dark:text-brown-100"
     default:
       return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
   }
