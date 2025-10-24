@@ -77,6 +77,9 @@ from infrastructure.repository.db.versions.v0.v06.v060_4_manual_position_data im
 from infrastructure.repository.db.versions.v0.v06.v060_5_add_tx_product_subype import (
     V0605TxProductSubtype,
 )
+from infrastructure.repository.db.versions.v0.v06.v060_6_migrate_equity_types import (
+    V0606,
+)
 
 versions = [
     V0Genesis(),
@@ -112,4 +115,5 @@ versions = [
     V0603FundETFFields(),
     V0604ManualPositionData(),
     V0605TxProductSubtype(),
+    V0606(),
 ]
