@@ -24,7 +24,7 @@ import {
   convertCurrency,
   type StockFundPosition,
 } from "@/utils/financialDataUtils"
-import { ProductType, type StockDetail } from "@/types/position"
+import { ProductType, type StockDetail, EquityType } from "@/types/position"
 import {
   ArrowLeft,
   TrendingUp,
@@ -271,6 +271,7 @@ function StocksViewContent({
         source: DataSource.MANUAL,
         entryId,
         entityId: draft.entityId,
+        equityType: draft.type || null,
       }
     },
     [exchangeRates, defaultCurrency, locale],
@@ -561,6 +562,23 @@ function StocksViewContent({
                   position.isin?.trim(),
                 ].filter(Boolean) as string[]
                 const symbolItems: React.ReactNode[] = []
+
+                if (position.equityType) {
+                  symbolItems.push(
+                    <span
+                      key="equity-type"
+                      className={cn(
+                        "text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium",
+                        position.equityType === EquityType.STOCK
+                          ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300"
+                          : "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300",
+                      )}
+                    >
+                      {(t.enums?.equityType as any)?.[position.equityType] ||
+                        position.equityType}
+                    </span>,
+                  )
+                }
 
                 if (position.entity) {
                   symbolItems.push(

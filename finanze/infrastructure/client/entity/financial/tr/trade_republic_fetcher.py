@@ -155,6 +155,48 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             session=login_params.session,
         )
 
+    async def _map_private_equity(
+        self, position: dict, currency: str
+    ) -> Optional[FundDetail]:
+        isin = position.get("instrumentId")
+        if not isin:
+            self._log.warning("No ISIN found for private equity instrument")
+            return None
+
+        details = await self._client.get_instrument_details(isin)
+
+        raw_average_buy = position.get("averageBuyIn") or 0
+        average_buy = round(Dezimal(raw_average_buy), 4)
+        shares = Dezimal(position.get("netSize") or 0)
+        # available_shares = position.get("availableSize") # Don't know what is this
+        initial_investment = round(average_buy * shares, 4)
+        raw_pending_amounts = position.get("pendingAmounts", [])
+        total_pending_amount = Dezimal(0)
+        for pending in raw_pending_amounts:
+            amount_value = pending.get("amount", {}).get("value", 0)
+            total_pending_amount += Dezimal(amount_value)
+
+        initial_investment += total_pending_amount
+        market_value = initial_investment
+
+        name = details.get("name") or position.get("instrumentName")
+        kid_url = details.get("kidLink")
+
+        return FundDetail(
+            id=uuid4(),
+            name=name,
+            isin=isin,
+            market=None,
+            shares=shares,
+            initial_investment=initial_investment,
+            average_buy_price=average_buy,
+            market_value=market_value,
+            info_sheet_url=kid_url,
+            type=FundType.PRIVATE_EQUITY,
+            asset_type=AssetType.OTHER,
+            currency=currency,
+        )
+
     async def _instrument_mapper(
         self, instrument: dict, currency: str
     ) -> Optional[StockDetail | FundDetail]:
@@ -299,6 +341,23 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             for category in securities_portfolio["categories"]:
                 for position in category.get("positions", []):
                     investment = await self._instrument_mapper(position, currency)
+                    if investment:
+                        investments.append(investment)
+
+            pm_status = await self._client.get_private_markets_portfolio_status()
+            if (
+                pm_status
+                and pm_status.get("hasInvested")
+                and pm_status.get("status") == "ACTIVE"
+            ):
+                private_markets_portfolio = (
+                    await self._client.get_private_markets_portfolio(
+                        securities_account_number
+                    )
+                )
+                pm_positions = private_markets_portfolio.get("positions", [])
+                for position in pm_positions:
+                    investment = await self._map_private_equity(position, currency)
                     if investment:
                         investments.append(investment)
 

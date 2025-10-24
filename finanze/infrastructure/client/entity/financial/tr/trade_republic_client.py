@@ -248,6 +248,33 @@ class TradeRepublicClient:
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    async def get_private_markets_portfolio_status(self) -> dict:
+        await self._tr_api.subscribe({"type": "privateMarketsPortfolioStatus"})
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_private_markets_orders(
+        self, securities_account_num: Optional[str] = None
+    ) -> dict:
+        request = {"type": "privateMarketsOrders"}
+        if securities_account_num:
+            request["secAccNo"] = securities_account_num
+        await self._tr_api.subscribe(request)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_private_markets_portfolio(self, securities_account_num: str) -> dict:
+        request = {
+            "type": "privateMarketsPositions",
+            "secAccNo": securities_account_num,
+        }
+        await self._tr_api.subscribe(request)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
     @cached(ttl=60, noself=True)
     async def get_instrument_details(self, isin: str) -> dict:
         await self._tr_api.instrument_details(isin)

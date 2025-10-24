@@ -44,13 +44,15 @@ information.
 | Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
 | MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
 | SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ETCs   | ❌     |                     |
+| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ETCs   | ❌     | Private Markets(*)  |
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
 | Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
 | ING            | ✅        | ✅     | ✅️    | ❌              | ❌        | -          | ❌                   | -      | -     |                     |
+
+(*) Private Markets are alternative investments available in Trade Republic, currently under development.
 
 #### GoCardless Integration
 

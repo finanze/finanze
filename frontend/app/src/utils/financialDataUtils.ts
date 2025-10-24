@@ -191,6 +191,8 @@ export interface StockFundPosition {
   gainLossAmount?: number
   formattedGainLossAmount?: string
   infoSheetUrl?: string | null
+  equityType?: string | null
+  fundType?: string | null
 }
 
 export interface CryptoPosition {
@@ -1723,6 +1725,7 @@ export const getStockAndFundPositions = (
               ? formatGainLoss(convertedGainLoss, locale, defaultCurrency)
               : undefined,
           infoSheetUrl: stock.info_sheet_url || null,
+          equityType: stock.type || null,
         })
       })
     }
@@ -1797,6 +1800,7 @@ export const getStockAndFundPositions = (
               ? formatGainLoss(convertedGainLoss, locale, defaultCurrency)
               : undefined,
           infoSheetUrl: fund.info_sheet_url || null,
+          fundType: fund.type || null,
         })
       })
     }

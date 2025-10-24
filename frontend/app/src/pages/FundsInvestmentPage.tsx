@@ -25,6 +25,7 @@ import {
 import {
   ProductType,
   AssetType,
+  FundType,
   type FundDetail,
   type FundPortfolio,
   type PartialProductPositions,
@@ -385,6 +386,7 @@ function FundsInvestmentPageContent({
         id: entryId,
         entityId: draft.entityId,
         infoSheetUrl: draft.info_sheet_url ?? null,
+        fundType: draft.type || null,
       }
     },
     [exchangeRates, settings.general.defaultCurrency, locale],
@@ -867,6 +869,26 @@ function FundsInvestmentPageContent({
                     >
                       {(t.enums?.assetType as any)?.[position.assetType] ||
                         position.assetType}
+                    </span>,
+                  )
+                }
+
+                if (
+                  position.fundType &&
+                  position.fundType !== FundType.MUTUAL_FUND
+                ) {
+                  symbolItems.push(
+                    <span
+                      key="fund-type"
+                      className={cn(
+                        "text-xs inline-flex items-center rounded-full px-2.5 py-0.5 font-medium",
+                        position.fundType === FundType.PRIVATE_EQUITY
+                          ? "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300"
+                          : "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+                      )}
+                    >
+                      {(t.enums?.fundType as any)?.[position.fundType] ||
+                        position.fundType}
                     </span>,
                   )
                 }
