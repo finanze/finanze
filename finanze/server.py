@@ -57,12 +57,13 @@ from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
+from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
-from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
-from domain.data_init import DatasourceInitParams
+from domain.exception.exceptions import UserNotFound
 from domain.external_integration import ExternalIntegrationId
+from domain.user_login import LoginRequest
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
@@ -478,19 +479,7 @@ class FinanzeServer:
 
         self._log.info("Initial component setup completed.")
 
-        if args.logged_username and args.logged_password:
-            self._log.info("User provided, initializing data...")
-            user = self.data_manager.get_user(args.logged_username)
-            if user:
-                self.sheets_initiator.connect(user)
-                self.config_loader.connect(user)
-                self.db_manager.initialize(
-                    DatasourceInitParams(user, args.logged_password)
-                )
-            else:
-                self._log.warning(
-                    f"User {args.logged_username} not found in the data directory."
-                )
+        self._init_user(args, user_login)
 
         self._log.info("Setting up REST API...")
 
@@ -550,7 +539,23 @@ class FinanzeServer:
             get_instrument_info,
             update_tracked_quotes,
         )
+
+        self._log.info("Warming up exchange rates...")
+        get_exchange_rates.execute(timeout=5)
+
         self._log.info("Completed.")
+
+    def _init_user(self, args, user_login: UserLoginImpl):
+        if args.logged_username and args.logged_password:
+            self._log.info("User provided, logging in...")
+            try:
+                user_login.execute(
+                    LoginRequest(args.logged_username, args.logged_password)
+                )
+            except UserNotFound:
+                self._log.warning(
+                    f"User {args.logged_username} not found during login."
+                )
 
     def run(self):
         self._log.info(f"Starting Finanze server on port {self.args.port}...")
