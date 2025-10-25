@@ -30,6 +30,7 @@ import {
 import { deleteRealEstate, getImageUrl } from "@/services/api"
 import { RealEstateFormModal } from "@/components/RealEstateFormModal"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 
 export default function RealEstatePage() {
   const { t, locale } = useI18n()
@@ -37,7 +38,7 @@ export default function RealEstatePage() {
   const { refreshFlows, realEstateList, refreshRealEstate } = useFinancialData()
   const navigate = useNavigate()
 
-  const [loading, setLoading] = useState(true)
+  const [loadingRE, setLoadingRE] = useState(true)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<RealEstate | null>(
     null,
@@ -52,11 +53,11 @@ export default function RealEstatePage() {
   useEffect(() => {
     let cancelled = false
     const init = async () => {
-      setLoading(true)
+      setLoadingRE(true)
       try {
         await refreshRealEstate()
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadingRE(false)
       }
     }
     init()
@@ -152,12 +153,12 @@ export default function RealEstatePage() {
 
   const loadRealEstate = async () => {
     try {
-      setLoading(true)
+      setLoadingRE(true)
       await refreshRealEstate()
     } catch {
       showToast(t.realEstate.errors.loadFailed, "error")
     } finally {
-      setLoading(false)
+      setLoadingRE(false)
     }
   }
 
@@ -203,12 +204,10 @@ export default function RealEstatePage() {
     loadRealEstate()
   }
 
-  if (loading) {
+  if (loadingRE) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600 dark:text-gray-400">
-          {t.common.loading}
-        </div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }

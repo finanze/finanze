@@ -96,8 +96,7 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
   )
-  const [loading, setLoading] = useState(false)
-  // Removed local error state in favor of global toast notifications
+  const [loadingTxs, setLoadingTxs] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
@@ -225,7 +224,7 @@ export default function TransactionsPage() {
     resetPage: boolean = false,
   ) => {
     const fetchId = ++latestFetchIdRef.current
-    setLoading(true)
+    setLoadingTxs(true)
     // Clear previous error toast implicitly by showing a new one only on failure
 
     try {
@@ -258,12 +257,12 @@ export default function TransactionsPage() {
     } catch (err) {
       console.error("Error fetching transactions:", err)
       if (latestFetchIdRef.current === fetchId) {
-        showToast(t.errors.UNEXPECTED_ERROR, "error")
+        showToast(t.common.unexpectedError, "error")
       }
       return undefined
     } finally {
       if (latestFetchIdRef.current === fetchId) {
-        setLoading(false)
+        setLoadingTxs(false)
       }
     }
   }
@@ -891,14 +890,6 @@ export default function TransactionsPage() {
     }
   }
 
-  if (loading && !transactions) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6 pb-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -998,7 +989,7 @@ export default function TransactionsPage() {
         <div className="flex gap-3">
           <Button
             onClick={handleApplyFilters}
-            disabled={loading}
+            disabled={loadingTxs}
             className="flex items-center gap-2"
           >
             <Search className="h-4 w-4" />
@@ -1007,7 +998,7 @@ export default function TransactionsPage() {
           <Button
             variant="outline"
             onClick={handleClearFilters}
-            disabled={loading}
+            disabled={loadingTxs}
             className="flex items-center gap-2"
           >
             <RotateCcw className="h-4 w-4" />
@@ -1057,7 +1048,7 @@ export default function TransactionsPage() {
                   </span>
                 )}
               </h2>
-              {loading && <LoadingSpinner size="sm" />}
+              {loadingTxs && <LoadingSpinner size="sm" />}
             </div>
 
             {transactions.transactions.length === 0 ? (
@@ -1260,7 +1251,7 @@ export default function TransactionsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || loading}
+                    disabled={currentPage === 1 || loadingTxs}
                     className="px-3 py-2"
                   >
                     ←
@@ -1276,7 +1267,7 @@ export default function TransactionsPage() {
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={
                       transactions?.transactions.length < ITEMS_PER_PAGE ||
-                      loading
+                      loadingTxs
                     }
                     className="px-3 py-2"
                   >
@@ -1297,7 +1288,7 @@ export default function TransactionsPage() {
                 </span>
               )}
             </h2>
-            {loading && <LoadingSpinner size="sm" />}
+            {loadingTxs && <LoadingSpinner size="sm" />}
           </div>
 
           {/* Mobile No Results */}
@@ -1454,7 +1445,7 @@ export default function TransactionsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1 || loading}
+                  disabled={currentPage === 1 || loadingTxs}
                   className="px-3 py-2"
                 >
                   ←
@@ -1470,7 +1461,7 @@ export default function TransactionsPage() {
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={
                     transactions?.transactions.length < ITEMS_PER_PAGE ||
-                    loading
+                    loadingTxs
                   }
                   className="px-3 py-2"
                 >

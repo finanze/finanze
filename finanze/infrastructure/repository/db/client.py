@@ -1,13 +1,12 @@
 from contextlib import contextmanager
 from threading import RLock
 from types import TracebackType
-from typing import Optional, Literal, Any, Generator
+from typing import Any, Generator, Literal, Optional
 from uuid import uuid4
 
-from pysqlcipher3 import dbapi2 as sqlcipher
-from typing_extensions import TypeAlias, Self
-
 from domain.data_init import DataEncryptedError
+from pysqlcipher3 import dbapi2 as sqlcipher
+from typing_extensions import Self, TypeAlias
 
 UnderlyingCursor: TypeAlias = sqlcipher.Cursor
 UnderlyingConnection: TypeAlias = sqlcipher.Connection
@@ -110,12 +109,11 @@ class DBClient:
 
     @contextmanager
     def read(self) -> Generator[DBCursor, None, None]:
-        with self._lock:
-            cursor = self._cursor()
-            try:
-                yield cursor
-            finally:
-                cursor.close()
+        cursor = self._cursor()
+        try:
+            yield cursor
+        finally:
+            cursor.close()
 
     def _commit(self):
         self._get_connection().commit()

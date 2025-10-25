@@ -9,8 +9,6 @@ export function AboutWindow() {
   const [isLoading, setIsLoading] = useState(true)
 
   const aboutStrings = t.about
-  const commonStrings = t.common
-  const errorStrings = t.errors
 
   useEffect(() => {
     let mounted = true
@@ -91,14 +89,14 @@ export function AboutWindow() {
       },
       {
         label: aboutStrings.architecture,
-        value: platform.arch ?? commonStrings.notAvailable,
+        value: platform.arch ?? t.common.notAvailable,
       },
       {
         label: aboutStrings.osVersion,
-        value: platform.osVersion ?? commonStrings.notAvailable,
+        value: platform.osVersion ?? t.common.notAvailable,
       },
     ]
-  }, [info, aboutStrings, commonStrings.notAvailable])
+  }, [info, aboutStrings, t.common.notAvailable])
 
   const linkItems = useMemo(() => {
     if (!info) return []
@@ -153,7 +151,7 @@ export function AboutWindow() {
         <CardContent className="space-y-4">
           {isLoading ? (
             <div className="text-sm text-muted-foreground">
-              {commonStrings.loading}
+              {t.common.loading}
             </div>
           ) : info ? (
             <div className="space-y-4 text-sm overflow-y-auto max-h-[320px] pr-1">
@@ -227,7 +225,7 @@ export function AboutWindow() {
             </div>
           ) : (
             <div className="text-sm text-destructive">
-              {errorStrings.UNEXPECTED_ERROR}
+              {t.common.unexpectedError}
             </div>
           )}
         </CardContent>

@@ -674,7 +674,7 @@ function RealEstateViewContent({
         )
 
         const interestRateFormatted =
-          entry.interest_rate != null
+          entry.interest_rate != null && entry.interest_rate > 0
             ? `${(entry.interest_rate * 100).toFixed(2)}%`
             : notAvailableLabel
 
@@ -1276,19 +1276,24 @@ function RealEstateViewContent({
                       {translateProjectType(rawProjectType)}
                     </span>
                   </div>,
-                  <div
-                    key="interest"
-                    className="flex items-center gap-1 text-sm"
-                  >
-                    <Percent size={14} />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      {(position.interest_rate * 100).toFixed(2)}%
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t.investments.annually}
-                    </span>
-                  </div>,
                 ]
+
+                if (position.interest_rate && position.interest_rate > 0) {
+                  summaryItems.push(
+                    <div
+                      key="interest"
+                      className="flex items-center gap-1 text-sm"
+                    >
+                      <Percent size={14} />
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        {(position.interest_rate * 100).toFixed(2)}%
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {t.investments.annually}
+                      </span>
+                    </div>,
+                  )
+                }
 
                 return (
                   <Card
@@ -1698,21 +1703,32 @@ function RealEstateViewContent({
                       {item.projectType || notAvailableLabel}
                     </span>
                   </div>,
-                  <div
-                    key="interest"
-                    className="flex items-center gap-1 text-sm"
-                  >
-                    <Percent
-                      size={14}
-                      className="text-gray-400 dark:text-gray-500"
-                    />
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                      {item.interestRateFormatted}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t.investments.annually}
-                    </span>
-                  </div>,
+                ]
+
+                if (
+                  item.entry.interest_rate != null &&
+                  item.entry.interest_rate > 0
+                ) {
+                  headerItems.push(
+                    <div
+                      key="interest"
+                      className="flex items-center gap-1 text-sm"
+                    >
+                      <Percent
+                        size={14}
+                        className="text-gray-400 dark:text-gray-500"
+                      />
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                        {item.interestRateFormatted}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {t.investments.annually}
+                      </span>
+                    </div>,
+                  )
+                }
+
+                headerItems.push(
                   <div
                     key="maturity"
                     className="flex items-center gap-1 text-sm"
@@ -1728,7 +1744,7 @@ function RealEstateViewContent({
                       {item.effectiveMaturity}
                     </span>
                   </div>,
-                ]
+                )
 
                 return (
                   <Card key={item.entry.id} className="p-4 space-y-3">

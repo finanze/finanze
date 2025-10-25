@@ -915,7 +915,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -946,7 +946,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -981,7 +981,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1003,7 +1003,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8"
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1033,7 +1033,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1059,7 +1059,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1088,7 +1088,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1231,7 +1231,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}

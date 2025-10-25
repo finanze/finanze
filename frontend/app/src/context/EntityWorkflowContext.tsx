@@ -248,7 +248,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
           updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
           showToast(
-            `${t.common.loginSuccess}: ${selectedEntity.name}`,
+            t.common.loginSuccessEntity.replace(
+              "{entity}",
+              selectedEntity.name,
+            ),
             "success",
           )
           resetState()
@@ -257,19 +260,33 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setPinError(true)
           showToast(
             t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginError,
+              t.common.loginErrorEntity.replace(
+                "{entity}",
+                selectedEntity.name,
+              ),
             "error",
           )
         } else {
-          showToast(
-            t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginError,
-            "error",
-          )
+          const errorMessage = t.errors[response.code as keyof typeof t.errors]
+          let finalMessage: string
+          if (errorMessage?.includes("{entity}")) {
+            finalMessage = errorMessage.replace("{entity}", selectedEntity.name)
+          } else if (errorMessage) {
+            finalMessage = errorMessage
+          } else {
+            finalMessage = t.common.loginErrorEntity.replace(
+              "{entity}",
+              selectedEntity.name,
+            )
+          }
+          showToast(finalMessage, "error")
           resetState()
         }
       } catch {
-        showToast(t.common.loginError, "error")
+        showToast(
+          t.common.loginErrorEntity.replace("{entity}", selectedEntity.name),
+          "error",
+        )
       } finally {
         setIsLoggingIn(false)
       }
@@ -345,7 +362,12 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               )
             } catch (e: any) {
               if (e?.status === 429) {
-                showToast(t.errors.COOLDOWN, "warning")
+                const entityName = entity?.name || t.common.crypto
+                const cooldownMsg = t.errors.COOLDOWN.replace(
+                  "{entity}",
+                  entityName,
+                )
+                showToast(cooldownMsg, "warning")
                 throw e
               }
               throw e
@@ -392,13 +414,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             resetState({ preserveSelectedFeatures: true })
           }
         } else if (response.code === FetchResultCode.COOLDOWN) {
+          const entityName = entity?.name || t.common.crypto
           const waitSeconds = response.details?.wait ?? null
           const cooldownMessage = waitSeconds
             ? t.errors.COOLDOWN_WITH_WAIT.replace(
                 "{time}",
                 formatCooldownTime(waitSeconds),
-              )
-            : t.errors.COOLDOWN
+              ).replace("{entity}", entityName)
+            : t.errors.COOLDOWN.replace("{entity}", entityName)
           showToast(cooldownMessage, "warning")
           resetState({ preserveSelectedFeatures: true })
         } else if (response.code === FetchResultCode.LOGIN_REQUIRED) {
@@ -430,9 +453,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           resetState()
           setView("entities")
         } else if (response.code === FetchResultCode.COMPLETED) {
-          const successMessage = entity
-            ? `${t.common.fetchSuccess}: ${entity.name}`
-            : `${t.common.fetchSuccess}: ${t.common.crypto}`
+          let successMessage: string
+          if (entity) {
+            successMessage = t.common.fetchSuccessEntity.replace(
+              "{entity}",
+              entity.name,
+            )
+          } else {
+            successMessage = `${t.common.fetchSuccess}: ${t.common.crypto}`
+          }
           showToast(successMessage, "success")
 
           if (onScrapeCompletedRef.current) {
@@ -450,18 +479,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setView("entities")
         } else if (response.code === FetchResultCode.INVALID_CODE) {
           setPinError(true)
-          showToast(
+          const entityName = entity?.name || t.common.crypto
+          const errorMessage =
             t.errors[response.code as keyof typeof t.errors] ||
-              t.common.fetchError,
-            "error",
-          )
+            t.common.fetchErrorEntity.replace("{entity}", entityName)
+          showToast(errorMessage, "error")
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           navigate("/entities")
-          showToast(
+          const entityName = entity?.name || t.common.crypto
+          const errorMessage = (
             t.errors[response.code as keyof typeof t.errors] ||
-              t.common.fetchError,
-            "error",
-          )
+            t.common.fetchErrorEntity
+          )?.replace("{entity}", entityName)
+          showToast(errorMessage, "error")
         } else if (response.code === FetchResultCode.LINK_EXPIRED) {
           showToast(t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED, "warning")
           if (entity) {
@@ -472,15 +502,30 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           showToast(t.errors.REMOTE_FAILED, "error")
           resetState({ preserveSelectedFeatures: true })
         } else {
-          showToast(
-            t.errors[response.code as keyof typeof t.errors] ||
-              t.common.fetchError,
-            "error",
-          )
+          const entityName = entity?.name || t.common.crypto
+          const errorMessage = t.errors[response.code as keyof typeof t.errors]
+          let finalMessage: string
+          if (errorMessage?.includes("{entity}")) {
+            finalMessage = errorMessage.replace("{entity}", entityName)
+          } else if (errorMessage) {
+            finalMessage = errorMessage
+          } else {
+            finalMessage = t.common.fetchErrorEntity.replace(
+              "{entity}",
+              entityName,
+            )
+          }
+          showToast(finalMessage, "error")
           resetState({ preserveSelectedFeatures: true })
         }
       } catch {
-        showToast(t.common.fetchError, "error")
+        showToast(
+          t.common.fetchErrorEntity.replace(
+            "{entity}",
+            entity?.name || t.common.crypto,
+          ),
+          "error",
+        )
         resetState({ preserveSelectedFeatures: true })
       } finally {
         if (entity) {

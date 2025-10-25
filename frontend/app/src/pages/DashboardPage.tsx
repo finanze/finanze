@@ -1,12 +1,12 @@
 import { FlowType, type ForecastResult } from "@/types"
-import { getTransactions, getForecast } from "@/services/api"
+import { getForecast } from "@/services/api"
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { TransactionsResult, TxType } from "@/types/transactions"
+import { TxType } from "@/types/transactions"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
@@ -82,6 +82,9 @@ export default function DashboardPage() {
     refreshData: refreshFinancialData,
     realEstateList,
     contributions,
+    cachedLastTransactions,
+    fetchCachedTransactions,
+    invalidateTransactionsCache,
   } = useFinancialData()
   const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
     useAppContext()
@@ -101,15 +104,13 @@ export default function DashboardPage() {
   )
   const forecastMode = !!forecastResult
 
-  const [transactions, setTransactions] = useState<TransactionsResult | null>(
-    null,
-  )
-  const [transactionsLoading, setTransactionsLoading] = useState(true)
+  const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [transactionsError, setTransactionsError] = useState<string | null>(
     null,
   )
 
-  // Dashboard options state (persisted in localStorage)
+  const transactions = cachedLastTransactions
+
   type DashboardOptions = {
     includePending: boolean
     includeCardExpenses: boolean
@@ -144,24 +145,19 @@ export default function DashboardPage() {
 
   const fetchTransactionsData = async () => {
     if (inactiveEntities && inactiveEntities.length > 0) {
-      setTransactionsLoading(true)
-      setTransactionsError(null)
-      try {
-        const excludedEntityIds = inactiveEntities.map(entity => entity.id)
-        const result = await getTransactions({
-          excluded_entities: excludedEntityIds,
-          limit: 8,
-        })
-        setTransactions(result)
-      } catch (err) {
-        console.error("Error fetching transactions:", err)
-        setTransactionsError(t.errors.UNEXPECTED_ERROR)
-      } finally {
-        setTransactionsLoading(false)
+      if (!cachedLastTransactions) {
+        setTransactionsLoading(true)
+        setTransactionsError(null)
+        try {
+          const excludedEntityIds = inactiveEntities.map(entity => entity.id)
+          await fetchCachedTransactions(excludedEntityIds)
+        } catch (err) {
+          console.error("Error fetching transactions:", err)
+          setTransactionsError(t.common.unexpectedError)
+        } finally {
+          setTransactionsLoading(false)
+        }
       }
-    } else {
-      setTransactions(null)
-      setTransactionsLoading(false)
     }
   }
 
@@ -1332,6 +1328,7 @@ export default function DashboardPage() {
         </p>
         <Button
           onClick={() => {
+            invalidateTransactionsCache()
             refreshFinancialData()
             fetchTransactionsData()
             refreshExchangeRates()
@@ -1557,7 +1554,7 @@ export default function DashboardPage() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
+            <PopoverContent className="w-80 z-[50]" align="end">
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium">
@@ -3272,7 +3269,7 @@ export default function DashboardPage() {
                       {Object.entries(recentTransactions).map(
                         ([date, txsOnDate]) => (
                           <li key={date} className="py-2">
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-2 sticky top-0 bg-card z-10 py-1 px-4 -mx-4 border-b border-t">
+                            <h4 className="text-sm font-semibold text-muted-foreground mb-2 sticky top-0 bg-card z-5 py-1 px-4 -mx-4 border-b border-t">
                               {date}
                             </h4>
                             <ul className="space-y-0 pr-4">

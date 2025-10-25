@@ -96,6 +96,8 @@ class DBManager(DatasourceInitiator):
 
         self._log.info("Database unlocked successfully.")
 
+        connection.execute("PRAGMA journal_mode = WAL;")
+
         connection.execute("PRAGMA foreign_keys = ON;")
         connection.row_factory = sqlcipher.Row
 

@@ -12,6 +12,7 @@ import {
   getContributions,
   getAllPeriodicFlows,
   getAllPendingFlows,
+  getTransactions,
 } from "@/services/api"
 import { EntitiesPosition, PositionQueryRequest } from "@/types/position"
 import {
@@ -19,6 +20,7 @@ import {
   ContributionQueryRequest,
 } from "@/types/contributions"
 import { PeriodicFlow, PendingFlow } from "@/types"
+import { TransactionsResult } from "@/types/transactions"
 import { useAppContext } from "./AppContext"
 import { useEntityWorkflow } from "./EntityWorkflowContext"
 import { EntityType } from "@/types"
@@ -37,6 +39,9 @@ interface FinancialDataContextType {
   refreshFlows: () => Promise<void>
   realEstateList: RealEstate[]
   refreshRealEstate: () => Promise<void>
+  cachedLastTransactions: TransactionsResult | null
+  fetchCachedTransactions: (excludedEntityIds: string[]) => Promise<void>
+  invalidateTransactionsCache: () => void
 }
 
 const FinancialDataContext = createContext<
@@ -52,6 +57,8 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const [periodicFlows, setPeriodicFlows] = useState<PeriodicFlow[]>([])
   const [pendingFlows, setPendingFlows] = useState<PendingFlow[]>([])
   const [realEstateList, setRealEstateList] = useState<RealEstate[]>([])
+  const [cachedLastTransactions, setCachedLastTransactions] =
+    useState<TransactionsResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const initialFetchDone = useRef(false)
@@ -132,6 +139,25 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     return p
   }, [])
 
+  const fetchCachedTransactions = useCallback(
+    async (excludedEntityIds: string[]) => {
+      try {
+        const result = await getTransactions({
+          excluded_entities: excludedEntityIds,
+          limit: 8,
+        })
+        setCachedLastTransactions(result)
+      } catch (err) {
+        console.error("Error fetching cached transactions:", err)
+      }
+    },
+    [],
+  )
+
+  const invalidateTransactionsCache = useCallback(() => {
+    setCachedLastTransactions(null)
+  }, [])
+
   const refreshEntity = async (entityId: string) => {
     setIsLoading(true)
     setError(null)
@@ -189,6 +215,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       console.log(
         `Successfully refreshed ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}`,
       )
+
+      // Invalidate cached transactions since new data may be available
+      invalidateTransactionsCache()
 
       // Refresh entities to get updated last_fetch data
       try {
@@ -262,6 +291,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         refreshFlows,
         realEstateList,
         refreshRealEstate,
+        cachedLastTransactions,
+        fetchCachedTransactions,
+        invalidateTransactionsCache,
       }}
     >
       {children}

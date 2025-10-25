@@ -569,6 +569,5 @@ class FinanzeServer:
             raise
         finally:
             self._log.info("Finanze server shutting down.")
-            if self.db_client:
-                if self.db_client.silent_close():
-                    self._log.info("Database connection closed.")
+            if self.db_client and self.db_client.silent_close():
+                self._log.info("Database connection closed.")
