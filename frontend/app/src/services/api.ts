@@ -260,13 +260,13 @@ export async function login(
       return { code: AuthResultCode.INVALID_CREDENTIALS }
     } else if (response.status === 404) {
       return { code: AuthResultCode.USER_NOT_FOUND }
-    } else if (response.status === 500) {
+    } else if (response.status === 500 || response.status === 503) {
       const data = await response.json()
       return { code: AuthResultCode.UNEXPECTED_ERROR, message: data.message }
     }
 
     if (!response.ok) {
-      throw new Error("Failed to login")
+      return { code: AuthResultCode.UNEXPECTED_ERROR }
     }
 
     return { code: AuthResultCode.SUCCESS }

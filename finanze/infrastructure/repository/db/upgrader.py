@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List
 
 from dateutil.tz import tzlocal
-from domain.data_init import MigrationError
+from domain.data_init import MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
 
 
@@ -92,13 +92,6 @@ class DatabaseUpgrader:
                         f"Applied: {applied_name}, Current: {current_migration.name}"
                     )
 
-    def requires_upgrade(self) -> bool:
-        """
-        Checks if the database requires an upgrade.
-        """
-        current = self._get_current_version()
-        return current < len(self._versions) - 1
-
     def upgrade(self, target_version=None):
         """
         Upgrades the database to the specified target version.
@@ -113,8 +106,16 @@ class DatabaseUpgrader:
         if target < 0 or target >= len(self._versions):
             raise ValueError(f"Invalid target version: {target}")
 
-        if current >= target:
-            return  # Already at or beyond the target
+        if current == target:
+            self._log.debug(
+                f"No upgrade needed, database is already at version {current}."
+            )
+            return
+
+        elif current > target:
+            raise MigrationAheadOfTime(
+                f"Database version {current} is ahead of current one {target}, did you downgrade?"
+            )
 
         self._validate_migrations()
 

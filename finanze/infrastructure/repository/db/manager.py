@@ -8,6 +8,7 @@ from domain.data_init import (
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
+    MigrationAheadOfTime,
     MigrationError,
 )
 from infrastructure.repository.db.client import DBClient, UnderlyingConnection
@@ -77,6 +78,9 @@ class DBManager(DatasourceInitiator):
                             "Failed to decrypt database. Incorrect password or corrupted file."
                         ) from e
 
+                elif not isinstance(e, MigrationAheadOfTime):
+                    self._log.exception(e)
+
                 elif not isinstance(e, MigrationError):
                     self._log.exception(
                         "An unexpected error occurred during database connection/unlock."
@@ -132,9 +136,6 @@ class DBManager(DatasourceInitiator):
         self._log.info("Setting up database schema...")
 
         upgrader = DatabaseUpgrader(self._client, versions)
-        if not upgrader.requires_upgrade():
-            self._log.info("Database schema is already up to date.")
-            return
 
         try:
             upgrader.upgrade()

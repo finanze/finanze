@@ -1,4 +1,4 @@
-from domain.data_init import AlreadyUnlockedError, DecryptionError
+from domain.data_init import AlreadyUnlockedError, DecryptionError, MigrationAheadOfTime
 from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
@@ -29,6 +29,9 @@ def user_login(user_login_uc: UserLogin):
 
     except UserAlreadyLoggedIn:
         return jsonify({"message": "User already logged in"}), 409
+
+    except MigrationAheadOfTime as e:
+        return jsonify({"message": str(e)}), 503
 
     except AlreadyUnlockedError:
         return "", 204
