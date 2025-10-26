@@ -344,3 +344,62 @@ class MyInvestorAPIV2Client:
         return self._get_request(
             f"/cperf-server/api/v2/securities-accounts/{security_account_id}/investment-summary/funds/{fund_isin}/added-values"
         )["payload"]["data"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=21600))
+    def get_pension_accounts(self):
+        return self._get_request("/cperf-server/api/v2/pension-accounts/self")[
+            "payload"
+        ]["data"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=21600))
+    def get_pension_account_details(self, pension_account_id: str):
+        return self._get_request(
+            f"/cperf-server/api/v2/pension-accounts/{pension_account_id}"
+        )["payload"]["data"]
+
+    def get_pension_plan_orders(
+        self,
+        pension_account_id: str,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        status: Optional[str] = "COMPLETE",
+        tx_type: Optional[str] = None,
+        from_amount: Optional[float] = None,
+        to_amount: Optional[float] = None,
+        dgs: Optional[str] = None,
+    ):
+        to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
+        from_date = date.strftime(
+            from_date or (date.today().replace(month=1, day=1)), GET_DATE_FORMAT
+        )
+
+        path = f"/cperf-server/api/v2/pension-accounts/{pension_account_id}/orders?dateFrom={from_date}&dateTo={to_date}"
+
+        if tx_type:
+            path += f"&type={tx_type}"  # PERIODIC ORDINARY None (=ALL)
+
+        if status:
+            path += f"&status={status}"  # COMPLETE PENDING REJECTED CANCEL IN_PROGRESS
+
+        if from_amount:
+            path += f"&amountFrom={from_amount}"
+
+        if to_amount:
+            path += f"&amountTo={to_amount}"
+
+        if dgs:
+            path += f"&dgsCode={dgs}"
+
+        return self._get_request(path)["payload"]["data"]
+
+    @cached(cache=TTLCache(maxsize=1000, ttl=60))
+    def get_pension_plan_order_details(self, pension_account_id: str, order_id: str):
+        return self._get_request(
+            f"/cperf-server/api/v2/pension-accounts/{pension_account_id}/orders/{order_id}"
+        )["payload"]["data"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=21600))
+    def get_pension_fund_details(self, dgs_code: str):
+        return self._get_request(f"/cperf-server/api/v2/pension-plans/{dgs_code}")[
+            "payload"
+        ]["data"]

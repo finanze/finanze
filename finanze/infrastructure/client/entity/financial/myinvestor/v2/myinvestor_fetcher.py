@@ -173,6 +173,20 @@ def _map_account_tx(ref, name, amount, currency, tx_date, retentions):
     )
 
 
+def _parse_asset_type(raw_asset_type) -> AssetType:
+    if raw_asset_type == "VARIABLE_INCOME":
+        asset_type = AssetType.EQUITY
+    elif raw_asset_type == "FIXED_INCOME":
+        asset_type = AssetType.FIXED_INCOME
+    elif raw_asset_type == "MONEY_MARKET":
+        asset_type = AssetType.MONEY_MARKET
+    elif raw_asset_type == "MIXED":
+        asset_type = AssetType.MIXED
+    else:
+        asset_type = AssetType.OTHER
+    return asset_type
+
+
 class MyInvestorFetcherV2(FinancialEntityFetcher):
     def __init__(self):
         self._client = MyInvestorAPIV2Client()
@@ -231,9 +245,12 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         investment_txs = []
         account_txs = []
 
+        min_creation_date = date.today()
         for account in target_accounts:
             account_id = account["accountId"]
             creation_date = datetime.fromisoformat(account["creationDate"]).date()
+            if creation_date < min_creation_date:
+                min_creation_date = creation_date
             related_security_account_id = self._get_related_security_account(
                 account_id
             )["accountId"]
@@ -247,6 +264,25 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             investment_txs += account_related_txs["deposit"]
             investment_txs += account_related_txs["portfolio"]
             account_txs += account_related_txs["interests"]
+
+        pension_fund_txs = []
+        pension_fund_accounts = self._client.get_pension_accounts()
+        for pension_account in pension_fund_accounts:
+            pension_account_id = pension_account["accountId"]
+            holders = pension_account.get("holders", [])
+            user_is_owner = any([holder.get("me") for holder in holders])
+            if not user_is_owner:
+                continue
+
+            try:
+                pension_fund_txs += self._fetch_pension_fund_txs(
+                    pension_account_id, registered_txs, min_creation_date
+                )
+            except Exception as e:
+                self._log.error(f"Error getting pension fund txs: {e}")
+                traceback.print_exc()
+
+        investment_txs += pension_fund_txs
 
         return Transactions(investment=investment_txs, account=account_txs)
 
@@ -650,6 +686,24 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
             fund_data = fund_data + portfolio_fund_data
 
+        pension_fund_accounts = self._client.get_pension_accounts()
+        for pension_account in pension_fund_accounts:
+            pension_account_id = pension_account["accountId"]
+            holders = pension_account.get("holders", [])
+            user_is_owner = any([holder.get("me") for holder in holders])
+            if not user_is_owner:
+                continue
+
+            raw_pension_investments = self._client.get_pension_account_details(
+                pension_account_id
+            )
+
+            pension_fund_data = self._get_pension_fund_investment(
+                raw_pension_investments, pension_account_id
+            )
+
+            fund_data = fund_data + pension_fund_data
+
         return {
             ProductType.STOCK_ETF: stock_data,
             ProductType.FUND: fund_data,
@@ -657,8 +711,108 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             ProductType.DEPOSIT: deposits,
         }
 
+    def _get_pension_fund_investment(
+        self, investments, pension_account_id
+    ) -> FundInvestments:
+        fund_list = []
+
+        for fund in investments:
+            dgs_code = fund.get("dgsCode")
+            fund_details = self._client.get_fund_details(dgs_code)
+
+            name = fund_details.get("name") or fund.get("name")
+
+            raw_asset_type = fund_details.get("assetType")
+            asset_type = _parse_asset_type(raw_asset_type)
+
+            key_info_sheet = fund_details.get("urlKiid")
+
+            fund_list.append(
+                FundDetail(
+                    id=uuid4(),
+                    name=name,
+                    isin=dgs_code,
+                    market=None,
+                    shares=Dezimal(fund.get("shares", 0)),
+                    initial_investment=round(Dezimal(fund.get("totalInvested", 0)), 4),
+                    average_buy_price=round(Dezimal(fund.get("averageCost", 0)), 4),
+                    market_value=round(Dezimal(fund.get("marketValue", 0)), 4),
+                    currency=fund.get("currency", "EUR"),
+                    type=FundType.PENSION_FUND,
+                    asset_type=asset_type,
+                    info_sheet_url=key_info_sheet,
+                    source=DataSource.REAL,
+                )
+            )
+
+        return FundInvestments(fund_list)
+
+    def _fetch_pension_fund_txs(
+        self, pension_account_id: str, registered_txs: set[str], min_date: date
+    ) -> list[FundTx]:
+        fund_txs = []
+        raw_fund_orders = self._client.get_pension_plan_orders(
+            pension_account_id=pension_account_id, from_date=min_date
+        )
+
+        for order in raw_fund_orders:
+            ref = order["reference"]
+
+            if ref in registered_txs:
+                continue
+
+            raw_operation_type = order["operationType"]
+            if raw_operation_type == "PLAN_CONTRIBUTION":
+                operation_type = TxType.BUY
+
+            else:
+                self._log.warning(
+                    f"Unknown operation type {raw_operation_type} for tx {ref}"
+                )
+                continue
+
+            raw_order_details = self._client.get_pension_plan_order_details(
+                pension_account_id, ref
+            )
+            order_date = datetime.strptime(order["orderDate"], DATE_FORMAT)
+            execution_op = None
+            linked_ops = raw_order_details["relatedOperations"]
+            if linked_ops:
+                execution_op = linked_ops[0]
+            execution_date = order_date
+
+            fund_txs.append(
+                FundTx(
+                    id=uuid4(),
+                    ref=ref,
+                    name=order["fundName"].strip(),
+                    amount=round(
+                        Dezimal(execution_op["grossAmountOperationFundCurrency"]), 2
+                    ),
+                    net_amount=round(Dezimal(execution_op["netAmountFundCurrency"]), 2),
+                    currency=order["currency"],
+                    type=operation_type,
+                    order_date=order_date,
+                    entity=MY_INVESTOR,
+                    isin=order["dgsCode"],
+                    shares=round(Dezimal(raw_order_details["executedShares"]), 4),
+                    price=round(Dezimal(execution_op["liquidationValue"]), 4),
+                    market=order["market"],
+                    fees=round(Dezimal(execution_op["commissions"]), 2),
+                    retentions=Dezimal(0),
+                    date=execution_date,
+                    product_type=ProductType.FUND,
+                    fund_type=FundType.PENSION_FUND,
+                    source=DataSource.REAL,
+                )
+            )
+
+        return fund_txs
+
     def _map_periodic_contribution(self, auto_contribution):
-        raw_frequency = auto_contribution["contributionTimeFrame"]["recurrence"]
+        raw_frequency = auto_contribution.get("contributionTimeFrame", {}).get(
+            "recurrence"
+        )
         frequency = CONTRIBUTION_FREQUENCY.get(raw_frequency)
         if not frequency:
             self._log.warning(f"Unknown contribution frequency: {raw_frequency}")
@@ -893,16 +1047,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 isin = fund.get("isin")
                 fund_details = self._client.get_fund_details(isin)
                 raw_asset_type = fund_details.get("assetType")
-                if raw_asset_type == "VARIABLE_INCOME":
-                    asset_type = AssetType.EQUITY
-                elif raw_asset_type == "FIXED_INCOME":
-                    asset_type = AssetType.FIXED_INCOME
-                elif raw_asset_type == "MONEY_MARKET":
-                    asset_type = AssetType.MONEY_MARKET
-                elif raw_asset_type == "MIXED":
-                    asset_type = AssetType.MIXED
-                else:
-                    asset_type = AssetType.OTHER
+                asset_type = _parse_asset_type(raw_asset_type)
 
                 key_info_sheet = fund_details.get("urlKiid")
                 added_values = self._client.get_fund_added_values(
