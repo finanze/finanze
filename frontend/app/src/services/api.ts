@@ -1,4 +1,4 @@
-import type {
+import {
   EntitiesResponse,
   LoginRequest,
   FetchRequest,
@@ -33,15 +33,26 @@ import type {
   ExternalEntityCandidates,
   ConnectExternalEntityRequest,
   ExternalEntityConnectionResult,
+  AuthResultCode,
+  InstrumentDataRequest,
+  InstrumentOverview,
+  InstrumentsResponse,
 } from "@/types"
 import {
   EntityContributions,
   ContributionQueryRequest,
+  ManualContributionsRequest,
 } from "../types/contributions"
-import { EntitiesPosition, PositionQueryRequest } from "../types/position"
+import {
+  EntitiesPosition,
+  PositionQueryRequest,
+  UpdatePositionRequest,
+} from "../types/position"
+import type { Historic, HistoricQueryRequest } from "../types/historic"
 import {
   TransactionQueryRequest,
   TransactionsResult,
+  ManualTransactionPayload,
 } from "../types/transactions"
 import { handleApiError } from "@/utils/apiErrors"
 
@@ -128,7 +139,7 @@ export async function fetchFinancialEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/fetch/financial`, {
+  const response = await fetch(`${baseUrl}/data/fetch/financial`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -150,7 +161,7 @@ export async function fetchCryptoEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/fetch/crypto`, {
+  const response = await fetch(`${baseUrl}/data/fetch/crypto`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -170,7 +181,7 @@ export async function fetchCryptoEntity(
 
 export async function virtualFetch(): Promise<VirtualFetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/fetch/virtual`, {
+  const response = await fetch(`${baseUrl}/data/fetch/virtual`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -234,7 +245,7 @@ export async function checkLoginStatus(): Promise<LoginStatusResponse> {
 
 export async function login(
   authRequest: AuthRequest,
-): Promise<{ success: boolean }> {
+): Promise<{ code: AuthResultCode; message?: string }> {
   try {
     const baseUrl = await ensureApiUrlInitialized()
     const response = await fetch(`${baseUrl}/login`, {
@@ -246,14 +257,21 @@ export async function login(
     })
 
     if (response.status === 401) {
-      return { success: false }
+      return { code: AuthResultCode.INVALID_CREDENTIALS }
+    } else if (response.status === 404) {
+      return { code: AuthResultCode.USER_NOT_FOUND }
+    } else if (response.status === 500 || response.status === 503) {
+      const data = await response.json()
+      return { code: AuthResultCode.UNEXPECTED_ERROR, message: data.message }
+    } else if (response.status === 409) {
+      return { code: AuthResultCode.SUCCESS }
     }
 
     if (!response.ok) {
-      throw new Error("Failed to login")
+      return { code: AuthResultCode.UNEXPECTED_ERROR }
     }
 
-    return { success: true }
+    return { code: AuthResultCode.SUCCESS }
   } catch (error) {
     console.error("Login error:", error)
     throw error
@@ -404,11 +422,56 @@ export async function getTransactions(
 
     if (queryParams.from_date) params.append("from_date", queryParams.from_date)
     if (queryParams.to_date) params.append("to_date", queryParams.to_date)
+    if (queryParams.historic_entry_id) {
+      params.append("historic_entry_id", queryParams.historic_entry_id)
+    }
 
     queryString = `?${params.toString()}`
   }
 
   const response = await fetch(`${baseUrl}/transactions${queryString}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getHistoric(
+  queryParams?: HistoricQueryRequest,
+): Promise<Historic> {
+  const baseUrl = await ensureApiUrlInitialized()
+
+  let queryString = ""
+  if (queryParams) {
+    const params = new URLSearchParams()
+
+    if (queryParams.entities && queryParams.entities.length > 0) {
+      queryParams.entities.forEach(entity => {
+        params.append("entity", entity)
+      })
+    }
+
+    if (
+      queryParams.excluded_entities &&
+      queryParams.excluded_entities.length > 0
+    ) {
+      queryParams.excluded_entities.forEach(entity => {
+        params.append("excluded_entity", entity)
+      })
+    }
+
+    if (queryParams.product_types && queryParams.product_types.length > 0) {
+      queryParams.product_types.forEach(type => {
+        params.append("product_type", type)
+      })
+    }
+
+    if (params.toString()) {
+      queryString = `?${params.toString()}`
+    }
+  }
+
+  const response = await fetch(`${baseUrl}/historic${queryString}`)
   if (!response.ok) {
     await handleApiError(response)
   }
@@ -460,6 +523,22 @@ export async function getExchangeRates(): Promise<ExchangeRates> {
   return response.json()
 }
 
+export async function saveManualContributions(
+  request: ManualContributionsRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/contributions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
 export async function calculateLoan(
   request: LoanCalculationRequest,
 ): Promise<LoanCalculationResult> {
@@ -475,6 +554,78 @@ export async function calculateLoan(
     await handleApiError(response)
   }
   return response.json()
+}
+
+export async function saveManualPositions(
+  request: UpdatePositionRequest,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/positions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function updateQuotesManualPositions(): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(
+    `${baseUrl}/data/manual/positions/update-quotes`,
+    {
+      method: "POST",
+    },
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function createManualTransaction(
+  request: ManualTransactionPayload,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/transactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function updateManualTransaction(
+  id: string,
+  request: ManualTransactionPayload,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/transactions/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export async function deleteManualTransaction(id: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/manual/transactions/${id}`, {
+    method: "DELETE",
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
 }
 
 export async function getForecast(
@@ -843,7 +994,7 @@ export async function fetchExternalEntity(
 ): Promise<FetchResponse> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(
-    `${baseUrl}/fetch/external/${externalEntityId}`,
+    `${baseUrl}/data/fetch/external/${externalEntityId}`,
     { method: "POST" },
   )
   const data = await response.json()
@@ -851,4 +1002,42 @@ export async function fetchExternalEntity(
     throw new Error("Fetch failed")
   }
   return data
+}
+
+export async function getInstruments(
+  request: InstrumentDataRequest,
+): Promise<InstrumentsResponse> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
+
+  params.append("type", request.type)
+  if (request.isin) params.append("isin", request.isin)
+  if (request.name) params.append("name", request.name)
+  if (request.ticker) params.append("ticker", request.ticker)
+
+  const response = await fetch(`${baseUrl}/instruments?${params.toString()}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getInstrumentDetails(
+  request: InstrumentDataRequest,
+): Promise<InstrumentOverview> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
+
+  params.append("type", request.type)
+  if (request.isin) params.append("isin", request.isin)
+  if (request.name) params.append("name", request.name)
+  if (request.ticker) params.append("ticker", request.ticker)
+
+  const response = await fetch(
+    `${baseUrl}/instruments/details?${params.toString()}`,
+  )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
 }

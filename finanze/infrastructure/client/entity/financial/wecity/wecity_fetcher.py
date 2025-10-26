@@ -9,6 +9,7 @@ from dateutil.tz import tzlocal
 from domain.constants import CAPITAL_GAINS_BASE_TAX
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -246,16 +247,12 @@ class WecityFetcher(FinancialEntityFetcher):
             if ref in registered_txs:
                 continue
 
-            interests = Dezimal(0)
             retentions = Dezimal(0)
             net_amount = amount
             # We assume there are retentions
             if tx_type == TxType.INTEREST or tx_type == TxType.DIVIDEND:
                 amount = net_amount / (1 - CAPITAL_GAINS_BASE_TAX)
                 retentions = amount - net_amount
-
-            if tx_type == TxType.INTEREST:
-                interests = amount
 
             txs.append(
                 RealEstateCFTx(
@@ -270,9 +267,8 @@ class WecityFetcher(FinancialEntityFetcher):
                     product_type=ProductType.REAL_ESTATE_CF,
                     fees=Dezimal(0),
                     retentions=round(retentions, 2),
-                    interests=round(interests, 2),
                     net_amount=round(net_amount, 2),
-                    is_real=True,
+                    source=DataSource.REAL,
                 )
             )
 

@@ -1,13 +1,12 @@
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic.dataclasses import dataclass
-
 from domain.dezimal import Dezimal
 from domain.entity import Entity
-from domain.transactions import BaseInvestmentTx
 from domain.global_position import ProductType
+from domain.transactions import BaseInvestmentTx
+from pydantic.dataclasses import dataclass
 
 
 @dataclass
@@ -51,3 +50,10 @@ class RealEstateCFEntry(BaseHistoricEntry):
 @dataclass
 class Historic:
     entries: list[BaseHistoricEntry]
+
+
+@dataclass
+class HistoricQueryRequest:
+    entities: Optional[list[UUID]] = None
+    excluded_entities: Optional[list[UUID]] = None
+    product_types: Optional[list[ProductType]] = None

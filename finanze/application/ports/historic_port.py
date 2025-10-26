@@ -1,7 +1,7 @@
 import abc
 from uuid import UUID
 
-from domain.historic import Historic, BaseHistoricEntry
+from domain.historic import BaseHistoricEntry, Historic, HistoricQueryRequest
 
 
 class HistoricPort(metaclass=abc.ABCMeta):
@@ -10,7 +10,13 @@ class HistoricPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self) -> Historic:
+    def get_all(self, fetch_related_txs: bool = False) -> Historic:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_by_filters(
+        self, query: HistoricQueryRequest, fetch_related_txs: bool = False
+    ) -> Historic:
         raise NotImplementedError
 
     @abc.abstractmethod

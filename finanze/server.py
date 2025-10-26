@@ -4,6 +4,7 @@ from pathlib import Path
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
@@ -17,6 +18,7 @@ from application.use_cases.connect_google import ConnectGoogleImpl
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
+from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
@@ -33,6 +35,9 @@ from application.use_cases.get_available_external_entities import (
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
+from application.use_cases.get_historic import GetHistoricImpl
+from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
+from application.use_cases.get_instruments import GetInstrumentsImpl
 from application.use_cases.get_login_status import GetLoginStatusImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
@@ -44,16 +49,21 @@ from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
+from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
+from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
 from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
+from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_sheets import UpdateSheetsImpl
+from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from application.use_cases.virtual_fetch import VirtualFetchImpl
-from domain.data_init import DatasourceInitParams
+from domain.exception.exceptions import UserNotFound
 from domain.external_integration import ExternalIntegrationId
+from domain.user_login import LoginRequest
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
@@ -87,6 +97,9 @@ from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
 from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
+)
+from infrastructure.client.instrument.instrument_provider_adapter import (
+    InstrumentProviderAdapter,
 )
 from infrastructure.client.rates.crypto_price_client import CryptoPriceClient
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
@@ -126,6 +139,9 @@ from infrastructure.repository.external_integration.external_integration_reposit
 )
 from infrastructure.repository.fetch.last_fetches_repository import (
     LastFetchesRepository,
+)
+from infrastructure.repository.position.manual_position_data_repository import (
+    ManualPositionDataSQLRepository,
 )
 from infrastructure.repository.real_estate.real_estate_repository import (
     RealEstateRepository,
@@ -188,6 +204,9 @@ class FinanzeServer:
         self.exporter = SheetsExporter(self.sheets_initiator)
 
         position_repository = PositionRepository(client=self.db_client)
+        manual_position_data_repository = ManualPositionDataSQLRepository(
+            client=self.db_client
+        )
         auto_contrib_repository = AutoContributionsRepository(client=self.db_client)
         transaction_repository = TransactionRepository(client=self.db_client)
         historic_repository = HistoricRepository(client=self.db_client)
@@ -213,6 +232,7 @@ class FinanzeServer:
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
         metal_price_client = MetalPriceClient()
+        instrument_provider = InstrumentProviderAdapter()
 
         credentials_storage_mode = self.args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -317,6 +337,7 @@ class FinanzeServer:
         update_settings = UpdateSettingsImpl(self.config_loader)
         get_entities_position = GetPositionImpl(position_repository)
         get_contributions = GetContributionsImpl(auto_contrib_repository)
+        get_historic = GetHistoricImpl(historic_repository)
         get_transactions = GetTransactionsImpl(transaction_repository)
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client, crypto_price_client, metal_price_client
@@ -379,6 +400,9 @@ class FinanzeServer:
             self.gocardless_client,
         )
 
+        get_instruments = GetInstrumentsImpl(instrument_provider)
+        get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
+
         save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
         update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
         delete_periodic_flow = DeletePeriodicFlowImpl(periodic_flow_repository)
@@ -415,22 +439,46 @@ class FinanzeServer:
             pending_flow_port=pending_flow_repository,
             real_estate_port=real_estate_repository,
         )
+        update_contributions = UpdateContributionsImpl(
+            entity_port=entity_repository,
+            auto_contributions_port=auto_contrib_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        update_position = UpdatePositionImpl(
+            entity_port=entity_repository,
+            position_port=position_repository,
+            manual_position_data_port=manual_position_data_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        add_manual_transaction = AddManualTransactionImpl(
+            entity_port=entity_repository,
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        update_manual_transaction = UpdateManualTransactionImpl(
+            entity_port=entity_repository,
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        delete_manual_transaction = DeleteManualTransactionImpl(
+            transaction_port=transaction_repository,
+            virtual_import_registry=virtual_import_repository,
+            transaction_handler_port=transaction_handler,
+        )
+        update_tracked_quotes = UpdateTrackedQuotesImpl(
+            position_port=position_repository,
+            manual_position_data_port=manual_position_data_repository,
+            instrument_info_provider=instrument_provider,
+            exchange_rate_provider=exchange_rate_client,
+        )
 
         self._log.info("Initial component setup completed.")
 
-        if args.logged_username and args.logged_password:
-            self._log.info("User provided, initializing data...")
-            user = self.data_manager.get_user(args.logged_username)
-            if user:
-                self.sheets_initiator.connect(user)
-                self.config_loader.connect(user)
-                self.db_manager.initialize(
-                    DatasourceInitParams(user, args.logged_password)
-                )
-            else:
-                self._log.warning(
-                    f"User {args.logged_username} not found in the data directory."
-                )
+        self._init_user(args, user_login)
 
         self._log.info("Setting up REST API...")
 
@@ -454,6 +502,7 @@ class FinanzeServer:
             disconnect_entity,
             get_entities_position,
             get_contributions,
+            get_historic,
             get_transactions,
             get_exchange_rates,
             connect_external_entity,
@@ -480,8 +529,32 @@ class FinanzeServer:
             list_real_estate,
             calculate_loan,
             forecast,
+            update_contributions,
+            update_position,
+            add_manual_transaction,
+            update_manual_transaction,
+            delete_manual_transaction,
+            get_instruments,
+            get_instrument_info,
+            update_tracked_quotes,
         )
+
+        self._log.info("Warming up exchange rates...")
+        get_exchange_rates.execute(timeout=5)
+
         self._log.info("Completed.")
+
+    def _init_user(self, args, user_login: UserLoginImpl):
+        if args.logged_username and args.logged_password:
+            self._log.info("User provided, logging in...")
+            try:
+                user_login.execute(
+                    LoginRequest(args.logged_username, args.logged_password)
+                )
+            except UserNotFound:
+                self._log.warning(
+                    f"User {args.logged_username} not found during login."
+                )
 
     def run(self):
         self._log.info(f"Starting Finanze server on port {self.args.port}...")
@@ -500,6 +573,5 @@ class FinanzeServer:
             raise
         finally:
             self._log.info("Finanze server shutting down.")
-            if self.db_client:
-                if self.db_client.silent_close():
-                    self._log.info("Database connection closed.")
+            if self.db_client and self.db_client.silent_close():
+                self._log.info("Database connection closed.")

@@ -1,13 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
 import platform
+from PyInstaller.utils.hooks import (
+    collect_submodules,
+    collect_data_files,
+    collect_dynamic_libs,
+)
+from PyInstaller.building.build_main import Analysis, PYZ, EXE
 
+numpy_submodules = collect_submodules("numpy")
+numpy_datas = collect_data_files("numpy")
+numpy_binaries = collect_dynamic_libs("numpy")
 
 a = Analysis(
     ['finanze/__main__.py'],
     pathex=[],
-    binaries=[],
-    datas=[],
-    hiddenimports=[],
+    binaries=numpy_binaries,
+    datas=numpy_datas,
+    hiddenimports=numpy_submodules,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

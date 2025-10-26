@@ -122,20 +122,17 @@ class TradeRepublicClient:
             )
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-        elif not code and not process_id:
+        elif not code or not process_id:
             if not login_options.avoid_new_login:
-                countdown = self._tr_api.inititate_weblogin()
+                countdown = self._initiate_weblogin()
                 process_id = self._tr_api._process_id
                 return EntityLoginResult(
                     LoginResultCode.CODE_REQUESTED,
                     process_id=process_id,
-                    details={"countdown": countdown},
+                    details={"wait": countdown},
                 )
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
-
-        else:
-            raise ValueError("Invalid login data")
 
     def _resumable_session(self) -> bool:
         try:
@@ -145,6 +142,27 @@ class TradeRepublicClient:
             return False
         else:
             return True
+
+    def _initiate_weblogin(self):
+        r = self._tr_api._websession.post(
+            f"{self._tr_api._host}/api/v1/auth/web/login",
+            json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
+        )
+        j = r.json()
+        try:
+            if j.get("errorCode") == "TOO_MANY_REQUESTS":
+                return int(j.get("meta", {}).get("nextAttemptInSeconds", 30))
+
+            self._tr_api._process_id = j["processId"]
+
+        except KeyError:
+            err = j.get("errors")
+            if err:
+                raise ValueError(str(err))
+            else:
+                raise ValueError("processId not in response")
+
+        return int(j["countdownInSeconds"]) + 1
 
     def _export_session(self) -> dict:
         return {"cookies": _json_cookie_jar(self._tr_api._websession.cookies)}
@@ -230,12 +248,41 @@ class TradeRepublicClient:
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    async def get_private_markets_portfolio_status(self) -> dict:
+        await self._tr_api.subscribe({"type": "privateMarketsPortfolioStatus"})
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_private_markets_orders(
+        self, securities_account_num: Optional[str] = None
+    ) -> dict:
+        request = {"type": "privateMarketsOrders"}
+        if securities_account_num:
+            request["secAccNo"] = securities_account_num
+        await self._tr_api.subscribe(request)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    async def get_private_markets_portfolio(self, securities_account_num: str) -> dict:
+        request = {
+            "type": "privateMarketsPositions",
+            "secAccNo": securities_account_num,
+        }
+        await self._tr_api.subscribe(request)
+        subscription_id, _, response = await self._tr_api.recv()
+        await self._tr_api.unsubscribe(subscription_id)
+        return response
+
+    @cached(ttl=60, noself=True)
     async def get_instrument_details(self, isin: str) -> dict:
         await self._tr_api.instrument_details(isin)
         subscription_id, _, response = await self._tr_api.recv()
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    @cached(ttl=60, noself=True)
     async def get_stock_details(self, isin: str) -> dict:
         await self._tr_api.stock_details(isin)
         subscription_id, _, response = await self._tr_api.recv()
@@ -248,6 +295,7 @@ class TradeRepublicClient:
         await self._tr_api.unsubscribe(subscription_id)
         return response
 
+    @cached(ttl=43200, noself=True)
     async def get_fund_details(self, isin):
         await self._tr_api.subscribe({"type": "mutualFundDetails", "id": isin})
         subscription_id, _, response = await self._tr_api.recv()

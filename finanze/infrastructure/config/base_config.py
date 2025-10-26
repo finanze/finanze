@@ -8,5 +8,5 @@ BASE_CONFIG = Settings(
     general=GeneralConfig(
         defaultCurrency="EUR", defaultCommodityWeightUnit=WeightUnit.GRAM.value
     ),
-    fetch=FetchConfig(updateCooldown=60, virtual=VirtualFetchConfig()),
+    fetch=FetchConfig(virtual=VirtualFetchConfig()),
 )

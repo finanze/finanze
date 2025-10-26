@@ -1,7 +1,7 @@
 {
   "common": {
     "back": "Volver",
-    "submit": "Enviar",
+    "submit": "Continuar",
     "loading": "Cargando...",
     "fetching": "Obteniendo...",
     "saving": "Guardando...",
@@ -9,10 +9,14 @@
     "export": "Exportar a Sheets",
     "success": "Éxito",
     "error": "Error",
+    "unexpectedError": "Error inesperado al cargar",
     "fetchSuccess": "Datos obtenidos con éxito",
-    "loginSuccess": "Inicio de sesión exitoso",
+    "fetchSuccessEntity": "Datos obtenidos con éxito de {entity}",
+    "loginSuccessEntity": "Inicio de sesión exitoso en {entity}",
     "fetchError": "Error al obtener datos",
+    "fetchErrorEntity": "Error al obtener datos de {entity}",
     "loginError": "Error de inicio de sesión",
+    "loginErrorEntity": "Error de inicio de sesión en {entity}",
     "virtualScrapeSuccess": "Datos introducidos manualmente importados con éxito",
     "virtualScrapeError": "Error al importar datos introducidos manualmente",
     "exportSuccess": "Datos exportados a Google Sheets",
@@ -42,6 +46,7 @@
     "search": "Buscar...",
     "copy": "Copiar",
     "copied": "Copiado",
+    "each": "cada uno",
     "comingSoon": "Próximamente",
     "confirm": "Confirmar",
     "incompatibleLoginPlatform": "Usa la app de escritorio para iniciar sesión manualmente.",
@@ -51,10 +56,14 @@
     "viewDetails": "Ver detalles",
     "darkMode": "Modo Oscuro",
     "lightMode": "Modo Claro",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
     "save": "Guardar",
     "delete": "Eliminar",
+    "discard": "Descartar",
     "notAvailable": "N/A",
     "add": "Agregar",
     "edit": "Editar",
@@ -79,7 +88,9 @@
     "pin": "Fijar",
     "unpin": "Quitar",
     "pinAsset": "Fijar activo",
-    "unpinAsset": "Quitar activo"
+    "unpinAsset": "Quitar activo",
+    "continueInBackground": "Continuar en segundo plano",
+    "connectingToServer": "Conectando al servidor"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -93,6 +104,31 @@
     "skipThisVersion": "Omitir versión",
     "releasePageLink": "Visitar página de versión"
   },
+  "about": {
+    "title": "Acerca de {appName}",
+    "projectDescription": "{appName} te ayuda a centralizar y seguir tus finanzas en un solo lugar.",
+    "maintainedBy": "Mantenido por {author}.",
+    "unknownAuthor": "Desconocido",
+    "version": "Versión",
+    "author": "Autor",
+    "electronVersion": "Electron",
+    "chromiumVersion": "Chromium",
+    "nodeVersion": "Node.js",
+    "website": "Sitio web",
+    "repository": "Repositorio",
+    "logoAlt": "Logotipo de {appName}",
+    "runtimeSection": "Aplicación",
+    "platformSection": "Plataforma",
+    "linksSection": "Enlaces",
+    "operatingSystem": "Sistema operativo",
+    "architecture": "Arquitectura",
+    "osVersion": "Versión del SO",
+    "platformNames": {
+      "mac": "macOS",
+      "windows": "Windows",
+      "linux": "Linux"
+    }
+  },
   "investments": {
     "type": "Tipo",
     "status": "Estado",
@@ -100,6 +136,7 @@
     "lastInvest": "Última Inversión",
     "maturity": "Vencimiento",
     "creation": "Creado",
+    "investment": "Inversión",
     "interest": "Interés",
     "annually": "anual",
     "expected": "Esperado",
@@ -110,6 +147,7 @@
     "pending": "Pendiente",
     "gross": "bruto",
     "symbol": "Símbolo",
+    "openInfoSheet": "Ver ficha del fondo",
     "shares": "Acciones",
     "price": "Precio",
     "isin": "ISIN",
@@ -121,7 +159,64 @@
     "asset": "activo",
     "assets": "activos",
     "weightedAverageInterest": "Interés ponderado",
-    "weightedAverageProfitability": "Rent. ponderada"
+    "weightedAverageProfitability": "Rent. ponderada",
+    "states": {
+      "UNDER_REVIEW": "En revisión",
+      "FUNDED": "Financiado",
+      "IN_PROGRESS": "En progreso",
+      "COMPLETED": "Completado",
+      "DISPUTE": "En disputa",
+      "MATURITY_NOT_REACHED": "En progreso",
+      "MANAGING_COLLECTION": "Cobrando",
+      "FAILED": "Fallido",
+      "COLLECTED": "Cobrado"
+    },
+    "projectTypes": {
+      "HOUSING": "Residencial",
+      "FLOOR": "Suelo",
+      "COMMERCIAL_OFFICE": "Oficinas comerciales",
+      "HOTEL": "Hotelero",
+      "PREMISES": "Local",
+      "LOFT": "Loft",
+      "RENEWABLES": "Renovables",
+      "HOSPITAL": "Hospital",
+      "LOGISTIC": "Logístico",
+      "INDUSTRIAL_UNIT": "Nave industrial",
+      "PUBLIC_ADMIN": "Admin pública",
+      "INSURED": "Con seguro",
+      "NON_INSURED": "Sin seguro"
+    },
+    "historicSection": {
+      "heading": "Inversiones pasadas",
+      "showToggle": "Mostrar completadas",
+      "hideToggle": "Ocultar completadas",
+      "toggleShort": {
+        "show": "Mostrar completadas",
+        "hide": "Ocultar completadas"
+      },
+      "empty": "No hay proyectos de {type} completados.",
+      "emptyFiltered": "No hay proyectos de {type} completados para las entidades seleccionadas.",
+      "invested": "Invertido",
+      "returned": "Retornado",
+      "repaid": "Reembolsado",
+      "netReturn": "Retorno neto",
+      "netProfit": "Beneficio neto",
+      "fees": "Comisiones",
+      "retentions": "Retenciones",
+      "interests": "Intereses",
+      "lastTx": "Última transacción",
+      "transactionsSummary": "Resumen de transacciones",
+      "transactionsSummaryShort": "Resumen",
+      "noTransactions": "No hay transacciones relacionadas.",
+      "viewTransactions": "Ver transacciones",
+      "showDetails": "Ver detalles",
+      "hideDetails": "Ocultar detalles",
+      "originalMaturity": "Vencimiento original",
+      "effectiveMaturity": "Vencimiento efectivo",
+      "extendedMaturity": "Vencimiento extendido",
+      "extendableMaturity": "Vencimiento prolongable",
+      "initialMaturityDate": "Fecha de vencimiento inicial"
+    }
   },
   "toast": {
     "success": "Operación exitosa",
@@ -129,8 +224,8 @@
     "error": "Error"
   },
   "login": {
-    "enterCredentials": "Ingrese Credenciales para",
-    "externalLogin": "Inicio de Sesión Externo para",
+    "enterCredentials": "Ingresa las credenciales de",
+    "externalLogin": "Inicio de Sesión Externo de",
     "externalLoginInProgress": "Inicio de sesión en progreso. Por favor complete el inicio de sesión en la ventana abierta.",
     "externalLoginComplete": "Inicio de sesión completado con éxito.",
     "credentials": {
@@ -162,31 +257,41 @@
     "passwordsDontMatch": "Las contraseñas no coinciden",
     "invalidPassword": "Contraseña inválida",
     "invalidCredentials": "Credenciales inválidas",
+    "userNotFound": "Usuario no encontrado",
+    "unexpectedErrorContact": "Ocurrió un error inesperado, contacta al equipo de Finanze.",
     "serverError": "Ha ocurrido un error inesperado. Por favor intenta de nuevo.",
     "changePasswordSuccess": "Contraseña cambiada exitosamente",
     "changePasswordError": "Error al cambiar contraseña",
     "changePassword": "Cambiar Contraseña",
     "signup": "Registrarse",
-    "login": "Iniciar Sesión"
+    "login": "Iniciar Sesión",
+    "viewErrorDetails": "Ver detalles técnicos",
+    "errorDetailsTitle": "Detalles técnicos"
   },
   "pinpad": {
-    "enterCode": "Ingrese Código de {length} Dígitos para",
-    "codeDelayTip": "Consejo: A veces el código 2FA puede tardar un poco en llegar."
+    "enterCode": "Ingresa el código de {length} dígitos de",
+    "codeDelayTip": "Info: A veces el código 2FA puede tardar un poco en llegar",
+    "cancelConfirmationTitle": "¿Cancelar verificación?",
+    "cancelLoginDescription": "¿Quieres salir del proceso de inicio de sesión?",
+    "cancelFetchDescription": "¿Quieres salir del proceso de actualización?"
   },
   "errors": {
     "INVALID_CODE": "Código inválido",
-    "INVALID_CREDENTIALS": "Credenciales inválidas",
-    "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles",
-    "UNEXPECTED_ERROR": "Ocurrió un error inesperado",
-    "UNAUTHORIZED": "Credenciales inválidas o expiradas",
-    "NOT_LOGGED": "Sesión caducada, recarga desde la sección de integraciones",
-    "COOLDOWN": "Por favor espere antes de intentar nuevamente",
-    "FEATURE_NOT_SUPPORTED": "Característica no soportada",
+    "INVALID_CREDENTIALS": "Credenciales inválidas de {entity}",
+    "NO_CREDENTIALS_AVAILABLE": "No hay credenciales disponibles para {entity}",
+    "UNEXPECTED_ERROR": "Error inesperado en {entity}",
+    "UNAUTHORIZED": "Credenciales inválidas o expiradas en {entity}",
+    "NOT_LOGGED": "Sesión de {entity} caducada, recarga desde la sección de integraciones",
+    "COOLDOWN": "Por favor espere antes de intentar nuevamente con {entity}",
+    "FEATURE_NOT_SUPPORTED": "Característica no soportada en {entity}",
     "EXTERNAL_LOGIN_FAILED": "Error en el inicio de sesión externo. Por favor intente de nuevo.",
-    "LOGIN_REQUIRED": "Se requiere iniciar sesión. Por favor inicie sesión nuevamente.",
+    "LOGIN_REQUIRED": "Se requiere iniciar sesión en {entity}. Por favor inicie sesión nuevamente.",
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente.",
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
-    "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar."
+    "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
+    "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
+    "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
+    "DISABLED": "Extracción de datos virtuales deshabilitada en configuración."
   },
   "entities": {
     "title": "Integraciones",
@@ -219,7 +324,7 @@
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos, y una vez desconectada no se tendrán en cuenta.",
     "refreshEntity": "Actualizar datos de entidades",
     "financialInstitutions": "Instituciones Financieras",
-    "cryptoWallets": "Carteras Crypto",
+    "cryptoWallets": "Billeteras Crypto",
     "commodities": "Materias Primas",
     "commoditiesDescription": "Integra tus materias primas con valor de mercado en tiempo real",
     "manualDataEntry": "Datos de usuario",
@@ -249,11 +354,13 @@
     "HISTORIC": "Datos Históricos",
     "selectFeatures": "Seleccionar que datos obtener de",
     "selectAll": "Seleccionar todas",
+    "unselectAll": "Deseleccionar todas",
     "fetchSelected": "Obtener datos seleccionados",
     "deepScrape": "Forzar extracción completa",
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
     "availableFeatures": "Características Disponibles",
+    "transactionsLoadingNotice": "La primera vez que importas transacciones o al forzar una recarga completa puede tardar varios minutos según la cantidad de datos.",
     "jumpToPin": "¿Ya tienes el código 2FA? Ir al PIN"
   },
   "settings": {
@@ -286,9 +393,7 @@
     "contributions": "Contribuciones",
     "transactions": "Transacciones",
     "historic": "Datos Históricos",
-    "scrape": "Importación de datos",
-    "scrapeSettings": "Importación de datos",
-    "scrapeDescription": "Configura los ajustes generales de la extracción de datos",
+    "scrape": "Importación",
     "virtual": "Datos virtuales",
     "virtualDescription": "Configura los ajustes para la importación de datos virtuales",
     "enabled": "Habilitado",
@@ -310,7 +415,6 @@
     "datetimeFormat": "Formato de Fecha y Hora",
     "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
     "filters": "Filtros",
-    "updateCooldown": "Tiempo de Espera (segundos)",
     "optional": "Opcional",
     "noItems": "No hay elementos configurados",
     "noFilters": "No hay filtros configurados",
@@ -373,8 +477,8 @@
     "from": "De",
     "data": "Datos",
     "daysDelay": "d retr.",
-    "totalAssets": "Activos Totales",
-    "investedAmount": "Invertido",
+    "netWorth": "Patrimonio",
+    "investedAmount": "Valor inicial",
     "upcomingFlows": "Próximamente",
     "manageFlows": "Gestionar",
     "noUpcomingFlows": "No hay ingresos o gastos pendientes",
@@ -462,8 +566,10 @@
     "product": "Producto",
     "amount": "Cantidad",
     "entity": "Entidad",
+    "source": "Fuente",
     "virtual": "(Virtual)",
     "ref": "Ref",
+    "orderDate": "Fecha de orden",
     "ticker": "Ticker",
     "shares": "Acciones",
     "price": "Precio",
@@ -476,13 +582,55 @@
     "interestRate": "Tasa de Interés",
     "portfolioName": "Nombre de Cartera",
     "iban": "IBAN",
+    "currency": "Moneda",
+    "addManualTransaction": "Transacción",
     "previous": "Anterior",
     "next": "Siguiente",
     "page": "Página",
     "of": "de",
     "selectEntities": "Seleccionar entidades...",
     "selectProductTypes": "Seleccionar tipos de producto...",
-    "selectTransactionTypes": "Seleccionar tipos de transacción..."
+    "selectTransactionTypes": "Seleccionar tipos de transacción...",
+    "form": {
+      "createTitle": "Añadir transacción manual",
+      "editTitle": "Editar transacción manual",
+      "entity": "Entidad",
+      "transactionType": "Tipo de transacción",
+      "pickDate": "Selecciona una fecha",
+      "detailsSection": "Detalles adicionales",
+      "refHelper": "La referencia se genera automáticamente y no puede cambiarse después de guardar.",
+      "suggestions": {
+        "label": "Sugerencias",
+        "stocks": "Acciones y ETFs",
+        "funds": "Fondos",
+        "portfolios": "Carteras de fondos",
+        "accounts": "Cuentas asociadas"
+      },
+      "netAmountLabel": "Importe neto",
+      "netAmountFormulaIncoming": "importe - comisiones - retenciones",
+      "netAmountFormulaOutgoing": "importe + comisiones + retenciones",
+      "autoAmountHint": "El importe se rellena automáticamente a partir de participaciones × precio cuando ambos valores están presentes.",
+      "createSuccess": "Transacción manual creada correctamente",
+      "updateSuccess": "Transacción manual actualizada correctamente",
+      "submitError": "No se pudo guardar la transacción manual",
+      "deleteSuccess": "Transacción manual eliminada correctamente",
+      "deleteError": "No se pudo eliminar la transacción manual",
+      "errors": {
+        "required": "Este campo es obligatorio",
+        "positive": "Introduce un número positivo",
+        "nonNegative": "Introduce un número mayor o igual que cero",
+        "invalidNumber": "Introduce un número válido"
+      }
+    },
+    "deleteManualTransactionTitle": "Eliminar transacción manual",
+    "deleteManualTransactionMessage": "¿Seguro que quieres eliminar esta transacción manual?",
+    "deleteManualTransactionWarning": "Esta acción no se puede deshacer.",
+    "historicFilter": {
+      "title": "Filtro de proyecto histórico",
+      "description": "Mostrando transacciones para {project}.",
+      "descriptionGeneric": "Filtro histórico activo.",
+      "clear": "Quitar filtro histórico"
+    }
   },
   "time": {
     "justNow": "justo ahora",
@@ -500,6 +648,11 @@
     "yearsAgo": "hace {count} años"
   },
   "enums": {
+    "dataSource": {
+      "REAL": "Real",
+      "SHEETS": "Sheets",
+      "MANUAL": "Manual"
+    },
     "transactionType": {
       "BUY": "Compra",
       "SELL": "Venta",
@@ -533,13 +686,45 @@
       "CROWDLENDING": "Crowdlending",
       "CRYPTO": "Criptomonedas",
       "COMMODITY": "Materia Prima",
-      "PENDING_FLOWS": "Pendiente"
+      "PENDING_FLOWS": "Pendiente",
+      "BOND": "Bono",
+      "DERIVATIVE": "Derivado"
     },
     "assetType": {
       "EQUITY": "Renta Variable",
       "FIXED_INCOME": "Renta Fija",
+      "MONEY_MARKET": "Monetario",
       "MIXED": "Mixto",
       "OTHER": "Otro"
+    },
+    "accountType": {
+      "CHECKING": "Corriente",
+      "SAVINGS": "Ahorros",
+      "BROKERAGE": "Inversión",
+      "VIRTUAL_WALLET": "Monedero",
+      "FUND_PORTFOLIO": "Cartera de Fondos"
+    },
+    "cardType": {
+      "CREDIT": "Crédito",
+      "DEBIT": "Débito"
+    },
+    "loanType": {
+      "MORTGAGE": "Hipoteca",
+      "STANDARD": "Préstamo personal"
+    },
+    "interestType": {
+      "FIXED": "Fijo",
+      "VARIABLE": "Variable",
+      "MIXED": "Mixto"
+    },
+    "fundType": {
+      "MUTUAL_FUND": "Fondo de inversión",
+      "PRIVATE_EQUITY": "Capital privado",
+      "PENSION_FUND": "Fondo de pensiones"
+    },
+    "equityType": {
+      "STOCK": "Acción",
+      "ETF": "ETF"
     },
     "kpis": {
       "assetTypeSplit": "Distribución por tipo"
@@ -560,41 +745,40 @@
     }
   },
   "walletForm": {
-    "title": "Agregar Cartera",
-    "description": "Agregar una nueva cartera para {{entityName}}",
+    "title": "Agregar billetera de {{entityName}}",
     "fields": {
-      "name": "Nombre de la Cartera",
-      "address": "Dirección de la Cartera"
+      "name": "Nombre",
+      "address": "Dirección"
     },
     "placeholders": {
-      "name": "ej. Mi Cartera Bitcoin",
-      "address": "Introduce la dirección de la cartera"
+      "name": "ej. Mi Billetera Bitcoin",
+      "address": "Introduce la dirección de la billetera"
     },
-    "submit": "Agregar Cartera",
+    "submit": "Agregar",
     "errors": {
-      "nameRequired": "El nombre de la cartera es obligatorio",
-      "addressRequired": "La dirección de la cartera es obligatoria",
-      "addressTooShort": "La dirección de la cartera parece demasiado corta",
-      "generic": "Error al agregar cartera",
-      "ADDRESS_ALREADY_EXISTS": "Esta dirección de cartera ya está conectada",
-      "ADDRESS_NOT_FOUND": "Dirección de cartera no encontrada",
+      "nameRequired": "El nombre de la billetera es obligatorio",
+      "addressRequired": "La dirección de la billetera es obligatoria",
+      "addressTooShort": "La dirección de la billetera parece demasiado corta",
+      "generic": "Error al agregar billetera",
+      "ADDRESS_ALREADY_EXISTS": "Esta dirección de billetera ya está conectada",
+      "ADDRESS_NOT_FOUND": "Dirección de billetera no encontrada",
       "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Por favor espera un momento antes de intentar de nuevo"
     }
   },
   "walletManagement": {
-    "title": "Gestionar carteras",
-    "subtitle": "Carteras conectadas para {{entityName}}",
-    "addWallet": "Agregar cartera",
-    "noWallets": "No hay carteras conectadas",
-    "noWalletsDescription": "Comienza agregando tu primera cartera a esta entidad cripto",
-    "addFirstWallet": "Agregar tu primera cartera",
+    "title": "Gestionar billeteras",
+    "subtitle": "Billeteras conectadas para {{entityName}}",
+    "addWallet": "Agregar billetera",
+    "noWallets": "No hay billeteras conectadas",
+    "noWalletsDescription": "Comienza agregando tu primera billetera a esta entidad cripto",
+    "addFirstWallet": "Agregar tu primera billetera",
     "tokens": "Tokens",
     "totalValue": "Valor total",
-    "deleteWalletConfirm": "¿Estás seguro de que quieres eliminar la cartera \"{{walletName}}\"? Esta acción no se puede deshacer.",
-    "editWalletName": "Editar nombre de cartera",
-    "walletNamePlaceholder": "Ingrese el nombre de la cartera",
-    "wallets": "carteras",
-    "wallet": "cartera",
+    "deleteWalletConfirm": "¿Estás seguro de que quieres eliminar la billetera \"{{walletName}}\"? Esta acción no se puede deshacer.",
+    "editWalletName": "Editar nombre de billetera",
+    "walletNamePlaceholder": "Ingrese el nombre de la billetera",
+    "wallets": "billeteras",
+    "wallet": "billetera",
     "manage": "Gestionar"
   },
   "commodityManagement": {
@@ -860,13 +1044,390 @@
     "target": "Destino",
     "alias": "Alias",
     "noAutoContributionsTitle": "Sin aportaciones automáticas",
-    "noAutoContributionsDescription": "Configura aportaciones periódicas en tus integraciones para seguir tu inversión automatizada.",
+    "noAutoContributionsDescription": "Configura aportaciones periódicas en tus integraciones para seguir tu inversión automatizada, o añade aportaciones manuales desde aquí.",
     "goToIntegrations": "Ir a Integraciones",
     "contributionsDistribution": "Distribución de aportaciones",
     "other": "Otros",
     "monthlyPerTarget": "Mensual por destino",
     "activeContributions": "Aportaciones activas",
-    "monthlyAverageContribution": "Promedio mensual aportación"
+    "monthlyAverageContribution": "Promedio mensual aportación",
+    "source": "Origen",
+    "manualContributions": {
+      "unnamed": "Aportación manual",
+      "add": "Nueva aportación",
+      "createTitle": "Agregar aportación manual",
+      "editTitle": "Editar aportación manual",
+      "entity": "Entidad",
+      "targetName": "Nombre del destino",
+      "targetNameHelper": "Nombre opcional mostrado en la lista",
+      "targetHelper": "ISIN, IBAN o identificador",
+      "currency": "Moneda",
+      "suggestions": "Sugerencias",
+      "noSuggestions": "Sin sugerencias disponibles",
+      "unsavedBadge": "Sin guardar",
+      "warnings": {
+        "isin": "Revisa el formato del ISIN (2 letras seguidas de 10 caracteres alfanuméricos).",
+        "iban": "Revisa el formato del IBAN y elimina espacios si es necesario."
+      },
+      "validation": {
+        "entity": "Selecciona una entidad",
+        "name": "Ingresa un nombre",
+        "targetType": "Selecciona un tipo de destino",
+        "target": "Ingresa un identificador",
+        "amount": "Ingresa un monto válido",
+        "currency": "Selecciona una moneda",
+        "since": "Elige una fecha de inicio"
+      },
+      "cancelDialog": {
+        "title": "¿Descartar los cambios?",
+        "message": "Tienes cambios en las aportaciones manuales sin guardar. Si sales del modo edición se perderán.",
+        "confirm": "Descartar cambios",
+        "cancel": "Seguir editando"
+      },
+      "modalDiscardDialog": {
+        "title": "¿Descartar la aportación?",
+        "message": "Tienes cambios sin guardar en esta aportación manual. ¿Quieres descartarlos?",
+        "confirm": "Descartar",
+        "cancel": "Seguir editando"
+      }
+    },
+    "manualPositions": {
+      "shared": {
+        "entity": "Entidad",
+        "name": "Nombre",
+        "currency": "Moneda",
+        "createEntity": "Crear entidad",
+        "cancelEntityCreation": "Cancelar nueva entidad",
+        "newEntityPlaceholder": "Introduce el nombre de la nueva entidad",
+        "trackPrice": "Seguir precio",
+        "trackPriceUnavailable": "Selecciona un instrumento para habilitar el seguimiento de precio.",
+        "currencyConversionWarning": "La moneda del instrumento difiere de la seleccionada. La conversión usa las últimas tasas disponibles y puede variar.",
+        "summary": {
+          "shares": "Participaciones"
+        },
+        "validation": {
+          "required": "Este campo es obligatorio",
+          "number": "Introduce un número válido",
+          "entity": "Selecciona una entidad",
+          "entityName": "Introduce un nombre de entidad",
+          "entityNameExists": "Ya existe una entidad con este nombre"
+        },
+        "genericError": "No pudimos crear la posición con los valores proporcionados.",
+        "pendingChangesTitle": "Actualizaciones manuales en borrador",
+        "pendingChangesDescription": "Revisa las posiciones manuales antes de guardar.",
+        "status": {
+          "new": "Nueva",
+          "updated": "Actualizada"
+        },
+        "discardChangesTitle": "¿Descartar cambios?",
+        "discardChangesMessage": "Tienes cambios manuales sin guardar. ¿Quieres descartarlos?",
+        "deleteTitle": "Eliminar posición manual",
+        "deleteMessage": "Esta posición manual se eliminará de la entidad."
+      },
+      "bankAccounts": {
+        "title": "Cuentas bancarias manuales",
+        "description": "Mantén los saldos de cuentas que no están conectadas automáticamente.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay cuentas bancarias manuales",
+          "description": "Añade una cuenta manual para incluir su saldo en tu resumen."
+        },
+        "form": {
+          "createTitle": "Añadir cuenta bancaria manual",
+          "createDescription": "Completa los datos de la cuenta para seguirla manualmente.",
+          "editTitle": "Editar cuenta bancaria manual",
+          "editDescription": "Actualiza la cuenta bancaria manual seleccionada."
+        },
+        "fields": {
+          "type": "Tipo de cuenta",
+          "total": "Saldo",
+          "interest": "Interés (%)",
+          "retained": "Importe retenido",
+          "pendingTransfers": "Transferencias pendientes",
+          "iban": "IBAN"
+        },
+        "helpers": {
+          "ibanRecommendation": "Añadir el IBAN ayuda a vincular transferencias y conciliarlas automáticamente."
+        },
+        "deleteWarning": {
+          "single": "Hay 1 tarjeta manual vinculada a esta cuenta. Al eliminarla se desvinculará esa tarjeta, que seguirá guardada sin una cuenta asociada.",
+          "plural": "Hay {{count}} tarjetas manuales vinculadas a esta cuenta. Al eliminarlas se desvincularán y cada tarjeta seguirá guardada sin una cuenta asociada."
+        },
+        "deletePortfolioWarning": {
+          "single": "Hay 1 cartera manual de fondos vinculada a esta cuenta. Al eliminarla se desvinculará la cartera, que seguirá guardada sin una cuenta asociada.",
+          "plural": "Hay {{count}} carteras manuales de fondos vinculadas a esta cuenta. Al eliminarlas se desvincularán y cada cartera quedará guardada sin una cuenta asociada."
+        }
+      },
+      "about": {
+        "title": "Acerca de {appName}",
+        "projectDescription": "{appName} te ayuda a centralizar y seguir tus finanzas en un solo lugar.",
+        "maintainedBy": "Mantenido por {author}.",
+        "unknownAuthor": "Desconocido",
+        "version": "Versión",
+        "author": "Autor",
+        "electronVersion": "Electron",
+        "chromiumVersion": "Chromium",
+        "nodeVersion": "Node.js",
+        "website": "Sitio web",
+        "repository": "Repositorio"
+      },
+      "bankCards": {
+        "title": "Tarjetas manuales",
+        "description": "Controla tarjetas de crédito o débito gestionadas manualmente.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay tarjetas manuales",
+          "description": "Añade una tarjeta manual para controlar su gasto y límite."
+        },
+        "form": {
+          "createTitle": "Añadir tarjeta manual",
+          "createDescription": "Introduce la información de la tarjeta para gestionarla manualmente.",
+          "editTitle": "Editar tarjeta manual",
+          "editDescription": "Actualiza la tarjeta manual seleccionada."
+        },
+        "fields": {
+          "type": "Tipo de tarjeta",
+          "used": "Importe utilizado",
+          "limit": "Límite de crédito",
+          "ending": "Últimos dígitos",
+          "relatedAccount": "Cuenta asociada",
+          "active": "Estado"
+        },
+        "summary": {
+          "active": "Activa",
+          "inactive": "Inactiva"
+        }
+      },
+      "bankLoans": {
+        "title": "Préstamos manuales",
+        "description": "Mantén datos de préstamos que no se sincronizan mediante integraciones.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay préstamos manuales",
+          "description": "Añade un préstamo manual para seguir sus pagos y saldos."
+        },
+        "form": {
+          "createTitle": "Añadir préstamo manual",
+          "createDescription": "Introduce los datos del préstamo para gestionarlo manualmente.",
+          "editTitle": "Editar préstamo manual",
+          "editDescription": "Actualiza el préstamo manual seleccionado."
+        },
+        "fields": {
+          "type": "Tipo de préstamo",
+          "loanAmount": "Importe original",
+          "interestRate": "Tipo de interés (%)",
+          "currentInstallment": "Cuota actual",
+          "principalOutstanding": "Principal pendiente",
+          "principalPaid": "Principal pagado",
+          "interestType": "Tipo de interés",
+          "nextPaymentDate": "Próxima fecha de pago",
+          "euriborRate": "Euríbor",
+          "fixedYears": "Años a tipo fijo",
+          "creation": "Fecha de inicio",
+          "maturity": "Vencimiento"
+        },
+        "helpers": {
+          "calculationHint": "Usa la calculadora para estimar la cuota actual y el principal pendiente.",
+          "calculateButton": "Sugerir valores",
+          "missingFields": "Completa el tipo de interés, las fechas de inicio y vencimiento y el principal o importe del préstamo para calcular.",
+          "missingEuribor": "Indica el Euríbor para calcular préstamos con interés variable.",
+          "missingFixedYears": "Especifica los años a tipo fijo para calcular préstamos mixtos.",
+          "calculationApplied": "Se añadieron valores sugeridos al formulario.",
+          "calculationFailed": "No pudimos calcular la sugerencia del préstamo. Inténtalo de nuevo.",
+          "fixedRateDuration": "Tipo fijo: {{years}} años"
+        },
+        "summary": {
+          "interest": "{{rate}}% de interés"
+        }
+      },
+      "fundPortfolios": {
+        "title": "Carteras de fondos manuales",
+        "description": "Organiza tus fondos manuales dentro de carteras dedicadas.",
+        "add": "Cartera",
+        "empty": {
+          "title": "No hay carteras de fondos manuales",
+          "description": "Crea una cartera manual para agrupar tus inversiones en fondos."
+        },
+        "form": {
+          "createTitle": "Añadir cartera de fondos manual",
+          "createDescription": "Configura una cartera para agrupar los fondos gestionados manualmente.",
+          "editTitle": "Editar cartera de fondos manual",
+          "editDescription": "Actualiza la cartera de fondos manual seleccionada."
+        },
+        "fields": {
+          "name": "Nombre de la cartera",
+          "relatedAccount": "Cuenta vinculada"
+        },
+        "helpers": {
+          "accountRecommendation": "Vincula una cuenta de cartera de fondos para ver su saldo junto a los fondos.",
+          "accountHint": "Elige una cuenta manual creada para esta cartera y mantener las transferencias alineadas."
+        },
+        "summary": {
+          "relatedAccount": "Cuenta vinculada"
+        },
+        "quickDrafts": {
+          "title": "Carteras de fondos existentes",
+          "description": "Revisa estas carteras antes de guardar para usarlas al vincular fondos manuales.",
+          "entity": "Entidad: {{name}}",
+          "actions": {
+            "edit": "Editar cartera en borrador",
+            "delete": "Eliminar cartera en borrador"
+          },
+          "readOnly": "Solo lectura"
+        },
+        "deleteWarning": {
+          "single": "Hay 1 fondo manual vinculado a esta cartera. Al eliminarla se desvinculará el fondo, que seguirá guardado por separado.",
+          "plural": "Hay {{count}} fondos manuales vinculados a esta cartera. Al eliminarla se desvincularán y cada fondo seguirá guardado por separado."
+        }
+      },
+      "funds": {
+        "title": "Fondos manuales",
+        "description": "Registra posiciones en fondos que actualizas manualmente.",
+        "add": "Fondo",
+        "empty": {
+          "title": "No hay fondos manuales",
+          "description": "Añade una posición manual de fondo para incluirla en tu cartera."
+        },
+        "form": {
+          "createTitle": "Añadir fondo manual",
+          "createDescription": "Completa los datos del fondo para seguirlo manualmente.",
+          "editTitle": "Editar fondo manual",
+          "editDescription": "Actualiza el fondo manual seleccionado."
+        },
+        "fields": {
+          "isin": "ISIN",
+          "type": "Tipo de fondo",
+          "shares": "Participaciones",
+          "averageBuyPrice": "Precio medio de compra",
+          "initialInvestment": "Inversión inicial",
+          "marketValue": "Valor de mercado",
+          "assetType": "Tipo de activo",
+          "portfolio": "Cartera de fondos"
+        },
+        "helpers": {
+          "investmentExclusive": "Solo uno de inversión inicial o precio medio puede completarse.",
+          "portfolioRecommendation": "Crea primero una cartera de fondos para agrupar posiciones bajo ella.",
+          "portfolioLinkHint": "Vincular un fondo a una cartera ayuda a ver el rendimiento combinado.",
+          "unknownLinkedPortfolio": "Cartera vinculada previamente",
+          "keepingLinkedPortfolio": "Mantenemos el vínculo con la cartera anterior. Crea o actualiza carteras para cambiarlo."
+        },
+        "validation": {
+          "investment": "Indica al menos inversión inicial o precio medio."
+        },
+        "summary": {
+          "portfolio": "Cartera"
+        }
+      },
+      "stocks": {
+        "title": "Acciones manuales",
+        "description": "Sigue posiciones en acciones o ETFs gestionadas manualmente.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay acciones manuales",
+          "description": "Añade una posición manual de acción o ETF a tu cartera."
+        },
+        "form": {
+          "createTitle": "Añadir acción manual",
+          "createDescription": "Introduce los datos de la acción para seguirla manualmente.",
+          "editTitle": "Editar acción manual",
+          "editDescription": "Actualiza la acción manual seleccionada."
+        },
+        "fields": {
+          "ticker": "Ticker",
+          "isin": "ISIN",
+          "shares": "Participaciones",
+          "averageBuyPrice": "Precio medio de compra",
+          "initialInvestment": "Inversión inicial",
+          "marketValue": "Valor de mercado",
+          "type": "Categoría"
+        },
+        "helpers": {
+          "investmentExclusive": "Solo uno de inversión inicial o precio medio puede completarse."
+        },
+        "validation": {
+          "ticker": "Introduce un ticker o un ISIN.",
+          "isin": "Introduce un ticker o un ISIN.",
+          "investment": "Indica al menos inversión inicial o precio medio."
+        }
+      },
+      "deposits": {
+        "title": "Depósitos manuales",
+        "description": "Mantén los datos de depósitos a plazo de forma manual.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay depósitos manuales",
+          "description": "Añade un depósito manual para seguir su rentabilidad."
+        },
+        "form": {
+          "createTitle": "Añadir depósito manual",
+          "createDescription": "Introduce la información del depósito para gestionarlo manualmente.",
+          "editTitle": "Editar depósito manual",
+          "editDescription": "Actualiza el depósito manual seleccionado."
+        },
+        "fields": {
+          "amount": "Importe",
+          "expectedInterests": "Intereses esperados",
+          "interestRate": "Tipo de interés (%)",
+          "creation": "Fecha de inicio",
+          "maturity": "Vencimiento"
+        }
+      },
+      "factoring": {
+        "title": "Factoring manual",
+        "description": "Registra operaciones de factoring gestionadas fuera de las integraciones.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay operaciones de factoring manuales",
+          "description": "Añade una posición manual de factoring para incluirla en tus inversiones."
+        },
+        "form": {
+          "createTitle": "Añadir factoring manual",
+          "createDescription": "Introduce los datos de factoring para seguirlos manualmente.",
+          "editTitle": "Editar factoring manual",
+          "editDescription": "Actualiza la operación de factoring seleccionada."
+        },
+        "fields": {
+          "amount": "Importe",
+          "interestRate": "Tipo de interés (%)",
+          "profitability": "Rentabilidad (%)",
+          "lastInvestDate": "Fecha de última inversión",
+          "maturity": "Vencimiento",
+          "type": "Tipo",
+          "state": "Estado"
+        }
+      },
+      "realEstateCf": {
+        "title": "CF inmobiliario manual",
+        "description": "Sigue inversiones de crowdlending inmobiliario añadidas manualmente.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay posiciones manuales de CF inmobiliario",
+          "description": "Añade una posición manual de CF inmobiliario para monitorizarla."
+        },
+        "form": {
+          "createTitle": "Añadir CF inmobiliario manual",
+          "createDescription": "Introduce los datos del proyecto para seguirlo manualmente.",
+          "editTitle": "Editar CF inmobiliario manual",
+          "editDescription": "Actualiza la posición manual de CF inmobiliario seleccionada."
+        },
+        "fields": {
+          "amount": "Importe",
+          "pendingAmount": "Importe pendiente",
+          "interestRate": "Tipo de interés (%)",
+          "profitability": "Rentabilidad (%)",
+          "lastInvestDate": "Fecha de última inversión",
+          "maturity": "Vencimiento",
+          "extendedMaturity": "Vencimiento extendido",
+          "type": "Tipo",
+          "businessType": "Tipo de negocio",
+          "state": "Estado"
+        }
+      },
+      "toasts": {
+        "saveSuccess": "Posiciones manuales guardadas correctamente.",
+        "saveError": "No pudimos guardar las posiciones manuales. Inténtalo de nuevo."
+      }
+    }
   },
   "datePicker": {
     "selectYear": "Seleccionar Año"

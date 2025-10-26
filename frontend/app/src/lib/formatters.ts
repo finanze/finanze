@@ -7,12 +7,32 @@ export const formatCurrency = (
   defaultCurrency: string,
   currencyCode?: string,
 ): string => {
-  const displayCurrency = currencyCode || defaultCurrency
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: displayCurrency,
+  const displayCurrency = (currencyCode || defaultCurrency)?.toUpperCase()
+  const formatCurrencyValue = (currency: string) =>
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+      minimumFractionDigits: 2,
+    }).format(value)
+
+  try {
+    if (displayCurrency) {
+      return formatCurrencyValue(displayCurrency)
+    }
+  } catch (error) {
+    if (!(error instanceof RangeError)) {
+      throw error
+    }
+  }
+
+  const formattedNumber = new Intl.NumberFormat(locale, {
     minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value)
+
+  return displayCurrency
+    ? `${formattedNumber} ${displayCurrency}`
+    : formattedNumber
 }
 
 export const formatPercentage = (value: number, locale: string): string => {
@@ -30,12 +50,24 @@ export const formatNumber = (value: number, locale: string): string => {
   }).format(value)
 }
 
-export const formatDate = (dateString: string, locale: string): string => {
+export const formatDate = (
+  dateInput: string | null | undefined,
+  locale: string,
+): string => {
+  if (!dateInput) {
+    return "—"
+  }
+
+  const date = new Date(dateInput)
+  if (Number.isNaN(date.getTime())) {
+    return "—"
+  }
+
   return new Intl.DateTimeFormat(locale, {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(dateString))
+  }).format(date)
 }
 
 export const formatGainLoss = (

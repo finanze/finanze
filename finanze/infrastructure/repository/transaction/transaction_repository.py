@@ -6,7 +6,8 @@ from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity
-from domain.global_position import ProductType
+from domain.fetch_record import DataSource
+from domain.global_position import EquityType, FundType, ProductType
 from domain.transactions import (
     AccountTx,
     BaseInvestmentTx,
@@ -42,7 +43,7 @@ def _map_account_row(row) -> AccountTx:
         type=TxType(row["type"]),
         date=datetime.fromisoformat(row["date"]),
         entity=entity,
-        is_real=bool(row["is_real"]),
+        source=DataSource(row["source"]),
         product_type=ProductType.ACCOUNT,
         fees=Dezimal(row["fees"]),
         retentions=Dezimal(row["retentions"]),
@@ -52,13 +53,19 @@ def _map_account_row(row) -> AccountTx:
     )
 
 
-def _map_investment_row(row) -> BaseInvestmentTx:
-    entity = Entity(
-        id=UUID(row["entity_id"]),
-        name=row["entity_name"],
-        natural_id=row["entity_natural_id"],
-        type=row["entity_type"],
-        origin=row["entity_origin"],
+def _map_investment_row(
+    row, fallback_entity: Optional[Entity] = None
+) -> BaseInvestmentTx:
+    entity = (
+        Entity(
+            id=UUID(row["entity_id"]),
+            name=row["entity_name"],
+            natural_id=row["entity_natural_id"],
+            type=row["entity_type"],
+            origin=row["entity_origin"],
+        )
+        if row["entity_id"]
+        else fallback_entity
     )
 
     common = {
@@ -70,7 +77,7 @@ def _map_investment_row(row) -> BaseInvestmentTx:
         "type": TxType(row["type"]),
         "date": datetime.fromisoformat(row["date"]),
         "entity": entity,
-        "is_real": bool(row["is_real"]),
+        "source": DataSource(row["source"]),
         "product_type": ProductType(row["product_type"]),
     }
 
@@ -86,9 +93,12 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
-            if "order_date" in row
+            if row["order_date"]
             else None,
             linked_tx=row["linked_tx"],
+            equity_type=EquityType(row["product_subtype"])
+            if row["product_subtype"]
+            else None,
         )
     elif row["product_type"] == ProductType.FUND.value:
         return FundTx(
@@ -101,7 +111,10 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
-            if "order_date" in row
+            if row["order_date"]
+            else None,
+            fund_type=FundType(row["product_subtype"])
+            if row["product_subtype"]
             else None,
         )
     elif row["product_type"] == ProductType.FUND_PORTFOLIO.value:
@@ -117,7 +130,6 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]),
-            interests=Dezimal(row["interests"]),
         )
     elif row["product_type"] == ProductType.REAL_ESTATE_CF.value:
         return RealEstateCFTx(
@@ -125,7 +137,6 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]),
-            interests=Dezimal(row["interests"]),
         )
     elif row["product_type"] == ProductType.DEPOSIT.value:
         return DepositTx(
@@ -133,7 +144,6 @@ def _map_investment_row(row) -> BaseInvestmentTx:
             net_amount=Dezimal(row["net_amount"]),
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]),
-            interests=Dezimal(row["interests"]),
         )
     else:
         raise ValueError(f"Unknown product type: {row['product_type']}")
@@ -161,7 +171,8 @@ class TransactionSQLRepository(TransactionPort):
                     "type": tx.type.value,
                     "date": tx.date.isoformat(),
                     "entity_id": str(tx.entity.id),
-                    "is_real": tx.is_real,
+                    "is_real": tx.source == DataSource.REAL,
+                    "source": tx.source.value,
                     "product_type": tx.product_type.value,
                     "created_at": datetime.now(tzlocal()).isoformat(),
                     "isin": None,
@@ -177,6 +188,7 @@ class TransactionSQLRepository(TransactionPort):
                     "interests": None,
                     "iban": None,
                     "portfolio_name": None,
+                    "product_subtype": None,
                 }
 
                 if isinstance(tx, StockTx):
@@ -194,6 +206,9 @@ class TransactionSQLRepository(TransactionPort):
                             if tx.order_date
                             else None,
                             "linked_tx": tx.linked_tx,
+                            "product_subtype": tx.equity_type.value
+                            if tx.equity_type
+                            else None,
                         }
                     )
                 elif isinstance(tx, FundTx):
@@ -208,6 +223,9 @@ class TransactionSQLRepository(TransactionPort):
                             "retentions": str(tx.retentions) if tx.retentions else None,
                             "order_date": tx.order_date.isoformat()
                             if tx.order_date
+                            else None,
+                            "product_subtype": tx.fund_type.value
+                            if tx.fund_type
                             else None,
                         }
                     )
@@ -225,22 +243,21 @@ class TransactionSQLRepository(TransactionPort):
                             "net_amount": str(tx.net_amount),
                             "fees": str(tx.fees),
                             "retentions": str(tx.retentions),
-                            "interests": str(tx.interests),
                         }
                     )
 
                 cursor.execute(
                     """
                     INSERT INTO investment_transactions (id, ref, name, amount, currency, type, date,
-                                                         entity_id, is_real, product_type, created_at,
+                                                         entity_id, is_real, source, product_type, created_at,
                                                          isin, ticker, market, shares, price, net_amount,
                                                          fees, retentions, order_date, linked_tx, interests,
-                                                         iban, portfolio_name)
+                                                         iban, portfolio_name, product_subtype)
                     VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
-                            :entity_id, :is_real, :product_type, :created_at,
+                            :entity_id, :is_real, :source, :product_type, :created_at,
                             :isin, :ticker, :market, :shares, :price, :net_amount,
                             :fees, :retentions, :order_date, :linked_tx, :interests,
-                            :iban, :portfolio_name)
+                            :iban, :portfolio_name, :product_subtype)
                     """,
                     entry,
                 )
@@ -251,9 +268,9 @@ class TransactionSQLRepository(TransactionPort):
                 cursor.execute(
                     """
                     INSERT INTO account_transactions (id, ref, name, amount, currency, type, date,
-                                                      entity_id, is_real, created_at,
+                                                      entity_id, is_real, source, created_at,
                                                       fees, retentions, interest_rate, avg_balance, net_amount)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(tx.id),
@@ -264,7 +281,8 @@ class TransactionSQLRepository(TransactionPort):
                         tx.type.value,
                         tx.date.isoformat(),
                         str(tx.entity.id),
-                        tx.is_real,
+                        tx.source == DataSource.REAL,
+                        tx.source.value,
                         datetime.now(tzlocal()).isoformat(),
                         str(tx.fees),
                         str(tx.retentions),
@@ -296,8 +314,10 @@ class TransactionSQLRepository(TransactionPort):
                              JOIN entities e ON it.entity_id = e.id
                     """
             if real is not None:
-                query += " WHERE it.is_real = ?"
-                params.append(real)
+                if real:
+                    query += " WHERE it.source = 'REAL'"
+                else:
+                    query += " WHERE it.source IN ('MANUAL', 'SHEETS')"
 
             query += " ORDER BY it.date ASC"
 
@@ -319,8 +339,10 @@ class TransactionSQLRepository(TransactionPort):
                     """
 
             if real is not None:
-                query += " WHERE at.is_real = ?"
-                params.append(real)
+                if real:
+                    query += " WHERE at.source = 'REAL'"
+                else:
+                    query += " WHERE at.source IN ('MANUAL', 'SHEETS')"
 
             query += " ORDER BY at.date ASC"
 
@@ -385,6 +407,44 @@ class TransactionSQLRepository(TransactionPort):
             account=self._get_account_txs_by_entity(entity_id),
         )
 
+    def get_by_entity_and_source(
+        self, entity_id: UUID, source: DataSource
+    ) -> Transactions:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                """
+                SELECT it.*,
+                       e.name       AS entity_name,
+                       e.id         AS entity_id,
+                       e.type       as entity_type,
+                       e.origin     AS entity_origin,
+                       e.natural_id AS entity_natural_id
+                FROM investment_transactions it
+                         JOIN entities e ON it.entity_id = e.id
+                WHERE it.entity_id = ? AND it.source = ?
+                """,
+                (str(entity_id), source.value),
+            )
+            investment = [_map_investment_row(row) for row in cursor.fetchall()]
+
+            cursor.execute(
+                """
+                SELECT at.*,
+                       e.id         AS entity_id,
+                       e.name       AS entity_name,
+                       e.natural_id AS entity_natural_id,
+                       e.type       AS entity_type,
+                       e.origin     AS entity_origin
+                FROM account_transactions at
+                         JOIN entities e ON at.entity_id = e.id
+                WHERE at.entity_id = ? AND at.source = ?
+                """,
+                (str(entity_id), source.value),
+            )
+            account = [_map_account_row(row) for row in cursor.fetchall()]
+
+        return Transactions(investment=investment, account=account)
+
     def get_refs_by_source_type(self, real: bool) -> Set[str]:
         with self._db_client.read() as cursor:
             cursor.execute(
@@ -418,6 +478,7 @@ class TransactionSQLRepository(TransactionPort):
                                 date,
                                 entity_id,
                                 is_real,
+                                source,
                                 product_type,
                                 fees,
                                 retentions,
@@ -433,7 +494,8 @@ class TransactionSQLRepository(TransactionPort):
                                 linked_tx,
                                 interests,
                                 iban,
-                                portfolio_name
+                                portfolio_name,
+                                product_subtype
                          FROM investment_transactions
                          UNION ALL
                          SELECT id,
@@ -445,6 +507,7 @@ class TransactionSQLRepository(TransactionPort):
                                 date,
                                 entity_id,
                                 is_real,
+                                source,
                                 'ACCOUNT' AS product_type,
                                 fees,
                                 retentions,
@@ -460,7 +523,8 @@ class TransactionSQLRepository(TransactionPort):
                                 NULL      AS linked_tx,
                                 NULL      AS interests,
                                 NULL      AS iban,
-                                NULL      AS portfolio_name
+                                NULL      AS portfolio_name,
+                                NULL      AS product_subtype
                          FROM account_transactions) tx
                             JOIN entities e ON tx.entity_id = e.id
                    """
@@ -490,6 +554,11 @@ class TransactionSQLRepository(TransactionPort):
         if query.to_date:
             conditions.append("tx.date <= ?")
             params.append(query.to_date.isoformat())
+        if query.historic_entry_id:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM investment_historic_txs ht WHERE ht.tx_id = tx.id AND ht.historic_entry_id = ?)"
+            )
+            params.append(str(query.historic_entry_id))
 
         where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"
@@ -511,18 +580,75 @@ class TransactionSQLRepository(TransactionPort):
 
         return tx_list
 
-    def delete_non_real(self):
-        with self._db_client.tx() as cursor:
-            cursor.execute("DELETE FROM investment_transactions WHERE NOT is_real")
-            cursor.execute("DELETE FROM account_transactions WHERE NOT is_real")
-
-    def delete_for_real_entity(self, entity_id: UUID):
+    def delete_by_source(self, source: DataSource):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM investment_transactions WHERE entity_id = ? AND is_real",
-                (str(entity_id),),
+                "DELETE FROM investment_transactions WHERE source = ?", (source,)
             )
             cursor.execute(
-                "DELETE FROM account_transactions WHERE entity_id = ? AND is_real",
-                (str(entity_id),),
+                "DELETE FROM account_transactions WHERE source = ?", (source,)
+            )
+
+    def delete_by_entity_source(self, entity_id: UUID, source: DataSource):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM investment_transactions WHERE entity_id = ? AND source = ?",
+                (
+                    str(entity_id),
+                    source,
+                ),
+            )
+            cursor.execute(
+                "DELETE FROM account_transactions WHERE entity_id = ? AND source = ?",
+                (str(entity_id), source),
+            )
+
+    def get_by_id(self, tx_id: UUID) -> Optional[BaseTx]:
+        with self._db_client.read() as cursor:
+            cursor.execute(
+                """
+                SELECT it.*,
+                       e.id         AS entity_id,
+                       e.name       AS entity_name,
+                       e.type       AS entity_type,
+                       e.origin     AS entity_origin,
+                       e.natural_id AS entity_natural_id
+                FROM investment_transactions it
+                         JOIN entities e ON it.entity_id = e.id
+                WHERE it.id = ?
+                """,
+                (str(tx_id),),
+            )
+            row = cursor.fetchone()
+            if row:
+                return _map_investment_row(row)
+
+            cursor.execute(
+                """
+                SELECT at.*,
+                       e.id         AS entity_id,
+                       e.name       AS entity_name,
+                       e.type       AS entity_type,
+                       e.origin     AS entity_origin,
+                       e.natural_id AS entity_natural_id
+                FROM account_transactions at
+                         JOIN entities e ON at.entity_id = e.id
+                WHERE at.id = ?
+                """,
+                (str(tx_id),),
+            )
+            row = cursor.fetchone()
+            if row:
+                return _map_account_row(row)
+        return None
+
+    def delete_by_id(self, tx_id: UUID):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM investment_transactions WHERE id = ?",
+                (str(tx_id),),
+            )
+            cursor.execute(
+                "DELETE FROM account_transactions WHERE id = ?",
+                (str(tx_id),),
             )

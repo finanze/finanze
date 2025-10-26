@@ -1,16 +1,24 @@
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useAppContext } from "@/context/AppContext"
+import { ArrowRight, Clock, X } from "lucide-react"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
+import { useI18n } from "@/i18n"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { useI18n } from "@/i18n"
 import { CredentialType } from "@/types"
 
 export function LoginForm() {
-  const { selectedEntity, login, isLoading, storedCredentials } =
-    useAppContext()
+  const {
+    selectedEntity,
+    login,
+    storedCredentials,
+    selectedFeatures,
+    fetchOptions,
+    setView,
+    resetState,
+  } = useEntityWorkflow()
   const [credentials, setCredentials] = useState<Record<string, string>>({})
   const { t } = useI18n()
 
@@ -25,6 +33,15 @@ export function LoginForm() {
 
   if (!selectedEntity) return null
 
+  const lastTransactionsFetchRaw = selectedEntity.last_fetch?.TRANSACTIONS
+  const hasTransactionsHistory =
+    typeof lastTransactionsFetchRaw === "string" &&
+    lastTransactionsFetchRaw.trim() !== ""
+  const isDeepFetch = Boolean(fetchOptions.deep)
+  const showTransactionsLoadingNotice =
+    selectedFeatures.includes("TRANSACTIONS") &&
+    (!hasTransactionsHistory || isDeepFetch)
+
   const handleInputChange = (key: string, value: string) => {
     setCredentials(prev => ({ ...prev, [key]: value }))
   }
@@ -32,6 +49,11 @@ export function LoginForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     login(credentials)
+  }
+
+  const handleCancel = () => {
+    resetState()
+    setView("entities")
   }
 
   // Get credential fields and sort them (password/PIN types last)
@@ -59,7 +81,7 @@ export function LoginForm() {
   })
 
   return (
-    <Card className="w-full max-w-md mx-auto">
+    <Card className="mx-auto w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-center">
           {t.login.enterCredentials} {selectedEntity.name}
@@ -94,9 +116,27 @@ export function LoginForm() {
               </div>
             )
           })}
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? t.common.loading : t.common.submit}
-          </Button>
+          {showTransactionsLoadingNotice && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200/50 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+              <Clock className="mt-[2px] h-4 w-4 flex-shrink-0" />
+              <span>{t.features.transactionsLoadingNotice}</span>
+            </div>
+          )}
+          <div className="mt-6 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1"
+              onClick={handleCancel}
+            >
+              <X className="mr-2 h-4 w-4" />
+              {t.common.cancel}
+            </Button>
+            <Button type="submit" className="flex-1">
+              <ArrowRight className="mr-2 h-4 w-4" />
+              {t.common.submit}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

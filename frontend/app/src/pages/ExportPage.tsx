@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { FileSpreadsheet, FileUp, Check, PackageSearch } from "lucide-react"
 import { motion } from "framer-motion"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
 import { updateSheets } from "@/services/api"
@@ -83,17 +84,24 @@ export default function ExportPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <motion.div
+      className="space-y-6"
+      variants={fadeListContainer}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div
+        className="flex justify-between items-center"
+        variants={fadeListItem}
+      >
         <h1 className="text-3xl font-bold">{t.export.title}</h1>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
+      <motion.div
+        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        variants={fadeListContainer}
+      >
+        <motion.div variants={fadeListItem}>
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -218,11 +226,7 @@ export default function ExportPage() {
           </Card>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
+        <motion.div variants={fadeListItem}>
           <Card className="h-full border-dashed">
             <CardHeader className="flex flex-col items-center justify-center text-center h-full">
               <PackageSearch className="h-12 w-12 text-muted-foreground mb-4" />
@@ -231,7 +235,7 @@ export default function ExportPage() {
             </CardHeader>
           </Card>
         </motion.div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

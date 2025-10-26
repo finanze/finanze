@@ -18,6 +18,14 @@ class DataEncryptedError(Exception):
     pass
 
 
+class MigrationError(Exception):
+    pass
+
+
+class MigrationAheadOfTime(MigrationError):
+    pass
+
+
 @dataclass
 class DatasourceInitParams:
     user: User

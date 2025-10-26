@@ -59,6 +59,27 @@ from infrastructure.repository.db.versions.v0.v05.v050_4_fund_market_nullable im
 from infrastructure.repository.db.versions.v0.v05.v050_5_add_fund_asset_type import (
     V0505,
 )
+from infrastructure.repository.db.versions.v0.v06.v060_0_add_source_txs_contributions import (
+    V0600Source,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_1_recreate_position_tables import (
+    V0601RecreatePositionTables,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_2_use_source_positions import (
+    V0602Source,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_3_fund_etf_data_sheet_and_type import (
+    V0603FundETFFields,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_4_manual_position_data import (
+    V0604ManualPositionData,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_5_add_tx_product_subype import (
+    V0605TxProductSubtype,
+)
+from infrastructure.repository.db.versions.v0.v06.v060_6_migrate_equity_types import (
+    V0606,
+)
 
 versions = [
     V0Genesis(),
@@ -88,4 +109,11 @@ versions = [
     V0503FundPortfolioTxs(),
     V0504(),
     V0505(),
+    V0600Source(),
+    V0601RecreatePositionTables(),
+    V0602Source(),
+    V0603FundETFFields(),
+    V0604ManualPositionData(),
+    V0605TxProductSubtype(),
+    V0606(),
 ]

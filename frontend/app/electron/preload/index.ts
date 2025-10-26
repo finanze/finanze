@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { ThemeMode } from "../types"
+import type { ThemeMode, AboutAppInfo } from "../types"
 import type {
   ExternalLoginRequest,
   LoginHandlerResult,
@@ -13,7 +13,9 @@ contextBridge.exposeInMainWorld("ipcAPI", {
   changeThemeMode: (mode: ThemeMode) =>
     ipcRenderer.send("theme-mode-change", mode),
 
-  showAbout: () => ipcRenderer.send("show-about"),
+  showAbout: () => ipcRenderer.send("open-about-window"),
+
+  getAboutInfo: () => ipcRenderer.invoke("about-info") as Promise<AboutAppInfo>,
 
   requestExternalLogin: async (
     id: string,

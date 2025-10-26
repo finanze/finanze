@@ -27,3 +27,4 @@ Brotli==1.1.0
 attrs==25.3.0
 h2==4.3.0
 nordigen
+yfinance>=0.2.66

@@ -93,7 +93,7 @@ export default function SettingsPage() {
     fetchSettings,
     settings: storedSettings,
     saveSettings,
-    isLoading,
+    isLoadingSettings,
     externalIntegrations,
     fetchExternalIntegrations,
     platform,
@@ -236,16 +236,6 @@ export default function SettingsPage() {
     setExpandedSections({
       ...expandedSections,
       [section]: !expandedSections[section],
-    })
-  }
-
-  const handleUpdateCooldown = (value: string) => {
-    setSettings({
-      ...settings,
-      fetch: {
-        ...settings.fetch,
-        updateCooldown: value === "" ? 60 : Number.parseInt(value) || 60,
-      },
     })
   }
 
@@ -1494,7 +1484,7 @@ export default function SettingsPage() {
     )
   }
 
-  if (isLoading || !settings) {
+  if (isLoadingSettings || !settings) {
     return (
       <div className="flex justify-center items-center h-64">
         <LoadingSpinner size="lg" />
@@ -1514,11 +1504,11 @@ export default function SettingsPage() {
               fetchSettings()
               fetchExternalIntegrations()
             }}
-            disabled={isLoading || isSaving}
+            disabled={isLoadingSettings || isSaving}
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isLoading}>
+          <Button onClick={handleSave} disabled={isSaving || isLoadingSettings}>
             {isSaving ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />
@@ -2261,29 +2251,6 @@ export default function SettingsPage() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <Card className="mb-4">
-              <CardHeader>
-                <CardTitle>{t.settings.scrapeSettings}</CardTitle>
-                <CardDescription>
-                  {t.settings.scrapeDescription}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="updateCooldown">
-                    {t.settings.updateCooldown}
-                  </Label>
-                  <Input
-                    id="updateCooldown"
-                    type="number"
-                    value={settings.fetch?.updateCooldown ?? 60}
-                    onChange={e => handleUpdateCooldown(e.target.value)}
-                    placeholder="0"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
             <Card>
               <CardHeader>
                 <CardTitle>{t.settings.virtual}</CardTitle>

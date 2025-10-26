@@ -15,6 +15,7 @@ from pydantic.dataclasses import dataclass
 class FetchResultCode(str, Enum):
     # Success
     COMPLETED = "COMPLETED"
+    PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED"
 
     # Cooldown
     COOLDOWN = "COOLDOWN"

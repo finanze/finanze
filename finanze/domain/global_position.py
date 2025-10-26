@@ -9,7 +9,13 @@ from domain.base import BaseData
 from domain.commodity import CommodityRegister
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.fetch_record import DataSource
 from pydantic.dataclasses import dataclass
+
+
+@dataclass
+class ManualEntryData:
+    tracker_key: Optional[str] = None
 
 
 class ProductType(str, Enum):
@@ -25,6 +31,8 @@ class ProductType(str, Enum):
     CROWDLENDING = "CROWDLENDING"
     CRYPTO = "CRYPTO"
     COMMODITY = "COMMODITY"
+    BOND = "BOND"
+    DERIVATIVE = "DERIVATIVE"
 
 
 class AccountType(str, Enum):
@@ -37,7 +45,7 @@ class AccountType(str, Enum):
 
 @dataclass
 class Account(BaseData):
-    id: UUID
+    id: Optional[UUID]
     total: Dezimal
     currency: str
     type: AccountType
@@ -46,6 +54,7 @@ class Account(BaseData):
     interest: Optional[Dezimal] = None
     retained: Optional[Dezimal] = None
     pending_transfers: Optional[Dezimal] = None
+    source: DataSource = DataSource.REAL
 
 
 class CardType(str, Enum):
@@ -55,7 +64,7 @@ class CardType(str, Enum):
 
 @dataclass
 class Card(BaseData):
-    id: UUID
+    id: Optional[UUID]
     currency: str
     type: CardType
     used: Dezimal
@@ -64,6 +73,7 @@ class Card(BaseData):
     name: Optional[str] = None
     ending: Optional[str | int] = None
     related_account: Optional[UUID] = None
+    source: DataSource = DataSource.REAL
 
 
 class LoanType(str, Enum):
@@ -79,7 +89,7 @@ class InterestType(str, Enum):
 
 @dataclass
 class Loan(BaseData):
-    id: UUID
+    id: Optional[UUID]
     type: LoanType
     currency: str
     current_installment: Dezimal
@@ -95,6 +105,7 @@ class Loan(BaseData):
     fixed_years: Optional[int] = None
     name: Optional[str] = None
     unpaid: Optional[Dezimal] = None
+    source: DataSource = DataSource.REAL
 
     def __post_init__(self):
         self.principal_paid = self.loan_amount - self.principal_outstanding
@@ -103,13 +114,25 @@ class Loan(BaseData):
 class AssetType(str, Enum):
     EQUITY = "EQUITY"
     FIXED_INCOME = "FIXED_INCOME"
+    MONEY_MARKET = "MONEY_MARKET"
     MIXED = "MIXED"
     OTHER = "OTHER"
 
 
+class FundType(str, Enum):
+    MUTUAL_FUND = "MUTUAL_FUND"
+    PRIVATE_EQUITY = "PRIVATE_EQUITY"
+    PENSION_FUND = "PENSION_FUND"
+
+
+class EquityType(str, Enum):
+    STOCK = "STOCK"
+    ETF = "ETF"
+
+
 @dataclass
 class StockDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     ticker: str
     isin: str
@@ -119,24 +142,28 @@ class StockDetail(BaseData):
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
-    type: str
+    type: EquityType
     subtype: Optional[str] = None
+    info_sheet_url: Optional[str] = None
+    manual_data: Optional[ManualEntryData] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class FundPortfolio(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: Optional[str] = None
     currency: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     market_value: Optional[Dezimal] = None
     account_id: Optional[UUID] = None
     account: Optional[Account] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class FundDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     isin: str
     market: Optional[str]
@@ -145,13 +172,17 @@ class FundDetail(BaseData):
     average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
+    type: FundType
     asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
+    info_sheet_url: Optional[str] = None
+    manual_data: Optional[ManualEntryData] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class FactoringDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     amount: Dezimal
     currency: str
@@ -162,11 +193,12 @@ class FactoringDetail(BaseData):
     maturity: date
     type: str
     state: str
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class RealEstateCFDetail(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     amount: Dezimal
     pending_amount: Dezimal
@@ -179,11 +211,12 @@ class RealEstateCFDetail(BaseData):
     business_type: str
     state: str
     extended_maturity: Optional[date] = None
+    source: DataSource = DataSource.REAL
 
 
 @dataclass
 class Deposit(BaseData):
-    id: UUID
+    id: Optional[UUID]
     name: str
     amount: Dezimal
     currency: str
@@ -191,6 +224,7 @@ class Deposit(BaseData):
     interest_rate: Dezimal
     creation: datetime
     maturity: date
+    source: DataSource = DataSource.REAL
 
 
 class CryptoCurrency(str, Enum):
@@ -363,7 +397,7 @@ class GlobalPosition:
     entity: Entity
     date: Optional[datetime] = None
     products: ProductPositions = field(default_factory=dict)
-    is_real: bool = True
+    source: DataSource = DataSource.REAL
 
     def __post_init__(self):
         if self.date is None:
@@ -385,3 +419,18 @@ class PositionQueryRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     real: Optional[bool] = None
+
+
+@dataclass
+class UpdatePositionRequest:
+    products: ProductPositions
+    entity_id: Optional[UUID] = None
+    new_entity_name: Optional[str] = None
+
+
+@dataclass
+class ManualPositionData:
+    entry_id: UUID
+    global_position_id: UUID
+    product_type: ProductType
+    data: ManualEntryData

@@ -4,7 +4,10 @@ import {
   type MenuItemConstructorOptions,
 } from "electron"
 
-export function createMenu(mainWindow: BrowserWindow) {
+export function createMenu(
+  _mainWindow: BrowserWindow,
+  onShowAbout: () => void,
+) {
   const template: MenuItemConstructorOptions[] = [
     {
       label: "File",
@@ -32,7 +35,7 @@ export function createMenu(mainWindow: BrowserWindow) {
       submenu: [
         {
           label: "About",
-          click: () => mainWindow?.webContents?.send("show-about"),
+          click: () => onShowAbout(),
         },
       ],
     },

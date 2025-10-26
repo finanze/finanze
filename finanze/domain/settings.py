@@ -91,7 +91,6 @@ class VirtualFetchConfig:
 @dataclass
 class FetchConfig:
     virtual: VirtualFetchConfig
-    updateCooldown: int
 
 
 @dataclass

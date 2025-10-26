@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { useAppContext } from "@/context/AppContext"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import {
   RefreshCw,
@@ -56,7 +57,8 @@ export function EntityCard({
   onExternalRelink,
 }: EntityCardProps) {
   const { t } = useI18n()
-  const { fetchingEntityState, externalIntegrations } = useAppContext()
+  const { externalIntegrations } = useAppContext()
+  const { fetchingEntityState } = useEntityWorkflow()
   const navigate = useNavigate()
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [showExternalConfirmation, setShowExternalConfirmation] =

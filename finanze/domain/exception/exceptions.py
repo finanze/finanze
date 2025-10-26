@@ -19,6 +19,11 @@ class EntityNotFound(Exception):
     pass
 
 
+class EntityNameAlreadyExists(Exception):
+    def __init__(self, name: str):
+        super().__init__(f"Entity name already exists: {name}")
+
+
 class ExternalIntegrationRequired(Exception):
     def __init__(self, required_integrations: list[ExternalIntegrationId]):
         self.required_integrations = required_integrations
@@ -110,3 +115,17 @@ class ExternalEntityNotFound(Exception):
 
 class ProviderInstitutionNotFound(Exception):
     pass
+
+
+class TransactionNotFound(Exception):
+    pass
+
+
+class RelatedAccountNotFound(Exception):
+    def __init__(self, account_id):
+        super().__init__(f"Related account not found: {account_id}")
+
+
+class RelatedFundPortfolioNotFound(Exception):
+    def __init__(self, portfolio_id):
+        super().__init__(f"Related fund portfolio not found: {portfolio_id}")

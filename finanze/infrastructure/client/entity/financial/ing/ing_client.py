@@ -204,6 +204,18 @@ class INGAPIClient:
             f"/investment-product-offering-portfolio/v1/catalog-products/{product_code}"
         )
 
+    @cached(cache=TTLCache(maxsize=10, ttl=86400))
+    def get_investment_product_details_v2(self, product_code: str) -> dict:
+        return self._get_request(
+            f"/investment-product-offering-portfolio/v2/products/{product_code}"
+        )
+
+    @cached(cache=TTLCache(maxsize=1, ttl=86400))
+    def get_fund_documents(self, product_subtype: str, product_type: str) -> dict:
+        return self._get_request(
+            f"/investment/doc/{product_type}/legal/{product_subtype}", api=False
+        )
+
     @cached(cache=TTLCache(maxsize=1, ttl=86400))
     def get_customer_investment_reporting(
         self, family: str, start_date: date, end_date: date

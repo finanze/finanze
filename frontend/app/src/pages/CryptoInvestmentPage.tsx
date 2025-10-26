@@ -24,6 +24,7 @@ import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 
 export default function CryptoInvestmentPage() {
   const { t, locale } = useI18n()
@@ -340,12 +341,6 @@ export default function CryptoInvestmentPage() {
     }
   }
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } },
-  }
-  const item = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -356,7 +351,7 @@ export default function CryptoInvestmentPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
@@ -514,14 +509,14 @@ export default function CryptoInvestmentPage() {
 
           {/* Wallets grouped by entity */}
           <motion.div
-            variants={container}
+            variants={fadeListContainer}
             initial="hidden"
             animate="show"
             className="space-y-6 pb-6"
           >
             {filteredCryptoWallets.map(
               ({ entity, wallets, totalValue: entityTotalValue }) => (
-                <motion.div key={entity.id} variants={item}>
+                <motion.div key={entity.id} variants={fadeListItem}>
                   <Card>
                     <CardHeader className="pb-4">
                       <div className="flex items-center justify-between">
@@ -556,256 +551,260 @@ export default function CryptoInvestmentPage() {
                       </div>
                     </CardHeader>
 
-                    <CardContent className="space-y-4 pb-6">
-                      {wallets.map(wallet => (
-                        <div
-                          key={wallet.id}
-                          className={`p-4 rounded-lg border transition-all ${
-                            wallet.market_value === null
-                              ? "opacity-75 border-dashed bg-gray-50 dark:bg-gray-900/50"
-                              : "bg-white dark:bg-gray-900 hover:shadow-sm"
-                          }`}
-                        >
-                          {/* Wallet Header */}
-                          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
-                                <img
-                                  src={`entities/${entity.id}.png`}
-                                  alt={wallet.crypto}
-                                  className="w-8 h-8 object-contain"
-                                  onError={e => {
-                                    e.currentTarget.style.display = "none"
-                                    e.currentTarget.nextElementSibling?.classList.remove(
-                                      "hidden",
-                                    )
-                                  }}
-                                />
-                                <span className="hidden text-white text-xs font-bold">
-                                  {wallet.symbol}
-                                </span>
+                    <CardContent className="pb-6">
+                      <div className="grid gap-4 grid-cols-1 sm:[grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
+                        {wallets.map(wallet => (
+                          <div
+                            key={wallet.id}
+                            className={`flex h-full flex-col gap-3 rounded-lg border p-4 transition-all ${
+                              wallet.market_value === null
+                                ? "opacity-75 border-dashed bg-gray-50 dark:bg-gray-900/50"
+                                : "bg-white dark:bg-gray-900 hover:shadow-sm"
+                            }`}
+                          >
+                            {/* Wallet Header */}
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                  <img
+                                    src={`entities/${entity.id}.png`}
+                                    alt={wallet.crypto}
+                                    className="w-8 h-8 object-contain"
+                                    onError={e => {
+                                      e.currentTarget.style.display = "none"
+                                      e.currentTarget.nextElementSibling?.classList.remove(
+                                        "hidden",
+                                      )
+                                    }}
+                                  />
+                                  <span className="hidden text-white text-xs font-bold">
+                                    {wallet.symbol}
+                                  </span>
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium truncate">
+                                      {wallet.name}
+                                    </h4>
+                                    {wallet.market_value === null && (
+                                      <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded flex-shrink-0">
+                                        No data
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 group">
+                                    <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
+                                      {wallet.address.slice(0, 8)}...
+                                      {wallet.address.slice(-6)}
+                                    </p>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                        copiedAddress === wallet.address
+                                          ? "text-green-600 dark:text-green-400"
+                                          : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                      }`}
+                                      onClick={() =>
+                                        handleCopyAddress(wallet.address)
+                                      }
+                                      title={
+                                        copiedAddress === wallet.address
+                                          ? t.common.copied
+                                          : t.common.copy
+                                      }
+                                    >
+                                      {copiedAddress === wallet.address ? (
+                                        <Check className="h-3 w-3" />
+                                      ) : (
+                                        <Copy className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-medium truncate">
-                                    {wallet.name}
-                                  </h4>
-                                  {wallet.market_value === null && (
-                                    <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded flex-shrink-0">
-                                      No data
-                                    </span>
+                              <div className="text-left sm:text-right flex-shrink-0">
+                                <div className="text-lg font-medium">
+                                  {formatCurrency(
+                                    getTotalWalletValue(wallet),
+                                    locale,
+                                    settings.general.defaultCurrency,
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2 group">
-                                  <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
-                                    {wallet.address.slice(0, 8)}...
-                                    {wallet.address.slice(-6)}
-                                  </p>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
-                                      copiedAddress === wallet.address
-                                        ? "text-green-600 dark:text-green-400"
-                                        : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                    }`}
-                                    onClick={() =>
-                                      handleCopyAddress(wallet.address)
-                                    }
-                                    title={
-                                      copiedAddress === wallet.address
-                                        ? t.common.copied
-                                        : t.common.copy
-                                    }
-                                  >
-                                    {copiedAddress === wallet.address ? (
-                                      <Check className="h-3 w-3" />
-                                    ) : (
-                                      <Copy className="h-3 w-3" />
-                                    )}
-                                  </Button>
-                                </div>
                               </div>
                             </div>
-                            <div className="text-left sm:text-right flex-shrink-0">
-                              <div className="text-lg font-medium">
-                                {formatCurrency(
-                                  getTotalWalletValue(wallet),
-                                  locale,
-                                  settings.general.defaultCurrency,
-                                )}
-                              </div>
-                            </div>
-                          </div>
 
-                          {/* Main Crypto */}
-                          {wallet.amount > 0 && wallet.symbol !== "N/A" && (
-                            <div
-                              className={`p-3 bg-gray-50 dark:bg-gray-800 rounded-lg mb-3 border-l-4 ${highlightedAsset && highlightedAsset === getCryptoDisplayName(wallet.symbol, wallet.crypto) ? "ring-2 ring-primary" : ""}`}
-                              ref={el => {
-                                const displayName = getCryptoDisplayName(
-                                  wallet.symbol,
-                                  wallet.crypto,
-                                )
-                                if (!symbolRefs.current[displayName])
-                                  symbolRefs.current[displayName] = el
-                              }}
-                              style={{
-                                borderLeftColor:
-                                  chartData.find(
-                                    c =>
-                                      c.name ===
-                                      getCryptoDisplayName(
+                            {/* Main Crypto */}
+                            {wallet.amount > 0 && wallet.symbol !== "N/A" && (
+                              <div
+                                className={`rounded-lg border-l-4 bg-gray-50 p-3 dark:bg-gray-800 ${highlightedAsset && highlightedAsset === getCryptoDisplayName(wallet.symbol, wallet.crypto) ? "ring-2 ring-primary" : ""}`}
+                                ref={el => {
+                                  const displayName = getCryptoDisplayName(
+                                    wallet.symbol,
+                                    wallet.crypto,
+                                  )
+                                  if (!symbolRefs.current[displayName])
+                                    symbolRefs.current[displayName] = el
+                                }}
+                                style={{
+                                  borderLeftColor:
+                                    chartData.find(
+                                      c =>
+                                        c.name ===
+                                        getCryptoDisplayName(
+                                          wallet.symbol,
+                                          wallet.crypto,
+                                        ),
+                                    )?.color || "transparent",
+                                }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="font-medium">
+                                      {getCryptoDisplayName(
                                         wallet.symbol,
                                         wallet.crypto,
-                                      ),
-                                  )?.color || "transparent",
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium">
-                                    {getCryptoDisplayName(
-                                      wallet.symbol,
-                                      wallet.crypto,
-                                    )}
-                                  </p>
-                                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    {wallet.amount.toLocaleString()}{" "}
-                                    {wallet.symbol}
-                                  </p>
-                                </div>
-                                <div className="text-right">
-                                  <p className="font-medium">
-                                    {formatCurrency(
-                                      calculateCryptoValue(
-                                        wallet.amount,
-                                        wallet.symbol,
+                                      )}
+                                    </p>
+                                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                                      {wallet.amount.toLocaleString()}{" "}
+                                      {wallet.symbol}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-medium">
+                                      {formatCurrency(
+                                        calculateCryptoValue(
+                                          wallet.amount,
+                                          wallet.symbol,
+                                          settings.general.defaultCurrency,
+                                          exchangeRates,
+                                        ),
+                                        locale,
                                         settings.general.defaultCurrency,
-                                        exchangeRates,
-                                      ),
-                                      locale,
-                                      settings.general.defaultCurrency,
-                                    )}
-                                  </p>
-                                  {wallet.initial_investment && (
-                                    <div className="flex items-center gap-1 text-sm">
-                                      <TrendingUp className="h-3 w-3" />
-                                      <span
-                                        className={
-                                          calculateCryptoValue(
-                                            wallet.amount,
-                                            wallet.symbol,
-                                            settings.general.defaultCurrency,
-                                            exchangeRates,
-                                          ) >= wallet.initial_investment
-                                            ? "text-green-600"
-                                            : "text-red-600"
-                                        }
-                                      >
-                                        {(
-                                          ((calculateCryptoValue(
-                                            wallet.amount,
-                                            wallet.symbol,
-                                            settings.general.defaultCurrency,
-                                            exchangeRates,
-                                          ) -
-                                            wallet.initial_investment) /
-                                            wallet.initial_investment) *
-                                          100
-                                        ).toFixed(1)}
-                                        %
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Tokens */}
-                          {wallet.tokens && wallet.tokens.length > 0 && (
-                            <div className="space-y-2">
-                              <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Tokens ({wallet.tokens.length})
-                              </h5>
-                              <div className="space-y-2 max-h-40 overflow-y-auto">
-                                {wallet.tokens.map(token => {
-                                  const displayName = getCryptoDisplayName(
-                                    token.symbol,
-                                    token.name,
-                                  )
-                                  const color =
-                                    chartData.find(c => c.name === displayName)
-                                      ?.color || "transparent"
-                                  const isHighlighted =
-                                    highlightedAsset === displayName
-                                  return (
-                                    <div
-                                      key={token.id}
-                                      ref={el => {
-                                        if (!symbolRefs.current[displayName])
-                                          symbolRefs.current[displayName] = el
-                                      }}
-                                      className={`flex items-center justify-between p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded border-l-4 ${isHighlighted ? "ring-2 ring-primary" : ""}`}
-                                      // force min border width for visibility in dense layouts
-                                      style={{
-                                        borderLeftColor: color,
-                                        borderLeftWidth: 6,
-                                      }}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 flex items-center justify-center">
-                                          <img
-                                            src={`entities/tokens/${token.symbol.toUpperCase()}.png`}
-                                            alt={token.symbol}
-                                            className="w-6 h-6 object-contain"
-                                            onError={e => {
-                                              e.currentTarget.style.display =
-                                                "none"
-                                              const parent =
-                                                e.currentTarget.parentElement
-                                              if (parent) {
-                                                parent.innerHTML = `<div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center"><span class="text-gray-700 dark:text-gray-300 text-xs font-bold">${token.symbol.slice(0, 2)}</span></div>`
-                                              }
-                                            }}
-                                          />
-                                        </div>
-                                        <div>
-                                          <p className="text-sm font-medium">
-                                            {getCryptoDisplayName(
-                                              token.symbol,
-                                              token.name,
-                                            )}
-                                          </p>
-                                          <p className="text-xs text-gray-600 dark:text-gray-400">
-                                            {token.amount.toLocaleString()}{" "}
-                                            {token.symbol}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="text-right">
-                                        <p className="text-sm font-medium">
-                                          {formatCurrency(
+                                      )}
+                                    </p>
+                                    {wallet.initial_investment && (
+                                      <div className="flex items-center gap-1 text-sm">
+                                        <TrendingUp className="h-3 w-3" />
+                                        <span
+                                          className={
                                             calculateCryptoValue(
-                                              token.amount,
-                                              token.symbol,
+                                              wallet.amount,
+                                              wallet.symbol,
                                               settings.general.defaultCurrency,
                                               exchangeRates,
-                                            ),
-                                            locale,
-                                            settings.general.defaultCurrency,
-                                          )}
-                                        </p>
+                                            ) >= wallet.initial_investment
+                                              ? "text-green-600"
+                                              : "text-red-600"
+                                          }
+                                        >
+                                          {(
+                                            ((calculateCryptoValue(
+                                              wallet.amount,
+                                              wallet.symbol,
+                                              settings.general.defaultCurrency,
+                                              exchangeRates,
+                                            ) -
+                                              wallet.initial_investment) /
+                                              wallet.initial_investment) *
+                                            100
+                                          ).toFixed(1)}
+                                          %
+                                        </span>
                                       </div>
-                                    </div>
-                                  )
-                                })}
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                            )}
+
+                            {/* Tokens */}
+                            {wallet.tokens && wallet.tokens.length > 0 && (
+                              <div className="space-y-2">
+                                <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                  Tokens ({wallet.tokens.length})
+                                </h5>
+                                <div className="space-y-2 max-h-40 overflow-y-auto">
+                                  {wallet.tokens.map(token => {
+                                    const displayName = getCryptoDisplayName(
+                                      token.symbol,
+                                      token.name,
+                                    )
+                                    const color =
+                                      chartData.find(
+                                        c => c.name === displayName,
+                                      )?.color || "transparent"
+                                    const isHighlighted =
+                                      highlightedAsset === displayName
+                                    return (
+                                      <div
+                                        key={token.id}
+                                        ref={el => {
+                                          if (!symbolRefs.current[displayName])
+                                            symbolRefs.current[displayName] = el
+                                        }}
+                                        className={`flex items-center justify-between p-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded border-l-4 ${isHighlighted ? "ring-2 ring-primary" : ""}`}
+                                        // force min border width for visibility in dense layouts
+                                        style={{
+                                          borderLeftColor: color,
+                                          borderLeftWidth: 6,
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-6 h-6 flex items-center justify-center">
+                                            <img
+                                              src={`entities/tokens/${token.symbol.toUpperCase()}.png`}
+                                              alt={token.symbol}
+                                              className="w-6 h-6 object-contain"
+                                              onError={e => {
+                                                e.currentTarget.style.display =
+                                                  "none"
+                                                const parent =
+                                                  e.currentTarget.parentElement
+                                                if (parent) {
+                                                  parent.innerHTML = `<div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center"><span class="text-gray-700 dark:text-gray-300 text-xs font-bold">${token.symbol.slice(0, 2)}</span></div>`
+                                                }
+                                              }}
+                                            />
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-medium">
+                                              {getCryptoDisplayName(
+                                                token.symbol,
+                                                token.name,
+                                              )}
+                                            </p>
+                                            <p className="text-xs text-gray-600 dark:text-gray-400">
+                                              {token.amount.toLocaleString()}{" "}
+                                              {token.symbol}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="text-right">
+                                          <p className="text-sm font-medium">
+                                            {formatCurrency(
+                                              calculateCryptoValue(
+                                                token.amount,
+                                                token.symbol,
+                                                settings.general
+                                                  .defaultCurrency,
+                                                exchangeRates,
+                                              ),
+                                              locale,
+                                              settings.general.defaultCurrency,
+                                            )}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>

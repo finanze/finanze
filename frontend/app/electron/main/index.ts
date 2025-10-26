@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { dirname, join } from "node:path"
 import {
   app,
@@ -14,10 +14,17 @@ import {
 import isDev from "electron-is-dev"
 import { type ChildProcess, spawn } from "child_process"
 import { createMenu } from "./menu"
-import { ThemeMode, AppConfig, OS, PlatformInfo } from "../types"
+import { ThemeMode, AppConfig, OS, PlatformInfo, AboutAppInfo } from "../types"
 import { promptLogin } from "./loginHandlers"
 import { readdirSync } from "node:fs"
 import { findAndKillProcesses } from "./windows-process"
+import packageJson from "../../package.json" assert { type: "json" }
+
+const packageMetadata = packageJson as {
+  author?: string | { name?: string }
+  repository?: string | { url?: string }
+  homepage?: string
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -64,6 +71,7 @@ const apiUrl = appConfig.urls.backend + ":" + appConfig.ports.backend
 let mainWindow: BrowserWindow | null = null
 let tray = null
 let pythonProcess: ChildProcess | null = null
+let aboutWindow: BrowserWindow | null = null
 
 if (appConfig.os === OS.WINDOWS) app.setAppUserModelId(app.getName())
 
@@ -91,6 +99,30 @@ function updateTitleBarOverlay(mainWindow: BrowserWindow | null) {
     if (overlay) {
       mainWindow.setTitleBarOverlay(overlay)
     }
+  }
+}
+
+function getAboutInfo(): AboutAppInfo {
+  const authorField = packageMetadata.author
+  const author =
+    typeof authorField === "string" ? authorField : (authorField?.name ?? null)
+
+  const repositoryField = packageMetadata.repository
+  const repository =
+    typeof repositoryField === "string"
+      ? repositoryField
+      : (repositoryField?.url ?? null)
+
+  return {
+    appName: app.getName(),
+    version: app.getVersion(),
+    author,
+    repository,
+    homepage: packageMetadata.homepage ?? null,
+    electronVersion: process.versions.electron ?? null,
+    chromiumVersion: process.versions.chrome ?? null,
+    nodeVersion: process.versions.node ?? null,
+    platform: platformInfo,
   }
 }
 
@@ -186,7 +218,9 @@ async function createWindow() {
     mainWindow = null
   })
 
-  createMenu(mainWindow)
+  createMenu(mainWindow, () => {
+    createAboutWindow()
+  })
 }
 
 function createTray() {
@@ -232,6 +266,59 @@ function sendToAllWindows(channel: string, ...args: any[]) {
   })
 }
 
+function getAboutWindowUrl() {
+  if (appConfig.isDev && VITE_DEV_SERVER_URL) {
+    return new URL("about.html", VITE_DEV_SERVER_URL).toString()
+  }
+
+  return pathToFileURL(join(RENDERER_DIST, "about.html")).toString()
+}
+
+function createAboutWindow() {
+  if (aboutWindow && !aboutWindow.isDestroyed()) {
+    aboutWindow.focus()
+    return aboutWindow
+  }
+
+  aboutWindow = new BrowserWindow({
+    width: 440,
+    height: 560,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    title: app.getName(),
+    show: false,
+    parent: mainWindow ?? undefined,
+    modal: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload,
+    },
+  })
+
+  aboutWindow.setMenu(null)
+
+  aboutWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith("https:")) {
+      shell.openExternal(url)
+    }
+    return { action: "deny" }
+  })
+
+  aboutWindow.on("closed", () => {
+    aboutWindow = null
+  })
+
+  aboutWindow.once("ready-to-show", () => {
+    aboutWindow?.show()
+  })
+
+  void aboutWindow.loadURL(getAboutWindowUrl())
+
+  return aboutWindow
+}
+
 app.whenReady().then(async () => {
   ipcMain.handle("api-url", () => apiUrl)
   ipcMain.handle("platform", () => platformInfo)
@@ -239,7 +326,10 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = mode
     updateTitleBarOverlay(mainWindow)
   })
-  ipcMain.handle("show-about", () => {})
+  ipcMain.on("open-about-window", () => {
+    createAboutWindow()
+  })
+  ipcMain.handle("about-info", () => getAboutInfo())
   ipcMain.handle("external-login", async (_, id, request) => {
     return await promptLogin(id, request)
   })
@@ -273,6 +363,7 @@ app.on("second-instance", () => {
 // Quit when all windows are closed, except on macOS
 app.on("window-all-closed", () => {
   mainWindow = null
+  aboutWindow?.close()
   if (appConfig.os !== OS.MAC) {
     app.quit()
   }
@@ -294,6 +385,7 @@ async function quit() {
 
   try {
     try {
+      aboutWindow?.close()
       if (appConfig.os === OS.WINDOWS) {
         if (appConfig.isDev) {
           if (pythonProcess)

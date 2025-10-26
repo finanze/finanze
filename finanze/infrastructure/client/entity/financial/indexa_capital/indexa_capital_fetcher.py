@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 from uuid import uuid4
 
@@ -6,6 +7,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
+from domain.fetch_record import DataSource
 from domain.fetch_result import FetchOptions
 from domain.global_position import (
     Account,
@@ -16,6 +18,7 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolio,
     FundPortfolios,
+    FundType,
     GlobalPosition,
     ProductType,
 )
@@ -100,21 +103,24 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
 
                     price = Dezimal(pos.get("price", 0))
 
-                    try:
-                        isin = instrument.get("identifier") or instrument.get(
-                            "isin_code"
-                        )
-                        if not isin:
-                            # Skip instruments without an ISIN identifier
-                            continue
-                    except Exception:
+                    isin = instrument.get("identifier") or instrument.get("isin_code")
+                    if not isin:
                         continue
 
-                    asset_type = None
+                    identifier_type = instrument.get("identifier_name", "ISIN")
+                    fund_type: FundType = FundType.MUTUAL_FUND
+                    if identifier_type != "ISIN":
+                        fund_type = FundType.PENSION_FUND
+
+                    fund_details_url = self._parse_fund_details_url(instrument)
+
+                    asset_type = AssetType.OTHER
                     if "equity" in raw_asset_type:
                         asset_type = AssetType.EQUITY
                     elif "fixed" in raw_asset_type:
                         asset_type = AssetType.FIXED_INCOME
+                    elif "money" in raw_asset_type:
+                        asset_type = AssetType.MONEY_MARKET
 
                     fund_details.append(
                         FundDetail(
@@ -126,8 +132,10 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                             initial_investment=initial_investment,
                             average_buy_price=price,
                             market_value=market_value,
+                            type=fund_type,
                             asset_type=asset_type,
                             currency=account_currency,
+                            info_sheet_url=fund_details_url,
                             portfolio=FundPortfolio(id=fund_portfolio_id),
                         )
                     )
@@ -169,6 +177,21 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
         return GlobalPosition(id=uuid4(), entity=INDEXA_CAPITAL, products=products)
 
     @staticmethod
+    def _parse_fund_details_url(instrument: dict) -> str | None:
+        if not isinstance(instrument, dict):
+            return None
+        description = instrument.get("description")
+        if not description or not isinstance(description, str):
+            return None
+        match = re.search(r"href=[\'\"]([^\'\"]+)[\'\"]", description, re.IGNORECASE)
+        if not match:
+            return None
+        url = match.group(1).strip()
+        if not url.lower().startswith("http"):
+            return None
+        return url
+
+    @staticmethod
     def _parse_date(date_str: str | None, fallback: str | None = None) -> datetime:
         if not date_str:
             date_str = fallback
@@ -189,7 +212,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
             return TxType.SWITCH_TO
         elif op_code in {1372}:
             return TxType.SWITCH_FROM
-        elif op_code in {67}:
+        elif op_code in {67, 71}:
             return TxType.TRANSFER_IN
         elif op_code in {72}:
             return TxType.TRANSFER_OUT
@@ -245,6 +268,11 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                 if not isin:
                     continue
 
+                identifier_type = instrument.get("identifier_name", "ISIN")
+                fund_type: FundType = FundType.MUTUAL_FUND
+                if identifier_type != "ISIN":
+                    fund_type = FundType.PENSION_FUND
+
                 name = instrument.get("name") or tx.get("operation_type") or "Fund"
                 market = instrument.get("market_code") or ""
                 currency = tx.get("currency")
@@ -283,7 +311,8 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                         fees=Dezimal(0),
                         retentions=Dezimal(0),
                         product_type=ProductType.FUND,
-                        is_real=True,
+                        fund_type=fund_type,
+                        source=DataSource.REAL,
                     )
                 )
         return investment_txs
@@ -346,7 +375,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                         type=TxType.FEE,
                         date=date_dt,
                         entity=INDEXA_CAPITAL,
-                        is_real=True,
+                        source=DataSource.REAL,
                         product_type=ProductType.FUND_PORTFOLIO,
                         fees=amount,
                         portfolio_name=portfolio_name,

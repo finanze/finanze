@@ -29,6 +29,7 @@ import { PinnedAssetsProvider } from "./context/PinnedAssetsContext"
 import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { useAppContext } from "./context/AppContext"
+import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { useState, useEffect } from "react"
 
 function App() {
@@ -95,82 +96,87 @@ function App() {
   }
 
   return (
-    <FinancialDataProvider>
-      <PinnedAssetsProvider>
-        <Layout>
-          <Routes>
-            <Route path="/" element={<DashboardPage />} />
-            <Route path="/banking" element={<BankingPage />} />
-            <Route path="/real-estate" element={<RealEstatePage />} />
-            <Route
-              path="/real-estate/:id"
-              element={<RealEstateDetailsPage />}
-            />
-            <Route
-              path="/real-estate/:id/edit"
-              element={<RealEstateEditPage />}
-            />
-            <Route path="/entities" element={<EntityIntegrationsPage />} />
-            <Route path="/transactions" element={<TransactionsPage />} />
-            <Route path="/investments" element={<InvestmentsPage />} />
-            <Route
-              path="/investments/stocks-etfs"
-              element={<StocksInvestmentPage />}
-            />
-            <Route
-              path="/investments/funds"
-              element={<FundsInvestmentPage />}
-            />
-            <Route
-              path="/investments/deposits"
-              element={<DepositsInvestmentPage />}
-            />
-            <Route
-              path="/investments/factoring"
-              element={<FactoringInvestmentPage />}
-            />
-            <Route
-              path="/investments/real-estate-cf"
-              element={<RealEstateCFInvestmentPage />}
-            />
-            <Route
-              path="/investments/crypto"
-              element={<CryptoInvestmentPage />}
-            />
-            <Route
-              path="/investments/commodities"
-              element={<CommoditiesInvestmentPage />}
-            />
-            <Route path="/management" element={<ManagementPage />} />
-            <Route
-              path="/management/recurring"
-              element={<RecurringMoneyPage />}
-            />
-            <Route path="/management/pending" element={<PendingMoneyPage />} />
-            <Route
-              path="/management/auto-contributions"
-              element={<AutoContributionsPage />}
-            />
-            <Route path="/export" element={<ExportPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Layout>
+    <EntityWorkflowProvider>
+      <FinancialDataProvider>
+        <PinnedAssetsProvider>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/banking" element={<BankingPage />} />
+              <Route path="/real-estate" element={<RealEstatePage />} />
+              <Route
+                path="/real-estate/:id"
+                element={<RealEstateDetailsPage />}
+              />
+              <Route
+                path="/real-estate/:id/edit"
+                element={<RealEstateEditPage />}
+              />
+              <Route path="/entities" element={<EntityIntegrationsPage />} />
+              <Route path="/transactions" element={<TransactionsPage />} />
+              <Route path="/investments" element={<InvestmentsPage />} />
+              <Route
+                path="/investments/stocks-etfs"
+                element={<StocksInvestmentPage />}
+              />
+              <Route
+                path="/investments/funds"
+                element={<FundsInvestmentPage />}
+              />
+              <Route
+                path="/investments/deposits"
+                element={<DepositsInvestmentPage />}
+              />
+              <Route
+                path="/investments/factoring"
+                element={<FactoringInvestmentPage />}
+              />
+              <Route
+                path="/investments/real-estate-cf"
+                element={<RealEstateCFInvestmentPage />}
+              />
+              <Route
+                path="/investments/crypto"
+                element={<CryptoInvestmentPage />}
+              />
+              <Route
+                path="/investments/commodities"
+                element={<CommoditiesInvestmentPage />}
+              />
+              <Route path="/management" element={<ManagementPage />} />
+              <Route
+                path="/management/recurring"
+                element={<RecurringMoneyPage />}
+              />
+              <Route
+                path="/management/pending"
+                element={<PendingMoneyPage />}
+              />
+              <Route
+                path="/management/auto-contributions"
+                element={<AutoContributionsPage />}
+              />
+              <Route path="/export" element={<ExportPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Layout>
 
-        {/* Release Update Modal */}
-        {showReleaseModal && updateInfo?.hasUpdate && updateInfo.release && (
-          <ReleaseUpdateModal
-            isOpen={showReleaseModal}
-            onClose={handleCloseReleaseModal}
-            currentVersion={updateInfo.currentVersion}
-            latestVersion={updateInfo.latestVersion}
-            release={updateInfo.release}
-            platform={platform}
-            onSkipVersion={handleSkipVersion}
-          />
-        )}
-      </PinnedAssetsProvider>
-    </FinancialDataProvider>
+          {/* Release Update Modal */}
+          {showReleaseModal && updateInfo?.hasUpdate && updateInfo.release && (
+            <ReleaseUpdateModal
+              isOpen={showReleaseModal}
+              onClose={handleCloseReleaseModal}
+              currentVersion={updateInfo.currentVersion}
+              latestVersion={updateInfo.latestVersion}
+              release={updateInfo.release}
+              platform={platform}
+              onSkipVersion={handleSkipVersion}
+            />
+          )}
+        </PinnedAssetsProvider>
+      </FinancialDataProvider>
+    </EntityWorkflowProvider>
   )
 }
 

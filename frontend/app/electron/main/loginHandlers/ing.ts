@@ -15,6 +15,12 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
     },
   })
 
+  function closeWindow() {
+    setTimeout(() => {
+      ingWindow?.close()
+    }, 1000)
+  }
+
   const ingSession = session.fromPartition(ingPartition)
 
   const result: LoginHandlerResult = {
@@ -42,7 +48,7 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
         ) {
           result.success = true
           sendCompletion(result)
-          ingWindow?.close()
+          closeWindow()
         }
       }
     } else if (details.url.endsWith("/position-keeping")) {
@@ -61,7 +67,7 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
         ) {
           result.success = true
           sendCompletion(result)
-          ingWindow?.close()
+          closeWindow()
         }
       }
     }
@@ -87,7 +93,6 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
 
   return { success: true }
 }
-
 function sendCompletion(result: LoginHandlerResult) {
   console.debug("Sending completion for ING:", ING_ID)
   console.debug(

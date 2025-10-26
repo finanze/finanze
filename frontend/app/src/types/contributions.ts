@@ -1,3 +1,5 @@
+import { DataSource } from "."
+
 export enum ContributionFrequency {
   WEEKLY = "WEEKLY",
   BIWEEKLY = "BIWEEKLY",
@@ -26,8 +28,25 @@ export interface PeriodicContribution {
   until?: string
   frequency: ContributionFrequency
   active: boolean
-  is_real: boolean
+  source: DataSource
   next_date: string
+}
+
+export interface ManualPeriodicContribution {
+  entity_id: string
+  name: string
+  target: string
+  target_name?: string | null
+  target_type: ContributionTargetType
+  amount: number
+  currency: string
+  since: string
+  until?: string | null
+  frequency: ContributionFrequency
+}
+
+export interface ManualContributionsRequest {
+  entries: ManualPeriodicContribution[]
 }
 
 export interface AutoContributions {

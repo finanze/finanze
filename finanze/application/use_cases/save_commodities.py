@@ -16,13 +16,13 @@ from domain.commodity import (
     CommodityRegister,
     UpdateCommodityPosition,
 )
+from domain.dezimal import Dezimal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict
-from domain.fetch_record import FetchRecord
+from domain.fetch_record import DataSource, FetchRecord
 from domain.global_position import Commodities, Commodity, GlobalPosition, ProductType
 from domain.native_entities import COMMODITIES
 from domain.use_cases.save_commodities import SaveCommodities
-from domain.dezimal import Dezimal
 
 
 class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
@@ -52,7 +52,7 @@ class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
         async with self._lock:
             now = datetime.now(tzlocal())
             self._position_port.delete_position_for_date(
-                COMMODITIES.id, now.date(), is_real=True
+                COMMODITIES.id, now.date(), source=DataSource.REAL
             )
 
             fiat_matrix = self._exchange_rates_provider.get_matrix()

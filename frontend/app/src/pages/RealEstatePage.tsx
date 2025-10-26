@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { useI18n } from "@/i18n"
@@ -28,6 +29,8 @@ import {
 } from "@/types"
 import { deleteRealEstate, getImageUrl } from "@/services/api"
 import { RealEstateFormModal } from "@/components/RealEstateFormModal"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 
 export default function RealEstatePage() {
   const { t, locale } = useI18n()
@@ -35,7 +38,7 @@ export default function RealEstatePage() {
   const { refreshFlows, realEstateList, refreshRealEstate } = useFinancialData()
   const navigate = useNavigate()
 
-  const [loading, setLoading] = useState(true)
+  const [loadingRE, setLoadingRE] = useState(true)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editingProperty, setEditingProperty] = useState<RealEstate | null>(
     null,
@@ -50,11 +53,11 @@ export default function RealEstatePage() {
   useEffect(() => {
     let cancelled = false
     const init = async () => {
-      setLoading(true)
+      setLoadingRE(true)
       try {
         await refreshRealEstate()
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadingRE(false)
       }
     }
     init()
@@ -150,12 +153,12 @@ export default function RealEstatePage() {
 
   const loadRealEstate = async () => {
     try {
-      setLoading(true)
+      setLoadingRE(true)
       await refreshRealEstate()
     } catch {
       showToast(t.realEstate.errors.loadFailed, "error")
     } finally {
-      setLoading(false)
+      setLoadingRE(false)
     }
   }
 
@@ -201,20 +204,26 @@ export default function RealEstatePage() {
     loadRealEstate()
   }
 
-  if (loading) {
+  if (loadingRE) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg text-gray-600 dark:text-gray-400">
-          {t.common.loading}
-        </div>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
 
   return (
-    <div className="space-y-6 pb-6">
+    <motion.div
+      className="space-y-6 pb-6"
+      variants={fadeListContainer}
+      initial="hidden"
+      animate="show"
+    >
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <motion.div
+        variants={fadeListItem}
+        className="flex items-center justify-between"
+      >
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft size={20} />
@@ -233,210 +242,228 @@ export default function RealEstatePage() {
           <Plus className="w-4 h-4" />
           {t.realEstate.addProperty}
         </Button>
-      </div>
+      </motion.div>
 
       {/* Properties Grid */}
       {realEstateList.length === 0 ? (
-        <Card className="p-8 text-center">
-          <Home className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-            {t.realEstate.addProperty}
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            {t.realEstate.emptyStateDescription}
-          </p>
-          <Button
-            onClick={handleAddProperty}
-            className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            {t.realEstate.addProperty}
-          </Button>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-fr">
-          {realEstateList.map(property => (
-            <Card
-              key={property.id}
-              className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col cursor-pointer"
-              onClick={() => navigate(`/real-estate/${property.id}`)}
+        <motion.div variants={fadeListItem}>
+          <Card className="p-8 text-center">
+            <Home className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {t.realEstate.addProperty}
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              {t.realEstate.emptyStateDescription}
+            </p>
+            <Button
+              onClick={handleAddProperty}
+              className="bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
             >
-              {/* Property Image Header */}
-              <div className="relative h-48">
-                {property.basic_info.photo_url &&
-                imageUrls[property.basic_info.photo_url] ? (
-                  <img
-                    src={imageUrls[property.basic_info.photo_url]}
-                    alt={property.basic_info.name}
-                    className="w-full h-48 object-cover"
-                    onError={e => {
-                      const target = e.target as HTMLImageElement
-                      target.style.display = "none"
-                      const fallback = target.nextElementSibling as HTMLElement
-                      if (fallback) fallback.style.display = "flex"
-                    }}
-                  />
-                ) : null}
-                <div
-                  className={`w-full h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${property.basic_info.photo_url && imageUrls[property.basic_info.photo_url] ? "hidden" : "flex"}`}
+              <Plus className="w-4 h-4 mr-2" />
+              {t.realEstate.addProperty}
+            </Button>
+          </Card>
+        </motion.div>
+      ) : (
+        <motion.div variants={fadeListItem}>
+          <motion.div
+            variants={fadeListContainer}
+            className="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-fr"
+          >
+            {realEstateList.map(property => (
+              <motion.div
+                key={property.id}
+                variants={fadeListItem}
+                className="h-full"
+              >
+                <Card
+                  className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col cursor-pointer h-full"
+                  onClick={() => navigate(`/real-estate/${property.id}`)}
                 >
-                  <Home className="w-16 h-16 text-gray-500" />
-                </div>
-
-                {/* Action buttons overlay */}
-                <div className="absolute top-3 right-3 flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={e => {
-                      e.stopPropagation()
-                      navigate(`/real-estate/${property.id}/edit`)
-                    }}
-                    className="bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 h-9 w-9 p-0"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={e => {
-                      e.stopPropagation()
-                      handleDeleteProperty(property)
-                    }}
-                    className="bg-black/30 backdrop-blur-sm text-white hover:bg-red-600/80 h-9 w-9 p-0"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Property badges overlay */}
-                <div className="absolute bottom-3 left-3 flex gap-2">
-                  {property.basic_info.is_residence && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-black/50 backdrop-blur-sm text-white">
-                      {t.realEstate.residence}
-                    </span>
-                  )}
-                  {property.basic_info.is_rented && (
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-black/50 backdrop-blur-sm text-white">
-                      {t.realEstate.rented}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Property Content */}
-              <div className="p-6 flex-1 flex flex-col justify-center">
-                <div className="mb-6">
-                  <h3 className="font-semibold text-xl text-gray-900 dark:text-white mb-2">
-                    {property.basic_info.name}
-                  </h3>
-
-                  {property.location.address && (
-                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      <MapPin className="w-4 h-4" />
-                      <span>{property.location.address}</span>
+                  {/* Property Image Header */}
+                  <div className="relative h-48">
+                    {property.basic_info.photo_url &&
+                    imageUrls[property.basic_info.photo_url] ? (
+                      <img
+                        src={imageUrls[property.basic_info.photo_url]}
+                        alt={property.basic_info.name}
+                        className="w-full h-48 object-cover"
+                        onError={e => {
+                          const target = e.target as HTMLImageElement
+                          target.style.display = "none"
+                          const fallback =
+                            target.nextElementSibling as HTMLElement
+                          if (fallback) fallback.style.display = "flex"
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`w-full h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center ${property.basic_info.photo_url && imageUrls[property.basic_info.photo_url] ? "hidden" : "flex"}`}
+                    >
+                      <Home className="w-16 h-16 text-gray-500" />
                     </div>
-                  )}
 
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
-                    <Calendar className="w-4 h-4" />
-                    <span>
-                      {formatDate(property.purchase_info.date, locale)}
-                    </span>
-                  </div>
+                    {/* Action buttons overlay */}
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={e => {
+                          e.stopPropagation()
+                          navigate(`/real-estate/${property.id}/edit`)
+                        }}
+                        className="bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 h-9 w-9 p-0"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={e => {
+                          e.stopPropagation()
+                          handleDeleteProperty(property)
+                        }}
+                        className="bg-black/30 backdrop-blur-sm text-white hover:bg-red-600/80 h-9 w-9 p-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
 
-                  {(property.basic_info.bedrooms ||
-                    property.basic_info.bathrooms) && (
-                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                      {property.basic_info.bedrooms && (
-                        <span className="flex items-center gap-1">
-                          <Bed className="w-4 h-4" />
-                          {property.basic_info.bedrooms} {t.realEstate.bedrooms}
+                    {/* Property badges overlay */}
+                    <div className="absolute bottom-3 left-3 flex gap-2">
+                      {property.basic_info.is_residence && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-black/50 backdrop-blur-sm text-white">
+                          {t.realEstate.residence}
                         </span>
                       )}
-                      {property.basic_info.bathrooms && (
-                        <span className="flex items-center gap-1">
-                          <Bath className="w-4 h-4" />
-                          {property.basic_info.bathrooms}{" "}
-                          {t.realEstate.bathrooms}
+                      {property.basic_info.is_rented && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-black/50 backdrop-blur-sm text-white">
+                          {t.realEstate.rented}
                         </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Enhanced Financial KPIs */}
-                <div className="space-y-4">
-                  {/* Market Value - Primary KPI */}
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
-                    <span className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
-                      {t.realEstate.estimatedMarketValue}
-                    </span>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {formatCurrency(
-                        property.valuation_info.estimated_market_value,
-                        locale,
-                        property.currency,
                       )}
                     </div>
                   </div>
 
-                  {/* Financial Summary Grid */}
-                  {property.basic_info.is_rented && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                        <span className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                          {t.realEstate.initialExpenses}
+                  {/* Property Content */}
+                  <div className="p-6 flex-1 flex flex-col justify-center">
+                    <div className="mb-6">
+                      <h3 className="font-semibold text-xl text-gray-900 dark:text-white mb-2">
+                        {property.basic_info.name}
+                      </h3>
+
+                      {property.location.address && (
+                        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          <MapPin className="w-4 h-4" />
+                          <span>{property.location.address}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        <Calendar className="w-4 h-4" />
+                        <span>
+                          {formatDate(property.purchase_info.date, locale)}
                         </span>
-                        <div className="font-semibold text-gray-900 dark:text-white">
+                      </div>
+
+                      {(property.basic_info.bedrooms ||
+                        property.basic_info.bathrooms) && (
+                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                          {property.basic_info.bedrooms && (
+                            <span className="flex items-center gap-1">
+                              <Bed className="w-4 h-4" />
+                              {property.basic_info.bedrooms}{" "}
+                              {t.realEstate.bedrooms}
+                            </span>
+                          )}
+                          {property.basic_info.bathrooms && (
+                            <span className="flex items-center gap-1">
+                              <Bath className="w-4 h-4" />
+                              {property.basic_info.bathrooms}{" "}
+                              {t.realEstate.bathrooms}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Enhanced Financial KPIs */}
+                    <div className="space-y-4">
+                      {/* Market Value - Primary KPI */}
+                      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                        <span className="text-sm text-gray-600 dark:text-gray-400 block mb-1">
+                          {t.realEstate.estimatedMarketValue}
+                        </span>
+                        <div className="text-2xl font-bold text-gray-900 dark:text-white">
                           {formatCurrency(
-                            property.purchase_info.price +
-                              property.purchase_info.expenses.reduce(
-                                (sum, exp) => sum + exp.amount,
-                                0,
-                              ) -
-                              property.flows
-                                .filter(
-                                  flow =>
-                                    flow.flow_subtype ===
-                                    RealEstateFlowSubtype.LOAN,
-                                )
-                                .reduce((sum, flow) => {
-                                  const loanPayload =
-                                    flow.payload as LoanPayload
-                                  return sum + (loanPayload.loan_amount || 0)
-                                }, 0),
+                            property.valuation_info.estimated_market_value,
                             locale,
                             property.currency,
                           )}
                         </div>
                       </div>
-                      <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
-                        <span className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
-                          {t.realEstate.analysis.monthlyCashflow}
-                        </span>
-                        <div
-                          className={`font-semibold ${
-                            calculateMonthlyCashflow(property) >= 0
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
-                          }`}
-                        >
-                          {calculateMonthlyCashflow(property) >= 0 ? "+" : ""}
-                          {formatCurrency(
-                            calculateMonthlyCashflow(property),
-                            locale,
-                            property.currency,
-                          )}
+
+                      {/* Financial Summary Grid */}
+                      {property.basic_info.is_rented && (
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                            <span className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                              {t.realEstate.initialExpenses}
+                            </span>
+                            <div className="font-semibold text-gray-900 dark:text-white">
+                              {formatCurrency(
+                                property.purchase_info.price +
+                                  property.purchase_info.expenses.reduce(
+                                    (sum, exp) => sum + exp.amount,
+                                    0,
+                                  ) -
+                                  property.flows
+                                    .filter(
+                                      flow =>
+                                        flow.flow_subtype ===
+                                        RealEstateFlowSubtype.LOAN,
+                                    )
+                                    .reduce((sum, flow) => {
+                                      const loanPayload =
+                                        flow.payload as LoanPayload
+                                      return (
+                                        sum + (loanPayload.loan_amount || 0)
+                                      )
+                                    }, 0),
+                                locale,
+                                property.currency,
+                              )}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+                            <span className="text-xs text-gray-600 dark:text-gray-400 block mb-1">
+                              {t.realEstate.analysis.monthlyCashflow}
+                            </span>
+                            <div
+                              className={`font-semibold ${
+                                calculateMonthlyCashflow(property) >= 0
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-red-600 dark:text-red-400"
+                              }`}
+                            >
+                              {calculateMonthlyCashflow(property) >= 0
+                                ? "+"
+                                : ""}
+                              {formatCurrency(
+                                calculateMonthlyCashflow(property),
+                                locale,
+                                property.currency,
+                              )}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+                  </div>
+                </Card>
+              </motion.div>
+            ))}
+          </motion.div>
+        </motion.div>
       )}
 
       {/* Form Modal */}
@@ -459,6 +486,6 @@ export default function RealEstatePage() {
         onCancel={() => setIsDeleteDialogOpen(false)}
         onConfirm={confirmDelete}
       />
-    </div>
+    </motion.div>
   )
 }

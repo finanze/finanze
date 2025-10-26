@@ -6,7 +6,8 @@ from uuid import UUID
 from domain.base import BaseData
 from domain.dezimal import Dezimal
 from domain.entity import Entity
-from domain.global_position import ProductType
+from domain.fetch_record import DataSource
+from domain.global_position import EquityType, FundType, ProductType
 from pydantic.dataclasses import dataclass
 
 
@@ -34,7 +35,7 @@ class TxType(str, Enum):
 
 @dataclass
 class BaseTx(BaseData):
-    id: UUID
+    id: Optional[UUID]
     ref: str
     name: str
     amount: Dezimal
@@ -42,7 +43,7 @@ class BaseTx(BaseData):
     type: TxType
     date: datetime
     entity: Entity
-    is_real: bool
+    source: DataSource
     product_type: ProductType
 
 
@@ -62,7 +63,7 @@ class AccountTx(BaseTx):
 
 @dataclass
 class StockTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     isin: Optional[str]
     shares: Dezimal
     price: Dezimal
@@ -72,11 +73,12 @@ class StockTx(BaseInvestmentTx):
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
     linked_tx: Optional[str] = None
+    equity_type: Optional[EquityType] = None
 
 
 @dataclass
 class FundTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     isin: str
     shares: Dezimal
     price: Dezimal
@@ -84,6 +86,7 @@ class FundTx(BaseInvestmentTx):
     market: Optional[str] = None
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
+    fund_type: Optional[FundType] = None
 
 
 @dataclass
@@ -95,26 +98,23 @@ class FundPortfolioTx(BaseInvestmentTx):
 
 @dataclass
 class FactoringTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
 class RealEstateCFTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
 class DepositTx(BaseInvestmentTx):
-    net_amount: Dezimal
+    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
-    interests: Dezimal
 
 
 @dataclass
@@ -143,3 +143,4 @@ class TransactionQueryRequest:
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
     types: Optional[list[TxType]] = None
+    historic_entry_id: Optional[UUID] = None

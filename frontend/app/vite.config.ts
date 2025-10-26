@@ -56,6 +56,14 @@ export default defineConfig(({ command }) => {
     define: {
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
     },
+    build: {
+      rollupOptions: {
+        input: {
+          main: resolve(__dirname, "index.html"),
+          about: resolve(__dirname, "about.html"),
+        },
+      },
+    },
     server:
       process.env.VSCODE_DEBUG &&
       (() => {

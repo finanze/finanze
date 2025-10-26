@@ -33,15 +33,18 @@ class MetalPriceClient(MetalPriceProvider):
 
         self._log = logging.getLogger(__name__)
 
-    def get_price(self, commodity: CommodityType) -> Optional[CommodityExchangeRate]:
+    def get_price(
+        self, commodity: CommodityType, **kwargs
+    ) -> Optional[CommodityExchangeRate]:
         if commodity in self._price_cache:
             return self._price_cache[commodity]
 
         if commodity in self._none_cache:
             return None
 
+        timeout = kwargs.get("timeout", None)
         client = self.SYMBOL_MAPPINGS[commodity]
-        price = client.get_price(commodity)
+        price = client.get_price(commodity, timeout)
 
         if price is None:
             self._log.error(f"Failed to fetch price for {commodity}, skipping.")

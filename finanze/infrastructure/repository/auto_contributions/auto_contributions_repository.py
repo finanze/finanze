@@ -12,6 +12,7 @@ from domain.auto_contributions import (
 )
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.fetch_record import DataSource
 from infrastructure.repository.db.client import DBClient
 
 
@@ -19,12 +20,12 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entity_id: UUID, data: AutoContributions):
+    def save(self, entity_id: UUID, data: AutoContributions, source: DataSource):
         with self._db_client.tx() as cursor:
             # Delete existing contributions for this entity
             cursor.execute(
-                "DELETE FROM periodic_contributions WHERE entity_id = ?",
-                (str(entity_id),),
+                "DELETE FROM periodic_contributions WHERE entity_id = ? AND source = ?",
+                (str(entity_id), source.value),
             )
 
             # Insert new contributions
@@ -32,8 +33,8 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 cursor.execute(
                     """
                     INSERT INTO periodic_contributions (id, entity_id, target, target_type, alias, target_name, amount, currency,
-                                                        since, until, frequency, active, is_real, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                        since, until, frequency, active, is_real, source, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(contrib.id),
@@ -48,7 +49,8 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         contrib.until.isoformat() if contrib.until else None,
                         contrib.frequency.name,
                         contrib.active,
-                        contrib.is_real,
+                        contrib.source == DataSource.REAL,
+                        contrib.source,
                         datetime.now(tzlocal()).isoformat(),
                     ),
                 )
@@ -72,8 +74,10 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
             conditions = []
             if query.real is not None:
-                conditions.append("pc.is_real = ?")
-                params.append(query.real)
+                if query.real:
+                    conditions.append("pc.source = 'REAL'")
+                else:
+                    conditions.append("pc.source IN ('MANUAL', 'SHEETS')")
             if query.entities:
                 placeholders = ", ".join("?" for _ in query.entities)
                 conditions.append(f"pc.entity_id IN ({placeholders})")
@@ -120,7 +124,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         else None,
                         frequency=ContributionFrequency[row["frequency"]],
                         active=bool(row["active"]),
-                        is_real=bool(row["is_real"]),
+                        source=row["source"],
                     )
                 )
 
@@ -128,3 +132,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 entity: AutoContributions(periodic=contribs)
                 for entity, contribs in entities.items()
             }
+
+    def delete_by_source(self, source: DataSource):
+        with self._db_client.tx() as cursor:
+            cursor.execute(
+                "DELETE FROM periodic_contributions WHERE source = ?", (source.value,)
+            )

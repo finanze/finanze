@@ -118,9 +118,47 @@ export const InvestmentDistributionChart: React.FC<
 }) => {
   const { t } = useI18n()
   const [activeInnerIndex, setActiveInnerIndex] = useState<number>(-1)
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
+  const chartAreaRef = useRef<HTMLDivElement | null>(null)
+  const [size, setSize] = useState({ width: 0 })
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
+  const hasData = Array.isArray(data) && data.length > 0
+
+  useEffect(() => {
+    if (variant !== "bare" || !hasData) return
+    if (typeof ResizeObserver === "undefined") return
+    const element = wrapperRef.current
+    if (!element) return
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        if (entry.contentRect.width) {
+          setSize({ width: entry.contentRect.width })
+        }
+      }
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [variant, hasData])
+
+  useEffect(() => {
+    if (variant !== "bare" || !hasData) return
+    if (typeof ResizeObserver === "undefined") return
+    const element = chartAreaRef.current
+    if (!element) return
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect
+        if (width || height) {
+          setChartSize({ width, height })
+        }
+      }
+    })
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [variant, hasData])
 
   if (variant === "bare") {
-    if (!data || data.length === 0) {
+    if (!hasData) {
       return (
         <div className={`flex flex-col justify-center ${containerClassName}`}>
           <div className="h-64 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -129,31 +167,6 @@ export const InvestmentDistributionChart: React.FC<
         </div>
       )
     }
-    const wrapperRef = useRef<HTMLDivElement | null>(null)
-    const chartAreaRef = useRef<HTMLDivElement | null>(null)
-    const [size, setSize] = useState({ width: 0 })
-    const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
-    useEffect(() => {
-      if (!wrapperRef.current) return
-      const ro = new ResizeObserver(entries => {
-        for (const e of entries) {
-          if (e.contentRect.width) setSize({ width: e.contentRect.width })
-        }
-      })
-      ro.observe(wrapperRef.current)
-      return () => ro.disconnect()
-    }, [])
-    useEffect(() => {
-      if (!chartAreaRef.current) return
-      const ro = new ResizeObserver(entries => {
-        for (const e of entries) {
-          const { width, height } = e.contentRect
-          if (width || height) setChartSize({ width, height })
-        }
-      })
-      ro.observe(chartAreaRef.current)
-      return () => ro.disconnect()
-    }, [])
     const effectiveWidth = size.width || 600
     const effectiveHeight = chartSize.height || 420
     const limitingSide = Math.min(effectiveWidth, effectiveHeight)

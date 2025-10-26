@@ -1,5 +1,5 @@
-import { ProductType } from "./position"
-import { EntityOrigin } from "."
+import { EquityType, FundType, ProductType } from "./position"
+import { DataSource, EntityOrigin } from "."
 
 export enum TxType {
   BUY = "BUY",
@@ -37,7 +37,7 @@ export interface BaseTx {
     name: string
     origin: EntityOrigin
   }
-  is_real: boolean
+  source: DataSource
   product_type: ProductType
 }
 
@@ -65,6 +65,7 @@ export interface StockTx extends BaseInvestmentTx {
   retentions?: number
   order_date?: string
   linked_tx?: string
+  equity_type?: EquityType
 }
 
 // Fund transaction interface
@@ -77,10 +78,12 @@ export interface FundTx extends BaseInvestmentTx {
   fees: number
   retentions?: number
   order_date?: string
+  fund_type?: FundType
 }
 
 export interface FundPortfolioTx extends BaseInvestmentTx {
   fees: number
+  portfolio_name: string
   iban?: string
 }
 
@@ -89,7 +92,6 @@ export interface FactoringTx extends BaseInvestmentTx {
   net_amount: number
   fees: number
   retentions: number
-  interests: number
 }
 
 // Real state crowdfunding transaction interface
@@ -97,7 +99,6 @@ export interface RealEstateCFTx extends BaseInvestmentTx {
   net_amount: number
   fees: number
   retentions: number
-  interests: number
 }
 
 // Deposit transaction interface
@@ -105,8 +106,92 @@ export interface DepositTx extends BaseInvestmentTx {
   net_amount: number
   fees: number
   retentions: number
-  interests: number
 }
+
+export interface ManualTransactionBasePayload {
+  id: string
+  ref: string
+  name: string
+  amount: number
+  currency: string
+  type: TxType
+  date: string
+  entity_id: string
+  source: DataSource
+  product_type: ProductType
+}
+
+export interface ManualAccountTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.ACCOUNT
+  fees?: number
+  retentions?: number
+  interest_rate?: number
+  avg_balance?: number
+}
+
+export interface ManualStockTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.STOCK_ETF
+  ticker?: string
+  isin?: string
+  shares: number
+  price: number
+  fees?: number
+  retentions?: number
+  market?: string
+  order_date?: string
+}
+
+export interface ManualFundTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.FUND
+  isin: string
+  shares: number
+  price: number
+  fees?: number
+  retentions?: number
+  market?: string
+  order_date?: string
+}
+
+export interface ManualFundPortfolioTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.FUND_PORTFOLIO
+  portfolio_name: string
+  fees?: number
+  iban?: string
+}
+
+export interface ManualFactoringTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.FACTORING
+  fees?: number
+  retentions?: number
+}
+
+export interface ManualRealEstateTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.REAL_ESTATE_CF
+  fees?: number
+  retentions?: number
+}
+
+export interface ManualDepositTransactionPayload
+  extends ManualTransactionBasePayload {
+  product_type: ProductType.DEPOSIT
+  fees?: number
+  retentions?: number
+}
+
+export type ManualTransactionPayload =
+  | ManualAccountTransactionPayload
+  | ManualStockTransactionPayload
+  | ManualFundTransactionPayload
+  | ManualFundPortfolioTransactionPayload
+  | ManualFactoringTransactionPayload
+  | ManualRealEstateTransactionPayload
+  | ManualDepositTransactionPayload
 
 // Transactions container
 export interface Transactions {
@@ -136,4 +221,5 @@ export interface TransactionQueryRequest {
   from_date?: string
   to_date?: string
   types?: TxType[]
+  historic_entry_id?: string
 }

@@ -13,6 +13,18 @@ export enum OS {
   LINUX = "linux",
 }
 
+export interface AboutAppInfo {
+  appName: string
+  version: string
+  author?: string | null
+  repository?: string | null
+  homepage?: string | null
+  electronVersion?: string | null
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
+  platform: PlatformInfo
+}
+
 export interface AppConfig {
   readonly isDev: boolean
   readonly os: OS

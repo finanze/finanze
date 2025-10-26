@@ -10,6 +10,7 @@ from domain.entity import Feature
 
 class VirtualDataSource(str, Enum):
     SHEETS = "SHEETS"
+    MANUAL = "MANUAL"
 
 
 @dataclass

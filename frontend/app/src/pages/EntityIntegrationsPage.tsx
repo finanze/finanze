@@ -1,4 +1,8 @@
 import { useAppContext } from "@/context/AppContext"
+import {
+  useEntityWorkflow,
+  type VirtualFetchResult,
+} from "@/context/EntityWorkflowContext"
 import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm } from "@/components/AddWalletForm"
@@ -9,6 +13,7 @@ import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
+import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useState, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -19,7 +24,6 @@ import {
   PopoverContent,
 } from "@/components/ui/Popover"
 import {
-  RefreshCw,
   ExternalLink,
   FileSpreadsheet,
   Landmark,
@@ -50,26 +54,30 @@ import {
   completeExternalEntityConnection,
   getImageUrl,
   disconnectExternalEntity,
+  virtualFetch,
 } from "@/services/api"
 import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
 
 export default function EntityIntegrationsPage() {
   const {
     entities,
-    isLoading,
+    isLoadingEntities,
+    fetchEntities,
+    showToast,
+    settings,
+    externalIntegrations,
+  } = useAppContext()
+  const {
+    isLoggingIn,
     selectedEntity,
     pinRequired,
     selectEntity,
-    fetchEntities,
     scrape,
-    runVirtualScrape,
     view,
     setView,
     startExternalLogin,
-    externalLoginInProgress,
     disconnectEntity,
-    settings,
-  } = useAppContext()
+  } = useEntityWorkflow()
 
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -213,6 +221,40 @@ export default function EntityIntegrationsPage() {
     }
   }
 
+  const runVirtualScrape = async (): Promise<VirtualFetchResult | null> => {
+    try {
+      const response = await virtualFetch()
+
+      if (response.code === "COMPLETED") {
+        let gotData = false
+        if (
+          (
+            response?.data?.positions ||
+            response?.data?.transactions?.account ||
+            response?.data?.transactions?.investment
+          )?.length
+        ) {
+          gotData = true
+          showToast(t.common.virtualScrapeSuccess, "success")
+        }
+
+        return { gotData: gotData, errors: response.errors }
+      } else {
+        let errorMessage = t.common.fetchError
+        if (response.code.toString() != "UNEXPECTED_ERROR") {
+          errorMessage =
+            t.errors[response.code as keyof typeof t.errors] ||
+            t.common.fetchError
+        }
+        showToast(errorMessage, "error")
+        return null
+      }
+    } catch {
+      showToast(t.common.virtualScrapeError, "error")
+      return null
+    }
+  }
+
   const handleVirtualConfirm = async () => {
     let result
     try {
@@ -257,12 +299,6 @@ export default function EntityIntegrationsPage() {
     }
   }
 
-  const handleBack = () => {
-    setView("entities")
-    setShowAddWallet(false)
-    setShowManageWallets(false)
-  }
-
   const handleAddWallet = async (name: string, address: string) => {
     if (!selectedEntity) return
 
@@ -303,7 +339,6 @@ export default function EntityIntegrationsPage() {
   }
 
   // External integrations helpers
-  const { externalIntegrations } = useAppContext()
   const hasProviderIntegration = externalIntegrations.some(
     integ =>
       integ.type === ExternalIntegrationType.ENTITY_PROVIDER &&
@@ -489,28 +524,10 @@ export default function EntityIntegrationsPage() {
     }
   }, [externalCandidates])
 
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  }
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  }
-
   // Scroll to enabled crypto wallets section when URL hash is present
   const { hash } = useLocation()
   useEffect(() => {
     if (hash === "#crypto-enabled") {
-      if (view !== "entities") {
-        setView("entities")
-      }
       setTimeout(() => {
         const el = document.getElementById("crypto-enabled")
         if (el) {
@@ -521,62 +538,285 @@ export default function EntityIntegrationsPage() {
   }, [hash, connectedCryptoEntities.length, view])
 
   return (
-    <div className="space-y-6 pb-6">
-      <div className="flex justify-between items-center">
+    <motion.div
+      className="space-y-6 pb-6"
+      variants={fadeListContainer}
+      initial="hidden"
+      animate="show"
+    >
+      <motion.div
+        className="flex justify-between items-center"
+        variants={fadeListItem}
+      >
         <h1 className="text-3xl font-bold">{t.entities.title}</h1>
-        {view === "entities" && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={fetchEntities}
-              disabled={isLoading}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-      </div>
+      </motion.div>
 
-      <AnimatePresence mode="wait">
-        {isLoading && view === "entities" ? (
-          <motion.div
-            key="loading"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex flex-col justify-center items-center h-64"
-          >
-            <LoadingSpinner size="lg" />
-            <p className="mt-4 text-gray-500 dark:text-gray-400">
-              {t.common.loading}
-            </p>
-          </motion.div>
-        ) : view === "entities" ? (
-          <motion.div
-            key="entities"
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="space-y-8"
-          >
-            {(connectedEntities.length > 0 || virtualEnabled) && (
-              <motion.div variants={item} className="space-y-6">
+      <motion.div variants={fadeListItem}>
+        <AnimatePresence mode="wait">
+          {isLoadingEntities ? (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col justify-center items-center h-64"
+            >
+              <LoadingSpinner size="lg" />
+              <p className="mt-4 text-gray-500 dark:text-gray-400">
+                {t.common.loading}
+              </p>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="entities"
+              variants={fadeListContainer}
+              initial="hidden"
+              animate="show"
+              className="space-y-8"
+            >
+              {(connectedEntities.length > 0 || virtualEnabled) && (
+                <motion.div variants={fadeListItem} className="space-y-6">
+                  <h2 className="text-xl font-semibold">
+                    {t.entities.connected}
+                  </h2>
+
+                  {/* Financial Institutions */}
+                  {connectedFinancialEntities.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <Landmark className="h-5 w-5 mr-2" />
+                        {t.entities.financialInstitutions}
+                      </h3>
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                      >
+                        {connectedFinancialEntities.map(entity => (
+                          <motion.div key={entity.id} variants={fadeListItem}>
+                            <EntityCard
+                              entity={entity}
+                              onSelect={() => handleEntitySelect(entity)}
+                              onRelogin={() => handleRelogin(entity)}
+                              onDisconnect={() => handleDisconnect(entity)}
+                              onManage={() => handleManage(entity)}
+                              onExternalContinue={
+                                handleContinueExternalEntityLink
+                              }
+                              onExternalDisconnect={
+                                handleDisconnectExternalProvided
+                              }
+                              linkingExternalEntityId={linkingExternalEntityId}
+                              onExternalRelink={handleRelinkExternalProvided}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
+
+                  {/* Crypto Wallets */}
+                  {connectedCryptoEntities.length > 0 && (
+                    <div className="space-y-3" id="crypto-enabled">
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <Wallet className="h-5 w-5 mr-2" />
+                        {t.entities.cryptoWallets}
+                      </h3>
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                      >
+                        {connectedCryptoEntities.map(entity => (
+                          <motion.div key={entity.id} variants={fadeListItem}>
+                            <EntityCard
+                              entity={entity}
+                              onSelect={() => handleEntitySelect(entity)}
+                              onRelogin={() => handleRelogin(entity)}
+                              onDisconnect={() => handleDisconnect(entity)}
+                              onManage={() => handleManage(entity)}
+                              onExternalContinue={
+                                handleContinueExternalEntityLink
+                              }
+                              onExternalDisconnect={
+                                handleDisconnectExternalProvided
+                              }
+                              linkingExternalEntityId={linkingExternalEntityId}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
+
+                  {/* User Data Section */}
+                  {virtualEnabled && (
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <User className="h-5 w-5 mr-2" />
+                        {t.entities.manualDataEntry}
+                      </h3>
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                      >
+                        <motion.div variants={fadeListItem}>
+                          <Card className="transition-all hover:shadow-md border-l-4 border-l-green-500 flex flex-col h-full">
+                            <CardHeader className="pb-2">
+                              <CardTitle className="flex items-center justify-center">
+                                <FileSpreadsheet className="h-5 w-5 mr-2" />
+                                {t.entities.userEntered}
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center justify-center text-center flex-1 space-y-4">
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {t.entities.userEnteredDescription}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-9 min-w-0 text-gray-900 hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                                onClick={() => setShowVirtualConfirm(true)}
+                              >
+                                <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                                {t.entities.importData}
+                              </Button>
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      </motion.div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              <motion.div variants={fadeListItem} className="space-y-6">
                 <h2 className="text-xl font-semibold">
-                  {t.entities.connected}
+                  {t.entities.available}
                 </h2>
 
                 {/* Financial Institutions */}
-                {connectedFinancialEntities.length > 0 && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <Landmark className="h-5 w-5 mr-2" />
-                      {t.entities.financialInstitutions}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {connectedFinancialEntities.map(entity => (
+                <div className="space-y-3">
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                    <Landmark className="h-5 w-5 mr-2" />
+                    {t.entities.financialInstitutions}
+                  </h3>
+                  <motion.div
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                    variants={fadeListContainer}
+                  >
+                    {/* Add External Entity Card */}
+                    <motion.div variants={fadeListItem}>
+                      <Card
+                        className={`transition-all hover:shadow-md border-l-4 border-l-gray-300 ${hasProviderIntegration ? "opacity-100 cursor-pointer hover:shadow-lg" : "opacity-80"}`}
+                        onClick={
+                          hasProviderIntegration
+                            ? openAddExternalEntity
+                            : undefined
+                        }
+                      >
+                        <CardHeader className="pb-0 p-4">
+                          <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center min-w-0">
+                              <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
+                                <div className="absolute inset-0">
+                                  <img
+                                    src="icons/santander.png"
+                                    alt=""
+                                    className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                    style={{
+                                      transform:
+                                        "translate(-50%,-10%) rotate(-10deg)",
+                                    }}
+                                    draggable={false}
+                                  />
+                                  <img
+                                    src="icons/sabadell.png"
+                                    alt=""
+                                    className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                    style={{
+                                      transform:
+                                        "translate(0,-45%) rotate(6deg)",
+                                    }}
+                                    draggable={false}
+                                  />
+                                  <img
+                                    src="icons/n26.png"
+                                    alt=""
+                                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                    style={{
+                                      transform:
+                                        "translate(-55%,10%) rotate(9deg)",
+                                    }}
+                                    draggable={false}
+                                  />
+                                  <img
+                                    src="icons/vivid.png"
+                                    alt=""
+                                    className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                    style={{
+                                      transform:
+                                        "translate(0%,-45%) rotate(-7deg)",
+                                    }}
+                                    draggable={false}
+                                  />
+                                </div>
+                              </div>
+                              <span className="truncate">
+                                {t.entities.moreFinancialInstitutionsCard}
+                              </span>
+                            </div>
+                            {!hasProviderIntegration ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
+                                  >
+                                    {t.entities.requiresProviderIntegration}
+                                  </Badge>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <AlertCircle className="h-9 w-9 text-red-500" />
+                                      <h4 className="font-medium text-sm">
+                                        {t.entities.requiresProviderIntegration}
+                                      </h4>
+                                    </div>
+                                    {providerIntegrations.length > 0 && (
+                                      <div className="space-y-1 ml-11 mt-1">
+                                        {providerIntegrations.map(integ => (
+                                          <div
+                                            key={integ.id}
+                                            className="text-sm text-gray-600 dark:text-gray-300"
+                                          >
+                                            • {integ.name}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      className="w-full mt-4"
+                                      onClick={() =>
+                                        navigate(
+                                          "/settings?tab=integrations&focus=gocardless",
+                                        )
+                                      }
+                                    >
+                                      <Settings className="mr-2 h-3 w-3" />
+                                      {t.entities.goToSettings}
+                                    </Button>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            ) : null}
+                          </CardTitle>
+                        </CardHeader>
+                      </Card>
+                    </motion.div>
+                    {unconnectedFinancialEntities.map(entity => (
+                      <motion.div key={entity.id} variants={fadeListItem}>
                         <EntityCard
-                          key={entity.id}
                           entity={entity}
                           onSelect={() => handleEntitySelect(entity)}
                           onRelogin={() => handleRelogin(entity)}
@@ -589,376 +829,202 @@ export default function EntityIntegrationsPage() {
                           linkingExternalEntityId={linkingExternalEntityId}
                           onExternalRelink={handleRelinkExternalProvided}
                         />
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </div>
 
                 {/* Crypto Wallets */}
-                {connectedCryptoEntities.length > 0 && (
-                  <div className="space-y-3" id="crypto-enabled">
+                {unconnectedCryptoEntities.length > 0 && (
+                  <div className="space-y-3">
                     <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
                       <Wallet className="h-5 w-5 mr-2" />
                       {t.entities.cryptoWallets}
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {connectedCryptoEntities.map(entity => (
-                        <EntityCard
-                          key={entity.id}
-                          entity={entity}
-                          onSelect={() => handleEntitySelect(entity)}
-                          onRelogin={() => handleRelogin(entity)}
-                          onDisconnect={() => handleDisconnect(entity)}
-                          onManage={() => handleManage(entity)}
-                          onExternalContinue={handleContinueExternalEntityLink}
-                          onExternalDisconnect={
-                            handleDisconnectExternalProvided
-                          }
-                          linkingExternalEntityId={linkingExternalEntityId}
-                        />
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                      variants={fadeListContainer}
+                    >
+                      {unconnectedCryptoEntities.map(entity => (
+                        <motion.div key={entity.id} variants={fadeListItem}>
+                          <EntityCard
+                            entity={entity}
+                            onSelect={() => handleEntitySelect(entity)}
+                            onRelogin={() => handleRelogin(entity)}
+                            onDisconnect={() => handleDisconnect(entity)}
+                            onManage={() => handleManage(entity)}
+                            onExternalContinue={
+                              handleContinueExternalEntityLink
+                            }
+                            onExternalDisconnect={
+                              handleDisconnectExternalProvided
+                            }
+                            linkingExternalEntityId={linkingExternalEntityId}
+                            onExternalRelink={handleRelinkExternalProvided}
+                          />
+                        </motion.div>
                       ))}
-                    </div>
+                    </motion.div>
                   </div>
                 )}
 
-                {/* User Data Section */}
-                {virtualEnabled && (
+                {/* User Entered (Virtual) - Show in Available when disabled */}
+                {!virtualEnabled && (
                   <div className="space-y-3">
                     <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
                       <User className="h-5 w-5 mr-2" />
                       {t.entities.manualDataEntry}
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <Card className="transition-all hover:shadow-md border-l-4 border-l-green-500 flex flex-col h-full">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="flex items-center justify-center">
-                            <FileSpreadsheet className="h-5 w-5 mr-2" />
-                            {t.entities.userEntered}
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="flex flex-col items-center justify-center text-center flex-1 space-y-4">
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {t.entities.userEnteredDescription}
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-9 min-w-0 text-gray-900 hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                            onClick={() => setShowVirtualConfirm(true)}
-                          >
-                            <Download className="mr-2 h-4 w-4 flex-shrink-0" />
-                            {t.entities.importData}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    </div>
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                      variants={fadeListContainer}
+                    >
+                      <motion.div variants={fadeListItem}>
+                        <Card className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 flex flex-col h-full">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center justify-center">
+                              <FileSpreadsheet className="h-5 w-5 mr-2" />
+                              {t.entities.userEntered}
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="flex flex-col items-center justify-center text-center flex-1">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                              {t.entities.userEnteredAvailableDescription}
+                            </p>
+                            <Button
+                              variant="outline"
+                              className="w-full"
+                              onClick={handleConfigureVirtual}
+                            >
+                              {t.entities.configureInSettings}
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    </motion.div>
                   </div>
                 )}
               </motion.div>
-            )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
 
-            <motion.div variants={item} className="space-y-6">
-              <h2 className="text-xl font-semibold">{t.entities.available}</h2>
-
-              {/* Financial Institutions */}
-              <div className="space-y-3">
-                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                  <Landmark className="h-5 w-5 mr-2" />
-                  {t.entities.financialInstitutions}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Add External Entity Card */}
-                  <Card
-                    className={`transition-all hover:shadow-md border-l-4 border-l-gray-300 ${hasProviderIntegration ? "opacity-100 cursor-pointer hover:shadow-lg" : "opacity-80"}`}
-                    onClick={
-                      hasProviderIntegration ? openAddExternalEntity : undefined
-                    }
-                  >
-                    <CardHeader className="pb-0 p-4">
-                      <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center min-w-0">
-                          <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
-                            <div className="absolute inset-0">
-                              <img
-                                src="icons/santander.png"
-                                alt=""
-                                className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                style={{
-                                  transform:
-                                    "translate(-50%,-10%) rotate(-10deg)",
-                                }}
-                                draggable={false}
-                              />
-                              <img
-                                src="icons/sabadell.png"
-                                alt=""
-                                className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                style={{
-                                  transform: "translate(0,-45%) rotate(6deg)",
-                                }}
-                                draggable={false}
-                              />
-                              <img
-                                src="icons/n26.png"
-                                alt=""
-                                className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                style={{
-                                  transform: "translate(-55%,10%) rotate(9deg)",
-                                }}
-                                draggable={false}
-                              />
-                              <img
-                                src="icons/vivid.png"
-                                alt=""
-                                className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                style={{
-                                  transform: "translate(0%,-45%) rotate(-7deg)",
-                                }}
-                                draggable={false}
-                              />
-                            </div>
-                          </div>
-                          <span className="truncate">
-                            {t.entities.moreFinancialInstitutionsCard}
-                          </span>
-                        </div>
-                        {!hasProviderIntegration ? (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Badge
-                                variant="outline"
-                                className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
-                              >
-                                {t.entities.requiresProviderIntegration}
-                              </Badge>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80">
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-2">
-                                  <AlertCircle className="h-9 w-9 text-red-500" />
-                                  <h4 className="font-medium text-sm">
-                                    {t.entities.requiresProviderIntegration}
-                                  </h4>
-                                </div>
-                                {providerIntegrations.length > 0 && (
-                                  <div className="space-y-1 ml-11 mt-1">
-                                    {providerIntegrations.map(integ => (
-                                      <div
-                                        key={integ.id}
-                                        className="text-sm text-gray-600 dark:text-gray-300"
-                                      >
-                                        • {integ.name}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                <Button
-                                  size="sm"
-                                  className="w-full mt-4"
-                                  onClick={() =>
-                                    navigate(
-                                      "/settings?tab=integrations&focus=gocardless",
-                                    )
-                                  }
-                                >
-                                  <Settings className="mr-2 h-3 w-3" />
-                                  {t.entities.goToSettings}
-                                </Button>
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        ) : null}
-                      </CardTitle>
-                    </CardHeader>
-                  </Card>
-                  {unconnectedFinancialEntities.map(entity => (
-                    <EntityCard
-                      key={entity.id}
-                      entity={entity}
-                      onSelect={() => handleEntitySelect(entity)}
-                      onRelogin={() => handleRelogin(entity)}
-                      onDisconnect={() => handleDisconnect(entity)}
-                      onManage={() => handleManage(entity)}
-                      onExternalContinue={handleContinueExternalEntityLink}
-                      onExternalDisconnect={handleDisconnectExternalProvided}
-                      linkingExternalEntityId={linkingExternalEntityId}
-                      onExternalRelink={handleRelinkExternalProvided}
-                    />
-                  ))}
+      {/* Login Modal */}
+      <AnimatePresence>
+        {view === "login" && selectedEntity && !pinRequired && (
+          <motion.div
+            key="login-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
+            >
+              {isLoggingIn ? (
+                <div className="flex flex-col justify-center items-center h-64 rounded-lg border border-border bg-background px-6">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-gray-500 dark:text-gray-400">
+                    {t.common.loading}
+                  </p>
                 </div>
-              </div>
-
-              {/* Crypto Wallets */}
-              {unconnectedCryptoEntities.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    <Wallet className="h-5 w-5 mr-2" />
-                    {t.entities.cryptoWallets}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {unconnectedCryptoEntities.map(entity => (
-                      <EntityCard
-                        key={entity.id}
-                        entity={entity}
-                        onSelect={() => handleEntitySelect(entity)}
-                        onRelogin={() => handleRelogin(entity)}
-                        onDisconnect={() => handleDisconnect(entity)}
-                        onManage={() => handleManage(entity)}
-                        onExternalContinue={handleContinueExternalEntityLink}
-                        onExternalDisconnect={handleDisconnectExternalProvided}
-                        linkingExternalEntityId={linkingExternalEntityId}
-                        onExternalRelink={handleRelinkExternalProvided}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* User Entered (Virtual) - Show in Available when disabled */}
-              {!virtualEnabled && (
-                <div className="space-y-3">
-                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                    <User className="h-5 w-5 mr-2" />
-                    {t.entities.manualDataEntry}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <Card className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 flex flex-col h-full">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center justify-center">
-                          <FileSpreadsheet className="h-5 w-5 mr-2" />
-                          {t.entities.userEntered}
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex flex-col items-center justify-center text-center flex-1">
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                          {t.entities.userEnteredAvailableDescription}
-                        </p>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={handleConfigureVirtual}
-                        >
-                          {t.entities.configureInSettings}
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
+              ) : (
+                <LoginForm />
               )}
             </motion.div>
           </motion.div>
-        ) : null}
-
-        {view === "login" && selectedEntity && !pinRequired && (
-          <motion.div
-            key="login"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-          >
-            <Button variant="ghost" onClick={handleBack} className="mb-4">
-              ← {t.common.back}
-            </Button>
-            {isLoading ? (
-              <div className="flex flex-col justify-center items-center h-64">
-                <LoadingSpinner size="lg" />
-                <p className="mt-4 text-gray-500 dark:text-gray-400">
-                  {t.common.loading}
-                </p>
-              </div>
-            ) : (
-              <LoginForm />
-            )}
-          </motion.div>
         )}
+      </AnimatePresence>
 
+      {/* External Login Modal */}
+      <AnimatePresence>
         {view === "external-login" && selectedEntity && (
           <motion.div
-            key="external-login"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            key="external-login-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              className="mb-4"
-              disabled={externalLoginInProgress}
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              ← {t.common.back}
-            </Button>
-            <Card className="w-full max-w-md mx-auto">
-              <CardHeader>
-                <CardTitle className="text-center flex items-center justify-center">
-                  <ExternalLink className="mr-2 h-5 w-5" />
-                  {t.login.externalLogin} {selectedEntity.name}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-center">
-                {externalLoginInProgress ? (
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle className="text-center flex items-center justify-center">
+                    <ExternalLink className="mr-2 h-5 w-5" />
+                    {t.login.externalLogin} {selectedEntity.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-center">
                   <div className="flex flex-col items-center justify-center py-8">
                     <LoadingSpinner size="lg" className="mb-4" />
                     <p>{t.login.externalLoginInProgress}</p>
                   </div>
-                ) : (
-                  <div className="py-8">
-                    <p className="mb-4">{t.login.externalLoginComplete}</p>
-                    <Button onClick={handleBack}>{t.common.back}</Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
+      {/* Feature Selector Modal */}
+      <AnimatePresence>
         {view === "features" && selectedEntity && !pinRequired && (
           <motion.div
-            key="features"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="min-h-[calc(100vh-18rem)] flex flex-col"
+            key="features-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              className="mb-4 self-start"
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              ← {t.common.back}
-            </Button>
-            <div className="flex-1 flex justify-center items-center">
               <FeatureSelector />
-            </div>
+            </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
 
+      {/* PIN Modal */}
+      <AnimatePresence>
         {pinRequired && selectedEntity && (
           <motion.div
-            key="pinpad"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="min-h-[calc(100vh-18rem)] flex flex-col"
+            key="pin-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 px-4 py-8"
           >
-            <Button
-              variant="ghost"
-              onClick={handleBack}
-              className="mb-4 self-start"
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
             >
-              ← {t.common.back}
-            </Button>
-            {isLoading ? (
-              <div className="flex flex-col justify-center items-center h-64">
-                <LoadingSpinner size="lg" />
-                <p className="mt-4 text-gray-500 dark:text-gray-400">
-                  {t.common.loading}
-                </p>
-              </div>
-            ) : (
-              <div className="flex-1 flex justify-center items-center">
+              {isLoggingIn ? (
+                <div className="flex flex-col justify-center items-center h-64 rounded-lg border border-border bg-background px-6">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-gray-500 dark:text-gray-400">
+                    {t.common.loading}
+                  </p>
+                </div>
+              ) : (
                 <PinPad />
-              </div>
-            )}
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -970,7 +1036,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -996,15 +1062,15 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] overflow-hidden"
+              className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden"
             >
-              <div className="h-full overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-6 min-h-0">
                 <ManageWalletsView
                   entityId={selectedEntity.id}
                   onBack={handleBackFromManageWallets}
@@ -1025,7 +1091,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1168,7 +1234,7 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40 p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
@@ -1246,6 +1312,6 @@ export default function EntityIntegrationsPage() {
         errors={virtualErrors || []}
         onClose={handleCloseErrorDetails}
       />
-    </div>
+    </motion.div>
   )
 }

@@ -2,7 +2,6 @@ from asyncio import Lock
 from datetime import datetime
 from uuid import uuid4
 
-from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_integration_port import ExternalIntegrationPort
@@ -16,6 +15,7 @@ from dateutil.tz import tzlocal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
 from domain.external_integration import ExternalIntegrationId
+from domain.fetch_record import DataSource
 from domain.use_cases.virtual_fetch import VirtualFetch
 from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
 from domain.virtual_fetch_result import (
@@ -25,7 +25,7 @@ from domain.virtual_fetch_result import (
 )
 
 
-class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
+class VirtualFetchImpl(VirtualFetch):
     def __init__(
         self,
         position_port: PositionPort,
@@ -37,8 +37,6 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
         virtual_import_registry: VirtualImportRegistry,
         transaction_handler_port: TransactionHandlerPort,
     ):
-        AtomicUCMixin.__init__(self, transaction_handler_port)
-
         self._position_port = position_port
         self._transaction_port = transaction_port
         self._virtual_fetcher = virtual_fetcher
@@ -46,6 +44,7 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
         self._external_integration_port = external_integration_port
         self._config_port = config_port
         self._virtual_import_registry = virtual_import_registry
+        self._transaction_handler_port = transaction_handler_port
 
         self._lock = Lock()
 
@@ -90,79 +89,80 @@ class VirtualFetchImpl(AtomicUCMixin, VirtualFetch):
                 sheets_credentials, investment_sheets, existing_entities_by_name
             )
 
-            now = datetime.now(tzlocal())
-            import_id = uuid4()
-            virtual_import_entries = []
-            if virtual_position_result.positions:
-                for entity in virtual_position_result.created_entities:
-                    self._entity_port.insert(entity)
-                    existing_entities_by_name[entity.name] = entity
+            async with self._transaction_handler_port.start():
+                now = datetime.now(tzlocal())
+                import_id = uuid4()
+                virtual_import_entries = []
+                if virtual_position_result.positions:
+                    for entity in virtual_position_result.created_entities:
+                        self._entity_port.insert(entity)
+                        existing_entities_by_name[entity.name] = entity
 
-                for position in virtual_position_result.positions:
-                    self._position_port.save(position)
-                    virtual_import_entries.append(
-                        VirtualDataImport(
-                            import_id=import_id,
-                            global_position_id=position.id,
-                            source=VirtualDataSource.SHEETS,
-                            date=now,
-                            feature=Feature.POSITION,
-                            entity_id=position.entity.id,
+                    for position in virtual_position_result.positions:
+                        self._position_port.save(position)
+                        virtual_import_entries.append(
+                            VirtualDataImport(
+                                import_id=import_id,
+                                global_position_id=position.id,
+                                source=VirtualDataSource.SHEETS,
+                                date=now,
+                                feature=Feature.POSITION,
+                                entity_id=position.entity.id,
+                            )
                         )
-                    )
 
-            virtual_txs_result = await self._virtual_fetcher.transactions(
-                sheets_credentials,
-                transaction_sheets,
-                existing_entities_by_name,
-            )
+                virtual_txs_result = await self._virtual_fetcher.transactions(
+                    sheets_credentials,
+                    transaction_sheets,
+                    existing_entities_by_name,
+                )
 
-            self._transaction_port.delete_non_real()
-            transactions = virtual_txs_result.transactions
-            if transactions:
-                for entity in virtual_txs_result.created_entities:
-                    self._entity_port.insert(entity)
+                self._transaction_port.delete_by_source(DataSource.SHEETS)
+                transactions = virtual_txs_result.transactions
+                if transactions:
+                    for entity in virtual_txs_result.created_entities:
+                        self._entity_port.insert(entity)
 
-                self._transaction_port.save(transactions)
+                    self._transaction_port.save(transactions)
 
-                tx_entities = {
-                    tx.entity.id
-                    for tx in transactions.investment + transactions.account
-                }
-                for entity_id in tx_entities:
+                    tx_entities = {
+                        tx.entity.id
+                        for tx in transactions.investment + transactions.account
+                    }
+                    for entity_id in tx_entities:
+                        virtual_import_entries.append(
+                            VirtualDataImport(
+                                import_id=import_id,
+                                global_position_id=None,
+                                source=VirtualDataSource.SHEETS,
+                                date=now,
+                                feature=Feature.TRANSACTIONS,
+                                entity_id=entity_id,
+                            )
+                        )
+
+                if not virtual_import_entries:
                     virtual_import_entries.append(
                         VirtualDataImport(
                             import_id=import_id,
                             global_position_id=None,
                             source=VirtualDataSource.SHEETS,
                             date=now,
-                            feature=Feature.TRANSACTIONS,
-                            entity_id=entity_id,
+                            feature=None,
+                            entity_id=None,
                         )
                     )
 
-            if not virtual_import_entries:
-                virtual_import_entries.append(
-                    VirtualDataImport(
-                        import_id=import_id,
-                        global_position_id=None,
-                        source=VirtualDataSource.SHEETS,
-                        date=now,
-                        feature=None,
-                        entity_id=None,
-                    )
+                self._virtual_import_registry.insert(virtual_import_entries)
+
+                errors = virtual_position_result.errors + virtual_txs_result.errors
+                data = VirtuallyFetchedData(
+                    positions=virtual_position_result.positions,
+                    transactions=transactions,
                 )
 
-            self._virtual_import_registry.insert(virtual_import_entries)
-
-            errors = virtual_position_result.errors + virtual_txs_result.errors
-            data = VirtuallyFetchedData(
-                positions=virtual_position_result.positions,
-                transactions=transactions,
-            )
-
-            return VirtualFetchResult(
-                VirtualFetchResultCode.COMPLETED,
-                data=data,
-                errors=errors,
-            )
+                return VirtualFetchResult(
+                    VirtualFetchResultCode.COMPLETED,
+                    data=data,
+                    errors=errors,
+                )

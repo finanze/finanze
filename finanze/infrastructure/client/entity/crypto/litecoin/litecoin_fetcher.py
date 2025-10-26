@@ -1,4 +1,5 @@
 import logging
+import time
 from uuid import uuid4
 
 import requests
@@ -18,6 +19,7 @@ class LitecoinFetcher(CryptoEntityFetcher):
 
     BASE_URL = "https://api.blockcypher.com/v1/ltc/main/addrs"
     SCALE = Dezimal("1e-8")
+    COOLDOWN = 0.2
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -42,6 +44,7 @@ class LitecoinFetcher(CryptoEntityFetcher):
 
     def _fetch(self, url: str) -> dict:
         response = requests.get(url)
+        time.sleep(self.COOLDOWN)
         if response.ok:
             return response.json()
 

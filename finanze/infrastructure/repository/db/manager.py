@@ -8,6 +8,8 @@ from domain.data_init import (
     AlreadyUnlockedError,
     DatasourceInitParams,
     DecryptionError,
+    MigrationAheadOfTime,
+    MigrationError,
 )
 from infrastructure.repository.db.client import DBClient, UnderlyingConnection
 from infrastructure.repository.db.upgrader import DatabaseUpgrader
@@ -60,6 +62,7 @@ class DBManager(DatasourceInitiator):
                 )
 
                 self._unlock_and_setup(connection, params.password)
+                self._log.info("Database unlocked successfully.")
 
                 self._unlocked = True
                 self._client.set_connection(connection)
@@ -68,22 +71,26 @@ class DBManager(DatasourceInitiator):
 
                 return connection
 
-            except DatabaseError as e:
-                self._log.error(f"Failed to unlock database: {e}")
-                if connection:
-                    connection.close()
-                if "file is not a database" in str(e) or "encrypted" in str(e):
-                    raise DecryptionError(
-                        "Failed to decrypt database. Incorrect password or corrupted file."
-                    ) from e
-                raise
+            except Exception as e:
+                if isinstance(e, DatabaseError):
+                    self._log.error(f"Failed to unlock database: {e}")
+                    if "file is not a database" in str(e) or "encrypted" in str(e):
+                        raise DecryptionError(
+                            "Failed to decrypt database. Incorrect password or corrupted file."
+                        ) from e
 
-            except Exception:
-                self._log.exception(
-                    "An unexpected error occurred during database connection/unlock."
-                )
+                elif not isinstance(e, MigrationAheadOfTime):
+                    self._log.exception(e)
+
+                elif not isinstance(e, MigrationError):
+                    self._log.exception(
+                        "An unexpected error occurred during database connection/unlock."
+                    )
+
+                self._unlocked = False
                 if connection:
                     connection.close()
+                self._client.set_connection(None)
                 raise
 
     def _unlock_and_setup(self, connection: UnderlyingConnection, password: str):
@@ -92,7 +99,7 @@ class DBManager(DatasourceInitiator):
 
         connection.execute("SELECT count(*) FROM sqlite_master WHERE type='table';")
 
-        self._log.info("Database unlocked successfully.")
+        connection.execute("PRAGMA journal_mode = WAL;")
 
         connection.execute("PRAGMA foreign_keys = ON;")
         connection.row_factory = sqlcipher.Row
@@ -128,6 +135,11 @@ class DBManager(DatasourceInitiator):
         self._log.info("Setting up database schema...")
 
         upgrader = DatabaseUpgrader(self._client, versions)
-        upgrader.upgrade()
 
-        self._log.info("Database schema setup complete.")
+        try:
+            upgrader.upgrade()
+            self._log.info("Database schema setup complete.")
+        except MigrationError:
+            raise
+        except Exception as e:
+            raise MigrationError from e

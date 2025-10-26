@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
-import { getTransactions } from "@/services/api"
+import {
+  getTransactions,
+  createManualTransaction,
+  updateManualTransaction,
+  deleteManualTransaction,
+} from "@/services/api"
 import {
   TransactionsResult,
   TransactionQueryRequest,
@@ -26,21 +31,32 @@ import {
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency, formatDate } from "@/lib/formatters"
-import { getColorForName } from "@/lib/utils"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
+import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
+import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
   Search,
   RotateCcw,
   Calendar,
   ChevronDown,
   ChevronUp,
+  Pencil,
+  Plus,
+  Trash2,
 } from "lucide-react"
 import {
   getIconForTxType,
   getIconForProductType,
   getProductTypeColor,
 } from "@/utils/dashboardUtils"
-import { EntityOrigin } from "@/types"
+import { DataSource, EntityOrigin, EntityType } from "@/types"
+import {
+  ManualTransactionDialog,
+  type ManualTransactionEntityOption,
+  type ManualTransactionSubmitResult,
+} from "@/components/transactions/ManualTransactionDialog"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { useLocation, useNavigate } from "react-router-dom"
 
 interface TransactionFilters {
   entities: string[]
@@ -49,30 +65,62 @@ interface TransactionFilters {
   types: TxType[]
   from_date: string
   to_date: string
+  historic_entry_id: string
 }
+
+type TransactionItem = TransactionsResult["transactions"][number]
 
 const ITEMS_PER_PAGE = 20
 
 export default function TransactionsPage() {
   const { t, locale } = useI18n()
-  const { entities, inactiveEntities, settings, showToast } = useAppContext()
+  const { entities, inactiveEntities, settings, showToast, exchangeRates } =
+    useAppContext()
+  const location = useLocation()
+  const navigateRouter = useNavigate()
+
+  const initialHistoricEntryIdRef = useRef(
+    new URLSearchParams(location.search).get("historic_entry_id") ?? "",
+  )
+  const initialHistoricEntryNameRef = useRef<string | null>(
+    new URLSearchParams(location.search).get("historic_entry_name"),
+  )
+  const skipInitialFetchRef = useRef(Boolean(initialHistoricEntryIdRef.current))
+  const latestFetchIdRef = useRef(0)
+  const historicFilterWatchStartedRef = useRef(false)
+  const previousHistoricIdRef = useRef<string>(
+    initialHistoricEntryIdRef.current,
+  )
+  const initialFetchTriggeredRef = useRef(false)
 
   const [transactions, setTransactions] = useState<TransactionsResult | null>(
     null,
   )
-  const [loading, setLoading] = useState(false)
-  // Removed local error state in favor of global toast notifications
+  const [loadingTxs, setLoadingTxs] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
 
-  const [filters, setFilters] = useState<TransactionFilters>({
+  const [filters, setFilters] = useState<TransactionFilters>(() => ({
     entities: [],
     excluded_entities: inactiveEntities?.map(e => e.id) || [],
     product_types: [],
     types: [],
     from_date: "",
     to_date: "",
-  })
+    historic_entry_id: initialHistoricEntryIdRef.current,
+  }))
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [dialogMode, setDialogMode] = useState<"create" | "edit">("create")
+  const [selectedTransaction, setSelectedTransaction] =
+    useState<TransactionItem | null>(null)
+  const [isSubmittingTransaction, setIsSubmittingTransaction] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<TransactionItem | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeletingTransaction, setIsDeletingTransaction] = useState(false)
+  const [historicEntryName, setHistoricEntryName] = useState<string | null>(
+    initialHistoricEntryNameRef.current,
+  )
 
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     return (
@@ -108,11 +156,75 @@ export default function TransactionsPage() {
     }))
   }, [t])
 
+  const defaultCurrency = settings.general.defaultCurrency
+
+  const supportedCurrencySet = useMemo<Set<string> | null>(() => {
+    if (typeof Intl.supportedValuesOf !== "function") {
+      return null
+    }
+    try {
+      return new Set(Intl.supportedValuesOf("currency"))
+    } catch (error) {
+      console.warn("Failed to read supported currencies", error)
+      return null
+    }
+  }, [])
+
+  const currencyOptions = useMemo(() => {
+    const set = new Set<string>()
+    set.add(defaultCurrency.toUpperCase())
+
+    Object.entries(exchangeRates || {}).forEach(([base, targets]) => {
+      set.add(base.toUpperCase())
+      Object.keys(targets).forEach(code => set.add(code.toUpperCase()))
+    })
+
+    let options = Array.from(set)
+    if (supportedCurrencySet) {
+      options = options.filter(code => supportedCurrencySet.has(code))
+    }
+
+    return options.sort((a, b) => a.localeCompare(b))
+  }, [exchangeRates, defaultCurrency, supportedCurrencySet])
+
+  const manualEntityOptions = useMemo<ManualTransactionEntityOption[]>(() => {
+    if (!entities) return []
+    return entities
+      .filter(entity => entity.type === EntityType.FINANCIAL_INSTITUTION)
+      .map(entity => ({
+        id: entity.id,
+        name: entity.name,
+        origin: entity.origin as EntityOrigin,
+      }))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, locale, { sensitivity: "base" }),
+      )
+  }, [entities, locale])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const entryIdParam = params.get("historic_entry_id") ?? ""
+    const entryNameParam = params.get("historic_entry_name")
+
+    setHistoricEntryName(entryNameParam ? entryNameParam : null)
+
+    setFilters(prev => {
+      if (prev.historic_entry_id === entryIdParam) {
+        return prev
+      }
+      return {
+        ...prev,
+        historic_entry_id: entryIdParam,
+      }
+    })
+  }, [location.search])
+
   const fetchTransactions = async (
     page: number = 1,
     resetPage: boolean = false,
   ) => {
-    setLoading(true)
+    const fetchId = ++latestFetchIdRef.current
+    setLoadingTxs(true)
     // Clear previous error toast implicitly by showing a new one only on failure
 
     try {
@@ -133,22 +245,59 @@ export default function TransactionsPage() {
       })
 
       const result = await getTransactions(queryParams)
-      setTransactions(result)
+      if (latestFetchIdRef.current === fetchId) {
+        setTransactions(result)
 
-      if (resetPage) {
-        setCurrentPage(1)
+        if (resetPage) {
+          setCurrentPage(1)
+        }
       }
+
+      return result
     } catch (err) {
       console.error("Error fetching transactions:", err)
-      showToast(t.errors.UNEXPECTED_ERROR, "error")
+      if (latestFetchIdRef.current === fetchId) {
+        showToast(t.common.unexpectedError, "error")
+      }
+      return undefined
     } finally {
-      setLoading(false)
+      if (latestFetchIdRef.current === fetchId) {
+        setLoadingTxs(false)
+      }
     }
   }
 
   useEffect(() => {
+    if (initialFetchTriggeredRef.current) {
+      return
+    }
+
+    initialFetchTriggeredRef.current = true
+
+    if (skipInitialFetchRef.current) {
+      skipInitialFetchRef.current = false
+      return
+    }
+
     fetchTransactions(1, true)
   }, [])
+
+  useEffect(() => {
+    if (!historicFilterWatchStartedRef.current) {
+      historicFilterWatchStartedRef.current = true
+      previousHistoricIdRef.current = filters.historic_entry_id
+
+      if (filters.historic_entry_id) {
+        fetchTransactions(1, true)
+      }
+      return
+    }
+
+    if (previousHistoricIdRef.current !== filters.historic_entry_id) {
+      previousHistoricIdRef.current = filters.historic_entry_id
+      fetchTransactions(1, true)
+    }
+  }, [filters.historic_entry_id])
 
   const handleFilterChange = (key: keyof TransactionFilters, value: any) => {
     setFilters(prev => ({
@@ -157,11 +306,41 @@ export default function TransactionsPage() {
     }))
   }
 
+  const clearHistoricFilter = useCallback(() => {
+    setFilters(prev => {
+      if (!prev.historic_entry_id) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        historic_entry_id: "",
+      }
+    })
+
+    setHistoricEntryName(null)
+
+    const params = new URLSearchParams(location.search)
+    params.delete("historic_entry_id")
+    params.delete("historic_entry_name")
+
+    const searchString = params.toString()
+
+    navigateRouter(
+      {
+        pathname: location.pathname,
+        search: searchString ? `?${searchString}` : "",
+      },
+      { replace: true },
+    )
+  }, [location.pathname, location.search, navigateRouter])
+
   const handleApplyFilters = () => {
     fetchTransactions(1, true)
   }
 
   const handleClearFilters = () => {
+    clearHistoricFilter()
     setFilters({
       entities: [],
       excluded_entities: inactiveEntities?.map(e => e.id) || [],
@@ -169,6 +348,7 @@ export default function TransactionsPage() {
       types: [],
       from_date: "",
       to_date: "",
+      historic_entry_id: "",
     })
     fetchTransactions(1, true)
   }
@@ -225,6 +405,96 @@ export default function TransactionsPage() {
     })
   }
 
+  const handleOpenCreateDialog = () => {
+    setDialogMode("create")
+    setSelectedTransaction(null)
+    setIsDialogOpen(true)
+  }
+
+  const handleDialogClose = () => {
+    if (isSubmittingTransaction) return
+    setIsDialogOpen(false)
+    setSelectedTransaction(null)
+    setDialogMode("create")
+  }
+
+  const handleEditTransaction = (tx: TransactionItem) => {
+    setDialogMode("edit")
+    setSelectedTransaction(tx)
+    setIsDialogOpen(true)
+  }
+
+  const handleRequestDelete = (tx: TransactionItem) => {
+    setDeleteTarget(tx)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleCancelDelete = () => {
+    if (isDeletingTransaction) return
+    setIsDeleteDialogOpen(false)
+    setDeleteTarget(null)
+  }
+
+  const handleSubmitTransaction = async (
+    result: ManualTransactionSubmitResult,
+  ) => {
+    const isEdit = dialogMode === "edit"
+    setIsSubmittingTransaction(true)
+    try {
+      if (isEdit && result.transactionId) {
+        await updateManualTransaction(result.transactionId, result.payload)
+        showToast(t.transactions.form.updateSuccess, "success")
+      } else {
+        await createManualTransaction(result.payload)
+        showToast(t.transactions.form.createSuccess, "success")
+      }
+
+      setIsDialogOpen(false)
+      setSelectedTransaction(null)
+      setDialogMode("create")
+
+      if (isEdit) {
+        await fetchTransactions(currentPage, false)
+      } else {
+        await fetchTransactions(1, true)
+      }
+    } catch (error) {
+      console.error("Error saving manual transaction:", error)
+      showToast(t.transactions.form.submitError, "error")
+    } finally {
+      setIsSubmittingTransaction(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeletingTransaction(true)
+    const targetId = deleteTarget.id
+    try {
+      await deleteManualTransaction(targetId)
+      showToast(t.transactions.form.deleteSuccess, "success")
+      setIsDeleteDialogOpen(false)
+      setDeleteTarget(null)
+      setExpandedCards(prev => {
+        const next = new Set(prev)
+        next.delete(targetId)
+        return next
+      })
+
+      const current = currentPage
+      const result = await fetchTransactions(current, false)
+      if (result && result.transactions.length === 0 && current > 1) {
+        setCurrentPage(current - 1)
+        await fetchTransactions(current - 1, false)
+      }
+    } catch (error) {
+      console.error("Error deleting manual transaction:", error)
+      showToast(t.transactions.form.deleteError, "error")
+    } finally {
+      setIsDeletingTransaction(false)
+    }
+  }
+
   const getTransactionTypeColor = (type: TxType): string => {
     switch (type) {
       case TxType.BUY:
@@ -250,8 +520,29 @@ export default function TransactionsPage() {
     }
   }
 
+  const detailRowClass = "text-sm text-gray-600 dark:text-gray-400"
+  const detailLabelClass = "font-medium text-gray-500 dark:text-gray-300"
+
+  const getSourceInfo = (source: DataSource) => {
+    if (source === DataSource.REAL) {
+      return null
+    }
+
+    const Icon = getSourceIcon(source)
+
+    return (
+      <div className={`${detailRowClass} flex items-center gap-2`}>
+        <span className={detailLabelClass}>{t.transactions.source}:</span>
+        <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400">
+          {Icon && <Icon className="h-3.5 w-3.5" />}
+          {t.enums?.dataSource?.[source] || source}
+        </span>
+      </div>
+    )
+  }
+
   const renderTransactionDetails = (tx: any) => {
-    const commonFields = <></>
+    const commonFields = <>{getSourceInfo(tx.source)}</>
 
     switch (tx.product_type) {
       case ProductType.STOCK_ETF: {
@@ -260,26 +551,32 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {stockTx.ticker && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.ticker}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.ticker}:
+                </span>{" "}
                 {stockTx.ticker}
               </div>
             )}
             {stockTx.isin && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.isin}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
                 {stockTx.isin}
               </div>
             )}
             {stockTx.shares && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.shares}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.shares}:
+                </span>{" "}
                 {stockTx.shares.toLocaleString()}
               </div>
             )}
             {Number(stockTx.price || 0) !== 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.price}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
                 {formatCurrency(
                   stockTx.price,
                   locale,
@@ -289,8 +586,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {stockTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   stockTx.fees,
                   locale,
@@ -300,8 +597,10 @@ export default function TransactionsPage() {
               </div>
             )}
             {stockTx.market && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.market}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.market}:
+                </span>{" "}
                 {stockTx.market}
               </div>
             )}
@@ -314,16 +613,16 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.isin}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.isin}:</span>{" "}
               {fundTx.isin}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.shares}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.shares}:</span>{" "}
               {fundTx.shares.toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.price}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.price}:</span>{" "}
               {formatCurrency(
                 fundTx.price,
                 locale,
@@ -332,8 +631,8 @@ export default function TransactionsPage() {
               )}
             </div>
             {fundTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   fundTx.fees,
                   locale,
@@ -342,8 +641,8 @@ export default function TransactionsPage() {
                 )}
               </div>
             )}
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              <span className="font-medium">{t.transactions.market}:</span>{" "}
+            <div className={detailRowClass}>
+              <span className={detailLabelClass}>{t.transactions.market}:</span>{" "}
               {fundTx.market}
             </div>
           </>
@@ -355,8 +654,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {typeof fpTx.fees === "number" && fpTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   fpTx.fees,
                   locale,
@@ -366,14 +665,14 @@ export default function TransactionsPage() {
               </div>
             )}
             {fpTx.iban && (
-              <div className="text-sm text-gray-600 dark:text-gray-400 break-all">
-                <span className="font-medium">{t.transactions.iban}:</span>{" "}
+              <div className={`${detailRowClass} break-all`}>
+                <span className={detailLabelClass}>{t.transactions.iban}:</span>{" "}
                 {fpTx.iban}
               </div>
             )}
             {fpTx.portfolio_name && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.portfolioName}:
                 </span>{" "}
                 {fpTx.portfolio_name}
@@ -389,8 +688,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {accountTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   accountTx.fees,
                   locale,
@@ -400,8 +699,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {accountTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
@@ -413,16 +712,16 @@ export default function TransactionsPage() {
               </div>
             )}
             {accountTx.interest_rate && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.interestRate}:
                 </span>{" "}
                 {(accountTx.interest_rate * 100).toFixed(2)}%
               </div>
             )}
             {accountTx.avg_balance && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.avgBalance}:
                 </span>{" "}
                 {formatCurrency(
@@ -443,8 +742,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {factoringTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   factoringTx.fees,
                   locale,
@@ -454,23 +753,12 @@ export default function TransactionsPage() {
               </div>
             )}
             {factoringTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
                   factoringTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
-            {factoringTx.interests > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.interests}:</span>{" "}
-                {formatCurrency(
-                  factoringTx.interests,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
@@ -487,8 +775,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {realEstateTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   realEstateTx.fees,
                   locale,
@@ -498,23 +786,12 @@ export default function TransactionsPage() {
               </div>
             )}
             {realEstateTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
                   realEstateTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
-            {realEstateTx.interests > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.interests}:</span>{" "}
-                {formatCurrency(
-                  realEstateTx.interests,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
@@ -531,8 +808,8 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {depositTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   depositTx.fees,
                   locale,
@@ -542,23 +819,12 @@ export default function TransactionsPage() {
               </div>
             )}
             {depositTx.retentions > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
                   {t.transactions.retentions}:
                 </span>{" "}
                 {formatCurrency(
                   depositTx.retentions,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
-            {depositTx.interests > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.interests}:</span>{" "}
-                {formatCurrency(
-                  depositTx.interests,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,
@@ -576,20 +842,26 @@ export default function TransactionsPage() {
           <>
             {commonFields}
             {cryptoTx.ticker && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.ticker}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.ticker}:
+                </span>{" "}
                 {cryptoTx.ticker}
               </div>
             )}
             {cryptoTx.shares && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.amount}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.amount}:
+                </span>{" "}
                 {cryptoTx.shares.toLocaleString()}
               </div>
             )}
             {cryptoTx.price && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.price}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
                 {formatCurrency(
                   cryptoTx.price,
                   locale,
@@ -599,8 +871,8 @@ export default function TransactionsPage() {
               </div>
             )}
             {cryptoTx.fees > 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-medium">{t.transactions.fees}:</span>{" "}
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
                 {formatCurrency(
                   cryptoTx.fees,
                   locale,
@@ -618,20 +890,21 @@ export default function TransactionsPage() {
     }
   }
 
-  if (loading && !transactions) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner />
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
           {t.transactions.title}
         </h1>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleOpenCreateDialog}
+            className="flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            {t.transactions.addManualTransaction}
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -716,7 +989,7 @@ export default function TransactionsPage() {
         <div className="flex gap-3">
           <Button
             onClick={handleApplyFilters}
-            disabled={loading}
+            disabled={loadingTxs}
             className="flex items-center gap-2"
           >
             <Search className="h-4 w-4" />
@@ -725,7 +998,7 @@ export default function TransactionsPage() {
           <Button
             variant="outline"
             onClick={handleClearFilters}
-            disabled={loading}
+            disabled={loadingTxs}
             className="flex items-center gap-2"
           >
             <RotateCcw className="h-4 w-4" />
@@ -733,6 +1006,32 @@ export default function TransactionsPage() {
           </Button>
         </div>
       </Card>
+
+      {filters.historic_entry_id && (
+        <div className="flex flex-col gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-700 dark:border-blue-500/40 dark:bg-blue-900/20 dark:text-blue-200 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-semibold">
+              {t.transactions.historicFilter.title}
+            </p>
+            <p className="text-xs">
+              {historicEntryName
+                ? t.transactions.historicFilter.description.replace(
+                    "{project}",
+                    historicEntryName,
+                  )
+                : t.transactions.historicFilter.descriptionGeneric}
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start sm:self-auto"
+            onClick={clearHistoricFilter}
+          >
+            {t.transactions.historicFilter.clear}
+          </Button>
+        </div>
+      )}
 
       {/* Results */}
 
@@ -749,7 +1048,7 @@ export default function TransactionsPage() {
                   </span>
                 )}
               </h2>
-              {loading && <LoadingSpinner size="sm" />}
+              {loadingTxs && <LoadingSpinner size="sm" />}
             </div>
 
             {transactions.transactions.length === 0 ? (
@@ -799,7 +1098,6 @@ export default function TransactionsPage() {
                           tx.product_type === ProductType.DEPOSIT ||
                           tx.product_type === ProductType.CRYPTO ||
                           tx.product_type === ProductType.FUND_PORTFOLIO
-
                         return (
                           <React.Fragment key={tx.id}>
                             <tr
@@ -815,14 +1113,6 @@ export default function TransactionsPage() {
                               <td className="py-4 px-3">
                                 <div className="font-medium text-sm text-gray-900 dark:text-gray-100 flex items-center gap-2">
                                   {tx.name}
-                                  {!tx.is_real && (
-                                    <span
-                                      className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200"
-                                      title="Virtual/User Imported Transaction"
-                                    >
-                                      📝
-                                    </span>
-                                  )}
                                 </div>
                               </td>
                               <td className="py-4 px-3 text-center w-24">
@@ -876,17 +1166,21 @@ export default function TransactionsPage() {
                                 </div>
                               </td>
                               <td className="py-4 px-3 text-center">
-                                <Badge
-                                  className={`${getColorForName(tx.entity.name)} whitespace-normal break-words text-xs inline-flex items-center justify-center cursor-pointer hover:opacity-80 transition-opacity`}
-                                  onClick={() =>
-                                    handleBadgeClick("entity", tx.entity.id)
-                                  }
-                                >
-                                  {tx.entity.name}
-                                  {tx.entity.origin == EntityOrigin.MANUAL && (
-                                    <span className="ml-1 opacity-70">(V)</span>
-                                  )}
-                                </Badge>
+                                <div className="flex items-center justify-center gap-2">
+                                  <SourceBadge
+                                    source={tx.source}
+                                    title={t.transactions.source}
+                                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+                                  />
+                                  <EntityBadge
+                                    name={tx.entity.name}
+                                    origin={tx.entity.origin}
+                                    onClick={() =>
+                                      handleBadgeClick("entity", tx.entity.id)
+                                    }
+                                    className="text-xs"
+                                  />
+                                </div>
                               </td>
                               <td className="py-4 px-2 text-center w-10">
                                 {hasDetails && (
@@ -914,6 +1208,32 @@ export default function TransactionsPage() {
                                 <td colSpan={7} className="px-3 pb-4">
                                   <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
                                     {renderTransactionDetails(tx)}
+                                    {tx.source === DataSource.MANUAL && (
+                                      <div className="flex flex-wrap gap-2 pt-3">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleEditTransaction(tx)
+                                          }
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                          {t.common.edit}
+                                        </Button>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleRequestDelete(tx)
+                                          }
+                                          className="flex items-center gap-2"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                          {t.common.delete}
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
                                 </td>
                               </tr>
@@ -931,7 +1251,7 @@ export default function TransactionsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1 || loading}
+                    disabled={currentPage === 1 || loadingTxs}
                     className="px-3 py-2"
                   >
                     ←
@@ -947,7 +1267,7 @@ export default function TransactionsPage() {
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={
                       transactions?.transactions.length < ITEMS_PER_PAGE ||
-                      loading
+                      loadingTxs
                     }
                     className="px-3 py-2"
                   >
@@ -968,7 +1288,7 @@ export default function TransactionsPage() {
                 </span>
               )}
             </h2>
-            {loading && <LoadingSpinner size="sm" />}
+            {loadingTxs && <LoadingSpinner size="sm" />}
           </div>
 
           {/* Mobile No Results */}
@@ -992,7 +1312,6 @@ export default function TransactionsPage() {
                   tx.product_type === ProductType.DEPOSIT ||
                   tx.product_type === ProductType.CRYPTO ||
                   tx.product_type === ProductType.FUND_PORTFOLIO
-
                 return (
                   <Card
                     key={tx.id}
@@ -1002,14 +1321,6 @@ export default function TransactionsPage() {
                       <div className="flex-1 min-w-0 pr-3">
                         <div className="font-medium text-gray-900 dark:text-gray-100 flex items-start gap-2 flex-wrap break-words">
                           <span className="break-words min-w-0">{tx.name}</span>
-                          {!tx.is_real && (
-                            <span
-                              className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 flex-shrink-0"
-                              title="Virtual/User Imported Transaction"
-                            >
-                              📝
-                            </span>
-                          )}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
                           {formatDate(tx.date, locale)}
@@ -1062,15 +1373,20 @@ export default function TransactionsPage() {
                         {t.enums?.productType?.[tx.product_type] ||
                           tx.product_type}
                       </Badge>
-                      <Badge
-                        className={`${getColorForName(tx.entity.name)} whitespace-normal break-words inline-flex items-center cursor-pointer hover:opacity-80 transition-opacity`}
-                        onClick={() => handleBadgeClick("entity", tx.entity.id)}
-                      >
-                        {tx.entity.name}
-                        {tx.entity.origin == EntityOrigin.MANUAL && (
-                          <span className="ml-1 opacity-75">(V)</span>
-                        )}
-                      </Badge>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <SourceBadge
+                          source={tx.source}
+                          title={t.transactions.source}
+                          className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
+                        />
+                        <EntityBadge
+                          name={tx.entity.name}
+                          origin={tx.entity.origin}
+                          onClick={() =>
+                            handleBadgeClick("entity", tx.entity.id)
+                          }
+                        />
+                      </div>
 
                       {hasDetails && (
                         <button
@@ -1095,6 +1411,28 @@ export default function TransactionsPage() {
                     {hasDetails && isExpanded && (
                       <div className="pt-2 space-y-2 border-t border-gray-100 dark:border-gray-800">
                         {renderTransactionDetails(tx)}
+                        {tx.source === DataSource.MANUAL && (
+                          <div className="flex flex-wrap gap-2 pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditTransaction(tx)}
+                              className="flex items-center gap-2"
+                            >
+                              <Pencil className="h-4 w-4" />
+                              {t.common.edit}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRequestDelete(tx)}
+                              className="flex items-center gap-2"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t.common.delete}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </Card>
@@ -1107,7 +1445,7 @@ export default function TransactionsPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1 || loading}
+                  disabled={currentPage === 1 || loadingTxs}
                   className="px-3 py-2"
                 >
                   ←
@@ -1123,7 +1461,7 @@ export default function TransactionsPage() {
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={
                     transactions?.transactions.length < ITEMS_PER_PAGE ||
-                    loading
+                    loadingTxs
                   }
                   className="px-3 py-2"
                 >
@@ -1134,6 +1472,30 @@ export default function TransactionsPage() {
           )}
         </>
       )}
+
+      <ManualTransactionDialog
+        isOpen={isDialogOpen}
+        mode={dialogMode}
+        transaction={selectedTransaction}
+        entities={manualEntityOptions}
+        currencyOptions={currencyOptions}
+        defaultCurrency={defaultCurrency}
+        onClose={handleDialogClose}
+        onSubmit={handleSubmitTransaction}
+        isSubmitting={isSubmittingTransaction}
+      />
+
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        title={t.transactions.deleteManualTransactionTitle}
+        message={t.transactions.deleteManualTransactionMessage}
+        confirmText={t.common.delete}
+        cancelText={t.common.cancel}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        isLoading={isDeletingTransaction}
+        warning={t.transactions.deleteManualTransactionWarning}
+      />
     </div>
   )
 }

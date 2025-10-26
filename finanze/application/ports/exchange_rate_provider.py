@@ -5,9 +5,9 @@ from domain.exchange_rate import ExchangeRates
 
 class ExchangeRateProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def get_available_currencies(self) -> dict[str, str]:
+    def get_available_currencies(self, **kwargs) -> dict[str, str]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_matrix(self) -> ExchangeRates:
+    def get_matrix(self, **kwargs) -> ExchangeRates:
         raise NotImplementedError

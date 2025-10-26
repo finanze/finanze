@@ -25,6 +25,12 @@ export enum EntityOrigin {
   INTERNAL = "INTERNAL",
 }
 
+export enum DataSource {
+  REAL = "REAL",
+  SHEETS = "SHEETS",
+  MANUAL = "MANUAL",
+}
+
 export interface CryptoWalletConnection {
   id: string
   entity_id: string
@@ -80,6 +86,13 @@ export interface AuthRequest {
   password: string
 }
 
+export enum AuthResultCode {
+  SUCCESS = "SUCCESS",
+  INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
+  USER_NOT_FOUND = "USER_NOT_FOUND",
+  UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
+}
+
 export interface ChangePasswordRequest {
   username: string
   oldPassword: string
@@ -116,7 +129,7 @@ export interface LoginResponse {
 export interface FetchResponse {
   code: FetchResultCode
   details?: {
-    countdown?: number
+    wait?: number
     processId?: string
     credentials?: Record<string, string>
   }
@@ -178,6 +191,7 @@ export enum LoginResultCode {
 export enum FetchResultCode {
   // Success
   COMPLETED = "COMPLETED",
+  PARTIALLY_COMPLETED = "PARTIALLY_COMPLETED",
 
   // Cooldown
   COOLDOWN = "COOLDOWN",
@@ -226,7 +240,6 @@ export interface Settings {
     }
   }
   fetch: {
-    updateCooldown: number
     virtual: {
       enabled: boolean
       globals: {
@@ -269,6 +282,18 @@ export interface PlatformInfo {
 
 export type ThemeMode = "light" | "dark" | "system"
 
+export interface AboutAppInfo {
+  appName: string
+  version: string
+  author?: string | null
+  repository?: string | null
+  homepage?: string | null
+  electronVersion?: string | null
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
+  platform: PlatformInfo
+}
+
 export interface ExchangeRates {
   [baseCurrency: string]: {
     [targetCurrency: string]: number
@@ -294,6 +319,7 @@ declare global {
       platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
+      getAboutInfo: () => Promise<AboutAppInfo>
       requestExternalLogin: (
         id: string,
         request?: any,
@@ -686,4 +712,40 @@ export interface CompleteExternalEntityLinkRequest {
 
 export interface DeleteExternalEntityRequest {
   external_entity_id: string
+}
+
+export enum InstrumentType {
+  STOCK = "STOCK",
+  ETF = "ETF",
+  MUTUAL_FUND = "MUTUAL_FUND",
+}
+
+export interface InstrumentDataRequest {
+  type: InstrumentType
+  isin?: string | null
+  name?: string | null
+  ticker?: string | null
+}
+
+export interface InstrumentOverview {
+  isin?: string | null
+  name?: string | null
+  currency?: string | null
+  symbol?: string | null
+  type?: InstrumentType | null
+  market?: string | null
+  price?: number | null
+}
+
+export interface InstrumentInfo {
+  name?: string | null
+  currency?: string | null
+  type: InstrumentType
+  price?: number | null
+  symbol?: string | null
+  isin?: string | null
+}
+
+export interface InstrumentsResponse {
+  entries: InstrumentInfo[]
 }

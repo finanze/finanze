@@ -1,19 +1,32 @@
 import * as React from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { createPortal } from "react-dom"
+import { motion } from "framer-motion"
 
 interface ToastProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: "success" | "warning" | "error"
   onClose?: () => void
+  isAnimating?: boolean
 }
 
 const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
-  ({ className, variant = "success", onClose, children, ...props }, ref) => {
-    return (
+  (
+    {
+      className,
+      variant = "success",
+      onClose,
+      children,
+      isAnimating,
+      ...props
+    },
+    ref,
+  ) => {
+    const toastContent = (
       <div
         ref={ref}
         className={cn(
-          "fixed bottom-4 right-4 left-4 sm:left-auto z-50 flex max-w-md items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out data-[state=closed]:fade-out-80 data-[state=open]:slide-in-from-top-full data-[state=open]:slide-in-from-right-full data-[state=closed]:slide-out-to-right-full backdrop-blur-sm",
+          "fixed bottom-4 right-4 left-4 sm:left-auto z-[10001] flex max-w-md items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all backdrop-blur-sm",
           {
             "success group border-green-200 bg-green-50 text-green-900 dark:bg-green-900 dark:border-green-800 dark:text-green-100":
               variant === "success",
@@ -37,6 +50,26 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
         )}
       </div>
     )
+
+    if (isAnimating) {
+      return typeof document !== "undefined"
+        ? createPortal(
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              transition={{ type: "spring", stiffness: 500, damping: 30 }}
+            >
+              {toastContent}
+            </motion.div>,
+            document.body,
+          )
+        : toastContent
+    }
+
+    return typeof document !== "undefined"
+      ? createPortal(toastContent, document.body)
+      : toastContent
   },
 )
 Toast.displayName = "Toast"

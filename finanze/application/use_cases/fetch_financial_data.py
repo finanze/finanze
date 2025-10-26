@@ -1,12 +1,12 @@
 import asyncio
 import logging
+import os
 from asyncio import Lock
 from dataclasses import asdict
 from datetime import datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
@@ -23,7 +23,7 @@ from domain.dezimal import Dezimal
 from domain.entity import CredentialType, Entity, EntityType, Feature
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
-from domain.fetch_record import FetchRecord
+from domain.fetch_record import DataSource, FetchRecord
 from domain.fetch_result import (
     FETCH_BAD_LOGIN_CODES,
     FetchedData,
@@ -32,12 +32,25 @@ from domain.fetch_result import (
     FetchResult,
     FetchResultCode,
 )
-from domain.global_position import FactoringDetail, ProductType, RealEstateCFDetail
-from domain.historic import BaseHistoricEntry, FactoringEntry, RealEstateCFEntry
+from domain.global_position import (
+    FactoringDetail,
+    HistoricalPosition,
+    ProductType,
+    RealEstateCFDetail,
+)
+from domain.historic import (
+    BaseHistoricEntry,
+    FactoringEntry,
+    Historic,
+    RealEstateCFEntry,
+)
 from domain.transactions import TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
 DEFAULT_FEATURES = [Feature.POSITION]
+POSITION_UPDATE_COOLDOWN_SECONDS = int(
+    os.environ.get("POSITION_UPDATE_COOLDOWN_SECONDS", 60)
+)
 
 
 def compute_return_values(related_inv_txs):
@@ -58,7 +71,6 @@ def compute_return_values(related_inv_txs):
     if repayment_txs:
         fees += sum([tx.fees for tx in repayment_txs], start=Dezimal(0))
         retentions += sum([tx.retentions for tx in repayment_txs], start=Dezimal(0))
-        interests += sum([tx.interests for tx in repayment_txs], start=Dezimal(0))
 
         repaid += sum([tx.amount for tx in repayment_txs], start=Dezimal(0))
         returned = repaid
@@ -73,7 +85,7 @@ def compute_return_values(related_inv_txs):
         interest_retentions = sum(
             [tx.retentions for tx in interest_txs], start=Dezimal(0)
         )
-        added_interests = sum([tx.interests for tx in interest_txs], start=Dezimal(0))
+        added_interests = sum([tx.amount for tx in interest_txs], start=Dezimal(0))
 
         fees += interest_fees
         retentions += interest_retentions
@@ -121,7 +133,25 @@ def _historic_inv_by_name(historical_position):
     return investments_by_name
 
 
-class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
+def handle_cooldown(last_fetches, update_cooldown) -> Optional[FetchResult]:
+    last_fetch = None
+    if last_fetches:
+        last_fetch = last_fetches[0].date
+
+    if last_fetch and (datetime.now(tzlocal()) - last_fetch).seconds < update_cooldown:
+        remaining_seconds = (
+            update_cooldown - (datetime.now(tzlocal()) - last_fetch).seconds
+        )
+        details = {
+            "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
+            "wait": remaining_seconds,
+        }
+        return FetchResult(FetchResultCode.COOLDOWN, details=details)
+
+    return None
+
+
+class FetchFinancialDataImpl(FetchFinancialData):
     def __init__(
         self,
         position_port: PositionPort,
@@ -135,8 +165,6 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         last_fetches_port: LastFetchesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
-        AtomicUCMixin.__init__(self, transaction_handler_port)
-
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
         self._transaction_port = transaction_port
@@ -146,6 +174,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
         self._last_fetches_port = last_fetches_port
+        self._transaction_handler_port = transaction_handler_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -176,31 +205,10 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             raise ExecutionConflict()
 
         async with lock:
-            if Feature.POSITION in features:
-                update_cooldown = self._get_position_update_cooldown()
-                last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
-                last_fetch = next(
-                    (
-                        record
-                        for record in last_fetch
-                        if record.feature == Feature.POSITION
-                    ),
-                    None,
-                )
-                if last_fetch:
-                    last_fetch = last_fetch.date
-                if (
-                    last_fetch
-                    and (datetime.now(tzlocal()) - last_fetch).seconds < update_cooldown
-                ):
-                    remaining_seconds = (
-                        update_cooldown - (datetime.now(tzlocal()) - last_fetch).seconds
-                    )
-                    details = {
-                        "lastUpdate": last_fetch.astimezone(tzlocal()).isoformat(),
-                        "wait": remaining_seconds,
-                    }
-                    return FetchResult(FetchResultCode.COOLDOWN, details=details)
+            last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
+            result = handle_cooldown(last_fetch, POSITION_UPDATE_COOLDOWN_SECONDS)
+            if result:
+                return result
 
             credentials = self._credentials_port.get(entity.id)
             if credentials is None:
@@ -272,13 +280,9 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             if not features:
                 features = DEFAULT_FEATURES
 
-            fetched_data = await self.get_data(
+            return await self.get_data(
                 entity, features, specific_fetcher, fetch_request.fetch_options
             )
-
-            self._update_last_fetch(entity_id, features)
-
-            return FetchResult(FetchResultCode.COMPLETED, data=fetched_data)
 
     async def get_data(
         self,
@@ -286,7 +290,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         features: List[Feature],
         specific_fetcher: FinancialEntityFetcher,
         options: FetchOptions,
-    ) -> FetchedData:
+    ) -> FetchResult:
         position = None
         if Feature.POSITION in features:
             position = await specific_fetcher.global_position()
@@ -296,37 +300,53 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             auto_contributions = await specific_fetcher.auto_contributions()
 
         transactions = None
+        historical_position = None
         if Feature.TRANSACTIONS in features:
             registered_txs = {}
-            if options.deep:
-                self._transaction_port.delete_for_real_entity(entity.id)
-            else:
+            if not options.deep:
                 registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
+
             transactions = await specific_fetcher.transactions(registered_txs, options)
 
-        if position:
-            self._position_port.save(position)
+            if transactions and Feature.HISTORIC in features:
+                historical_position = await specific_fetcher.historical_position()
 
-        if auto_contributions:
-            self._auto_contr_repository.save(entity.id, auto_contributions)
+        async with self._transaction_handler_port.start():
+            if position:
+                self._position_port.save(position)
 
-        historic = None
-        if transactions:
-            self._transaction_port.save(transactions)
+            if auto_contributions:
+                self._auto_contr_repository.save(
+                    entity.id, auto_contributions, DataSource.REAL
+                )
 
-            if Feature.HISTORIC in features:
-                entries = await self.build_historic(entity, specific_fetcher)
+            if Feature.TRANSACTIONS in features and options.deep:
+                self._transaction_port.delete_by_entity_source(
+                    entity.id, DataSource.REAL
+                )
 
-                self._historic_port.delete_by_entity(entity.id)
-                self._historic_port.save(entries)
+            historic = None
+            if transactions:
+                self._transaction_port.save(transactions)
 
-        fetched_data = FetchedData(
-            position=position,
-            auto_contributions=auto_contributions,
-            transactions=transactions,
-            historic=historic,
-        )
-        return fetched_data
+                if Feature.HISTORIC in features:
+                    historic_entries = self.build_historic(
+                        entity, historical_position, specific_fetcher
+                    )
+                    historic = Historic(historic_entries)
+
+                    self._historic_port.delete_by_entity(entity.id)
+                    self._historic_port.save(historic.entries)
+
+            self._update_last_fetch(entity.id, features)
+
+            data = FetchedData(
+                position=position,
+                auto_contributions=auto_contributions,
+                transactions=transactions,
+                historic=historic,
+            )
+            return FetchResult(FetchResultCode.COMPLETED, data=data)
 
     def _compute_historic_entry(
         self, entity, inv, txs_by_name
@@ -352,6 +372,11 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         )
 
         last_tx_date = max(related_inv_txs, key=lambda txx: txx.date).date
+        effective_maturity = (
+            last_return_tx
+            if (not hasattr(inv, "pending_amount") or inv.pending_amount == 0)
+            else None
+        )
 
         historic_entry_base = {
             "id": uuid4(),
@@ -362,7 +387,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             "currency": inv.currency,
             "last_invest_date": inv.last_invest_date,
             "last_tx_date": last_tx_date,
-            "effective_maturity": last_return_tx,
+            "effective_maturity": effective_maturity,
             "net_return": net_return,
             "fees": fees,
             "retentions": retentions,
@@ -394,11 +419,12 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
 
         return None
 
-    async def build_historic(
-        self, entity: Entity, specific_fetcher: FinancialEntityFetcher
+    def build_historic(
+        self,
+        entity: Entity,
+        historical_position: HistoricalPosition,
+        specific_fetcher: FinancialEntityFetcher,
     ) -> list[BaseHistoricEntry]:
-        historical_position = await specific_fetcher.historical_position()
-
         investments_by_name = _historic_inv_by_name(historical_position)
 
         investments = list(investments_by_name.values())
@@ -425,9 +451,6 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             historic_entries.append(historic_entry)
 
         return historic_entries
-
-    def _get_position_update_cooldown(self) -> int:
-        return self._config_port.load().fetch.updateCooldown
 
     def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())

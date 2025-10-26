@@ -3,9 +3,9 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from pydantic.dataclasses import dataclass
-
 from domain.dezimal import Dezimal
+from domain.fetch_record import DataSource
+from pydantic.dataclasses import dataclass
 
 
 class ContributionFrequency(str, Enum):
@@ -38,7 +38,7 @@ class PeriodicContribution:
     until: Optional[date]
     frequency: ContributionFrequency
     active: bool
-    is_real: bool
+    source: DataSource
     next_date: Optional[date] = None
 
 
@@ -57,3 +57,17 @@ class ContributionQueryRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     real: Optional[bool] = None
+
+
+@dataclass
+class ManualPeriodicContribution:
+    entity_id: UUID
+    name: str
+    target: str
+    target_name: Optional[str]
+    target_type: ContributionTargetType
+    amount: Dezimal
+    currency: str
+    since: date
+    until: Optional[date]
+    frequency: ContributionFrequency

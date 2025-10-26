@@ -16,6 +16,7 @@ def _parse_rates(rates: dict) -> dict:
 
 class ExchangeRateClient(ExchangeRateProvider):
     MATRIX_CACHE_TTL = 2 * 60 * 60
+    TIMEOUT = 10
 
     BASE_URL = "https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1"
     CURRENCIES_URL = f"{BASE_URL}/currencies.min.json"
@@ -27,29 +28,31 @@ class ExchangeRateClient(ExchangeRateProvider):
         self._update_date = None
         self._log = logging.getLogger(__name__)
 
-        self._load_rate_matrix()
+        self._load_rate_matrix(self.TIMEOUT)
 
-    def get_available_currencies(self) -> dict[str, str]:
+    def get_available_currencies(self, **kwargs) -> dict[str, str]:
         if not self._available_currencies:
-            self._available_currencies = self._fetch_available_currencies()
+            timeout = kwargs.get("timeout", self.TIMEOUT)
+            self._available_currencies = self._fetch_available_currencies(timeout)
         return self._available_currencies
 
     @cached(cache=TTLCache(maxsize=1, ttl=MATRIX_CACHE_TTL))
-    def get_matrix(self) -> ExchangeRates:
+    def get_matrix(self, **kwargs) -> ExchangeRates:
         current_date = self._get_current_date()
+        timeout = kwargs.get("timeout", self.TIMEOUT)
         if current_date != self._update_date:
-            self._load_rate_matrix()
+            self._load_rate_matrix(timeout)
         return self._rates
 
-    def _fetch_available_currencies(self) -> dict:
-        return self._fetch(self.CURRENCIES_URL)
+    def _fetch_available_currencies(self, timeout: int) -> dict:
+        return self._fetch(self.CURRENCIES_URL, timeout)
 
-    def _fetch_rates(self, currency: str) -> dict:
+    def _fetch_rates(self, currency: str, timeout: int) -> dict:
         url = f"{self.BASE_URL}/currencies/{currency.lower()}.min.json"
-        return self._fetch(url)
+        return self._fetch(url, timeout)
 
-    def _fetch(self, url: str) -> dict:
-        response = requests.get(url)
+    def _fetch(self, url: str, timeout: int) -> dict:
+        response = requests.get(url, timeout=timeout)
         if response.ok:
             return response.json()
 
@@ -60,8 +63,8 @@ class ExchangeRateClient(ExchangeRateProvider):
     def _get_current_date(self) -> str:
         return datetime.now().strftime(self.DATE_FORMAT)
 
-    def _load_rate_matrix(self):
+    def _load_rate_matrix(self, timeout: int):
         for currency in AVAILABLE_CURRENCIES:
-            result = self._fetch_rates(currency)
+            result = self._fetch_rates(currency, timeout=timeout)
             self._update_date = datetime.strptime(result["date"], self.DATE_FORMAT)
             self._rates[currency] = _parse_rates(result[currency.lower()])
