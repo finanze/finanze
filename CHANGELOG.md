@@ -1,3 +1,41 @@
+## [0.6.0] - 2025-10-26
+
+### 🚀 Features
+
+- Manual transactions, asset position and contributions (#56)
+- Add money market fund asset type
+- Improve initial investment Real Estate calculation in dashboard KPIs
+- Show warning when first or deep transaction fetch
+- Improve asset details and state translations
+- Use MyInvestor original transfer initial investment
+- Partial fetch for all-crypto fetch
+- Add fund KIID link
+- Improve fetch cooldown management and extended for crypto
+- Add real estate CF and factoring investment historic
+- Improve entity login, fetching, pin entering UI and minor entity integrations page fixes
+- Add about section and improve migration handling/info
+- Add instrument search and data helper when manual adding
+- Add more fund/etf/stock backing sources & price tracker to keep manual positions up to date
+- Show extended maturity in real estate cf
+- Add private equity and pension fund tx support
+- Add private markets trade republic support (not stable)
+- Improve exchange rates loading
+- Check database version is not ahead
+
+### 🐛 Bug Fixes
+
+- V0601 table migration
+- Overlay expanded sidebar in narrow view
+- ING web app not saving session properly
+- Multifetch for Bitcoin allowing much more addresses at once & add request cooldowns to crypto fetchers
+- Migrate database stock equity types
+- Improved general loading, general error messages and minor UI fixes
+- General database transaction management fixes, theme application, login handling improvements and login options
+
+### ⚙️ Miscellaneous Tasks
+
+- Update frontend dependencies
+- Improve development release versioning
 ## [0.5.2] - 2025-10-13
 
 ### 🐛 Bug Fixes
