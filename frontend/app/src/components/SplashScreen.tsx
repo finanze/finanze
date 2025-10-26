@@ -1,11 +1,37 @@
+import { useI18n } from "@/i18n"
+import { LoginQuickSettings } from "@/components/ui/ThemeSelector"
+import { useTheme } from "@/context/ThemeContext"
+
 export default function SplashScreen() {
+  const { t } = useI18n()
+  const { theme } = useTheme()
+
+  const isLight =
+    theme === "light" ||
+    (theme === "system" &&
+      typeof window !== "undefined" &&
+      !window.matchMedia("(prefers-color-scheme: dark)").matches)
+  const gradientClass = isLight
+    ? "from-gray-400 via-gray-700 to-gray-300"
+    : "from-gray-800 via-white to-gray-700"
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-black p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-100 to-gray-300 dark:from-gray-900 dark:to-black">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-50 dark:bg-black p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gradient-100 to-gradient-300 dark:from-gradient-900 dark:to-black">
       <img
         src="finanze-fg.svg"
         alt="Finanze Logo"
-        className="w-64 h-64 animate-breathing drop-shadow"
+        className="w-64 h-64 animate-breathing drop-shadow invert dark:invert-0"
       />
+      <div className="absolute bottom-20 flex flex-col items-center gap-3 select-none">
+        <p
+          className={`text-lg select-none font-bold bg-gradient-to-r ${gradientClass} bg-[length:200%_auto] animate-text-shine bg-clip-text text-transparent`}
+        >
+          {t.common.connectingToServer}
+        </p>
+      </div>
+      <div className="absolute bottom-6 left-6">
+        <LoginQuickSettings />
+      </div>
     </div>
   )
 }

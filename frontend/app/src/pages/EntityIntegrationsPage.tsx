@@ -240,9 +240,12 @@ export default function EntityIntegrationsPage() {
 
         return { gotData: gotData, errors: response.errors }
       } else {
-        const errorMessage =
-          t.errors[response.code as keyof typeof t.errors] ||
-          t.common.fetchError
+        let errorMessage = t.common.fetchError
+        if (response.code.toString() != "UNEXPECTED_ERROR") {
+          errorMessage =
+            t.errors[response.code as keyof typeof t.errors] ||
+            t.common.fetchError
+        }
         showToast(errorMessage, "error")
         return null
       }

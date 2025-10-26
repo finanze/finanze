@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
@@ -33,8 +32,18 @@ from domain.fetch_result import (
     FetchResult,
     FetchResultCode,
 )
-from domain.global_position import FactoringDetail, ProductType, RealEstateCFDetail
-from domain.historic import BaseHistoricEntry, FactoringEntry, RealEstateCFEntry
+from domain.global_position import (
+    FactoringDetail,
+    HistoricalPosition,
+    ProductType,
+    RealEstateCFDetail,
+)
+from domain.historic import (
+    BaseHistoricEntry,
+    FactoringEntry,
+    Historic,
+    RealEstateCFEntry,
+)
 from domain.transactions import TxType
 from domain.use_cases.fetch_financial_data import FetchFinancialData
 
@@ -142,7 +151,7 @@ def handle_cooldown(last_fetches, update_cooldown) -> Optional[FetchResult]:
     return None
 
 
-class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
+class FetchFinancialDataImpl(FetchFinancialData):
     def __init__(
         self,
         position_port: PositionPort,
@@ -156,8 +165,6 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         last_fetches_port: LastFetchesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
-        AtomicUCMixin.__init__(self, transaction_handler_port)
-
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
         self._transaction_port = transaction_port
@@ -167,6 +174,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
         self._last_fetches_port = last_fetches_port
+        self._transaction_handler_port = transaction_handler_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -272,13 +280,9 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             if not features:
                 features = DEFAULT_FEATURES
 
-            fetched_data = await self.get_data(
+            return await self.get_data(
                 entity, features, specific_fetcher, fetch_request.fetch_options
             )
-
-            self._update_last_fetch(entity_id, features)
-
-            return FetchResult(FetchResultCode.COMPLETED, data=fetched_data)
 
     async def get_data(
         self,
@@ -286,7 +290,7 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
         features: List[Feature],
         specific_fetcher: FinancialEntityFetcher,
         options: FetchOptions,
-    ) -> FetchedData:
+    ) -> FetchResult:
         position = None
         if Feature.POSITION in features:
             position = await specific_fetcher.global_position()
@@ -296,41 +300,53 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
             auto_contributions = await specific_fetcher.auto_contributions()
 
         transactions = None
+        historical_position = None
         if Feature.TRANSACTIONS in features:
             registered_txs = {}
-            if options.deep:
+            if not options.deep:
+                registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
+
+            transactions = await specific_fetcher.transactions(registered_txs, options)
+
+            if transactions and Feature.HISTORIC in features:
+                historical_position = await specific_fetcher.historical_position()
+
+        async with self._transaction_handler_port.start():
+            if position:
+                self._position_port.save(position)
+
+            if auto_contributions:
+                self._auto_contr_repository.save(
+                    entity.id, auto_contributions, DataSource.REAL
+                )
+
+            if Feature.TRANSACTIONS in features and options.deep:
                 self._transaction_port.delete_by_entity_source(
                     entity.id, DataSource.REAL
                 )
-            else:
-                registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
-            transactions = await specific_fetcher.transactions(registered_txs, options)
 
-        if position:
-            self._position_port.save(position)
+            historic = None
+            if transactions:
+                self._transaction_port.save(transactions)
 
-        if auto_contributions:
-            self._auto_contr_repository.save(
-                entity.id, auto_contributions, DataSource.REAL
+                if Feature.HISTORIC in features:
+                    historic_entries = self.build_historic(
+                        entity, historical_position, specific_fetcher
+                    )
+                    historic = Historic(historic_entries)
+
+                    self._historic_port.delete_by_entity(entity.id)
+                    self._historic_port.save(historic.entries)
+
+            self._update_last_fetch(entity.id, features)
+
+            data = FetchedData(
+                position=position,
+                auto_contributions=auto_contributions,
+                transactions=transactions,
+                historic=historic,
             )
-
-        historic = None
-        if transactions:
-            self._transaction_port.save(transactions)
-
-            if Feature.HISTORIC in features:
-                entries = await self.build_historic(entity, specific_fetcher)
-
-                self._historic_port.delete_by_entity(entity.id)
-                self._historic_port.save(entries)
-
-        fetched_data = FetchedData(
-            position=position,
-            auto_contributions=auto_contributions,
-            transactions=transactions,
-            historic=historic,
-        )
-        return fetched_data
+            return FetchResult(FetchResultCode.COMPLETED, data=data)
 
     def _compute_historic_entry(
         self, entity, inv, txs_by_name
@@ -403,11 +419,12 @@ class FetchFinancialDataImpl(AtomicUCMixin, FetchFinancialData):
 
         return None
 
-    async def build_historic(
-        self, entity: Entity, specific_fetcher: FinancialEntityFetcher
+    def build_historic(
+        self,
+        entity: Entity,
+        historical_position: HistoricalPosition,
+        specific_fetcher: FinancialEntityFetcher,
     ) -> list[BaseHistoricEntry]:
-        historical_position = await specific_fetcher.historical_position()
-
         investments_by_name = _historic_inv_by_name(historical_position)
 
         investments = list(investments_by_name.values())

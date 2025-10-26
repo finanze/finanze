@@ -7,7 +7,6 @@ from datetime import datetime
 from typing import List
 from uuid import UUID, uuid4
 
-from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.config_port import ConfigPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_price_provider import CryptoPriceProvider
@@ -50,7 +49,7 @@ CRYPTO_POSITION_UPDATE_COOLDOWN = int(
 )
 
 
-class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
+class FetchCryptoDataImpl(FetchCryptoData):
     def __init__(
         self,
         position_port: PositionPort,
@@ -61,14 +60,13 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
         last_fetches_port: LastFetchesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
-        AtomicUCMixin.__init__(self, transaction_handler_port)
-
         self._position_port = position_port
         self._entity_fetchers = entity_fetchers
         self._crypto_wallet_connection_port = crypto_wallet_connection_port
         self._crypto_price_provider = crypto_price_provider
         self._last_fetches_port = last_fetches_port
         self._config_port = config_port
+        self._transaction_handler_port = transaction_handler_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -121,15 +119,13 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
 
                 try:
                     fetched_data.append(
-                        self.get_data(
+                        await self.get_data(
                             entity,
                             specific_fetcher,
                             fetch_request.fetch_options,
                             integrations,
                         )
                     )
-
-                    self._update_last_fetch(entity.id, [Feature.POSITION])
                 except Exception:
                     partial = True
 
@@ -140,7 +136,7 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
         )
         return FetchResult(code, data=fetched_data)
 
-    def get_data(
+    async def get_data(
         self,
         entity: Entity,
         specific_fetcher: CryptoEntityFetcher,
@@ -182,12 +178,14 @@ class FetchCryptoDataImpl(AtomicUCMixin, FetchCryptoData):
             products=products,
         )
 
-        self._position_port.save(position)
+        async with self._transaction_handler_port.start():
+            self._position_port.save(position)
 
-        fetched_data = FetchedData(
-            position=position,
-        )
-        return fetched_data
+            self._update_last_fetch(entity.id, [Feature.POSITION])
+
+            return FetchedData(
+                position=position,
+            )
 
     def _update_market_value(
         self, wallet: CryptoCurrencyWallet

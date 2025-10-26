@@ -263,6 +263,8 @@ export async function login(
     } else if (response.status === 500 || response.status === 503) {
       const data = await response.json()
       return { code: AuthResultCode.UNEXPECTED_ERROR, message: data.message }
+    } else if (response.status === 409) {
+      return { code: AuthResultCode.SUCCESS }
     }
 
     if (!response.ok) {

@@ -56,10 +56,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   // Stable setter
   const setThemeMode = useCallback((mode: ThemeMode) => {
-    if (!window.ipcAPI) {
-      localStorage.setItem("theme", mode)
+    localStorage.setItem("theme", mode)
+    if (window.ipcAPI) {
+      window.ipcAPI.changeThemeMode(mode)
     }
-    window.ipcAPI?.changeThemeMode(mode)
     setTheme(mode)
   }, [])
 

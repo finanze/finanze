@@ -56,6 +56,9 @@
     "viewDetails": "Ver detalles",
     "darkMode": "Modo Oscuro",
     "lightMode": "Modo Claro",
+    "light": "Claro",
+    "dark": "Oscuro",
+    "system": "Sistema",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
     "save": "Guardar",
@@ -86,7 +89,8 @@
     "unpin": "Quitar",
     "pinAsset": "Fijar activo",
     "unpinAsset": "Quitar activo",
-    "continueInBackground": "Continuar en segundo plano"
+    "continueInBackground": "Continuar en segundo plano",
+    "connectingToServer": "Conectando al servidor"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -579,7 +583,7 @@
     "portfolioName": "Nombre de Cartera",
     "iban": "IBAN",
     "currency": "Moneda",
-    "addManualTransaction": "Añadir transacción",
+    "addManualTransaction": "Transacción",
     "previous": "Anterior",
     "next": "Siguiente",
     "page": "Página",

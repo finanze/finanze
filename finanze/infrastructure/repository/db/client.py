@@ -5,11 +5,10 @@ from typing import Any, Generator, Literal, Optional
 from uuid import uuid4
 
 from domain.data_init import DataEncryptedError
-from pysqlcipher3 import dbapi2 as sqlcipher
-from typing_extensions import Self, TypeAlias
+from typing_extensions import Self
 
-UnderlyingCursor: TypeAlias = sqlcipher.Cursor
-UnderlyingConnection: TypeAlias = sqlcipher.Connection
+UnderlyingCursor = Any
+UnderlyingConnection = Any
 
 
 class DBCursor:
@@ -109,11 +108,12 @@ class DBClient:
 
     @contextmanager
     def read(self) -> Generator[DBCursor, None, None]:
-        cursor = self._cursor()
-        try:
-            yield cursor
-        finally:
-            cursor.close()
+        with self._lock:
+            cursor = self._cursor()
+            try:
+                yield cursor
+            finally:
+                cursor.close()
 
     def _commit(self):
         self._get_connection().commit()

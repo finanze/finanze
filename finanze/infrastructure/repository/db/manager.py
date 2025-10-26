@@ -62,6 +62,7 @@ class DBManager(DatasourceInitiator):
                 )
 
                 self._unlock_and_setup(connection, params.password)
+                self._log.info("Database unlocked successfully.")
 
                 self._unlocked = True
                 self._client.set_connection(connection)
@@ -97,8 +98,6 @@ class DBManager(DatasourceInitiator):
         connection.execute(f"PRAGMA key='{sanitized_pass}';")
 
         connection.execute("SELECT count(*) FROM sqlite_master WHERE type='table';")
-
-        self._log.info("Database unlocked successfully.")
 
         connection.execute("PRAGMA journal_mode = WAL;")
 

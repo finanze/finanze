@@ -474,7 +474,6 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             instrument_info_provider=instrument_provider,
             exchange_rate_provider=exchange_rate_client,
-            transaction_handler_port=transaction_handler,
         )
 
         self._log.info("Initial component setup completed.")

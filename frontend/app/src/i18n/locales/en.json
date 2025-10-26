@@ -27,6 +27,9 @@
     "entities": "Integrations",
     "darkMode": "Dark Mode",
     "lightMode": "Light Mode",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
     "enabled": "Enabled",
     "disabled": "Disabled",
     "cancel": "Cancel",
@@ -88,7 +91,8 @@
     "unpin": "Unpin",
     "pinAsset": "Pin asset",
     "unpinAsset": "Unpin asset",
-    "continueInBackground": "Continue in background"
+    "continueInBackground": "Continue in background",
+    "connectingToServer": "Connecting to server"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -580,7 +584,7 @@
     "portfolioName": "Portfolio Name",
     "iban": "IBAN",
     "currency": "Currency",
-    "addManualTransaction": "Add transaction",
+    "addManualTransaction": "Transaction",
     "previous": "Previous",
     "next": "Next",
     "page": "Page",

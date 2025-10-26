@@ -2,7 +2,6 @@ import { GitHubRelease, ReleaseUpdateInfo } from "@/types/release"
 import { PlatformType } from "@/types"
 import { formatDate } from "@/lib/formatters"
 
-// Re-export types for convenience
 export type { GitHubRelease, ReleaseUpdateInfo } from "@/types/release"
 
 const GITHUB_API_URL =
@@ -15,9 +14,8 @@ const GITHUB_API_URL =
  * @returns 1 if version1 > version2, -1 if version1 < version2, 0 if equal
  */
 export function compareVersions(version1: string, version2: string): number {
-  // Remove 'v' prefix if present
-  const v1 = version1.replace(/^v/, "")
-  const v2 = version2.replace(/^v/, "")
+  const v1 = version1.replace(/^v/, "").split("-")[0]
+  const v2 = version2.replace(/^v/, "").split("-")[0]
 
   const parts1 = v1.split(".").map(Number)
   const parts2 = v2.split(".").map(Number)
@@ -106,7 +104,6 @@ export function getPlatformAssets(
         return name.endsWith(".appimage")
       case PlatformType.WEB:
       default:
-        // For web, we'll show the release page link instead
         return false
     }
   })

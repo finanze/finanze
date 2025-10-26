@@ -588,7 +588,7 @@ export function Sidebar() {
                         onClick={() => setThemeMode("light")}
                         disabled={theme === "light"}
                       >
-                        <Sun size={16} className="mr-2" /> Light
+                        <Sun size={16} className="mr-2" /> {t.common.light}
                       </Button>
                       <Button
                         variant="ghost"
@@ -596,7 +596,7 @@ export function Sidebar() {
                         onClick={() => setThemeMode("dark")}
                         disabled={theme === "dark"}
                       >
-                        <Moon size={16} className="mr-2" /> Dark
+                        <Moon size={16} className="mr-2" /> {t.common.dark}
                       </Button>
                       <Button
                         variant="ghost"
@@ -604,7 +604,7 @@ export function Sidebar() {
                         onClick={() => setThemeMode("system")}
                         disabled={theme === "system"}
                       >
-                        <SunMoon size={16} className="mr-2" /> System
+                        <SunMoon size={16} className="mr-2" /> {t.common.system}
                       </Button>
                     </div>
                   </PopoverContent>
@@ -679,7 +679,7 @@ export function Sidebar() {
                       onClick={() => setThemeMode("light")}
                       disabled={theme === "light"}
                     >
-                      <Sun size={18} className="mr-2" /> Light
+                      <Sun size={18} className="mr-2" /> {t.common.light}
                     </Button>
                     <Button
                       variant="ghost"
@@ -687,7 +687,7 @@ export function Sidebar() {
                       onClick={() => setThemeMode("dark")}
                       disabled={theme === "dark"}
                     >
-                      <Moon size={18} className="mr-2" /> Dark
+                      <Moon size={18} className="mr-2" /> {t.common.dark}
                     </Button>
                     <Button
                       variant="ghost"
@@ -695,7 +695,7 @@ export function Sidebar() {
                       onClick={() => setThemeMode("system")}
                       disabled={theme === "system"}
                     >
-                      <SunMoon size={18} className="mr-2" /> System
+                      <SunMoon size={18} className="mr-2" /> {t.common.system}
                     </Button>
                   </div>
                 </PopoverContent>
