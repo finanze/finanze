@@ -44,6 +44,7 @@ import {
   ExternalIntegrationStatus,
   ExternalEntityConnectionResult,
   ExternalEntitySetupResponseCode,
+  CryptoWalletConnectionResult,
 } from "@/types"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
@@ -299,21 +300,50 @@ export default function EntityIntegrationsPage() {
     }
   }
 
-  const handleAddWallet = async (name: string, address: string) => {
+  const handleAddWallet = async (
+    name: string,
+    addresses: string[],
+  ): Promise<CryptoWalletConnectionResult | void> => {
     if (!selectedEntity) return
+
+    const normalizedAddresses = addresses.map(address => address.trim())
 
     setIsAddingWallet(true)
     try {
-      await createCryptoWallet({
+      const result = await createCryptoWallet({
         entityId: selectedEntity.id,
         name,
-        address,
+        addresses: normalizedAddresses,
       })
 
-      await scrape(selectedEntity, selectedEntity.features)
+      const failedEntries = result?.failed ?? {}
+      const failedCount = Object.keys(failedEntries).length
+      const successCount = normalizedAddresses.length - failedCount
 
-      setShowAddWallet(false)
-      setView("entities")
+      if (successCount > 0) {
+        await scrape(selectedEntity, selectedEntity.features)
+
+        const toastMessage =
+          successCount === normalizedAddresses.length
+            ? t.walletForm.toasts.allSuccess
+            : successCount === 1
+              ? t.walletForm.toasts.partialSuccessSingle
+              : t.walletForm.toasts.partialSuccessMultiple.replace(
+                  "{count}",
+                  successCount.toString(),
+                )
+
+        showToast(toastMessage, "success")
+      }
+
+      if (failedCount === 0) {
+        setShowAddWallet(false)
+        setView("entities")
+      } else if (successCount === 0) {
+        showToast(t.walletForm.toasts.allFailed, "error")
+      }
+
+      return result
     } finally {
       setIsAddingWallet(false)
     }

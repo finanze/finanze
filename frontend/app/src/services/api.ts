@@ -37,6 +37,7 @@ import {
   InstrumentDataRequest,
   InstrumentOverview,
   InstrumentsResponse,
+  CryptoWalletConnectionResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -645,7 +646,7 @@ export async function getForecast(
 
 export async function createCryptoWallet(
   request: CreateCryptoWalletRequest,
-): Promise<void> {
+): Promise<CryptoWalletConnectionResult> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/crypto-wallet`, {
     method: "POST",
@@ -658,6 +659,7 @@ export async function createCryptoWallet(
   if (!response.ok) {
     await handleApiError(response)
   }
+  return response.json()
 }
 
 export async function updateCryptoWallet(

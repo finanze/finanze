@@ -745,25 +745,42 @@
     }
   },
   "walletForm": {
-    "title": "Agregar billetera de {{entityName}}",
+    "title": "Agregar billetera a {entityName}",
     "fields": {
-      "name": "Nombre",
-      "address": "Dirección"
+      "name": "Nombre de la billetera",
+      "address": "Dirección",
+      "addresses": "Direcciones",
+      "addressNumber": "Dirección {number}"
     },
     "placeholders": {
-      "name": "ej. Mi Billetera Bitcoin",
-      "address": "Introduce la dirección de la billetera"
+      "name": "Ingresa el nombre de la billetera",
+      "address": "Ingresa la dirección de la billetera"
     },
-    "submit": "Agregar",
+    "actions": {
+      "addAddress": "Agregar dirección",
+      "removeAddress": "Eliminar"
+    },
     "errors": {
-      "nameRequired": "El nombre de la billetera es obligatorio",
-      "addressRequired": "La dirección de la billetera es obligatoria",
-      "addressTooShort": "La dirección de la billetera parece demasiado corta",
-      "generic": "Error al agregar billetera",
-      "ADDRESS_ALREADY_EXISTS": "Esta dirección de billetera ya está conectada",
-      "ADDRESS_NOT_FOUND": "Dirección de billetera no encontrada",
-      "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Por favor espera un momento antes de intentar de nuevo"
-    }
+      "nameRequired": "El nombre de la billetera es obligatorio.",
+      "addressRequired": "La dirección es obligatoria.",
+      "addressTooShort": "La dirección debe tener al menos 10 caracteres.",
+      "addressDuplicate": "Dirección duplicada. Elimínala o edítala antes de continuar.",
+      "maxAddresses": "Puedes agregar hasta 10 direcciones por billetera.",
+      "allFailed": "No pudimos agregar ninguna de las direcciones. Revisa los errores abajo.",
+      "generic": "No se pudo agregar la billetera. Inténtalo nuevamente."
+    },
+    "addressErrors": {
+      "ADDRESS_ALREADY_EXISTS": "Esta dirección ya está conectada.",
+      "ADDRESS_NOT_FOUND": "No pudimos encontrar esta dirección. Revísala e inténtalo de nuevo.",
+      "TOO_MANY_REQUESTS": "Demasiados intentos. Espera un momento e inténtalo otra vez."
+    },
+    "toasts": {
+      "allSuccess": "Billetera agregada correctamente.",
+      "partialSuccessSingle": "1 dirección agregada correctamente.",
+      "partialSuccessMultiple": "{count} direcciones agregadas correctamente.",
+      "allFailed": "No se agregó ninguna dirección."
+    },
+    "submit": "Agregar billetera"
   },
   "walletManagement": {
     "title": "Gestionar billeteras",

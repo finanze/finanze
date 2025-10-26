@@ -746,25 +746,42 @@
     }
   },
   "walletForm": {
-    "title": "Add {{entityName}} wallet",
+    "title": "Add wallet to {entityName}",
     "fields": {
-      "name": "Name",
-      "address": "Address"
+      "name": "Wallet name",
+      "address": "Address",
+      "addresses": "Addresses",
+      "addressNumber": "Address {number}"
     },
     "placeholders": {
-      "name": "e.g. My Bitcoin Wallet",
+      "name": "Enter wallet name",
       "address": "Enter wallet address"
     },
-    "submit": "Add",
+    "actions": {
+      "addAddress": "Add address",
+      "removeAddress": "Remove"
+    },
     "errors": {
-      "nameRequired": "Wallet name is required",
-      "addressRequired": "Wallet address is required",
-      "addressTooShort": "Wallet address seems too short",
-      "generic": "Failed to add wallet",
-      "ADDRESS_ALREADY_EXISTS": "This wallet address is already connected",
-      "ADDRESS_NOT_FOUND": "Wallet address not found",
-      "TOO_MANY_REQUESTS": "Too many requests. Please wait a moment before trying again"
-    }
+      "nameRequired": "Wallet name is required.",
+      "addressRequired": "Address is required.",
+      "addressTooShort": "Address must be at least 10 characters.",
+      "addressDuplicate": "Duplicate address. Remove or edit it before continuing.",
+      "maxAddresses": "You can add up to 10 addresses per wallet.",
+      "allFailed": "We could not add any of the addresses. Review the errors below.",
+      "generic": "Unable to add the wallet. Please try again."
+    },
+    "addressErrors": {
+      "ADDRESS_ALREADY_EXISTS": "This address is already connected.",
+      "ADDRESS_NOT_FOUND": "We could not find this address. Check it and try again.",
+      "TOO_MANY_REQUESTS": "Too many attempts. Wait a moment and try again."
+    },
+    "toasts": {
+      "allSuccess": "Wallet added successfully.",
+      "partialSuccessSingle": "1 address added successfully.",
+      "partialSuccessMultiple": "{count} addresses added successfully.",
+      "allFailed": "No addresses were added."
+    },
+    "submit": "Add wallet"
   },
   "walletManagement": {
     "title": "Manage Wallets",

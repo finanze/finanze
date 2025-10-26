@@ -6,6 +6,7 @@ import requests
 from application.ports.connectable_integration import ConnectableIntegration
 from cachetools import TTLCache, cached
 from domain.exception.exceptions import (
+    AddressNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
     TooManyRequests,
@@ -74,8 +75,8 @@ class EtherscanClient(ConnectableIntegration[EtherscanIntegrationData]):
             response.raise_for_status()
 
         data = response.json()
-        status = data["status"]
-        result = data["result"]
+        status = data.get("status")
+        result = data.get("result")
         if status == "0":
             if result and "Invalid API Key" in result:
                 raise IntegrationSetupError(
@@ -83,6 +84,10 @@ class EtherscanClient(ConnectableIntegration[EtherscanIntegrationData]):
                 )
             elif result and "Max calls" in result:
                 raise TooManyRequests()
+            elif result and "Free API access" in result:
+                raise TooManyRequests()
+            elif "No transactions found" in data.get("message", ""):
+                raise AddressNotFound()
             else:
                 self._log.error(
                     f"Error fetching from Etherscan: {response.status_code} {response.text}"

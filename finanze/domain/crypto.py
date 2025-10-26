@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
@@ -28,8 +29,20 @@ class CryptoFetchRequest:
 @dataclass
 class ConnectCryptoWallet:
     entity_id: UUID
-    address: str
+    addresses: list[str]
     name: str
+
+
+class CryptoWalletConnectionFailureCode(str, Enum):
+    ADDRESS_ALREADY_EXISTS = "ADDRESS_ALREADY_EXISTS"
+    ADDRESS_NOT_FOUND = "ADDRESS_NOT_FOUND"
+    TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS"
+    UNEXPECTED_ERROR = "UNEXPECTED_ERROR"
+
+
+@dataclass
+class CryptoWalletConnectionResult:
+    failed: dict[str, CryptoWalletConnectionFailureCode]
 
 
 @dataclass

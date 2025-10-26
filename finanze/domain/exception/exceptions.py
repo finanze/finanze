@@ -59,10 +59,6 @@ class AddressNotFound(Exception):
     pass
 
 
-class AddressAlreadyExists(Exception):
-    pass
-
-
 class TooManyRequests(Exception):
     pass
 

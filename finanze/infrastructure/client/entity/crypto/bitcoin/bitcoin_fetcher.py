@@ -22,7 +22,7 @@ class BitcoinFetcher(CryptoEntityFetcher):
 
     BASE_URL = "https://blockchain.info"
     SCALE = Dezimal("1e-8")
-    COOLDOWN = 0.25
+    COOLDOWN = 0.4
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
