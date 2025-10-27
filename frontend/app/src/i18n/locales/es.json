@@ -726,6 +726,13 @@
       "STOCK": "Acción",
       "ETF": "ETF"
     },
+    "contributionTargetSubtype": {
+      "STOCK": "Acción",
+      "ETF": "ETF",
+      "MUTUAL_FUND": "Fondo de inversión",
+      "PENSION_FUND": "Fondo de pensiones",
+      "PRIVATE_EQUITY": "Capital privado"
+    },
     "kpis": {
       "assetTypeSplit": "Distribución por tipo"
     },
@@ -907,8 +914,8 @@
   "banking": {
     "title": "Banca",
     "subtitle": "Gestiona tus cuentas, tarjetas y préstamos",
-    "showNumbers": "Mostrar números",
-    "hideNumbers": "Ocultar números",
+    "showNumbers": "Mostrar detalles",
+    "hideNumbers": "Ocultar detalles",
     "totalBalance": "Saldo total",
     "totalCardUsed": "Uso total de tarjetas",
     "totalDebt": "Deuda pendiente total",
@@ -1058,6 +1065,7 @@
     "noContributions": "No hay aportaciones configuradas",
     "monthlyAverage": "Prom. mensual",
     "targetType": "Tipo de Destino",
+    "targetSubtype": "Subtipo de destino",
     "target": "Destino",
     "alias": "Alias",
     "noAutoContributionsTitle": "Sin aportaciones automáticas",

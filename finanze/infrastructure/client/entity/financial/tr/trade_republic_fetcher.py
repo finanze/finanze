@@ -8,6 +8,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
+    ContributionTargetSubtype,
     ContributionTargetType,
     PeriodicContribution,
 )
@@ -163,9 +164,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.warning("No ISIN found for private equity instrument")
             return None
 
+        self._log.info(position)
         details = await self._client.get_instrument_details(isin)
 
-        raw_average_buy = position.get("averageBuyIn") or 0
+        raw_average_buy = 0
         average_buy = round(Dezimal(raw_average_buy), 4)
         shares = Dezimal(position.get("netSize") or 0)
         # available_shares = position.get("availableSize") # Don't know what is this
@@ -459,15 +461,20 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.warning(f"Unknown contribution frequency: {frequency}")
             return None
 
+        target_subtype = None
         raw_target_type = saving_plan.get("instrumentType")
         if raw_target_type == "stock":
             target_type = ContributionTargetType.STOCK_ETF
-        elif raw_target_type == "fund":
+            target_subtype = ContributionTargetSubtype.STOCK
+        elif raw_target_type == "fund" or raw_target_type == "crypto":
             target_type = ContributionTargetType.STOCK_ETF
+            target_subtype = ContributionTargetSubtype.ETF
         elif raw_target_type in ("mutualFund", "privateFund"):
             target_type = ContributionTargetType.FUND
-        elif raw_target_type == "crypto":
-            target_type = ContributionTargetType.STOCK_ETF
+            if raw_target_type == "mutualFund":
+                target_subtype = ContributionTargetSubtype.MUTUAL_FUND
+            else:
+                target_subtype = ContributionTargetSubtype.PRIVATE_EQUITY
         else:
             self._log.warning(f"Unknown contribution target type: {raw_target_type}")
             return None
@@ -502,6 +509,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             target=isin,
             target_name=instrument_name,
             target_type=target_type,
+            target_subtype=target_subtype,
             amount=amount,
             currency=currency,
             since=since,

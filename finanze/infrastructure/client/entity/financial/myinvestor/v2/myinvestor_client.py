@@ -42,6 +42,13 @@ class MyInvestorAPIV2Client:
         return {}
 
     def _get_request(self, path: str, base_url: str = BASE_URL) -> requests.Response:
+        try:
+            return self._base_get_request(path, base_url)
+        except requests.HTTPError as e:
+            self._log.exception(f"GET request to {path} failed: {e}")
+            return self._base_get_request(path, base_url)
+
+    def _base_get_request(self, path: str, base_url: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None, base_url=base_url)
 
     def _post_request(

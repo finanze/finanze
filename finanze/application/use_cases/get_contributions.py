@@ -72,6 +72,7 @@ class GetContributionsImpl(GetContributions):
                         target=pc.target,
                         target_name=pc.target_name,
                         target_type=pc.target_type,
+                        target_subtype=pc.target_subtype,
                         amount=pc.amount,
                         currency=pc.currency,
                         since=pc.since,

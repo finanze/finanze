@@ -10,6 +10,7 @@ from dateutil.tz import tzlocal
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
+    ContributionTargetSubtype,
     ContributionTargetType,
     PeriodicContribution,
 )
@@ -837,6 +838,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             if fund_name
             else ContributionTargetType.FUND_PORTFOLIO
         )
+        target_account_type = auto_contribution.get("toAccountType")
+        target_subtype = None
+        if target_type == ContributionTargetType.FUND:
+            if target_account_type == "SECURITIES_ACCOUNT":
+                target_subtype = ContributionTargetSubtype.MUTUAL_FUND
+            elif target_account_type == "PENSION_PLAN":
+                target_subtype = ContributionTargetSubtype.PENSION_FUND
 
         return PeriodicContribution(
             id=uuid4(),
@@ -844,6 +852,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             target=target,
             target_name=target_name,
             target_type=target_type,
+            target_subtype=target_subtype,
             amount=round(Dezimal(auto_contribution["amount"]), 2),
             currency=SYMBOL_CURRENCY_MAP.get(auto_contribution["currency"], "EUR"),
             since=get_date(auto_contribution["contributionTimeFrame"]["startDate"]),
@@ -903,23 +912,43 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             order_date = datetime.strptime(
                 raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
             )
-            execution_op = None
-            linked_ops = raw_order_details["relatedOperations"]
+            execution_op, execution_date = None, None
+            amount, net_amount, fees, price = (Dezimal(0),) * 4
+            linked_ops = raw_order_details.get("relatedOperations", [])
             if linked_ops:
                 execution_op = linked_ops[0]
-            execution_date = datetime.strptime(
-                execution_op["executionDate"], ISO_DATE_TIME_FORMAT
-            )
+
+                execution_date = datetime.strptime(
+                    execution_op["executionDate"], ISO_DATE_TIME_FORMAT
+                )
+
+                counted_shares = Dezimal(0)
+                for op in linked_ops:
+                    current_shares = Dezimal(counted_shares)
+
+                    exec_shares = Dezimal(op.get("executedShares", 0))
+                    liquidation_value = Dezimal(op.get("liquidationValue", 0))
+                    if current_shares + exec_shares > 0:
+                        price = (
+                            (price * current_shares) + (liquidation_value * exec_shares)
+                        ) / (current_shares + exec_shares)
+
+                    counted_shares += exec_shares
+
+                    if op.get("grossAmountOperationFundCurrency"):
+                        amount += Dezimal(op["grossAmountOperationFundCurrency"])
+                    if op.get("netAmountFundCurrency"):
+                        net_amount += Dezimal(op["netAmountFundCurrency"])
+                    if op.get("commissions"):
+                        fees += Dezimal(op["commissions"])
 
             fund_txs.append(
                 FundTx(
                     id=uuid4(),
                     ref=ref,
                     name=order["fundName"].strip(),
-                    amount=round(
-                        Dezimal(execution_op["grossAmountOperationFundCurrency"]), 2
-                    ),
-                    net_amount=round(Dezimal(execution_op["netAmountFundCurrency"]), 2),
+                    amount=round(amount, 2),
+                    net_amount=round(net_amount, 2),
                     currency=order["currency"],
                     type=operation_type,
                     order_date=order_date,
@@ -928,7 +957,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     shares=round(Dezimal(raw_order_details["executedShares"]), 4),
                     price=round(Dezimal(execution_op["liquidationValue"]), 4),
                     market=order["market"],
-                    fees=round(Dezimal(execution_op["commissions"]), 2),
+                    fees=round(fees, 2),
                     retentions=Dezimal(0),
                     date=execution_date,
                     product_type=ProductType.FUND,

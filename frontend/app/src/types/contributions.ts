@@ -16,12 +16,21 @@ export enum ContributionTargetType {
   FUND_PORTFOLIO = "FUND_PORTFOLIO",
 }
 
+export enum ContributionTargetSubtype {
+  STOCK = "STOCK",
+  ETF = "ETF",
+  MUTUAL_FUND = "MUTUAL_FUND",
+  PENSION_FUND = "PENSION_FUND",
+  PRIVATE_EQUITY = "PRIVATE_EQUITY",
+}
+
 export interface PeriodicContribution {
   id: string
   alias?: string
   target: string
   target_name: string
   target_type: ContributionTargetType
+  target_subtype?: ContributionTargetSubtype
   amount: number
   currency: string
   since: string
@@ -38,6 +47,7 @@ export interface ManualPeriodicContribution {
   target: string
   target_name?: string | null
   target_type: ContributionTargetType
+  target_subtype?: ContributionTargetSubtype | null
   amount: number
   currency: string
   since: string

@@ -727,6 +727,13 @@
       "STOCK": "Stock",
       "ETF": "ETF"
     },
+    "contributionTargetSubtype": {
+      "STOCK": "Stock",
+      "ETF": "ETF",
+      "MUTUAL_FUND": "Mutual fund",
+      "PENSION_FUND": "Pension fund",
+      "PRIVATE_EQUITY": "Private equity"
+    },
     "kpis": {
       "assetTypeSplit": "Asset Type Split"
     },
@@ -908,8 +915,8 @@
   "banking": {
     "title": "Banking",
     "subtitle": "Manage your accounts, cards, and loans",
-    "showNumbers": "Show Numbers",
-    "hideNumbers": "Hide Numbers",
+    "showNumbers": "Show details",
+    "hideNumbers": "Hide details",
     "totalBalance": "Total Balance",
     "totalCardUsed": "Total Card Usage",
     "totalDebt": "Total Outstanding Debt",
@@ -1059,6 +1066,7 @@
     "noContributions": "No contributions configured",
     "monthlyAverage": "Monthly avg.",
     "targetType": "Target Type",
+    "targetSubtype": "Target subtype",
     "target": "Target",
     "alias": "Alias",
     "noAutoContributionsTitle": "No auto contributions",

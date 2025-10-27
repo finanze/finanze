@@ -25,6 +25,14 @@ class ContributionTargetType(str, Enum):
     FUND_PORTFOLIO = "FUND_PORTFOLIO"
 
 
+class ContributionTargetSubtype(str, Enum):
+    STOCK = "STOCK"
+    ETF = "ETF"
+    MUTUAL_FUND = "MUTUAL_FUND"
+    PRIVATE_EQUITY = "PRIVATE_EQUITY"
+    PENSION_FUND = "PENSION_FUND"
+
+
 @dataclass
 class PeriodicContribution:
     id: UUID
@@ -40,6 +48,7 @@ class PeriodicContribution:
     active: bool
     source: DataSource
     next_date: Optional[date] = None
+    target_subtype: Optional[ContributionTargetSubtype] = None
 
 
 @dataclass
@@ -66,6 +75,7 @@ class ManualPeriodicContribution:
     target: str
     target_name: Optional[str]
     target_type: ContributionTargetType
+    target_subtype: Optional[ContributionTargetSubtype]
     amount: Dezimal
     currency: str
     since: date

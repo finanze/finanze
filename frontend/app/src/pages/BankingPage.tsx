@@ -56,6 +56,8 @@ import {
   Trash2,
   X,
   Building2,
+  Copy,
+  Check,
 } from "lucide-react"
 import {
   ProductType,
@@ -1069,6 +1071,32 @@ function BankAccountsSection({
     handleExternalSaveSuccess,
   } = useManualPositions()
 
+  const [copiedIban, setCopiedIban] = useState<string | null>(null)
+
+  const handleCopyIban = useCallback(async (iban: string) => {
+    try {
+      await navigator.clipboard.writeText(iban)
+      setCopiedIban(iban)
+
+      setTimeout(() => {
+        setCopiedIban(null)
+      }, 2000)
+    } catch (error) {
+      console.error("Failed to copy IBAN:", error)
+      const textArea = document.createElement("textarea")
+      textArea.value = iban
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+
+      setCopiedIban(iban)
+      setTimeout(() => {
+        setCopiedIban(null)
+      }, 2000)
+    }
+  }, [])
+
   const accountController = useMemo<ManualSectionController>(
     () => ({
       asset,
@@ -1407,8 +1435,31 @@ function BankAccountsSection({
                         </h3>
                       )}
                       {position.iban && (
-                        <div className="font-mono text-sm text-muted-foreground">
-                          {formatIban(position.iban, showAccountNumbers)}
+                        <div className="flex items-center gap-2 group">
+                          <div className="font-mono text-sm text-muted-foreground">
+                            {formatIban(position.iban, showAccountNumbers)}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
+                              copiedIban === position.iban
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            }`}
+                            onClick={() => handleCopyIban(position.iban!)}
+                            title={
+                              copiedIban === position.iban
+                                ? t.common.copied
+                                : t.common.copy
+                            }
+                          >
+                            {copiedIban === position.iban ? (
+                              <Check className="h-3 w-3" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </Button>
                         </div>
                       )}
                       <div className="space-y-1">

@@ -26,6 +26,7 @@ def _map_manual_contribution(
         id=uuid4(),
         target=manual_contribution.target,
         target_type=manual_contribution.target_type,
+        target_subtype=manual_contribution.target_subtype,
         alias=manual_contribution.name,
         target_name=manual_contribution.target_name,
         amount=manual_contribution.amount,

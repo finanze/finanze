@@ -80,6 +80,9 @@ from infrastructure.repository.db.versions.v0.v06.v060_5_add_tx_product_subype i
 from infrastructure.repository.db.versions.v0.v06.v060_6_migrate_equity_types import (
     V0606,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_0_add_contrib_target_subype import (
+    V0700ContribTargetSubtype,
+)
 
 versions = [
     V0Genesis(),
@@ -116,4 +119,5 @@ versions = [
     V0604ManualPositionData(),
     V0605TxProductSubtype(),
     V0606(),
+    V0700ContribTargetSubtype(),
 ]
