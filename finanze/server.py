@@ -109,6 +109,9 @@ from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.file_storage.local_file_storage import LocalFileStorage
+from infrastructure.file_storage.exchange_rate_file_storage import (
+    ExchangeRateFileStorage,
+)
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -228,6 +231,7 @@ class FinanzeServer:
         file_storage_repository = LocalFileStorage(
             upload_dir=static_upload_dir, static_url_prefix="/static"
         )
+        exchange_rate_storage = ExchangeRateFileStorage(self.args.data_dir)
 
         exchange_rate_client = ExchangeRateClient()
         crypto_price_client = CryptoPriceClient()
@@ -340,7 +344,10 @@ class FinanzeServer:
         get_historic = GetHistoricImpl(historic_repository)
         get_transactions = GetTransactionsImpl(transaction_repository)
         get_exchange_rates = GetExchangeRatesImpl(
-            exchange_rate_client, crypto_price_client, metal_price_client
+            exchange_rate_client,
+            crypto_price_client,
+            metal_price_client,
+            exchange_rate_storage,
         )
         connect_external_entity = ConnectExternalEntityImpl(
             entity_repository,

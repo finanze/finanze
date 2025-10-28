@@ -1,13 +1,17 @@
 import logging
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from datetime import datetime
 from decimal import Decimal
 from threading import Lock
 
 from application.ports.crypto_price_provider import CryptoPriceProvider
 from application.ports.exchange_rate_provider import ExchangeRateProvider
+from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
+from dateutil.tz import tzlocal
 from domain.commodity import COMMODITY_SYMBOLS
+from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
 from domain.global_position import (
     CRYPTO_SYMBOLS,
@@ -32,19 +36,27 @@ class GetExchangeRatesImpl(GetExchangeRates):
     SUPPORTED_CURRENCIES = ["EUR", "USD"]
     DEFAULT_TIMEOUT = 7
     CACHE_TTL_SECONDS = 300
+    STORAGE_REFRESH_SECONDS = 6 * 60 * 60
 
     def __init__(
         self,
         exchange_rates_provider: ExchangeRateProvider,
         crypto_price_provider: CryptoPriceProvider,
         metal_price_provider: MetalPriceProvider,
+        exchange_rates_storage: ExchangeRateStorage,
     ):
         self._exchange_rates_provider = exchange_rates_provider
         self._crypto_price_provider = crypto_price_provider
         self._metal_price_provider = metal_price_provider
+        self._exchange_rates_storage = exchange_rates_storage
 
-        self._fiat_matrix: ExchangeRates | None = None
+        stored = self._exchange_rates_storage.get()
+        self._fiat_matrix: ExchangeRates | None = stored if stored else None
+
         self._last_base_refresh_ts: int = 0
+        if stored:
+            storage_update_date = self._exchange_rates_storage.get_last_saved()
+            self._last_base_refresh_ts = int(storage_update_date.timestamp())
 
         self._lock = Lock()
 
@@ -61,13 +73,16 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
     def _normalize_matrix(self, matrix):
         for base, quotes in matrix.items():
-            for quote, rate in list(quotes.items()):
+            invalid = []
+            for quote, rate in quotes.items():
                 dec = _to_decimal(rate)
                 if dec is None:
                     self._log.warning(f"Dropping non-numeric rate {base}->{quote}")
-                    del quotes[quote]
+                    invalid.append(quote)
                 else:
-                    quotes[quote] = dec
+                    quotes[quote] = rate if isinstance(rate, Dezimal) else Dezimal(dec)
+            for k in invalid:
+                del quotes[k]
         return matrix
 
     def _init_empty_matrix(self):
@@ -167,11 +182,31 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 if base not in self._fiat_matrix:
                     self._fiat_matrix[base] = {}
                 for quote, rate in quotes.items():
-                    self._fiat_matrix[base][quote] = rate
+                    self._fiat_matrix[base][quote] = (
+                        rate
+                        if isinstance(rate, Dezimal)
+                        else Dezimal(_to_decimal(rate))
+                    )
             self._last_base_refresh_ts = _now()
 
         self._apply_rates(commodity_rates, crypto_rates)
+
+        self._save_rates_to_storage()
+
         return self._fiat_matrix
+
+    def _save_rates_to_storage(self):
+        try:
+            if self._fiat_matrix:
+                last_saved = self._exchange_rates_storage.get_last_saved()
+                if (last_saved is None) or (
+                    (datetime.now(tzlocal()) - last_saved).total_seconds()
+                    >= self.STORAGE_REFRESH_SECONDS
+                ):
+                    self._log.debug("Saving exchange rates to storage.")
+                    self._exchange_rates_storage.save(self._fiat_matrix)
+        except Exception as e:
+            self._log.error(f"Failed to persist refreshed exchange rates: {e}")
 
     def _schedule_base_matrix(self, executor, refresh_base: bool, timeout: int):
         if not refresh_base:
@@ -228,7 +263,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
                     rate = base_to_rate_currency / price_dec
                 else:
                     rate = Decimal(1) / price_dec
-                self._fiat_matrix[base_currency][symbol.upper()] = rate
+                self._fiat_matrix[base_currency][symbol.upper()] = Dezimal(rate)
             except Exception as e:
                 self._log.error(
                     f"Failed to apply commodity {commodity} for {base_currency}: {e}"
