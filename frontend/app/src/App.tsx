@@ -25,7 +25,7 @@ import ManagementPage from "./pages/ManagementPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
-import { PinnedAssetsProvider } from "./context/PinnedAssetsContext"
+import { PinnedShortcutsProvider } from "./context/PinnedShortcutsContext"
 import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { useAppContext } from "./context/AppContext"
@@ -98,7 +98,7 @@ function App() {
   return (
     <EntityWorkflowProvider>
       <FinancialDataProvider>
-        <PinnedAssetsProvider>
+        <PinnedShortcutsProvider>
           <Layout>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
@@ -174,7 +174,7 @@ function App() {
               onSkipVersion={handleSkipVersion}
             />
           )}
-        </PinnedAssetsProvider>
+        </PinnedShortcutsProvider>
       </FinancialDataProvider>
     </EntityWorkflowProvider>
   )

@@ -29,6 +29,7 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Card,
   CardContent,
@@ -1285,9 +1286,12 @@ export default function AutoContributionsPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">
-            {t.management.autoContributions}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">
+              {t.management.autoContributions}
+            </h1>
+            <PinAssetButton assetId="management-auto-contributions" />
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button

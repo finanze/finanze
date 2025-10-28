@@ -8,13 +8,13 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import { ProductType } from "@/types/position"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
-import { usePinnedAssets } from "@/context/PinnedAssetsContext"
+import { usePinnedShortcuts } from "@/context/PinnedShortcutsContext"
 
 export default function InvestmentsPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { isLoading } = useFinancialData()
-  const { isPinned } = usePinnedAssets()
+  const { isPinned } = usePinnedShortcuts()
 
   const investmentRoutes = React.useMemo(() => {
     const allRoutes = [

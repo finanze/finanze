@@ -238,6 +238,13 @@ function createTray() {
     },
     { type: "separator" },
     {
+      label: "About",
+      click: () => {
+        createAboutWindow()
+      },
+    },
+    { type: "separator" },
+    {
       label: "Quit",
       click: () => {
         app.quit()

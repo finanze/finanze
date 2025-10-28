@@ -27,6 +27,7 @@ import {
   CalendarSync,
   HandCoins,
   PiggyBank,
+  type LucideIcon,
 } from "lucide-react"
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/Button"
@@ -40,7 +41,10 @@ import { PlatformType } from "@/types"
 import { ProductType } from "@/types/position"
 // Removed dynamic filtering for assets; all asset subsections always visible
 import { getIconForProductType } from "@/utils/dashboardUtils"
-import { usePinnedAssets } from "@/context/PinnedAssetsContext"
+import {
+  usePinnedShortcuts,
+  type PinnedShortcutId,
+} from "@/context/PinnedShortcutsContext"
 
 export function Sidebar() {
   const { t, locale, changeLocale } = useI18n()
@@ -48,7 +52,7 @@ export function Sidebar() {
   const { logout, startPasswordChange } = useAuth()
   const { platform } = useAppContext()
   const { positionsData, realEstateList } = useFinancialData()
-  const { pinnedAssets } = usePinnedAssets()
+  const { pinnedShortcuts } = usePinnedShortcuts()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -156,23 +160,46 @@ export function Sidebar() {
     return routes
   }, [t, positionsData, realEstateList])
 
-  const managementRoutes = [
-    {
-      path: "/management/recurring",
-      label: t.management.recurringMoney,
-      icon: <CalendarSync className="h-4 w-4" />,
-    },
-    {
-      path: "/management/pending",
-      label: t.management.pendingMoney,
-      icon: <HandCoins className="h-4 w-4" />,
-    },
-    {
-      path: "/management/auto-contributions",
-      label: t.management.autoContributions,
-      icon: <PiggyBank className="h-4 w-4" />,
-    },
-  ]
+  type ManagementRoute = {
+    path: string
+    label: string
+    Icon: LucideIcon
+    key: PinnedShortcutId
+  }
+
+  const managementRoutes = useMemo<ManagementRoute[]>(
+    () => [
+      {
+        path: "/management/recurring",
+        label: t.management.recurringMoney,
+        Icon: CalendarSync,
+        key: "management-recurring",
+      },
+      {
+        path: "/management/pending",
+        label: t.management.pendingMoney,
+        Icon: HandCoins,
+        key: "management-pending",
+      },
+      {
+        path: "/management/auto-contributions",
+        label: t.management.autoContributions,
+        Icon: PiggyBank,
+        key: "management-auto-contributions",
+      },
+    ],
+    [
+      t.management.recurringMoney,
+      t.management.pendingMoney,
+      t.management.autoContributions,
+    ],
+  )
+
+  const unpinnedManagementRoutes = useMemo(
+    () =>
+      managementRoutes.filter(route => !pinnedShortcuts.includes(route.key)),
+    [managementRoutes, pinnedShortcuts],
+  )
 
   const wasNarrowRef = useRef(isNarrowView)
 
@@ -269,7 +296,7 @@ export function Sidebar() {
       ? "w-16"
       : "w-64"
   const containerClass = cn(
-    "relative h-screen flex-shrink-0",
+    "relative h-screen flex-shrink-0 overflow-x-hidden",
     overlayVisible ? "" : "transition-all duration-300",
     containerWidthClass,
   )
@@ -332,9 +359,17 @@ export function Sidebar() {
               </li>
 
               {/* Pinned assets */}
-              {pinnedAssets.map(p => {
-                const item = investmentRoutes.find(r => r.key === p)
+              {pinnedShortcuts.map(p => {
+                const investmentItem = investmentRoutes.find(r => r.key === p)
+                const managementItem = managementRoutes.find(r => r.key === p)
+                const item = investmentItem ?? managementItem
                 if (!item) return null
+                const icon = investmentItem
+                  ? getIconForProductType(investmentItem.productType, "h-5 w-5")
+                  : (() => {
+                      const Icon = managementItem!.Icon
+                      return <Icon className="h-5 w-5" />
+                    })()
                 return (
                   <li key={`pinned-${p}`}>
                     <Button
@@ -349,7 +384,7 @@ export function Sidebar() {
                       onClick={() => navigate(item.path)}
                     >
                       <span className="flex items-center">
-                        {getIconForProductType(item.productType, "h-5 w-5")}
+                        {icon}
                         {!collapsed && (
                           <span className="ml-3">{item.label}</span>
                         )}
@@ -377,8 +412,9 @@ export function Sidebar() {
                         // If current route is a pinned asset root path, don't highlight section
                         const pinnedRouteMatch = investmentRoutes.find(
                           r =>
-                            pinnedAssets.includes(r.key as any) &&
-                            location.pathname === r.path,
+                            pinnedShortcuts.includes(
+                              r.key as PinnedShortcutId,
+                            ) && location.pathname === r.path,
                         )
                         if (pinnedRouteMatch) {
                           return "hover:bg-gray-200 dark:hover:bg-gray-900"
@@ -424,7 +460,12 @@ export function Sidebar() {
                   {!collapsed && investmentsExpanded && (
                     <ul className="mt-1 space-y-1">
                       {investmentRoutes
-                        .filter(r => !pinnedAssets.includes(r.key as any))
+                        .filter(
+                          r =>
+                            !pinnedShortcuts.includes(
+                              r.key as PinnedShortcutId,
+                            ),
+                        )
                         .map(route => (
                           <li key={route.path}>
                             <Button
@@ -454,72 +495,74 @@ export function Sidebar() {
               )}
 
               {/* Management Section */}
-              <li>
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full rounded-none h-12",
-                    collapsed ? "justify-center" : "justify-between",
-                    location.pathname.startsWith("/management")
-                      ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                      : "hover:bg-gray-200 dark:hover:bg-gray-900",
-                  )}
-                  onClick={() => {
-                    const isOnManagementSubpage =
-                      location.pathname.startsWith("/management/")
-                    const isOnManagementPage =
-                      location.pathname.endsWith("/management")
-                    if (
-                      !collapsed &&
-                      !isOnManagementSubpage &&
-                      isOnManagementPage
-                    ) {
-                      toggleManagement()
-                    }
-                    navigate("/management")
-                  }}
-                >
-                  <span className="flex items-center">
-                    <CalendarCog size={20} />
-                    {!collapsed && (
-                      <span className="ml-3">{t.management.title}</span>
+              {unpinnedManagementRoutes.length > 0 && (
+                <li>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "w-full rounded-none h-12",
+                      collapsed ? "justify-center" : "justify-between",
+                      location.pathname.startsWith("/management")
+                        ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                        : "hover:bg-gray-200 dark:hover:bg-gray-900",
                     )}
-                  </span>
-                  {!collapsed && managementRoutes.length > 0 && (
-                    <span className="ml-auto">
-                      {managementExpanded ? (
-                        <ChevronUp size={16} />
-                      ) : (
-                        <ChevronDown size={16} />
+                    onClick={() => {
+                      const isOnManagementSubpage =
+                        location.pathname.startsWith("/management/")
+                      const isOnManagementPage =
+                        location.pathname.endsWith("/management")
+                      if (
+                        !collapsed &&
+                        !isOnManagementSubpage &&
+                        isOnManagementPage
+                      ) {
+                        toggleManagement()
+                      }
+                      navigate("/management")
+                    }}
+                  >
+                    <span className="flex items-center">
+                      <CalendarCog size={20} />
+                      {!collapsed && (
+                        <span className="ml-3">{t.management.title}</span>
                       )}
                     </span>
-                  )}
-                </Button>
+                    {!collapsed && (
+                      <span className="ml-auto">
+                        {managementExpanded ? (
+                          <ChevronUp size={16} />
+                        ) : (
+                          <ChevronDown size={16} />
+                        )}
+                      </span>
+                    )}
+                  </Button>
 
-                {/* Management Subsections */}
-                {!collapsed && managementExpanded && (
-                  <ul className="mt-1 space-y-1">
-                    {managementRoutes.map(route => (
-                      <li key={route.path}>
-                        <Button
-                          variant="ghost"
-                          className={cn(
-                            "w-full rounded-none h-10 pl-6",
-                            "text-sm justify-start",
-                            location.pathname === route.path
-                              ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                              : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
-                          )}
-                          onClick={() => navigate(route.path)}
-                        >
-                          {route.icon}
-                          <span className="ml-2">{route.label}</span>
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
+                  {/* Management Subsections */}
+                  {!collapsed && managementExpanded && (
+                    <ul className="mt-1 space-y-1">
+                      {unpinnedManagementRoutes.map(route => (
+                        <li key={route.path}>
+                          <Button
+                            variant="ghost"
+                            className={cn(
+                              "w-full rounded-none h-10 pl-6",
+                              "text-sm justify-start",
+                              location.pathname === route.path
+                                ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                                : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
+                            )}
+                            onClick={() => navigate(route.path)}
+                          >
+                            <route.Icon className="h-4 w-4" />
+                            <span className="ml-2">{route.label}</span>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              )}
 
               {/* Other navigation items */}
               {navItems.slice(1).map(item => (

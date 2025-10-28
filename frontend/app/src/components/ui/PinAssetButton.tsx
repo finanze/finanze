@@ -1,23 +1,36 @@
 import React from "react"
 import { Button } from "./Button"
-import { usePinnedAssets, AssetId } from "@/context/PinnedAssetsContext"
+import {
+  usePinnedShortcuts,
+  type PinnedShortcutId,
+} from "@/context/PinnedShortcutsContext"
 import { Pin, PinOff } from "lucide-react"
 import { useI18n } from "@/i18n"
 
+type Breakpoint = "sm" | "md" | "lg" | "xl"
+
 interface Props {
-  assetId: AssetId
+  assetId: PinnedShortcutId
   className?: string
   size?: "sm" | "default" | "icon"
+  showLabelFrom?: Breakpoint
 }
 
 export const PinAssetButton: React.FC<Props> = ({
   assetId,
   className,
   size,
+  showLabelFrom = "md",
 }) => {
-  const { isPinned, togglePin } = usePinnedAssets()
+  const { isPinned, togglePin } = usePinnedShortcuts()
   const { t } = useI18n()
   const pinned = isPinned(assetId)
+  const labelClassName =
+    size === "icon"
+      ? "hidden"
+      : showLabelFrom
+        ? `hidden ${showLabelFrom}:inline`
+        : ""
   return (
     <Button
       variant="ghost"
@@ -34,7 +47,7 @@ export const PinAssetButton: React.FC<Props> = ({
       ) : (
         <Pin size={16} className="mr-1" />
       )}
-      <span className="hidden md:inline">
+      <span className={labelClassName}>
         {pinned ? t.common.unpin : t.common.pin}
       </span>
     </Button>

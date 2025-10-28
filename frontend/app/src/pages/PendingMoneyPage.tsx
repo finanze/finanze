@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/Switch"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card } from "@/components/ui/Card"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   MultiSelect,
   type MultiSelectOption,
@@ -772,7 +773,10 @@ export default function PendingMoneyPage() {
           >
             <ArrowLeft size={16} />
           </Button>
-          <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
+            <PinAssetButton assetId="management-pending" />
+          </div>
         </div>
 
         {unsavedChanges && (
