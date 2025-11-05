@@ -74,7 +74,6 @@ export interface ExportState {
 interface AppContextType {
   entities: Entity[]
   entitiesLoaded: boolean
-  inactiveEntities: Entity[]
   isLoadingEntities: boolean
   toast: {
     message: string
@@ -185,7 +184,6 @@ const mergeSettingsWithDefaults = (
 export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
   const [entitiesLoaded, setEntitiesLoaded] = useState(false)
-  const [inactiveEntities, setInactiveEntities] = useState<Entity[]>([])
   const [isLoadingEntities, setIsLoadingEntities] = useState(false)
   const [toast, setToast] = useState<{
     message: string
@@ -427,18 +425,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [stopExchangeRatesTimer])
 
-  useEffect(() => {
-    setInactiveEntities(
-      entities.filter(entity => entity.status === EntityStatus.DISCONNECTED),
-    )
-  }, [entities])
-
   return (
     <AppContext.Provider
       value={{
         entities,
         entitiesLoaded,
-        inactiveEntities,
         isLoadingEntities,
         toast,
         settings,

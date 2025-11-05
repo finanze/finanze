@@ -67,5 +67,4 @@ export type EntityContributions = Record<string, AutoContributions>
 
 export interface ContributionQueryRequest {
   entities?: string[]
-  excluded_entities?: string[]
 }

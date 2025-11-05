@@ -41,7 +41,7 @@ import {
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
-import { MultiSelect, MultiSelectOption } from "@/components/ui/MultiSelect"
+import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import { motion } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
@@ -1317,32 +1317,6 @@ export default function CryptoInvestmentPage() {
       animate="show"
       className="space-y-8 pb-6"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-col gap-1 w-full sm:max-w-sm">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t.walletManagement.filterByWallet}
-          </span>
-          <MultiSelect
-            options={walletFilterOptions}
-            value={selectedWalletFilters}
-            onChange={setSelectedWalletFilters}
-            placeholder={t.walletManagement.walletFilterPlaceholder}
-            disabled={walletFilterOptions.length === 0}
-          />
-        </div>
-        {selectedWalletFilters.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedWalletFilters([])}
-            className="self-start sm:self-auto"
-            type="button"
-          >
-            {t.walletManagement.clearFilters}
-          </Button>
-        )}
-      </div>
-
       {networkGroups.map(networkGroup => (
         <motion.section
           key={networkGroup.entity.id}
@@ -1547,6 +1521,9 @@ export default function CryptoInvestmentPage() {
         entityOptions={entityOptions}
         selectedEntities={selectedEntities}
         onEntitiesChange={setSelectedEntities}
+        walletOptions={walletFilterOptions}
+        selectedWallets={selectedWalletFilters}
+        onWalletsChange={setSelectedWalletFilters}
       />
 
       {noResults ? (
@@ -1667,9 +1644,6 @@ export default function CryptoInvestmentPage() {
             value={viewMode}
             onValueChange={value => {
               setViewMode(value as ViewMode)
-              if (value === "wallets" && selectedWalletFilters.length > 0) {
-                setSelectedWalletFilters([])
-              }
             }}
             className="space-y-6"
           >

@@ -1,5 +1,6 @@
 from datetime import date
 
+from application.ports.entity_port import EntityPort
 from application.ports.position_port import PositionPort
 from dateutil.relativedelta import relativedelta
 from domain.global_position import EntitiesPosition, PositionQueryRequest, ProductType
@@ -48,12 +49,15 @@ def _enrich_data(data: dict):
 
 
 class GetPositionImpl(GetPosition):
-    def __init__(self, position_port: PositionPort):
+    def __init__(self, position_port: PositionPort, entity_port: EntityPort):
         self._position_port = position_port
+        self._entity_port = entity_port
 
     def execute(self, query: PositionQueryRequest) -> EntitiesPosition:
+        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+
         query = PositionQueryRequest(
-            entities=query.entities, excluded_entities=query.excluded_entities
+            entities=query.entities, excluded_entities=excluded_entities
         )
         global_position_by_entity = self._position_port.get_last_grouped_by_entity(
             query

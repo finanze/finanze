@@ -85,8 +85,7 @@ export default function DashboardPage() {
     fetchCachedTransactions,
     invalidateTransactionsCache,
   } = useFinancialData()
-  const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
-    useAppContext()
+  const { settings, exchangeRates, refreshExchangeRates } = useAppContext()
 
   const stablecoinSymbols = settings.assets?.crypto?.stablecoins ?? []
   const stablecoinSymbolsSet = useMemo(() => {
@@ -151,20 +150,19 @@ export default function DashboardPage() {
   }, [dashboardOptions])
 
   const fetchTransactionsData = async () => {
-    if (inactiveEntities && inactiveEntities.length > 0) {
-      if (!cachedLastTransactions) {
-        setTransactionsLoading(true)
-        setTransactionsError(null)
-        try {
-          const excludedEntityIds = inactiveEntities.map(entity => entity.id)
-          await fetchCachedTransactions(excludedEntityIds)
-        } catch (err) {
-          console.error("Error fetching transactions:", err)
-          setTransactionsError(t.common.unexpectedError)
-        } finally {
-          setTransactionsLoading(false)
-        }
-      }
+    if (cachedLastTransactions) {
+      return
+    }
+
+    setTransactionsLoading(true)
+    setTransactionsError(null)
+    try {
+      await fetchCachedTransactions()
+    } catch (err) {
+      console.error("Error fetching transactions:", err)
+      setTransactionsError(t.common.unexpectedError)
+    } finally {
+      setTransactionsLoading(false)
     }
   }
 
@@ -323,7 +321,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchTransactionsData()
-  }, [inactiveEntities, t])
+  }, [cachedLastTransactions, t])
 
   const targetCurrency = settings.general.defaultCurrency
   // In forecast mode we never apply current pending flows separately because they're implicitly reflected in the forecast snapshot by date.
@@ -1659,12 +1657,8 @@ export default function DashboardPage() {
                     onClick={async () => {
                       try {
                         setForecastLoading(true)
-                        const excludedEntityIds = inactiveEntities?.map(
-                          e => e.id,
-                        )
                         const result = await getForecast({
                           target_date: forecastTargetDate,
-                          excluded_entities: excludedEntityIds,
                           avg_annual_market_increase: forecastAnnualIncrease
                             ? parseFloat(forecastAnnualIncrease) / 100
                             : null,

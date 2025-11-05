@@ -40,7 +40,7 @@ interface FinancialDataContextType {
   realEstateList: RealEstate[]
   refreshRealEstate: () => Promise<void>
   cachedLastTransactions: TransactionsResult | null
-  fetchCachedTransactions: (excludedEntityIds: string[]) => Promise<void>
+  fetchCachedTransactions: () => Promise<void>
   invalidateTransactionsCache: () => void
 }
 
@@ -64,7 +64,6 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const initialFetchDone = useRef(false)
   const realEstateFetchInFlight = useRef<Promise<void> | null>(null)
   const {
-    inactiveEntities,
     entities,
     entitiesLoaded,
     fetchEntities,
@@ -78,18 +77,14 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
-      const entityIds = inactiveEntities?.map(entity => entity.id) ?? []
-      const baseQuery =
-        entityIds.length > 0 ? { excluded_entities: entityIds } : undefined
-
       const [
         positionsResponse,
         contributionsData,
         periodicFlowsData,
         pendingFlowsData,
       ] = await Promise.all([
-        getPositions(baseQuery as PositionQueryRequest | undefined),
-        getContributions(baseQuery as ContributionQueryRequest | undefined),
+        getPositions(),
+        getContributions(),
         getAllPeriodicFlows(),
         getAllPendingFlows(),
       ])
@@ -139,20 +134,16 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     return p
   }, [])
 
-  const fetchCachedTransactions = useCallback(
-    async (excludedEntityIds: string[]) => {
-      try {
-        const result = await getTransactions({
-          excluded_entities: excludedEntityIds,
-          limit: 8,
-        })
-        setCachedLastTransactions(result)
-      } catch (err) {
-        console.error("Error fetching cached transactions:", err)
-      }
-    },
-    [],
-  )
+  const fetchCachedTransactions = useCallback(async () => {
+    try {
+      const result = await getTransactions({
+        limit: 8,
+      })
+      setCachedLastTransactions(result)
+    } catch (err) {
+      console.error("Error fetching cached transactions:", err)
+    }
+  }, [])
 
   const invalidateTransactionsCache = useCallback(() => {
     setCachedLastTransactions(null)
@@ -258,16 +249,6 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       initialFetchDone.current = false
     }
   }, [entitiesLoaded, exchangeRatesLoading, exchangeRates, refreshRealEstate])
-
-  // Separate effect for inactive entities changes that should trigger refetch
-  useEffect(() => {
-    // Only refetch if we've already done the initial fetch
-    if (initialFetchDone.current) {
-      fetchFinancialData()
-      // Keep real estate list in sync when filters change
-      refreshRealEstate()
-    }
-  }, [inactiveEntities, refreshRealEstate])
 
   // Register the refreshEntity callback with AppContext
   useEffect(() => {

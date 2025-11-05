@@ -1,12 +1,10 @@
-from flask import jsonify, request
-
 from domain.auto_contributions import ContributionQueryRequest
 from domain.use_cases.get_contributions import GetContributions
+from flask import jsonify, request
 
 
 def contributions(get_contributions: GetContributions):
     entities = request.args.getlist("entity")
-    excluded_entities = request.args.getlist("excluded_entity")
     real_param = request.args.get("real")
 
     real = None
@@ -17,8 +15,7 @@ def contributions(get_contributions: GetContributions):
             real = False
 
     query = ContributionQueryRequest(
-        entities=[e for e in entities] or None,
-        excluded_entities=[ee for ee in excluded_entities] or None,
+        entities=list(entities) or None,
         real=real,
     )
     result = get_contributions.execute(query)

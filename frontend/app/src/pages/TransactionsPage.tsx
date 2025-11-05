@@ -60,7 +60,6 @@ import { useLocation, useNavigate } from "react-router-dom"
 
 interface TransactionFilters {
   entities: string[]
-  excluded_entities: string[]
   product_types: ProductType[]
   types: TxType[]
   from_date: string
@@ -74,8 +73,7 @@ const ITEMS_PER_PAGE = 20
 
 export default function TransactionsPage() {
   const { t, locale } = useI18n()
-  const { entities, inactiveEntities, settings, showToast, exchangeRates } =
-    useAppContext()
+  const { entities, settings, showToast, exchangeRates } = useAppContext()
   const location = useLocation()
   const navigateRouter = useNavigate()
 
@@ -102,7 +100,6 @@ export default function TransactionsPage() {
 
   const [filters, setFilters] = useState<TransactionFilters>(() => ({
     entities: [],
-    excluded_entities: inactiveEntities?.map(e => e.id) || [],
     product_types: [],
     types: [],
     from_date: "",
@@ -343,7 +340,6 @@ export default function TransactionsPage() {
     clearHistoricFilter()
     setFilters({
       entities: [],
-      excluded_entities: inactiveEntities?.map(e => e.id) || [],
       product_types: [],
       types: [],
       from_date: "",

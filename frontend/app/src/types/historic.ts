@@ -43,6 +43,5 @@ export interface Historic {
 
 export interface HistoricQueryRequest {
   entities?: string[]
-  excluded_entities?: string[]
   product_types?: ProductType[]
 }

@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from application.ports.auto_contributions_port import AutoContributionsPort
+from application.ports.entity_port import EntityPort
 from dateutil.relativedelta import relativedelta
 from domain.auto_contributions import (
     AutoContributions,
@@ -55,10 +56,16 @@ def _next_contribution_date(pc: PeriodicContribution) -> date | None:
 
 
 class GetContributionsImpl(GetContributions):
-    def __init__(self, auto_contributions_port: AutoContributionsPort):
+    def __init__(
+        self, auto_contributions_port: AutoContributionsPort, entity_port: EntityPort
+    ):
         self._auto_contributions_port = auto_contributions_port
+        self._entity_port = entity_port
 
     def execute(self, query: ContributionQueryRequest) -> EntityContributions:
+        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+
+        query.excluded_entities = excluded_entities
         data = self._auto_contributions_port.get_all_grouped_by_entity(query)
 
         contributions: dict[str, AutoContributions] = {}

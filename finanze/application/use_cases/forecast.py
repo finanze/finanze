@@ -3,8 +3,10 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, timedelta
 from typing import Callable, Dict, Optional
+from uuid import UUID
 
 from application.ports.auto_contributions_port import AutoContributionsPort
+from application.ports.entity_port import EntityPort
 from application.ports.pending_flow_port import PendingFlowPort
 from application.ports.periodic_flow_port import PeriodicFlowPort
 from application.ports.position_port import PositionPort
@@ -68,12 +70,14 @@ class ForecastImpl(Forecast):
         periodic_flow_port: PeriodicFlowPort,
         pending_flow_port: PendingFlowPort,
         real_estate_port: RealEstatePort,
+        entity_port: EntityPort,
     ) -> None:
         self._position_port = position_port
         self._auto_contributions_port = auto_contributions_port
         self._periodic_flow_port = periodic_flow_port
         self._pending_flow_port = pending_flow_port
         self._real_estate_port = real_estate_port
+        self._entity_port = entity_port
 
     # ---------- Helpers for occurrences ----------
     def _advance_after_today(
@@ -399,13 +403,11 @@ class ForecastImpl(Forecast):
         self,
         target: date,
         forecast_positions: Dict[str, GlobalPosition],
-        request: ForecastRequest,
+        excluded_entities: Optional[list[UUID]],
         cash_delta: Dict[str, Dezimal],
     ) -> None:
         contrib_map = self._auto_contributions_port.get_all_grouped_by_entity(
-            ContributionQueryRequest(
-                entities=request.entities, excluded_entities=request.excluded_entities
-            )
+            ContributionQueryRequest(excluded_entities=excluded_entities)
         )
         for entity, contribs in contrib_map.items():
             entity_id = str(entity.id)
@@ -873,14 +875,12 @@ class ForecastImpl(Forecast):
         target: date,
         avg_increase: Dezimal,
         cash_delta: Dict[str, Dezimal],
-        request: ForecastRequest,
+        excluded_entities: Optional[list[UUID]],
     ) -> None:
         monthly_rate = avg_increase / Dezimal(12)
         # Build contributions map once
         contrib_map = self._auto_contributions_port.get_all_grouped_by_entity(
-            ContributionQueryRequest(
-                entities=request.entities, excluded_entities=request.excluded_entities
-            )
+            ContributionQueryRequest(excluded_entities=excluded_entities)
         )
         # Precompute occurrences per entity
         per_entity_occurrences: dict[
@@ -972,6 +972,7 @@ class ForecastImpl(Forecast):
         self._add_real_estate_cash_delta(target, cash_delta)
 
         # Contributions + revaluation path
+        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
         if (
             request.avg_annual_market_increase is not None
             and request.avg_annual_market_increase > Dezimal(0)
@@ -981,11 +982,11 @@ class ForecastImpl(Forecast):
                 target,
                 request.avg_annual_market_increase,
                 cash_delta,
-                request,
+                excluded_entities,
             )
         else:
             self._apply_auto_contributions(
-                target, forecast_positions, request, cash_delta
+                target, forecast_positions, excluded_entities, cash_delta
             )
 
         # Liquidate matured investments

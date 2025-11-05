@@ -264,7 +264,7 @@ export enum ExportTarget {
 }
 
 export interface ExportOptions {
-  exclude_non_real?: boolean
+  exclude_non_real?: boolean | null
 }
 
 export interface ExportRequest {
@@ -693,7 +693,6 @@ export interface LoanCalculationResult {
 export interface ForecastRequest {
   target_date: string
   entities?: string[]
-  excluded_entities?: string[]
   avg_annual_market_increase?: number | null
   avg_annual_crypto_increase?: number | null
   avg_annual_commodity_increase?: number | null

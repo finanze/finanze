@@ -12,7 +12,11 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self, real: Optional[bool] = None) -> Transactions:
+    def get_all(
+        self,
+        real: Optional[bool] = None,
+        excluded_entities: Optional[list[UUID]] = None,
+    ) -> Transactions:
         raise NotImplementedError
 
     @abc.abstractmethod

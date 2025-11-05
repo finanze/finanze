@@ -321,6 +321,7 @@ class FinanzeServer:
             self.exporter,
             last_fetches_repository,
             external_integration_repository,
+            entity_repository,
             self.config_loader,
         )
         virtual_fetch = VirtualFetchImpl(
@@ -344,10 +345,14 @@ class FinanzeServer:
         )
         get_settings = GetSettingsImpl(self.config_loader)
         update_settings = UpdateSettingsImpl(self.config_loader)
-        get_entities_position = GetPositionImpl(position_repository)
-        get_contributions = GetContributionsImpl(auto_contrib_repository)
-        get_historic = GetHistoricImpl(historic_repository)
-        get_transactions = GetTransactionsImpl(transaction_repository)
+        get_entities_position = GetPositionImpl(position_repository, entity_repository)
+        get_contributions = GetContributionsImpl(
+            auto_contrib_repository, entity_repository
+        )
+        get_historic = GetHistoricImpl(historic_repository, entity_repository)
+        get_transactions = GetTransactionsImpl(
+            transaction_repository, entity_repository
+        )
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client,
             crypto_asset_info_client,
@@ -451,6 +456,7 @@ class FinanzeServer:
             periodic_flow_port=periodic_flow_repository,
             pending_flow_port=pending_flow_repository,
             real_estate_port=real_estate_repository,
+            entity_port=entity_repository,
         )
         update_contributions = UpdateContributionsImpl(
             entity_port=entity_repository,

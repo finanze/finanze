@@ -5,6 +5,7 @@ from typing import TypeVar
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
+from application.ports.entity_port import EntityPort
 from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
@@ -18,7 +19,7 @@ from domain.export import ExportRequest
 from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import FetchRecord
 from domain.global_position import GlobalPosition, PositionQueryRequest, ProductType
-from domain.historic import Historic
+from domain.historic import Historic, HistoricQueryRequest
 from domain.settings import (
     ContributionSheetConfig,
     GlobalsConfig,
@@ -63,6 +64,7 @@ class UpdateSheetsImpl(UpdateSheets):
         sheets_update_port: SheetsUpdatePort,
         last_fetches_port: LastFetchesPort,
         external_integration_port: ExternalIntegrationPort,
+        entity_port: EntityPort,
         config_port: ConfigPort,
     ):
         self._position_port = position_port
@@ -72,6 +74,7 @@ class UpdateSheetsImpl(UpdateSheets):
         self._sheets_update_port = sheets_update_port
         self._last_fetches_port = last_fetches_port
         self._external_integration_port = external_integration_port
+        self._entity_port = entity_port
         self._config_port = config_port
 
         self._lock = Lock()
@@ -113,8 +116,11 @@ class UpdateSheetsImpl(UpdateSheets):
 
             real = request.options.exclude_non_real if request.options else None
 
+            disabled_entities = [
+                e.id for e in self._entity_port.get_disabled_entities()
+            ]
             global_position_by_entity = self._position_port.get_last_grouped_by_entity(
-                PositionQueryRequest(real=real)
+                PositionQueryRequest(real=real, excluded_entities=disabled_entities)
             )
             last_position_fetches = _map_last_fetch(
                 self._last_fetches_port.get_grouped_by_entity(Feature.POSITION)
@@ -128,7 +134,7 @@ class UpdateSheetsImpl(UpdateSheets):
             )
 
             auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
-                ContributionQueryRequest(real=real)
+                ContributionQueryRequest(real=real, excluded_entities=disabled_entities)
             )
             last_contribution_fetches = _map_last_fetch(
                 self._last_fetches_port.get_grouped_by_entity(
@@ -143,7 +149,9 @@ class UpdateSheetsImpl(UpdateSheets):
                 sheet_credentials,
             )
 
-            transactions = self._transaction_port.get_all(real=real)
+            transactions = self._transaction_port.get_all(
+                real=real, excluded_entities=disabled_entities
+            )
             transactions_last_update = _map_last_fetch(
                 self._last_fetches_port.get_grouped_by_entity(Feature.TRANSACTIONS)
             )
@@ -151,7 +159,9 @@ class UpdateSheetsImpl(UpdateSheets):
                 transactions, tx_configs, transactions_last_update, sheet_credentials
             )
 
-            historic = self._historic_port.get_all()
+            historic = self._historic_port.get_by_filters(
+                HistoricQueryRequest(excluded_entities=disabled_entities)
+            )
             self.update_historic(historic, historic_configs, sheet_credentials)
 
     def update_position_sheets(

@@ -372,10 +372,8 @@ export interface EntitiesPosition {
   positions: Record<string, GlobalPosition>
 }
 
-// Position query request
 export interface PositionQueryRequest {
-  entities?: string[] // Add entities filter
-  excluded_entities?: string[]
+  entities?: string[]
 }
 
 export interface UpdatePositionRequest {

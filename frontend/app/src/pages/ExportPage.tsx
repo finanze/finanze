@@ -37,7 +37,7 @@ export default function ExportPage() {
       setExportState(prev => ({ ...prev, isExporting: true }))
       await updateSheets({
         target: ExportTarget.GOOGLE_SHEETS,
-        options: { exclude_non_real: excludeNonReal },
+        options: { exclude_non_real: excludeNonReal ? true : null },
       })
 
       // Show success animation

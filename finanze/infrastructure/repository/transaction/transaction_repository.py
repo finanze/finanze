@@ -292,17 +292,23 @@ class TransactionSQLRepository(TransactionPort):
                     ),
                 )
 
-    def get_all(self, real: Optional[bool] = None) -> Transactions:
+    def get_all(
+        self,
+        real: Optional[bool] = None,
+        excluded_entities: Optional[list[UUID]] = None,
+    ) -> Transactions:
         return Transactions(
-            investment=self._get_investment_txs(real),
-            account=self._get_account_txs(real),
+            investment=self._get_investment_txs(real, excluded_entities),
+            account=self._get_account_txs(real, excluded_entities),
         )
 
     def _get_investment_txs(
-        self, real: Optional[bool] = None
+        self,
+        real: Optional[bool] = None,
+        excluded_entities: Optional[list[UUID]] = None,
     ) -> List[BaseInvestmentTx]:
         with self._db_client.read() as cursor:
-            params = []
+            params: list[str] = []
             query = """
                     SELECT it.*,
                            e.id         AS entity_id,
@@ -313,20 +319,34 @@ class TransactionSQLRepository(TransactionPort):
                     FROM investment_transactions it
                              JOIN entities e ON it.entity_id = e.id
                     """
+
+            conditions: list[str] = []
             if real is not None:
                 if real:
-                    query += " WHERE it.source = 'REAL'"
+                    conditions.append("it.source = 'REAL'")
                 else:
-                    query += " WHERE it.source IN ('MANUAL', 'SHEETS')"
+                    conditions.append("it.source IN ('MANUAL', 'SHEETS')")
+
+            if excluded_entities:
+                placeholders = ", ".join("?" for _ in excluded_entities)
+                conditions.append(f"it.entity_id NOT IN ({placeholders})")
+                params.extend([str(e) for e in excluded_entities])
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
 
             query += " ORDER BY it.date ASC"
-
             cursor.execute(query, tuple(params))
+
             return [_map_investment_row(row) for row in cursor.fetchall()]
 
-    def _get_account_txs(self, real: Optional[bool] = None) -> List[AccountTx]:
+    def _get_account_txs(
+        self,
+        real: Optional[bool] = None,
+        excluded_entities: Optional[list[UUID]] = None,
+    ) -> List[AccountTx]:
         with self._db_client.read() as cursor:
-            params = []
+            params: list[str] = []
             query = """
                     SELECT at.*,
                            e.id         AS entity_id,
@@ -338,11 +358,20 @@ class TransactionSQLRepository(TransactionPort):
                              JOIN entities e ON at.entity_id = e.id
                     """
 
+            conditions: list[str] = []
             if real is not None:
                 if real:
-                    query += " WHERE at.source = 'REAL'"
+                    conditions.append("at.source = 'REAL'")
                 else:
-                    query += " WHERE at.source IN ('MANUAL', 'SHEETS')"
+                    conditions.append("at.source IN ('MANUAL', 'SHEETS')")
+
+            if excluded_entities:
+                placeholders = ", ".join("?" for _ in excluded_entities)
+                conditions.append(f"at.entity_id NOT IN ({placeholders})")
+                params.extend([str(e) for e in excluded_entities])
+
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
 
             query += " ORDER BY at.date ASC"
 

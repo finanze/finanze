@@ -216,7 +216,6 @@ export interface TransactionQueryRequest {
   page?: number
   limit?: number
   entities?: string[]
-  excluded_entities?: string[]
   product_types?: ProductType[]
   from_date?: string
   to_date?: string

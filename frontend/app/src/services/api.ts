@@ -329,14 +329,6 @@ export async function getContributions(
         params.append("entity", entity)
       })
     }
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach((entity: string) => {
-        params.append("excluded_entity", entity)
-      })
-    }
     if (params.toString()) {
       queryString = `?${params.toString()}`
     }
@@ -360,14 +352,6 @@ export async function getPositions(
     if (queryParams.entities && queryParams.entities.length > 0) {
       queryParams.entities.forEach((entity: string) => {
         params.append("entity", entity)
-      })
-    }
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach((entity: string) => {
-        params.append("excluded_entity", entity)
       })
     }
     if (params.toString()) {
@@ -397,15 +381,6 @@ export async function getTransactions(
     if (queryParams.entities && queryParams.entities.length > 0) {
       queryParams.entities.forEach((entity: string) => {
         params.append("entity", entity)
-      })
-    }
-
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach((entity: string) => {
-        params.append("excluded_entity", entity)
       })
     }
 
@@ -449,15 +424,6 @@ export async function getHistoric(
     if (queryParams.entities && queryParams.entities.length > 0) {
       queryParams.entities.forEach(entity => {
         params.append("entity", entity)
-      })
-    }
-
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach(entity => {
-        params.append("excluded_entity", entity)
       })
     }
 
