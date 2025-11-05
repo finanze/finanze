@@ -225,6 +225,7 @@ export enum VirtualFetchResultCode {
 export interface Settings {
   general: {
     defaultCurrency: string
+    defaultCommodityWeightUnit: string
   }
   export: {
     sheets: {
@@ -249,6 +250,11 @@ export interface Settings {
       }
       investments: any[]
       transactions: any[]
+    }
+  }
+  assets: {
+    crypto: {
+      stablecoins: string[]
     }
   }
 }

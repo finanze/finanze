@@ -101,17 +101,17 @@ from infrastructure.client.financial.gocardless.gocardless_client import (
 from infrastructure.client.instrument.instrument_provider_adapter import (
     InstrumentProviderAdapter,
 )
-from infrastructure.client.rates.crypto_price_client import CryptoPriceClient
+from infrastructure.client.rates.crypto.crypto_price_client import CryptoAssetInfoClient
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
-from infrastructure.file_storage.local_file_storage import LocalFileStorage
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
+from infrastructure.file_storage.local_file_storage import LocalFileStorage
 from infrastructure.repository import (
     AutoContributionsRepository,
     EntityRepository,
@@ -122,7 +122,10 @@ from infrastructure.repository import (
 from infrastructure.repository.credentials.credentials_repository import (
     CredentialsRepository,
 )
-from infrastructure.repository.crypto_wallets.crypto_wallet_connection_repository import (
+from infrastructure.repository.crypto.crypto_asset_repository import (
+    CryptoAssetRegistryRepository,
+)
+from infrastructure.repository.crypto.crypto_wallet_connection_repository import (
     CryptoWalletConnectionRepository,
 )
 from infrastructure.repository.db.client import DBClient
@@ -219,6 +222,7 @@ class FinanzeServer:
         crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
             client=self.db_client
         )
+        crypto_assset_repository = CryptoAssetRegistryRepository(client=self.db_client)
         last_fetches_repository = LastFetchesRepository(client=self.db_client)
         external_integration_repository = ExternalIntegrationRepository(
             client=self.db_client
@@ -234,7 +238,7 @@ class FinanzeServer:
         exchange_rate_storage = ExchangeRateFileStorage(self.args.data_dir)
 
         exchange_rate_client = ExchangeRateClient()
-        crypto_price_client = CryptoPriceClient()
+        crypto_asset_info_client = CryptoAssetInfoClient()
         metal_price_client = MetalPriceClient()
         instrument_provider = InstrumentProviderAdapter()
 
@@ -294,7 +298,8 @@ class FinanzeServer:
             position_repository,
             self.crypto_entity_fetchers,
             crypto_wallet_connections_repository,
-            crypto_price_client,
+            crypto_assset_repository,
+            crypto_asset_info_client,
             self.config_loader,
             last_fetches_repository,
             transaction_handler,
@@ -345,9 +350,10 @@ class FinanzeServer:
         get_transactions = GetTransactionsImpl(transaction_repository)
         get_exchange_rates = GetExchangeRatesImpl(
             exchange_rate_client,
-            crypto_price_client,
+            crypto_asset_info_client,
             metal_price_client,
             exchange_rate_storage,
+            crypto_assset_repository,
         )
         connect_external_entity = ConnectExternalEntityImpl(
             entity_repository,
@@ -547,7 +553,7 @@ class FinanzeServer:
         )
 
         self._log.info("Warming up exchange rates...")
-        get_exchange_rates.execute(timeout=5)
+        get_exchange_rates.execute(initial_load=True)
 
         self._log.info("Completed.")
 

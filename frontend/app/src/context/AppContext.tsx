@@ -59,6 +59,11 @@ export interface AppSettings {
     defaultCurrency: string
     defaultCommodityWeightUnit: string
   }
+  assets: {
+    crypto: {
+      stablecoins: string[]
+    }
+  }
 }
 
 export interface ExportState {
@@ -114,6 +119,67 @@ const defaultSettings: AppSettings = {
     defaultCurrency: "EUR",
     defaultCommodityWeightUnit: WeightUnit.GRAM,
   },
+  assets: {
+    crypto: {
+      stablecoins: [],
+    },
+  },
+}
+
+const mergeSettingsWithDefaults = (
+  incoming?: Partial<AppSettings>,
+): AppSettings => {
+  const mergedExportSheets = {
+    ...(defaultSettings.export?.sheets ?? {}),
+    ...(incoming?.export?.sheets ?? {}),
+    globals: {
+      ...(defaultSettings.export?.sheets?.globals ?? {}),
+      ...(incoming?.export?.sheets?.globals ?? {}),
+    },
+  }
+
+  const mergedFetchVirtual = {
+    ...(defaultSettings.fetch.virtual ?? {}),
+    ...(incoming?.fetch?.virtual ?? {}),
+    globals: {
+      ...(defaultSettings.fetch.virtual?.globals ?? {}),
+      ...(incoming?.fetch?.virtual?.globals ?? {}),
+    },
+  }
+
+  const mergedAssets = {
+    ...defaultSettings.assets,
+    ...incoming?.assets,
+    crypto: {
+      ...defaultSettings.assets.crypto,
+      ...incoming?.assets?.crypto,
+      stablecoins:
+        incoming?.assets?.crypto?.stablecoins ??
+        defaultSettings.assets.crypto.stablecoins,
+    },
+  }
+
+  return {
+    ...defaultSettings,
+    ...incoming,
+    general: {
+      ...defaultSettings.general,
+      ...(incoming?.general ?? {}),
+    },
+    export: defaultSettings.export
+      ? {
+          ...defaultSettings.export,
+          ...(incoming?.export ?? {}),
+          sheets: mergedExportSheets,
+        }
+      : incoming?.export,
+    fetch: {
+      ...defaultSettings.fetch,
+      ...(incoming?.fetch ?? {}),
+      virtual: mergedFetchVirtual,
+    },
+    assets: mergedAssets,
+  }
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -210,7 +276,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           fetchExchangeRatesSilently()
         }
       },
-      5 * 60 * 1000,
+      10 * 60 * 1000,
     )
   }, [fetchExchangeRatesSilently, isAuthenticated])
 
@@ -267,7 +333,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoadingSettings(true)
       const data = await getSettings()
-      setSettings(data)
+      setSettings(mergeSettingsWithDefaults(data))
     } catch (error) {
       console.error("Error fetching settings:", error)
       showToast(t.settings.fetchError, "error")
@@ -280,7 +346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (settingsData: AppSettings) => {
       try {
         await saveSettings(settingsData)
-        setSettings(settingsData)
+        setSettings(mergeSettingsWithDefaults(settingsData))
         showToast(t.settings.saveSuccess, "success")
       } catch (error) {
         console.error("Error saving settings:", error)

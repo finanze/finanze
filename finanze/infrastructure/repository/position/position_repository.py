@@ -20,10 +20,9 @@ from domain.global_position import (
     Commodity,
     Crowdlending,
     CryptoCurrencies,
-    CryptoCurrency,
-    CryptoCurrencyToken,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
-    CryptoToken,
     Deposit,
     Deposits,
     EquityType,
@@ -49,6 +48,9 @@ from domain.global_position import (
     StockInvestments,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
+from infrastructure.repository.crypto.crypto_asset_repository import (
+    map_crypto_asset_row,
+)
 from infrastructure.repository.db.client import DBClient, DBCursor
 
 _AND = " AND "
@@ -178,52 +180,35 @@ def _save_commodities(cursor, position: GlobalPosition, commodities: Commodities
         )
 
 
-def _save_crypto_currency_token_positions(cursor, wallet_detail: CryptoCurrencyWallet):
-    for token_detail in wallet_detail.tokens:
-        cursor.execute(
-            """
-            INSERT INTO crypto_currency_token_positions (id, wallet_id, token_id, name, symbol, token, amount,
-                                               market_value, currency, type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(token_detail.id),
-                str(wallet_detail.id),
-                token_detail.token_id,
-                token_detail.name,
-                token_detail.symbol,
-                token_detail.token,
-                str(token_detail.amount),
-                str(token_detail.market_value),
-                token_detail.currency,
-                token_detail.type,
-            ),
-        )
-
-
 def _save_crypto_currencies(
     cursor, position: GlobalPosition, cryptocurrencies: CryptoCurrencies
 ):
-    for wallet_detail in cryptocurrencies.entries:
-        cursor.execute(
-            """
-            INSERT INTO crypto_currency_wallet_positions (id, global_position_id, wallet_connection_id, symbol, amount,
-                                                          market_value, currency,
-                                                          crypto)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                str(wallet_detail.id),
-                str(position.id),
-                str(wallet_detail.wallet_connection_id),
-                wallet_detail.symbol,
-                str(wallet_detail.amount),
-                str(wallet_detail.market_value),
-                wallet_detail.currency,
-                wallet_detail.crypto.value,
-            ),
-        )
-        _save_crypto_currency_token_positions(cursor, wallet_detail)
+    for entry in cryptocurrencies.entries:
+        for crypto_position in entry.assets:
+            cursor.execute(
+                """
+                INSERT INTO crypto_currency_positions (id, global_position_id, wallet_id, name, symbol, type, amount,
+                                                              market_value, currency, contract_address, crypto_asset_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(crypto_position.id),
+                    str(position.id),
+                    str(entry.id),
+                    crypto_position.name,
+                    crypto_position.symbol,
+                    crypto_position.type.value,
+                    str(crypto_position.amount),
+                    str(crypto_position.market_value)
+                    if crypto_position.market_value
+                    else None,
+                    crypto_position.currency,
+                    crypto_position.contract_address,
+                    str(crypto_position.crypto_asset.id)
+                    if crypto_position.crypto_asset
+                    else None,
+                ),
+            )
 
 
 def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
@@ -996,49 +981,6 @@ class PositionSQLRepository(PositionPort):
                 entries=[],
             )
 
-    def _get_crypto_currency_token_positions(
-        self, wallet_id: UUID, wallet_connection_id: UUID
-    ) -> list[CryptoCurrencyToken]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT p.*,
-                       cii.currency AS investment_currency,
-                       cii.initial_investment,
-                       cii.average_buy_price
-                FROM crypto_currency_token_positions p
-                         LEFT JOIN crypto_initial_investments cii ON cii.wallet_connection_id = ? AND p.symbol = cii.symbol AND cii.type = 'TOKEN'
-                WHERE p.wallet_id = ?
-                """,
-                (
-                    str(wallet_connection_id),
-                    str(wallet_id),
-                ),
-            )
-            return [
-                CryptoCurrencyToken(
-                    id=UUID(row["id"]),
-                    token_id=row["token_id"],
-                    name=row["name"],
-                    symbol=row["symbol"],
-                    token=CryptoToken(row["token"]),
-                    amount=Dezimal(row["amount"]),
-                    initial_investment=Dezimal(row["initial_investment"])
-                    if row["initial_investment"]
-                    else None,
-                    average_buy_price=Dezimal(row["average_buy_price"])
-                    if row["average_buy_price"]
-                    else None,
-                    investment_currency=row["investment_currency"]
-                    if row["investment_currency"]
-                    else None,
-                    market_value=Dezimal(row["market_value"]),
-                    currency=row["currency"],
-                    type=row["type"],
-                )
-                for row in cursor
-            ]
-
     def _get_cryptocurrency(
         self, global_position: GlobalPosition
     ) -> Optional[CryptoCurrencies]:
@@ -1046,51 +988,54 @@ class PositionSQLRepository(PositionPort):
             cursor.execute(
                 """
                 SELECT p.*,
+                       a.*,
+                       a.name as asset_name,
                        c.address,
-                       c.name,
-                       cii.currency AS investment_currency,
-                       cii.initial_investment,
-                       cii.average_buy_price
-                FROM crypto_currency_wallet_positions p
-                         JOIN crypto_wallet_connections c ON p.wallet_connection_id = c.id
-                         LEFT JOIN crypto_initial_investments cii ON cii.wallet_connection_id = c.id AND p.symbol = cii.symbol AND cii.type = 'CRYPTO'
+                       c.name AS wallet_name
+                FROM crypto_currency_positions p
+                         LEFT JOIN crypto_assets a ON p.crypto_asset_id = a.id
+                         LEFT JOIN crypto_wallet_connections c ON p.wallet_id = c.id
                 WHERE global_position_id = ?
                 """,
                 (str(global_position.id),),
             )
-            wallets = []
+            wallets = {}
             for row in cursor:
-                wallet_id = UUID(row["id"])
-                wallet_connection_id = UUID(row["wallet_connection_id"])
-                tokens = self._get_crypto_currency_token_positions(
-                    wallet_id, wallet_connection_id
-                )
-                wallets.append(
-                    CryptoCurrencyWallet(
-                        id=wallet_id,
-                        wallet_connection_id=wallet_connection_id,
-                        address=row["address"],
-                        name=row["name"],
-                        symbol=row["symbol"],
-                        amount=Dezimal(row["amount"]),
-                        initial_investment=Dezimal(row["initial_investment"])
-                        if row["initial_investment"]
-                        else None,
-                        average_buy_price=Dezimal(row["average_buy_price"])
-                        if row["average_buy_price"]
-                        else None,
-                        investment_currency=row["investment_currency"]
-                        if row["investment_currency"]
-                        else None,
-                        market_value=Dezimal(row["market_value"]),
-                        currency=row["currency"],
-                        crypto=CryptoCurrency(row["crypto"]),
-                        tokens=tokens,
-                    )
-                )
+                if not row["wallet_id"]:
+                    continue
 
-            if not wallets:
-                return None
+                wallet_id = UUID(row["wallet_id"])
+                if wallet_id not in wallets:
+                    wallets[wallet_id] = CryptoCurrencyWallet(
+                        id=wallet_id,
+                        address=row["address"],
+                        name=row["wallet_name"],
+                        assets=[],
+                    )
+
+                crypto_asset = (
+                    map_crypto_asset_row(row) if row["crypto_asset_id"] else None
+                )
+                if crypto_asset:
+                    crypto_asset.id = UUID(row["crypto_asset_id"])
+                    crypto_asset.name = row["asset_name"]
+
+                crypto_pos = CryptoCurrencyPosition(
+                    id=UUID(row["id"]),
+                    symbol=row["symbol"],
+                    name=row["name"],
+                    amount=Dezimal(row["amount"]),
+                    type=CryptoCurrencyType(row["type"]),
+                    market_value=Dezimal(row["market_value"])
+                    if row["market_value"]
+                    else None,
+                    currency=row["currency"],
+                    contract_address=row["contract_address"],
+                    crypto_asset=crypto_asset,
+                )
+                wallets[wallet_id].assets.append(crypto_pos)
+
+            wallets = list(wallets.values())
 
             return CryptoCurrencies(wallets)
 

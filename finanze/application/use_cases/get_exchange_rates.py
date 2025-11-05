@@ -5,7 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 from threading import Lock
 
-from application.ports.crypto_price_provider import CryptoPriceProvider
+from application.ports.crypto_asset_port import CryptoAssetRegistryPort
+from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
@@ -13,9 +14,6 @@ from dateutil.tz import tzlocal
 from domain.commodity import COMMODITY_SYMBOLS
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
-from domain.global_position import (
-    CRYPTO_SYMBOLS,
-)
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 
 
@@ -34,6 +32,7 @@ def _now() -> int:
 
 class GetExchangeRatesImpl(GetExchangeRates):
     SUPPORTED_CURRENCIES = ["EUR", "USD"]
+    BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB", "USDT", "USDC"]
     DEFAULT_TIMEOUT = 7
     CACHE_TTL_SECONDS = 300
     STORAGE_REFRESH_SECONDS = 6 * 60 * 60
@@ -41,14 +40,16 @@ class GetExchangeRatesImpl(GetExchangeRates):
     def __init__(
         self,
         exchange_rates_provider: ExchangeRateProvider,
-        crypto_price_provider: CryptoPriceProvider,
+        crypto_asset_info_provider: CryptoAssetInfoProvider,
         metal_price_provider: MetalPriceProvider,
         exchange_rates_storage: ExchangeRateStorage,
+        crypto_asset_registry_port: CryptoAssetRegistryPort,
     ):
         self._exchange_rates_provider = exchange_rates_provider
-        self._crypto_price_provider = crypto_price_provider
+        self._crypto_asset_info_provider = crypto_asset_info_provider
         self._metal_price_provider = metal_price_provider
         self._exchange_rates_storage = exchange_rates_storage
+        self._crypto_asset_registry_port = crypto_asset_registry_port
 
         stored = self._exchange_rates_storage.get()
         self._fiat_matrix: ExchangeRates | None = stored if stored else None
@@ -61,10 +62,11 @@ class GetExchangeRatesImpl(GetExchangeRates):
         self._lock = Lock()
 
         self._log = logging.getLogger(__name__)
+        self._second_load = False
 
-    def execute(self, timeout: int = DEFAULT_TIMEOUT) -> ExchangeRates:
+    def execute(self, initial_load: bool = False) -> ExchangeRates:
         with self._lock:
-            return self._get_exchange_rates(timeout)
+            return self._get_exchange_rates(initial_load)
 
     def _needs_base_refresh(self) -> bool:
         if self._fiat_matrix is None:
@@ -109,26 +111,36 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 if result is not None:
                     commodity_rates[commodity] = (result, symbol)
             elif kind == "crypto":
-                crypto, symbol, base_currency = meta
+                symbol, base_currency = meta
                 if base_currency not in crypto_rates:
                     crypto_rates[base_currency] = {}
-                crypto_rates[base_currency][crypto] = (result, symbol)
+                crypto_rates[base_currency][symbol] = result
+            elif kind == "crypto_batch":
+                for symbol, fiat_map in result.items():
+                    for fiat_iso, price in fiat_map.items():
+                        if fiat_iso not in crypto_rates:
+                            crypto_rates[fiat_iso] = {}
+                        crypto_rates[fiat_iso][symbol] = price
         except Exception as e:
             if kind == "base":
                 self._log.error(f"Failed base fiat matrix fetch: {e}")
             elif kind == "commodity":
                 commodity, _ = meta
                 self._log.error(f"Failed commodity price for {commodity}: {e}")
+            elif kind == "crypto_batch":
+                self._log.error(f"Failed batched crypto prices fetch: {e}")
             else:
-                crypto, _, base_currency = meta
+                symbol, base_currency = meta
                 self._log.error(
-                    f"Failed crypto price for {crypto} in {base_currency}: {e}"
+                    f"Failed crypto price for {symbol} in {base_currency}: {e}"
                 )
         return refreshed_base
 
-    def _get_exchange_rates(self, timeout: int) -> ExchangeRates:
+    def _get_exchange_rates(self, initial_load: bool) -> ExchangeRates:
+        timeout = self.DEFAULT_TIMEOUT if not initial_load else 5
+
         refresh_base = self._needs_base_refresh()
-        if not refresh_base:
+        if not refresh_base and not self._second_load:
             return self._fiat_matrix
 
         if self._fiat_matrix is None:
@@ -144,9 +156,10 @@ class GetExchangeRatesImpl(GetExchangeRates):
         executor = ThreadPoolExecutor(max_workers=8)
         try:
             futures = {}
-            futures.update(self._schedule_base_matrix(executor, True, timeout))
-            futures.update(self._schedule_commodity_rates(executor, timeout))
-            futures.update(self._schedule_crypto_rates(executor, timeout))
+            if refresh_base:
+                futures.update(self._schedule_base_matrix(executor, True, timeout))
+                futures.update(self._schedule_commodity_rates(executor, timeout))
+            futures.update(self._schedule_crypto_rates(executor, timeout, initial_load))
 
             pending = set(futures.keys())
 
@@ -191,17 +204,26 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         self._apply_rates(commodity_rates, crypto_rates)
 
-        self._save_rates_to_storage()
+        self._save_rates_to_storage(force=self._second_load)
+
+        if self._second_load:
+            self._second_load = False
+        elif initial_load:
+            self._second_load = True
 
         return self._fiat_matrix
 
-    def _save_rates_to_storage(self):
+    def _save_rates_to_storage(self, force: bool = False):
         try:
             if self._fiat_matrix:
                 last_saved = self._exchange_rates_storage.get_last_saved()
-                if (last_saved is None) or (
-                    (datetime.now(tzlocal()) - last_saved).total_seconds()
-                    >= self.STORAGE_REFRESH_SECONDS
+                if (
+                    force
+                    or (last_saved is None)
+                    or (
+                        (datetime.now(tzlocal()) - last_saved).total_seconds()
+                        >= self.STORAGE_REFRESH_SECONDS
+                    )
                 ):
                     self._log.debug("Saving exchange rates to storage.")
                     self._exchange_rates_storage.save(self._fiat_matrix)
@@ -225,16 +247,31 @@ class GetExchangeRatesImpl(GetExchangeRates):
             for commodity, symbol in COMMODITY_SYMBOLS.items()
         }
 
-    def _schedule_crypto_rates(self, executor, timeout: int):
+    def _schedule_crypto_rates(self, executor, timeout: int, initial_load: bool):
+        if initial_load:
+            return {
+                executor.submit(
+                    self._crypto_asset_info_provider.get_price,
+                    symbol,
+                    base_currency,
+                    timeout=timeout,
+                ): ("crypto", (symbol, base_currency))
+                for base_currency in self.SUPPORTED_CURRENCIES
+                for symbol in self.BASE_CRYPTO_SYMBOLS
+            }
+
+        symbols = self._crypto_asset_registry_port.get_symbols()
+
+        if not symbols:
+            return {}
+
         return {
             executor.submit(
-                self._crypto_price_provider.get_price,
-                crypto,
-                base_currency,
+                self._crypto_asset_info_provider.get_multiple_prices,
+                symbols,
+                self.SUPPORTED_CURRENCIES,
                 timeout=timeout,
-            ): ("crypto", (crypto, symbol, base_currency))
-            for base_currency in self.SUPPORTED_CURRENCIES
-            for crypto, symbol in CRYPTO_SYMBOLS.items()
+            ): ("crypto_batch", None)
         }
 
     def _apply_rates(self, commodity_rates, crypto_rates):
@@ -273,15 +310,15 @@ class GetExchangeRatesImpl(GetExchangeRates):
         if self._fiat_matrix is None:
             return
         if base_currency in crypto_rates:
-            for crypto, (rate, symbol) in crypto_rates[base_currency].items():
+            for symbol, rate in crypto_rates[base_currency].items():
                 try:
                     rate_dec = _to_decimal(rate)
                     if rate_dec is None or rate_dec == 0:
                         continue
-                    self._fiat_matrix[base_currency][symbol.upper()] = (
+                    self._fiat_matrix[base_currency][symbol.upper()] = Dezimal(
                         Decimal(1) / rate_dec
                     )
                 except Exception as e:
                     self._log.error(
-                        f"Failed to apply crypto {crypto} for {base_currency}: {e}"
+                        f"Failed to apply crypto {symbol} for {base_currency}: {e}"
                     )

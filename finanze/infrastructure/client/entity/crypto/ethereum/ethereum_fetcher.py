@@ -1,5 +1,4 @@
 import logging
-import time
 from uuid import uuid4
 
 import requests
@@ -9,11 +8,11 @@ from domain.crypto import CryptoFetchRequest
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
 from domain.global_position import (
-    CryptoCurrency,
-    CryptoCurrencyToken,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
-    CryptoToken,
 )
+from infrastructure.client.http.backoff import http_get_with_backoff
 
 
 class EthereumFetcher(CryptoEntityFetcher):
@@ -21,6 +20,8 @@ class EthereumFetcher(CryptoEntityFetcher):
     BASE_URL = "https://api.ethplorer.io/getAddressInfo"
     API_KEY = "freekey"
     COOLDOWN = 0.4
+    MAX_RETRIES = 3
+    BACKOFF_FACTOR = 0.5
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -30,18 +31,22 @@ class EthereumFetcher(CryptoEntityFetcher):
 
         eth_balance = Dezimal(data["ETH"]["balance"])
 
-        tokens = self._parse_tokens(data)
+        assets = [
+            CryptoCurrencyPosition(
+                id=uuid4(),
+                symbol="ETH",
+                amount=eth_balance,
+                type=CryptoCurrencyType.NATIVE,
+            )
+        ]
+        assets += self._parse_tokens(data)
 
         return CryptoCurrencyWallet(
-            id=uuid4(),
-            wallet_connection_id=request.connection_id,
-            symbol="ETH",
-            crypto=CryptoCurrency.ETHEREUM,
-            amount=eth_balance,
-            tokens=tokens,
+            id=request.connection_id,
+            assets=assets,
         )
 
-    def _parse_tokens(self, data: dict) -> list[CryptoCurrencyToken]:
+    def _parse_tokens(self, data: dict) -> list[CryptoCurrencyPosition]:
         tokens = []
         if "tokens" not in data:
             return tokens
@@ -52,11 +57,6 @@ class EthereumFetcher(CryptoEntityFetcher):
                 continue
 
             symbol = token_info.get("symbol")
-            try:
-                token_enum = CryptoToken(symbol)
-            except (ValueError, TypeError):
-                self._log.debug(f"Token {symbol} not supported. Skipping.")
-                continue
 
             try:
                 decimals = int(token_info.get("decimals", 0))
@@ -67,14 +67,13 @@ class EthereumFetcher(CryptoEntityFetcher):
                 continue
 
             tokens.append(
-                CryptoCurrencyToken(
+                CryptoCurrencyPosition(
                     id=uuid4(),
-                    token_id=token_info.get("address"),
+                    contract_address=token_info.get("address"),
                     name=token_info.get("name"),
                     symbol=symbol,
-                    token=token_enum,
                     amount=amount,
-                    type="erc20",
+                    type=CryptoCurrencyType.TOKEN,
                 )
             )
         return tokens
@@ -85,8 +84,17 @@ class EthereumFetcher(CryptoEntityFetcher):
         return self._fetch(url)
 
     def _fetch(self, url: str) -> dict:
-        response = requests.get(url)
-        time.sleep(self.COOLDOWN)
+        try:
+            response = http_get_with_backoff(
+                url,
+                cooldown=self.COOLDOWN,
+                max_retries=self.MAX_RETRIES,
+                backoff_factor=self.BACKOFF_FACTOR,
+                log=self._log,
+            )
+        except requests.RequestException as e:
+            self._log.error(f"Request error calling Ethplorer endpoint {url}: {e}")
+            raise
 
         if not response.ok:
             if response.status_code == 429:
