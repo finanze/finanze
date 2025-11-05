@@ -128,7 +128,7 @@ export default function ExportPage() {
                     <div className="text-sm font-medium mb-2">
                       {t.export.spreadsheetId}
                     </div>
-                    <div className="text-xs text-muted-foreground font-mono bg-gray-100 dark:bg-gray-900 p-2 rounded">
+                    <div className="text-xs text-muted-foreground font-mono bg-gray-100 dark:bg-gray-900 p-2 rounded break-all">
                       {sheetId}
                     </div>
                   </div>

@@ -1499,7 +1499,7 @@
     "purchase": {
       "price": "Precio de compraventa",
       "expenses": "Gastos de compra",
-      "addExpense": "Añadir gasto",
+      "addExpense": "Añadir",
       "totalCost": "Coste total",
       "purchaseConceptDescription": "Concepto de gasto de compraventa",
       "suggestedConcepts": "Conceptos sugeridos:",
@@ -1528,7 +1528,7 @@
     },
     "loans": {
       "associatedLoans": "Préstamos asociados",
-      "addLoan": "Añadir préstamo",
+      "addLoan": "Añadir",
       "loanType": "Tipo de préstamo",
       "loanAmount": "Cantidad del préstamo",
       "interestRate": "Tipo de interés",
@@ -1567,11 +1567,11 @@
       "utilities": "Suministros",
       "rent": "Alquiler",
       "addCost": "Añadir coste",
-      "addUtility": "Añadir suministro",
-      "addRent": "Añadir alquiler",
-      "addExpense": "Añadir gasto",
-      "addSupply": "Añadir suministro",
-      "addRental": "Añadir alquiler",
+      "addUtility": "Añadir",
+      "addRent": "Añadir",
+      "addExpense": "Añadir",
+      "addSupply": "Añadir",
+      "addRental": "Añadir",
       "maximumAmount": "Importe máximo",
       "taxDeductible": "Deducible",
       "frequency": "Periodicidad",
@@ -1671,7 +1671,7 @@
     },
     "buttons": {
       "suggest": "Sugerir",
-      "calculateInterests": "Calcular datos"
+      "calculateInterests": "Calcular"
     },
     "emptyStates": {
       "noCostsRegistered": "No se han registrado costes",
@@ -1738,7 +1738,7 @@
     },
     "amortizations": {
       "title": "Amortizaciones",
-      "add": "Añadir amortización",
+      "add": "Añadir",
       "concept": "Concepto",
       "base": "Base",
       "percentage": "Porcentaje",

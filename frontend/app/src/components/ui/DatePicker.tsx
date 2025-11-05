@@ -98,8 +98,8 @@ function DatePicker({
               className,
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            <span className={cn("flex-1", value && "pr-6")}>
+            <CalendarIcon className="mr-2 h-4 w-4 flex-shrink-0" />
+            <span className={cn("flex-1 truncate", value && "pr-6")}>
               {displayValue || placeholder}
             </span>
           </Button>

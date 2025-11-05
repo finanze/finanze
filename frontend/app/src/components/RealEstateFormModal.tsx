@@ -2026,7 +2026,7 @@ export function RealEstateFormModal({
                           key={originalIndex}
                           className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
                         >
-                          <div className="flex items-center justify-between mb-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-3">
                             <div className="flex items-end gap-2 flex-1 mr-2">
                               <div>
                                 <Label className="sr-only">
@@ -2109,7 +2109,7 @@ export function RealEstateFormModal({
                                 />
                               </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 w-full sm:w-auto justify-end">
                               <Button
                                 type="button"
                                 size="sm"
@@ -2219,7 +2219,7 @@ export function RealEstateFormModal({
                                     setCalculatingLoanIndex(null)
                                   }
                                 }}
-                                className="bg-blue-500 hover:bg-blue-600 text-white border border-blue-600 mt-6 disabled:opacity-60"
+                                className="bg-blue-500 hover:bg-blue-600 text-white border border-blue-600 mt-0 sm:mt-6 disabled:opacity-60"
                               >
                                 <Calculator size={16} className="mr-1" />
                                 {t.realEstate.buttons.calculateInterests}
@@ -2229,7 +2229,7 @@ export function RealEstateFormModal({
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => removeFlow(originalIndex)}
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 mt-6"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 mt-0 sm:mt-6"
                               >
                                 <Trash2 size={16} />
                               </Button>
@@ -2853,9 +2853,11 @@ export function RealEstateFormModal({
                           </div>
 
                           <div
-                            className={`grid gap-4 ${formData.basic_info.is_rented ? "grid-cols-3" : "grid-cols-2"}`}
+                            className={`grid gap-4 ${formData.basic_info.is_rented ? "grid-cols-1 sm:grid-cols-6" : "grid-cols-1 sm:grid-cols-2"}`}
                           >
-                            <div className="flex gap-2 items-end">
+                            <div
+                              className={`flex gap-2 items-end ${formData.basic_info.is_rented ? "sm:col-span-3" : ""}`}
+                            >
                               <div className="flex-1">
                                 <Label>
                                   {t.realEstate.labels.amount}
@@ -2989,7 +2991,13 @@ export function RealEstateFormModal({
                                 </Popover>
                               )}
                             </div>
-                            <div>
+                            <div
+                              className={
+                                formData.basic_info.is_rented
+                                  ? "sm:col-span-2"
+                                  : ""
+                              }
+                            >
                               <Label>{t.realEstate.labels.frequency}</Label>
                               <select
                                 value={
@@ -3032,25 +3040,23 @@ export function RealEstateFormModal({
                             </div>
 
                             {formData.basic_info.is_rented && (
-                              <div className="flex items-end self-center justify-self-center">
-                                <div className="flex flex-col items-center gap-2 w-full">
-                                  <Label className="text-sm whitespace-nowrap">
-                                    {t.realEstate.labels.taxDeductible}
-                                  </Label>
-                                  <Switch
-                                    checked={
-                                      (flow.payload as any)?.tax_deductible ||
-                                      false
-                                    }
-                                    onCheckedChange={checked =>
-                                      updateFlowPayload(
-                                        originalIndex,
-                                        "tax_deductible",
-                                        checked,
-                                      )
-                                    }
-                                  />
-                                </div>
+                              <div className="flex flex-col items-end sm:items-center sm:justify-end gap-1 sm:gap-2 sm:col-span-1 mt-2 sm:mt-[2px]">
+                                <Label className="text-[11px] sm:text-xs font-medium whitespace-nowrap">
+                                  {t.realEstate.labels.taxDeductible}
+                                </Label>
+                                <Switch
+                                  checked={
+                                    (flow.payload as any)?.tax_deductible ||
+                                    false
+                                  }
+                                  onCheckedChange={checked =>
+                                    updateFlowPayload(
+                                      originalIndex,
+                                      "tax_deductible",
+                                      checked,
+                                    )
+                                  }
+                                />
                               </div>
                             )}
                           </div>
@@ -3323,9 +3329,15 @@ export function RealEstateFormModal({
                           </div>
 
                           <div
-                            className={`grid gap-4 ${formData.basic_info.is_rented ? "grid-cols-3" : "grid-cols-2"}`}
+                            className={`grid gap-4 ${formData.basic_info.is_rented ? "grid-cols-1 sm:grid-cols-6" : "grid-cols-1 sm:grid-cols-2"}`}
                           >
-                            <div>
+                            <div
+                              className={
+                                formData.basic_info.is_rented
+                                  ? "sm:col-span-3"
+                                  : ""
+                              }
+                            >
                               <Label>
                                 {t.realEstate.labels.amount}
                                 <span className="text-gray-400 ml-1">*</span>
@@ -3352,7 +3364,13 @@ export function RealEstateFormModal({
                                 </span>
                               </div>
                             </div>
-                            <div>
+                            <div
+                              className={
+                                formData.basic_info.is_rented
+                                  ? "sm:col-span-2"
+                                  : ""
+                              }
+                            >
                               <Label>{t.realEstate.labels.frequency}</Label>
                               <select
                                 value={
@@ -3395,25 +3413,23 @@ export function RealEstateFormModal({
                             </div>
 
                             {formData.basic_info.is_rented && (
-                              <div className="flex items-end self-center justify-self-center">
-                                <div className="flex flex-col items-center gap-2 w-full">
-                                  <Label className="text-sm whitespace-nowrap">
-                                    {t.realEstate.labels.taxDeductible}
-                                  </Label>
-                                  <Switch
-                                    checked={
-                                      (flow.payload as any)?.tax_deductible ||
-                                      false
-                                    }
-                                    onCheckedChange={checked =>
-                                      updateFlowPayload(
-                                        originalIndex,
-                                        "tax_deductible",
-                                        checked,
-                                      )
-                                    }
-                                  />
-                                </div>
+                              <div className="flex flex-col items-end sm:items-center sm:justify-end gap-1 sm:gap-2 sm:col-span-1 mt-2 sm:mt-[2px]">
+                                <Label className="text-[11px] sm:text-xs font-medium whitespace-nowrap">
+                                  {t.realEstate.labels.taxDeductible}
+                                </Label>
+                                <Switch
+                                  checked={
+                                    (flow.payload as any)?.tax_deductible ||
+                                    false
+                                  }
+                                  onCheckedChange={checked =>
+                                    updateFlowPayload(
+                                      originalIndex,
+                                      "tax_deductible",
+                                      checked,
+                                    )
+                                  }
+                                />
                               </div>
                             )}
                           </div>
@@ -3719,7 +3735,7 @@ export function RealEstateFormModal({
                               </Button>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <Label>
                                   {t.realEstate.labels.monthlyAmount}
@@ -3738,43 +3754,6 @@ export function RealEstateFormModal({
                                       )
                                     }
                                     className={`pr-12 ${hasValidationError(`flow.${originalIndex}.amount`) ? "border-red-500" : ""}`}
-                                  />
-                                  <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                                    {getCurrencySymbol(formData.currency)}
-                                  </span>
-                                </div>
-                              </div>
-                              <div>
-                                <Label>
-                                  {t.realEstate.flows.maximumAmount}
-                                </Label>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={flow.periodic_flow?.max_amount || ""}
-                                    onChange={e => {
-                                      setFormData(prev => ({
-                                        ...prev,
-                                        flows: prev.flows.map((f, i) =>
-                                          i === originalIndex && f.periodic_flow
-                                            ? {
-                                                ...f,
-                                                periodic_flow: {
-                                                  ...f.periodic_flow,
-                                                  max_amount:
-                                                    parseFloat(
-                                                      e.target.value,
-                                                    ) || undefined,
-                                                },
-                                              }
-                                            : f,
-                                        ),
-                                      }))
-                                      setHasUnsavedChanges(true)
-                                    }}
-                                    className="pr-12"
                                   />
                                   <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
                                     {getCurrencySymbol(formData.currency)}
