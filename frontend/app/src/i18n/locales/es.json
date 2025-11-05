@@ -158,6 +158,14 @@
     "numberOfAssets": "Número de activos",
     "asset": "activo",
     "assets": "activos",
+    "cryptoView": {
+      "belongsTo": "Pertenece a",
+      "viewModeLabel": "Vista",
+      "viewModes": {
+        "wallets": "Por billetera",
+        "network": "Por red"
+      }
+    },
     "weightedAverageInterest": "Interés ponderado",
     "weightedAverageProfitability": "Rent. ponderada",
     "states": {
@@ -377,6 +385,25 @@
     "generalDescription": "Configura los ajustes generales de la aplicación",
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
+    "assets": {
+      "title": "Activos",
+      "description": "Ajustes específicos del funcionamiento de los activos",
+      "crypto": {
+        "title": "Cripto",
+        "description": "Configuración relacionada con criptomonedas",
+        "stablecoinsLabel": "Stablecoins",
+        "stablecoinsDescription": "Estos son los símbolos de los tokens que queremos marcar como stablecoins (usados en la proyección y otros cálculos)",
+        "addStablecoin": "Añadir",
+        "addStablecoinPlaceholder": "USDT",
+        "emptyState": "Todavía no hay stablecoins configuradas.",
+        "duplicateSymbol": "Ese símbolo ya está en la lista.",
+        "invalidSymbol": "Introduce un símbolo válido (letras, números, punto o guion).",
+        "editStablecoin": "Editar stablecoin",
+        "removeStablecoin": "Eliminar stablecoin",
+        "confirmEdit": "Guardar cambios",
+        "cancelEdit": "Cancelar edición"
+      }
+    },
     "integrations": "Integraciones",
     "sheetsIntegration": "Google Sheets",
     "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets",
@@ -398,7 +425,7 @@
     "virtualDescription": "Configura los ajustes para la importación de datos virtuales",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
-    "save": "Guardar Configuración",
+    "save": "Guardar",
     "saveSuccess": "Configuración guardada con éxito",
     "saveError": "Error al guardar la configuración",
     "fetchError": "Error al obtener la configuración",
@@ -803,7 +830,11 @@
     "walletNamePlaceholder": "Ingrese el nombre de la billetera",
     "wallets": "billeteras",
     "wallet": "billetera",
-    "manage": "Gestionar"
+    "manage": "Gestionar",
+    "filterByWallet": "Filtrar por billetera",
+    "walletFilterPlaceholder": "Selecciona billeteras",
+    "clearFilters": "Limpiar filtros",
+    "viewAllTokens": "Ver todos los tokens"
   },
   "commodityManagement": {
     "title": "Materias Primas",
@@ -843,39 +874,6 @@
     "validationErrorRow": "Fila: {row}",
     "fieldError": "Campo {field}: valor inválido {value}",
     "unknownErrorMessage": "Error desconocido en {entry}"
-  },
-  "crypto": {
-    "BTC": "Bitcoin",
-    "ETH": "Ethereum",
-    "USDT": "Tether",
-    "USDC": "USD Coin",
-    "BNB": "Binance Coin",
-    "XRP": "Ripple",
-    "ADA": "Cardano",
-    "SOL": "Solana",
-    "DOGE": "Dogecoin",
-    "DOT": "Polkadot",
-    "AVAX": "Avalanche",
-    "MATIC": "Polygon",
-    "LTC": "Litecoin",
-    "LINK": "Chainlink",
-    "UNI": "Uniswap",
-    "ATOM": "Cosmos",
-    "ALGO": "Algorand",
-    "XLM": "Stellar",
-    "VET": "VeChain",
-    "TRX": "TRON",
-    "FIL": "Filecoin",
-    "THETA": "Theta Network",
-    "ICP": "Internet Computer",
-    "NEAR": "NEAR Protocol",
-    "FTM": "Fantom",
-    "HBAR": "Hedera",
-    "AAVE": "Aave",
-    "SAND": "The Sandbox",
-    "MANA": "Decentraland",
-    "CRO": "Cronos",
-    "KCS": "KuCoin Token"
   },
   "countries": {
     "AT": "Austria",

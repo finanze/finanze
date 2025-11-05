@@ -1,7 +1,7 @@
 import logging
 from copy import deepcopy
 
-from infrastructure.config.base_config import CURRENT_VERSION
+from infrastructure.config.base_config import CURRENT_VERSION, DEFAULT_STABLECOINS
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -19,11 +19,31 @@ def _migrate_v1_to_v2(data: dict) -> dict:
     return data
 
 
+def _migrate_v2_to_v3(data: dict) -> dict:
+    assets = data.get("assets")
+    if not isinstance(assets, dict):
+        assets = {}
+        data["assets"] = assets
+
+    crypto = assets.get("crypto")
+    if not isinstance(crypto, dict):
+        crypto = {}
+        assets["crypto"] = crypto
+
+    stablecoins = crypto.get("stablecoins")
+    if not isinstance(stablecoins, list) or len(stablecoins) == 0:
+        crypto["stablecoins"] = list(DEFAULT_STABLECOINS)
+
+    data["version"] = 3
+    return data
+
+
 class ConfigMigrator:
     def __init__(self):
         self._log = logging.getLogger(__name__)
         self.migrations = {
             1: _migrate_v1_to_v2,
+            2: _migrate_v2_to_v3,
         }
 
     def migrate(self, data: dict) -> tuple[dict, bool]:
@@ -35,7 +55,7 @@ class ConfigMigrator:
             self._log.info("No config version found, assuming version 1.")
             version = 1
         else:
-            version = migrated_data["version"]
+            version = int(migrated_data["version"])
 
         was_migrated = False
         while version in self.migrations:

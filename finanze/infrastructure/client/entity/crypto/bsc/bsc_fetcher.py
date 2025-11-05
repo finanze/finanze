@@ -7,10 +7,9 @@ from domain.dezimal import Dezimal
 from domain.exception.exceptions import ExternalIntegrationRequired
 from domain.external_integration import ExternalIntegrationId
 from domain.global_position import (
-    CryptoCurrency,
-    CryptoCurrencyToken,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
-    CryptoToken,
 )
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 
@@ -18,11 +17,6 @@ from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanCli
 class BSCFetcher(CryptoEntityFetcher):
     CHAIN_ID = 56
     SCALE = Dezimal("1e-18")
-
-    TOKEN_CONTRACTS = {CryptoToken.USDC: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"}
-    ALLOWED_TOKEN_CONTRACTS = {
-        contract_address: token for token, contract_address in TOKEN_CONTRACTS.items()
-    }
 
     def __init__(self, etherscan_client: EtherscanClient):
         self.etherscan_client = etherscan_client
@@ -42,6 +36,15 @@ class BSCFetcher(CryptoEntityFetcher):
             * self.SCALE
         )
 
+        assets = [
+            CryptoCurrencyPosition(
+                id=uuid4(),
+                symbol="BNB",
+                amount=bnb_amount,
+                type=CryptoCurrencyType.NATIVE,
+            )
+        ]
+
         token_txs = self._fetch(
             module="account",
             action="tokentx",
@@ -55,14 +58,10 @@ class BSCFetcher(CryptoEntityFetcher):
         tokens = {}
         for token_tx in token_txs:
             contract_address = token_tx["contractAddress"]
-            if (
-                contract_address in tokens
-                or contract_address not in self.ALLOWED_TOKEN_CONTRACTS
-            ):
+            if contract_address in tokens:
                 continue
 
             symbol = token_tx.get("tokenSymbol")
-            token_enum = self.ALLOWED_TOKEN_CONTRACTS[contract_address]
             decimals = token_tx["tokenDecimal"]
             scale = Dezimal(f"1e-{decimals}")
             amount = (
@@ -78,23 +77,18 @@ class BSCFetcher(CryptoEntityFetcher):
                 * scale
             )
 
-            tokens[contract_address] = CryptoCurrencyToken(
+            tokens[contract_address] = CryptoCurrencyPosition(
                 id=uuid4(),
-                token_id=contract_address,
+                contract_address=contract_address,
                 name=token_tx.get("tokenName"),
                 symbol=symbol,
-                token=token_enum,
                 amount=amount,
-                type="bep20",
+                type=CryptoCurrencyType.TOKEN,
             )
 
         return CryptoCurrencyWallet(
-            id=uuid4(),
-            wallet_connection_id=request.connection_id,
-            symbol="BNB",
-            crypto=CryptoCurrency.BNB,
-            amount=bnb_amount,
-            tokens=list(tokens.values()),
+            id=request.connection_id,
+            assets=assets + list(tokens.values()),
         )
 
     def _fetch(self, integrations: CryptoFetchIntegrations, *args, **kwargs) -> any:

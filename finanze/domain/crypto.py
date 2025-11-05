@@ -7,6 +7,15 @@ from pydantic.dataclasses import dataclass
 
 
 @dataclass
+class CryptoAsset:
+    name: str
+    symbol: Optional[str]
+    icon_urls: Optional[list[str]]
+    external_ids: dict[str, str]
+    id: Optional[UUID] = None
+
+
+@dataclass
 class CryptoWalletConnection:
     id: UUID
     entity_id: UUID

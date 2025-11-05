@@ -437,11 +437,11 @@ export function EntityCard({
           {/* Requires login - externally provided entities (inline actions) */}
           {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
             isExternallyProvided && (
-              <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
+              <div className="flex gap-2 flex-wrap justify-center w-full mt-4">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex-1 min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                  className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
                   disabled={isLinkingExternal}
                   onClick={() =>
                     onExternalContinue && onExternalContinue(entity)
@@ -462,7 +462,7 @@ export function EntityCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
+                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                   disabled={isLinkingExternal}
                   onClick={() => setShowExternalConfirmation(true)}
                 >
@@ -491,11 +491,11 @@ export function EntityCard({
           {effectiveStatus === EntityStatus.CONNECTED &&
             !entityFetching &&
             isExternallyProvided && (
-              <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
+              <div className="flex gap-2 flex-wrap justify-center w-full mt-4">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                   onClick={() => setShowRelinkConfirmation(true)}
                   disabled={entityFetching}
                 >
@@ -505,7 +505,7 @@ export function EntityCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                  className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
                   disabled={entityFetching}
                   onClick={onSelect}
                 >
@@ -526,7 +526,7 @@ export function EntityCard({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
+                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                   onClick={() => setShowExternalConfirmation(true)}
                   disabled={entityFetching}
                 >
@@ -540,16 +540,16 @@ export function EntityCard({
           {effectiveStatus === EntityStatus.CONNECTED &&
             !entityFetching &&
             !isExternallyProvided && (
-              <div className="flex flex-wrap gap-2 mt-4 max-sm:justify-center max-sm:w-full">
+              <div className="flex flex-col gap-2 mt-4 items-center w-full">
                 {/* Financial institution buttons */}
                 {isFinancialInstitution && (
-                  <>
+                  <div className="flex gap-2 flex-wrap justify-center w-full">
                     {!missingIntegrations && (
                       <>
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
+                          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                           onClick={onRelogin}
                           disabled={entityFetching}
                         >
@@ -560,7 +560,7 @@ export function EntityCard({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                          className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
                           disabled={entityFetching}
                           onClick={onSelect}
                         >
@@ -584,23 +584,23 @@ export function EntityCard({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex-1 min-w-0 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 max-sm:flex-none max-sm:w-full"
+                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
                       onClick={handleDisconnect}
                       disabled={entityFetching}
                     >
                       <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
                       {t.entities.disconnect}
                     </Button>
-                  </>
+                  </div>
                 )}
 
                 {/* Crypto wallet buttons */}
                 {!missingIntegrations && isCryptoWallet && (
-                  <>
+                  <div className="flex gap-2 flex-wrap justify-center w-full">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex-1 min-w-0 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 max-sm:flex-none max-sm:w-full"
+                      className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                       onClick={onManage}
                       disabled={entityFetching || !onManage}
                     >
@@ -611,7 +611,7 @@ export function EntityCard({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex-[1.5] min-w-0 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200 max-sm:flex-none max-sm:w-full"
+                      className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
                       disabled={entityFetching}
                       onClick={onSelect}
                     >
@@ -629,7 +629,7 @@ export function EntityCard({
                         </>
                       )}
                     </Button>
-                  </>
+                  </div>
                 )}
               </div>
             )}

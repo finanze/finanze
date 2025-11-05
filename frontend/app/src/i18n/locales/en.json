@@ -160,6 +160,14 @@
     "numberOfAssets": "Number of Assets",
     "asset": "asset",
     "assets": "assets",
+    "cryptoView": {
+      "belongsTo": "Belongs to",
+      "viewModeLabel": "View",
+      "viewModes": {
+        "wallets": "By wallet",
+        "network": "By network"
+      }
+    },
     "weightedAverageInterest": "Weighted Avg. Interest",
     "weightedAverageProfitability": "Weighted Avg. Profitability",
     "states": {
@@ -371,6 +379,25 @@
     "generalDescription": "Configure general application settings",
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
+    "assets": {
+      "title": "Assets",
+      "description": "Specific asset related settings",
+      "crypto": {
+        "title": "Crypto",
+        "description": "Cryptocurrency assets related settings",
+        "stablecoinsLabel": "Stablecoins",
+        "stablecoinsDescription": "These are the symbols of tokens we want to mark as stablecoins (used when forecasting and in other calculations)",
+        "addStablecoin": "Add",
+        "addStablecoinPlaceholder": "USDT",
+        "emptyState": "No stablecoins added yet.",
+        "duplicateSymbol": "This symbol is already in the list.",
+        "invalidSymbol": "Enter a valid symbol (letters, numbers, dots or dashes).",
+        "editStablecoin": "Edit stablecoin",
+        "removeStablecoin": "Remove stablecoin",
+        "confirmEdit": "Save changes",
+        "cancelEdit": "Cancel edit"
+      }
+    },
     "integrations": "Integrations",
     "sheetsIntegration": "Google Sheets",
     "sheetsIntegrationDescription": "Configure your Google Sheets API credentials",
@@ -804,7 +831,11 @@
     "walletNamePlaceholder": "Enter wallet name",
     "wallets": "wallets",
     "wallet": "wallet",
-    "manage": "Manage"
+    "manage": "Manage",
+    "filterByWallet": "Filter by wallet",
+    "walletFilterPlaceholder": "Select wallets",
+    "clearFilters": "Clear filters",
+    "viewAllTokens": "View all tokens"
   },
   "commodityManagement": {
     "title": "Commodities",
@@ -844,39 +875,6 @@
     "validationErrorRow": "Row: {row}",
     "fieldError": "Field {field}: invalid value {value}",
     "unknownErrorMessage": "Unknown error in {entry}"
-  },
-  "crypto": {
-    "BTC": "Bitcoin",
-    "ETH": "Ethereum",
-    "USDT": "Tether",
-    "USDC": "USD Coin",
-    "BNB": "Binance Coin",
-    "XRP": "Ripple",
-    "ADA": "Cardano",
-    "SOL": "Solana",
-    "DOGE": "Dogecoin",
-    "DOT": "Polkadot",
-    "AVAX": "Avalanche",
-    "MATIC": "Polygon",
-    "LTC": "Litecoin",
-    "LINK": "Chainlink",
-    "UNI": "Uniswap",
-    "ATOM": "Cosmos",
-    "ALGO": "Algorand",
-    "XLM": "Stellar",
-    "VET": "VeChain",
-    "TRX": "TRON",
-    "FIL": "Filecoin",
-    "THETA": "Theta Network",
-    "ICP": "Internet Computer",
-    "NEAR": "NEAR Protocol",
-    "FTM": "Fantom",
-    "HBAR": "Hedera",
-    "AAVE": "Aave",
-    "SAND": "The Sandbox",
-    "MANA": "Decentraland",
-    "CRO": "Cronos",
-    "KCS": "KuCoin Token"
   },
   "countries": {
     "AT": "Austria",

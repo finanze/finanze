@@ -84,3 +84,33 @@ fetch:
     transactions:
       - range: Investment TXs
         data: investment
+
+assets:
+  crypto:
+    stablecoins:
+      - USDT
+      - USDC
+      - USDe
+      - DAI
+      - USD1
+      - BUSD
+      - PYUSD
+      - FDUSD
+      - TUSD
+      - USDD
+      - GUSD
+      - USDP
+      - LUSD
+      - cUSD
+      - OUSD
+      - FRAX
+      - sUSD
+      - USDX
+      - USDY
+      - USYC
+      - EURC
+      - EURS
+      - EURT
+      - PAXG
+      - XAUT
+      - JPYC

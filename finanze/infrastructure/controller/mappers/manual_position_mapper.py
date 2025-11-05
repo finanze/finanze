@@ -16,14 +16,7 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
-    Commodities,
-    Commodity,
     Crowdlending,
-    CryptoCurrencies,
-    CryptoCurrency,
-    CryptoCurrencyToken,
-    CryptoCurrencyWallet,
-    CryptoToken,
     Deposit,
     Deposits,
     EquityType,
@@ -391,67 +384,6 @@ def _map_crowdlending(entries: list[dict]) -> Crowdlending:
     )
 
 
-def _map_crypto(entries: list[dict]) -> CryptoCurrencies:
-    wallets = []
-    for e in entries:
-        for req in ("symbol", "crypto", "amount"):
-            if req not in e:
-                raise MissingFieldsError([req])
-        tokens_raw = e.get("tokens", []) or []
-        tokens = []
-        for t in tokens_raw:
-            for req in ("id", "token_id", "name", "symbol", "token", "amount"):
-                if req not in t:
-                    raise MissingFieldsError([req])
-            tokens.append(
-                CryptoCurrencyToken(
-                    id=_uuid(t["id"]) or UUID(int=0),
-                    token_id=t["token_id"],
-                    name=t["name"],
-                    symbol=t["symbol"],
-                    token=CryptoToken(t["token"]),
-                    amount=_dez(t["amount"]),
-                    initial_investment=_dez(t.get("initial_investment")),
-                    average_buy_price=_dez(t.get("average_buy_price")),
-                    investment_currency=t.get("investment_currency"),
-                    market_value=_dez(t.get("market_value")),
-                    currency=t.get("currency"),
-                    type=t.get("type"),
-                )
-            )
-        wallets.append(
-            CryptoCurrencyWallet(
-                id=_uuid(e.get("id")) or UUID(int=0),
-                wallet_connection_id=_uuid(e.get("wallet_connection_id")),
-                symbol=e["symbol"],
-                crypto=CryptoCurrency(e["crypto"]),
-                amount=_dez(e["amount"]),
-                address=e.get("address"),
-                name=e.get("name"),
-                initial_investment=_dez(e.get("initial_investment")),
-                average_buy_price=_dez(e.get("average_buy_price")),
-                investment_currency=e.get("investment_currency"),
-                market_value=_dez(e.get("market_value")),
-                currency=e.get("currency"),
-                tokens=tokens,
-            )
-        )
-    return CryptoCurrencies(wallets)
-
-
-def _map_commodities(entries: list[dict]) -> Commodities:
-    result = []
-    for e in entries:
-        if "id" not in e:
-            raise MissingFieldsError(["id"])
-        result.append(
-            Commodity(
-                id=_uuid(e["id"]),
-            )
-        )
-    return Commodities(result)
-
-
 _MAPPER_DISPATCH = {
     ProductType.ACCOUNT: _map_accounts,
     ProductType.CARD: _map_cards,
@@ -463,8 +395,6 @@ _MAPPER_DISPATCH = {
     ProductType.LOAN: _map_loans,
     ProductType.STOCK_ETF: _map_stocks,
     ProductType.CROWDLENDING: _map_crowdlending,
-    ProductType.CRYPTO: _map_crypto,
-    ProductType.COMMODITY: _map_commodities,
 }
 
 

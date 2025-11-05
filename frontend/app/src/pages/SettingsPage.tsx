@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import {
@@ -28,6 +28,10 @@ import {
   Info,
   AlertCircle,
   Settings,
+  Coins,
+  Edit2,
+  X,
+  Check,
 } from "lucide-react"
 import {
   Popover,
@@ -85,6 +89,11 @@ const cleanObject = (obj: any): any => {
   return obj
 }
 
+const STABLECOIN_ALLOWED_CHARS = /[^A-Z0-9.-]/g
+const STABLECOIN_SYMBOL_REGEX = /^[A-Z0-9.-]{1,20}$/
+const normalizeStablecoinSymbol = (value: string) =>
+  value.toUpperCase().replace(STABLECOIN_ALLOWED_CHARS, "")
+
 export default function SettingsPage() {
   const { t } = useI18n()
   const [searchParams] = useSearchParams()
@@ -111,6 +120,7 @@ export default function SettingsPage() {
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
+    assetsCrypto: false,
     position: false,
     contributions: false,
     transactions: false,
@@ -127,6 +137,146 @@ export default function SettingsPage() {
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string[]>
   >({})
+
+  const [newStablecoin, setNewStablecoin] = useState("")
+  const [editingStablecoinIndex, setEditingStablecoinIndex] = useState<
+    number | null
+  >(null)
+  const [stablecoinDraft, setStablecoinDraft] = useState("")
+  const [isAddingStablecoin, setIsAddingStablecoin] = useState(false)
+  const newStablecoinInputRef = useRef<HTMLInputElement | null>(null)
+  const stablecoins = settings.assets?.crypto?.stablecoins ?? []
+
+  const updateStablecoins = useCallback(
+    (updater: (current: string[]) => string[]) => {
+      setSettings(prev => ({
+        ...prev,
+        assets: {
+          ...prev.assets,
+          crypto: {
+            ...prev.assets?.crypto,
+            stablecoins: updater(prev.assets?.crypto?.stablecoins ?? []),
+          },
+        },
+      }))
+    },
+    [setSettings],
+  )
+
+  const handleAddStablecoin = useCallback(() => {
+    const value = normalizeStablecoinSymbol(newStablecoin.trim())
+
+    if (!value || !STABLECOIN_SYMBOL_REGEX.test(value)) {
+      showToast(t.settings.assets.crypto.invalidSymbol, "warning")
+      return
+    }
+
+    if (stablecoins.includes(value)) {
+      showToast(t.settings.assets.crypto.duplicateSymbol, "warning")
+      return
+    }
+
+    updateStablecoins(prev => [...prev, value])
+    setNewStablecoin("")
+    requestAnimationFrame(() => {
+      newStablecoinInputRef.current?.focus()
+    })
+  }, [
+    newStablecoin,
+    newStablecoinInputRef,
+    showToast,
+    stablecoins,
+    t,
+    updateStablecoins,
+  ])
+
+  const handleRemoveStablecoin = useCallback(
+    (index: number) => {
+      updateStablecoins(prev => prev.filter((_, i) => i !== index))
+
+      if (editingStablecoinIndex === index) {
+        setEditingStablecoinIndex(null)
+        setStablecoinDraft("")
+      }
+    },
+    [editingStablecoinIndex, updateStablecoins],
+  )
+
+  const handleStartEditStablecoin = useCallback(
+    (index: number) => {
+      setIsAddingStablecoin(false)
+      setNewStablecoin("")
+      setEditingStablecoinIndex(index)
+      setStablecoinDraft(stablecoins[index] ?? "")
+    },
+    [stablecoins],
+  )
+
+  const handleConfirmEditStablecoin = useCallback(() => {
+    if (editingStablecoinIndex === null) {
+      return
+    }
+
+    const value = normalizeStablecoinSymbol(stablecoinDraft.trim())
+
+    if (!value || !STABLECOIN_SYMBOL_REGEX.test(value)) {
+      showToast(t.settings.assets.crypto.invalidSymbol, "warning")
+      return
+    }
+
+    if (
+      stablecoins.some(
+        (coin, index) => index !== editingStablecoinIndex && coin === value,
+      )
+    ) {
+      showToast(t.settings.assets.crypto.duplicateSymbol, "warning")
+      return
+    }
+
+    updateStablecoins(prev =>
+      prev.map((coin, index) =>
+        index === editingStablecoinIndex ? value : coin,
+      ),
+    )
+
+    setEditingStablecoinIndex(null)
+    setStablecoinDraft("")
+  }, [
+    editingStablecoinIndex,
+    showToast,
+    stablecoinDraft,
+    stablecoins,
+    t,
+    updateStablecoins,
+  ])
+
+  const handleCancelEditStablecoin = useCallback(() => {
+    setEditingStablecoinIndex(null)
+    setStablecoinDraft("")
+  }, [])
+
+  const handleCancelAddStablecoin = useCallback(() => {
+    setIsAddingStablecoin(false)
+    setNewStablecoin("")
+  }, [])
+
+  const handleStartAddStablecoin = useCallback(() => {
+    setEditingStablecoinIndex(null)
+    setStablecoinDraft("")
+    setIsAddingStablecoin(true)
+    setNewStablecoin("")
+    requestAnimationFrame(() => {
+      newStablecoinInputRef.current?.focus()
+    })
+  }, [])
+
+  useEffect(() => {
+    if (isAddingStablecoin && expandedSections.assetsCrypto) {
+      requestAnimationFrame(() => {
+        newStablecoinInputRef.current?.focus()
+      })
+    }
+  }, [expandedSections.assetsCrypto, isAddingStablecoin])
 
   const availablePositionOptions = [
     ProductType.ACCOUNT,
@@ -821,7 +971,28 @@ export default function SettingsPage() {
     try {
       setIsSaving(true)
 
-      const processedSettings = processDataFields({ ...settings })
+      const sanitizedStablecoins = Array.from(
+        new Set(
+          (settings.assets?.crypto?.stablecoins ?? []).map(symbol =>
+            symbol.trim().toUpperCase(),
+          ),
+        ),
+      ).filter(Boolean)
+
+      const settingsForSave: AppSettings = {
+        ...settings,
+        assets: {
+          ...settings.assets,
+          crypto: {
+            ...settings.assets?.crypto,
+            stablecoins: sanitizedStablecoins,
+          },
+        },
+      }
+
+      setSettings(settingsForSave)
+
+      const processedSettings = processDataFields({ ...settingsForSave })
 
       const cleanedSettings = cleanObject(processedSettings)
 
@@ -832,6 +1003,19 @@ export default function SettingsPage() {
       if (cleanedSettings.export && cleanedSettings.export.sheets) {
         cleanedSettings.export.sheets.enabled =
           !!cleanedSettings.export.sheets.enabled
+      }
+
+      if (!cleanedSettings.assets) {
+        cleanedSettings.assets = {
+          crypto: {
+            stablecoins: sanitizedStablecoins,
+          },
+        }
+      } else {
+        cleanedSettings.assets.crypto = cleanedSettings.assets.crypto || {
+          stablecoins: [],
+        }
+        cleanedSettings.assets.crypto.stablecoins = sanitizedStablecoins
       }
 
       await saveSettings(cleanedSettings)
@@ -1621,6 +1805,217 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </motion.div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.05 }}
+          >
+            <Card>
+              <CardHeader onClick={() => toggleSection("assets")}>
+                <CardTitle>{t.settings.assets.title}</CardTitle>
+                <CardDescription>
+                  {t.settings.assets.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div
+                    className="flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/30 dark:bg-muted/10 dark:hover:bg-muted/20"
+                    onClick={() => toggleSection("assetsCrypto")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Coins className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">
+                          {t.settings.assets.crypto.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.settings.assets.crypto.description}
+                        </p>
+                      </div>
+                    </div>
+                    {expandedSections.assetsCrypto ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
+                  {expandedSections.assetsCrypto && (
+                    <div className="space-y-4 rounded-md border border-dashed border-border/60 bg-background/60 p-4 dark:bg-muted/10">
+                      <div className="space-y-1">
+                        <Label htmlFor="assets-stablecoins">
+                          {t.settings.assets.crypto.stablecoinsLabel}
+                        </Label>
+                        <p className="text-sm text-muted-foreground">
+                          {t.settings.assets.crypto.stablecoinsDescription}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {stablecoins.map((coin, index) =>
+                          editingStablecoinIndex === index ? (
+                            <div
+                              key={`stablecoin-edit-${index}`}
+                              className="flex items-center gap-2 py-0.5"
+                            >
+                              <Input
+                                autoFocus
+                                value={stablecoinDraft}
+                                onChange={event =>
+                                  setStablecoinDraft(
+                                    normalizeStablecoinSymbol(
+                                      event.target.value,
+                                    ),
+                                  )
+                                }
+                                onKeyDown={event => {
+                                  if (event.key === "Enter") {
+                                    event.preventDefault()
+                                    handleConfirmEditStablecoin()
+                                  } else if (event.key === "Escape") {
+                                    event.preventDefault()
+                                    handleCancelEditStablecoin()
+                                  }
+                                }}
+                                className="h-7 w-24 rounded-full border border-border/40 bg-background/40 px-3 text-xs uppercase focus:border-border/60 focus-visible:outline-none focus-visible:ring-0"
+                              />
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="h-7 w-7 rounded-full p-0"
+                                onClick={handleConfirmEditStablecoin}
+                                aria-label={
+                                  t.settings.assets.crypto.confirmEdit
+                                }
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 rounded-full p-0"
+                                onClick={handleCancelEditStablecoin}
+                                aria-label={t.settings.assets.crypto.cancelEdit}
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Badge
+                              key={`stablecoin-${coin}-${index}`}
+                              className="flex items-center gap-2 bg-primary/10 text-primary dark:bg-primary/20"
+                            >
+                              <span className="uppercase">{coin}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditStablecoin(index)}
+                                className="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                                <span className="sr-only">
+                                  {t.settings.assets.crypto.editStablecoin}
+                                </span>
+                              </button>
+                              <span
+                                aria-hidden="true"
+                                className="h-4 w-px bg-primary/30"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveStablecoin(index)}
+                                className="inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-primary/20 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                                <span className="sr-only">
+                                  {t.settings.assets.crypto.removeStablecoin}
+                                </span>
+                              </button>
+                            </Badge>
+                          ),
+                        )}
+                        {isAddingStablecoin ? (
+                          <div className="flex items-center gap-2 py-0.5">
+                            <Input
+                              ref={newStablecoinInputRef}
+                              id="assets-stablecoins"
+                              value={newStablecoin}
+                              onChange={event =>
+                                setNewStablecoin(
+                                  normalizeStablecoinSymbol(event.target.value),
+                                )
+                              }
+                              onKeyDown={event => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault()
+                                  handleAddStablecoin()
+                                } else if (event.key === "Escape") {
+                                  event.preventDefault()
+                                  handleCancelAddStablecoin()
+                                }
+                              }}
+                              placeholder={
+                                t.settings.assets.crypto
+                                  .addStablecoinPlaceholder
+                              }
+                              className="h-7 w-24 rounded-full border border-border/40 bg-background/40 px-3 text-xs uppercase focus:border-border/60 focus-visible:outline-none focus-visible:ring-0"
+                              autoCapitalize="characters"
+                              autoComplete="off"
+                            />
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              className="h-7 w-7 rounded-full p-0"
+                              onClick={handleAddStablecoin}
+                              disabled={!newStablecoin}
+                              aria-label={
+                                t.settings.assets.crypto.addStablecoin
+                              }
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 rounded-full p-0"
+                              onClick={handleCancelAddStablecoin}
+                              aria-label={t.common.cancel}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleStartAddStablecoin}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-primary/50 px-2.5 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/10 focus:outline-none focus:ring-1 focus:ring-primary/30 focus:ring-offset-0"
+                            aria-label={t.settings.assets.crypto.addStablecoin}
+                          >
+                            <PlusCircle className="h-3 w-3" />
+                            <span>
+                              {t.settings.assets.crypto.addStablecoin}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                      {stablecoins.length === 0 && !isAddingStablecoin && (
+                        <p className="italic text-sm text-muted-foreground">
+                          {t.settings.assets.crypto.emptyState}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <div className="flex justify-end">
+            <p className="text-[0.6rem] text-gray-500 dark:text-gray-400">
+              v{__APP_VERSION__} by marcosav
+            </p>
+          </div>
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-4 mt-4">

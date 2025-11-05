@@ -59,7 +59,6 @@ import {
   filterRealEstateByOptions,
   getTotalCash,
 } from "@/utils/financialDataUtils"
-import { STABLECOIN_TOKENS } from "@/types/position"
 import {
   PieChart,
   Pie,
@@ -88,6 +87,14 @@ export default function DashboardPage() {
   } = useFinancialData()
   const { settings, inactiveEntities, exchangeRates, refreshExchangeRates } =
     useAppContext()
+
+  const stablecoinSymbols = settings.assets?.crypto?.stablecoins ?? []
+  const stablecoinSymbolsSet = useMemo(() => {
+    const normalized = stablecoinSymbols
+      .map(symbol => symbol.trim().toUpperCase())
+      .filter(Boolean)
+    return new Set(normalized)
+  }, [stablecoinSymbols])
 
   // Forecast state
   const [forecastOpen, setForecastOpen] = useState(false)
@@ -669,15 +676,15 @@ export default function DashboardPage() {
     )
     const mapped = cryptoPositions.map((p, index) => {
       const baseValue = p.value
-      const value =
-        factor !== 1 && !STABLECOIN_TOKENS.has(p.symbol)
-          ? baseValue * factor
-          : baseValue
+      const normalizedSymbol = (p.symbol || "").toUpperCase()
+      const shouldApplyAppreciation =
+        factor !== 1 && !stablecoinSymbolsSet.has(normalizedSymbol)
+      const value = shouldApplyAppreciation ? baseValue * factor : baseValue
       const tokens = p.tokens?.map(tk => {
-        const tVal =
-          factor !== 1 && !STABLECOIN_TOKENS.has(tk.symbol)
-            ? tk.value * factor
-            : tk.value
+        const tokenSymbol = (tk.symbol || "").toUpperCase()
+        const shouldApplyTokenAppreciation =
+          factor !== 1 && !stablecoinSymbolsSet.has(tokenSymbol)
+        const tVal = shouldApplyTokenAppreciation ? tk.value * factor : tk.value
         return {
           ...tk,
           value: tVal,
@@ -689,11 +696,7 @@ export default function DashboardPage() {
         }
       })
       let change = p.change
-      if (
-        factor !== 1 &&
-        !STABLECOIN_TOKENS.has(p.symbol) &&
-        p.initialInvestment > 0
-      ) {
+      if (shouldApplyAppreciation && p.initialInvestment > 0) {
         change = ((value - p.initialInvestment) / p.initialInvestment) * 100
       }
       return {
@@ -727,6 +730,7 @@ export default function DashboardPage() {
     fundItems,
     stockItems,
     commodityPositions,
+    stablecoinSymbolsSet,
   ])
 
   const commodityItems = useMemo(() => {

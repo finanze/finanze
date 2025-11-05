@@ -117,6 +117,16 @@ class IntegrationsConfig:
 
 
 @dataclass
+class CryptoAssetConfig:
+    stablecoins: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AssetConfig:
+    crypto: CryptoAssetConfig
+
+
+@dataclass
 class GeneralConfig:
     defaultCurrency: str = "EUR"
     defaultCommodityWeightUnit: str = WeightUnit.GRAM.value
@@ -128,6 +138,7 @@ class Settings:
     integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
     fetch: FetchConfig = field(default_factory=FetchConfig)
+    assets: AssetConfig = field(default_factory=AssetConfig)
 
 
 ProductSheetConfig = (

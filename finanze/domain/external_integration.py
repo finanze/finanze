@@ -18,6 +18,8 @@ class ExternalIntegrationId(str, Enum):
     GOOGLE_SHEETS = "GOOGLE_SHEETS"
     ETHERSCAN = "ETHERSCAN"
     GOCARDLESS = "GOCARDLESS"
+    COINGECKO = "COINGECKO"
+    CRYPTOCOMPARE = "CRYPTOCOMPARE"
 
 
 @dataclass

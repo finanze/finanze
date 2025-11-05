@@ -7,6 +7,7 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 from domain.base import BaseData
 from domain.commodity import CommodityRegister
+from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -227,63 +228,33 @@ class Deposit(BaseData):
     source: DataSource = DataSource.REAL
 
 
-class CryptoCurrency(str, Enum):
-    BITCOIN = "BITCOIN"
-    ETHEREUM = "ETHEREUM"
-    LITECOIN = "LITECOIN"
-    TRON = "TRON"
-    BNB = "BNB"
-
-
-class CryptoToken(str, Enum):
-    USDT = "USDT"
-    USDC = "USDC"
-
-
-CryptoAsset = CryptoCurrency | CryptoToken
-
-CRYPTO_SYMBOLS = {
-    CryptoCurrency.BITCOIN: "BTC",
-    CryptoCurrency.ETHEREUM: "ETH",
-    CryptoCurrency.LITECOIN: "LTC",
-    CryptoCurrency.TRON: "TRX",
-    CryptoCurrency.BNB: "BNB",
-    CryptoToken.USDT: "USDT",
-    CryptoToken.USDC: "USDC",
-}
+class CryptoCurrencyType(str, Enum):
+    NATIVE = "NATIVE"
+    TOKEN = "TOKEN"
 
 
 @dataclass
-class CryptoCurrencyToken(BaseData):
+class CryptoCurrencyPosition(BaseData):
     id: UUID
-    token_id: str
-    name: str
     symbol: str
-    token: CryptoToken
     amount: Dezimal
+    type: CryptoCurrencyType
+    name: Optional[str] = None
+    crypto_asset: Optional[CryptoAsset] = None
+    market_value: Optional[Dezimal] = None
+    currency: Optional[str] = None
+    contract_address: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
     investment_currency: Optional[str] = None
-    market_value: Optional[Dezimal] = None
-    currency: Optional[str] = None
-    type: Optional[str] = None
 
 
 @dataclass
 class CryptoCurrencyWallet(BaseData):
     id: UUID
-    wallet_connection_id: Optional[UUID]
-    symbol: str
-    crypto: CryptoCurrency
-    amount: Dezimal
     address: Optional[str] = None
     name: Optional[str] = None
-    initial_investment: Optional[Dezimal] = None
-    average_buy_price: Optional[Dezimal] = None
-    investment_currency: Optional[str] = None
-    market_value: Optional[Dezimal] = None
-    currency: Optional[str] = None
-    tokens: list[CryptoCurrencyToken] = None
+    assets: list[CryptoCurrencyPosition] = field(default_factory=list)
 
 
 class CryptoInitialInvestmentType(str, Enum):

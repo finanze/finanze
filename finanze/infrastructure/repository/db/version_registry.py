@@ -83,6 +83,9 @@ from infrastructure.repository.db.versions.v0.v06.v060_6_migrate_equity_types im
 from infrastructure.repository.db.versions.v0.v07.v070_0_add_contrib_target_subype import (
     V0700ContribTargetSubtype,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_1_crypto_currencies_v2 import (
+    V0701CryptoCurrenciesV2,
+)
 
 versions = [
     V0Genesis(),
@@ -120,4 +123,5 @@ versions = [
     V0605TxProductSubtype(),
     V0606(),
     V0700ContribTargetSubtype(),
+    V0701CryptoCurrenciesV2(),
 ]
