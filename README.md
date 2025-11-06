@@ -50,7 +50,7 @@ information.
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
 | Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING            | ✅        | ✅     | ✅️    | ❌              | ❌        | -          | ❌                   | -      | -     |                     |
+| ING            | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
 
 (*) Private Markets are alternative investments available in Trade Republic, currently under development.
 

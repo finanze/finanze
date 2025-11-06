@@ -186,11 +186,11 @@ class INGAPIClient:
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_broker_portfolio(self, product_id: str) -> dict:
-        return self._get_request(f"/products/{product_id}/portfolio")
+        return self._get_request(f"/products/{product_id}/portfolio", api=False)
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_broker_financial_events(self, product_id: str) -> dict:
-        return self._get_request(f"/products/{product_id}/financialEvents")
+        return self._get_request(f"/products/{product_id}/financialEvents", api=False)
 
     @cached(cache=TTLCache(maxsize=1, ttl=86400))
     def get_investment_catalog_products(self) -> dict:
