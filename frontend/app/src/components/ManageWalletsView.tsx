@@ -6,8 +6,6 @@ import { formatCurrency } from "@/lib/formatters"
 import {
   calculateCryptoAssetInitialInvestment,
   calculateCryptoAssetValue,
-  calculateWalletAssetsValue,
-  calculateWalletInitialInvestment,
   getWalletAssets,
 } from "@/utils/financialDataUtils"
 import { Button } from "@/components/ui/Button"
@@ -109,6 +107,8 @@ export function ManageWalletsView({
     const rates = (exchangeRates ?? {}) as ExchangeRates
     const targetCurrency = settings.general.defaultCurrency
     const entityIconPath = `entities/${entity.id}.png`
+    const hideUnknownTokens =
+      settings.assets?.crypto?.hideUnknownTokens ?? false
 
     const buildAssetView = (asset: CryptoCurrencyPosition): WalletAssetView => {
       const normalizedSymbol = (
@@ -118,12 +118,13 @@ export function ManageWalletsView({
       ).toUpperCase()
       const displayName =
         asset.crypto_asset?.name || asset.name || normalizedSymbol || asset.id
-      const value = calculateCryptoAssetValue(asset, targetCurrency, rates)
-      const initialInvestment = calculateCryptoAssetInitialInvestment(
-        asset,
-        targetCurrency,
-        rates,
-      )
+      const hasAssetDetails = Boolean(asset.crypto_asset)
+      const value = hasAssetDetails
+        ? calculateCryptoAssetValue(asset, targetCurrency, rates)
+        : 0
+      const initialInvestment = hasAssetDetails
+        ? calculateCryptoAssetInitialInvestment(asset, targetCurrency, rates)
+        : 0
       const roi =
         initialInvestment > 0
           ? ((value - initialInvestment) / initialInvestment) * 100
@@ -153,19 +154,14 @@ export function ManageWalletsView({
       const connection = connectedWallets.find(
         conn => conn.address.toLowerCase() === addressKey,
       )
-      const assets = getWalletAssets(wallet)
+      const assets = getWalletAssets(wallet, { hideUnknownTokens })
       const assetViews = assets.map(buildAssetView)
       const nativeAssets = assetViews.filter(item => !item.isToken)
       const tokenAssets = assetViews.filter(item => item.isToken)
-      const totalValue = calculateWalletAssetsValue(
-        wallet,
-        targetCurrency,
-        rates,
-      )
-      const totalInitialInvestment = calculateWalletInitialInvestment(
-        wallet,
-        targetCurrency,
-        rates,
+      const totalValue = assetViews.reduce((sum, view) => sum + view.value, 0)
+      const totalInitialInvestment = assetViews.reduce(
+        (sum, view) => sum + view.initialInvestment,
+        0,
       )
       const displayName =
         connection?.name || wallet.name || wallet.address || addressKey
@@ -211,7 +207,13 @@ export function ManageWalletsView({
 
     setWallets(combinedWallets)
     setIsLoading(false)
-  }, [entity, positionsData, exchangeRates, settings.general.defaultCurrency])
+  }, [
+    entity,
+    positionsData,
+    exchangeRates,
+    settings.general.defaultCurrency,
+    settings.assets?.crypto?.hideUnknownTokens,
+  ])
 
   const handleEditWallet = (wallet: WalletEntry) => {
     if (!wallet.connectionId) {

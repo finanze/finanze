@@ -20,6 +20,7 @@ interface ChartDataItem {
   currency?: string
   convertedValue?: number
   convertedCurrency?: string
+  id?: string
 }
 
 interface InvestmentDistributionChartProps {

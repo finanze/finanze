@@ -375,9 +375,9 @@
     "title": "Configuración",
     "general": "General",
     "etherscanIntegration": "Etherscan",
-    "etherscanIntegrationDescription": "Ingresa tu clave API de Etherscan para poder obtener más variedad de datos de tus criptomonedas",
+    "etherscanIntegrationDescription": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de ciertas criptomonedas (recomendado solo si falla la obtención estándar, o si la API es de pago)",
     "etherscanApiKey": "Clave API",
-    "etherscanApiKeyPlaceholder": "Ingresa tu clave API de Etherscan",
+    "etherscanApiKeyPlaceholder": "Clave API de Etherscan",
     "etherscanApiInfoPrefix": "Para obtener tu clave API, visita ",
     "etherscanApiInfoLinkText": "etherscan.com",
     "etherscanApiInfoSuffix": " y sigue las instrucciones.",
@@ -401,12 +401,14 @@
         "editStablecoin": "Editar stablecoin",
         "removeStablecoin": "Eliminar stablecoin",
         "confirmEdit": "Guardar cambios",
-        "cancelEdit": "Cancelar edición"
+        "cancelEdit": "Cancelar edición",
+        "hideUnknownTokensLabel": "Ocultar tokens desconocidos",
+        "hideUnknownTokensDescription": "Excluye los tokens sin datos de referencia de las vistas y cálculos"
       }
     },
     "integrations": "Integraciones",
     "sheetsIntegration": "Google Sheets",
-    "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets",
+    "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets para poder importar y exportar datos",
     "clientId": "ID de Cliente",
     "clientIdPlaceholder": "Introduce tu ID de Cliente OAuth2 de Google",
     "clientSecret": "Secreto de cliente",
@@ -467,7 +469,7 @@
       "clientSecretRequired": "El Secreto de Cliente es necesario al configurar la integración con Google Sheets"
     },
     "goCardlessIntegration": "GoCardless",
-    "goCardlessIntegrationDescription": "Introduce tus credenciales de GoCardless para conectar cuentas bancarias",
+    "goCardlessIntegrationDescription": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente",
     "goCardlessSecretId": "Secret ID",
     "goCardlessSecretIdPlaceholder": "Introduce tu Secret ID de GoCardless",
     "goCardlessSecretKey": "Secret Key",
@@ -476,8 +478,8 @@
     "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
     "goCardlessInfoMiddle": ", luego ve a ",
     "goCardlessInfoUserSecrets": "Desarrolladores > User secrets",
-    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales.",
-    "goCardlessHelpButton": "¿Cómo obtengo estas credenciales?"
+    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales. Lamentablemente, GoCardless ya no permite crear estas credenciales, por lo que solo te servirá si ya tenías una cuenta.",
+    "goCardlessHelpButton": "¿Cómo obtener las credenciales?"
   },
   "dashboard": {
     "title": "Panel Principal",

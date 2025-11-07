@@ -267,7 +267,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         return {
             executor.submit(
-                self._crypto_asset_info_provider.get_multiple_prices,
+                self._crypto_asset_info_provider.get_multiple_prices_by_symbol,
                 symbols,
                 self.SUPPORTED_CURRENCIES,
                 timeout=timeout,

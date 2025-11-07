@@ -70,7 +70,7 @@ class TronFetcher(CryptoEntityFetcher):
             tokens.append(
                 CryptoCurrencyPosition(
                     id=uuid4(),
-                    contract_address=token_data.get("tokenId"),
+                    contract_address=token_data.get("tokenId", "").lower(),
                     name=token_data.get("tokenName"),
                     symbol=symbol,
                     amount=amount,

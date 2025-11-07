@@ -62,6 +62,7 @@ export interface AppSettings {
   assets: {
     crypto: {
       stablecoins: string[]
+      hideUnknownTokens: boolean
     }
   }
 }
@@ -120,7 +121,8 @@ const defaultSettings: AppSettings = {
   },
   assets: {
     crypto: {
-      stablecoins: [],
+      stablecoins: ["USDC", "USDT"],
+      hideUnknownTokens: false,
     },
   },
 }
@@ -155,6 +157,9 @@ const mergeSettingsWithDefaults = (
       stablecoins:
         incoming?.assets?.crypto?.stablecoins ??
         defaultSettings.assets.crypto.stablecoins,
+      hideUnknownTokens:
+        incoming?.assets?.crypto?.hideUnknownTokens ??
+        defaultSettings.assets.crypto.hideUnknownTokens,
     },
   }
 

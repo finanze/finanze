@@ -1,14 +1,18 @@
 import logging
-from typing import Any
+from typing import Any, Callable
 
 import requests
+from cachetools import TTLCache, cached
 from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
+from domain.entity import Entity
 from domain.exception.exceptions import (
+    FeatureNotSupported,
     InvalidProvidedCredentials,
     MissingFieldsError,
     TooManyRequests,
 )
+from domain.native_entities import BSC, ETHEREUM, TRON
 from infrastructure.client.http.backoff import http_get_with_backoff
 
 
@@ -17,8 +21,15 @@ class CoinGeckoClient:
     TIMEOUT = 10
     CHUNK_SIZE = 50
     COOLDOWN = 1
-    MAX_RETRIES = 3
+    MAX_RETRIES = 4
+    BACKOFF_EXPONENT_BASE = 2.8
     BACKOFF_FACTOR = 1.6
+
+    ENTITY_CHAIN_MAP = {
+        ETHEREUM: "ethereum",
+        BSC: "binance-smart-chain",
+        TRON: "tron",
+    }
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -29,6 +40,42 @@ class CoinGeckoClient:
         data = self._fetch("/search", params={"query": query.strip()})
         coins = data.get("coins", [])
         return self._map_search_results(coins)
+
+    @cached(
+        cache=TTLCache(maxsize=1, ttl=86400),
+    )
+    def get_coin_list(self) -> list[dict[str, Any]]:
+        params = {"include_platform": "true"}
+        data = self._fetch("/coins/list", params=params, timeout=self.TIMEOUT)
+        if not isinstance(data, list):
+            self._log.warning(
+                f"Unexpected response for /coins/list, expected list. Got type {type(data)}"
+            )
+            return []
+
+        return data
+
+    def get_prices_by_contract(
+        self,
+        crypto_entity: Entity,
+        addresses: list[str],
+        vs_currencies: list[str],
+        timeout: int = TIMEOUT,
+    ) -> dict[str, dict[str, Dezimal]]:
+        chain_slug = self.ENTITY_CHAIN_MAP.get(crypto_entity)
+        if not chain_slug:
+            raise FeatureNotSupported(
+                f"Token prices not supported for chain {getattr(crypto_entity, 'name', 'UNKNOWN')}"
+            )
+        deduped_addresses = self._dedupe_items(addresses, case_insensitive=False)
+        vs_param = ",".join(c.lower() for c in vs_currencies)
+        result: dict[str, dict[str, Dezimal]] = {}
+        for chunk in self._chunked(deduped_addresses, self.CHUNK_SIZE):
+            chunk_result = self._fetch_token_chunk(chain_slug, chunk, vs_param, timeout)
+            self._merge_prices_map(
+                chunk_result, result, key_transform=lambda k: k.lower()
+            )
+        return result
 
     def _map_search_results(self, coins: list[dict[str, Any]]) -> list[CryptoAsset]:
         mapped: list[CryptoAsset] = []
@@ -75,7 +122,7 @@ class CoinGeckoClient:
             raise MissingFieldsError(["symbols"])
         if not vs_currencies:
             raise MissingFieldsError(["vs_currencies"])
-        deduped = self._dedupe(symbols)
+        deduped = self._dedupe_items(symbols, case_insensitive=True)
         vs_param = ",".join(c.lower() for c in vs_currencies)
         return deduped, vs_param
 
@@ -85,19 +132,24 @@ class CoinGeckoClient:
         result: dict[str, dict[str, Dezimal]] = {}
         for chunk in self._chunked(deduped, self.CHUNK_SIZE):
             chunk_result = self._fetch_chunk(chunk, vs_param, timeout)
-            self._merge_chunk(chunk_result, result)
+            self._merge_prices_map(
+                chunk_result, result, key_transform=lambda k: k.upper()
+            )
         return result
 
     def _chunked(self, seq: list[str], size: int) -> list[list[str]]:
         return [seq[i : i + size] for i in range(0, len(seq), size)]
 
-    def _merge_chunk(
-        self, chunk_result: dict[str, Any], accumulator: dict[str, dict[str, Dezimal]]
+    def _merge_prices_map(
+        self,
+        raw_map: dict[str, Any],
+        accumulator: dict[str, dict[str, Dezimal]],
+        key_transform: Callable[[str], str],
     ) -> None:
-        for sym, prices in chunk_result.items():
+        for key, prices in raw_map.items():
             converted = self._convert_prices(prices)
             if converted:
-                accumulator[sym.upper()] = converted
+                accumulator[key_transform(key)] = converted
 
     def _convert_prices(self, prices: Any) -> dict[str, Dezimal]:
         if not isinstance(prices, dict):
@@ -110,18 +162,18 @@ class CoinGeckoClient:
                 continue
         return converted
 
-    def _dedupe(self, symbols: list[str]) -> list[str]:
+    def _dedupe_items(self, items: list[str], case_insensitive: bool) -> list[str]:
         seen: set[str] = set()
         deduped: list[str] = []
-        for s in symbols:
-            su = s.strip()
-            if not su:
+        for raw in items:
+            item = raw.strip()
+            if not item:
                 continue
-            lu = su.lower()
-            if lu in seen:
+            key = item.lower() if case_insensitive else item
+            if key in seen:
                 continue
-            seen.add(lu)
-            deduped.append(su)
+            seen.add(key)
+            deduped.append(item)
         return deduped
 
     def _fetch_chunk(
@@ -138,6 +190,22 @@ class CoinGeckoClient:
             timeout=timeout,
         )
 
+    # --- Token (contract) prices helpers ---
+    def _fetch_token_chunk(
+        self, chain_slug: str, chunk: list[str], vs_param: str, timeout: int
+    ) -> dict[str, Any]:
+        addresses_param = ",".join(chunk)
+        path = f"/simple/token_price/{chain_slug}"
+        return self._fetch(
+            path,
+            params={
+                "vs_currencies": vs_param,
+                "contract_addresses": addresses_param,
+                "precision": "full",
+            },
+            timeout=timeout,
+        )
+
     def _fetch(
         self, path: str, params: dict[str, Any] | None = None, timeout: int = TIMEOUT
     ) -> dict:
@@ -148,7 +216,7 @@ class CoinGeckoClient:
                 params=params,
                 timeout=timeout,
                 max_retries=self.MAX_RETRIES,
-                backoff_exponent_base=3,
+                backoff_exponent_base=self.BACKOFF_EXPONENT_BASE,
                 backoff_factor=self.BACKOFF_FACTOR,
                 cooldown=self.COOLDOWN,
                 log=self._log,

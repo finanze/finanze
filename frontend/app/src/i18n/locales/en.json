@@ -395,12 +395,14 @@
         "editStablecoin": "Edit stablecoin",
         "removeStablecoin": "Remove stablecoin",
         "confirmEdit": "Save changes",
-        "cancelEdit": "Cancel edit"
+        "cancelEdit": "Cancel edit",
+        "hideUnknownTokensLabel": "Hide unknown tokens",
+        "hideUnknownTokensDescription": "Exclude tokens without reference data from views and calculations"
       }
     },
     "integrations": "Integrations",
     "sheetsIntegration": "Google Sheets",
-    "sheetsIntegrationDescription": "Configure your Google Sheets API credentials",
+    "sheetsIntegrationDescription": "Configure your Google Sheets API credentials to enable data import and export",
     "clientId": "Client ID",
     "clientIdPlaceholder": "Enter your Google OAuth2 Client ID",
     "clientSecret": "Client Secret",
@@ -461,7 +463,7 @@
       "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
     },
     "etherscanIntegration": "Etherscan",
-    "etherscanIntegrationDescription": "Enter your Etherscan API key to enable more crypto data fetching",
+    "etherscanIntegrationDescription": "Configure your Etherscan API key to increase data fetch rate for certain cryptocurrencies (recommended only if standard fetch fails, or if using a paid API)",
     "etherscanApiKey": "API Key",
     "etherscanApiKeyPlaceholder": "Enter your Etherscan API key",
     "etherscanApiInfoPrefix": "To get your API key, visit ",
@@ -469,7 +471,7 @@
     "etherscanApiInfoSuffix": " and follow the instructions.",
     "googleSheetsWebDisabled": "Use desktop app",
     "goCardlessIntegration": "GoCardless",
-    "goCardlessIntegrationDescription": "Enter your GoCardless credentials to enable bank account connections",
+    "goCardlessIntegrationDescription": "Configure GoCardless so you can connect bank accounts from any unsupported banks",
     "goCardlessSecretId": "Secret ID",
     "goCardlessSecretIdPlaceholder": "Enter your GoCardless Secret ID",
     "goCardlessSecretKey": "Secret Key",
@@ -478,8 +480,8 @@
     "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
     "goCardlessInfoMiddle": ", then navigate to ",
     "goCardlessInfoUserSecrets": "Developers > User secrets",
-    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials.",
-    "goCardlessHelpButton": "How to get these credentials?"
+    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials. Unfortunately, GoCardless no longer allows creating these credentials, so this will only work if you already had an account.",
+    "goCardlessHelpButton": "How to get the credentials?"
   },
   "dashboard": {
     "title": "Dashboard",

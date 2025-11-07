@@ -40,6 +40,7 @@ from domain.fetch_result import (
 from domain.global_position import (
     CryptoCurrencies,
     CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
     GlobalPosition,
     ProductType,
@@ -180,12 +181,16 @@ class FetchCryptoDataImpl(FetchCryptoData):
             wallet.name = connection.name
             wallet.address = connection.address
 
-        all_symbols = set()
+        contract_addresses = set()
+        native_symbols = set()
         for wallet in candidate_wallets:
             for asset in wallet.assets:
-                all_symbols.add(asset.symbol)
+                if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
+                    contract_addresses.add(asset.contract_address.lower())
+                elif asset.type == CryptoCurrencyType.NATIVE:
+                    native_symbols.add(asset.symbol)
 
-        price_map = self._get_price_map(list(all_symbols))
+        price_map = self._get_price_map(contract_addresses, native_symbols)
 
         wallets = []
         for w in candidate_wallets:
@@ -216,16 +221,14 @@ class FetchCryptoDataImpl(FetchCryptoData):
         if wallet.assets:
             for asset in wallet.assets:
                 asset_dict = asdict(asset)
-                market_value = self._get_market_value(
-                    price_map, asset.symbol, asset.amount
-                )
+                market_value = self._get_market_value(price_map, asset)
                 asset_dict["market_value"] = market_value
                 asset_dict["currency"] = TARGET_FIAT
                 asset_details = self._crypto_asset_registry_port.get_by_symbol(
                     asset.symbol
                 )
                 asset_info = asset_details
-                if market_value is not None and not asset_info:
+                if (market_value is not None and asset.amount > 0) and not asset_info:
                     candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
                         asset.symbol
                     )
@@ -248,34 +251,54 @@ class FetchCryptoDataImpl(FetchCryptoData):
         wallet_dict["assets"] = assets
         return CryptoCurrencyWallet(**wallet_dict)
 
-    def _get_price_map(self, symbols: list[str]) -> dict[str, Dezimal]:
-        if len(symbols) == 1:
-            single_price = self._crypto_asset_info_provider.get_price(
-                symbols[0], fiat_iso=TARGET_FIAT
+    def _get_price_map(
+        self,
+        contract_addresses: set[str],
+        native_symbols: set[str],
+    ) -> dict[str, Dezimal]:
+        valid_token_symbols = {}
+        if contract_addresses:
+            assets_by_contract = (
+                self._crypto_asset_info_provider.get_multiple_overview_by_addresses(
+                    addresses=list(contract_addresses)
+                )
             )
-            if single_price is not None:
-                return {symbols[0]: single_price}
-            return {}
+            for contract_address, asset in assets_by_contract.items():
+                if contract_address in contract_addresses:
+                    valid_token_symbols[asset.symbol] = contract_address
 
-        price = self._crypto_asset_info_provider.get_multiple_prices(
-            symbols, fiat_isos=[TARGET_FIAT]
-        )
-        return {
-            symbol: price[symbol].get(TARGET_FIAT)
-            for symbol in symbols
-            if symbol in price
-        }
+        price_map = {}
+        symbols = native_symbols | valid_token_symbols.keys()
+        if native_symbols or valid_token_symbols:
+            price = self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                list(symbols), fiat_isos=[TARGET_FIAT]
+            )
+            for symbol in symbols:
+                if symbol in valid_token_symbols:
+                    contract_address = valid_token_symbols[symbol]
+                    price_map[contract_address.lower()] = price[symbol.upper()].get(
+                        TARGET_FIAT
+                    )
+                elif symbol in native_symbols:
+                    price_map[symbol.upper()] = price[symbol.upper()].get(TARGET_FIAT)
+
+        return price_map
 
     def _get_market_value(
-        self, price_map: dict[str, Dezimal], symbol: str, crypto_amount: Dezimal
+        self, price_map: dict[str, Dezimal], crypto_currency: CryptoCurrencyPosition
     ) -> Optional[Dezimal]:
-        if crypto_amount <= 0:
+        if crypto_currency.amount <= 0:
             return Dezimal(0)
 
-        price = price_map.get(symbol)
+        price_key = (
+            crypto_currency.symbol
+            if crypto_currency.type == CryptoCurrencyType.NATIVE
+            else crypto_currency.contract_address.lower()
+        )
+        price = price_map.get(price_key) if price_key else None
         if price is None:
             return None
-        return round(crypto_amount * price, 2)
+        return round(crypto_currency.amount * price, 2)
 
     def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())

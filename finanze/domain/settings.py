@@ -119,6 +119,7 @@ class IntegrationsConfig:
 @dataclass
 class CryptoAssetConfig:
     stablecoins: list[str] = field(default_factory=list)
+    hideUnknownTokens: bool = False
 
 
 @dataclass

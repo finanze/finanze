@@ -22,9 +22,6 @@ import {
   ChevronUp,
   Save,
   RefreshCw,
-  FileSpreadsheet,
-  FileSearch,
-  Landmark,
   Info,
   AlertCircle,
   Settings,
@@ -146,6 +143,7 @@ export default function SettingsPage() {
   const [isAddingStablecoin, setIsAddingStablecoin] = useState(false)
   const newStablecoinInputRef = useRef<HTMLInputElement | null>(null)
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
+  const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
 
   const updateStablecoins = useCallback(
     (updater: (current: string[]) => string[]) => {
@@ -156,6 +154,22 @@ export default function SettingsPage() {
           crypto: {
             ...prev.assets?.crypto,
             stablecoins: updater(prev.assets?.crypto?.stablecoins ?? []),
+          },
+        },
+      }))
+    },
+    [setSettings],
+  )
+
+  const handleHideUnknownTokensChange = useCallback(
+    (checked: boolean) => {
+      setSettings(prev => ({
+        ...prev,
+        assets: {
+          ...prev.assets,
+          crypto: {
+            ...prev.assets?.crypto,
+            hideUnknownTokens: checked,
           },
         },
       }))
@@ -2005,6 +2019,25 @@ export default function SettingsPage() {
                           {t.settings.assets.crypto.emptyState}
                         </p>
                       )}
+                      <div className="border-t border-border/50 pt-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">
+                              {t.settings.assets.crypto.hideUnknownTokensLabel}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {
+                                t.settings.assets.crypto
+                                  .hideUnknownTokensDescription
+                              }
+                            </p>
+                          </div>
+                          <Switch
+                            checked={hideUnknownTokens}
+                            onCheckedChange={handleHideUnknownTokensChange}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2023,7 +2056,7 @@ export default function SettingsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3 }}
-            className="space-y-4"
+            className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"
           >
             {/* Google Sheets Integration */}
             <Card>
@@ -2032,9 +2065,17 @@ export default function SettingsPage() {
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => toggleSection("googleSheets")}
                 >
-                  <div className="flex items-center">
-                    <FileSpreadsheet className="mr-2 h-5 w-5 text-green-600" />
-                    <CardTitle>{t.settings.sheetsIntegration}</CardTitle>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/icons/external-integrations/GOOGLE_SHEETS.png"
+                      alt="Google Sheets"
+                      className="h-12 w-12 object-contain"
+                    />
+                    <div>
+                      <CardTitle className="text-lg">
+                        {t.settings.sheetsIntegration}
+                      </CardTitle>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1">
                     {(() => {
@@ -2199,9 +2240,17 @@ export default function SettingsPage() {
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => toggleSection("etherscan")}
                 >
-                  <div className="flex items-center">
-                    <FileSearch className="mr-2 h-5 w-5 text-blue-600" />
-                    <CardTitle>{t.settings.etherscanIntegration}</CardTitle>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/icons/external-integrations/ETHERSCAN.png"
+                      alt="Etherscan"
+                      className="h-12 w-12 object-contain"
+                    />
+                    <div>
+                      <CardTitle className="text-lg">
+                        {t.settings.etherscanIntegration}
+                      </CardTitle>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1">
                     {(() => {
@@ -2315,11 +2364,17 @@ export default function SettingsPage() {
                   className="flex items-center justify-between cursor-pointer"
                   onClick={() => toggleSection("goCardless")}
                 >
-                  <div className="flex items-center">
-                    <Landmark className="mr-2 h-5 w-5 text-yellow-600" />
-                    <CardTitle>
-                      {(t.settings as any).goCardlessIntegration}
-                    </CardTitle>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/icons/external-integrations/GOCARDLESS.png"
+                      alt="GoCardless"
+                      className="h-12 w-12 object-contain"
+                    />
+                    <div>
+                      <CardTitle className="text-lg">
+                        {(t.settings as any).goCardlessIntegration}
+                      </CardTitle>
+                    </div>
                   </div>
                   <div className="flex items-center space-x-1">
                     {(() => {

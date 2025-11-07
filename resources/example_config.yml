@@ -114,3 +114,4 @@ assets:
       - PAXG
       - XAUT
       - JPYC
+    hideUnknownTokens: true

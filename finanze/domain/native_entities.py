@@ -185,7 +185,6 @@ TRON = _create_crypto_entity(4, "Tron")
 BSC = _create_crypto_entity(
     5,
     "Binance Smart Chain",
-    required_external_integrations=[ExternalIntegrationId.ETHERSCAN],
 )
 
 COMMODITIES = Entity(

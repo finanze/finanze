@@ -255,6 +255,7 @@ export interface Settings {
   assets: {
     crypto: {
       stablecoins: string[]
+      hideUnknownTokens: boolean
     }
   }
 }
@@ -372,6 +373,7 @@ export enum ExternalIntegrationType {
   CRYPTO_PROVIDER = "CRYPTO_PROVIDER",
   DATA_SOURCE = "DATA_SOURCE",
   ENTITY_PROVIDER = "ENTITY_PROVIDER",
+  CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {
@@ -393,6 +395,7 @@ export interface ExternalIntegrations {
 export enum ExternalIntegrationId {
   GOOGLE_SHEETS = "GOOGLE_SHEETS",
   ETHERSCAN = "ETHERSCAN",
+  ETHPLORER = "ETHPLORER",
   GOCARDLESS = "GOCARDLESS",
 }
 

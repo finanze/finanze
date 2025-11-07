@@ -63,6 +63,8 @@ interface WalletAssetView {
   amount: number
   isToken: boolean
   iconUrl: string | null
+  hasAssetDetails: boolean
+  groupingKey: string
 }
 
 interface WalletWithComputed {
@@ -83,6 +85,7 @@ interface EntityWalletGroup {
 
 interface NetworkAssetSummary {
   key: string
+  groupingKey: string
   displayName: string
   symbol: string
   iconUrl: string | null
@@ -331,12 +334,12 @@ export default function CryptoInvestmentPage() {
     string | null
   >(null)
   const registerAssetRef = useCallback(
-    (displayName: string, element: HTMLDivElement | null) => {
-      if (!displayName) return
+    (identifier: string, element: HTMLDivElement | null) => {
+      if (!identifier) return
       if (element) {
-        symbolRefs.current[displayName] = element
+        symbolRefs.current[identifier] = element
       } else {
-        delete symbolRefs.current[displayName]
+        delete symbolRefs.current[identifier]
       }
     },
     [],
@@ -351,6 +354,8 @@ export default function CryptoInvestmentPage() {
 
     const rates = (exchangeRates ?? {}) as ExchangeRates
     const defaultCurrency = settings.general.defaultCurrency
+    const hideUnknownTokens =
+      settings.assets?.crypto?.hideUnknownTokens ?? false
 
     return Object.values(positionsData.positions).reduce<EntityWalletGroup[]>(
       (acc, entityPosition) => {
@@ -375,61 +380,93 @@ export default function CryptoInvestmentPage() {
 
         const wallets = (cryptoProduct.entries as CryptoCurrencyWallet[])
           .map(wallet => {
-            const assets = getWalletAssets(wallet)
+            const walletIdentifier = getWalletIdentifier(wallet)
+            const assets = getWalletAssets(wallet, { hideUnknownTokens })
 
-            const assetViews: WalletAssetView[] = assets.map(asset => {
-              const symbol =
-                asset.symbol?.toUpperCase() ||
-                asset.crypto_asset?.symbol?.toUpperCase() ||
-                ""
-              const displayName =
-                asset.crypto_asset?.name || asset.name || symbol
-              const value = calculateCryptoAssetValue(
-                asset,
-                defaultCurrency,
-                rates,
-              )
-              const initialInvestment = calculateCryptoAssetInitialInvestment(
-                asset,
-                defaultCurrency,
-                rates,
-              )
-              const hasSymbolRate = hasSymbolConversion(
-                symbol,
-                defaultCurrency,
-                rates,
-              )
-              const marketCurrency =
-                asset.currency || asset.investment_currency || null
-              const hasMarketValue = asset.market_value != null
-              const marketValueConvertible = hasMarketValue
-                ? canConvertMarketValue(marketCurrency, defaultCurrency, rates)
-                : false
-              const valueAvailable = hasSymbolRate || marketValueConvertible
-              const roi =
-                initialInvestment > 0
-                  ? ((value - initialInvestment) / initialInvestment) * 100
+            const assetViews: WalletAssetView[] = assets
+              .map(asset => {
+                const symbol =
+                  asset.symbol?.toUpperCase() ||
+                  asset.crypto_asset?.symbol?.toUpperCase() ||
+                  ""
+                const displayName =
+                  asset.crypto_asset?.name || asset.name || symbol
+                const hasAssetDetails = Boolean(asset.crypto_asset)
+                const value = hasAssetDetails
+                  ? calculateCryptoAssetValue(asset, defaultCurrency, rates)
+                  : 0
+                const initialInvestment = hasAssetDetails
+                  ? calculateCryptoAssetInitialInvestment(
+                      asset,
+                      defaultCurrency,
+                      rates,
+                    )
+                  : 0
+                const hasSymbolRate =
+                  hasAssetDetails &&
+                  hasSymbolConversion(symbol, defaultCurrency, rates)
+                const marketCurrency =
+                  asset.currency || asset.investment_currency || null
+                const hasMarketValue =
+                  hasAssetDetails && asset.market_value != null
+                const marketValueConvertible =
+                  hasAssetDetails && hasMarketValue
+                    ? canConvertMarketValue(
+                        marketCurrency,
+                        defaultCurrency,
+                        rates,
+                      )
+                    : false
+                const valueAvailable =
+                  hasAssetDetails && (hasSymbolRate || marketValueConvertible)
+                const roi =
+                  initialInvestment > 0
+                    ? ((value - initialInvestment) / initialInvestment) * 100
+                    : null
+                const isToken =
+                  (asset.type ?? CryptoCurrencyType.NATIVE) ===
+                    CryptoCurrencyType.TOKEN || Boolean(asset.contract_address)
+                const iconUrl = isToken
+                  ? (asset.crypto_asset?.icon_urls?.[0] ?? null)
+                  : entityIconPath
+
+                const normalizedSymbol =
+                  symbol ||
+                  asset.crypto_asset?.symbol?.toUpperCase() ||
+                  asset.name?.toUpperCase() ||
+                  asset.id
+                const contractAddress = asset.contract_address
+                  ? asset.contract_address.toLowerCase()
                   : null
-              const isToken =
-                (asset.type ?? CryptoCurrencyType.NATIVE) ===
-                  CryptoCurrencyType.TOKEN || Boolean(asset.contract_address)
-              const iconUrl = isToken
-                ? (asset.crypto_asset?.icon_urls?.[0] ?? null)
-                : entityIconPath
+                const tokenKey =
+                  contractAddress ?? asset.crypto_asset?.id?.toLowerCase()
 
-              return {
-                asset,
-                symbol,
-                displayName,
-                value,
-                valueAvailable,
-                initialInvestment,
-                roi,
-                amount: asset.amount ?? 0,
-                isToken,
-                iconUrl,
-              }
-            })
+                if (isToken && !tokenKey) {
+                  return null
+                }
+
+                const groupingKey = isToken
+                  ? `token:${tokenKey}`
+                  : normalizedSymbol
+                    ? `native:${normalizedSymbol}`
+                    : `native:${walletIdentifier}:${asset.id}`
+
+                return {
+                  asset,
+                  symbol,
+                  displayName,
+                  value,
+                  valueAvailable,
+                  initialInvestment,
+                  roi,
+                  amount: asset.amount ?? 0,
+                  isToken,
+                  iconUrl,
+                  hasAssetDetails,
+                  groupingKey,
+                }
+              })
+              .filter((view): view is WalletAssetView => view !== null)
 
             const sortedAssetViews = [...assetViews].sort((a, b) => {
               // Prioritize by value availability: assets with available values come first
@@ -483,7 +520,12 @@ export default function CryptoInvestmentPage() {
       },
       [],
     )
-  }, [positionsData, exchangeRates, settings.general.defaultCurrency])
+  }, [
+    positionsData,
+    exchangeRates,
+    settings.general.defaultCurrency,
+    settings.assets?.crypto?.hideUnknownTokens,
+  ])
 
   const entityOptions = useMemo<MultiSelectOption[]>(() => {
     const unique = new Map<string, string>()
@@ -581,6 +623,7 @@ export default function CryptoInvestmentPage() {
       const assetMap = new Map<
         string,
         {
+          groupingKey: string
           displayName: string
           symbol: string
           iconUrl: string | null
@@ -605,8 +648,7 @@ export default function CryptoInvestmentPage() {
         const walletKey = walletAddress.toLowerCase()
 
         walletGroup.assets.forEach(assetView => {
-          const assetKey =
-            assetView.symbol || assetView.displayName || assetView.asset.id
+          const assetKey = assetView.groupingKey
           const existing = assetMap.get(assetKey)
           if (existing) {
             existing.totalValue += assetView.value
@@ -634,6 +676,7 @@ export default function CryptoInvestmentPage() {
               address: walletAddress,
             })
             assetMap.set(assetKey, {
+              groupingKey: assetKey,
               displayName: assetView.displayName,
               symbol: assetView.symbol || assetView.displayName || assetKey,
               iconUrl: assetView.iconUrl,
@@ -658,7 +701,8 @@ export default function CryptoInvestmentPage() {
               : null
 
           return {
-            key: `${entityGroup.entity.id}-${entry.symbol}`,
+            key: `${entityGroup.entity.id}-${entry.groupingKey}`,
+            groupingKey: entry.groupingKey,
             displayName: entry.displayName,
             symbol: entry.symbol,
             iconUrl: entry.iconUrl,
@@ -716,15 +760,15 @@ export default function CryptoInvestmentPage() {
   )
 
   const totalCryptoAssets = useMemo(() => {
-    const uniqueSymbols = new Set<string>()
+    const uniqueIdentifiers = new Set<string>()
     filteredCryptoWallets.forEach(group =>
       group.wallets.forEach(wallet =>
         wallet.assets.forEach(asset => {
-          uniqueSymbols.add(asset.symbol || asset.displayName)
+          uniqueIdentifiers.add(asset.groupingKey)
         }),
       ),
     )
-    return uniqueSymbols.size
+    return uniqueIdentifiers.size
   }, [filteredCryptoWallets])
 
   const totalPerformance = useMemo(() => {
@@ -741,21 +785,44 @@ export default function CryptoInvestmentPage() {
       allAssets
         .filter(asset => asset.value > 0)
         .map(asset => ({
-          symbol: asset.displayName,
+          symbol: asset.groupingKey,
+          name: asset.displayName,
           currentValue: asset.value,
         })),
     [allAssets],
   )
 
-  const chartData = useMemo(
-    () => calculateInvestmentDistribution(chartPositions, "symbol"),
-    [chartPositions],
-  )
+  const chartLabelMap = useMemo(() => {
+    const map = new Map<string, string>()
+    chartPositions.forEach(position => {
+      if (!map.has(position.symbol)) {
+        map.set(position.symbol, position.name ?? position.symbol)
+      }
+    })
+    return map
+  }, [chartPositions])
+
+  const chartData = useMemo(() => {
+    const distribution = calculateInvestmentDistribution(
+      chartPositions,
+      "symbol",
+    )
+    return distribution.map(item => {
+      const identifier = item.name
+      const label = chartLabelMap.get(identifier) ?? identifier
+      return {
+        ...item,
+        name: label,
+        id: identifier,
+      }
+    })
+  }, [chartPositions, chartLabelMap])
 
   const chartColorMap = useMemo(() => {
     const colorMap = new Map<string, string>()
     chartData.forEach(item => {
-      colorMap.set(item.name, item.color)
+      const key = (item as { id?: string }).id ?? item.name
+      colorMap.set(key, item.color)
     })
     return colorMap
   }, [chartData])
@@ -1052,18 +1119,18 @@ export default function CryptoInvestmentPage() {
                                 ? `${assetView.asset.amount.toLocaleString(locale)} ${assetSymbol}`
                                 : assetSymbol
                             const color =
-                              chartColorMap.get(assetView.displayName) ??
+                              chartColorMap.get(assetView.groupingKey) ??
                               "transparent"
                             const hasAccent = color !== "transparent"
                             const isHighlighted =
-                              highlightedAsset === assetView.displayName
+                              highlightedAsset === assetView.groupingKey
 
                             return (
                               <div
                                 key={assetView.asset.id}
                                 ref={element =>
                                   registerAssetRef(
-                                    assetView.displayName,
+                                    assetView.groupingKey,
                                     element,
                                   )
                                 }
@@ -1195,18 +1262,18 @@ export default function CryptoInvestmentPage() {
                                   ? `${assetView.asset.amount.toLocaleString(locale)} ${assetSymbol}`
                                   : assetSymbol
                               const color =
-                                chartColorMap.get(assetView.displayName) ??
+                                chartColorMap.get(assetView.groupingKey) ??
                                 "transparent"
                               const hasAccent = color !== "transparent"
                               const isHighlighted =
-                                highlightedAsset === assetView.displayName
+                                highlightedAsset === assetView.groupingKey
 
                               return (
                                 <div
                                   key={assetView.asset.id}
                                   ref={element =>
                                     registerAssetRef(
-                                      assetView.displayName,
+                                      assetView.groupingKey,
                                       element,
                                     )
                                   }
@@ -1369,17 +1436,17 @@ export default function CryptoInvestmentPage() {
             ) : (
               networkGroup.assets.map(assetSummary => {
                 const color =
-                  chartColorMap.get(assetSummary.displayName) ?? "transparent"
+                  chartColorMap.get(assetSummary.groupingKey) ?? "transparent"
                 const hasAccent = color !== "transparent"
                 const isHighlighted =
-                  highlightedAsset === assetSummary.displayName
+                  highlightedAsset === assetSummary.groupingKey
                 const amountText = `${formatNumber(assetSummary.totalAmount, locale)} ${assetSummary.symbol}`
 
                 return (
                   <div
                     key={assetSummary.key}
                     ref={element =>
-                      registerAssetRef(assetSummary.displayName, element)
+                      registerAssetRef(assetSummary.groupingKey, element)
                     }
                   >
                     <Card
@@ -1620,17 +1687,18 @@ export default function CryptoInvestmentPage() {
                 containerClassName="overflow-visible w-full"
                 variant="bare"
                 onSliceClick={slice => {
-                  const ref = symbolRefs.current[slice.name]
+                  const identifier = (slice as { id?: string }).id ?? slice.name
+                  const ref = symbolRefs.current[identifier]
                   if (ref) {
                     ref.scrollIntoView({
                       behavior: "smooth",
                       block: "center",
                     })
-                    setHighlightedAsset(slice.name)
+                    setHighlightedAsset(identifier)
                     setTimeout(
                       () =>
                         setHighlightedAsset(prev =>
-                          prev === slice.name ? null : prev,
+                          prev === identifier ? null : prev,
                         ),
                       1500,
                     )

@@ -104,16 +104,27 @@ export const calculateCryptoValue = (
 
 type WalletWithAssets = { assets?: CryptoCurrencyPosition[] | null }
 
+type WalletAssetOptions = {
+  hideUnknownTokens?: boolean
+}
+
 export const getWalletAssets = (
   wallet: WalletWithAssets | CryptoCurrencyWallet | null | undefined,
+  options?: WalletAssetOptions,
 ): CryptoCurrencyPosition[] => {
   if (!wallet || !Array.isArray(wallet.assets)) {
     return []
   }
 
-  return wallet.assets.filter((asset): asset is CryptoCurrencyPosition =>
-    Boolean(asset),
-  )
+  const hideUnknownTokens = options?.hideUnknownTokens ?? true
+
+  return wallet.assets.filter((asset): asset is CryptoCurrencyPosition => {
+    if (!asset) {
+      return false
+    }
+
+    return hideUnknownTokens ? Boolean(asset.crypto_asset) : true
+  })
 }
 
 const hasExchangeRateForCurrency = (
@@ -1986,6 +1997,19 @@ export const getStockAndFundPositions = (
   return enrichedPositions
 }
 
+type AggregatedCrypto = {
+  key: string
+  symbol: string
+  name: string
+  amount: number
+  value: number
+  currency: string
+  type: "CRYPTO" | "CRYPTO_TOKEN"
+  initialInvestment: number
+  entities: Set<string>
+  addresses: Set<string>
+}
+
 export const getCryptoPositions = (
   positionsData: EntitiesPosition | null,
   locale: string,
@@ -2001,7 +2025,7 @@ export const getCryptoPositions = (
     exchangeRates,
   )
 
-  const cryptoAggregation: Record<string, any> = {}
+  const cryptoAggregation: Record<string, AggregatedCrypto> = {}
 
   Object.values(positionsData.positions).forEach(entityPosition => {
     const cryptoProduct = entityPosition.products[ProductType.CRYPTO]
@@ -2015,10 +2039,13 @@ export const getCryptoPositions = (
         const assets = getWalletAssets(wallet)
 
         assets.forEach(asset => {
-          const symbol = asset.symbol?.toUpperCase()
-          if (!symbol) {
+          if (!asset.crypto_asset) {
             return
           }
+          const symbol = asset.symbol?.toUpperCase()
+          const cryptoSymbol =
+            asset.crypto_asset?.symbol?.toUpperCase() || symbol || ""
+          const tokenAddress = asset.contract_address?.toLowerCase()
 
           const value = calculateCryptoAssetValue(
             asset,
@@ -2040,19 +2067,35 @@ export const getCryptoPositions = (
           const isToken =
             asset.type === CryptoCurrencyType.TOKEN ||
             Boolean(asset.contract_address)
-          const aggregationKey = isToken ? symbol : `${symbol}-${entityName}`
+          const tokenKey = tokenAddress ?? asset.crypto_asset.id?.toLowerCase()
+          if (isToken && !tokenKey) {
+            return
+          }
+
+          if (!isToken && !cryptoSymbol) {
+            return
+          }
+
+          const aggregationKey = isToken
+            ? `token:${tokenKey}`
+            : `native:${cryptoSymbol}`
 
           if (!cryptoAggregation[aggregationKey]) {
             cryptoAggregation[aggregationKey] = {
-              symbol,
+              key: aggregationKey,
+              symbol: cryptoSymbol || tokenKey?.toUpperCase() || "UNKNOWN",
               name:
-                asset.crypto_asset?.name || asset.name || wallet.name || symbol,
+                asset.crypto_asset?.name ||
+                asset.name ||
+                (isToken
+                  ? cryptoSymbol || tokenKey?.toUpperCase() || "Unknown Token"
+                  : cryptoSymbol || "Unknown"),
               amount: 0,
               value: 0,
               currency: defaultCurrency,
               type: isToken ? "CRYPTO_TOKEN" : "CRYPTO",
-              entities: new Set<string>(),
               initialInvestment: 0,
+              entities: new Set<string>(),
               addresses: new Set<string>(),
             }
           }
@@ -2068,54 +2111,52 @@ export const getCryptoPositions = (
     }
   })
 
-  const allCryptoPositions = Object.keys(cryptoAggregation).map(
-    (key, index) => {
-      const crypto = cryptoAggregation[key]
-      const value = crypto.value
-      const change =
-        crypto.initialInvestment > 0
-          ? (value / crypto.initialInvestment - 1) * 100
-          : 0
+  const aggregatedValues = Object.values(cryptoAggregation)
 
-      const entitiesArray = Array.from(crypto.entities) as string[]
-      const isToken = crypto.type === "CRYPTO_TOKEN"
+  const allCryptoPositions = aggregatedValues.map((crypto, index) => {
+    const value = crypto.value
+    const change =
+      crypto.initialInvestment > 0
+        ? ((value - crypto.initialInvestment) / crypto.initialInvestment) * 100
+        : 0
 
-      const displayName = isToken ? crypto.name : entitiesArray[0]
+    const entitiesArray = Array.from(crypto.entities) as string[]
+    const name = crypto.name || crypto.symbol
+    const sanitizedKey = crypto.key.replace(/[^a-z0-9]+/gi, "-")
 
-      return {
-        symbol: crypto.symbol,
-        name: displayName,
-        address: Array.from(crypto.addresses).join(", "),
-        amount: crypto.amount,
-        price: crypto.amount > 0 ? value / crypto.amount : 0,
-        value: value,
-        initialInvestment: crypto.initialInvestment,
-        currency: defaultCurrency,
-        formattedValue: formatCurrency(
-          value,
-          locale,
-          defaultCurrency,
-          defaultCurrency,
-        ),
-        formattedInitialInvestment: crypto.initialInvestment
-          ? formatCurrency(
-              crypto.initialInvestment,
-              locale,
-              defaultCurrency,
-              defaultCurrency,
-            )
-          : undefined,
-        type: crypto.type,
-        change: change,
-        entities: entitiesArray,
-        showEntityBadge: isToken,
-        percentageOfTotalVariableRent: 0, // Will be calculated below
-        percentageOfTotalPortfolio:
-          totalDisplayedValue > 0 ? (value / totalDisplayedValue) * 100 : 0,
-        id: `crypto-${crypto.symbol}-${entitiesArray.join("-")}-${index}`,
-      }
-    },
-  )
+    return {
+      symbol: crypto.symbol,
+      name,
+      address: Array.from(crypto.addresses).join(", "),
+      amount: crypto.amount,
+      price: crypto.amount > 0 ? value / crypto.amount : 0,
+      value,
+      initialInvestment: crypto.initialInvestment,
+      currency: defaultCurrency,
+      formattedValue: formatCurrency(
+        value,
+        locale,
+        defaultCurrency,
+        defaultCurrency,
+      ),
+      formattedInitialInvestment: crypto.initialInvestment
+        ? formatCurrency(
+            crypto.initialInvestment,
+            locale,
+            defaultCurrency,
+            defaultCurrency,
+          )
+        : undefined,
+      type: crypto.type,
+      change,
+      entities: entitiesArray,
+      showEntityBadge: crypto.type === "CRYPTO_TOKEN",
+      percentageOfTotalVariableRent: 0,
+      percentageOfTotalPortfolio:
+        totalDisplayedValue > 0 ? (value / totalDisplayedValue) * 100 : 0,
+      id: `crypto-${sanitizedKey}-${index}`,
+    }
+  })
 
   const sortedCryptoPositions = allCryptoPositions.sort(
     (a, b) => b.value - a.value,

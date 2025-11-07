@@ -7,6 +7,7 @@ class ExternalIntegrationType(str, Enum):
     CRYPTO_PROVIDER = "CRYPTO_PROVIDER"
     DATA_SOURCE = "DATA_SOURCE"
     ENTITY_PROVIDER = "ENTITY_PROVIDER"
+    CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER"
 
 
 class ExternalIntegrationStatus(str, Enum):
@@ -17,6 +18,7 @@ class ExternalIntegrationStatus(str, Enum):
 class ExternalIntegrationId(str, Enum):
     GOOGLE_SHEETS = "GOOGLE_SHEETS"
     ETHERSCAN = "ETHERSCAN"
+    ETHPLORER = "ETHPLORER"
     GOCARDLESS = "GOCARDLESS"
     COINGECKO = "COINGECKO"
     CRYPTOCOMPARE = "CRYPTOCOMPARE"
@@ -43,6 +45,11 @@ class GoogleIntegrationCredentials:
 
 @dataclass
 class EtherscanIntegrationData:
+    api_key: str
+
+
+@dataclass
+class EthplorerIntegrationData:
     api_key: str
 
 

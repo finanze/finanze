@@ -2,7 +2,6 @@ import logging
 from typing import Optional
 
 import requests
-from application.ports.connectable_integration import ConnectableIntegration
 from cachetools import TTLCache
 from domain.exception.exceptions import (
     AddressNotFound,
@@ -14,7 +13,7 @@ from domain.external_integration import EtherscanIntegrationData
 from infrastructure.client.http.backoff import http_get_with_backoff
 
 
-class EtherscanClient(ConnectableIntegration[EtherscanIntegrationData]):
+class EtherscanClient:
     TTL = 60
     BASE_URL = "https://api.etherscan.io/v2/api?"
     COOLDOWN = 0.2
@@ -25,14 +24,6 @@ class EtherscanClient(ConnectableIntegration[EtherscanIntegrationData]):
     def __init__(self):
         self._log = logging.getLogger(__name__)
         self._cache = TTLCache(maxsize=50, ttl=self.TTL)
-
-    def setup(self, credentials: EtherscanIntegrationData):
-        self.fetch(
-            chain_id=1,
-            module="stats",
-            action="ethsupply",
-            credentials=credentials,
-        )
 
     def fetch(
         self,

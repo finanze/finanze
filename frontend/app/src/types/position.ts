@@ -266,7 +266,7 @@ export interface CryptoCurrencyPosition {
   symbol: string
   amount: number
   type: CryptoCurrencyType
-  crypto_asset: CryptoAsset
+  crypto_asset?: CryptoAsset | null
   contract_address?: string | null
   market_value?: number | null
   currency?: string | null

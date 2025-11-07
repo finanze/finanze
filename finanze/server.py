@@ -183,7 +183,7 @@ class FinanzeServer:
 
         self.crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
-            domain.native_entities.ETHEREUM: EthereumFetcher(),
+            domain.native_entities.ETHEREUM: EthereumFetcher(self.etherscan_client),
             domain.native_entities.LITECOIN: LitecoinFetcher(),
             domain.native_entities.TRON: TronFetcher(),
             domain.native_entities.BSC: BSCFetcher(self.etherscan_client),

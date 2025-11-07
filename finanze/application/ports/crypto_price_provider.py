@@ -2,6 +2,7 @@ import abc
 
 from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
+from domain.entity import Entity
 
 
 class CryptoAssetInfoProvider(metaclass=abc.ABCMeta):
@@ -10,11 +11,27 @@ class CryptoAssetInfoProvider(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_multiple_prices(
+    def get_multiple_prices_by_symbol(
         self, symbols: list[str], fiat_isos: list[str], **kwargs
     ) -> dict[str, dict[str, Dezimal]]:
         raise NotImplementedError
 
     @abc.abstractmethod
+    def get_multiple_prices_by_contract(
+        self,
+        crypto_entity: Entity,
+        addresses: list[str],
+        fiat_isos: list[str],
+        **kwargs,
+    ) -> dict[str, dict[str, Dezimal]]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def get_by_symbol(self, symbol: str) -> list[CryptoAsset]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_multiple_overview_by_addresses(
+        self, addresses: list[str]
+    ) -> dict[str, CryptoAsset]:
         raise NotImplementedError
