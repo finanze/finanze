@@ -75,6 +75,7 @@
     "disconnectSuccess": "Entidad desconectada con éxito",
     "disconnectError": "Error al desconectar entidad",
     "warning": "Advertencia",
+    "help": "Ayuda",
     "never": "Nunca",
     "noDataAvailable": "No hay datos disponibles",
     "retry": "Reintentar",
@@ -479,7 +480,11 @@
     "goCardlessInfoMiddle": ", luego ve a ",
     "goCardlessInfoUserSecrets": "Desarrolladores > User secrets",
     "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales. Lamentablemente, GoCardless ya no permite crear estas credenciales, por lo que solo te servirá si ya tenías una cuenta.",
-    "goCardlessHelpButton": "¿Cómo obtener las credenciales?"
+    "goCardlessHelpButton": "¿Cómo obtener las credenciales?",
+    "integrationHintButton": "Ver instrucciones",
+    "disableIntegration": "Desactivar integración",
+    "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
+    "integrationDisabledSuccess": "Integración {integration} desactivada correctamente"
   },
   "dashboard": {
     "title": "Panel Principal",

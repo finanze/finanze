@@ -52,27 +52,19 @@ class VirtualFetchImpl(VirtualFetch):
         config = self._config_port.load()
         virtual_fetch_config = config.fetch.virtual
 
-        sheet_config = config.integrations.sheets
-
-        if (
-            not virtual_fetch_config.enabled
-            or not sheet_config
-            or not sheet_config.credentials
-        ):
+        if not virtual_fetch_config.enabled:
             return VirtualFetchResult(VirtualFetchResultCode.DISABLED)
 
-        sheets_integration = self._external_integration_port.get(
+        sheets_credentials = self._external_integration_port.get_payload(
             ExternalIntegrationId.GOOGLE_SHEETS
         )
-        if not sheets_integration:
+        if not sheets_credentials:
             raise ExternalIntegrationRequired([ExternalIntegrationId.GOOGLE_SHEETS])
 
         if self._lock.locked():
             raise ExecutionConflict()
 
         async with self._lock:
-            sheets_credentials = sheet_config.credentials
-
             config_globals = virtual_fetch_config.globals
 
             investment_sheets = virtual_fetch_config.position or []

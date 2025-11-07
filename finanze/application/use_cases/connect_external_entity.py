@@ -4,16 +4,13 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_fetcher import (
     ExternalEntityFetcher,
 )
 from application.ports.external_entity_port import ExternalEntityPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.file_storage_port import FileStoragePort
-from application.use_cases.fetch_external_financial_data import (
-    external_entity_provider_integrations_from_config,
-)
 from dateutil.tz import tzlocal
 from domain.entity import Entity, EntityOrigin
 from domain.exception.exceptions import (
@@ -32,6 +29,7 @@ from domain.external_entity import (
 )
 from domain.external_integration import (
     ExternalIntegrationId,
+    ExternalIntegrationType,
 )
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
 
@@ -44,13 +42,13 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
         entity_port: EntityPort,
         external_entity_port: ExternalEntityPort,
         external_entity_fetchers: dict[ExternalIntegrationId, ExternalEntityFetcher],
-        config_port: ConfigPort,
+        external_integration_port: ExternalIntegrationPort,
         file_storage_port: FileStoragePort,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
         self._external_entity_fetchers = external_entity_fetchers
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
         self._file_storage_port = file_storage_port
 
         self._lock = Lock()
@@ -207,9 +205,8 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
 
     def _setup_provider(self, external_integration_id: ExternalIntegrationId):
         provider = self._external_entity_fetchers[external_integration_id]
-        provider.setup(
-            external_entity_provider_integrations_from_config(
-                self._config_port.load().integrations
-            ),
+        enabled_integrations = self._external_integration_port.get_payloads_by_type(
+            ExternalIntegrationType.ENTITY_PROVIDER
         )
+        provider.setup(enabled_integrations)
         return provider

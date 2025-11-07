@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import List
 from uuid import UUID
 
-from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_fetcher import (
     ExternalEntityFetcher,
 )
 from application.ports.external_entity_port import ExternalEntityPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
@@ -24,13 +24,12 @@ from domain.exception.exceptions import (
 )
 from domain.external_entity import (
     ExternalEntityFetchRequest,
-    ExternalEntityProviderIntegrations,
     ExternalEntityStatus,
     ExternalFetchRequest,
 )
 from domain.external_integration import (
     ExternalIntegrationId,
-    GoCardlessIntegrationCredentials,
+    ExternalIntegrationType,
 )
 from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
@@ -38,20 +37,7 @@ from domain.fetch_result import (
     FetchResult,
     FetchResultCode,
 )
-from domain.settings import IntegrationsConfig
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
-
-
-def external_entity_provider_integrations_from_config(
-    config: IntegrationsConfig,
-) -> ExternalEntityProviderIntegrations:
-    gocardless = None
-    if config.gocardless:
-        gocardless = GoCardlessIntegrationCredentials(
-            secret_key=config.gocardless.secret_key,
-            secret_id=config.gocardless.secret_id,
-        )
-    return ExternalEntityProviderIntegrations(gocardless=gocardless)
 
 
 class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
@@ -63,7 +49,7 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         external_entity_port: ExternalEntityPort,
         position_port: PositionPort,
         external_entity_fetchers: dict[ExternalIntegrationId, ExternalEntityFetcher],
-        config_port: ConfigPort,
+        external_integration_port: ExternalIntegrationPort,
         last_fetches_port: LastFetchesPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
@@ -71,7 +57,7 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
         self._external_entity_port = external_entity_port
         self._position_port = position_port
         self._external_entity_fetchers = external_entity_fetchers
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
         self._last_fetches_port = last_fetches_port
         self._transaction_handler_port = transaction_handler_port
 
@@ -105,11 +91,10 @@ class FetchExternalFinancialDataImpl(FetchExternalFinancialData):
             external_entity_provider = external_entity.provider
             provider = self._external_entity_fetchers[external_entity_provider]
 
-            provider.setup(
-                external_entity_provider_integrations_from_config(
-                    self._config_port.load().integrations
-                ),
+            enabled_integrations = self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.ENTITY_PROVIDER
             )
+            provider.setup(enabled_integrations)
 
             try:
                 fetch_request = ExternalEntityFetchRequest(

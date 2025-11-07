@@ -3,11 +3,13 @@ import logging
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from domain.crypto import CryptoFetchRequest
 from domain.dezimal import Dezimal
+from domain.external_integration import ExternalIntegrationId
 from domain.global_position import (
     CryptoCurrencyWallet,
 )
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.etherscan.etherscan_fetcher import EtherscanFetcher
+from infrastructure.client.crypto.etherscan.ethplorer_client import EthplorerClient
 from infrastructure.client.crypto.etherscan.ethplorer_fetcher import EthplorerFetcher
 
 
@@ -17,11 +19,17 @@ class BSCFetcher(CryptoEntityFetcher):
     NATIVE_SYMBOL = "BNB"
     ETHPLORER_BASE_URL = "https://api.binplorer.com"
 
-    def __init__(self, etherscan_client: EtherscanClient):
+    def __init__(
+        self, etherscan_client: EtherscanClient, ethplorer_client: EthplorerClient
+    ):
         self._etherscan_fetcher = EtherscanFetcher(
-            etherscan_client, self.ETHERSCAN_CHAIN_ID, self.SCALE, self.NATIVE_SYMBOL
+            client=etherscan_client,
+            chain_id=self.ETHERSCAN_CHAIN_ID,
+            native_symbol=self.NATIVE_SYMBOL,
+            scale=self.SCALE,
         )
         self._binplorer_fetcher = EthplorerFetcher(
+            client=ethplorer_client,
             base_url=self.ETHPLORER_BASE_URL,
             native_symbol=self.NATIVE_SYMBOL,
             scale=self.SCALE,
@@ -30,9 +38,9 @@ class BSCFetcher(CryptoEntityFetcher):
         self._log = logging.getLogger(__name__)
 
     def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        if request.integrations.ethplorer:
+        if ExternalIntegrationId.ETHPLORER in request.integrations:
             return self._binplorer_fetcher.fetch(request)
-        elif request.integrations.etherscan:
+        elif ExternalIntegrationId.ETHERSCAN in request.integrations:
             try:
                 return self._etherscan_fetcher.fetch(request)
             except Exception as e:

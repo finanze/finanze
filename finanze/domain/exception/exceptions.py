@@ -74,6 +74,10 @@ class IntegrationSetupError(Exception):
         super().__init__()
 
 
+class IntegrationNotFound(Exception):
+    pass
+
+
 class RealEstateNotFound(Exception):
     pass
 

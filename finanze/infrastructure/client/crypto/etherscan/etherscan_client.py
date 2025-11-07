@@ -2,6 +2,7 @@ import logging
 from typing import Optional
 
 import requests
+from application.ports.connectable_integration import ConnectableIntegration
 from cachetools import TTLCache
 from domain.exception.exceptions import (
     AddressNotFound,
@@ -9,35 +10,46 @@ from domain.exception.exceptions import (
     IntegrationSetupErrorCode,
     TooManyRequests,
 )
-from domain.external_integration import EtherscanIntegrationData
+from domain.external_integration import (
+    ExternalIntegrationPayload,
+)
 from infrastructure.client.http.backoff import http_get_with_backoff
 
 
-class EtherscanClient:
+class EtherscanClient(ConnectableIntegration):
     TTL = 60
     BASE_URL = "https://api.etherscan.io/v2/api?"
     COOLDOWN = 0.2
-    MAX_RETRIES = 3
+    MAX_RETRIES = 4
     BACKOFF_BASE = 2.6
-    BACKOFF_FACTOR = 0.8
+    BACKOFF_FACTOR = 1
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
         self._cache = TTLCache(maxsize=50, ttl=self.TTL)
+
+    def setup(self, credentials: ExternalIntegrationPayload):
+        self.fetch(
+            chain_id=1,
+            module="stats",
+            action="ethprice",
+            credentials=credentials,
+        )
 
     def fetch(
         self,
         chain_id: int,
         module: str,
         action: str,
-        credentials: EtherscanIntegrationData,
+        credentials: ExternalIntegrationPayload,
         address: Optional[str] = None,
         contract_address: Optional[str] = None,
         sort: Optional[str] = None,
         start_block: Optional[int] = None,
         end_block: Optional[int] = None,
     ):
-        params = f"chainid={chain_id}&module={module}&action={action}&apikey={credentials.api_key}&tag=latest"
+        api_key = credentials["api_key"]
+        params = f"chainid={chain_id}&module={module}&action={action}&apikey={api_key}&tag=latest"
         if address:
             params = f"{params}&address={address}"
         if contract_address:

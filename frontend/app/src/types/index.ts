@@ -386,17 +386,11 @@ export interface ExternalIntegration {
   name: string
   status: ExternalIntegrationStatus
   type: ExternalIntegrationType
+  payload_schema?: Record<string, string> | null
 }
 
 export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
-}
-
-export enum ExternalIntegrationId {
-  GOOGLE_SHEETS = "GOOGLE_SHEETS",
-  ETHERSCAN = "ETHERSCAN",
-  ETHPLORER = "ETHPLORER",
-  GOCARDLESS = "GOCARDLESS",
 }
 
 export enum ExternalEntityStatus {
@@ -408,7 +402,7 @@ export interface ExternalEntity {
   id: string
   entity_id: string
   status: ExternalEntityStatus
-  provider: ExternalIntegrationId
+  provider: string
   date: string
   provider_instance_id: string
   payload?: Record<string, any> | null
@@ -442,7 +436,7 @@ export interface ExternalEntityConnectionResult {
 export interface ConnectExternalEntityRequest {
   institution_id?: string | null
   external_entity_id?: string | null
-  provider?: ExternalIntegrationId | null
+  provider?: string | null
   relink?: boolean
 }
 

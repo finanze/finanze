@@ -4,6 +4,7 @@ from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
+    IntegrationNotFound,
     IntegrationSetupError,
     IntegrationSetupErrorCode,
     InvalidProvidedCredentials,
@@ -53,6 +54,10 @@ def handle_address_not_found(e):
     return jsonify({"code": "ADDRESS_NOT_FOUND", "message": str(e)}), 404
 
 
+def handle_integration_not_found(e):
+    return jsonify({"code": "INTEGRATION_NOT_FOUND", "message": str(e)}), 404
+
+
 def handle_integration_setup_error(e):
     if e.code == IntegrationSetupErrorCode.INVALID_CREDENTIALS:
         return jsonify({}), 401
@@ -78,6 +83,7 @@ def register_exception_handlers(app):
     app.register_error_handler(TooManyRequests, handle_too_many_requests)
     app.register_error_handler(AddressNotFound, handle_address_not_found)
     app.register_error_handler(IntegrationSetupError, handle_integration_setup_error)
+    app.register_error_handler(IntegrationNotFound, handle_integration_not_found)
     app.register_error_handler(ExternalIntegrationRequired, handle_required_integration)
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)

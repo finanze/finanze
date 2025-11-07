@@ -28,16 +28,17 @@ class ConfigLoader(ConfigPort):
     def connect(self, user: User):
         self._config_file = str(user.path / CONFIG_NAME)
         self.check_or_create_default_config()
+        self.load()
 
     @cached(cache=TTLCache(maxsize=1, ttl=30))
     def load(self) -> Settings:
         with open(self._config_file, "r") as file:
             data = strictyaml.load(file.read()).data
-            migrated_data, was_migrated = self._migrator.migrate(data)
-            settings = Settings(**migrated_data)
-            if was_migrated:
-                self.save(settings)
-            return settings
+            return Settings(**data)
+
+    def raw_load(self) -> dict:
+        with open(self._config_file, "r") as file:
+            return strictyaml.load(file.read()).data
 
     def save(self, new_config: Settings):
         config_as_dict = asdict(
@@ -64,5 +65,12 @@ class ConfigLoader(ConfigPort):
                 f"Config file not found, creating default config at {self._config_file}"
             )
             self.save(BASE_CONFIG)
-        self.load()
+
+        data = self.raw_load()
+
+        migrated_data, was_migrated = self._migrator.migrate(data)
+        settings = Settings(**migrated_data)
+        if was_migrated:
+            self.save(settings)
+
         self._log.debug(f"Config file loaded from {self._config_file}")

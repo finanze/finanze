@@ -18,5 +18,9 @@ class ConfigPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def raw_load(self) -> dict:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def save(self, new_config: Settings) -> None:
         raise NotImplementedError

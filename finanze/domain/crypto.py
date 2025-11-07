@@ -2,11 +2,9 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from domain.external_integration import (
-    EtherscanIntegrationData,
-    EthplorerIntegrationData,
-)
 from pydantic.dataclasses import dataclass
+
+from domain.external_integration import EnabledExternalIntegrations
 
 
 @dataclass
@@ -27,15 +25,9 @@ class CryptoWalletConnection:
 
 
 @dataclass
-class CryptoFetchIntegrations:
-    etherscan: Optional[EtherscanIntegrationData] = None
-    ethplorer: Optional[EthplorerIntegrationData] = None
-
-
-@dataclass
 class CryptoFetchRequest:
     address: str
-    integrations: CryptoFetchIntegrations
+    integrations: EnabledExternalIntegrations
     connection_id: Optional[UUID] = None
 
 

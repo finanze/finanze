@@ -4,7 +4,7 @@ from application.ports.config_port import ConfigPort
 from application.ports.data_manager import DataManager
 from application.ports.datasource_initiator import DatasourceInitiator
 from application.ports.sheets_initiator import SheetsInitiator
-from domain.data_init import DatasourceInitParams
+from domain.data_init import DatasourceInitContext, DatasourceInitParams
 from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
@@ -36,7 +36,11 @@ class UserLoginImpl(UserLogin):
 
         self._config_port.connect(user)
         self._sheets_initiator.connect(user)
-        params = DatasourceInitParams(user=user, password=login_request.password)
+        params = DatasourceInitParams(
+            user=user,
+            password=login_request.password,
+            context=DatasourceInitContext(config=self._config_port),
+        )
         try:
             self._source_initiator.initialize(params)
         except:

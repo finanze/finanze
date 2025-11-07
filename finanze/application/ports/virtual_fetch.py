@@ -1,8 +1,8 @@
 import abc
 
 from domain.entity import Entity
+from domain.external_integration import ExternalIntegrationPayload
 from domain.settings import (
-    GoogleCredentials,
     VirtualPositionSheetConfig,
     VirtualTransactionSheetConfig,
 )
@@ -12,7 +12,7 @@ from domain.virtual_fetch_result import VirtualPositionResult, VirtualTransactio
 class VirtualFetcher(metaclass=abc.ABCMeta):
     async def global_positions(
         self,
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         investment_sheets: list[VirtualPositionSheetConfig],
         existing_entities: dict[str, Entity],
     ) -> VirtualPositionResult:
@@ -20,7 +20,7 @@ class VirtualFetcher(metaclass=abc.ABCMeta):
 
     async def transactions(
         self,
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         txs_sheets: list[VirtualTransactionSheetConfig],
         existing_entities: dict[str, Entity],
     ) -> VirtualTransactionResult:

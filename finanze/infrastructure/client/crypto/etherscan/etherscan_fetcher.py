@@ -1,11 +1,13 @@
 import logging
 from uuid import uuid4
 
-from application.ports.connectable_integration import ConnectableIntegration
-from domain.crypto import CryptoFetchIntegrations, CryptoFetchRequest
+from domain.crypto import CryptoFetchRequest
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import ExternalIntegrationRequired
-from domain.external_integration import EtherscanIntegrationData, ExternalIntegrationId
+from domain.external_integration import (
+    EnabledExternalIntegrations,
+    ExternalIntegrationId,
+)
 from domain.global_position import (
     CryptoCurrencyPosition,
     CryptoCurrencyType,
@@ -14,28 +16,20 @@ from domain.global_position import (
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 
 
-class EtherscanFetcher(ConnectableIntegration[EtherscanIntegrationData]):
+class EtherscanFetcher:
     def __init__(
         self,
-        etherscan_client: EtherscanClient,
+        client: EtherscanClient,
         chain_id: int,
-        scale: Dezimal,
         native_symbol: str,
+        scale: Dezimal,
     ):
-        self.etherscan_client = etherscan_client
+        self.etherscan_client = client
         self.chain_id = chain_id
         self.scale = scale
         self.native_symbol = native_symbol
 
         self._log = logging.getLogger(__name__)
-
-    def setup(self, credentials: EtherscanIntegrationData):
-        self.etherscan_client.fetch(
-            chain_id=1,
-            module="stats",
-            action="ethsupply",
-            credentials=credentials,
-        )
 
     def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
         amount = (
@@ -93,7 +87,7 @@ class EtherscanFetcher(ConnectableIntegration[EtherscanIntegrationData]):
 
             tokens[contract_address] = CryptoCurrencyPosition(
                 id=uuid4(),
-                contract_address=contract_address,
+                contract_address=contract_address.lower(),
                 name=token_tx.get("tokenName"),
                 symbol=symbol,
                 amount=amount,
@@ -105,9 +99,13 @@ class EtherscanFetcher(ConnectableIntegration[EtherscanIntegrationData]):
             assets=assets + list(tokens.values()),
         )
 
-    def _fetch(self, integrations: CryptoFetchIntegrations, *args, **kwargs) -> any:
-        if not integrations.etherscan:
+    def _fetch(self, integrations: EnabledExternalIntegrations, *args, **kwargs) -> any:
+        if ExternalIntegrationId.ETHERSCAN not in integrations:
             raise ExternalIntegrationRequired([ExternalIntegrationId.ETHERSCAN])
+
         return self.etherscan_client.fetch(
-            chain_id=self.chain_id, credentials=integrations.etherscan, *args, **kwargs
+            chain_id=self.chain_id,
+            credentials=integrations[ExternalIntegrationId.ETHERSCAN],
+            *args,
+            **kwargs,
         )

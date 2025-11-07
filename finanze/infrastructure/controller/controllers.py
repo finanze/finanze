@@ -6,10 +6,8 @@ from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
 )
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
-from domain.use_cases.connect_etherscan import ConnectEtherscan
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
-from domain.use_cases.connect_gocardless import ConnectGoCardless
-from domain.use_cases.connect_google import ConnectGoogle
+from domain.use_cases.connect_external_integration import ConnectExternalIntegration
 from domain.use_cases.create_real_estate import CreateRealEstate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.delete_external_entity import DeleteExternalEntity
@@ -17,6 +15,9 @@ from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.delete_real_estate import DeleteRealEstate
 from domain.use_cases.disconnect_entity import DisconnectEntity
+from domain.use_cases.disconnect_external_integration import (
+    DisconnectExternalIntegration,
+)
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
@@ -65,12 +66,12 @@ from infrastructure.controller.routes.complete_external_entity_connection import
     complete_external_entity_connection,
 )
 from infrastructure.controller.routes.connect_crypto_wallet import connect_crypto_wallet
-from infrastructure.controller.routes.connect_etherscan import connect_etherscan
 from infrastructure.controller.routes.connect_external_entity import (
     connect_external_entity,
 )
-from infrastructure.controller.routes.connect_gocardless import connect_gocardless
-from infrastructure.controller.routes.connect_google import connect_google
+from infrastructure.controller.routes.connect_external_integration import (
+    connect_external_integration,
+)
 from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.create_real_estate import create_real_estate
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
@@ -83,6 +84,9 @@ from infrastructure.controller.routes.delete_manual_transaction import (
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
 from infrastructure.controller.routes.delete_real_estate import delete_real_estate
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
+from infrastructure.controller.routes.disconnect_external_integration import (
+    disconnect_external_integration,
+)
 from infrastructure.controller.routes.exchange_rates import exchange_rates
 from infrastructure.controller.routes.export import export
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
@@ -158,9 +162,8 @@ def register_routes(
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
     save_commodities_uc: SaveCommodities,
     get_external_integrations_uc: GetExternalIntegrations,
-    connect_google_uc: ConnectGoogle,
-    connect_etherscan_uc: ConnectEtherscan,
-    connect_gocardless_uc: ConnectGoCardless,
+    connect_external_integrations_uc: ConnectExternalIntegration,
+    disconnect_external_integrations_uc: DisconnectExternalIntegration,
     save_periodic_flow_uc: SavePeriodicFlow,
     update_periodic_flow_uc: UpdatePeriodicFlow,
     delete_periodic_flow_uc: DeletePeriodicFlow,
@@ -300,17 +303,17 @@ def register_routes(
     def get_external_integrations_route():
         return get_external_integrations(get_external_integrations_uc)
 
-    @app.route("/api/v1/integrations/google", methods=["POST"])
-    def connect_google_route():
-        return connect_google(connect_google_uc)
+    @app.route("/api/v1/integrations/<integration_id>", methods=["POST"])
+    def connect_external_integration_route(integration_id: str):
+        return connect_external_integration(
+            connect_external_integrations_uc, integration_id
+        )
 
-    @app.route("/api/v1/integrations/etherscan", methods=["POST"])
-    def connect_etherscan_route():
-        return connect_etherscan(connect_etherscan_uc)
-
-    @app.route("/api/v1/integrations/gocardless", methods=["POST"])
-    def connect_gocardless_route():
-        return connect_gocardless(connect_gocardless_uc)
+    @app.route("/api/v1/integrations/<integration_id>", methods=["DELETE"])
+    def disconnect_external_integration_route(integration_id: str):
+        return disconnect_external_integration(
+            disconnect_external_integrations_uc, integration_id
+        )
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])
     def save_periodic_flow_route():

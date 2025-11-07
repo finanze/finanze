@@ -50,12 +50,6 @@ class HistoricSheetConfig(BaseSheetConfig):
 
 
 @dataclass
-class GoogleCredentials:
-    client_id: str
-    client_secret: str
-
-
-@dataclass
 class SheetsConfig:
     enabled: bool
     globals: GlobalsConfig | None = None
@@ -94,29 +88,6 @@ class FetchConfig:
 
 
 @dataclass
-class SheetsIntegrationConfig:
-    credentials: GoogleCredentials
-
-
-@dataclass
-class EtherscanIntegrationConfig:
-    api_key: str
-
-
-@dataclass
-class GoCardlessIntegrationConfig:
-    secret_id: str
-    secret_key: str
-
-
-@dataclass
-class IntegrationsConfig:
-    sheets: Optional[SheetsIntegrationConfig] = None
-    etherscan: Optional[EtherscanIntegrationConfig] = None
-    gocardless: Optional[GoCardlessIntegrationConfig] = None
-
-
-@dataclass
 class CryptoAssetConfig:
     stablecoins: list[str] = field(default_factory=list)
     hideUnknownTokens: bool = False
@@ -136,7 +107,6 @@ class GeneralConfig:
 @dataclass
 class Settings:
     general: GeneralConfig = field(default_factory=GeneralConfig)
-    integrations: IntegrationsConfig = field(default_factory=IntegrationsConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
     fetch: FetchConfig = field(default_factory=FetchConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)

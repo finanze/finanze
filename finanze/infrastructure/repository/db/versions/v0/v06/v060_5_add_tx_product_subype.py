@@ -1,3 +1,4 @@
+from domain.data_init import DatasourceInitContext
 from infrastructure.repository.db.client import DBCursor
 from infrastructure.repository.db.upgrader import DBVersionMigration
 
@@ -12,5 +13,5 @@ class V0605TxProductSubtype(DBVersionMigration):
     def name(self):
         return "v0.6.0:5_add_tx_product_subtype"
 
-    def upgrade(self, cursor: DBCursor):
+    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         cursor.execute(SQL)

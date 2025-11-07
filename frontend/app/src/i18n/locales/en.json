@@ -49,6 +49,7 @@
     "disconnectSuccess": "Entity disconnected successfully",
     "disconnectError": "Failed to disconnect entity",
     "warning": "Warning",
+    "help": "Help",
     "never": "Never",
     "noDataAvailable": "No data available",
     "retry": "Retry",
@@ -481,7 +482,11 @@
     "goCardlessInfoMiddle": ", then navigate to ",
     "goCardlessInfoUserSecrets": "Developers > User secrets",
     "goCardlessInfoSuffix": " and create a new secret to obtain the credentials. Unfortunately, GoCardless no longer allows creating these credentials, so this will only work if you already had an account.",
-    "goCardlessHelpButton": "How to get the credentials?"
+    "goCardlessHelpButton": "How to get the credentials?",
+    "integrationHintButton": "View instructions",
+    "disableIntegration": "Disable integration",
+    "integrationEnabledSuccess": "{integration} integration enabled successfully",
+    "integrationDisabledSuccess": "{integration} integration disabled successfully"
   },
   "dashboard": {
     "title": "Dashboard",

@@ -3,7 +3,8 @@ from datetime import datetime
 from typing import Optional
 
 from domain.entity import Entity
-from domain.settings import GoogleCredentials, ProductSheetConfig
+from domain.external_integration import ExternalIntegrationPayload
+from domain.settings import ProductSheetConfig
 
 
 class SheetsUpdatePort(metaclass=abc.ABCMeta):
@@ -11,7 +12,7 @@ class SheetsUpdatePort(metaclass=abc.ABCMeta):
     def update_sheet(
         self,
         data: object | dict[Entity, object],
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         config: ProductSheetConfig,
         last_update: Optional[dict[Entity, datetime]] = None,
     ):

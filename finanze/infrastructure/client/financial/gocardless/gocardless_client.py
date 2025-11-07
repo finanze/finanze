@@ -5,7 +5,9 @@ from typing import List, Optional
 from application.ports.connectable_integration import ConnectableIntegration
 from cachetools import TTLCache, cached
 from domain.exception.exceptions import IntegrationSetupError, IntegrationSetupErrorCode
-from domain.external_integration import GoCardlessIntegrationCredentials
+from domain.external_integration import (
+    ExternalIntegrationPayload,
+)
 from nordigen import NordigenClient
 from nordigen.types import RequisitionDto
 from nordigen.types.types import (
@@ -17,7 +19,7 @@ from nordigen.types.types import (
 from requests.models import HTTPError
 
 
-class GoCardlessClient(ConnectableIntegration[GoCardlessIntegrationCredentials]):
+class GoCardlessClient(ConnectableIntegration):
     TOKEN_REFRESH_MARGIN_SECONDS = 30
     DEFAULT_BASE_REDIRECT_URL = "http://localhost"
     REDIRECT_PATH = "/api/v1/entities/external/complete"
@@ -25,17 +27,18 @@ class GoCardlessClient(ConnectableIntegration[GoCardlessIntegrationCredentials])
     def __init__(self, port) -> None:
         self._log = logging.getLogger(__name__)
         self._client: Optional[NordigenClient] = None
-        self._credentials: Optional[GoCardlessIntegrationCredentials] = None
+        self._credentials: Optional[ExternalIntegrationPayload] = None
         self._refresh_token: Optional[str] = None
         self._access_expires_at: Optional[float] = None
         self._refresh_expires_at: Optional[float] = None
+
         self.DEFAULT_BASE_REDIRECT_URL = f"{self.DEFAULT_BASE_REDIRECT_URL}:{port}"
 
-    def setup(self, credentials: GoCardlessIntegrationCredentials) -> None:
+    def setup(self, credentials: ExternalIntegrationPayload) -> None:
         self._credentials = credentials
 
         self._client = NordigenClient(
-            secret_id=credentials.secret_id, secret_key=credentials.secret_key
+            secret_id=credentials["secret_id"], secret_key=credentials["secret_key"]
         )
         try:
             token = self._client.generate_token()

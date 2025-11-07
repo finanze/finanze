@@ -7,20 +7,18 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from application.ports.config_port import ConfigPort
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
-from application.use_cases.connect_crypto_wallet import from_config
 from application.use_cases.fetch_financial_data import handle_cooldown
 from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.crypto import (
-    CryptoFetchIntegrations,
     CryptoFetchRequest,
 )
 from domain.dezimal import Dezimal
@@ -28,6 +26,10 @@ from domain.entity import Entity, EntityType, Feature
 from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
+)
+from domain.external_integration import (
+    EnabledExternalIntegrations,
+    ExternalIntegrationType,
 )
 from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
@@ -61,8 +63,8 @@ class FetchCryptoDataImpl(FetchCryptoData):
         crypto_wallet_connection_port: CryptoWalletConnectionPort,
         crypto_asset_registry_port: CryptoAssetRegistryPort,
         crypto_asset_info_provider: CryptoAssetInfoProvider,
-        config_port: ConfigPort,
         last_fetches_port: LastFetchesPort,
+        external_integration_port: ExternalIntegrationPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         self._position_port = position_port
@@ -71,7 +73,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         self._crypto_asset_info_provider = crypto_asset_info_provider
         self._crypto_asset_registry_port = crypto_asset_registry_port
         self._last_fetches_port = last_fetches_port
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
         self._transaction_handler_port = transaction_handler_port
 
         self._locks: dict[UUID, Lock] = {}
@@ -110,7 +112,9 @@ class FetchCryptoDataImpl(FetchCryptoData):
             if result:
                 return result
 
-        integrations = from_config(self._config_port.load().integrations)
+        enabled_integrations = self._external_integration_port.get_payloads_by_type(
+            ExternalIntegrationType.CRYPTO_PROVIDER
+        )
 
         fetched_data = []
         exception = None
@@ -129,7 +133,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
                             entity,
                             specific_fetcher,
                             fetch_request.fetch_options,
-                            integrations,
+                            enabled_integrations,
                         )
                     )
                 except Exception as e:
@@ -151,7 +155,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         entity: Entity,
         specific_fetcher: CryptoEntityFetcher,
         options: FetchOptions,
-        integrations: CryptoFetchIntegrations,
+        integrations: EnabledExternalIntegrations,
     ) -> FetchedData:
         existing_connections = self._crypto_wallet_connection_port.get_by_entity_id(
             entity.id
@@ -236,6 +240,9 @@ class FetchCryptoDataImpl(FetchCryptoData):
                         asset_info = candidate_assets[0]
                         asset_info.id = uuid4()
                         self._crypto_asset_registry_port.save(asset_info)
+
+                if asset_info and market_value is None:
+                    asset_info = None
 
                 if asset_info:
                     asset_dict["name"] = asset_info.name

@@ -86,6 +86,9 @@ from infrastructure.repository.db.versions.v0.v07.v070_0_add_contrib_target_suby
 from infrastructure.repository.db.versions.v0.v07.v070_1_crypto_currencies_v2 import (
     V0701CryptoCurrenciesV2,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_2_external_integrations_migration import (
+    V0702ExternalIntegrationsMigration,
+)
 
 versions = [
     V0Genesis(),
@@ -124,4 +127,5 @@ versions = [
     V0606(),
     V0700ContribTargetSubtype(),
     V0701CryptoCurrenciesV2(),
+    V0702ExternalIntegrationsMigration(),
 ]

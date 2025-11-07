@@ -67,7 +67,7 @@ class DBManager(DatasourceInitiator):
                 self._unlocked = True
                 self._client.set_connection(connection)
 
-                self._setup_database_schema()
+                self._setup_database_schema(params)
 
                 return connection
 
@@ -128,13 +128,13 @@ class DBManager(DatasourceInitiator):
 
         self._log.info("Database password changed successfully.")
 
-    def _setup_database_schema(self):
+    def _setup_database_schema(self, params: DatasourceInitParams):
         if not self._unlocked:
             raise Exception("Database must be unlocked before setting up schema.")
 
         self._log.info("Setting up database schema...")
 
-        upgrader = DatabaseUpgrader(self._client, versions)
+        upgrader = DatabaseUpgrader(self._client, versions, params.context)
 
         try:
             upgrader.upgrade()

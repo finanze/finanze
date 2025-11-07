@@ -6,6 +6,7 @@ from uuid import uuid4
 from application.ports.virtual_fetch import VirtualFetcher
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import MissingFieldsError
+from domain.external_integration import ExternalIntegrationPayload
 from domain.fetch_record import DataSource
 from domain.global_position import (
     Account,
@@ -37,7 +38,6 @@ from domain.global_position import (
 )
 from domain.settings import (
     BaseSheetConfig,
-    GoogleCredentials,
     VirtualPositionSheetConfig,
     VirtualTransactionSheetConfig,
 )
@@ -122,7 +122,7 @@ class SheetsImporter(VirtualFetcher):
 
     async def global_positions(
         self,
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         position_configs: list[VirtualPositionSheetConfig],
         existing_entities: dict[str, Entity],
     ) -> VirtualPositionResult:
@@ -217,7 +217,7 @@ class SheetsImporter(VirtualFetcher):
         self,
         cls,
         parent_cls,
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         config: VirtualPositionSheetConfig,
     ) -> tuple[dict[str, ProductPosition], list[VirtualFetchError]]:
         details_per_entity = {}
@@ -270,7 +270,7 @@ class SheetsImporter(VirtualFetcher):
 
     async def transactions(
         self,
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         txs_configs: list[VirtualTransactionSheetConfig],
         existing_entities: dict[str, Entity],
     ) -> VirtualTransactionResult:
@@ -302,7 +302,7 @@ class SheetsImporter(VirtualFetcher):
 
     def _load_txs(
         self,
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         config: VirtualTransactionSheetConfig,
         existing_entities: dict[str, Entity],
         already_created_entities: dict[str, Entity],
@@ -355,7 +355,7 @@ class SheetsImporter(VirtualFetcher):
         return txs, created_entities, errors
 
     def _parse_sheet_table(
-        self, credentials: GoogleCredentials, config: BaseSheetConfig, entry_fn
+        self, credentials: ExternalIntegrationPayload, config: BaseSheetConfig, entry_fn
     ) -> list[VirtualFetchError]:
         sheet_range, sheet_id = config.range, config.spreadsheetId
         cells, errors = self._read_sheet_table(credentials, sheet_id, sheet_range)
@@ -444,7 +444,7 @@ class SheetsImporter(VirtualFetcher):
         return errors
 
     def _read_sheet_table(
-        self, credentials: GoogleCredentials, sheet_id, cell_range
+        self, credentials: ExternalIntegrationPayload, sheet_id, cell_range
     ) -> tuple[list[list], list[VirtualFetchError]]:
         sheets_service = self._sheets_service.service(credentials)
         errors = []

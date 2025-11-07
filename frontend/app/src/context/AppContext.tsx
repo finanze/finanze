@@ -28,21 +28,6 @@ import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
 
 export interface AppSettings {
-  integrations?: {
-    sheets?: {
-      credentials?: {
-        client_id?: string
-        client_secret?: string
-      }
-    }
-    etherscan?: {
-      api_key?: string
-    }
-    gocardless?: {
-      secret_id: string
-      secret_key: string
-    }
-  }
   export?: {
     sheets?: {
       enabled?: boolean

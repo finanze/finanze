@@ -11,10 +11,10 @@ from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
 )
 from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
-from application.use_cases.connect_etherscan import ConnectEtherscanImpl
 from application.use_cases.connect_external_entity import ConnectExternalEntityImpl
-from application.use_cases.connect_gocardless import ConnectGoCardlessImpl
-from application.use_cases.connect_google import ConnectGoogleImpl
+from application.use_cases.connect_external_integration import (
+    ConnectExternalIntegrationImpl,
+)
 from application.use_cases.create_real_estate import CreateRealEstateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
@@ -22,6 +22,9 @@ from application.use_cases.delete_manual_transaction import DeleteManualTransact
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
+from application.use_cases.disconnect_external_integration import (
+    DisconnectExternalIntegrationImpl,
+)
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_external_financial_data import (
     FetchExternalFinancialDataImpl,
@@ -65,6 +68,7 @@ from domain.exception.exceptions import UserNotFound
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
+from infrastructure.client.crypto.etherscan.ethplorer_client import EthplorerClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
 from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (
@@ -179,14 +183,19 @@ class FinanzeServer:
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
         self.etherscan_client = EtherscanClient()
+        self.ethplorer_client = EthplorerClient()
         self.gocardless_client = GoCardlessClient(port=self.args.port)
 
         self.crypto_entity_fetchers = {
             domain.native_entities.BITCOIN: BitcoinFetcher(),
-            domain.native_entities.ETHEREUM: EthereumFetcher(self.etherscan_client),
+            domain.native_entities.ETHEREUM: EthereumFetcher(
+                self.etherscan_client, self.ethplorer_client
+            ),
             domain.native_entities.LITECOIN: LitecoinFetcher(),
             domain.native_entities.TRON: TronFetcher(),
-            domain.native_entities.BSC: BSCFetcher(self.etherscan_client),
+            domain.native_entities.BSC: BSCFetcher(
+                self.etherscan_client, self.ethplorer_client
+            ),
         }
 
         self.financial_entity_fetchers = {
@@ -204,6 +213,12 @@ class FinanzeServer:
 
         self.external_entity_fetchers = {
             ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(self.gocardless_client),
+        }
+
+        self.external_integrations = {
+            ExternalIntegrationId.GOOGLE_SHEETS: self.sheets_initiator,
+            ExternalIntegrationId.ETHERSCAN: self.etherscan_client,
+            ExternalIntegrationId.GOCARDLESS: self.gocardless_client,
         }
 
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
@@ -300,8 +315,8 @@ class FinanzeServer:
             crypto_wallet_connections_repository,
             crypto_assset_repository,
             crypto_asset_info_client,
-            self.config_loader,
             last_fetches_repository,
+            external_integration_repository,
             transaction_handler,
         )
         fetch_external_financial_data = FetchExternalFinancialDataImpl(
@@ -309,7 +324,7 @@ class FinanzeServer:
             external_entity_repository,
             position_repository,
             self.external_entity_fetchers,
-            self.config_loader,
+            external_integration_repository,
             last_fetches_repository,
             transaction_handler,
         )
@@ -364,29 +379,29 @@ class FinanzeServer:
             entity_repository,
             external_entity_repository,
             self.external_entity_fetchers,
-            self.config_loader,
+            external_integration_repository,
             file_storage_repository,
         )
         complete_external_entity_connection = CompleteExternalEntityConnectionImpl(
             external_entity_repository,
             self.external_entity_fetchers,
-            self.config_loader,
+            external_integration_repository,
         )
         delete_external_entity = DeleteExternalEntityImpl(
             external_entity_repository,
             self.external_entity_fetchers,
-            self.config_loader,
+            external_integration_repository,
         )
         get_available_external_entities = GetAvailableExternalEntitiesImpl(
             entity_repository,
             external_entity_repository,
             self.external_entity_fetchers,
-            self.config_loader,
+            external_integration_repository,
         )
         connect_crypto_wallet = ConnectCryptoWalletImpl(
             crypto_wallet_connections_repository,
             self.crypto_entity_fetchers,
-            self.config_loader,
+            external_integration_repository,
         )
         update_crypto_wallet = UpdateCryptoWalletConnectionImpl(
             crypto_wallet_connections_repository
@@ -404,18 +419,12 @@ class FinanzeServer:
         get_external_integrations = GetExternalIntegrationsImpl(
             external_integration_repository
         )
-        connect_google = ConnectGoogleImpl(
+        connect_external_integrations = ConnectExternalIntegrationImpl(
             external_integration_repository,
-            self.config_loader,
-            self.sheets_initiator,
+            self.external_integrations,
         )
-        connect_etherscan = ConnectEtherscanImpl(
-            external_integration_repository, self.config_loader, self.etherscan_client
-        )
-        connect_gocardless = ConnectGoCardlessImpl(
-            external_integration_repository,
-            self.config_loader,
-            self.gocardless_client,
+        disconnect_external_integrations = DisconnectExternalIntegrationImpl(
+            external_integration_repository
         )
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
@@ -533,9 +542,8 @@ class FinanzeServer:
             delete_crypto_wallet,
             save_commodities,
             get_external_integrations,
-            connect_google,
-            connect_etherscan,
-            connect_gocardless,
+            connect_external_integrations,
+            disconnect_external_integrations,
             save_periodic_flow,
             update_periodic_flow,
             delete_periodic_flow,

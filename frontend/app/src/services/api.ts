@@ -14,9 +14,6 @@ import {
   SaveCommodityRequest,
   VirtualFetchResponse,
   ExternalIntegrations,
-  GoogleIntegrationCredentials,
-  EtherscanIntegrationData,
-  GoCardlessIntegrationCredentials,
   PeriodicFlow,
   PendingFlow,
   CreatePeriodicFlowRequest,
@@ -682,16 +679,17 @@ export async function getExternalIntegrations(): Promise<ExternalIntegrations> {
   return response.json()
 }
 
-export async function setupGoogleIntegration(
-  request: GoogleIntegrationCredentials,
+export async function setupIntegration(
+  integrationId: string,
+  payload: Record<string, string>,
 ): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/google`, {
+  const response = await fetch(`${baseUrl}/integrations/${integrationId}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify({ payload }),
   })
 
   if (!response.ok) {
@@ -699,33 +697,10 @@ export async function setupGoogleIntegration(
   }
 }
 
-export async function setupEtherscanIntegration(
-  request: EtherscanIntegrationData,
-): Promise<void> {
+export async function disableIntegration(integrationId: string): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/etherscan`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-}
-
-export async function setupGoCardlessIntegration(
-  request: GoCardlessIntegrationCredentials,
-): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/gocardless`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
+  const response = await fetch(`${baseUrl}/integrations/${integrationId}`, {
+    method: "DELETE",
   })
 
   if (!response.ok) {

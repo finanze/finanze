@@ -1,10 +1,9 @@
 import abc
-from typing import Generic, TypeVar
 
-T = TypeVar("T")
+from domain.external_integration import ExternalIntegrationPayload
 
 
-class ConnectableIntegration(Generic[T], metaclass=abc.ABCMeta):
+class ConnectableIntegration(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def setup(self, credentials: T):
+    def setup(self, payload: ExternalIntegrationPayload):
         raise NotImplementedError

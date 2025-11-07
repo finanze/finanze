@@ -23,6 +23,8 @@ import {
   Save,
   RefreshCw,
   Info,
+  Link2,
+  Link2Off,
   AlertCircle,
   Settings,
   Coins,
@@ -38,14 +40,14 @@ import {
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ProductType, WeightUnit } from "@/types/position"
-import {
-  setupGoogleIntegration,
-  setupEtherscanIntegration,
-  setupGoCardlessIntegration,
-} from "@/services/api"
+import { setupIntegration, disableIntegration } from "@/services/api"
 import { Badge } from "@/components/ui/Badge"
 import { cn } from "@/lib/utils"
-import { PlatformType } from "@/types"
+import {
+  PlatformType,
+  ExternalIntegrationStatus,
+  type ExternalIntegration,
+} from "@/types"
 
 const isArray = (value: any): value is any[] => Array.isArray(value)
 
@@ -106,11 +108,18 @@ export default function SettingsPage() {
   } = useAppContext()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
-  const [isSetupLoading, setIsSetupLoading] = useState({
-    google: false,
-    etherscan: false,
-    gocardless: false,
-  })
+  const [isSetupLoading, setIsSetupLoading] = useState<Record<string, boolean>>(
+    {},
+  )
+  const [isDisableLoading, setIsDisableLoading] = useState<
+    Record<string, boolean>
+  >({})
+  const [integrationPayloads, setIntegrationPayloads] = useState<
+    Record<string, Record<string, string>>
+  >({})
+  const [integrationErrors, setIntegrationErrors] = useState<
+    Record<string, Record<string, boolean>>
+  >({})
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
   )
@@ -124,10 +133,10 @@ export default function SettingsPage() {
     historic: false,
     virtualPosition: false,
     virtualTransactions: false,
-    googleSheets: false,
-    etherscan: false,
-    goCardless: false,
   })
+  const [expandedIntegrations, setExpandedIntegrations] = useState<
+    Record<string, boolean>
+  >({})
   // Track which integration card should receive a temporary highlight
   const [highlighted, setHighlighted] = useState<string | null>(null)
 
@@ -144,6 +153,36 @@ export default function SettingsPage() {
   const newStablecoinInputRef = useRef<HTMLInputElement | null>(null)
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
   const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
+
+  const resolveIntegrationCopy = useCallback(
+    (integration: ExternalIntegration) => {
+      let title = integration.name
+      let description: string | undefined
+      const settingsCopy = t.settings as any
+
+      if (integration.id === "GOOGLE_SHEETS") {
+        title = settingsCopy?.sheetsIntegration ?? title
+        description = settingsCopy?.sheetsIntegrationDescription
+      } else if (integration.id === "ETHERSCAN") {
+        title = settingsCopy?.etherscanIntegration ?? title
+        description = settingsCopy?.etherscanIntegrationDescription
+      } else if (integration.id === "GOCARDLESS") {
+        title = settingsCopy?.goCardlessIntegration ?? title
+        description = settingsCopy?.goCardlessIntegrationDescription
+      }
+
+      return { title, description }
+    },
+    [t],
+  )
+
+  const formatIntegrationMessage = useCallback(
+    (message: string, integrationName: string) =>
+      message
+        .replace(/\{entity\}/g, integrationName)
+        .replace(/\{integration\}/g, integrationName),
+    [],
+  )
 
   const updateStablecoins = useCallback(
     (updater: (current: string[]) => string[]) => {
@@ -311,7 +350,7 @@ export default function SettingsPage() {
     const googleIntegration = externalIntegrations.find(
       integration => integration.id === "GOOGLE_SHEETS",
     )
-    return googleIntegration?.status === "ON"
+    return googleIntegration?.status === ExternalIntegrationStatus.ON
   }
 
   const getPositionDataOptions = (): MultiSelectOption[] => {
@@ -359,19 +398,119 @@ export default function SettingsPage() {
     fetchExternalIntegrations()
   }, [])
 
-  // When arriving with a focus query param (e.g. focus=gocardless) expand & highlight section
+  useEffect(() => {
+    setIntegrationPayloads(prev => {
+      const next: Record<string, Record<string, string>> = {}
+
+      externalIntegrations.forEach(integration => {
+        const schema = integration.payload_schema ?? {}
+        const existing = prev[integration.id] ?? {}
+        const payload: Record<string, string> = {}
+
+        Object.keys(schema).forEach(field => {
+          payload[field] = existing[field] ?? ""
+        })
+
+        next[integration.id] = payload
+      })
+
+      return next
+    })
+
+    setIntegrationErrors(prev => {
+      const next: Record<string, Record<string, boolean>> = {}
+
+      externalIntegrations.forEach(integration => {
+        const schemaFields = Object.keys(integration.payload_schema ?? {})
+        const existingErrors = prev[integration.id]
+
+        if (existingErrors) {
+          const filtered: Record<string, boolean> = {}
+          schemaFields.forEach(field => {
+            if (existingErrors[field]) {
+              filtered[field] = true
+            }
+          })
+
+          if (Object.keys(filtered).length > 0) {
+            next[integration.id] = filtered
+          }
+        }
+      })
+
+      return next
+    })
+
+    setExpandedIntegrations(prev => {
+      const next: Record<string, boolean> = {}
+
+      externalIntegrations.forEach(integration => {
+        next[integration.id] = prev[integration.id] ?? false
+      })
+
+      return next
+    })
+
+    setIsSetupLoading(prev => {
+      const next: Record<string, boolean> = {}
+
+      externalIntegrations.forEach(integration => {
+        if (prev[integration.id]) {
+          next[integration.id] = prev[integration.id]
+        }
+      })
+
+      return next
+    })
+
+    setIsDisableLoading(prev => {
+      const next: Record<string, boolean> = {}
+
+      externalIntegrations.forEach(integration => {
+        if (prev[integration.id]) {
+          next[integration.id] = prev[integration.id]
+        }
+      })
+
+      return next
+    })
+  }, [externalIntegrations])
+
+  // When arriving with a focus query param expand and highlight integration card
   useEffect(() => {
     const focus = searchParams.get("focus")
-    if (focus === "gocardless") {
-      // Ensure correct tab selected
-      if (activeTab !== "integrations") setActiveTab("integrations")
-      // Expand GoCardless
-      setExpandedSections(prev => ({ ...prev, goCardless: true }))
-      setHighlighted("gocardless")
-      const timer = setTimeout(() => setHighlighted(null), 3500)
-      return () => clearTimeout(timer)
+    if (!focus) {
+      return
     }
-  }, [searchParams, activeTab])
+
+    const integrationId = focus.toUpperCase()
+    const exists = externalIntegrations.some(
+      integration => integration.id === integrationId,
+    )
+
+    if (!exists) {
+      return
+    }
+
+    if (activeTab !== "integrations") {
+      setActiveTab("integrations")
+    }
+
+    setExpandedIntegrations(prev => {
+      if (prev[integrationId]) {
+        return prev
+      }
+
+      return {
+        ...prev,
+        [integrationId]: true,
+      }
+    })
+    setHighlighted(integrationId)
+
+    const timer = setTimeout(() => setHighlighted(null), 3500)
+    return () => clearTimeout(timer)
+  }, [activeTab, externalIntegrations, searchParams])
 
   // Auto-disable export and virtual settings when Google Sheets integration is disabled
   useEffect(() => {
@@ -401,6 +540,13 @@ export default function SettingsPage() {
       ...expandedSections,
       [section]: !expandedSections[section],
     })
+  }
+
+  const toggleIntegrationCard = (integrationId: string) => {
+    setExpandedIntegrations(prev => ({
+      ...prev,
+      [integrationId]: !prev[integrationId],
+    }))
   }
 
   const handleExportToggle = (enabled: boolean) => {
@@ -459,87 +605,168 @@ export default function SettingsPage() {
     })
   }
 
-  const handleSetupGoogleIntegration = async () => {
-    const clientId = settings?.integrations?.sheets?.credentials?.client_id
-    const clientSecret =
-      settings?.integrations?.sheets?.credentials?.client_secret
-    if (!clientId || !clientSecret) {
-      setValidationErrors(prev => ({
+  const handleIntegrationFieldChange = useCallback(
+    (integrationId: string, field: string, value: string) => {
+      setIntegrationPayloads(prev => ({
         ...prev,
-        integrations: [
-          t.settings.errors.clientIdRequired,
-          t.settings.errors.clientSecretRequired,
-        ],
+        [integrationId]: {
+          ...(prev[integrationId] ?? {}),
+          [field]: value,
+        },
       }))
-      return
-    }
 
-    setIsSetupLoading(prev => ({ ...prev, google: true }))
-    try {
-      await setupGoogleIntegration({
-        client_id: clientId,
-        client_secret: clientSecret,
+      setIntegrationErrors(prev => {
+        const current = prev[integrationId]
+        if (!current || !current[field]) {
+          return prev
+        }
+
+        const updatedIntegrationErrors = { ...current, [field]: false }
+        const next = { ...prev, [integrationId]: updatedIntegrationErrors }
+
+        if (Object.values(updatedIntegrationErrors).every(error => !error)) {
+          delete next[integrationId]
+        }
+
+        return next
       })
-      showToast(t.common.success, "success")
-      // Refetch external integrations to update the status indicator
-      await fetchExternalIntegrations()
-    } catch (error) {
-      console.error(error)
-      const code = (error as any)?.code
-      // Try to translate known error codes; fallback to generic
-      const translated = (code && (t.errors as any)[code]) || t.common.error
-      showToast(translated, "error")
-    } finally {
-      setIsSetupLoading(prev => ({ ...prev, google: false }))
-    }
-  }
+    },
+    [],
+  )
 
-  const handleSetupEtherscanIntegration = async () => {
-    const apiKey = settings?.integrations?.etherscan?.api_key
-    if (!apiKey) {
-      return
-    }
+  const handleSetupIntegration = useCallback(
+    async (integrationId: string) => {
+      const integration = externalIntegrations.find(
+        item => item.id === integrationId,
+      )
 
-    setIsSetupLoading(prev => ({ ...prev, etherscan: true }))
-    try {
-      await setupEtherscanIntegration({ api_key: apiKey })
-      showToast(t.common.success, "success")
-      // Refetch external integrations to update the status indicator
-      await fetchExternalIntegrations()
-    } catch (error) {
-      console.error(error)
-      const code = (error as any)?.code
-      const translated = (code && (t.errors as any)[code]) || t.common.error
-      showToast(translated, "error")
-    } finally {
-      setIsSetupLoading(prev => ({ ...prev, etherscan: false }))
-    }
-  }
+      if (!integration) {
+        return
+      }
 
-  const handleSetupGoCardlessIntegration = async () => {
-    const secretId = settings?.integrations?.gocardless?.secret_id
-    const secretKey = settings?.integrations?.gocardless?.secret_key
-    if (!secretId || !secretKey) {
-      return
-    }
+      const { title: integrationName } = resolveIntegrationCopy(integration)
 
-    setIsSetupLoading(prev => ({ ...prev, gocardless: true }))
-    try {
-      await setupGoCardlessIntegration({
-        secret_id: secretId,
-        secret_key: secretKey,
+      if (integrationId === "GOOGLE_SHEETS" && platform === PlatformType.WEB) {
+        showToast(t.settings.googleSheetsWebDisabled, "warning")
+        return
+      }
+
+      const schema = integration.payload_schema ?? {}
+      const payload = integrationPayloads[integrationId] ?? {}
+
+      const requiredFields = Object.keys(schema)
+      const missingFields: Record<string, boolean> = {}
+
+      requiredFields.forEach(field => {
+        if (!payload[field] || payload[field].trim() === "") {
+          missingFields[field] = true
+        }
       })
-      showToast(t.common.success, "success")
-      await fetchExternalIntegrations()
-    } catch (error) {
-      console.error(error)
-      const code = (error as any)?.code
-      const translated = (code && (t.errors as any)[code]) || t.common.error
-      showToast(translated, "error")
-    } finally {
-      setIsSetupLoading(prev => ({ ...prev, gocardless: false }))
-    }
-  }
+
+      if (Object.keys(missingFields).length > 0) {
+        setIntegrationErrors(prev => ({
+          ...prev,
+          [integrationId]: {
+            ...(prev[integrationId] ?? {}),
+            ...missingFields,
+          },
+        }))
+        showToast(t.settings.validationError, "error")
+        return
+      }
+
+      const sanitizedPayload: Record<string, string> = {}
+      requiredFields.forEach(field => {
+        if (payload[field] !== undefined) {
+          sanitizedPayload[field] = payload[field].trim()
+        }
+      })
+
+      setIsSetupLoading(prev => ({ ...prev, [integrationId]: true }))
+
+      try {
+        await setupIntegration(integrationId, sanitizedPayload)
+        setIntegrationErrors(prev => {
+          if (!prev[integrationId]) {
+            return prev
+          }
+
+          const rest = { ...prev }
+          delete rest[integrationId]
+          return rest
+        })
+        const successMessage = formatIntegrationMessage(
+          t.settings.integrationEnabledSuccess,
+          integrationName,
+        )
+        showToast(successMessage, "success")
+        await fetchExternalIntegrations()
+      } catch (error) {
+        console.error(error)
+        const code = (error as any)?.code
+        const translated = (code && (t.errors as any)?.[code]) || t.common.error
+        const formattedError = formatIntegrationMessage(
+          translated,
+          integrationName,
+        )
+        showToast(formattedError, "error")
+      } finally {
+        setIsSetupLoading(prev => ({ ...prev, [integrationId]: false }))
+      }
+    },
+    [
+      externalIntegrations,
+      fetchExternalIntegrations,
+      formatIntegrationMessage,
+      integrationPayloads,
+      platform,
+      resolveIntegrationCopy,
+      showToast,
+      t,
+    ],
+  )
+
+  const handleDisableIntegration = useCallback(
+    async (integrationId: string) => {
+      const integration = externalIntegrations.find(
+        item => item.id === integrationId,
+      )
+
+      if (!integration) {
+        return
+      }
+
+      const { title: integrationName } = resolveIntegrationCopy(integration)
+
+      setIsDisableLoading(prev => ({ ...prev, [integrationId]: true }))
+
+      try {
+        await disableIntegration(integrationId)
+        const successMessage = formatIntegrationMessage(
+          t.settings.integrationDisabledSuccess,
+          integrationName,
+        )
+        showToast(successMessage, "success")
+        await fetchExternalIntegrations()
+      } catch (error) {
+        console.error(error)
+        const code = (error as any)?.code
+        const translated = (code && (t.errors as any)?.[code]) || t.common.error
+        const formatted = formatIntegrationMessage(translated, integrationName)
+        showToast(formatted, "error")
+      } finally {
+        setIsDisableLoading(prev => ({ ...prev, [integrationId]: false }))
+      }
+    },
+    [
+      externalIntegrations,
+      fetchExternalIntegrations,
+      formatIntegrationMessage,
+      resolveIntegrationCopy,
+      showToast,
+      t,
+    ],
+  )
 
   const addConfigItem = (section: string) => {
     const newItem: any = { range: "" }
@@ -815,33 +1042,6 @@ export default function SettingsPage() {
 
   const validateSettings = () => {
     const errors: Record<string, string[]> = {}
-
-    // Validate integrations credentials
-    const clientId = settings.integrations?.sheets?.credentials?.client_id
-    const clientSecret =
-      settings.integrations?.sheets?.credentials?.client_secret
-
-    if (clientId || clientSecret) {
-      const integrationErrors: string[] = []
-
-      if (!clientId) {
-        integrationErrors.push(
-          t.settings.errors.clientIdRequired ||
-            "Client ID is required when configuring Google Sheets integration",
-        )
-      }
-
-      if (!clientSecret) {
-        integrationErrors.push(
-          t.settings.errors.clientSecretRequired ||
-            "Client Secret is required when configuring Google Sheets integration",
-        )
-      }
-
-      if (integrationErrors.length > 0) {
-        errors.integrations = integrationErrors
-      }
-    }
 
     if (
       settings.export?.sheets?.enabled === true &&
@@ -1641,6 +1841,265 @@ export default function SettingsPage() {
     )
   }
 
+  const renderIntegrationCard = (integration: ExternalIntegration) => {
+    const schemaEntries = Object.entries(integration.payload_schema ?? {})
+    const payload = integrationPayloads[integration.id] ?? {}
+    const errors = integrationErrors[integration.id] ?? {}
+    const isExpanded = expandedIntegrations[integration.id] ?? false
+    const isEnabled = integration.status === ExternalIntegrationStatus.ON
+    const isLoading = !!isSetupLoading[integration.id]
+    const disableLoading = !!isDisableLoading[integration.id]
+    const disabledForPlatform =
+      integration.id === "GOOGLE_SHEETS" && platform === PlatformType.WEB
+
+    const settingsCopy = t.settings as any
+    const { title, description } = resolveIntegrationCopy(integration)
+
+    const hintContent = (() => {
+      if (integration.id === "ETHERSCAN") {
+        const prefix = settingsCopy?.etherscanApiInfoPrefix
+        const linkText = settingsCopy?.etherscanApiInfoLinkText
+        const suffix = settingsCopy?.etherscanApiInfoSuffix
+
+        if (prefix && linkText && suffix) {
+          return (
+            <p className="text-sm">
+              {prefix}
+              <a
+                href="https://docs.etherscan.io/etherscan-v2/getting-an-api-key"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-primary"
+              >
+                {linkText}
+              </a>
+              {suffix}
+            </p>
+          )
+        }
+      }
+
+      if (integration.id === "GOCARDLESS") {
+        const prefix = settingsCopy?.goCardlessInfoPrefix
+        const linkText = settingsCopy?.goCardlessInfoLinkText
+        const middle = settingsCopy?.goCardlessInfoMiddle
+        const userSecrets = settingsCopy?.goCardlessInfoUserSecrets
+        const suffix = settingsCopy?.goCardlessInfoSuffix
+
+        if (prefix && linkText && middle && userSecrets && suffix) {
+          return (
+            <p className="text-sm leading-relaxed">
+              {prefix}
+              <a
+                href="https://bankaccountdata.gocardless.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-primary"
+              >
+                {linkText}
+              </a>
+              {middle}
+              <a
+                href="https://bankaccountdata.gocardless.com/user-secrets/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline text-primary"
+              >
+                {userSecrets}
+              </a>
+              {suffix}
+            </p>
+          )
+        }
+      }
+
+      return null
+    })()
+
+    const hintButtonLabel =
+      (integration.id === "GOCARDLESS" && settingsCopy?.goCardlessHelpButton) ??
+      settingsCopy?.integrationHintButton ??
+      t.common.help
+
+    const hasHintLabel =
+      typeof hintButtonLabel === "string" && hintButtonLabel.trim().length > 0
+
+    const canSubmit =
+      schemaEntries.length === 0 ||
+      schemaEntries.every(([field]) => (payload[field] ?? "").trim() !== "")
+
+    const iconSrc = `/icons/external-integrations/${integration.id}.png`
+    const isHighlighted = highlighted === integration.id
+
+    return (
+      <Card
+        key={integration.id}
+        className={cn(
+          "self-start",
+          isHighlighted ? "ring-2 ring-yellow-500 animate-pulse" : undefined,
+        )}
+      >
+        <CardHeader>
+          <div className="flex items-start justify-between gap-3">
+            <div
+              className="flex flex-1 items-center justify-between cursor-pointer"
+              onClick={() => toggleIntegrationCard(integration.id)}
+            >
+              <div className="flex items-center gap-3">
+                <img
+                  src={iconSrc}
+                  alt={title}
+                  className="h-12 w-12 object-contain"
+                />
+                <div>
+                  <CardTitle className="text-lg">{title}</CardTitle>
+                </div>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Badge
+                  className={cn(
+                    isEnabled
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+                  )}
+                >
+                  {isEnabled ? t.common.enabled : t.common.disabled}
+                </Badge>
+                {isExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </div>
+            </div>
+          </div>
+          {description && (
+            <CardDescription className="pt-2">{description}</CardDescription>
+          )}
+        </CardHeader>
+        {isExpanded && (
+          <CardContent className="space-y-4">
+            {schemaEntries.length > 0 ? (
+              schemaEntries.map(([field, label], index) => {
+                const value = payload[field] ?? ""
+                const hasError = !!errors[field]
+                const inputType = /secret|password|token|key/i.test(field)
+                  ? "password"
+                  : "text"
+                const showHintInline = hintContent && index === 0
+
+                return (
+                  <div key={field} className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <Label
+                        htmlFor={`${integration.id}-${field}`}
+                        className="leading-tight"
+                      >
+                        {label}
+                      </Label>
+                      {showHintInline && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size={hasHintLabel ? "sm" : "icon"}
+                              type="button"
+                              aria-label={
+                                hasHintLabel ? hintButtonLabel : t.common.help
+                              }
+                              className={cn(
+                                "text-xs text-muted-foreground",
+                                hasHintLabel
+                                  ? "gap-1 h-auto px-2 py-1"
+                                  : "h-8 w-8 p-0",
+                              )}
+                            >
+                              <Info className="h-4 w-4" />
+                              {hasHintLabel ? (
+                                <span>{hintButtonLabel}</span>
+                              ) : undefined}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-3 space-y-2">
+                            <h4 className="text-sm font-medium">{title}</h4>
+                            {hintContent}
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </div>
+                    <Input
+                      id={`${integration.id}-${field}`}
+                      type={inputType}
+                      value={value}
+                      onChange={event =>
+                        handleIntegrationFieldChange(
+                          integration.id,
+                          field,
+                          event.target.value,
+                        )
+                      }
+                      placeholder={String(label)}
+                      className={cn(hasError ? "border-red-500" : undefined)}
+                    />
+                  </div>
+                )
+              })
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t.common.notAvailable}
+              </p>
+            )}
+
+            <div className="flex items-center justify-end gap-2">
+              {disabledForPlatform && (
+                <span className="text-xs text-muted-foreground">
+                  {`(${t.settings.googleSheetsWebDisabled})`}
+                </span>
+              )}
+              {isEnabled && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleDisableIntegration(integration.id)}
+                  disabled={disableLoading}
+                >
+                  {disableLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.common.loading}
+                    </>
+                  ) : (
+                    <>
+                      <Link2Off className="mr-2 h-4 w-4" />
+                      {t.entities.disconnect}
+                    </>
+                  )}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => handleSetupIntegration(integration.id)}
+                disabled={isLoading || !canSubmit || disabledForPlatform}
+              >
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    {t.common.loading}
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="mr-2 h-4 w-4" />
+                    {t.common.setup}
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+    )
+  }
+
   // Component for displaying integration requirement badge and popover
   const IntegrationRequiredBadge = ({
     integrationName = "Google Sheets",
@@ -1706,7 +2165,12 @@ export default function SettingsPage() {
           >
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isLoadingSettings}>
+          <Button
+            onClick={handleSave}
+            disabled={
+              isSaving || isLoadingSettings || activeTab === "integrations"
+            }
+          >
             {isSaving ? (
               <>
                 <LoadingSpinner size="sm" className="mr-2" />
@@ -2058,481 +2522,20 @@ export default function SettingsPage() {
             transition={{ duration: 0.3 }}
             className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4"
           >
-            {/* Google Sheets Integration */}
-            <Card>
-              <CardHeader>
-                <div
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => toggleSection("googleSheets")}
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src="/icons/external-integrations/GOOGLE_SHEETS.png"
-                      alt="Google Sheets"
-                      className="h-12 w-12 object-contain"
-                    />
-                    <div>
-                      <CardTitle className="text-lg">
-                        {t.settings.sheetsIntegration}
-                      </CardTitle>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {(() => {
-                      const google = externalIntegrations.find(
-                        i => i.id === "GOOGLE_SHEETS",
-                      )
-                      const on = google?.status === "ON"
-                      return (
-                        <Badge
-                          className={cn(
-                            on
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-                          )}
-                        >
-                          {on ? t.common.enabled : t.common.disabled}
-                        </Badge>
-                      )
-                    })()}
-                    {expandedSections.googleSheets ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </div>
-                </div>
-                <CardDescription>
-                  {t.settings.sheetsIntegrationDescription}
-                </CardDescription>
-              </CardHeader>
-              {expandedSections.googleSheets && (
-                <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="client-id">{t.settings.clientId}</Label>
-                      <Input
-                        id="client-id"
-                        type="text"
-                        placeholder={t.settings.clientIdPlaceholder}
-                        value={
-                          settings?.integrations?.sheets?.credentials
-                            ?.client_id || ""
-                        }
-                        onChange={e =>
-                          setSettings({
-                            ...settings,
-                            integrations: {
-                              ...settings.integrations,
-                              sheets: {
-                                ...settings.integrations?.sheets,
-                                credentials: {
-                                  ...settings.integrations?.sheets?.credentials,
-                                  client_id: e.target.value,
-                                },
-                              },
-                            },
-                          })
-                        }
-                        className={
-                          validationErrors.integrations &&
-                          !settings?.integrations?.sheets?.credentials
-                            ?.client_id
-                            ? "border-red-500"
-                            : ""
-                        }
-                      />
-                      {validationErrors.integrations &&
-                        !settings?.integrations?.sheets?.credentials
-                          ?.client_id && (
-                          <div className="text-red-500 text-sm">
-                            {t.settings.errors.clientIdRequired}
-                          </div>
-                        )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="client-secret">
-                        {t.settings.clientSecret}
-                      </Label>
-                      <Input
-                        id="client-secret"
-                        type="password"
-                        placeholder={t.settings.clientSecretPlaceholder}
-                        value={
-                          settings?.integrations?.sheets?.credentials
-                            ?.client_secret || ""
-                        }
-                        onChange={e =>
-                          setSettings({
-                            ...settings,
-                            integrations: {
-                              ...settings.integrations,
-                              sheets: {
-                                ...settings.integrations?.sheets,
-                                credentials: {
-                                  ...settings.integrations?.sheets?.credentials,
-                                  client_secret: e.target.value,
-                                },
-                              },
-                            },
-                          })
-                        }
-                        className={
-                          validationErrors.integrations &&
-                          !settings?.integrations?.sheets?.credentials
-                            ?.client_secret
-                            ? "border-red-500"
-                            : ""
-                        }
-                      />
-                      {validationErrors.integrations &&
-                        !settings?.integrations?.sheets?.credentials
-                          ?.client_secret && (
-                          <div className="text-red-500 text-sm">
-                            {t.settings.errors.clientSecretRequired}
-                          </div>
-                        )}
-                    </div>
-
-                    {/* Add Setup button */}
-                    <div className="flex justify-end">
-                      {platform === PlatformType.WEB && (
-                        <div
-                          className={
-                            "text-xs text-grey-500 dark:text-gray-400 m-2 content-center"
-                          }
-                        >
-                          {platform === PlatformType.WEB
-                            ? "(" + t.settings.googleSheetsWebDisabled + ")"
-                            : undefined}
-                        </div>
-                      )}
-                      <Button
-                        onClick={handleSetupGoogleIntegration}
-                        disabled={
-                          !settings?.integrations?.sheets?.credentials
-                            ?.client_id ||
-                          !settings?.integrations?.sheets?.credentials
-                            ?.client_secret ||
-                          isSetupLoading.google ||
-                          platform === PlatformType.WEB
-                        }
-                      >
-                        {isSetupLoading.google ? (
-                          <>
-                            <LoadingSpinner size="sm" className="mr-2" />
-                            {t.common.loading}
-                          </>
-                        ) : (
-                          t.common.setup
-                        )}
-                      </Button>
-                    </div>
-                  </div>
+            {externalIntegrations.length === 0 ? (
+              <Card className="col-span-full">
+                <CardContent className="flex flex-col items-center gap-3 py-10">
+                  <LoadingSpinner size="md" />
+                  <p className="text-sm text-muted-foreground">
+                    {t.common.loading}
+                  </p>
                 </CardContent>
-              )}
-            </Card>
-
-            {/* Etherscan Integration */}
-            <Card>
-              <CardHeader>
-                <div
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => toggleSection("etherscan")}
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src="/icons/external-integrations/ETHERSCAN.png"
-                      alt="Etherscan"
-                      className="h-12 w-12 object-contain"
-                    />
-                    <div>
-                      <CardTitle className="text-lg">
-                        {t.settings.etherscanIntegration}
-                      </CardTitle>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {(() => {
-                      const eth = externalIntegrations.find(
-                        i => i.id === "ETHERSCAN",
-                      )
-                      const on = eth?.status === "ON"
-                      return (
-                        <Badge
-                          className={cn(
-                            on
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-                          )}
-                        >
-                          {on ? t.common.enabled : t.common.disabled}
-                        </Badge>
-                      )
-                    })()}
-                    {expandedSections.etherscan ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </div>
-                </div>
-                <CardDescription>
-                  {t.settings.etherscanIntegrationDescription}
-                </CardDescription>
-              </CardHeader>
-              {expandedSections.etherscan && (
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-1">
-                      <Label htmlFor="etherscan-api-key">
-                        {t.settings.etherscanApiKey}
-                      </Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button type="button">
-                            <Info className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64 p-2">
-                          <p className="text-sm">
-                            {t.settings.etherscanApiInfoPrefix}
-                            <a
-                              href="https://docs.etherscan.io/etherscan-v2/getting-an-api-key"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline text-blue-600"
-                            >
-                              {t.settings.etherscanApiInfoLinkText}
-                            </a>
-                            {t.settings.etherscanApiInfoSuffix}
-                          </p>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <Input
-                      id="etherscan-api-key"
-                      type="text"
-                      placeholder={t.settings.etherscanApiKeyPlaceholder}
-                      value={settings?.integrations?.etherscan?.api_key || ""}
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            etherscan: { api_key: e.target.value },
-                          },
-                        })
-                      }
-                    />
-                  </div>
-
-                  {/* Add Setup button for Etherscan */}
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleSetupEtherscanIntegration}
-                      disabled={
-                        !settings?.integrations?.etherscan?.api_key ||
-                        isSetupLoading.etherscan
-                      }
-                    >
-                      {isSetupLoading.etherscan ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          {t.common.loading}
-                        </>
-                      ) : (
-                        t.common.setup
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-
-            {/* GoCardless Integration */}
-            <Card
-              id="gocardless-integration-card"
-              className={cn(
-                highlighted === "gocardless"
-                  ? "ring-2 ring-yellow-500 animate-pulse"
-                  : undefined,
-              )}
-            >
-              <CardHeader>
-                <div
-                  className="flex items-center justify-between cursor-pointer"
-                  onClick={() => toggleSection("goCardless")}
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src="/icons/external-integrations/GOCARDLESS.png"
-                      alt="GoCardless"
-                      className="h-12 w-12 object-contain"
-                    />
-                    <div>
-                      <CardTitle className="text-lg">
-                        {(t.settings as any).goCardlessIntegration}
-                      </CardTitle>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    {(() => {
-                      const gc = externalIntegrations.find(
-                        i => i.id === "GOCARDLESS",
-                      )
-                      const on = gc?.status === "ON"
-                      return (
-                        <Badge
-                          className={cn(
-                            on
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
-                              : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-                          )}
-                        >
-                          {on ? t.common.enabled : t.common.disabled}
-                        </Badge>
-                      )
-                    })()}
-                    {expandedSections.goCardless ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </div>
-                </div>
-                <CardDescription>
-                  {(t.settings as any).goCardlessIntegrationDescription}
-                </CardDescription>
-              </CardHeader>
-              {expandedSections.goCardless && (
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="gocardless-secret-id"
-                      className="flex items-center justify-between w-full"
-                    >
-                      <span>{(t.settings as any).goCardlessSecretId}</span>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            className="ml-2 flex items-center gap-1 h-6 px-2 py-0 text-xs"
-                          >
-                            <Info className="h-3 w-3" />
-                            <span className="text-xs">
-                              {(t.settings as any).goCardlessHelpButton ||
-                                "Help"}
-                            </span>
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80 p-3 space-y-1 text-sm">
-                          <p className="leading-relaxed">
-                            {(t.settings as any).goCardlessInfoPrefix}
-                            <a
-                              href="https://bankaccountdata.gocardless.com"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline text-blue-600"
-                            >
-                              {(t.settings as any).goCardlessInfoLinkText}
-                            </a>
-                            {(t.settings as any).goCardlessInfoMiddle}
-                            <a
-                              href="https://bankaccountdata.gocardless.com/user-secrets/"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline text-blue-600"
-                            >
-                              {(t.settings as any).goCardlessInfoUserSecrets}
-                            </a>
-                            {(t.settings as any).goCardlessInfoSuffix}
-                          </p>
-                        </PopoverContent>
-                      </Popover>
-                    </Label>
-                    <Input
-                      id="gocardless-secret-id"
-                      type="text"
-                      placeholder={
-                        (t.settings as any).goCardlessSecretIdPlaceholder
-                      }
-                      value={
-                        settings?.integrations?.gocardless?.secret_id || ""
-                      }
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            gocardless: {
-                              ...(settings.integrations?.gocardless || {}),
-                              secret_id: e.target.value,
-                              secret_key:
-                                settings.integrations?.gocardless?.secret_key ||
-                                "",
-                            },
-                          },
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="gocardless-secret-key">
-                      {(t.settings as any).goCardlessSecretKey}
-                    </Label>
-                    <Input
-                      id="gocardless-secret-key"
-                      type="password"
-                      placeholder={
-                        (t.settings as any).goCardlessSecretKeyPlaceholder
-                      }
-                      value={
-                        settings?.integrations?.gocardless?.secret_key || ""
-                      }
-                      onChange={e =>
-                        setSettings({
-                          ...settings,
-                          integrations: {
-                            ...settings.integrations,
-                            gocardless: {
-                              ...(settings.integrations?.gocardless || {}),
-                              secret_id:
-                                settings.integrations?.gocardless?.secret_id ||
-                                "",
-                              secret_key: e.target.value,
-                            },
-                          },
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleSetupGoCardlessIntegration}
-                      disabled={
-                        !settings?.integrations?.gocardless?.secret_id ||
-                        !settings?.integrations?.gocardless?.secret_key ||
-                        isSetupLoading.gocardless
-                      }
-                    >
-                      {isSetupLoading.gocardless ? (
-                        <>
-                          <LoadingSpinner size="sm" className="mr-2" />
-                          {t.common.loading}
-                        </>
-                      ) : (
-                        t.common.setup
-                      )}
-                    </Button>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
+              </Card>
+            ) : (
+              externalIntegrations.map(integration =>
+                renderIntegrationCard(integration),
+              )
+            )}
           </motion.div>
         </TabsContent>
 

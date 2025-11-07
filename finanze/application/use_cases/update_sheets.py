@@ -16,14 +16,16 @@ from domain.auto_contributions import AutoContributions, ContributionQueryReques
 from domain.entity import Entity, Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
 from domain.export import ExportRequest
-from domain.external_integration import ExternalIntegrationId
+from domain.external_integration import (
+    ExternalIntegrationId,
+    ExternalIntegrationPayload,
+)
 from domain.fetch_record import FetchRecord
 from domain.global_position import GlobalPosition, PositionQueryRequest, ProductType
 from domain.historic import Historic, HistoricQueryRequest
 from domain.settings import (
     ContributionSheetConfig,
     GlobalsConfig,
-    GoogleCredentials,
     HistoricSheetConfig,
     PositionSheetConfig,
     ProductSheetConfig,
@@ -82,18 +84,15 @@ class UpdateSheetsImpl(UpdateSheets):
     async def execute(self, request: ExportRequest):
         config = self._config_port.load()
         sheets_export_config = config.export.sheets
-        sheet_config = config.integrations.sheets
 
-        sheets_integration = self._external_integration_port.get(
+        sheet_credentials = self._external_integration_port.get_payload(
             ExternalIntegrationId.GOOGLE_SHEETS
         )
 
         if (
             not sheets_export_config
             or not sheets_export_config.enabled
-            or not sheet_config
-            or not sheet_config.credentials
-            or not sheets_integration
+            or not sheet_credentials
         ):
             raise ExternalIntegrationRequired([ExternalIntegrationId.GOOGLE_SHEETS])
 
@@ -101,8 +100,6 @@ class UpdateSheetsImpl(UpdateSheets):
             raise ExecutionConflict()
 
         async with self._lock:
-            sheet_credentials = sheet_config.credentials
-
             config_globals = sheets_export_config.globals or {}
 
             position_configs = sheets_export_config.position or []
@@ -169,7 +166,7 @@ class UpdateSheetsImpl(UpdateSheets):
         global_position: dict[Entity, GlobalPosition],
         configs: list[PositionSheetConfig],
         last_update: dict[Entity, datetime],
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
     ):
         for config in configs:
             fields = []
@@ -189,7 +186,7 @@ class UpdateSheetsImpl(UpdateSheets):
         contributions: dict[Entity, AutoContributions],
         configs: list[ContributionSheetConfig],
         last_update: dict[Entity, datetime],
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
     ):
         for config in configs:
             fields = config.data
@@ -204,7 +201,7 @@ class UpdateSheetsImpl(UpdateSheets):
         transactions: Transactions,
         configs: list[TransactionSheetConfig],
         last_update: dict[Entity, datetime],
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
     ):
         for config in configs:
             fields = config.data
@@ -218,7 +215,7 @@ class UpdateSheetsImpl(UpdateSheets):
         self,
         historic: Historic,
         configs: list[HistoricSheetConfig],
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
     ):
         for config in configs:
             config.data = ["entries"]

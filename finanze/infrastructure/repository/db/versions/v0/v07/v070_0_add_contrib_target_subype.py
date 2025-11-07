@@ -1,3 +1,4 @@
+from domain.data_init import DatasourceInitContext
 from infrastructure.repository.db.client import DBCursor
 from infrastructure.repository.db.upgrader import DBVersionMigration
 
@@ -12,5 +13,5 @@ class V0700ContribTargetSubtype(DBVersionMigration):
     def name(self):
         return "v0.7.0:0_add_contrib_target_subtype"
 
-    def upgrade(self, cursor: DBCursor):
+    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         cursor.execute(SQL)

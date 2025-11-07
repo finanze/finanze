@@ -1,3 +1,4 @@
+from domain.data_init import DatasourceInitContext
 from infrastructure.repository.db.client import DBCursor
 from infrastructure.repository.db.upgrader import DBVersionMigration
 
@@ -12,5 +13,5 @@ class V0301BSC(DBVersionMigration):
     def name(self):
         return "v0.3.0:1_bsc"
 
-    def upgrade(self, cursor: DBCursor):
+    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         cursor.execute(ADD_CRYPTO_ENTITIES)

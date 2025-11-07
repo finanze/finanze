@@ -6,7 +6,6 @@ from uuid import UUID
 from domain.entity import Entity, EntityType, Feature
 from domain.external_integration import (
     ExternalIntegrationId,
-    GoCardlessIntegrationCredentials,
 )
 from pydantic.dataclasses import dataclass
 
@@ -28,11 +27,6 @@ class ExternalEntity:
 
 
 EXTERNAL_ENTITY_FEATURES = [Feature.POSITION]
-
-
-@dataclass
-class ExternalEntityProviderIntegrations:
-    gocardless: Optional[GoCardlessIntegrationCredentials] = None
 
 
 @dataclass

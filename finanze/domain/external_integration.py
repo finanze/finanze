@@ -30,6 +30,7 @@ class ExternalIntegration:
     name: str
     type: ExternalIntegrationType
     status: ExternalIntegrationStatus
+    payload_schema: dict[str, str] | None = None
 
 
 @dataclass
@@ -37,23 +38,36 @@ class AvailableExternalIntegrations:
     integrations: list[ExternalIntegration]
 
 
-@dataclass
-class GoogleIntegrationCredentials:
-    client_id: str
-    client_secret: str
+ExternalIntegrationPayload = dict[str, str]
 
 
 @dataclass
-class EtherscanIntegrationData:
-    api_key: str
+class ConnectedExternalIntegrationRequest:
+    integration_id: ExternalIntegrationId
+    payload: ExternalIntegrationPayload
 
 
 @dataclass
-class EthplorerIntegrationData:
-    api_key: str
+class DisconnectedExternalIntegrationRequest:
+    integration_id: ExternalIntegrationId
 
 
-@dataclass
-class GoCardlessIntegrationCredentials:
-    secret_id: str
-    secret_key: str
+EnabledExternalIntegrations = dict[ExternalIntegrationId, ExternalIntegrationPayload]
+
+
+EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS = {
+    ExternalIntegrationId.GOOGLE_SHEETS: {
+        "client_id": "Client ID",
+        "client_secret": "Client Secret",
+    },
+    ExternalIntegrationId.ETHERSCAN: {
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.ETHPLORER: {
+        "api_key": "API Key",
+    },
+    ExternalIntegrationId.GOCARDLESS: {
+        "secret_id": "Secret ID",
+        "secret_key": "Secret Key",
+    },
+}

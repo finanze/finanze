@@ -3,7 +3,8 @@ from typing import Optional
 
 from application.ports.sheets_export_port import SheetsUpdatePort
 from domain.entity import Entity
-from domain.settings import GoogleCredentials, ProductSheetConfig
+from domain.external_integration import ExternalIntegrationPayload
+from domain.settings import ProductSheetConfig
 from infrastructure.sheets.exporter.sheets_object_exporter import update_sheet
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 
@@ -15,7 +16,7 @@ class SheetsExporter(SheetsUpdatePort):
     def update_sheet(
         self,
         data: object | dict[Entity, object],
-        credentials: GoogleCredentials,
+        credentials: ExternalIntegrationPayload,
         config: ProductSheetConfig,
         last_update: Optional[dict[Entity, datetime]] = None,
     ):

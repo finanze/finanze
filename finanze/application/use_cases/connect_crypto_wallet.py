@@ -1,15 +1,14 @@
 from logging import Logger
 from uuid import uuid4
 
-from application.ports.config_port import ConfigPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from domain import native_entities
 from domain.crypto import (
     ConnectCryptoWallet as ConnectCryptoWalletRequest,
 )
 from domain.crypto import (
-    CryptoFetchIntegrations,
     CryptoFetchRequest,
     CryptoWalletConnection,
     CryptoWalletConnectionFailureCode,
@@ -21,16 +20,10 @@ from domain.exception.exceptions import (
     EntityNotFound,
     TooManyRequests,
 )
-from domain.external_integration import EtherscanIntegrationData
-from domain.settings import IntegrationsConfig
+from domain.external_integration import (
+    ExternalIntegrationType,
+)
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
-
-
-def from_config(config: IntegrationsConfig):
-    etherscan = None
-    if config.etherscan:
-        etherscan = EtherscanIntegrationData(config.etherscan.api_key)
-    return CryptoFetchIntegrations(etherscan=etherscan)
 
 
 class ConnectCryptoWalletImpl(ConnectCryptoWallet):
@@ -38,11 +31,11 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
         self,
         crypto_wallet_connections_port: CryptoWalletConnectionPort,
         entity_fetchers: dict[Entity, CryptoEntityFetcher],
-        config_port: ConfigPort,
+        external_integration_port: ExternalIntegrationPort,
     ):
         self._crypto_wallet_connections_port = crypto_wallet_connections_port
         self._entity_fetchers = entity_fetchers
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
 
         self._log = Logger(__name__)
 
@@ -55,7 +48,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
         if not entity:
             raise EntityNotFound(entity_id)
 
-        integrations = from_config(self._config_port.load().integrations)
+        enabled_integrations = self._external_integration_port.get_payloads_by_type(
+            ExternalIntegrationType.CRYPTO_PROVIDER
+        )
 
         failed_addresses = {}
 
@@ -77,7 +72,9 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
 
             try:
                 specific_fetcher.fetch(
-                    CryptoFetchRequest(address=address, integrations=integrations)
+                    CryptoFetchRequest(
+                        address=address, integrations=enabled_integrations
+                    )
                 )
 
                 if name_counter == 1:
