@@ -11,6 +11,10 @@ import {
   shell,
   Tray,
 } from "electron"
+import ElectronUpdater, {
+  type ProgressInfo,
+  type UpdateInfo,
+} from "electron-updater"
 import isDev from "electron-is-dev"
 import { type ChildProcess, spawn } from "child_process"
 import { createMenu } from "./menu"
@@ -25,6 +29,17 @@ const packageMetadata = packageJson as {
   repository?: string | { url?: string }
   homepage?: string
 }
+
+const { autoUpdater } = ElectronUpdater
+
+const AUTO_UPDATE_CHANNELS = {
+  checking: "auto-update:checking",
+  available: "auto-update:available",
+  notAvailable: "auto-update:not-available",
+  progress: "auto-update:download-progress",
+  downloaded: "auto-update:downloaded",
+  error: "auto-update:error",
+} as const
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -55,6 +70,16 @@ const appConfig: AppConfig = {
         ? VITE_DEV_SERVER_URL
         : `file://${join(__dirname, "../dist/index.html")}`,
   },
+}
+
+const supportsNativeAutoUpdate = !appConfig.isDev && appConfig.os !== OS.MAC
+
+const customFeedUrl = process.env.AUTO_UPDATE_FEED_URL
+if (customFeedUrl && supportsNativeAutoUpdate) {
+  ElectronUpdater.autoUpdater.setFeedURL({
+    provider: "generic",
+    url: customFeedUrl,
+  })
 }
 
 const platformInfo: PlatformInfo = {
@@ -150,15 +175,23 @@ function startPythonBackend() {
   } else {
     const binPath = join(process.resourcesPath, "bin")
     const binnaryFiles = readdirSync(binPath)
-    const serverFile = binnaryFiles.find(file =>
+    const serverDir = binnaryFiles.find(file =>
+      file.startsWith("finanze-server-"),
+    )
+    if (!serverDir) {
+      throw new Error(`Expected one finanze-server-* dir in ${binPath}`)
+    }
+
+    const serverDirPath = join(binPath, serverDir)
+    const serverFile = readdirSync(serverDirPath).find(file =>
       file.startsWith("finanze-server-"),
     )
 
     if (!serverFile) {
-      throw new Error(`Expected one finanze-server-* file in ${binPath}`)
+      throw new Error(`Expected one finanze-server-* file in ${serverDirPath}`)
     }
 
-    const executablePath = join(binPath, serverFile)
+    const executablePath = join(serverDirPath, serverFile)
 
     console.log(`Starting Python backend: f ${executablePath}`)
 
@@ -273,6 +306,55 @@ function sendToAllWindows(channel: string, ...args: any[]) {
   })
 }
 
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      stack: error.stack ?? null,
+      name: error.name,
+    }
+  }
+
+  return {
+    message: typeof error === "string" ? error : "Unknown error",
+    stack: null,
+    name: "Error",
+  }
+}
+
+function initializeAutoUpdater() {
+  if (!supportsNativeAutoUpdate) {
+    return
+  }
+
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+
+  autoUpdater.on("checking-for-update", () => {
+    sendToAllWindows(AUTO_UPDATE_CHANNELS.checking)
+  })
+
+  autoUpdater.on("update-available", (info: UpdateInfo) => {
+    sendToAllWindows(AUTO_UPDATE_CHANNELS.available, info)
+  })
+
+  autoUpdater.on("update-not-available", (info: UpdateInfo) => {
+    sendToAllWindows(AUTO_UPDATE_CHANNELS.notAvailable, info)
+  })
+
+  autoUpdater.on("download-progress", (progress: ProgressInfo) => {
+    sendToAllWindows(AUTO_UPDATE_CHANNELS.progress, progress)
+  })
+
+  autoUpdater.on("update-downloaded", (info: UpdateInfo) => {
+    sendToAllWindows(AUTO_UPDATE_CHANNELS.downloaded, info)
+  })
+
+  autoUpdater.on("error", (error: unknown) => {
+    sendToAllWindows(AUTO_UPDATE_CHANNELS.error, serializeError(error))
+  })
+}
+
 function getAboutWindowUrl() {
   if (appConfig.isDev && VITE_DEV_SERVER_URL) {
     return new URL("about.html", VITE_DEV_SERVER_URL).toString()
@@ -345,10 +427,68 @@ app.whenReady().then(async () => {
     sendToAllWindows("completed-external-login", id, result)
   })
 
+  ipcMain.handle("auto-update-check", async () => {
+    if (!supportsNativeAutoUpdate) {
+      return { supported: false }
+    }
+
+    try {
+      const result = await autoUpdater.checkForUpdates()
+
+      return {
+        supported: true,
+        updateInfo: result?.updateInfo ?? null,
+      }
+    } catch (error) {
+      return {
+        supported: true,
+        error: serializeError(error),
+      }
+    }
+  })
+
+  ipcMain.handle("auto-update-download", async () => {
+    if (!supportsNativeAutoUpdate) {
+      return { supported: false }
+    }
+
+    try {
+      await autoUpdater.downloadUpdate()
+      return { supported: true }
+    } catch (error) {
+      return {
+        supported: true,
+        error: serializeError(error),
+      }
+    }
+  })
+
+  ipcMain.handle("auto-update-install", () => {
+    if (!supportsNativeAutoUpdate) {
+      return { supported: false }
+    }
+
+    setImmediate(() => {
+      autoUpdater.quitAndInstall()
+    })
+
+    return { supported: true }
+  })
+
   startPythonBackend()
 
   await createWindow()
   createTray()
+
+  initializeAutoUpdater()
+
+  if (supportsNativeAutoUpdate) {
+    autoUpdater
+      .checkForUpdates()
+      .catch((error: unknown) =>
+        console.error("Auto update check failed", error),
+      )
+  }
 
   app.on("activate", async () => {
     // On macOS it's common to re-create a window in the app when the

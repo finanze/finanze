@@ -6,6 +6,14 @@
   "directories": {
     "output": "release"
   },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "finanze",
+      "repo": "finanze",
+      "releaseType": "release"
+    }
+  ],
   "extraResources": [
     {
       "from": "../../backend/dist",

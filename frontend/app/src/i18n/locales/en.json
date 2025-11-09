@@ -105,7 +105,21 @@
     "downloadAssets": "Download Options",
     "releaseNotes": "Release Notes",
     "skipThisVersion": "Skip version",
-    "releasePageLink": "Visit Release Page"
+    "releasePageLink": "Visit Release Page",
+    "autoUpdate": {
+      "title": "Automatic update",
+      "description": "Download and install the update without leaving the app.",
+      "download": "Download update",
+      "downloading": "Downloading update…",
+      "install": "Restart and install",
+      "ready": "Update downloaded. Restart to complete the installation.",
+      "progress": "{percent}% • {downloaded} / {total}",
+      "progressFallback": "{percent}% downloaded"
+    },
+    "manualDownloads": {
+      "show": "Show manual download options",
+      "hide": "Hide manual download options"
+    }
   },
   "about": {
     "title": "About {appName}",

@@ -5,6 +5,13 @@ import {
   InterestType,
   EntitiesPosition,
 } from "./position"
+import type {
+  AutoUpdateActionResult,
+  AutoUpdateCheckResult,
+  AutoUpdateErrorInfo,
+  AutoUpdateInfo,
+  AutoUpdateProgressInfo,
+} from "./release"
 
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
@@ -351,6 +358,25 @@ declare global {
           },
         ) => void,
       ) => void
+      checkForUpdates: () => Promise<AutoUpdateCheckResult>
+      downloadUpdate: () => Promise<AutoUpdateActionResult>
+      quitAndInstall: () => Promise<AutoUpdateActionResult>
+      onCheckingForUpdate: (callback: () => void) => () => void
+      onUpdateAvailable: (
+        callback: (info: AutoUpdateInfo) => void,
+      ) => () => void
+      onUpdateNotAvailable: (
+        callback: (info: AutoUpdateInfo) => void,
+      ) => () => void
+      onUpdateDownloaded: (
+        callback: (info: AutoUpdateInfo) => void,
+      ) => () => void
+      onDownloadProgress: (
+        callback: (progress: AutoUpdateProgressInfo) => void,
+      ) => () => void
+      onUpdateError: (
+        callback: (error: AutoUpdateErrorInfo) => void,
+      ) => () => void
     }
   }
 }

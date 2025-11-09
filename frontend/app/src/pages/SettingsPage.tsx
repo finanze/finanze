@@ -1928,7 +1928,7 @@ export default function SettingsPage() {
       schemaEntries.length === 0 ||
       schemaEntries.every(([field]) => (payload[field] ?? "").trim() !== "")
 
-    const iconSrc = `/icons/external-integrations/${integration.id}.png`
+    const iconSrc = `icons/external-integrations/${integration.id}.png`
     const isHighlighted = highlighted === integration.id
 
     return (

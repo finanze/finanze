@@ -152,6 +152,7 @@ jobs:
       - name: Package
         env:
           FINANZE_DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           echo "Using dev version for artifact naming only: $FINANZE_DEV_VERSION"
           python3 package.py --target full

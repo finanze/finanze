@@ -31,12 +31,20 @@ import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { useAppContext } from "./context/AppContext"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { useState, useEffect } from "react"
+import { useAutoUpdater } from "./hooks/useAutoUpdater"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
   const { platform } = useAppContext()
   const [showReleaseModal, setShowReleaseModal] = useState(false)
   const [skippedVersions, setSkippedVersions] = useState<string[]>([])
+  const {
+    state: autoUpdateState,
+    downloadUpdate: startAutoUpdateDownload,
+    quitAndInstall: startAutoUpdateInstallation,
+  } = useAutoUpdater({
+    checkOnMount: isAuthenticated && !isInitializing,
+  })
 
   // Load skipped versions from localStorage on mount
   useEffect(() => {
@@ -81,6 +89,22 @@ function App() {
     setSkippedVersions(prev => [...prev, version])
     setShowReleaseModal(false)
   }
+
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      autoUpdateState.isSupported &&
+      autoUpdateState.updateInfo &&
+      !showReleaseModal
+    ) {
+      setShowReleaseModal(true)
+    }
+  }, [
+    autoUpdateState.isSupported,
+    autoUpdateState.updateInfo,
+    isAuthenticated,
+    showReleaseModal,
+  ])
 
   if (isInitializing) {
     return <SplashScreen />
@@ -172,6 +196,19 @@ function App() {
               release={updateInfo.release}
               platform={platform}
               onSkipVersion={handleSkipVersion}
+              autoUpdateSupported={autoUpdateState.isSupported}
+              isAutoUpdateDownloading={autoUpdateState.isDownloading}
+              autoUpdateProgress={autoUpdateState.progress}
+              autoUpdateDownloadedBytes={autoUpdateState.downloadedBytes}
+              autoUpdateTotalBytes={autoUpdateState.totalBytes}
+              isAutoUpdateDownloaded={autoUpdateState.isDownloaded}
+              autoUpdateErrorMessage={autoUpdateState.error?.message ?? null}
+              onStartAutoUpdate={() => {
+                void startAutoUpdateDownload()
+              }}
+              onInstallAutoUpdate={() => {
+                void startAutoUpdateInstallation()
+              }}
             />
           )}
         </PinnedShortcutsProvider>

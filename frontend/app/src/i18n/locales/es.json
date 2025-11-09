@@ -103,7 +103,21 @@
     "downloadAssets": "Opciones de descarga",
     "releaseNotes": "Notas de la versión",
     "skipThisVersion": "Omitir versión",
-    "releasePageLink": "Visitar página de versión"
+    "releasePageLink": "Visitar página de versión",
+    "autoUpdate": {
+      "title": "Actualización automática",
+      "description": "Descarga e instala la actualización sin salir de la app.",
+      "download": "Descargar actualización",
+      "downloading": "Descargando actualización…",
+      "install": "Reiniciar e instalar",
+      "ready": "Actualización descargada. Reinicia para completar la instalación.",
+      "progress": "{percent}% • {downloaded} / {total}",
+      "progressFallback": "{percent}% descargado"
+    },
+    "manualDownloads": {
+      "show": "Mostrar descargas manuales",
+      "hide": "Ocultar descargas manuales"
+    }
   },
   "about": {
     "title": "Acerca de {appName}",
