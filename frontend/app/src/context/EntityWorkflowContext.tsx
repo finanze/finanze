@@ -235,7 +235,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
         const response = await loginEntity({
           entity: selectedEntity.id,
-          credentials: storedCredentials || credentials,
+          credentials: credentials,
           code: pin,
           processId: processId || undefined,
         })

@@ -56,8 +56,9 @@ class CredentialType(str, Enum):
     EMAIL = "EMAIL"
     API_TOKEN = "API_TOKEN"
 
-    # Internal usage (cookies, headers..., usually from external login)
+    # Internal usage (cookies, headers..., got from external login)
     INTERNAL = "INTERNAL"
+    # Same but not persisted
     INTERNAL_TEMP = "INTERNAL_TEMP"
 
 

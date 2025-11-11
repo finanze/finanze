@@ -160,6 +160,20 @@ ING = NativeFinancialEntity(
     },
 )
 
+CAJAMAR = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000011"),
+    name="Grupo Cajamar",
+    natural_id="BCCAESMM",
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    credentials_template={
+        "user": CredentialType.USER,
+        "password": CredentialType.PASSWORD,
+    },
+)
+
 
 def _create_crypto_entity(
     num: int,
@@ -206,6 +220,7 @@ NATIVE_ENTITIES = [
     F24,
     INDEXA_CAPITAL,
     ING,
+    CAJAMAR,
     BITCOIN,
     ETHEREUM,
     LITECOIN,

@@ -51,6 +51,7 @@ information.
 | Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
 | Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
 | ING            | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
+| Grupo Cajamar  | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 
 (*) Private Markets are alternative investments available in Trade Republic, currently under development.
 
@@ -78,12 +79,13 @@ Not all entities support the same features, in general we can group data in the 
 | MyInvestor     | ✅               | ✅                         | ✅                              | ❌                      |
 | SEGO           | ✅               | -                         | ✅                              | ✅                      |
 | Trade Republic | ✅               | ✅                         | ✅                              | -                      |
-| Unicaja        | ✅               | ✅                         | -                              | -                      |
+| Unicaja        | ✅               | ✅                         | ❌                              | -                      |
 | Wecity         | ✅               | -                         | ✅                              | ✅                      |
 | Mintos         | ✅               | -                         | ❌                              | ❌                      |
 | Freedom24      | ✅               | -                         | ✅                              | ❌                      |
 | Indexa Capital | ✅               | -                         | ✅                              | -                      |
 | ING            | ✅               | ✅                         | ✅                              | -                      |
+| Grupo Cajamar  | ✅               | -                         | ❌                              | -                      |
 
 ### Financial Entity notes
 

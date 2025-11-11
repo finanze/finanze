@@ -422,6 +422,7 @@ export interface ExternalIntegrations {
 export enum ExternalEntityStatus {
   UNLINKED = "UNLINKED",
   LINKED = "LINKED",
+  ORPHAN = "ORPHAN",
 }
 
 export interface ExternalEntity {

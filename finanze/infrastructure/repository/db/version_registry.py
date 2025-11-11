@@ -89,6 +89,7 @@ from infrastructure.repository.db.versions.v0.v07.v070_1_crypto_currencies_v2 im
 from infrastructure.repository.db.versions.v0.v07.v070_2_external_integrations_migration import (
     V0702ExternalIntegrationsMigration,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_3_cajamar import V0703Cajamar
 
 versions = [
     V0Genesis(),
@@ -128,4 +129,5 @@ versions = [
     V0700ContribTargetSubtype(),
     V0701CryptoCurrenciesV2(),
     V0702ExternalIntegrationsMigration(),
+    V0703Cajamar(),
 ]

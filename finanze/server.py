@@ -78,6 +78,9 @@ from infrastructure.client.entity.crypto.litecoin.litecoin_fetcher import (
     LitecoinFetcher,
 )
 from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
+from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
+    CajamarFetcher,
+)
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
     IndexaCapitalFetcher,
@@ -209,6 +212,7 @@ class FinanzeServer:
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
             domain.native_entities.ING: INGFetcher(),
+            domain.native_entities.CAJAMAR: CajamarFetcher(),
         }
 
         self.external_entity_fetchers = {

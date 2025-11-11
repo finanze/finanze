@@ -89,12 +89,20 @@ export default function PendingMoneyPage() {
     if (editingFlowId) return flows
     if (sortBy === "amount") {
       return flows.sort((a, b) => {
+        // Deprioritize disabled flows
+        if (a.enabled !== b.enabled) {
+          return a.enabled ? -1 : 1
+        }
         const amountA = a.amount
         const amountB = b.amount
         return amountB - amountA // Descending order
       })
     } else {
       return flows.sort((a, b) => {
+        // Deprioritize disabled flows
+        if (a.enabled !== b.enabled) {
+          return a.enabled ? -1 : 1
+        }
         if (!a.date && !b.date) return 0
         if (!a.date) return 1
         if (!b.date) return -1

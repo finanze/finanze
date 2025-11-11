@@ -13,6 +13,7 @@ from pydantic.dataclasses import dataclass
 class ExternalEntityStatus(str, Enum):
     UNLINKED = "UNLINKED"
     LINKED = "LINKED"
+    ORPHAN = "ORPHAN"
 
 
 @dataclass
