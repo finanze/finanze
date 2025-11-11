@@ -7,14 +7,12 @@ import { useFinancialData } from "@/context/FinancialDataContext"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  Settings,
   LogOut,
   KeyRound,
   Sun,
   Moon,
   ChevronRight,
   ChevronLeft,
-  Globe,
   FileUp,
   SunMoon,
   TrendingUp,
@@ -27,7 +25,8 @@ import {
   CalendarSync,
   HandCoins,
   PiggyBank,
-  type LucideIcon,
+  Settings,
+  LucideIcon,
 } from "lucide-react"
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/Button"
@@ -36,7 +35,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import type { Locale } from "@/i18n"
 import { PlatformType } from "@/types"
 import { ProductType } from "@/types/position"
 // Removed dynamic filtering for assets; all asset subsections always visible
@@ -47,7 +45,7 @@ import {
 } from "@/context/PinnedShortcutsContext"
 
 export function Sidebar() {
-  const { t, locale, changeLocale } = useI18n()
+  const { t } = useI18n()
   const { theme, setThemeMode } = useTheme()
   const { logout, startPasswordChange } = useAuth()
   const { platform } = useAppContext()
@@ -247,16 +245,6 @@ export function Sidebar() {
       icon: <Blocks size={20} />,
     },
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
-    {
-      path: "/settings",
-      label: t.common.settings,
-      icon: <Settings size={20} />,
-    },
-  ]
-
-  const languages: { code: Locale; label: string }[] = [
-    { code: "en-US", label: "EN" },
-    { code: "es-ES", label: "ES" },
   ]
 
   const toggleSidebar = () => {
@@ -593,34 +581,32 @@ export function Sidebar() {
           {!collapsed ? (
             <div className="space-y-2">
               <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  size="sm"
+                  onClick={() => navigate("/settings")}
+                  aria-label={t.common.settings}
+                >
+                  <Settings size={18} strokeWidth={2.5} />
+                </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" className="flex-1" size="sm">
-                      <Globe size={16} className="mr-2" />
-                      {languages.find(lang => lang.code === locale)?.label}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" className="p-1 w-auto">
-                    <div className="flex flex-col gap-1">
-                      {languages.map(lang => (
-                        <Button
-                          key={lang.code}
-                          variant={locale === lang.code ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => changeLocale(lang.code)}
-                        >
-                          {lang.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" className="flex-1" size="sm">
-                      {theme === "light" && <Sun size={16} />}
-                      {theme === "dark" && <Moon size={16} />}
-                      {theme === "system" && <SunMoon size={16} />}
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      size="sm"
+                      aria-label={t.common.darkMode}
+                    >
+                      {theme === "light" && (
+                        <Sun size={18} fill="currentColor" />
+                      )}
+                      {theme === "dark" && (
+                        <Moon size={18} fill="currentColor" />
+                      )}
+                      {theme === "system" && (
+                        <SunMoon size={18} fill="currentColor" />
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent side="top" className="p-1 w-auto">
@@ -654,8 +640,13 @@ export function Sidebar() {
                 </Popover>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" className="flex-1" size="sm">
-                      <User size={16} />
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      size="sm"
+                      aria-label={t.common.logout}
+                    >
+                      <User size={18} fill="currentColor" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent side="top" className="p-1 w-auto">
@@ -685,33 +676,28 @@ export function Sidebar() {
             </div>
           ) : (
             <div className="space-y-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-full"
+                onClick={() => navigate("/settings")}
+                aria-label={t.common.settings}
+              >
+                <Settings size={18} strokeWidth={2.5} />
+              </Button>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-full">
-                    <Globe size={20} />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="right" className="p-1 w-auto">
-                  <div className="flex flex-col gap-1">
-                    {languages.map(lang => (
-                      <Button
-                        key={lang.code}
-                        variant={locale === lang.code ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => changeLocale(lang.code)}
-                      >
-                        {lang.label}
-                      </Button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-full">
-                    {theme === "light" && <Sun size={20} />}
-                    {theme === "dark" && <Moon size={20} />}
-                    {theme === "system" && <SunMoon size={20} />}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-full"
+                    aria-label={t.common.darkMode}
+                  >
+                    {theme === "light" && <Sun size={18} fill="currentColor" />}
+                    {theme === "dark" && <Moon size={18} fill="currentColor" />}
+                    {theme === "system" && (
+                      <SunMoon size={18} fill="currentColor" />
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent side="right" className="p-1 w-auto">
@@ -745,8 +731,13 @@ export function Sidebar() {
               </Popover>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-full">
-                    <User size={20} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-full"
+                    aria-label={t.common.logout}
+                  >
+                    <User size={18} fill="currentColor" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent side="right" className="p-1 w-auto">

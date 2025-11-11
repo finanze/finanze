@@ -398,6 +398,15 @@
     "etherscanApiInfoSuffix": " y sigue las instrucciones.",
     "googleSheetsWebDisabled": "Usa la app de escritorio",
     "generalDescription": "Configura los ajustes generales de la aplicación",
+    "application": "Aplicación",
+    "applicationDescription": "Ajusta las preferencias locales de este dispositivo",
+    "applicationDisclaimerDescription": "Estos ajustes se guardan solo en esta ventana, si solo usas la aplicación de escritorio no te preocupes.",
+    "applicationLanguageTitle": "Idioma",
+    "applicationLanguageDescription": "Elige el idioma de la interfaz. También usado para dar formato a fechas, números y monedas.",
+    "applicationLanguageOptions": {
+      "en-US": "Inglés",
+      "es-ES": "Español"
+    },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
     "assets": {

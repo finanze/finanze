@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSearchParams } from "react-router-dom"
-import { useI18n } from "@/i18n"
+import { useI18n, type Locale } from "@/i18n"
 import {
   Card,
   CardContent,
@@ -93,8 +93,10 @@ const STABLECOIN_SYMBOL_REGEX = /^[A-Z0-9.-]{1,20}$/
 const normalizeStablecoinSymbol = (value: string) =>
   value.toUpperCase().replace(STABLECOIN_ALLOWED_CHARS, "")
 
+const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES"]
+
 export default function SettingsPage() {
-  const { t } = useI18n()
+  const { t, locale, changeLocale } = useI18n()
   const [searchParams] = useSearchParams()
   const {
     showToast,
@@ -123,6 +125,9 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
   )
+  const showRefreshButton = activeTab !== "application"
+  const showSaveButton =
+    activeTab !== "application" && activeTab !== "integrations"
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
@@ -153,6 +158,11 @@ export default function SettingsPage() {
   const newStablecoinInputRef = useRef<HTMLInputElement | null>(null)
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
   const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
+
+  const applicationLanguageOptions = APPLICATION_LOCALES.map(code => ({
+    code,
+    label: t.settings.applicationLanguageOptions[code],
+  }))
 
   const resolveIntegrationCopy = useCallback(
     (integration: ExternalIntegration) => {
@@ -2154,35 +2164,37 @@ export default function SettingsPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t.settings.title}</h1>
         <div className="flex space-x-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => {
-              fetchSettings()
-              fetchExternalIntegrations()
-            }}
-            disabled={isLoadingSettings || isSaving}
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={
-              isSaving || isLoadingSettings || activeTab === "integrations"
-            }
-          >
-            {isSaving ? (
-              <>
-                <LoadingSpinner size="sm" className="mr-2" />
-                {t.common.saving}
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                {t.settings.save}
-              </>
-            )}
-          </Button>
+          {showRefreshButton ? (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => {
+                fetchSettings()
+                fetchExternalIntegrations()
+              }}
+              disabled={isLoadingSettings || isSaving}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          ) : null}
+          {showSaveButton ? (
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || isLoadingSettings}
+            >
+              {isSaving ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  {t.common.saving}
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  {t.settings.save}
+                </>
+              )}
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -2193,12 +2205,18 @@ export default function SettingsPage() {
         className="w-full"
       >
         <div className="flex justify-center w-full">
-          <TabsList className="grid grid-cols-4 w-full max-w-[800px] h-auto min-h-[3rem]">
+          <TabsList className="grid w-full max-w-[800px] h-auto min-h-[3rem] grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
             <TabsTrigger
               value="general"
               className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
             >
               {t.settings.general}
+            </TabsTrigger>
+            <TabsTrigger
+              value="application"
+              className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
+            >
+              {t.settings.application}
             </TabsTrigger>
             <TabsTrigger
               value="integrations"
@@ -2513,6 +2531,53 @@ export default function SettingsPage() {
               v{__APP_VERSION__} by marcosav
             </p>
           </div>
+        </TabsContent>
+
+        <TabsContent value="application" className="space-y-4 mt-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                {t.settings.applicationDisclaimerDescription}
+              </p>
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t.settings.applicationLanguageTitle}</CardTitle>
+                  <CardDescription>
+                    {t.settings.applicationLanguageDescription}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="application-language">
+                      {t.settings.applicationLanguageTitle}
+                    </Label>
+                    <select
+                      id="application-language"
+                      value={locale}
+                      aria-label={t.settings.applicationLanguageTitle}
+                      onChange={event => {
+                        const nextLocale = event.target.value as Locale
+                        if (nextLocale !== locale) {
+                          changeLocale(nextLocale)
+                        }
+                      }}
+                      className="flex h-10 w-full max-w-[200px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {applicationLanguageOptions.map(option => (
+                        <option key={option.code} value={option.code}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="integrations" className="space-y-4 mt-4">

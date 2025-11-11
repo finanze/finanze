@@ -392,6 +392,15 @@
     "title": "Settings",
     "general": "General",
     "generalDescription": "Configure general application settings",
+    "application": "Application",
+    "applicationDescription": "Adjust preferences stored locally on this device",
+    "applicationDisclaimerDescription": "These settings are saved only in this browser. If you are only using the desktop app, you don't need to worry.",
+    "applicationLanguageTitle": "Language",
+    "applicationLanguageDescription": "Choose the language used across the app, used to format dates, numbers, and currencies too.",
+    "applicationLanguageOptions": {
+      "en-US": "English",
+      "es-ES": "Spanish"
+    },
     "defaultCurrency": "Main Currency",
     "defaultCommodityWeightUnit": "Default commodity weight unit",
     "assets": {
