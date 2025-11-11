@@ -10,7 +10,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-latest, macos-13, ubuntu-latest, windows-latest ]
+        os: [ macos-latest, macos-15-intel, ubuntu-latest, windows-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -176,7 +176,78 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install CD deps
+        shell: bash
+        run: |
+          pip install -r requirements-cd.txt
+
+      - name: Compute Dev Version
+        id: dev_version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet || true
+          BASE_VERSION=$(bump-my-version show current_version || echo "0.0.0")
+          if [[ $BASE_VERSION =~ ^v ]]; then
+            TAG_BASE="$BASE_VERSION"
+            BASE_NO_V=${BASE_VERSION#v}
+          else
+            TAG_BASE="v$BASE_VERSION"
+            BASE_NO_V="$BASE_VERSION"
+          fi
+          LAST_TAG=$(git describe --tags --abbrev=0 --match "v[0-9]*" 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COUNT=$(git rev-list ${LAST_TAG}..HEAD --count)
+          else
+            COUNT=$(git rev-list HEAD --count)
+          fi
+            SHORT_SHA=$(git rev-parse --short HEAD)
+          DEV_VERSION="${TAG_BASE}-dev${COUNT}-${SHORT_SHA}"
+          echo "Computed dev version for docker: $DEV_VERSION (base: $BASE_NO_V)"
+          echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Hack bumpversion config with dev version
+        if: ${{ steps.dev_version.outputs.dev_version != '' }}
+        env:
+          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Injecting DEV_VERSION into .bumpversion.toml (hack)"
+          cp .bumpversion.toml .bumpversion.toml.bak
+          python3 - <<'PY'
+          import os, pathlib, re
+          DEV=os.environ['DEV_VERSION']
+          path=pathlib.Path('.bumpversion.toml')
+          text=path.read_text()
+          # Replace all occurrences of {new_version} (with braces) by the actual dev version string
+          new_text=text.replace('{new_version}', DEV)
+          path.write_text(new_text)
+          print('Replaced {new_version} placeholders with', DEV)
+          # Show resulting lines referencing replace patterns
+          for line in new_text.splitlines():
+              if 'replace =' in line:
+                  print('CONFIG:', line)
+          PY
+          echo "Diff preview (first 30 lines):"
+          head -n 30 .bumpversion.toml
+
+      - name: Replace project versions with dev version (ephemeral)
+        if: ${{ steps.dev_version.outputs.dev_version != '' }}
+        env:
+          DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Running bump-my-version replace using injected config"
+          bump-my-version replace --allow-dirty || { echo "bump-my-version replace failed" >&2; exit 1; }
+          echo "Replacement complete. Showing updated versions:"
+          grep -E 'version =|"version":' pyproject.toml frontend/app/package.json || true
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
