@@ -47,3 +47,7 @@ class UserLoginImpl(UserLogin):
             self._config_port.disconnect()
             self._sheets_initiator.disconnect()
             raise
+
+        self._log.info(
+            f"User '{login_request.username}' ({str(user.id)} - {str(user.path)}) logged in successfully"
+        )

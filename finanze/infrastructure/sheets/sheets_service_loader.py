@@ -1,3 +1,4 @@
+import logging
 from threading import Lock
 
 from application.ports.sheets_initiator import SheetsInitiator
@@ -40,11 +41,14 @@ class SheetsServiceLoader(SheetsInitiator):
         self._base_path = None
         self._service = None
         self._lock = Lock()
+        self._log = logging.getLogger(__name__)
 
     def disconnect(self):
+        self._log.debug("Disconnecting loader")
         self._base_path = None
 
     def connect(self, user: User):
+        self._log.debug("Connecting loader")
         self._base_path = user.path
 
     def setup(self, credentials: ExternalIntegrationPayload):

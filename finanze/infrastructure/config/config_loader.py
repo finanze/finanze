@@ -21,11 +21,13 @@ class ConfigLoader(ConfigPort):
         self._migrator = ConfigMigrator()
 
     def disconnect(self):
+        self._log.debug("Disconnecting config loader")
         self._config_file = None
         if hasattr(self.load, "cache") and hashkey(self) in self.load.cache:
             del self.load.cache[hashkey(self)]
 
     def connect(self, user: User):
+        self._log.debug("Connecting config loader")
         self._config_file = str(user.path / CONFIG_NAME)
         self.check_or_create_default_config()
         self.load()

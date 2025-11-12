@@ -34,11 +34,12 @@ class DBManager(DatasourceInitiator):
     def lock(self):
         with self._lock:
             if not self._unlocked:
-                self._log.info("Database is already locked.")
+                self._log.warning("Database is already locked.")
                 raise AlreadyLockedError()
 
             self._unlocked = False
             self._client.close()
+            self._log.debug("Database locked successfully.")
 
     def initialize(self, params: DatasourceInitParams):
         self._initialize(params)
@@ -49,7 +50,7 @@ class DBManager(DatasourceInitiator):
 
         with self._lock:
             if self._unlocked:
-                self._log.info("Database is already unlocked.")
+                self._log.info("Database is already unlocked")
                 raise AlreadyUnlockedError()
 
             self._unlocked = False
@@ -62,7 +63,7 @@ class DBManager(DatasourceInitiator):
                 )
 
                 self._unlock_and_setup(connection, params.password)
-                self._log.info("Database unlocked successfully.")
+                self._log.info("Database unlocked successfully")
 
                 self._unlocked = True
                 self._client.set_connection(connection)
@@ -76,7 +77,7 @@ class DBManager(DatasourceInitiator):
                     self._log.error(f"Failed to unlock database: {e}")
                     if "file is not a database" in str(e) or "encrypted" in str(e):
                         raise DecryptionError(
-                            "Failed to decrypt database. Incorrect password or corrupted file."
+                            "Failed to decrypt database. Incorrect password or corrupted file"
                         ) from e
 
                 elif not isinstance(e, MigrationAheadOfTime):
@@ -84,7 +85,7 @@ class DBManager(DatasourceInitiator):
 
                 elif not isinstance(e, MigrationError):
                     self._log.exception(
-                        "An unexpected error occurred during database connection/unlock."
+                        "An unexpected error occurred during database connection/unlock"
                     )
 
                 self._unlocked = False
@@ -108,11 +109,11 @@ class DBManager(DatasourceInitiator):
 
     def change_password(self, user_params: DatasourceInitParams, new_password: str):
         if not new_password:
-            raise ValueError("New password cannot be empty.")
+            raise ValueError("New password cannot be empty")
 
         if self._unlocked:
             raise Exception(
-                "Database is unlocked, it must be locked before changing password."
+                "Database is unlocked, it must be locked before changing password"
             )
 
         connection = self._initialize(user_params)
@@ -121,24 +122,24 @@ class DBManager(DatasourceInitiator):
 
     def _change_password(self, connection: UnderlyingConnection, new_password: str):
         if not self._unlocked:
-            raise Exception("Database must be unlocked before changing password.")
+            raise Exception("Database must be unlocked before changing password")
 
         sanitized_pass = new_password.replace(r"'", r"''")
         connection.execute(f"PRAGMA rekey='{sanitized_pass}';")
 
-        self._log.info("Database password changed successfully.")
+        self._log.info("Database password changed successfully")
 
     def _setup_database_schema(self, params: DatasourceInitParams):
         if not self._unlocked:
-            raise Exception("Database must be unlocked before setting up schema.")
+            raise Exception("Database must be unlocked before setting up schema")
 
-        self._log.info("Setting up database schema...")
+        self._log.debug("Setting up database schema...")
 
         upgrader = DatabaseUpgrader(self._client, versions, params.context)
 
         try:
             upgrader.upgrade()
-            self._log.info("Database schema setup complete.")
+            self._log.info("Database schema setup complete")
         except MigrationError:
             raise
         except Exception as e:

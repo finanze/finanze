@@ -107,7 +107,7 @@ jobs:
             COUNT=$(git rev-list HEAD --count)
           fi
           SHORT_SHA=$(git rev-parse --short HEAD)
-          DEV_VERSION="${TAG_BASE}-dev${COUNT}-${SHORT_SHA}"
+          DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
           echo "Computed dev version: $DEV_VERSION (base: $BASE_NO_V)"
           echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
 
@@ -207,7 +207,7 @@ jobs:
             COUNT=$(git rev-list HEAD --count)
           fi
             SHORT_SHA=$(git rev-parse --short HEAD)
-          DEV_VERSION="${TAG_BASE}-dev${COUNT}-${SHORT_SHA}"
+          DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
           echo "Computed dev version for docker: $DEV_VERSION (base: $BASE_NO_V)"
           echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
 
