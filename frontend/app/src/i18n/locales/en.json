@@ -486,27 +486,93 @@
       "clientIdRequired": "Client ID is required when configuring Google Sheets integration",
       "clientSecretRequired": "Client Secret is required when configuring Google Sheets integration"
     },
-    "etherscanIntegration": "Etherscan",
-    "etherscanIntegrationDescription": "Configure your Etherscan API key to increase data fetch rate for certain cryptocurrencies (recommended only if standard fetch fails, or if using a paid API)",
-    "etherscanApiKey": "API Key",
-    "etherscanApiKeyPlaceholder": "Enter your Etherscan API key",
-    "etherscanApiInfoPrefix": "To get your API key, visit ",
-    "etherscanApiInfoLinkText": "etherscan.io",
-    "etherscanApiInfoSuffix": " and follow the instructions.",
     "googleSheetsWebDisabled": "Use desktop app",
-    "goCardlessIntegration": "GoCardless",
-    "goCardlessIntegrationDescription": "Configure GoCardless so you can connect bank accounts from any unsupported banks",
-    "goCardlessSecretId": "Secret ID",
-    "goCardlessSecretIdPlaceholder": "Enter your GoCardless Secret ID",
-    "goCardlessSecretKey": "Secret Key",
-    "goCardlessSecretKeyPlaceholder": "Enter your GoCardless Secret Key",
-    "goCardlessInfoPrefix": "Sign up at ",
-    "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
-    "goCardlessInfoMiddle": ", then navigate to ",
-    "goCardlessInfoUserSecrets": "Developers > User secrets",
-    "goCardlessInfoSuffix": " and create a new secret to obtain the credentials. Unfortunately, GoCardless no longer allows creating these credentials, so this will only work if you already had an account.",
-    "goCardlessHelpButton": "How to get the credentials?",
     "integrationHintButton": "View instructions",
+    "integration": {
+      "GOOGLE_SHEETS": {
+        "description": "Configure your Google Sheets API to enable data import and export."
+      },
+      "ETHERSCAN": {
+        "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC nets (recommended only if standard fetch fails, or if using a paid API).",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Generate an Etherscan API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Visit "
+            },
+            {
+              "type": "link",
+              "label": "etherscan.io docs",
+              "url": "https://docs.etherscan.io/getting-an-api-key"
+            },
+            {
+              "type": "text",
+              "value": " to create a new API key and paste it below."
+            }
+          ]
+        }
+      },
+      "ETHPLORER": {
+        "description": "Configure your Ethplorer API to increase data fetch rate for ETH and BSC nets.",
+        "help": "How to get an API key",
+        "hint": {
+          "title": "Get an Ethplorer API key",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Create a free account at "
+            },
+            {
+              "type": "link",
+              "label": "ethplorer.io",
+              "url": "https://ethplorer.io/wallet/#"
+            },
+            {
+              "type": "text",
+              "value": ", log in, and generate an API key in "
+            },
+            {
+              "type": "link",
+              "label": "the API Panel section",
+              "url": "https://ethplorer.io/wallet/#screen=api"
+            }
+          ]
+        }
+      },
+      "GOCARDLESS": {
+        "description": "Configure GoCardless so you can connect bank accounts from any unsupported banks.",
+        "help": "How to generate credentials",
+        "hint": {
+          "title": "Create GoCardless credentials",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Register at "
+            },
+            {
+              "type": "link",
+              "label": "bankaccountdata.gocardless.com",
+              "url": "https://bankaccountdata.gocardless.com"
+            },
+            {
+              "type": "text",
+              "value": ", then generate user secrets at "
+            },
+            {
+              "type": "link",
+              "label": "Developers > User secrets",
+              "url": "https://bankaccountdata.gocardless.com/user-secrets/"
+            },
+            {
+              "type": "text",
+              "value": " and create a new secret to obtain the credentials. Unfortunately, GoCardless no longer allows creating these credentials, so this will only work if you already had an account."
+            }
+          ]
+        }
+      }
+    },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
     "integrationDisabledSuccess": "{integration} integration disabled successfully"

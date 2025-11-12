@@ -4,7 +4,12 @@ from typing import Optional
 import requests
 from application.ports.connectable_integration import ConnectableIntegration
 from cachetools import TTLCache, cached
-from domain.exception.exceptions import AddressNotFound, TooManyRequests
+from domain.exception.exceptions import (
+    AddressNotFound,
+    IntegrationSetupError,
+    IntegrationSetupErrorCode,
+    TooManyRequests,
+)
 from domain.external_integration import (
     ExternalIntegrationPayload,
 )
@@ -59,6 +64,11 @@ class EthplorerClient(ConnectableIntegration):
             raise
 
         if not response.ok:
+            if response.status_code == 401:
+                raise IntegrationSetupError(
+                    IntegrationSetupErrorCode.INVALID_CREDENTIALS
+                )
+
             if response.status_code == 429:
                 raise TooManyRequests()
 

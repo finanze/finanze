@@ -47,6 +47,4 @@ class ConnectExternalIntegrationImpl(ConnectExternalIntegration):
         except Exception as e:
             raise IntegrationSetupError(IntegrationSetupErrorCode.UNKNOWN) from e
 
-        self._external_integration_port.activate(
-            ExternalIntegrationId.ETHERSCAN, payload
-        )
+        self._external_integration_port.activate(request.integration_id, payload)

@@ -223,6 +223,7 @@ class FinanzeServer:
             ExternalIntegrationId.GOOGLE_SHEETS: self.sheets_initiator,
             ExternalIntegrationId.ETHERSCAN: self.etherscan_client,
             ExternalIntegrationId.GOCARDLESS: self.gocardless_client,
+            ExternalIntegrationId.ETHPLORER: self.ethplorer_client,
         }
 
         self.virtual_fetcher = SheetsImporter(self.sheets_initiator)

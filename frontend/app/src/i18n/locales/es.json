@@ -389,13 +389,6 @@
   "settings": {
     "title": "Configuración",
     "general": "General",
-    "etherscanIntegration": "Etherscan",
-    "etherscanIntegrationDescription": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de ciertas criptomonedas (recomendado solo si falla la obtención estándar, o si la API es de pago)",
-    "etherscanApiKey": "Clave API",
-    "etherscanApiKeyPlaceholder": "Clave API de Etherscan",
-    "etherscanApiInfoPrefix": "Para obtener tu clave API, visita ",
-    "etherscanApiInfoLinkText": "etherscan.com",
-    "etherscanApiInfoSuffix": " y sigue las instrucciones.",
     "googleSheetsWebDisabled": "Usa la app de escritorio",
     "generalDescription": "Configura los ajustes generales de la aplicación",
     "application": "Aplicación",
@@ -492,19 +485,92 @@
       "clientIdRequired": "El ID de Cliente es necesario al configurar la integración con Google Sheets",
       "clientSecretRequired": "El Secreto de Cliente es necesario al configurar la integración con Google Sheets"
     },
-    "goCardlessIntegration": "GoCardless",
-    "goCardlessIntegrationDescription": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente",
-    "goCardlessSecretId": "Secret ID",
-    "goCardlessSecretIdPlaceholder": "Introduce tu Secret ID de GoCardless",
-    "goCardlessSecretKey": "Secret Key",
-    "goCardlessSecretKeyPlaceholder": "Introduce tu Secret Key de GoCardless",
-    "goCardlessInfoPrefix": "Regístrate en ",
-    "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
-    "goCardlessInfoMiddle": ", luego ve a ",
-    "goCardlessInfoUserSecrets": "Desarrolladores > User secrets",
-    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales. Lamentablemente, GoCardless ya no permite crear estas credenciales, por lo que solo te servirá si ya tenías una cuenta.",
-    "goCardlessHelpButton": "¿Cómo obtener las credenciales?",
     "integrationHintButton": "Ver instrucciones",
+    "integration": {
+      "GOOGLE_SHEETS": {
+        "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
+      },
+      "ETHERSCAN": {
+        "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (recomendado solo si falla la obtención estándar, o si la API es de pago)",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Generar una clave API de Etherscan",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Visita "
+            },
+            {
+              "type": "link",
+              "label": "etherscan.io docs",
+              "url": "https://docs.etherscan.io/getting-an-api-key"
+            },
+            {
+              "type": "text",
+              "value": " para crear una nueva clave API y pegarla aquí."
+            }
+          ]
+        }
+      },
+      "ETHPLORER": {
+        "description": "Configura Ethplorer para aumentar la cuota en la obtención de datos de redes de ETH y BSC.",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Obtener una clave API de Ethplorer",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Crea una cuenta gratuita en "
+            },
+            {
+              "type": "link",
+              "label": "ethplorer.io",
+              "url": "https://ethplorer.io/wallet/#"
+            },
+            {
+              "type": "text",
+              "value": " luego genera una nueva clave desde "
+            },
+            {
+              "type": "link",
+              "label": "el panel de la API",
+              "url": "https://ethplorer.io/wallet/#screen=api"
+            }
+          ]
+        }
+      },
+      "GOCARDLESS": {
+        "description": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente.",
+        "help": "Cómo generar las credenciales",
+        "hint": {
+          "title": "Crear credenciales de GoCardless",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Regístrate en "
+            },
+            {
+              "type": "link",
+              "label": "bankaccountdata.gocardless.com",
+              "url": "https://bankaccountdata.gocardless.com"
+            },
+            {
+              "type": "text",
+              "value": ", luego genera los secretos en "
+            },
+            {
+              "type": "link",
+              "label": "Developers > User secrets",
+              "url": "https://bankaccountdata.gocardless.com/user-secrets/"
+            },
+            {
+              "type": "text",
+              "value": " y crea uno nuevo para obtener las credenciales. Lamentablemente, GoCardless ya no permite crear estas credenciales, por lo que solo te servirá si ya tenías una cuenta."
+            }
+          ]
+        }
+      }
+    },
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
     "integrationDisabledSuccess": "Integración {integration} desactivada correctamente"

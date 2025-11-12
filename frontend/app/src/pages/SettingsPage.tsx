@@ -95,6 +95,45 @@ const normalizeStablecoinSymbol = (value: string) =>
 
 const APPLICATION_LOCALES: Locale[] = ["en-US", "es-ES"]
 
+type IntegrationHintPart =
+  | { type: "text"; value: string }
+  | { type: "link"; label: string; url: string }
+
+const parseIntegrationHintParts = (
+  rawParts: unknown,
+): IntegrationHintPart[] | undefined => {
+  if (!Array.isArray(rawParts)) {
+    return undefined
+  }
+
+  const parsed = rawParts
+    .map(part => {
+      if (typeof part === "string") {
+        return part.trim() ? ({ type: "text", value: part } as const) : null
+      }
+
+      if (!part || typeof part !== "object") {
+        return null
+      }
+
+      const data = part as Record<string, unknown>
+      const type = typeof data.type === "string" ? data.type : undefined
+
+      if (type === "link") {
+        const label = typeof data.label === "string" ? data.label.trim() : ""
+        const url = typeof data.url === "string" ? data.url.trim() : ""
+        return label && url ? ({ type: "link", label, url } as const) : null
+      }
+
+      const value = typeof data.value === "string" ? data.value : undefined
+
+      return value && value.trim() ? ({ type: "text", value } as const) : null
+    })
+    .filter(Boolean) as IntegrationHintPart[]
+
+  return parsed.length > 0 ? parsed : undefined
+}
+
 export default function SettingsPage() {
   const { t, locale, changeLocale } = useI18n()
   const [searchParams] = useSearchParams()
@@ -164,24 +203,45 @@ export default function SettingsPage() {
     label: t.settings.applicationLanguageOptions[code],
   }))
 
-  const resolveIntegrationCopy = useCallback(
+  const getIntegrationCopy = useCallback(
     (integration: ExternalIntegration) => {
-      let title = integration.name
-      let description: string | undefined
-      const settingsCopy = t.settings as any
+      const translations =
+        (
+          ((t.settings as unknown as Record<string, unknown>)?.integration ??
+            {}) as Record<string, unknown>
+        )[integration.id] ?? {}
 
-      if (integration.id === "GOOGLE_SHEETS") {
-        title = settingsCopy?.sheetsIntegration ?? title
-        description = settingsCopy?.sheetsIntegrationDescription
-      } else if (integration.id === "ETHERSCAN") {
-        title = settingsCopy?.etherscanIntegration ?? title
-        description = settingsCopy?.etherscanIntegrationDescription
-      } else if (integration.id === "GOCARDLESS") {
-        title = settingsCopy?.goCardlessIntegration ?? title
-        description = settingsCopy?.goCardlessIntegrationDescription
+      const copy = translations as Record<string, unknown>
+
+      const descriptionRaw =
+        typeof copy.description === "string" ? copy.description.trim() : ""
+      const helpRaw = typeof copy.help === "string" ? copy.help.trim() : ""
+      const hintRaw =
+        typeof copy.hint === "object" && copy.hint !== null
+          ? (copy.hint as Record<string, unknown>)
+          : undefined
+
+      const hintText =
+        typeof hintRaw?.text === "string" ? hintRaw.text.trim() : ""
+      const hintTitleRaw =
+        typeof hintRaw?.title === "string" ? hintRaw.title.trim() : ""
+      const hintParts = parseIntegrationHintParts(hintRaw?.parts)
+
+      const hint =
+        hintParts || hintText
+          ? {
+              title: hintTitleRaw || integration.name,
+              text: hintText || undefined,
+              parts: hintParts,
+            }
+          : undefined
+
+      return {
+        title: integration.name,
+        description: descriptionRaw || undefined,
+        helpLabel: helpRaw || undefined,
+        hint,
       }
-
-      return { title, description }
     },
     [t],
   )
@@ -654,7 +714,7 @@ export default function SettingsPage() {
         return
       }
 
-      const { title: integrationName } = resolveIntegrationCopy(integration)
+      const { title: integrationName } = getIntegrationCopy(integration)
 
       if (integrationId === "GOOGLE_SHEETS" && platform === PlatformType.WEB) {
         showToast(t.settings.googleSheetsWebDisabled, "warning")
@@ -728,9 +788,9 @@ export default function SettingsPage() {
       externalIntegrations,
       fetchExternalIntegrations,
       formatIntegrationMessage,
+      getIntegrationCopy,
       integrationPayloads,
       platform,
-      resolveIntegrationCopy,
       showToast,
       t,
     ],
@@ -746,7 +806,7 @@ export default function SettingsPage() {
         return
       }
 
-      const { title: integrationName } = resolveIntegrationCopy(integration)
+      const { title: integrationName } = getIntegrationCopy(integration)
 
       setIsDisableLoading(prev => ({ ...prev, [integrationId]: true }))
 
@@ -772,7 +832,7 @@ export default function SettingsPage() {
       externalIntegrations,
       fetchExternalIntegrations,
       formatIntegrationMessage,
-      resolveIntegrationCopy,
+      getIntegrationCopy,
       showToast,
       t,
     ],
@@ -1862,74 +1922,51 @@ export default function SettingsPage() {
     const disabledForPlatform =
       integration.id === "GOOGLE_SHEETS" && platform === PlatformType.WEB
 
-    const settingsCopy = t.settings as any
-    const { title, description } = resolveIntegrationCopy(integration)
+    const { title, description, helpLabel, hint } =
+      getIntegrationCopy(integration)
 
     const hintContent = (() => {
-      if (integration.id === "ETHERSCAN") {
-        const prefix = settingsCopy?.etherscanApiInfoPrefix
-        const linkText = settingsCopy?.etherscanApiInfoLinkText
-        const suffix = settingsCopy?.etherscanApiInfoSuffix
-
-        if (prefix && linkText && suffix) {
-          return (
-            <p className="text-sm">
-              {prefix}
-              <a
-                href="https://docs.etherscan.io/etherscan-v2/getting-an-api-key"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-primary"
-              >
-                {linkText}
-              </a>
-              {suffix}
-            </p>
-          )
-        }
+      if (!hint) {
+        return null
       }
 
-      if (integration.id === "GOCARDLESS") {
-        const prefix = settingsCopy?.goCardlessInfoPrefix
-        const linkText = settingsCopy?.goCardlessInfoLinkText
-        const middle = settingsCopy?.goCardlessInfoMiddle
-        const userSecrets = settingsCopy?.goCardlessInfoUserSecrets
-        const suffix = settingsCopy?.goCardlessInfoSuffix
+      if (hint.parts) {
+        return (
+          <p className="text-sm leading-relaxed">
+            {hint.parts.map((part, index) => {
+              if (part.type === "link") {
+                return (
+                  <a
+                    key={`${integration.id}-hint-link-${index}`}
+                    href={part.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-primary"
+                  >
+                    {part.label}
+                  </a>
+                )
+              }
 
-        if (prefix && linkText && middle && userSecrets && suffix) {
-          return (
-            <p className="text-sm leading-relaxed">
-              {prefix}
-              <a
-                href="https://bankaccountdata.gocardless.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-primary"
-              >
-                {linkText}
-              </a>
-              {middle}
-              <a
-                href="https://bankaccountdata.gocardless.com/user-secrets/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-primary"
-              >
-                {userSecrets}
-              </a>
-              {suffix}
-            </p>
-          )
-        }
+              return (
+                <span key={`${integration.id}-hint-text-${index}`}>
+                  {part.value}
+                </span>
+              )
+            })}
+          </p>
+        )
+      }
+
+      if (hint.text) {
+        return <p className="text-sm leading-relaxed">{hint.text}</p>
       }
 
       return null
     })()
 
     const hintButtonLabel =
-      (integration.id === "GOCARDLESS" && settingsCopy?.goCardlessHelpButton) ??
-      settingsCopy?.integrationHintButton ??
-      t.common.help
+      helpLabel ?? t.settings.integrationHintButton ?? t.common.help
 
     const hasHintLabel =
       typeof hintButtonLabel === "string" && hintButtonLabel.trim().length > 0
@@ -1996,7 +2033,7 @@ export default function SettingsPage() {
                 const inputType = /secret|password|token|key/i.test(field)
                   ? "password"
                   : "text"
-                const showHintInline = hintContent && index === 0
+                const showHintInline = Boolean(hintContent) && index === 0
 
                 return (
                   <div key={field} className="space-y-2">
@@ -2031,7 +2068,9 @@ export default function SettingsPage() {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-80 p-3 space-y-2">
-                            <h4 className="text-sm font-medium">{title}</h4>
+                            <h4 className="text-sm font-medium">
+                              {hint?.title ?? title}
+                            </h4>
                             {hintContent}
                           </PopoverContent>
                         </Popover>
