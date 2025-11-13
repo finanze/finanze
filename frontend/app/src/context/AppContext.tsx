@@ -30,13 +30,11 @@ import { WeightUnit } from "@/types/position"
 export interface AppSettings {
   export?: {
     sheets?: {
-      enabled?: boolean
       [key: string]: any
     }
   }
-  fetch: {
-    virtual: {
-      enabled: boolean
+  importing?: {
+    sheets?: {
       [key: string]: any
     }
   }
@@ -82,7 +80,7 @@ interface AppContextType {
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
-  saveSettings: (settings: AppSettings) => Promise<void>
+  saveSettings: (settings: AppSettings) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
   fetchExternalIntegrations: () => Promise<void>
 }
@@ -91,14 +89,10 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 
 const defaultSettings: AppSettings = {
   export: {
-    sheets: {
-      enabled: false,
-    },
+    sheets: {},
   },
-  fetch: {
-    virtual: {
-      enabled: false,
-    },
+  importing: {
+    sheets: {},
   },
   general: {
     defaultCurrency: "EUR",
@@ -124,12 +118,12 @@ const mergeSettingsWithDefaults = (
     },
   }
 
-  const mergedFetchVirtual = {
-    ...(defaultSettings.fetch.virtual ?? {}),
-    ...(incoming?.fetch?.virtual ?? {}),
+  const mergedImportingSheets = {
+    ...(defaultSettings.importing?.sheets ?? {}),
+    ...(incoming?.importing?.sheets ?? {}),
     globals: {
-      ...(defaultSettings.fetch.virtual?.globals ?? {}),
-      ...(incoming?.fetch?.virtual?.globals ?? {}),
+      ...(defaultSettings.importing?.sheets?.globals ?? {}),
+      ...(incoming?.importing?.sheets?.globals ?? {}),
     },
   }
 
@@ -162,11 +156,13 @@ const mergeSettingsWithDefaults = (
           sheets: mergedExportSheets,
         }
       : incoming?.export,
-    fetch: {
-      ...defaultSettings.fetch,
-      ...(incoming?.fetch ?? {}),
-      virtual: mergedFetchVirtual,
-    },
+    importing: defaultSettings.importing
+      ? {
+          ...defaultSettings.importing,
+          ...(incoming?.importing ?? {}),
+          sheets: mergedImportingSheets,
+        }
+      : incoming?.importing,
     assets: mergedAssets,
   }
 }
@@ -336,9 +332,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         await saveSettings(settingsData)
         setSettings(mergeSettingsWithDefaults(settingsData))
         showToast(t.settings.saveSuccess, "success")
+        return true
       } catch (error) {
         console.error("Error saving settings:", error)
         showToast(t.settings.saveError, "error")
+        return false
       }
     },
     [showToast, t],

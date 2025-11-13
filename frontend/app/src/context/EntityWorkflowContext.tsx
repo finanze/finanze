@@ -41,7 +41,7 @@ interface ResetStateOptions {
 
 export interface VirtualFetchResult {
   gotData: boolean
-  errors?: import("@/types").VirtualFetchError[]
+  errors?: import("@/types").ImportError[]
 }
 
 export interface FetchingEntityState {

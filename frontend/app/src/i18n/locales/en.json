@@ -6,7 +6,7 @@
     "fetching": "Fetching...",
     "saving": "Saving...",
     "refresh": "Refresh",
-    "export": "Export to Sheets",
+    "export": "Export",
     "success": "Success",
     "error": "Error",
     "unexpectedError": "Unexpected error occurred",
@@ -391,7 +391,7 @@
   "settings": {
     "title": "Settings",
     "general": "General",
-    "generalDescription": "Configure general application settings",
+    "generalDescription": "Configure general settings",
     "application": "Application",
     "applicationDescription": "Adjust preferences stored locally on this device",
     "applicationDisclaimerDescription": "These settings are saved only in this browser. If you are only using the desktop app, you don't need to worry.",
@@ -440,7 +440,7 @@
     "contributions": "Contributions",
     "transactions": "Transactions",
     "historic": "Historic Data",
-    "scrape": "Import & Fetch",
+    "scrape": "Import",
     "virtual": "Virtual data",
     "virtualDescription": "Configure settings for virtual data",
     "enabled": "Enabled",
@@ -463,11 +463,12 @@
     "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
     "filters": "Filters",
     "optional": "Optional",
+    "extraSettings": "Extra settings",
     "noItems": "No items configured",
     "noFilters": "No filters configured",
     "addFilter": "Add Filter",
     "field": "Field",
-    "valuesPlaceholder": "Values (comma separated for multiple)",
+    "valuesPlaceholder": "Values (comma separated)",
     "configuration": "Configuration",
     "requiredField": "This field is required",
     "saving": "Saving...",
@@ -575,7 +576,8 @@
     },
     "disableIntegration": "Disable integration",
     "integrationEnabledSuccess": "{integration} integration enabled successfully",
-    "integrationDisabledSuccess": "{integration} integration disabled successfully"
+    "integrationDisabledSuccess": "{integration} integration disabled successfully",
+    "integrationRequiredMessage": "Enable the Google Sheets integration in Integrations to configure these settings."
   },
   "dashboard": {
     "title": "Dashboard",
@@ -612,8 +614,8 @@
       "stocksEtfs": "Stocks/ETFs"
     },
     "entity": "Entity",
-    "noDataTitle": "No Financial Data Yet",
-    "noDataSubtitle": "Connect your financial entities in the integrations section to see your dashboard.",
+    "noDataTitle": "No financial data yet",
+    "noDataSubtitle": "Connect your financial entities in the integrations section to see your dashboard, you can also add and import your own data!",
     "connectEntitiesButton": "Connect Entities",
     "totalValue": "Total Value",
     "shareOfTotal": "Share of Total",
@@ -660,15 +662,33 @@
   },
   "export": {
     "moreOptionsNote": "Support for other export formats and destinations will be added in the future.",
-    "title": "Export",
+    "title": "Export & Import",
+    "intro": "Coordinate how data flows between Finanze and your spreadsheets.",
     "description": "Export your financial data to Google Sheets.",
+    "googleSheetsTitle": "Google Sheets",
+    "googleSheetsExportDialogTitle": "Google Sheets Export",
+    "googleSheetsImportDialogTitle": "Google Sheets Import",
     "spreadsheetId": "Spreadsheet ID",
-    "configuredSections": "Configured Sections",
+    "configuredSections": "Configured Data",
     "disabledMessage": "Google Sheets export is currently disabled. You can enable it in settings.",
     "sheetNotFound": "Sheet {sheetName} doesn't exist",
     "options": "Export options",
     "excludeManual": "Exclude manual data",
-    "excludeManualDescription": "Non include imported or manual inserted data"
+    "excludeManualDescription": "Non include imported or manual inserted data",
+    "noSectionsConfigured": "No sections configured",
+    "badges": {
+      "configured": "Configured",
+      "notConfigured": "Not configured"
+    },
+    "integrationRequiredMessage": "Connect Google Sheets to import or export entity positions across multiple sheets with fully customizable configurations.",
+    "importTitle": "Import user data",
+    "importDescription": "Import the latest manual data from your configured spreadsheet.",
+    "importDisabledDescription": "User data import is disabled. Enable it in settings to allow manual updates.",
+    "importButton": "Import",
+    "tabs": {
+      "export": "Export",
+      "import": "Import"
+    }
   },
   "transactions": {
     "title": "Transactions",

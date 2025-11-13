@@ -1,8 +1,5 @@
 import { useAppContext } from "@/context/AppContext"
-import {
-  useEntityWorkflow,
-  type VirtualFetchResult,
-} from "@/context/EntityWorkflowContext"
+import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm } from "@/components/AddWalletForm"
@@ -25,12 +22,9 @@ import {
 } from "@/components/ui/Popover"
 import {
   ExternalLink,
-  FileSpreadsheet,
   Landmark,
   Wallet,
-  User,
   Settings,
-  Download,
   Check,
   AlertCircle,
 } from "lucide-react"
@@ -39,15 +33,12 @@ import {
   EntitySetupLoginType,
   EntityStatus,
   EntityType,
-  VirtualFetchError,
   ExternalIntegrationType,
   ExternalIntegrationStatus,
   ExternalEntityConnectionResult,
   ExternalEntitySetupResponseCode,
   CryptoWalletConnectionResult,
 } from "@/types"
-import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
-import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
 import {
   createCryptoWallet,
   getExternalEntityCandidates,
@@ -55,7 +46,6 @@ import {
   completeExternalEntityConnection,
   getImageUrl,
   disconnectExternalEntity,
-  virtualFetch,
 } from "@/services/api"
 import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
 
@@ -65,7 +55,6 @@ export default function EntityIntegrationsPage() {
     isLoadingEntities,
     fetchEntities,
     showToast,
-    settings,
     externalIntegrations,
   } = useAppContext()
   const {
@@ -82,15 +71,9 @@ export default function EntityIntegrationsPage() {
 
   const { t } = useI18n()
   const navigate = useNavigate()
-  const [showVirtualConfirm, setShowVirtualConfirm] = useState(false)
-  const [isVirtualScraping, setIsVirtualScraping] = useState(false)
   const [showAddWallet, setShowAddWallet] = useState(false)
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
-  const [virtualErrors, setVirtualErrors] = useState<
-    VirtualFetchError[] | null
-  >(null)
-  const [showErrorDetails, setShowErrorDetails] = useState(false)
   // External entity linking state
   const [showAddExternalEntity, setShowAddExternalEntity] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
@@ -116,8 +99,6 @@ export default function EntityIntegrationsPage() {
   const [linkingExternalEntityId, setLinkingExternalEntityId] = useState<
     string | null
   >(null)
-
-  const virtualEnabled = settings?.fetch?.virtual?.enabled ?? false
 
   // Helper function to determine if a crypto wallet entity is connected
   const isCryptoWalletConnected = (entity: any) => {
@@ -179,9 +160,7 @@ export default function EntityIntegrationsPage() {
   const handleEntitySelect = (entity: any) => {
     selectEntity(entity)
 
-    if (entity.origin == EntityOrigin.MANUAL) {
-      setShowVirtualConfirm(true)
-    } else if (entity.type === EntityType.CRYPTO_WALLET) {
+    if (entity.type === EntityType.CRYPTO_WALLET) {
       // For crypto wallets, if connected go to features, if not connected show add wallet form
       if (isCryptoWalletConnected(entity)) {
         setView("features")
@@ -220,73 +199,6 @@ export default function EntityIntegrationsPage() {
     } else {
       setView("login")
     }
-  }
-
-  const runVirtualScrape = async (): Promise<VirtualFetchResult | null> => {
-    try {
-      const response = await virtualFetch()
-
-      if (response.code === "COMPLETED") {
-        let gotData = false
-        if (
-          (
-            response?.data?.positions ||
-            response?.data?.transactions?.account ||
-            response?.data?.transactions?.investment
-          )?.length
-        ) {
-          gotData = true
-          showToast(t.common.virtualScrapeSuccess, "success")
-        }
-
-        return { gotData: gotData, errors: response.errors }
-      } else {
-        let errorMessage = t.common.fetchError
-        if (response.code.toString() != "UNEXPECTED_ERROR") {
-          errorMessage =
-            t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchError
-        }
-        showToast(errorMessage, "error")
-        return null
-      }
-    } catch {
-      showToast(t.common.virtualScrapeError, "error")
-      return null
-    }
-  }
-
-  const handleVirtualConfirm = async () => {
-    let result
-    try {
-      setIsVirtualScraping(true)
-      result = await runVirtualScrape()
-    } catch (error) {
-      console.error("Error running virtual scrape:", error)
-    } finally {
-      setIsVirtualScraping(false)
-      setShowVirtualConfirm(false)
-    }
-
-    if (result) {
-      const { gotData, errors } = result
-      if (errors && errors.length > 0) {
-        setVirtualErrors(errors)
-        setShowErrorDetails(true)
-      }
-      if (gotData) {
-        await fetchEntities()
-      }
-    }
-  }
-
-  const handleVirtualCancel = () => {
-    setShowVirtualConfirm(false)
-  }
-
-  const handleCloseErrorDetails = () => {
-    setShowErrorDetails(false)
-    setVirtualErrors(null)
   }
 
   const handleManage = (entity: any) => {
@@ -362,10 +274,6 @@ export default function EntityIntegrationsPage() {
   const handleAddWalletFromManage = () => {
     setShowManageWallets(false)
     setShowAddWallet(true)
-  }
-
-  const handleConfigureVirtual = () => {
-    navigate("/settings?tab=scrape")
   }
 
   // External integrations helpers
@@ -604,7 +512,7 @@ export default function EntityIntegrationsPage() {
               animate="show"
               className="space-y-8"
             >
-              {(connectedEntities.length > 0 || virtualEnabled) && (
+              {connectedEntities.length > 0 && (
                 <motion.div variants={fadeListItem} className="space-y-6">
                   <h2 className="text-xl font-semibold">
                     {t.entities.connected}
@@ -673,45 +581,6 @@ export default function EntityIntegrationsPage() {
                             />
                           </motion.div>
                         ))}
-                      </motion.div>
-                    </div>
-                  )}
-
-                  {/* User Data Section */}
-                  {virtualEnabled && (
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                        <User className="h-5 w-5 mr-2" />
-                        {t.entities.manualDataEntry}
-                      </h3>
-                      <motion.div
-                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                        variants={fadeListContainer}
-                      >
-                        <motion.div variants={fadeListItem}>
-                          <Card className="transition-all hover:shadow-md border-l-4 border-l-green-500 flex flex-col h-full">
-                            <CardHeader className="pb-2">
-                              <CardTitle className="flex items-center justify-center">
-                                <FileSpreadsheet className="h-5 w-5 mr-2" />
-                                {t.entities.userEntered}
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent className="flex flex-col items-center justify-center text-center flex-1 space-y-4">
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                {t.entities.userEnteredDescription}
-                              </p>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-9 min-w-0 text-gray-900 hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                                onClick={() => setShowVirtualConfirm(true)}
-                              >
-                                <Download className="mr-2 h-4 w-4 flex-shrink-0" />
-                                {t.entities.importData}
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
                       </motion.div>
                     </div>
                   )}
@@ -894,43 +763,6 @@ export default function EntityIntegrationsPage() {
                           />
                         </motion.div>
                       ))}
-                    </motion.div>
-                  </div>
-                )}
-
-                {/* User Entered (Virtual) - Show in Available when disabled */}
-                {!virtualEnabled && (
-                  <div className="space-y-3">
-                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
-                      <User className="h-5 w-5 mr-2" />
-                      {t.entities.manualDataEntry}
-                    </h3>
-                    <motion.div
-                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-                      variants={fadeListContainer}
-                    >
-                      <motion.div variants={fadeListItem}>
-                        <Card className="transition-all hover:shadow-md border-l-4 border-l-gray-300 dark:border-l-gray-600 flex flex-col h-full">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center justify-center">
-                              <FileSpreadsheet className="h-5 w-5 mr-2" />
-                              {t.entities.userEntered}
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="flex flex-col items-center justify-center text-center flex-1">
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                              {t.entities.userEnteredAvailableDescription}
-                            </p>
-                            <Button
-                              variant="outline"
-                              className="w-full"
-                              onClick={handleConfigureVirtual}
-                            >
-                              {t.entities.configureInSettings}
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
                     </motion.div>
                   </div>
                 )}
@@ -1325,23 +1157,6 @@ export default function EntityIntegrationsPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <ConfirmationDialog
-        isOpen={showVirtualConfirm}
-        title={t.entities.confirmUserEntered}
-        message={t.entities.confirmUserEnteredDescription}
-        confirmText={t.common.confirm}
-        cancelText={t.common.cancel}
-        onConfirm={handleVirtualConfirm}
-        onCancel={handleVirtualCancel}
-        isLoading={isVirtualScraping}
-      />
-
-      <ErrorDetailsDialog
-        isOpen={showErrorDetails}
-        errors={virtualErrors || []}
-        onClose={handleCloseErrorDetails}
-      />
     </motion.div>
   )
 }

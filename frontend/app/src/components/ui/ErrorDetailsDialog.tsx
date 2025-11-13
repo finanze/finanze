@@ -7,11 +7,11 @@ import {
   CardFooter,
 } from "@/components/ui/Card"
 import { useI18n } from "@/i18n"
-import { VirtualFetchError, VirtualFetchErrorType } from "@/types"
+import { ImportError, ImportErrorType } from "@/types"
 
 interface ErrorDetailsDialogProps {
   isOpen: boolean
-  errors: VirtualFetchError[]
+  errors: ImportError[]
   onClose: () => void
 }
 
@@ -24,22 +24,22 @@ export function ErrorDetailsDialog({
 
   if (!isOpen) return null
 
-  const getErrorTypeDisplay = (type: VirtualFetchErrorType) => {
+  const getErrorTypeDisplay = (type: ImportErrorType) => {
     switch (type) {
-      case VirtualFetchErrorType.SHEET_NOT_FOUND:
+      case ImportErrorType.SHEET_NOT_FOUND:
         return t.importErrors.sheetNotFound
-      case VirtualFetchErrorType.MISSING_FIELD:
+      case ImportErrorType.MISSING_FIELD:
         return t.importErrors.missingField
-      case VirtualFetchErrorType.VALIDATION_ERROR:
+      case ImportErrorType.VALIDATION_ERROR:
         return t.importErrors.validationError
       default:
         return t.importErrors.unknownError
     }
   }
 
-  const renderErrorDetails = (error: VirtualFetchError) => {
+  const renderErrorDetails = (error: ImportError) => {
     switch (error.type) {
-      case VirtualFetchErrorType.SHEET_NOT_FOUND:
+      case ImportErrorType.SHEET_NOT_FOUND:
         return (
           <div className="text-sm text-gray-600 dark:text-gray-400">
             {t.importErrors.sheetNotFoundMessage.replace(
@@ -49,7 +49,7 @@ export function ErrorDetailsDialog({
           </div>
         )
 
-      case VirtualFetchErrorType.MISSING_FIELD:
+      case ImportErrorType.MISSING_FIELD:
         return (
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div>
@@ -74,7 +74,7 @@ export function ErrorDetailsDialog({
           </div>
         )
 
-      case VirtualFetchErrorType.VALIDATION_ERROR:
+      case ImportErrorType.VALIDATION_ERROR:
         return (
           <div className="text-sm text-gray-600 dark:text-gray-400">
             <div>

@@ -1048,8 +1048,13 @@ export default function TransactionsPage() {
             </div>
 
             {transactions.transactions.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400 px-6">
-                {t.transactions.noTransactionsFound}
+              <div className="flex flex-col items-center gap-4 py-12 px-6 text-center">
+                <div className="text-gray-400 dark:text-gray-600">
+                  <Search className="mx-auto h-12 w-12" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  {t.transactions.noTransactionsFound}
+                </h3>
               </div>
             ) : (
               <>
@@ -1289,9 +1294,14 @@ export default function TransactionsPage() {
 
           {/* Mobile No Results */}
           {transactions.transactions.length === 0 && (
-            <div className="md:hidden text-center py-8 text-gray-500 dark:text-gray-400">
-              {t.transactions.noTransactionsFound}
-            </div>
+            <Card className="flex flex-col items-center gap-4 p-10 text-center md:hidden">
+              <div className="text-gray-400 dark:text-gray-600">
+                <Search className="mx-auto h-12 w-12" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {t.transactions.noTransactionsFound}
+              </h3>
+            </Card>
           )}
 
           {/* Mobile Cards */}

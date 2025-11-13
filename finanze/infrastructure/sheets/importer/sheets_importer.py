@@ -38,8 +38,8 @@ from domain.global_position import (
 )
 from domain.settings import (
     BaseSheetConfig,
-    VirtualPositionSheetConfig,
-    VirtualTransactionSheetConfig,
+    ImportPositionSheetConfig,
+    ImportTransactionsSheetConfig,
 )
 from domain.transactions import (
     BaseTx,
@@ -50,11 +50,11 @@ from domain.transactions import (
     StockTx,
     Transactions,
 )
-from domain.virtual_fetch_result import (
-    VirtualFetchError,
-    VirtualFetchErrorType,
-    VirtualPositionResult,
-    VirtualTransactionResult,
+from domain.import_result import (
+    ImportError,
+    ImportErrorType,
+    PositionImportResult,
+    TransactionsImportResult,
 )
 from googleapiclient.errors import HttpError
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
@@ -123,9 +123,9 @@ class SheetsImporter(VirtualFetcher):
     async def global_positions(
         self,
         credentials: ExternalIntegrationPayload,
-        position_configs: list[VirtualPositionSheetConfig],
+        position_configs: list[ImportPositionSheetConfig],
         existing_entities: dict[str, Entity],
-    ) -> VirtualPositionResult:
+    ) -> PositionImportResult:
         all_errors = []
         global_positions_dicts = {}
         for config in position_configs:
@@ -209,7 +209,7 @@ class SheetsImporter(VirtualFetcher):
                 )
             )
 
-        return VirtualPositionResult(
+        return PositionImportResult(
             global_positions, set(created_entities.values()), all_errors
         )
 
@@ -218,8 +218,8 @@ class SheetsImporter(VirtualFetcher):
         cls,
         parent_cls,
         credentials: ExternalIntegrationPayload,
-        config: VirtualPositionSheetConfig,
-    ) -> tuple[dict[str, ProductPosition], list[VirtualFetchError]]:
+        config: ImportPositionSheetConfig,
+    ) -> tuple[dict[str, ProductPosition], list[ImportError]]:
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
@@ -271,9 +271,9 @@ class SheetsImporter(VirtualFetcher):
     async def transactions(
         self,
         credentials: ExternalIntegrationPayload,
-        txs_configs: list[VirtualTransactionSheetConfig],
+        txs_configs: list[ImportTransactionsSheetConfig],
         existing_entities: dict[str, Entity],
-    ) -> VirtualTransactionResult:
+    ) -> TransactionsImportResult:
         all_errors = []
         all_created_entities = {}
         transactions = Transactions(investment=[], account=[])
@@ -296,17 +296,17 @@ class SheetsImporter(VirtualFetcher):
             if current_transactions:
                 transactions += current_transactions
 
-        return VirtualTransactionResult(
+        return TransactionsImportResult(
             transactions, set(all_created_entities.values()), all_errors
         )
 
     def _load_txs(
         self,
         credentials: ExternalIntegrationPayload,
-        config: VirtualTransactionSheetConfig,
+        config: ImportTransactionsSheetConfig,
         existing_entities: dict[str, Entity],
         already_created_entities: dict[str, Entity],
-    ) -> tuple[list[BaseTx], dict[str, Entity], list[VirtualFetchError]]:
+    ) -> tuple[list[BaseTx], dict[str, Entity], list[ImportError]]:
         txs = []
         created_entities = {}
 
@@ -356,7 +356,7 @@ class SheetsImporter(VirtualFetcher):
 
     def _parse_sheet_table(
         self, credentials: ExternalIntegrationPayload, config: BaseSheetConfig, entry_fn
-    ) -> list[VirtualFetchError]:
+    ) -> list[ImportError]:
         sheet_range, sheet_id = config.range, config.spreadsheetId
         cells, errors = self._read_sheet_table(credentials, sheet_id, sheet_range)
         if not cells:
@@ -388,8 +388,8 @@ class SheetsImporter(VirtualFetcher):
                 entry_fn(row, entry_dict)
             except MissingFieldsError as e:
                 errors.append(
-                    VirtualFetchError(
-                        VirtualFetchErrorType.MISSING_FIELD,
+                    ImportError(
+                        ImportErrorType.MISSING_FIELD,
                         config.range,
                         e.missing_fields,
                         row,
@@ -399,8 +399,8 @@ class SheetsImporter(VirtualFetcher):
                 continue
             except ValidationError as e:
                 errors.append(
-                    VirtualFetchError(
-                        VirtualFetchErrorType.VALIDATION_ERROR,
+                    ImportError(
+                        ImportErrorType.VALIDATION_ERROR,
                         config.range,
                         [
                             {
@@ -416,8 +416,8 @@ class SheetsImporter(VirtualFetcher):
                 continue
             except InvalidFieldError as e:
                 errors.append(
-                    VirtualFetchError(
-                        VirtualFetchErrorType.VALIDATION_ERROR,
+                    ImportError(
+                        ImportErrorType.VALIDATION_ERROR,
                         config.range,
                         [
                             {
@@ -432,8 +432,8 @@ class SheetsImporter(VirtualFetcher):
                 continue
             except Exception as e:
                 errors.append(
-                    VirtualFetchError(
-                        VirtualFetchErrorType.UNEXPECTED_ERROR,
+                    ImportError(
+                        ImportErrorType.UNEXPECTED_ERROR,
                         config.range,
                         [str(e)],
                         row,
@@ -445,7 +445,7 @@ class SheetsImporter(VirtualFetcher):
 
     def _read_sheet_table(
         self, credentials: ExternalIntegrationPayload, sheet_id, cell_range
-    ) -> tuple[list[list], list[VirtualFetchError]]:
+    ) -> tuple[list[list], list[ImportError]]:
         sheets_service = self._sheets_service.service(credentials)
         errors = []
         try:
@@ -456,9 +456,7 @@ class SheetsImporter(VirtualFetcher):
             )
         except HttpError as e:
             if e.status_code == 400:
-                errors.append(
-                    VirtualFetchError(VirtualFetchErrorType.SHEET_NOT_FOUND, cell_range)
-                )
+                errors.append(ImportError(ImportErrorType.SHEET_NOT_FOUND, cell_range))
                 self._log.warning(f"Sheet {sheet_id} not found")
                 return [], errors
             else:

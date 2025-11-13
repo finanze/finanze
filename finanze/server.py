@@ -59,11 +59,11 @@ from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
-from application.use_cases.update_sheets import UpdateSheetsImpl
+from application.use_cases.export_sheets import ExportSheetsImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
-from application.use_cases.virtual_fetch import VirtualFetchImpl
+from application.use_cases.import_sheets import ImportSheetsImpl
 from domain.exception.exceptions import UserNotFound
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
@@ -333,7 +333,7 @@ class FinanzeServer:
             last_fetches_repository,
             transaction_handler,
         )
-        update_sheets = UpdateSheetsImpl(
+        export_sheets = ExportSheetsImpl(
             position_repository,
             auto_contrib_repository,
             transaction_repository,
@@ -344,7 +344,7 @@ class FinanzeServer:
             entity_repository,
             self.config_loader,
         )
-        virtual_fetch = VirtualFetchImpl(
+        import_sheets = ImportSheetsImpl(
             position_repository,
             transaction_repository,
             self.virtual_fetcher,
@@ -525,8 +525,8 @@ class FinanzeServer:
             fetch_financial_data,
             fetch_crypto_data,
             fetch_external_financial_data,
-            update_sheets,
-            virtual_fetch,
+            export_sheets,
+            import_sheets,
             add_entity_credentials,
             get_login_status,
             user_logout,

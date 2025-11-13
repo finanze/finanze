@@ -50,11 +50,11 @@ from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
 from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
-from domain.use_cases.update_sheets import UpdateSheets
+from domain.use_cases.export_sheets import ExportSheets
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
-from domain.use_cases.virtual_fetch import VirtualFetch
+from domain.use_cases.import_sheets import ImportSheets
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
@@ -88,7 +88,7 @@ from infrastructure.controller.routes.disconnect_external_integration import (
     disconnect_external_integration,
 )
 from infrastructure.controller.routes.exchange_rates import exchange_rates
-from infrastructure.controller.routes.export import export
+from infrastructure.controller.routes.export_sheets import export_sheets
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
 from infrastructure.controller.routes.fetch_external_financial_data import (
     fetch_external_financial_data,
@@ -128,7 +128,7 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
 from infrastructure.controller.routes.user_login import user_login
-from infrastructure.controller.routes.virtual_fetch import virtual_fetch
+from infrastructure.controller.routes.import_sheets import import_sheets
 
 
 def register_routes(
@@ -140,8 +140,8 @@ def register_routes(
     fetch_financial_data_uc: FetchFinancialData,
     fetch_crypto_data_uc: FetchCryptoData,
     fetch_external_financial_data_uc: FetchExternalFinancialData,
-    update_sheets_uc: UpdateSheets,
-    virtual_fetch_uc: VirtualFetch,
+    export_sheets_uc: ExportSheets,
+    import_sheets_uc: ImportSheets,
     add_entity_credentials_uc: AddEntityCredentials,
     get_login_status_uc: GetLoginStatus,
     user_logout_uc: UserLogout,
@@ -254,8 +254,8 @@ def register_routes(
         return await fetch_crypto_data(fetch_crypto_data_uc)
 
     @app.route("/api/v1/data/fetch/virtual", methods=["POST"])
-    async def virtual_fetch_route():
-        return await virtual_fetch(virtual_fetch_uc)
+    async def import_sheets_route():
+        return await import_sheets(import_sheets_uc)
 
     @app.route("/api/v1/data/fetch/external/<external_entity_id>", methods=["POST"])
     async def fetch_external_entity_route(external_entity_id: str):
@@ -264,8 +264,8 @@ def register_routes(
         )
 
     @app.route("/api/v1/export", methods=["POST"])
-    async def export_route():
-        return await export(update_sheets_uc)
+    async def export_sheets_route():
+        return await export_sheets(export_sheets_uc)
 
     @app.route("/api/v1/positions", methods=["GET"])
     def positions_route():

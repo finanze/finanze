@@ -34,7 +34,7 @@ from domain.global_position import (
     UpdatePositionRequest,
 )
 from domain.use_cases.update_position import UpdatePosition
-from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
+from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
 
 class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):

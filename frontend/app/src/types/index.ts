@@ -143,14 +143,15 @@ export interface FetchResponse {
   data?: any
 }
 
-export enum VirtualFetchErrorType {
+export enum ImportErrorType {
   SHEET_NOT_FOUND = "SHEET_NOT_FOUND",
   MISSING_FIELD = "MISSING_FIELD",
   VALIDATION_ERROR = "VALIDATION_ERROR",
+  UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
 }
 
-export interface VirtualFetchError {
-  type: VirtualFetchErrorType
+export interface ImportError {
+  type: ImportErrorType
   entry: string
   detail?:
     | {
@@ -161,10 +162,10 @@ export interface VirtualFetchError {
   row?: string[]
 }
 
-export interface VirtualFetchResponse {
-  code: VirtualFetchResultCode
+export interface ImportResult {
+  code: ImportResultCode
   data?: any
-  errors?: VirtualFetchError[]
+  errors?: ImportError[]
 }
 
 export interface EntitiesResponse {
@@ -221,11 +222,11 @@ export enum FetchResultCode {
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",
 }
 
-export enum VirtualFetchResultCode {
+export enum ImportResultCode {
   // Success
   COMPLETED = "COMPLETED",
 
-  // Virtual fetch not enabled
+  // Import not configured
   DISABLED = "DISABLED",
 }
 
@@ -234,29 +235,28 @@ export interface Settings {
     defaultCurrency: string
     defaultCommodityWeightUnit: string
   }
-  export: {
-    sheets: {
-      globals: {
-        spreadsheetId: string
-        datetimeFormat: string
-        dateFormat: string
+  export?: {
+    sheets?: {
+      globals?: {
+        spreadsheetId?: string
+        datetimeFormat?: string
+        dateFormat?: string
       }
-      position: any[]
-      contributions: any[]
-      transactions: any[]
-      historic: any[]
+      position?: any[]
+      contributions?: any[]
+      transactions?: any[]
+      historic?: any[]
     }
   }
-  fetch: {
-    virtual: {
-      enabled: boolean
-      globals: {
-        spreadsheetId: string
-        datetimeFormat: string
-        dateFormat: string
+  importing?: {
+    sheets?: {
+      globals?: {
+        spreadsheetId?: string
+        datetimeFormat?: string
+        dateFormat?: string
       }
-      investments: any[]
-      transactions: any[]
+      position?: any[]
+      transactions?: any[]
     }
   }
   assets: {

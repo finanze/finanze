@@ -3,12 +3,6 @@ version: 2
 general:
   defaultCurrency: EUR
 
-integrations:
-  sheets:
-    credentials:
-      client_id: "1254368-test.apps.googleusercontent.com"
-      client_secret: "random_secret_client_secret"
-
 export:
   sheets:
     globals:
@@ -65,10 +59,8 @@ export:
               - COLLECTED
               - MANAGING_COLLECTION
 
-fetch:
-  virtual:
-    enabled: true
-
+importing:
+  sheets:
     globals:
       spreadsheetId: defaultSheetId
       datetimeFormat: "%d/%m/%Y %H:%M:%S"

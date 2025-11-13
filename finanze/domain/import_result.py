@@ -7,15 +7,15 @@ from domain.transactions import Transactions
 from pydantic.dataclasses import dataclass
 
 
-class VirtualFetchResultCode(str, Enum):
+class ImportResultCode(str, Enum):
     # Success
     COMPLETED = "COMPLETED"
 
-    # Virtual fetch not enabled
+    # Import not configured
     DISABLED = "DISABLED"
 
 
-class VirtualFetchErrorType(str, Enum):
+class ImportErrorType(str, Enum):
     SHEET_NOT_FOUND = "SHEET_NOT_FOUND"
     MISSING_FIELD = "MISSING_FIELD"
     VALIDATION_ERROR = "VALIDATION_ERROR"
@@ -23,35 +23,35 @@ class VirtualFetchErrorType(str, Enum):
 
 
 @dataclass
-class VirtualFetchError:
-    type: VirtualFetchErrorType
+class ImportError:
+    type: ImportErrorType
     entry: str
     detail: Optional[list[Any]] = None
     row: Optional[list[str]] = None
 
 
 @dataclass
-class VirtuallyFetchedData:
+class ImportedData:
     positions: Optional[list[GlobalPosition]] = None
     transactions: Optional[Transactions] = None
 
 
 @dataclass
-class VirtualFetchResult:
-    code: VirtualFetchResultCode
-    data: Optional[VirtuallyFetchedData] = None
-    errors: Optional[list[VirtualFetchError]] = None
+class ImportResult:
+    code: ImportResultCode
+    data: Optional[ImportedData] = None
+    errors: Optional[list[ImportError]] = None
 
 
 @dataclass
-class VirtualTransactionResult:
+class TransactionsImportResult:
     transactions: Optional[Transactions]
     created_entities: set[Entity]
-    errors: list[VirtualFetchError]
+    errors: list[ImportError]
 
 
 @dataclass
-class VirtualPositionResult:
+class PositionImportResult:
     positions: list[GlobalPosition]
     created_entities: set[Entity]
-    errors: list[VirtualFetchError]
+    errors: list[ImportError]

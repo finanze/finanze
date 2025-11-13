@@ -12,7 +12,7 @@ import {
   CreateCryptoWalletRequest,
   UpdateCryptoWalletConnectionRequest,
   SaveCommodityRequest,
-  VirtualFetchResponse,
+  ImportResult,
   ExternalIntegrations,
   PeriodicFlow,
   PendingFlow,
@@ -177,7 +177,7 @@ export async function fetchCryptoEntity(
   return data
 }
 
-export async function virtualFetch(): Promise<VirtualFetchResponse> {
+export async function virtualFetch(): Promise<ImportResult> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/data/fetch/virtual`, {
     method: "POST",

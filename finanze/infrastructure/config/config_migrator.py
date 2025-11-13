@@ -38,12 +38,25 @@ def _migrate_v2_to_v3(data: dict) -> dict:
     return data
 
 
+def _migrate_v3_to_v4(data: dict) -> dict:
+    if "fetch" in data:
+        data["importing"] = data.pop("fetch")
+
+    import_config = data.get("importing")
+    if isinstance(import_config, dict) and "virtual" in import_config:
+        import_config["sheets"] = import_config.pop("virtual")
+
+    data["version"] = 4
+    return data
+
+
 class ConfigMigrator:
     def __init__(self):
         self._log = logging.getLogger(__name__)
         self.migrations = {
             1: _migrate_v1_to_v2,
             2: _migrate_v2_to_v3,
+            3: _migrate_v3_to_v4,
         }
 
     def migrate(self, data: dict) -> tuple[dict, bool]:

@@ -4,6 +4,8 @@ from typing import Optional
 from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
+CURRENT_VERSION = 4
+
 FilterValues = str | list[str]
 
 
@@ -29,62 +31,60 @@ class BaseSheetConfig:
 
 
 @dataclass
-class PositionSheetConfig(BaseSheetConfig):
+class ExportPositionSheetConfig(BaseSheetConfig):
     data: list[str] = field(default_factory=list)
 
 
 @dataclass
-class ContributionSheetConfig(BaseSheetConfig):
+class ExportContributionSheetConfig(BaseSheetConfig):
     data: list[str] = field(default_factory=list)
 
 
 @dataclass
-class TransactionSheetConfig(BaseSheetConfig):
+class ExportTransactionsSheetConfig(BaseSheetConfig):
     data: list[str] = field(default_factory=list)
     filters: list[FilterConfig] | None = None
 
 
 @dataclass
-class HistoricSheetConfig(BaseSheetConfig):
+class ExportHistoricSheetConfig(BaseSheetConfig):
     filters: list[FilterConfig] | None = None
 
 
 @dataclass
-class SheetsConfig:
-    enabled: bool
+class SheetsExportConfig:
     globals: GlobalsConfig | None = None
-    position: list[PositionSheetConfig] = field(default_factory=list)
-    contributions: list[ContributionSheetConfig] = field(default_factory=list)
-    transactions: list[TransactionSheetConfig] = field(default_factory=list)
-    historic: list[HistoricSheetConfig] = field(default_factory=list)
+    position: list[ExportPositionSheetConfig] = field(default_factory=list)
+    contributions: list[ExportContributionSheetConfig] = field(default_factory=list)
+    transactions: list[ExportTransactionsSheetConfig] = field(default_factory=list)
+    historic: list[ExportHistoricSheetConfig] = field(default_factory=list)
 
 
 @dataclass
 class ExportConfig:
-    sheets: Optional[SheetsConfig] = None
+    sheets: Optional[SheetsExportConfig] = None
 
 
 @dataclass
-class VirtualPositionSheetConfig(BaseSheetConfig):
+class ImportPositionSheetConfig(BaseSheetConfig):
     data: str = field(default_factory=str)
 
 
 @dataclass
-class VirtualTransactionSheetConfig(BaseSheetConfig):
+class ImportTransactionsSheetConfig(BaseSheetConfig):
     data: str = field(default_factory=str)
 
 
 @dataclass
-class VirtualFetchConfig:
-    enabled: bool = False
+class SheetsImportConfig:
     globals: GlobalsConfig | None = None
-    position: list[VirtualPositionSheetConfig] | None = None
-    transactions: list[VirtualTransactionSheetConfig] | None = None
+    position: list[ImportPositionSheetConfig] | None = None
+    transactions: list[ImportTransactionsSheetConfig] | None = None
 
 
 @dataclass
-class FetchConfig:
-    virtual: VirtualFetchConfig
+class ImportConfig:
+    sheets: Optional[SheetsImportConfig] = None
 
 
 @dataclass
@@ -106,17 +106,18 @@ class GeneralConfig:
 
 @dataclass
 class Settings:
+    version: int = CURRENT_VERSION
     general: GeneralConfig = field(default_factory=GeneralConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
-    fetch: FetchConfig = field(default_factory=FetchConfig)
+    importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
 
 
 ProductSheetConfig = (
-    PositionSheetConfig
-    | ContributionSheetConfig
-    | TransactionSheetConfig
-    | HistoricSheetConfig
-    | VirtualPositionSheetConfig
-    | VirtualTransactionSheetConfig
+    ExportPositionSheetConfig
+    | ExportContributionSheetConfig
+    | ExportTransactionsSheetConfig
+    | ExportHistoricSheetConfig
+    | ImportPositionSheetConfig
+    | ImportTransactionsSheetConfig
 )

@@ -10,22 +10,22 @@ from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
 from application.ports.virtual_fetch import VirtualFetcher
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from application.use_cases.update_sheets import apply_global_config
+from application.use_cases.export_sheets import apply_global_config
 from dateutil.tz import tzlocal
 from domain.entity import Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
 from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import DataSource
-from domain.use_cases.virtual_fetch import VirtualFetch
-from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
-from domain.virtual_fetch_result import (
-    VirtualFetchResult,
-    VirtualFetchResultCode,
-    VirtuallyFetchedData,
+from domain.import_result import (
+    ImportedData,
+    ImportResult,
+    ImportResultCode,
 )
+from domain.use_cases.import_sheets import ImportSheets
+from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
 
-class VirtualFetchImpl(VirtualFetch):
+class ImportSheetsImpl(ImportSheets):
     def __init__(
         self,
         position_port: PositionPort,
@@ -48,18 +48,20 @@ class VirtualFetchImpl(VirtualFetch):
 
         self._lock = Lock()
 
-    async def execute(self) -> VirtualFetchResult:
+    async def execute(self) -> ImportResult:
         config = self._config_port.load()
-        virtual_fetch_config = config.fetch.virtual
-
-        if not virtual_fetch_config.enabled:
-            return VirtualFetchResult(VirtualFetchResultCode.DISABLED)
+        virtual_fetch_config = config.importing.sheets
 
         sheets_credentials = self._external_integration_port.get_payload(
             ExternalIntegrationId.GOOGLE_SHEETS
         )
         if not sheets_credentials:
             raise ExternalIntegrationRequired([ExternalIntegrationId.GOOGLE_SHEETS])
+
+        if not virtual_fetch_config or (
+            not virtual_fetch_config.position and not virtual_fetch_config.transactions
+        ):
+            return ImportResult(ImportResultCode.DISABLED)
 
         if self._lock.locked():
             raise ExecutionConflict()
@@ -148,13 +150,13 @@ class VirtualFetchImpl(VirtualFetch):
                 self._virtual_import_registry.insert(virtual_import_entries)
 
                 errors = virtual_position_result.errors + virtual_txs_result.errors
-                data = VirtuallyFetchedData(
+                data = ImportedData(
                     positions=virtual_position_result.positions,
                     transactions=transactions,
                 )
 
-                return VirtualFetchResult(
-                    VirtualFetchResultCode.COMPLETED,
+                return ImportResult(
+                    ImportResultCode.COMPLETED,
                     data=data,
                     errors=errors,
                 )

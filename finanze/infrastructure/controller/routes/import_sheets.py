@@ -1,10 +1,10 @@
 from flask import jsonify
 
-from domain.use_cases.virtual_fetch import VirtualFetch
+from domain.use_cases.import_sheets import ImportSheets
 
 
-async def virtual_fetch(virtual_fetch_uc: VirtualFetch):
-    result = await virtual_fetch_uc.execute()
+async def import_sheets(import_sheets_uc: ImportSheets):
+    result = await import_sheets_uc.execute()
 
     response = {"code": result.code.name}
     if result.data:

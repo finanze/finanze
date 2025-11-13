@@ -1,14 +1,11 @@
 from domain.commodity import WeightUnit
 from domain.settings import (
+    CURRENT_VERSION,
     AssetConfig,
     CryptoAssetConfig,
-    FetchConfig,
     GeneralConfig,
     Settings,
-    VirtualFetchConfig,
 )
-
-CURRENT_VERSION = 3
 
 DEFAULT_STABLECOINS = [
     "USDT",
@@ -44,6 +41,5 @@ BASE_CONFIG = Settings(
     general=GeneralConfig(
         defaultCurrency="EUR", defaultCommodityWeightUnit=WeightUnit.GRAM.value
     ),
-    fetch=FetchConfig(virtual=VirtualFetchConfig()),
     assets=AssetConfig(crypto=CryptoAssetConfig(stablecoins=DEFAULT_STABLECOINS)),
 )

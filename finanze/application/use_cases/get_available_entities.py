@@ -18,7 +18,7 @@ from domain.entity import EntityOrigin, EntityType, Feature
 from domain.external_entity import EXTERNAL_ENTITY_FEATURES, ExternalEntityStatus
 from domain.native_entities import NATIVE_ENTITIES
 from domain.use_cases.get_available_entities import GetAvailableEntities
-from domain.virtual_fetch import VirtualDataImport
+from domain.virtual_data import VirtualDataImport
 
 
 def get_last_fetches_for_virtual(

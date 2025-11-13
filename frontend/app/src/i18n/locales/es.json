@@ -462,11 +462,12 @@
     "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
     "filters": "Filtros",
     "optional": "Opcional",
+    "extraSettings": "Opciones avanzadas",
     "noItems": "No hay elementos configurados",
     "noFilters": "No hay filtros configurados",
     "addFilter": "Añadir Filtro",
     "field": "Campo",
-    "valuesPlaceholder": "Valores (separados por coma para múltiples)",
+    "valuesPlaceholder": "Valores (separados por coma)",
     "configuration": "Configuración",
     "requiredField": "Este campo es obligatorio",
     "saving": "Guardando...",
@@ -573,7 +574,8 @@
     },
     "disableIntegration": "Desactivar integración",
     "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
-    "integrationDisabledSuccess": "Integración {integration} desactivada correctamente"
+    "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
+    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes."
   },
   "dashboard": {
     "title": "Panel Principal",
@@ -611,11 +613,11 @@
       "stocksEtfs": "Acciones / ETFs"
     },
     "noDataTitle": "Aún no tienes datos",
-    "noDataSubtitle": "Conecta tus entidades financieras en la sección de integraciones para ver tu panel.",
-    "noDataButton": "Actualizar Datos",
-    "connectEntitiesButton": "Conectar Entidades",
-    "totalValue": "Valor Total",
-    "shareOfTotal": "Cuota del Total",
+    "noDataSubtitle": "Conecta tus entidades financieras en la sección de integraciones para el resumen, también puedes añadir manualmente o importar tus datos!",
+    "noDataButton": "Actualizar datos",
+    "connectEntitiesButton": "Conectar entidades",
+    "totalValue": "Valor total",
+    "shareOfTotal": "Cuota del total",
     "ofPortfolioShareShort": "del total",
     "stake": "Peso",
     "stakeInFunds": "Peso en Fondos",
@@ -659,15 +661,33 @@
   },
   "export": {
     "moreOptionsNote": "En el futuro se añadirá compatibilidad con otros formatos y destinos de exportación.",
-    "title": "Exportar",
+    "title": "Exportar e Importar",
+    "intro": "Coordina cómo fluye la información entre Finanze y tus hojas.",
     "description": "Exporta tus datos financieros a Google Sheets.",
+    "googleSheetsTitle": "Google Sheets",
+    "googleSheetsExportDialogTitle": "Exportación a Google Sheets",
+    "googleSheetsImportDialogTitle": "Importación desde Google Sheets",
     "spreadsheetId": "ID de Hoja de Cálculo",
-    "configuredSections": "Secciones Configuradas",
+    "configuredSections": "Datos Configurados",
     "disabledMessage": "La exportación a Google Sheets está actualmente deshabilitada. Puedes habilitarla en la configuración.",
     "sheetNotFound": "La hoja {sheetName} no existe",
     "options": "Opciones de exportación",
     "excludeManual": "Excluir datos manuales",
-    "excludeManualDescription": "No incluir datos importados o introducidos manualmente"
+    "excludeManualDescription": "No incluir datos importados o introducidos manualmente",
+    "noSectionsConfigured": "Sin secciones configuradas",
+    "badges": {
+      "configured": "Configurado",
+      "notConfigured": "Sin configurar"
+    },
+    "integrationRequiredMessage": "Conecta Google Sheets para importar o exportar posiciones de tus entidades desde varias hojas con configuraciones totalmente personalizables.",
+    "importTitle": "Importar datos manuales",
+    "importDescription": "Importa los datos manuales más recientes desde tu hoja configurada.",
+    "importDisabledDescription": "La importación manual está deshabilitada. Actívala en la configuración para actualizar tus datos.",
+    "importButton": "Importar datos manuales",
+    "tabs": {
+      "export": "Exportar",
+      "import": "Importar"
+    }
   },
   "transactions": {
     "title": "Transacciones",

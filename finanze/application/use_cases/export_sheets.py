@@ -24,15 +24,15 @@ from domain.fetch_record import FetchRecord
 from domain.global_position import GlobalPosition, PositionQueryRequest, ProductType
 from domain.historic import Historic, HistoricQueryRequest
 from domain.settings import (
-    ContributionSheetConfig,
+    ExportContributionSheetConfig,
     GlobalsConfig,
-    HistoricSheetConfig,
-    PositionSheetConfig,
+    ExportHistoricSheetConfig,
+    ExportPositionSheetConfig,
     ProductSheetConfig,
-    TransactionSheetConfig,
+    ExportTransactionsSheetConfig,
 )
 from domain.transactions import Transactions
-from domain.use_cases.update_sheets import UpdateSheets
+from domain.use_cases.export_sheets import ExportSheets
 
 ADDITIONAL_DATA_FIELD = "additionalData"
 
@@ -56,7 +56,7 @@ def apply_global_config(config_globals: GlobalsConfig, entries: list[T]) -> list
     return updated_entries
 
 
-class UpdateSheetsImpl(UpdateSheets):
+class ExportSheetsImpl(ExportSheets):
     def __init__(
         self,
         position_port: PositionPort,
@@ -89,12 +89,16 @@ class UpdateSheetsImpl(UpdateSheets):
             ExternalIntegrationId.GOOGLE_SHEETS
         )
 
-        if (
-            not sheets_export_config
-            or not sheets_export_config.enabled
-            or not sheet_credentials
-        ):
+        if not sheets_export_config or not sheet_credentials:
             raise ExternalIntegrationRequired([ExternalIntegrationId.GOOGLE_SHEETS])
+
+        if not (
+            sheets_export_config.transactions
+            or sheets_export_config.position
+            or sheets_export_config.contributions
+            or sheets_export_config.historic
+        ):
+            return
 
         if self._lock.locked():
             raise ExecutionConflict()
@@ -164,7 +168,7 @@ class UpdateSheetsImpl(UpdateSheets):
     def update_position_sheets(
         self,
         global_position: dict[Entity, GlobalPosition],
-        configs: list[PositionSheetConfig],
+        configs: list[ExportPositionSheetConfig],
         last_update: dict[Entity, datetime],
         credentials: ExternalIntegrationPayload,
     ):
@@ -184,7 +188,7 @@ class UpdateSheetsImpl(UpdateSheets):
     def update_contributions(
         self,
         contributions: dict[Entity, AutoContributions],
-        configs: list[ContributionSheetConfig],
+        configs: list[ExportContributionSheetConfig],
         last_update: dict[Entity, datetime],
         credentials: ExternalIntegrationPayload,
     ):
@@ -199,7 +203,7 @@ class UpdateSheetsImpl(UpdateSheets):
     def update_transactions(
         self,
         transactions: Transactions,
-        configs: list[TransactionSheetConfig],
+        configs: list[ExportTransactionsSheetConfig],
         last_update: dict[Entity, datetime],
         credentials: ExternalIntegrationPayload,
     ):
@@ -214,7 +218,7 @@ class UpdateSheetsImpl(UpdateSheets):
     def update_historic(
         self,
         historic: Historic,
-        configs: list[HistoricSheetConfig],
+        configs: list[ExportHistoricSheetConfig],
         credentials: ExternalIntegrationPayload,
     ):
         for config in configs:
