@@ -4,13 +4,13 @@ from typing import Optional
 from domain.commodity import WeightUnit
 from pydantic.dataclasses import dataclass
 
-CURRENT_VERSION = 4
+CURRENT_VERSION = 5
 
 FilterValues = str | list[str]
 
 
 @dataclass
-class GlobalsConfig:
+class SheetsGlobalConfig:
     spreadsheetId: str
     datetimeFormat: str | None = None
     dateFormat: str | None = None
@@ -28,32 +28,45 @@ class BaseSheetConfig:
     spreadsheetId: str | None = None
     datetimeFormat: str | None = None
     dateFormat: str | None = None
+    lastUpdate: bool | None = None
 
 
 @dataclass
-class ExportPositionSheetConfig(BaseSheetConfig):
-    data: list[str] = field(default_factory=list)
+class TemplateConfig:
+    id: str
+    params: dict | None = None
 
 
 @dataclass
-class ExportContributionSheetConfig(BaseSheetConfig):
-    data: list[str] = field(default_factory=list)
-
-
-@dataclass
-class ExportTransactionsSheetConfig(BaseSheetConfig):
+class ExportSheetConfig(BaseSheetConfig):
     data: list[str] = field(default_factory=list)
     filters: list[FilterConfig] | None = None
+    template: TemplateConfig | None = None
 
 
 @dataclass
-class ExportHistoricSheetConfig(BaseSheetConfig):
-    filters: list[FilterConfig] | None = None
+class ExportPositionSheetConfig(ExportSheetConfig):
+    pass
+
+
+@dataclass
+class ExportContributionSheetConfig(ExportSheetConfig):
+    pass
+
+
+@dataclass
+class ExportTransactionsSheetConfig(ExportSheetConfig):
+    pass
+
+
+@dataclass
+class ExportHistoricSheetConfig(ExportSheetConfig):
+    pass
 
 
 @dataclass
 class SheetsExportConfig:
-    globals: GlobalsConfig | None = None
+    globals: SheetsGlobalConfig | None = None
     position: list[ExportPositionSheetConfig] = field(default_factory=list)
     contributions: list[ExportContributionSheetConfig] = field(default_factory=list)
     transactions: list[ExportTransactionsSheetConfig] = field(default_factory=list)
@@ -66,18 +79,24 @@ class ExportConfig:
 
 
 @dataclass
-class ImportPositionSheetConfig(BaseSheetConfig):
+class ImportSheetConfig(BaseSheetConfig):
+    template: TemplateConfig | None = None
     data: str = field(default_factory=str)
 
 
 @dataclass
-class ImportTransactionsSheetConfig(BaseSheetConfig):
-    data: str = field(default_factory=str)
+class ImportPositionSheetConfig(ImportSheetConfig):
+    pass
+
+
+@dataclass
+class ImportTransactionsSheetConfig(ImportSheetConfig):
+    pass
 
 
 @dataclass
 class SheetsImportConfig:
-    globals: GlobalsConfig | None = None
+    globals: SheetsGlobalConfig | None = None
     position: list[ImportPositionSheetConfig] | None = None
     transactions: list[ImportTransactionsSheetConfig] | None = None
 
@@ -111,13 +130,3 @@ class Settings:
     export: ExportConfig = field(default_factory=ExportConfig)
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)
-
-
-ProductSheetConfig = (
-    ExportPositionSheetConfig
-    | ExportContributionSheetConfig
-    | ExportTransactionsSheetConfig
-    | ExportHistoricSheetConfig
-    | ImportPositionSheetConfig
-    | ImportTransactionsSheetConfig
-)

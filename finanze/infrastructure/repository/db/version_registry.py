@@ -93,6 +93,7 @@ from infrastructure.repository.db.versions.v0.v07.v070_3_cajamar import V0703Caj
 from infrastructure.repository.db.versions.v0.v07.v070_4_ethplorer_integration import (
     V0704Ethplorer,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_5_templates import V0705Templates
 
 versions = [
     V0Genesis(),
@@ -134,4 +135,5 @@ versions = [
     V0702ExternalIntegrationsMigration(),
     V0703Cajamar(),
     V0704Ethplorer(),
+    V0705Templates(),
 ]

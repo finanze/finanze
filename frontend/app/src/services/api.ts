@@ -4,7 +4,6 @@ import {
   FetchRequest,
   FetchResponse,
   LoginResponse,
-  ExportRequest,
   AuthRequest,
   ChangePasswordRequest,
   LoginStatusResponse,
@@ -35,6 +34,11 @@ import {
   InstrumentOverview,
   InstrumentsResponse,
   CryptoWalletConnectionResult,
+  TemplateType,
+  Template,
+  TemplateCreatePayload,
+  TemplateUpdatePayload,
+  TemplateFeatureDefinition,
 } from "@/types"
 import {
   EntityContributions,
@@ -177,9 +181,9 @@ export async function fetchCryptoEntity(
   return data
 }
 
-export async function virtualFetch(): Promise<ImportResult> {
+export async function importFetch(): Promise<ImportResult> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/fetch/virtual`, {
+  const response = await fetch(`${baseUrl}/data/import/sheets`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -196,12 +200,79 @@ export async function virtualFetch(): Promise<ImportResult> {
   return data
 }
 
-export async function updateSheets(request: ExportRequest): Promise<void> {
+export async function updateSheets(): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/export`, {
+  const response = await fetch(`${baseUrl}/data/export/sheets`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+// Templates
+export async function getTemplates(type: TemplateType): Promise<Template[]> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams({ type })
+  const response = await fetch(`${baseUrl}/templates?${params.toString()}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getTemplateFields(): Promise<
+  Record<string, TemplateFeatureDefinition[]>
+> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates/fields`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function createTemplate(
+  payload: TemplateCreatePayload,
+): Promise<Template | null> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  if (response.status === 204) {
+    return null
+  }
+  return response.json()
+}
+
+export async function updateTemplate(
+  payload: TemplateUpdatePayload,
+): Promise<Template | null> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  if (response.status === 204) {
+    return null
+  }
+  return response.json()
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates/${id}`, {
+    method: "DELETE",
   })
   if (!response.ok) {
     await handleApiError(response)

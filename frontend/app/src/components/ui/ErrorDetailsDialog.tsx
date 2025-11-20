@@ -32,6 +32,8 @@ export function ErrorDetailsDialog({
         return t.importErrors.missingField
       case ImportErrorType.VALIDATION_ERROR:
         return t.importErrors.validationError
+      case ImportErrorType.UNEXPECTED_COLUMN:
+        return t.importErrors.unexpectedColumn
       default:
         return t.importErrors.unknownError
     }
@@ -67,8 +69,14 @@ export function ErrorDetailsDialog({
               </div>
             )}
             <ul className="list-disc list-inside ml-2 mt-1">
-              {(error.detail as string[])?.map((field, index) => (
-                <li key={index}>{field}</li>
+              {(error.detail as any[])?.map((field, index) => (
+                <li key={index}>
+                  {typeof field === "object" &&
+                  field !== null &&
+                  "field" in field
+                    ? field.field
+                    : String(field)}
+                </li>
               ))}
             </ul>
           </div>
@@ -101,6 +109,31 @@ export function ErrorDetailsDialog({
                   </li>
                 ),
               )}
+            </ul>
+          </div>
+        )
+
+      case ImportErrorType.UNEXPECTED_COLUMN:
+        return (
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            <div>
+              {t.importErrors.unexpectedColumnMessage?.replace(
+                "{entry}",
+                error.entry,
+              )}
+            </div>
+            {error.row && (
+              <div className="text-xs text-gray-500 dark:text-gray-500 mb-2">
+                {t.importErrors.validationErrorRow.replace(
+                  "{row}",
+                  error.row.join(", "),
+                )}
+              </div>
+            )}
+            <ul className="list-disc list-inside ml-2 mt-1">
+              {(error.detail as string[])?.map((column, index) => (
+                <li key={index}>{column}</li>
+              ))}
             </ul>
           </div>
         )
@@ -146,17 +179,32 @@ export function ErrorDetailsDialog({
           </div>
 
           <div className="space-y-4">
-            {errors.map((error, index) => (
-              <div
-                key={index}
-                className="border rounded-lg p-3 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700"
-              >
-                <div className="font-medium text-orange-800 dark:text-orange-200 mb-2">
-                  {getErrorTypeDisplay(error.type)}
+            {errors
+              .filter(error => error.type !== ImportErrorType.UNEXPECTED_COLUMN)
+              .map((error, index) => (
+                <div
+                  key={index}
+                  className="border rounded-lg p-3 bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700"
+                >
+                  <div className="font-medium text-orange-800 dark:text-orange-200 mb-2">
+                    {getErrorTypeDisplay(error.type)}
+                  </div>
+                  {renderErrorDetails(error)}
                 </div>
-                {renderErrorDetails(error)}
-              </div>
-            ))}
+              ))}
+            {errors
+              .filter(error => error.type === ImportErrorType.UNEXPECTED_COLUMN)
+              .map((error, index) => (
+                <div
+                  key={`info-${index}`}
+                  className="border rounded-lg p-3 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700"
+                >
+                  <div className="font-medium text-gray-800 dark:text-gray-200 mb-2">
+                    {getErrorTypeDisplay(error.type)}
+                  </div>
+                  {renderErrorDetails(error)}
+                </div>
+              ))}
           </div>
         </CardContent>
         <CardFooter className="flex-shrink-0 flex justify-end">

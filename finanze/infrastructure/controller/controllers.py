@@ -9,15 +9,18 @@ from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
 from domain.use_cases.connect_external_integration import ConnectExternalIntegration
 from domain.use_cases.create_real_estate import CreateRealEstate
+from domain.use_cases.create_template import CreateTemplate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.delete_external_entity import DeleteExternalEntity
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.delete_real_estate import DeleteRealEstate
+from domain.use_cases.delete_template import DeleteTemplate
 from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegration,
 )
+from domain.use_cases.export_sheets import ExportSheets
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
@@ -37,7 +40,10 @@ from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
+from domain.use_cases.get_template_fields import GetTemplateFields
+from domain.use_cases.get_templates import GetTemplates
 from domain.use_cases.get_transactions import GetTransactions
+from domain.use_cases.import_sheets import ImportSheets
 from domain.use_cases.list_real_estate import ListRealEstate
 from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.save_commodities import SaveCommodities
@@ -50,11 +56,10 @@ from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
 from domain.use_cases.update_position import UpdatePosition
 from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
-from domain.use_cases.export_sheets import ExportSheets
+from domain.use_cases.update_template import UpdateTemplate
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
-from domain.use_cases.import_sheets import ImportSheets
 from infrastructure.controller.config import FlaskApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
@@ -74,6 +79,7 @@ from infrastructure.controller.routes.connect_external_integration import (
 )
 from infrastructure.controller.routes.contributions import contributions
 from infrastructure.controller.routes.create_real_estate import create_real_estate
+from infrastructure.controller.routes.create_template import create_template
 from infrastructure.controller.routes.delete_crypto_wallet import delete_crypto_wallet
 from infrastructure.controller.routes.delete_external_entity import (
     delete_external_entity,
@@ -83,6 +89,7 @@ from infrastructure.controller.routes.delete_manual_transaction import (
 )
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
 from infrastructure.controller.routes.delete_real_estate import delete_real_estate
+from infrastructure.controller.routes.delete_template import delete_template
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
 from infrastructure.controller.routes.disconnect_external_integration import (
     disconnect_external_integration,
@@ -105,7 +112,12 @@ from infrastructure.controller.routes.get_external_integrations import (
 from infrastructure.controller.routes.get_pending_flows import get_pending_flows
 from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
 from infrastructure.controller.routes.get_settings import get_settings
+from infrastructure.controller.routes.get_template_fields_route import (
+    get_template_fields,
+)
+from infrastructure.controller.routes.get_templates import get_templates
 from infrastructure.controller.routes.historic import get_historic
+from infrastructure.controller.routes.import_sheets import import_sheets
 from infrastructure.controller.routes.instrument_details import instrument_details
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
@@ -126,9 +138,9 @@ from infrastructure.controller.routes.update_periodic_flow import update_periodi
 from infrastructure.controller.routes.update_position import update_position
 from infrastructure.controller.routes.update_real_estate import update_real_estate
 from infrastructure.controller.routes.update_settings import update_settings
+from infrastructure.controller.routes.update_template import update_template
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
 from infrastructure.controller.routes.user_login import user_login
-from infrastructure.controller.routes.import_sheets import import_sheets
 
 
 def register_routes(
@@ -184,6 +196,11 @@ def register_routes(
     get_instruments_uc: GetInstruments,
     get_instrument_info_uc: GetInstrumentInfo,
     update_tracked_quotes_uc: UpdateTrackedQuotes,
+    create_template_uc: CreateTemplate,
+    update_template_uc: UpdateTemplate,
+    delete_template_uc: DeleteTemplate,
+    get_templates_uc: GetTemplates,
+    get_template_fields_uc: GetTemplateFields,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     def user_login_route():
@@ -253,7 +270,7 @@ def register_routes(
     async def fetch_crypto_data_route():
         return await fetch_crypto_data(fetch_crypto_data_uc)
 
-    @app.route("/api/v1/data/fetch/virtual", methods=["POST"])
+    @app.route("/api/v1/data/import/sheets", methods=["POST"])
     async def import_sheets_route():
         return await import_sheets(import_sheets_uc)
 
@@ -263,7 +280,7 @@ def register_routes(
             fetch_external_financial_data_uc, external_entity_id
         )
 
-    @app.route("/api/v1/export", methods=["POST"])
+    @app.route("/api/v1/data/export/sheets", methods=["POST"])
     async def export_sheets_route():
         return await export_sheets(export_sheets_uc)
 
@@ -398,3 +415,23 @@ def register_routes(
     @app.route("/api/v1/data/manual/positions/update-quotes", methods=["POST"])
     async def update_tracked_quotes_route():
         return await update_tracked_quotes(update_tracked_quotes_uc)
+
+    @app.route("/api/v1/templates", methods=["GET"])
+    def get_templates_route():
+        return get_templates(get_templates_uc)
+
+    @app.route("/api/v1/templates", methods=["POST"])
+    def create_template_route():
+        return create_template(create_template_uc)
+
+    @app.route("/api/v1/templates", methods=["PUT"])
+    def update_template_route():
+        return update_template(update_template_uc)
+
+    @app.route("/api/v1/templates/<template_id>", methods=["DELETE"])
+    def delete_template_route(template_id: str):
+        return delete_template(delete_template_uc, template_id)
+
+    @app.route("/api/v1/templates/fields", methods=["GET"])
+    def get_template_fields_route():
+        return get_template_fields(get_template_fields_uc)

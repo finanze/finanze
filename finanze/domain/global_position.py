@@ -10,7 +10,9 @@ from domain.commodity import CommodityRegister
 from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.exception.exceptions import MissingFieldsError
 from domain.fetch_record import DataSource
+from domain.profitability import annualized_profitability
 from pydantic.dataclasses import dataclass
 
 
@@ -69,7 +71,7 @@ class Card(BaseData):
     currency: str
     type: CardType
     used: Dezimal
-    active: bool
+    active: bool = True
     limit: Optional[Dezimal] = None
     name: Optional[str] = None
     ending: Optional[str | int] = None
@@ -137,17 +139,29 @@ class StockDetail(BaseData):
     name: str
     ticker: str
     isin: str
-    market: str
     shares: Dezimal
-    initial_investment: Dezimal
-    average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
     type: EquityType
+    initial_investment: Optional[Dezimal] = None
+    average_buy_price: Optional[Dezimal] = None
+    market: str = ""
     subtype: Optional[str] = None
     info_sheet_url: Optional[str] = None
     manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        ii = self.initial_investment
+        abp = self.average_buy_price
+        shares = self.shares
+
+        if ii is None and abp is not None and shares and shares != 0:
+            self.initial_investment = abp * shares
+        elif abp is None and ii is not None and shares and shares != 0:
+            self.average_buy_price = ii / shares
+        elif ii is None and abp is None:
+            raise MissingFieldsError(["initial_investment", "average_buy_price"])
 
 
 @dataclass
@@ -169,16 +183,28 @@ class FundDetail(BaseData):
     isin: str
     market: Optional[str]
     shares: Dezimal
-    initial_investment: Dezimal
-    average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
     type: FundType
+    initial_investment: Optional[Dezimal] = None
+    average_buy_price: Optional[Dezimal] = None
     asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
     info_sheet_url: Optional[str] = None
     manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        ii = self.initial_investment
+        abp = self.average_buy_price
+        shares = self.shares
+
+        if ii is None and abp is not None and shares and shares != 0:
+            self.initial_investment = abp * shares
+        elif abp is None and ii is not None and shares and shares != 0:
+            self.average_buy_price = ii / shares
+        elif ii is None and abp is None:
+            raise MissingFieldsError(["initial_investment", "average_buy_price"])
 
 
 @dataclass
@@ -188,13 +214,23 @@ class FactoringDetail(BaseData):
     amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    profitability: Dezimal
-    gross_interest_rate: Dezimal
     last_invest_date: datetime
     maturity: date
     type: str
     state: str
+    profitability: Optional[Dezimal] = None
+    gross_interest_rate: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        if self.gross_interest_rate is None:
+            self.gross_interest_rate = self.interest_rate
+        if self.profitability is None:
+            self.profitability = annualized_profitability(
+                interest_rate=self.interest_rate,
+                start_dt=self.last_invest_date,
+                maturity=self.maturity,
+            )
 
 
 @dataclass
@@ -205,14 +241,23 @@ class RealEstateCFDetail(BaseData):
     pending_amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    profitability: Dezimal
     last_invest_date: datetime
     maturity: date
     type: str
-    business_type: str
     state: str
+    business_type: str = ""
+    profitability: Optional[Dezimal] = None
     extended_maturity: Optional[date] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        if self.profitability is None:
+            self.profitability = annualized_profitability(
+                interest_rate=self.interest_rate,
+                start_dt=self.last_invest_date,
+                maturity=self.maturity,
+                extended_maturity=self.extended_maturity,
+            )
 
 
 @dataclass
@@ -221,11 +266,20 @@ class Deposit(BaseData):
     name: str
     amount: Dezimal
     currency: str
-    expected_interests: Dezimal
     interest_rate: Dezimal
     creation: datetime
     maturity: date
+    expected_interests: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        if self.expected_interests is None and self.amount is not None:
+            prof = annualized_profitability(
+                interest_rate=self.interest_rate,
+                start_dt=self.creation,
+                maturity=self.maturity,
+            )
+            self.expected_interests = round(self.amount * prof, 2)
 
 
 class CryptoCurrencyType(str, Enum):
@@ -247,6 +301,8 @@ class CryptoCurrencyPosition(BaseData):
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
     investment_currency: Optional[str] = None
+    wallet_address: Optional[str] = None
+    wallet_name: Optional[str] = None
 
 
 @dataclass

@@ -16,15 +16,18 @@ from application.use_cases.connect_external_integration import (
     ConnectExternalIntegrationImpl,
 )
 from application.use_cases.create_real_estate import CreateRealEstateImpl
+from application.use_cases.create_template import CreateTemplateImpl
 from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnectionImpl
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
+from application.use_cases.delete_template import DeleteTemplateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegrationImpl,
 )
+from application.use_cases.export_sheets import ExportSheetsImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_external_financial_data import (
     FetchExternalFinancialDataImpl,
@@ -46,7 +49,10 @@ from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
+from application.use_cases.get_template_fields import GetTemplateFieldsImpl
+from application.use_cases.get_templates import GetTemplatesImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
+from application.use_cases.import_sheets import ImportSheetsImpl
 from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
@@ -59,11 +65,10 @@ from application.use_cases.update_periodic_flow import UpdatePeriodicFlowImpl
 from application.use_cases.update_position import UpdatePositionImpl
 from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
-from application.use_cases.export_sheets import ExportSheetsImpl
+from application.use_cases.update_template import UpdateTemplateImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
-from application.use_cases.import_sheets import ImportSheetsImpl
 from domain.exception.exceptions import UserNotFound
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
@@ -115,6 +120,7 @@ from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
+from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
@@ -160,12 +166,13 @@ from infrastructure.repository.real_estate.real_estate_repository import (
     RealEstateRepository,
 )
 from infrastructure.repository.sessions.sessions_repository import SessionsRepository
+from infrastructure.repository.templates.template_repository import TemplateRepository
 from infrastructure.repository.virtual.virtual_import_repository import (
     VirtualImportRepository,
 )
-from infrastructure.sheets.exporter.sheets_exporter import SheetsExporter
-from infrastructure.sheets.importer.sheets_importer import SheetsImporter
+from infrastructure.sheets.sheets_adapter import SheetsAdapter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
+from infrastructure.templating.templated_data_parser import TemplateDataParser
 from infrastructure.user_files.user_data_manager import UserDataManager
 from waitress import serve
 
@@ -226,8 +233,10 @@ class FinanzeServer:
             ExternalIntegrationId.ETHPLORER: self.ethplorer_client,
         }
 
-        self.virtual_fetcher = SheetsImporter(self.sheets_initiator)
-        self.exporter = SheetsExporter(self.sheets_initiator)
+        self.sheets_adapter = SheetsAdapter(self.sheets_initiator)
+
+        template_processor = TemplatedDataGenerator()
+        template_parser = TemplateDataParser()
 
         position_repository = PositionRepository(client=self.db_client)
         manual_position_data_repository = ManualPositionDataSQLRepository(
@@ -251,6 +260,7 @@ class FinanzeServer:
         pending_flow_repository = PendingFlowRepository(client=self.db_client)
         real_estate_repository = RealEstateRepository(client=self.db_client)
         external_entity_repository = ExternalEntityRepository(client=self.db_client)
+        template_repository = TemplateRepository(client=self.db_client)
 
         file_storage_repository = LocalFileStorage(
             upload_dir=static_upload_dir, static_url_prefix="/static"
@@ -338,20 +348,24 @@ class FinanzeServer:
             auto_contrib_repository,
             transaction_repository,
             historic_repository,
-            self.exporter,
+            self.sheets_adapter,
             last_fetches_repository,
             external_integration_repository,
             entity_repository,
+            template_repository,
+            template_processor,
             self.config_loader,
         )
         import_sheets = ImportSheetsImpl(
             position_repository,
             transaction_repository,
-            self.virtual_fetcher,
+            self.sheets_adapter,
             entity_repository,
             external_integration_repository,
             self.config_loader,
             virtual_import_repository,
+            template_repository,
+            template_parser,
             transaction_handler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
@@ -508,6 +522,11 @@ class FinanzeServer:
             instrument_info_provider=instrument_provider,
             exchange_rate_provider=exchange_rate_client,
         )
+        create_template = CreateTemplateImpl(template_repository)
+        update_template = UpdateTemplateImpl(template_repository)
+        delete_template = DeleteTemplateImpl(template_repository)
+        get_templates = GetTemplatesImpl(template_repository)
+        get_template_fields = GetTemplateFieldsImpl()
 
         self._log.info("Initial component setup completed.")
 
@@ -569,6 +588,11 @@ class FinanzeServer:
             get_instruments,
             get_instrument_info,
             update_tracked_quotes,
+            create_template,
+            update_template,
+            delete_template,
+            get_templates,
+            get_template_fields,
         )
 
         self._log.info("Warming up exchange rates...")

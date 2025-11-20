@@ -4379,7 +4379,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
       if (!form.type.trim()) errors.type = requiredField(t)
-      if (!form.business_type.trim()) errors.business_type = requiredField(t)
+      // business_type is now optional
       if (!form.state.trim()) errors.state = requiredField(t)
       const amount = parseNumberInput(form.amount)
       if (amount === null || amount < 0) errors.amount = numberFieldError(t)

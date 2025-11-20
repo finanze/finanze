@@ -84,22 +84,8 @@ export const processDataFields = (settingsObj: any) => {
     Object.entries(processed.importing.sheets).forEach(([section, items]) => {
       if (section !== "globals" && Array.isArray(items)) {
         ;(items as any[]).forEach(item => {
-          if (
-            section !== "position" &&
-            item.data &&
-            typeof item.data === "string"
-          ) {
-            if (item.data.includes(",")) {
-              item.data = item.data
-                .split(",")
-                .map((v: string) => v.trim())
-                .filter((v: string) => v !== "")
-            } else if (item.data.trim() !== "") {
-              item.data = [item.data.trim()]
-            } else {
-              item.data = []
-            }
-          }
+          // For import, keep data as a single string value (don't convert to array)
+          // The data field should remain as-is (string or null)
 
           if (item.filters && Array.isArray(item.filters)) {
             item.filters.forEach((filter: any) => {

@@ -39,7 +39,7 @@ interface ResetStateOptions {
   preserveSelectedFeatures?: boolean
 }
 
-export interface VirtualFetchResult {
+export interface ImportFetchResult {
   gotData: boolean
   errors?: import("@/types").ImportError[]
 }

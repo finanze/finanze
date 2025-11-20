@@ -124,7 +124,16 @@ class TradeRepublicClient:
 
         elif not code or not process_id:
             if not login_options.avoid_new_login:
-                countdown = self._initiate_weblogin()
+                try:
+                    countdown = self._initiate_weblogin()
+                except ValueError as e:
+                    if str(e) == "NUMBER_INVALID":
+                        return EntityLoginResult(
+                            LoginResultCode.INVALID_CREDENTIALS,
+                            message="Invalid phone number, maybe missing international prefix",
+                        )
+                    raise
+
                 process_id = self._tr_api._process_id
                 return EntityLoginResult(
                     LoginResultCode.CODE_REQUESTED,
@@ -152,6 +161,8 @@ class TradeRepublicClient:
         try:
             if j.get("errorCode") == "TOO_MANY_REQUESTS":
                 return int(j.get("meta", {}).get("nextAttemptInSeconds", 30))
+            elif j.get("errorCode"):
+                raise ValueError(j.get("errorMessage"))
 
             self._tr_api._process_id = j["processId"]
 

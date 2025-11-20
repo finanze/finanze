@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from domain.dezimal import Dezimal
+from domain.entity import Entity
 from domain.fetch_record import DataSource
 from pydantic.dataclasses import dataclass
 
@@ -49,6 +50,7 @@ class PeriodicContribution:
     source: DataSource
     next_date: Optional[date] = None
     target_subtype: Optional[ContributionTargetSubtype] = None
+    entity: Optional[Entity] = None
 
 
 @dataclass

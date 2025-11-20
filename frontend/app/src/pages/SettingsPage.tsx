@@ -758,7 +758,7 @@ export default function SettingsPage() {
     )
 
     if (virtualSectionsConfigured && !virtualConfig?.globals?.spreadsheetId) {
-      errors.virtualGlobals = [t.settings.errors.virtualSpreadsheetIdRequired]
+      errors.virtualGlobals = [t.settings.errors.importSpreadsheetIdRequired]
     }
 
     Object.entries(virtualConfig).forEach(([section, items]) => {

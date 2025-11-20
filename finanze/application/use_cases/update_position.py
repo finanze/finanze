@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any, Optional, Set
 from uuid import uuid4
 
@@ -10,7 +10,6 @@ from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from dateutil.tz import tzlocal
-from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.exception.exceptions import (
     EntityNameAlreadyExists,
@@ -22,14 +21,11 @@ from domain.exception.exceptions import (
 from domain.fetch_record import DataSource
 from domain.global_position import (
     AccountType,
-    Deposits,
-    FactoringInvestments,
     FundInvestments,
     GlobalPosition,
     ManualPositionData,
     PositionQueryRequest,
     ProductType,
-    RealEstateCFInvestments,
     StockInvestments,
     UpdatePositionRequest,
 )
@@ -338,79 +334,22 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 if portfolio and getattr(portfolio, "id", None) is None:
                     portfolio.id = uuid4()
 
-    @staticmethod
-    def _normalize_rate(rate: Dezimal | None) -> Dezimal | None:
-        if rate is None:
-            return None
-        return rate if rate <= Dezimal(1) else round(rate / Dezimal(100), 10)
-
-    @staticmethod
-    def _annualized_profitability(
-        interest_rate: Dezimal | None, start_dt: datetime | None, end_date: date | None
-    ) -> Dezimal:
-        if not (interest_rate is not None and start_dt and end_date):
-            return Dezimal(0)
-        days = (end_date - start_dt.date()).days
-        if days <= 0:
-            return Dezimal(0)
-        profit = interest_rate * Dezimal(days) / Dezimal(365)
-        return Dezimal(round(profit, 4))
-
-    def _compute_derived_financials(self, position: GlobalPosition):
-        recf_container = position.products.get(ProductType.REAL_ESTATE_CF)
-        if isinstance(recf_container, RealEstateCFInvestments):
-            for d in recf_container.entries:
-                d.interest_rate = self._normalize_rate(d.interest_rate)
-                end_date = d.extended_maturity or d.maturity
-                d.profitability = self._annualized_profitability(
-                    d.interest_rate, d.last_invest_date, end_date
-                )
-        factoring_container = position.products.get(ProductType.FACTORING)
-        if isinstance(factoring_container, FactoringInvestments):
-            for d in factoring_container.entries:
-                d.interest_rate = self._normalize_rate(d.interest_rate)
-                d.profitability = self._annualized_profitability(
-                    d.interest_rate, d.last_invest_date, d.maturity
-                )
-        deposits_container = position.products.get(ProductType.DEPOSIT)
-        if isinstance(deposits_container, Deposits):
-            for d in deposits_container.entries:
-                d.interest_rate = self._normalize_rate(d.interest_rate)
-                prof = self._annualized_profitability(
-                    d.interest_rate, d.creation, d.maturity
-                )
-                if d.amount is not None:
-                    d.expected_interests = Dezimal(str(round(d.amount * prof, 2)))
-
     def _adjust_investment_costs(self, position: GlobalPosition):
         funds_container = position.products.get(ProductType.FUND)
         if isinstance(funds_container, FundInvestments):
             for d in funds_container.entries:
-                shares = d.shares
-                ii = d.initial_investment
-                abp = d.average_buy_price
-                if (ii is None or ii == 0) and (abp is None or abp == 0):
-                    raise MissingFieldsError(
-                        ["initial_investment", "average_buy_price"]
-                    )
-                if ii and ii != 0 and abp and abp != 0 and shares and shares != 0:
-                    d.average_buy_price = ii / shares
-                if (d.market_value is None or d.market_value == 0) and ii and ii != 0:
-                    d.market_value = ii
+                if (
+                    d.market_value is None or d.market_value == 0
+                ) and d.initial_investment is not None:
+                    d.market_value = d.initial_investment
+
         stocks_container = position.products.get(ProductType.STOCK_ETF)
         if isinstance(stocks_container, StockInvestments):
             for d in stocks_container.entries:
-                shares = d.shares
-                ii = d.initial_investment
-                abp = d.average_buy_price
-                if (ii is None or ii == 0) and (abp is None or abp == 0):
-                    raise MissingFieldsError(
-                        ["initial_investment", "average_buy_price"]
-                    )
-                if ii and ii != 0 and abp and abp != 0 and shares and shares != 0:
-                    d.average_buy_price = ii / shares
-                if (d.market_value is None or d.market_value == 0) and ii and ii != 0:
-                    d.market_value = ii
+                if (
+                    d.market_value is None or d.market_value == 0
+                ) and d.initial_investment is not None:
+                    d.market_value = d.initial_investment
 
     @staticmethod
     def _ensure_unique(container) -> None:
@@ -569,7 +508,6 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._prepare_relationship_mappings(entity, base_position, request)
         self._assign_nested_component_ids(request)
         self._adjust_investment_costs(base_position)
-        self._compute_derived_financials(base_position)
         self._ensure_all_unique(base_position)
         self._regenerate_snapshot_ids(base_position)
         manual_data_entries = self._create_manual_position_data_entries(

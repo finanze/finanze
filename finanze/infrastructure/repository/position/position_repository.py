@@ -1032,6 +1032,8 @@ class PositionSQLRepository(PositionPort):
                     currency=row["currency"],
                     contract_address=row["contract_address"],
                     crypto_asset=crypto_asset,
+                    wallet_address=row["address"],
+                    wallet_name=row["wallet_name"],
                 )
                 wallets[wallet_id].assets.append(crypto_pos)
 

@@ -1,6 +1,6 @@
 import abc
 
-from domain.import_result import ImportResult
+from domain.importing import ImportResult
 
 
 class ImportSheets(metaclass=abc.ABCMeta):

@@ -365,6 +365,7 @@ export interface OngoingProject {
   roi: number
   maturity: string
   entity: string
+  extendedMaturity?: string | null
 }
 
 export interface StockFundPosition {
@@ -1658,6 +1659,7 @@ export const getOngoingProjects = (
             roi: deposit.interest_rate * 100,
             maturity: deposit.maturity,
             entity: entityPosition.entity?.name || "Unknown",
+            extendedMaturity: deposit.extended_maturity ?? null,
           })
         }
       })
@@ -1686,6 +1688,7 @@ export const getOngoingProjects = (
             roi: project.interest_rate * 100,
             maturity: project.maturity,
             entity: entityPosition.entity?.name || "Unknown",
+            extendedMaturity: project.extended_maturity ?? null,
           })
         }
       })
@@ -1713,6 +1716,7 @@ export const getOngoingProjects = (
             roi: factoring.interest_rate * 100,
             maturity: factoring.maturity,
             entity: entityPosition.entity?.name || "Unknown",
+            extendedMaturity: factoring.extended_maturity ?? null,
           })
         }
       })
@@ -2428,25 +2432,57 @@ export const getRecentTransactions = (
   return sortedGroupedTxs
 }
 
-export const getDaysStatus = (dateString: string, t: any) => {
+export const getDaysStatus = (
+  dateString: string,
+  t: any,
+  extendedMaturity?: string | null,
+) => {
   const today = new Date()
-  const maturityDate = new Date(dateString)
-  const diffTime = maturityDate.getTime() - today.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  today.setHours(0, 0, 0, 0)
 
-  if (diffDays >= 0) {
+  const parseDate = (value?: string | null) => {
+    if (!value) return null
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return null
+    date.setHours(0, 0, 0, 0)
+    return date
+  }
+
+  const baseDate = parseDate(dateString)
+  if (!baseDate) {
     return {
-      days: diffDays,
+      days: 0,
       isDelayed: false,
-      statusText: `${diffDays}${t.dashboard.daysLeft}`,
+      statusText: `0${t.dashboard.daysLeft}`,
+      usedExtendedMaturity: false,
     }
-  } else {
-    const absDiffDays = Math.abs(diffDays)
-    return {
-      days: absDiffDays,
-      isDelayed: true,
-      statusText: `${absDiffDays}${t.dashboard.daysDelay}`,
+  }
+
+  const msPerDay = 1000 * 60 * 60 * 24
+  const diffFromToday = (target: Date) =>
+    Math.ceil((target.getTime() - today.getTime()) / msPerDay)
+
+  let diffDays = diffFromToday(baseDate)
+  let usedExtended = false
+
+  if (diffDays <= 0 && extendedMaturity) {
+    const extendedDate = parseDate(extendedMaturity)
+    if (extendedDate) {
+      diffDays = diffFromToday(extendedDate)
+      usedExtended = true
     }
+  }
+
+  const isDelayed = diffDays < 0
+  const absDiffDays = Math.abs(diffDays)
+
+  return {
+    days: absDiffDays,
+    isDelayed,
+    statusText: `${absDiffDays}${
+      isDelayed ? t.dashboard.daysDelay : t.dashboard.daysLeft
+    }`,
+    usedExtendedMaturity: usedExtended,
   }
 }
 

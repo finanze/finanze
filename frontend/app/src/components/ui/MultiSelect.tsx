@@ -2,10 +2,12 @@ import { useState, useRef, useEffect } from "react"
 import { Check, ChevronDown, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/i18n"
+import type { LucideIcon } from "lucide-react"
 
 export interface MultiSelectOption {
   value: string
   label: string
+  icon?: LucideIcon
 }
 
 interface MultiSelectProps {
@@ -161,22 +163,29 @@ export function MultiSelect({
                 {t.common.noOptionsFound}
               </div>
             ) : (
-              filteredOptions.map(option => (
-                <div
-                  key={option.value}
-                  className={cn(
-                    "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
-                    value.includes(option.value) &&
-                      "bg-accent text-accent-foreground",
-                  )}
-                  onClick={() => toggleOption(option.value)}
-                >
-                  <span>{option.label}</span>
-                  {value.includes(option.value) && (
-                    <Check className="h-4 w-4" />
-                  )}
-                </div>
-              ))
+              filteredOptions.map(option => {
+                const OptionIcon = option.icon
+                return (
+                  <div
+                    key={option.value}
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2 text-sm cursor-pointer hover:bg-accent hover:text-accent-foreground",
+                      value.includes(option.value) &&
+                        "bg-accent text-accent-foreground",
+                      option.icon && "italic",
+                    )}
+                    onClick={() => toggleOption(option.value)}
+                  >
+                    <span className="flex items-center gap-2">
+                      {OptionIcon && <OptionIcon className="h-4 w-4" />}
+                      {option.label}
+                    </span>
+                    {value.includes(option.value) && (
+                      <Check className="h-4 w-4" />
+                    )}
+                  </div>
+                )
+              })
             )}
           </div>
         </div>

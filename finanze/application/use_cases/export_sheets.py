@@ -1,7 +1,7 @@
 from asyncio import Lock
-from dataclasses import asdict
 from datetime import datetime
-from typing import TypeVar
+from typing import Optional
+from uuid import UUID
 
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
@@ -10,50 +10,77 @@ from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
-from application.ports.sheets_export_port import SheetsUpdatePort
+from application.ports.sheets_port import SheetsPort
+from application.ports.template_port import TemplatePort
+from application.ports.template_processor_port import TemplateProcessorPort
 from application.ports.transaction_port import TransactionPort
-from domain.auto_contributions import AutoContributions, ContributionQueryRequest
+from dateutil.tz import tzlocal
+from domain.auto_contributions import ContributionQueryRequest
 from domain.entity import Entity, Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
-from domain.export import ExportRequest
+from domain.export import SheetParams, TemplatedDataProcessorParams
 from domain.external_integration import (
     ExternalIntegrationId,
     ExternalIntegrationPayload,
 )
 from domain.fetch_record import FetchRecord
-from domain.global_position import GlobalPosition, PositionQueryRequest, ProductType
-from domain.historic import Historic, HistoricQueryRequest
+from domain.global_position import PositionQueryRequest, ProductType
+from domain.historic import HistoricQueryRequest
 from domain.settings import (
-    ExportContributionSheetConfig,
-    GlobalsConfig,
-    ExportHistoricSheetConfig,
-    ExportPositionSheetConfig,
-    ProductSheetConfig,
-    ExportTransactionsSheetConfig,
+    ExportSheetConfig,
+    SheetsGlobalConfig,
 )
-from domain.transactions import Transactions
+from domain.template import ProcessorDataFilter
 from domain.use_cases.export_sheets import ExportSheets
+from pytz import utc
 
-ADDITIONAL_DATA_FIELD = "additionalData"
 
-T = TypeVar("T", bound=ProductSheetConfig)
+def _format_datetime(value, params: TemplatedDataProcessorParams):
+    datetime_format = params.datetime_format
+    value = value.replace(tzinfo=utc).astimezone(tzlocal())
+    if not datetime_format:
+        return value.isoformat()
+    return value.strftime(datetime_format)
+
+
+def _map_last_update_row(
+    last_update: dict[Entity, datetime], params: TemplatedDataProcessorParams
+) -> list[str]:
+    last_update = sorted(last_update.items(), key=lambda item: item[1], reverse=True)
+    last_update_row = []
+    for k, v in last_update:
+        last_update_row.append(str(k))
+        last_update_date = v.astimezone(tz=tzlocal())
+        formated_last_update_date = _format_datetime(last_update_date, params)
+        last_update_row.append(formated_last_update_date)
+
+    last_update_row.extend(["" for _ in range(10)])
+    return last_update_row
+
+
+def _map_top_row(
+    params: TemplatedDataProcessorParams,
+    last_update: Optional[dict[Entity, datetime]] = None,
+) -> list[str]:
+    if last_update:
+        return _map_last_update_row(last_update, params)
+    else:
+        last_update_date = datetime.now(tzlocal())
+        return [_format_datetime(last_update_date, params)]
 
 
 def _map_last_fetch(last_fetches: dict[Entity, FetchRecord]) -> dict[Entity, datetime]:
     return {e: f.date for e, f in last_fetches.items()}
 
 
-def apply_global_config(config_globals: GlobalsConfig, entries: list[T]) -> list[T]:
-    globals_as_dict = asdict(config_globals)
-    updated_entries = []
-    for entry in entries:
-        entry_as_dict = asdict(entry)
-        for key, value in globals_as_dict.items():
-            if key not in entry_as_dict or entry_as_dict[key] is None:
-                entry_as_dict[key] = value
-        updated_entries.append(type(entry)(**entry_as_dict))
-
-    return updated_entries
+def _map_sheet_params(
+    config: ExportSheetConfig,
+    global_config: SheetsGlobalConfig,
+) -> SheetParams:
+    return SheetParams(
+        range=config.range,
+        spreadsheet_id=config.spreadsheetId or global_config.spreadsheetId,
+    )
 
 
 class ExportSheetsImpl(ExportSheets):
@@ -63,25 +90,29 @@ class ExportSheetsImpl(ExportSheets):
         auto_contr_port: AutoContributionsPort,
         transaction_port: TransactionPort,
         historic_port: HistoricPort,
-        sheets_update_port: SheetsUpdatePort,
+        sheets_port: SheetsPort,
         last_fetches_port: LastFetchesPort,
         external_integration_port: ExternalIntegrationPort,
         entity_port: EntityPort,
+        template_port: TemplatePort,
+        template_processor: TemplateProcessorPort,
         config_port: ConfigPort,
     ):
         self._position_port = position_port
         self._auto_contr_port = auto_contr_port
         self._transaction_port = transaction_port
         self._historic_port = historic_port
-        self._sheets_update_port = sheets_update_port
+        self._sheets_port = sheets_port
         self._last_fetches_port = last_fetches_port
         self._external_integration_port = external_integration_port
         self._entity_port = entity_port
+        self._template_port = template_port
+        self._template_processor = template_processor
         self._config_port = config_port
 
         self._lock = Lock()
 
-    async def execute(self, request: ExportRequest):
+    async def execute(self):
         config = self._config_port.load()
         sheets_export_config = config.export.sheets
 
@@ -100,128 +131,113 @@ class ExportSheetsImpl(ExportSheets):
         ):
             return
 
+        config_globals = sheets_export_config.globals
+        if not config_globals:
+            return
+
         if self._lock.locked():
             raise ExecutionConflict()
 
         async with self._lock:
-            config_globals = sheets_export_config.globals or {}
-
-            position_configs = sheets_export_config.position or []
-            contrib_configs = sheets_export_config.contributions or []
-            tx_configs = sheets_export_config.transactions or []
-            historic_configs = sheets_export_config.historic or []
-            position_configs = apply_global_config(config_globals, position_configs)
-            contrib_configs = apply_global_config(config_globals, contrib_configs)
-            tx_configs = apply_global_config(config_globals, tx_configs)
-            historic_configs = apply_global_config(config_globals, historic_configs)
-
-            real = request.options.exclude_non_real if request.options else None
-
             disabled_entities = [
                 e.id for e in self._entity_port.get_disabled_entities()
             ]
             global_position_by_entity = self._position_port.get_last_grouped_by_entity(
-                PositionQueryRequest(real=real, excluded_entities=disabled_entities)
+                PositionQueryRequest(excluded_entities=disabled_entities)
             )
-            last_position_fetches = _map_last_fetch(
-                self._last_fetches_port.get_grouped_by_entity(Feature.POSITION)
-            )
-
-            self.update_position_sheets(
-                global_position_by_entity,
-                position_configs,
-                last_position_fetches,
+            self.update(
+                Feature.POSITION,
+                list(global_position_by_entity.values()),
+                config_globals,
+                sheets_export_config.position,
                 sheet_credentials,
             )
 
             auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
-                ContributionQueryRequest(real=real, excluded_entities=disabled_entities)
+                ContributionQueryRequest(excluded_entities=disabled_entities)
             )
-            last_contribution_fetches = _map_last_fetch(
-                self._last_fetches_port.get_grouped_by_entity(
-                    Feature.AUTO_CONTRIBUTIONS
-                )
-            )
-
-            self.update_contributions(
-                auto_contributions,
-                contrib_configs,
-                last_contribution_fetches,
+            self.update(
+                Feature.AUTO_CONTRIBUTIONS,
+                list(auto_contributions.values()),
+                config_globals,
+                sheets_export_config.contributions,
                 sheet_credentials,
             )
 
             transactions = self._transaction_port.get_all(
-                real=real, excluded_entities=disabled_entities
+                excluded_entities=disabled_entities
             )
-            transactions_last_update = _map_last_fetch(
-                self._last_fetches_port.get_grouped_by_entity(Feature.TRANSACTIONS)
-            )
-            self.update_transactions(
-                transactions, tx_configs, transactions_last_update, sheet_credentials
+            self.update(
+                Feature.TRANSACTIONS,
+                transactions.account + transactions.investment,
+                config_globals,
+                sheets_export_config.transactions,
+                sheet_credentials,
             )
 
             historic = self._historic_port.get_by_filters(
                 HistoricQueryRequest(excluded_entities=disabled_entities)
             )
-            self.update_historic(historic, historic_configs, sheet_credentials)
-
-    def update_position_sheets(
-        self,
-        global_position: dict[Entity, GlobalPosition],
-        configs: list[ExportPositionSheetConfig],
-        last_update: dict[Entity, datetime],
-        credentials: ExternalIntegrationPayload,
-    ):
-        for config in configs:
-            fields = []
-            for field in config.data:
-                if field == ProductType.CROWDLENDING.value:
-                    fields.append(f"products.{field}")
-                else:
-                    fields.append(f"products.{field}.entries")
-            config.data = fields
-
-            self._sheets_update_port.update_sheet(
-                global_position, credentials, config, last_update
+            self.update(
+                Feature.HISTORIC,
+                historic.entries,
+                config_globals,
+                sheets_export_config.historic,
+                sheet_credentials,
             )
 
-    def update_contributions(
+    def update(
         self,
-        contributions: dict[Entity, AutoContributions],
-        configs: list[ExportContributionSheetConfig],
-        last_update: dict[Entity, datetime],
+        feature: Feature,
+        data: list,
+        global_config: SheetsGlobalConfig,
+        config_entries: list[ExportSheetConfig],
         credentials: ExternalIntegrationPayload,
     ):
-        for config in configs:
-            fields = config.data
-            config.data = [fields] if isinstance(fields, str) else fields
+        for config in config_entries:
+            products = None
+            if config.data is not None:
+                products = [ProductType(field) for field in config.data]
 
-            self._sheets_update_port.update_sheet(
-                contributions, credentials, config, last_update
+            sheets_params = _map_sheet_params(config, global_config)
+            params = self._map_template_params(feature, config, global_config, products)
+
+            table = []
+            if config.lastUpdate:
+                table = [_map_top_row(params)]
+
+            table.extend(
+                self._template_processor.process(
+                    data,
+                    params,
+                )
             )
+            self._sheets_port.update(table, credentials, sheets_params)
 
-    def update_transactions(
+    def _map_template_params(
         self,
-        transactions: Transactions,
-        configs: list[ExportTransactionsSheetConfig],
-        last_update: dict[Entity, datetime],
-        credentials: ExternalIntegrationPayload,
-    ):
-        for config in configs:
-            fields = config.data
-            config.data = [fields] if isinstance(fields, str) else fields
+        feature: Feature,
+        config: ExportSheetConfig,
+        global_config: SheetsGlobalConfig,
+        products: Optional[list[ProductType]] = None,
+    ) -> TemplatedDataProcessorParams:
+        template = None
+        if config.template:
+            template = self._template_port.get_by_id(UUID(config.template.id))
 
-            self._sheets_update_port.update_sheet(
-                transactions, credentials, config, last_update
+        filters = [
+            ProcessorDataFilter(
+                field=filter_config.field,
+                values=filter_config.values,
             )
+            for filter_config in (config.filters or [])
+        ]
 
-    def update_historic(
-        self,
-        historic: Historic,
-        configs: list[ExportHistoricSheetConfig],
-        credentials: ExternalIntegrationPayload,
-    ):
-        for config in configs:
-            config.data = ["entries"]
-
-            self._sheets_update_port.update_sheet(historic, credentials, config)
+        return TemplatedDataProcessorParams(
+            template=template,
+            feature=feature,
+            products=products,
+            datetime_format=config.datetimeFormat or global_config.datetimeFormat,
+            date_format=config.dateFormat or global_config.dateFormat,
+            filters=filters,
+        )

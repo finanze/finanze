@@ -37,6 +37,7 @@ import {
   ArrowRight,
   CalendarDays,
   CalendarSync,
+  CalendarPlus,
   HandCoins,
   CreditCard,
   Home,
@@ -2212,7 +2213,11 @@ export default function DashboardPage() {
                     }}
                   >
                     {ongoingProjects.map((project, index) => {
-                      const status = getDaysStatus(project.maturity, t)
+                      const status = getDaysStatus(
+                        project.maturity,
+                        t,
+                        project.extendedMaturity,
+                      )
                       const route = getInvestmentRouteForProject(project.type)
                       return (
                         <Card
@@ -2273,7 +2278,10 @@ export default function DashboardPage() {
                                         : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
                                   }`}
                                 >
-                                  <span className="font-semibold">
+                                  <span className="font-semibold inline-flex items-center gap-1">
+                                    {status.usedExtendedMaturity && (
+                                      <CalendarPlus className="h-3 w-3" />
+                                    )}
                                     {status.statusText}
                                   </span>
                                 </Badge>

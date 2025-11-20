@@ -1,19 +1,22 @@
-from enum import Enum
 from typing import Optional
 
+from domain.entity import Feature
+from domain.global_position import ProductType
+from domain.template import ProcessorDataFilter, Template
 from pydantic.dataclasses import dataclass
 
 
-class ExportTarget(str, Enum):
-    GOOGLE_SHEETS = "GOOGLE_SHEETS"
+@dataclass
+class SheetParams:
+    range: str
+    spreadsheet_id: str
 
 
 @dataclass
-class ExportOptions:
-    exclude_non_real: Optional[bool] = None
-
-
-@dataclass
-class ExportRequest:
-    target: ExportTarget
-    options: Optional[ExportOptions] = None
+class TemplatedDataProcessorParams:
+    template: Optional[Template]
+    feature: Feature
+    products: Optional[list[ProductType]]
+    datetime_format: str
+    date_format: str
+    filters: Optional[list[ProcessorDataFilter]] = None

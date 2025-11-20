@@ -132,6 +132,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         frequency=ContributionFrequency[row["frequency"]],
                         active=bool(row["active"]),
                         source=row["source"],
+                        entity=entity,
                     )
                 )
 

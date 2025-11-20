@@ -110,7 +110,7 @@ def _map_accounts(entries: list[dict]) -> Accounts:
 def _map_cards(entries: list[dict]) -> Cards:
     result = []
     for e in entries:
-        for req in ("currency", "type", "used", "active"):
+        for req in ("currency", "type", "used"):
             if req not in e:
                 raise MissingFieldsError([req])
         result.append(
@@ -119,7 +119,7 @@ def _map_cards(entries: list[dict]) -> Cards:
                 currency=e["currency"],
                 type=CardType(e["type"]),
                 used=_dez(e["used"]),
-                active=bool(e["active"]),
+                active=bool(e["active"]) if e.get("active") is not None else True,
                 limit=_dez(e.get("limit")),
                 name=e.get("name"),
                 ending=e.get("ending"),
@@ -164,8 +164,8 @@ def _map_funds(entries: list[dict]) -> FundInvestments:
                 market_value=_dez(portfolio_data.get("market_value")),
                 source=DataSource.MANUAL,
             )
-        init_inv = _dez(e.get("initial_investment")) or Dezimal(0)
-        avg_buy = _dez(e.get("average_buy_price")) or Dezimal(0)
+        init_inv = _dez(e.get("initial_investment"))
+        avg_buy = _dez(e.get("average_buy_price"))
         market_value = _dez(e.get("market_value")) or Dezimal(0)
         result.append(
             FundDetail(
@@ -202,7 +202,6 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
             "last_invest_date",
             "maturity",
             "type",
-            "business_type",
             "state",
         ):
             if req not in e:
@@ -215,11 +214,10 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
                 pending_amount=_dez(e["pending_amount"]),
                 currency=e["currency"],
                 interest_rate=_dez(e["interest_rate"]),
-                profitability=Dezimal(0),
                 last_invest_date=_dt(e["last_invest_date"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
-                business_type=e["business_type"],
+                business_type=e.get("business_type", ""),
                 state=e["state"],
                 extended_maturity=_date(e.get("extended_maturity")),
                 source=DataSource.MANUAL,
@@ -236,7 +234,6 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
             "amount",
             "currency",
             "interest_rate",
-            "gross_interest_rate",
             "maturity",
             "type",
             "state",
@@ -251,12 +248,13 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
                 interest_rate=_dez(e["interest_rate"]),
-                profitability=Dezimal(0),
-                gross_interest_rate=_dez(e["gross_interest_rate"]),
                 last_invest_date=_dt(e["last_invest_date"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 state=e["state"],
+                gross_interest_rate=_dez(e.get("gross_interest_rate"))
+                if e.get("gross_interest_rate")
+                else None,
                 source=DataSource.MANUAL,
             )
         )
@@ -338,7 +336,6 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
             "name",
             "ticker",
             "isin",
-            "market",
             "shares",
             "currency",
             "type",
@@ -346,8 +343,8 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
         ):
             if req not in e:
                 raise MissingFieldsError([req])
-        init_inv = _dez(e.get("initial_investment")) or Dezimal(0)
-        avg_buy = _dez(e.get("average_buy_price")) or Dezimal(0)
+        init_inv = _dez(e.get("initial_investment"))
+        avg_buy = _dez(e.get("average_buy_price"))
         market_value = _dez(e.get("market_value")) or Dezimal(0)
         result.append(
             StockDetail(
@@ -355,7 +352,7 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
                 name=e["name"],
                 ticker=e["ticker"],
                 isin=e["isin"],
-                market=e["market"],
+                market=e.get("market", ""),
                 shares=_dez(e["shares"]),
                 initial_investment=init_inv,
                 average_buy_price=avg_buy,

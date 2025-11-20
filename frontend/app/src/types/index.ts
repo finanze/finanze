@@ -4,6 +4,7 @@ import {
   LoanType,
   InterestType,
   EntitiesPosition,
+  ProductType,
 } from "./position"
 import type {
   AutoUpdateActionResult,
@@ -147,6 +148,7 @@ export enum ImportErrorType {
   SHEET_NOT_FOUND = "SHEET_NOT_FOUND",
   MISSING_FIELD = "MISSING_FIELD",
   VALIDATION_ERROR = "VALIDATION_ERROR",
+  UNEXPECTED_COLUMN = "UNEXPECTED_COLUMN",
   UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
 }
 
@@ -265,19 +267,6 @@ export interface Settings {
       hideUnknownTokens: boolean
     }
   }
-}
-
-export enum ExportTarget {
-  GOOGLE_SHEETS = "GOOGLE_SHEETS",
-}
-
-export interface ExportOptions {
-  exclude_non_real?: boolean | null
-}
-
-export interface ExportRequest {
-  target: ExportTarget
-  options: ExportOptions
 }
 
 export enum PlatformType {
@@ -788,4 +777,77 @@ export interface InstrumentInfo {
 
 export interface InstrumentsResponse {
   entries: InstrumentInfo[]
+}
+
+// Template system
+export enum TemplateType {
+  EXPORT = "EXPORT",
+  IMPORT = "IMPORT",
+}
+
+export enum TemplateFieldType {
+  TEXT = "TEXT",
+  CURRENCY = "CURRENCY",
+  INTEGER = "INTEGER",
+  DECIMAL = "DECIMAL",
+  DATE = "DATE",
+  DATETIME = "DATETIME",
+  BOOLEAN = "BOOLEAN",
+  ENUM = "ENUM",
+}
+
+export interface TemplateField {
+  field: string
+  type: TemplateFieldType
+  name?: string | null
+  enum_values?: string[]
+  default?: any
+}
+
+export interface Template {
+  id?: string | null
+  name: string
+  feature: Feature
+  type: TemplateType
+  fields: TemplateField[]
+  products?: ProductType[] | null
+}
+
+export interface TemplateCreateField {
+  field: string
+  custom_name?: string
+  default?: any
+}
+
+export interface TemplateUpdateField extends TemplateCreateField {}
+
+export interface TemplateCreatePayload {
+  name: string
+  feature: Feature
+  type: TemplateType
+  fields: TemplateCreateField[]
+  products?: ProductType[]
+}
+
+export interface TemplateUpdatePayload extends TemplateCreatePayload {
+  id: string
+}
+
+export interface TemplateFeatureField {
+  field: string
+  key: string
+  required: boolean
+  type: TemplateFieldType
+  enum_values?: string[]
+  or_requires?: string[]
+  template_type?: TemplateType
+  default?: any
+  disabled_default: boolean
+}
+
+export interface TemplateFeatureDefinition {
+  feature: Feature
+  fields: TemplateFeatureField[]
+  product: ProductType | null
+  template_type: TemplateType | null
 }

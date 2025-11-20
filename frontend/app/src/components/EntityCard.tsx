@@ -22,12 +22,12 @@ import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import {
   RefreshCw,
-  Trash2,
   Settings,
   Wallet,
   Download,
   LogIn,
   AlertCircle,
+  Unplug,
 } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useNavigate } from "react-router-dom"
@@ -466,8 +466,7 @@ export function EntityCard({
                   disabled={isLinkingExternal}
                   onClick={() => setShowExternalConfirmation(true)}
                 >
-                  <Trash2 className="mr-2 h-4 w-4 flex-shrink-0" />
-                  {t.entities.disconnect}
+                  <Unplug className="h-4 w-4 flex-shrink-0" strokeWidth={2.5} />
                 </Button>
               </div>
             )}
@@ -530,8 +529,7 @@ export function EntityCard({
                   onClick={() => setShowExternalConfirmation(true)}
                   disabled={entityFetching}
                 >
-                  <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
-                  {t.entities.disconnect}
+                  <Unplug className="h-4 w-4 flex-shrink-0" strokeWidth={2.5} />
                 </Button>
               </div>
             )}
@@ -588,8 +586,10 @@ export function EntityCard({
                       onClick={handleDisconnect}
                       disabled={entityFetching}
                     >
-                      <Trash2 className="mr-1 h-4 w-4 flex-shrink-0" />
-                      {t.entities.disconnect}
+                      <Unplug
+                        className="h-4 w-4 flex-shrink-0"
+                        strokeWidth={2.5}
+                      />
                     </Button>
                   </div>
                 )}

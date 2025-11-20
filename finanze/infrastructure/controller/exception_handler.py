@@ -8,6 +8,8 @@ from domain.exception.exceptions import (
     IntegrationSetupError,
     IntegrationSetupErrorCode,
     InvalidProvidedCredentials,
+    InvalidTemplateDefaultValue,
+    TemplateNotFound,
     TooManyRequests,
     TransactionNotFound,
 )
@@ -74,6 +76,14 @@ def handle_required_integration(e: ExternalIntegrationRequired):
     ), 409
 
 
+def handle_template_not_found(e):
+    return jsonify({"code": "TEMPLATE_NOT_FOUND", "message": "Template not found"}), 404
+
+
+def handle_invalid_template_default_value(e):
+    return jsonify({"code": "INVALID_TEMPLATE_DEFAULT_VALUE", "message": str(e)}), 400
+
+
 def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
@@ -85,5 +95,9 @@ def register_exception_handlers(app):
     app.register_error_handler(IntegrationSetupError, handle_integration_setup_error)
     app.register_error_handler(IntegrationNotFound, handle_integration_not_found)
     app.register_error_handler(ExternalIntegrationRequired, handle_required_integration)
+    app.register_error_handler(TemplateNotFound, handle_template_not_found)
+    app.register_error_handler(
+        InvalidTemplateDefaultValue, handle_invalid_template_default_value
+    )
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)

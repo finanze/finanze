@@ -103,7 +103,7 @@ def _map_investment_row(
     elif row["product_type"] == ProductType.FUND.value:
         return FundTx(
             **common,
-            isin=row["isin"],
+            isin=row["isin"] if row["isin"] else None,
             market=row["market"],
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),

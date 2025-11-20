@@ -167,7 +167,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         self._log.info(position)
         details = await self._client.get_instrument_details(isin)
 
-        raw_average_buy = 0
+        raw_average_buy = position.get("averageBuyIn", {}).get("value", 0)
         average_buy = round(Dezimal(raw_average_buy), 4)
         shares = Dezimal(position.get("netSize") or 0)
         # available_shares = position.get("availableSize") # Don't know what is this
@@ -423,9 +423,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             status = raw_tx.get("status", None)
             event_type = raw_tx.get("eventType", None)
             if not (
-                event_type
-                and status == "EXECUTED"
-                and event_type.upper() in self.HANDLED_TX_TYPES
+                status == "EXECUTED"
+                and (not event_type or event_type.upper() in self.HANDLED_TX_TYPES)
             ):
                 continue
 
@@ -547,7 +546,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         currency = amount_obj.get("currency")
         raw_amount_value = amount_obj.get("value")
         event_type = raw_tx.get("eventType", "").strip().upper()
-        if not event_type or not amount_obj or not currency or not raw_amount_value:
+        if not amount_obj or not currency or not raw_amount_value:
             self._log.warning(f"Incomplete transaction data: {raw_tx['id']}")
             return None
 
@@ -747,7 +746,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 self._log.warning(f"No interest rate found in tx: {raw_tx['id']}")
                 return None
 
-        if raw_tx["eventType"] == "INTEREST_PAYOUT":
+        event_type = raw_tx.get("eventType", "").strip().upper()
+        if title in ["Interest"] or event_type == "INTEREST_PAYOUT":
             tx_section = get_section(detail_sections, "Transaction")["data"]
             inferred_locale = infer_locale_from_section(
                 get_section(ov_section, "Total")

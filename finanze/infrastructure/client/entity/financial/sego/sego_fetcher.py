@@ -170,26 +170,17 @@ class SegoFetcher(FinancialEntityFetcher):
             else None
         )
 
-        profitability = Dezimal(0)
-        if last_invest_date and expected_maturity:
-            days = (expected_maturity - last_invest_date.date()).days
-            if days > 0:
-                profitability = Dezimal(
-                    round(interest_rate * Dezimal(days) / Dezimal(365), 4)
-                )
-
         return FactoringDetail(
             id=uuid4(),
             name=name,
             amount=round(Dezimal(investment["importe"]), 2),
             currency="EUR",
             interest_rate=interest_rate,
-            profitability=profitability,
-            gross_interest_rate=round(gross_interest_rate / 100, 4),
             last_invest_date=last_invest_date,
             maturity=expected_maturity,
             type=proj_type,
             state=state,
+            gross_interest_rate=round(gross_interest_rate / 100, 4),
         )
 
     def _get_normalized_movements(self, types=None, subtypes=None) -> list[dict]:

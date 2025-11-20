@@ -129,3 +129,23 @@ class RelatedAccountNotFound(Exception):
 class RelatedFundPortfolioNotFound(Exception):
     def __init__(self, portfolio_id):
         super().__init__(f"Related fund portfolio not found: {portfolio_id}")
+
+
+class TemplateAlreadyExists(Exception):
+    def __init__(self, name: str, template_type: str):
+        super().__init__(f"Template '{name}' already exists for type {template_type}")
+
+
+class TemplateNotFound(Exception):
+    pass
+
+
+class InvalidTemplateDefaultValue(Exception):
+    def __init__(self, field_name: str, field_type: str, reason: str):
+        super().__init__(
+            f"Invalid default value for field '{field_name}' of type {field_type}: {reason}"
+        )
+
+
+class SheetNotFound(Exception):
+    pass

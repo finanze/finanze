@@ -1,21 +1,18 @@
-import json
 import logging
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
-from application.ports.virtual_fetch import VirtualFetcher
+from application.ports.template_parser_port import TemplateParserPort
+from domain.currency_symbols import CURRENCY_SYMBOL_MAP
+from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import MissingFieldsError
-from domain.external_integration import ExternalIntegrationPayload
-from domain.fetch_record import DataSource
 from domain.global_position import (
     Account,
     Accounts,
     Card,
     Cards,
-    Commodities,
-    Commodity,
-    Crowdlending,
     CryptoCurrencies,
     CryptoCurrencyWallet,
     Deposit,
@@ -36,11 +33,16 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
-from domain.settings import (
-    BaseSheetConfig,
-    ImportPositionSheetConfig,
-    ImportTransactionsSheetConfig,
+from domain.importing import (
+    ImportCandidate,
+    ImportError,
+    ImportErrorType,
+    PositionImportResult,
+    TemplatedDataParserParams,
+    TransactionsImportResult,
 )
+from domain.template import EffectiveTemplatedField, get_effective_field
+from domain.template_fields import ENTITY, TemplateFieldType, PORTFOLIO_NAME
 from domain.transactions import (
     BaseTx,
     DepositTx,
@@ -50,18 +52,7 @@ from domain.transactions import (
     StockTx,
     Transactions,
 )
-from domain.import_result import (
-    ImportError,
-    ImportErrorType,
-    PositionImportResult,
-    TransactionsImportResult,
-)
-from googleapiclient.errors import HttpError
-from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
 from pydantic import ValidationError
-
-DEFAULT_DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
-DEFAULT_DATE_FORMAT = "%d/%m/%Y"
 
 
 class InvalidFieldError(Exception):
@@ -72,28 +63,68 @@ class InvalidFieldError(Exception):
         super().__init__(message)
 
 
-def parse_number(value: str) -> float:
-    return float(value.strip().replace(".", "").replace(",", "."))
+def parse_number(value: Any) -> Dezimal:
+    value = (
+        value.strip().replace(".", "").replace(",", ".")
+        if isinstance(value, str)
+        else value
+    )
+    return Dezimal(value)
 
 
-def _parse_cell(value: str, config: BaseSheetConfig) -> any:
-    try:
+def _parse_cell(
+    value: str, params: TemplatedDataParserParams, field: EffectiveTemplatedField
+) -> Any:
+    field_type = field.type
+    if field_type in (TemplateFieldType.DECIMAL, TemplateFieldType.INTEGER):
         return parse_number(value)
-    except ValueError:
+
+    elif field_type == TemplateFieldType.DATETIME:
         try:
-            datetime_format = config.datetimeFormat or DEFAULT_DATETIME_FORMAT
-            return datetime.strptime(value, datetime_format)
+            return datetime.strptime(value, params.datetime_format)
         except ValueError:
             try:
-                date_format = config.dateFormat or DEFAULT_DATE_FORMAT
-                return datetime.strptime(value, date_format).date()
+                return datetime.strptime(value, params.date_format)
             except ValueError:
-                if not len(value):
-                    return None
-                return value
+                pass
+            raise InvalidFieldError(field.field, value)
+
+    elif field_type == TemplateFieldType.DATE:
+        try:
+            return datetime.strptime(value, params.date_format).date()
+        except ValueError:
+            try:
+                return datetime.strptime(value, params.datetime_format).date()
+            except ValueError:
+                pass
+            raise InvalidFieldError(field.field, value)
+
+    elif field_type == TemplateFieldType.ENUM:
+        enum_str = value.upper()
+        if field.values and enum_str not in field.values:
+            raise InvalidFieldError(field.field, value)
+        return enum_str
+
+    elif field_type == TemplateFieldType.CURRENCY:
+        currency_str = str(value).upper()
+        if currency_str not in CURRENCY_SYMBOL_MAP:
+            raise InvalidFieldError(field.field, value)
+
+        return currency_str
+
+    elif field_type == TemplateFieldType.BOOLEAN:
+        lowered = value.strip().lower()
+        if lowered in ("true", "1", "yes"):
+            return True
+        elif lowered in ("false", "0", "no"):
+            return False
+        else:
+            raise InvalidFieldError(field.field, value)
+
+    return value
 
 
-class SheetsImporter(VirtualFetcher):
+class TemplateDataParser(TemplateParserPort):
     PRODUCT_TYPE_CLS_MAP = {
         ProductType.ACCOUNT: (Accounts, Account),
         ProductType.CARD: (Cards, Card),
@@ -104,58 +135,43 @@ class SheetsImporter(VirtualFetcher):
         ProductType.FACTORING: (FactoringInvestments, FactoringDetail),
         ProductType.REAL_ESTATE_CF: (RealEstateCFInvestments, RealEstateCFDetail),
         ProductType.CRYPTO: (CryptoCurrencies, CryptoCurrencyWallet),
-        ProductType.COMMODITY: (Commodities, Commodity),
-        ProductType.CROWDLENDING: (None, Crowdlending),
     }
 
     TX_PROD_TYPE_ATTR_MAP = {
-        "STOCK_ETF": StockTx,
-        "FUND": FundTx,
-        "REAL_ESTATE_CF": RealEstateCFTx,
-        "FACTORING": FactoringTx,
-        "DEPOSIT": DepositTx,
+        ProductType.STOCK_ETF: StockTx,
+        ProductType.FUND: FundTx,
+        ProductType.REAL_ESTATE_CF: RealEstateCFTx,
+        ProductType.FACTORING: FactoringTx,
+        ProductType.DEPOSIT: DepositTx,
     }
 
-    def __init__(self, sheets_service: SheetsServiceLoader):
-        self._sheets_service = sheets_service
+    def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    async def global_positions(
-        self,
-        credentials: ExternalIntegrationPayload,
-        position_configs: list[ImportPositionSheetConfig],
-        existing_entities: dict[str, Entity],
+    def global_positions(
+        self, candidates: list[ImportCandidate], existing_entities: dict[str, Entity]
     ) -> PositionImportResult:
         all_errors = []
         global_positions_dicts = {}
-        for config in position_configs:
-            field = config.data
-            parent_type, detail_type = self.PRODUCT_TYPE_CLS_MAP.get(
-                field, (None, None)
-            )
 
-            if not parent_type and not detail_type:
-                raise InvalidFieldError(
-                    "product_type",
-                    field,
-                )
+        for candidate in candidates:
+            last_candidate = candidate
+            product_type = candidate.params.product
 
-            per_entity, errors = self._load_products(
-                detail_type, parent_type, credentials, config
-            )
+            per_entity, errors = self._load_products(product_type, candidate)
             all_errors.extend(errors)
             for entity in per_entity:
                 if entity not in global_positions_dicts:
                     global_positions_dicts[entity] = {"products": {}}
 
-                if field in global_positions_dicts[entity]["products"]:
-                    global_positions_dicts[entity]["products"][field] += per_entity[
-                        entity
-                    ]
+                if product_type in global_positions_dicts[entity]["products"]:
+                    global_positions_dicts[entity]["products"][product_type] += (
+                        per_entity[entity]
+                    )
                 else:
-                    global_positions_dicts[entity]["products"][field] = per_entity[
-                        entity
-                    ]
+                    global_positions_dicts[entity]["products"][product_type] = (
+                        per_entity[entity]
+                    )
 
         for entity, positions in global_positions_dicts.items():
             required_portfolios = {}
@@ -170,13 +186,6 @@ class SheetsImporter(VirtualFetcher):
                             required_portfolios[fund.portfolio.name] = fund.portfolio
                         else:
                             fund.portfolio = required_portfolios[fund.portfolio.name]
-
-                        fund.portfolio.initial_investment = (
-                            fund.portfolio.initial_investment or 0
-                        ) + fund.initial_investment or 0
-                        fund.portfolio.market_value = (
-                            fund.portfolio.market_value or 0
-                        ) + fund.market_value or 0
 
             if required_portfolios:
                 positions["products"][ProductType.FUND_PORTFOLIO] = FundPortfolios(
@@ -205,7 +214,7 @@ class SheetsImporter(VirtualFetcher):
                     id=uuid4(),
                     entity=entity,
                     products=products,
-                    source=DataSource.SHEETS,
+                    source=last_candidate.source,
                 )
             )
 
@@ -215,40 +224,46 @@ class SheetsImporter(VirtualFetcher):
 
     def _load_products(
         self,
-        cls,
-        parent_cls,
-        credentials: ExternalIntegrationPayload,
-        config: ImportPositionSheetConfig,
+        product_type,
+        candidate: ImportCandidate,
     ) -> tuple[dict[str, ProductPosition], list[ImportError]]:
+        parent_cls, cls = self.PRODUCT_TYPE_CLS_MAP.get(product_type, (None, None))
+
+        if not parent_cls and not cls:
+            raise InvalidFieldError(
+                "product_type",
+                product_type,
+            )
+
         details_per_entity = {}
 
         def process_entry_fn(row, product_dict):
             p_id = uuid4()
             product_dict["id"] = p_id
-            if "entity" not in product_dict:
+
+            entity = product_dict.get(ENTITY.field) or candidate.params.params.get(
+                "entity"
+            )
+            if not entity:
                 raise MissingFieldsError(["entity"])
 
-            entity = product_dict["entity"]
             entity_products = details_per_entity.get(entity, [])
 
             if cls == FundDetail:
-                portfolio_name = product_dict.get("portfolio")
+                portfolio_name = product_dict.get(PORTFOLIO_NAME.field)
                 if portfolio_name:
                     product_dict["portfolio"] = FundPortfolio(
-                        id=uuid4(), name=portfolio_name
+                        id=uuid4(),
+                        name=portfolio_name,
+                        initial_investment=Dezimal(0),
+                        market_value=Dezimal(0),
                     )
-            elif cls == Crowdlending:
-                product_dict["distribution"] = (
-                    json.loads(product_dict["distribution"])
-                    if product_dict.get("distribution")
-                    else None
-                )
 
             entity_products.append(cls.from_dict(product_dict))
 
             details_per_entity[entity] = entity_products
 
-        errors = self._parse_sheet_table(credentials, config, process_entry_fn)
+        errors = self._parse_sheet_table(candidate, process_entry_fn)
 
         if not details_per_entity:
             return {}, errors
@@ -268,30 +283,24 @@ class SheetsImporter(VirtualFetcher):
 
         return per_entity, errors
 
-    async def transactions(
-        self,
-        credentials: ExternalIntegrationPayload,
-        txs_configs: list[ImportTransactionsSheetConfig],
-        existing_entities: dict[str, Entity],
+    def transactions(
+        self, candidates: list[ImportCandidate], existing_entities: dict[str, Entity]
     ) -> TransactionsImportResult:
         all_errors = []
         all_created_entities = {}
         transactions = Transactions(investment=[], account=[])
 
-        for config in txs_configs:
-            field = config.data
-
+        for candidate in candidates:
             txs, created_entities, errors = self._load_txs(
-                credentials, config, existing_entities, all_created_entities
+                candidate, existing_entities, all_created_entities
             )
             all_errors.extend(errors)
             all_created_entities.update(created_entities)
 
-            current_transactions = None
-            if field == "investment":
-                current_transactions = Transactions(investment=txs)
-            elif field == "account":
+            if candidate.params.product == ProductType.ACCOUNT:
                 current_transactions = Transactions(account=txs)
+            else:
+                current_transactions = Transactions(investment=txs)
 
             if current_transactions:
                 transactions += current_transactions
@@ -302,33 +311,31 @@ class SheetsImporter(VirtualFetcher):
 
     def _load_txs(
         self,
-        credentials: ExternalIntegrationPayload,
-        config: ImportTransactionsSheetConfig,
+        candidate: ImportCandidate,
         existing_entities: dict[str, Entity],
         already_created_entities: dict[str, Entity],
     ) -> tuple[list[BaseTx], dict[str, Entity], list[ImportError]]:
         txs = []
         created_entities = {}
+        prod_type = candidate.params.product
 
         def process_entry_fn(row, tx_dict):
             tx_id = uuid4()
             tx_dict["id"] = tx_id
-            tx_dict["source"] = DataSource.SHEETS
+            tx_dict["source"] = candidate.source
 
-            if "product_type" not in tx_dict:
-                raise MissingFieldsError(["product_type"])
-
-            prod_type = tx_dict["product_type"]
             if prod_type not in self.TX_PROD_TYPE_ATTR_MAP:
                 raise InvalidFieldError(
                     "product_type",
                     prod_type,
                 )
 
-            if "entity" not in tx_dict:
+            entity_name = tx_dict.get(ENTITY.field) or candidate.params.params.get(
+                "entity"
+            )
+            if not entity_name:
                 raise MissingFieldsError(["entity"])
 
-            entity_name = tx_dict["entity"]
             if entity_name in existing_entities:
                 tx_dict["entity"] = existing_entities[entity_name]
 
@@ -348,24 +355,23 @@ class SheetsImporter(VirtualFetcher):
                 tx_dict["entity"] = created_entities[entity_name]
 
             cls = self.TX_PROD_TYPE_ATTR_MAP[prod_type]
+            tx_dict["product_type"] = prod_type
             txs.append(cls.from_dict(tx_dict))
 
-        errors = self._parse_sheet_table(credentials, config, process_entry_fn)
+        errors = self._parse_sheet_table(candidate, process_entry_fn)
 
         return txs, created_entities, errors
 
     def _parse_sheet_table(
-        self, credentials: ExternalIntegrationPayload, config: BaseSheetConfig, entry_fn
+        self, candidate: ImportCandidate, entry_fn
     ) -> list[ImportError]:
-        sheet_range, sheet_id = config.range, config.spreadsheetId
-        cells, errors = self._read_sheet_table(credentials, sheet_id, sheet_range)
-        if not cells:
-            return errors
-
+        table = candidate.data
+        config = candidate.params
+        errors = []
         header_row_index, start_column_index = next(
             (
                 (index, next((i for i, x in enumerate(row) if x), None))
-                for index, row in enumerate(cells)
+                for index, row in enumerate(table)
                 if row
             ),
             (None, None),
@@ -373,24 +379,95 @@ class SheetsImporter(VirtualFetcher):
         if header_row_index is None or start_column_index is None:
             return errors
 
-        columns = cells[header_row_index][start_column_index:]
+        raw_columns = table[header_row_index][start_column_index:]
+        template_fields = [
+            get_effective_field(
+                field.field,
+                field.name or field.field,
+                field.default_value,
+                config.template,
+            )
+            for field in config.template.fields
+        ]
 
-        for row in cells[header_row_index + 1 :]:
-            entry_dict = {}
+        columns = []
+        unexpected_columns = []
+        for column in raw_columns:
+            templated_field = next(
+                (f for f in template_fields if f.name == column),
+                None,
+            )
+            if not templated_field:
+                unexpected_columns.append(column)
+
+            columns.append(templated_field)
+
+        missing_columns = [field for field in template_fields if field not in columns]
+        columns.extend(missing_columns)
+
+        if unexpected_columns:
+            errors.append(
+                ImportError(
+                    ImportErrorType.UNEXPECTED_COLUMN,
+                    candidate.name,
+                    unexpected_columns,
+                )
+            )
+
+        for row in table[header_row_index + 1 :]:
+            raw_parsed_row = {}
+            missing_fields = []
             for j, column in enumerate(columns, start_column_index):
-                if not column or j >= len(row):
+                if not column:
                     continue
-                parsed = _parse_cell(row[j], config)
-                if parsed is not None:
-                    entry_dict[column] = parsed
+
+                value = row[j] if j < len(row) else None
+                if not value:
+                    value = column.default_value
+                    if value is None and column.required:
+                        missing_fields.append(column.field)
+                        continue
+
+                try:
+                    parsed = None
+                    if value is not None:
+                        parsed = _parse_cell(value, config, column)
+                except InvalidFieldError as e:
+                    errors.append(
+                        ImportError(
+                            ImportErrorType.VALIDATION_ERROR,
+                            candidate.name,
+                            [
+                                {
+                                    "field": e.field_name,
+                                    "value": e.value,
+                                }
+                            ],
+                            row,
+                        )
+                    )
+                    continue
+
+                raw_parsed_row[column.field] = parsed
+
+            if missing_fields:
+                errors.append(
+                    ImportError(
+                        ImportErrorType.MISSING_FIELD,
+                        candidate.name,
+                        [{"field": field} for field in missing_fields],
+                        row,
+                    )
+                )
+                continue
 
             try:
-                entry_fn(row, entry_dict)
+                entry_fn(row, raw_parsed_row)
             except MissingFieldsError as e:
                 errors.append(
                     ImportError(
                         ImportErrorType.MISSING_FIELD,
-                        config.range,
+                        candidate.name,
                         e.missing_fields,
                         row,
                     )
@@ -401,7 +478,7 @@ class SheetsImporter(VirtualFetcher):
                 errors.append(
                     ImportError(
                         ImportErrorType.VALIDATION_ERROR,
-                        config.range,
+                        candidate.name,
                         [
                             {
                                 "field": ".".join(map(str, error.get("loc"))),
@@ -418,7 +495,7 @@ class SheetsImporter(VirtualFetcher):
                 errors.append(
                     ImportError(
                         ImportErrorType.VALIDATION_ERROR,
-                        config.range,
+                        candidate.name,
                         [
                             {
                                 "field": e.field_name,
@@ -434,7 +511,7 @@ class SheetsImporter(VirtualFetcher):
                 errors.append(
                     ImportError(
                         ImportErrorType.UNEXPECTED_ERROR,
-                        config.range,
+                        candidate.name,
                         [str(e)],
                         row,
                     )
@@ -442,24 +519,3 @@ class SheetsImporter(VirtualFetcher):
                 self._log.warning(f"Skipping row {row}: {e}")
                 continue
         return errors
-
-    def _read_sheet_table(
-        self, credentials: ExternalIntegrationPayload, sheet_id, cell_range
-    ) -> tuple[list[list], list[ImportError]]:
-        sheets_service = self._sheets_service.service(credentials)
-        errors = []
-        try:
-            result = (
-                sheets_service.values()
-                .get(spreadsheetId=sheet_id, range=cell_range)
-                .execute()
-            )
-        except HttpError as e:
-            if e.status_code == 400:
-                errors.append(ImportError(ImportErrorType.SHEET_NOT_FOUND, cell_range))
-                self._log.warning(f"Sheet {sheet_id} not found")
-                return [], errors
-            else:
-                raise
-
-        return result.get("values", []), errors
