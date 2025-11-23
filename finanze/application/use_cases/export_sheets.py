@@ -18,7 +18,7 @@ from dateutil.tz import tzlocal
 from domain.auto_contributions import ContributionQueryRequest
 from domain.entity import Entity, Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
-from domain.export import SheetParams, TemplatedDataProcessorParams
+from domain.export import SheetParams, TemplatedDataProcessorParams, NumberFormat
 from domain.external_integration import (
     ExternalIntegrationId,
     ExternalIntegrationPayload,
@@ -235,6 +235,7 @@ class ExportSheetsImpl(ExportSheets):
 
         return TemplatedDataProcessorParams(
             template=template,
+            number_format=NumberFormat.EUROPEAN,
             feature=feature,
             products=products,
             datetime_format=config.datetimeFormat or global_config.datetimeFormat,

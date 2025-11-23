@@ -29,7 +29,7 @@ def flask(static_upload_dir: Path):
         static_url_path="/static",
         static_folder=str(static_upload_dir.absolute()),
     )
-    CORS(app)
+    CORS(app, expose_headers=["Content-Disposition"])
     exception_handler.register_exception_handlers(app)
     app.config["MAX_CONTENT_LENGTH"] = 50 * 1000 * 1000
     return app

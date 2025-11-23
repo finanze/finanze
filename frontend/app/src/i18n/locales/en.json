@@ -316,7 +316,9 @@
     "LINK_EXPIRED": "The connection link expired. Relink the entity to continue.",
     "PARTIALLY_COMPLETED": "Not all sources were successfully loaded for {entity}.",
     "COOLDOWN_WITH_WAIT": "Please wait {time} before trying again with {entity}.",
-    "DISABLED": "Data import disabled in settings."
+    "DISABLED": "Data import disabled in settings.",
+    "UNSUPPORTED_FILE_FORMAT": "The selected file type is not supported. Upload a CSV, TSV, or XLSX file.",
+    "INVALID_TEMPLATE": "The selected template is not valid for this import. Please choose another one."
   },
   "entities": {
     "title": "Integrations",
@@ -456,9 +458,9 @@
     "dataPlaceholder": "Enter data type(s)",
     "selectDataTypes": "Select data types...",
     "dateFormat": "Date Format",
-    "dateFormatPlaceholder": "%d/%m/%Y",
+    "dateFormatPlaceholder": "%Y-%m-%d",
     "datetimeFormat": "Datetime Format",
-    "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
+    "datetimeFormatPlaceholder": "%Y-%m-%dT%H:%M:%S",
     "filters": "Filters",
     "optional": "Optional",
     "extraSettings": "Extra settings",
@@ -660,7 +662,6 @@
     "negativeCashWarning": "Projected cash would be {amount} (negative). Automatic contributions, expenses or debt payments exceed future available cash. Adjust assumptions or flows."
   },
   "export": {
-    "moreOptionsNote": "Support for other export formats and destinations will be added in the future.",
     "title": "Export & Import",
     "intro": "Coordinate how data flows between Finanze and your spreadsheets.",
     "description": "Export your financial data to Google Sheets.",
@@ -691,6 +692,112 @@
       "entityRequired": "Select an entity to continue.",
       "entityCreateOption": "Create new entity..."
     },
+    "file": {
+      "cardTitle": "File export",
+      "cardDescription": "Download a file with your selected data.",
+      "singleRunBadge": "File-only",
+      "formatsLabel": "Available formats:",
+      "exportButton": "Export...",
+      "dialogTitle": "Export data to file",
+      "dialogDescription": "Pick what to include in this export and choose the desired file format.",
+      "featureLabel": "Feature",
+      "featurePlaceholder": "Select what you want to export",
+      "productsLabel": "Products",
+      "productsHint": "Select at least one product.",
+      "productsPlaceholder": "Limit export to specific products",
+      "productsInfo": "This feature is not product-specific. All related data will be included.",
+      "templateLabel": "Template",
+      "templatePlaceholder": "Use all available columns",
+      "templateFeatureHint": "Select a feature first to view its templates.",
+      "templateInfo": "Templates help you narrow the exported columns.",
+      "formatLabel": "Format",
+      "formatHint": "Select the file format.",
+      "numberFormatLabel": "Decimal format",
+      "numberFormatHint": "Choose how thousands and decimals are separated.",
+      "numberFormats": {
+        "ENGLISH": "1,000.00",
+        "EUROPEAN": "1.000,00"
+      },
+      "datetimeHint": "If left empty, ISO formats (e.g. %Y-%m-%d and %Y-%m-%dT%H:%M:%S) will be used by default.",
+      "exportAction": "Export file",
+      "formats": {
+        "CSV": "CSV",
+        "TSV": "TSV",
+        "XLSX": "Excel"
+      },
+      "errors": {
+        "featureRequired": "Select a feature to continue."
+      },
+      "toast": {
+        "success": "Export started. Your download should begin shortly.",
+        "error": "We couldn't export the file. Try again in a moment."
+      }
+    },
+    "fileImport": {
+      "cardTitle": "File import",
+      "cardDescription": "Upload a CSV, TSV, or Excel file mapped with one of your templates.",
+      "singleRunBadge": "Manual upload",
+      "formatsLabel": "Supported formats:",
+      "importButton": "Import...",
+      "dialogTitle": "Import data from file",
+      "dialogDescription": "Upload a file, choose its template, and we'll process it immediately.",
+      "additiveDisclaimer": "Imported data is appended to existing records. Previously saved data is never removed.",
+      "featureLabel": "Feature",
+      "productsLabel": "Product",
+      "productsHint": "Select the product type represented in the file.",
+      "productsPlaceholder": "Select a product",
+      "productsInfo": "This feature is not limited to a specific product.",
+      "templateLabel": "Template",
+      "templatePlaceholder": "Select a template",
+      "templateFeatureHint": "Select a feature first to view its templates.",
+      "templateInfo": "Templates define how we interpret each column.",
+      "fileLabel": "File",
+      "fileButton": "Choose file",
+      "fileButtonChange": "Change file",
+      "filePlaceholder": "No file selected yet.",
+      "fileHint": "Accepted formats: CSV, TSV, or XLSX.",
+      "fileHintSelected": "Ready to upload. Select another file if needed.",
+      "numberFormatLabel": "Decimal format",
+      "numberFormatHint": "Match the separators used in your file.",
+      "numberFormats": {
+        "ENGLISH": "1,000.00",
+        "EUROPEAN": "1.000,00"
+      },
+      "datetimeHint": "Use the same date and datetime formatting found in your file. Both are required.",
+      "importAction": "Preview import",
+      "errors": {
+        "featureRequired": "Select a feature to continue.",
+        "productRequired": "Select a product to continue.",
+        "fileRequired": "Choose a file to import.",
+        "dateFormatRequired": "Enter the date format used in the file.",
+        "datetimeFormatRequired": "Enter the datetime format used in the file."
+      },
+      "toast": {
+        "success": "File imported successfully. Refreshing your data...",
+        "error": "We couldn't import the file. Try again in a moment.",
+        "empty": "We processed the file but didn't detect any new rows to import."
+      },
+      "preview": {
+        "title": "Review simulated import",
+        "description": "We processed your file without saving. Confirm if everything looks correct before importing for real.",
+        "empty": "No positions or transactions were detected in this file.",
+        "positionsTitle": "Positions",
+        "positionsSubtitle": "Grouped by entity and product type.",
+        "entityTotal": "{count} records",
+        "productTotal": "{count} rows",
+        "transactionsTitle": "Transactions",
+        "transactionsSubtitle": "Grouped by product type.",
+        "transactionTotal": "{count} transactions",
+        "showProductDetails": "Show details",
+        "hideProductDetails": "Hide details",
+        "sampleEntriesLabel": "Sample entries",
+        "moreEntries": "+{count} more",
+        "unnamedEntry": "Untitled entry",
+        "cancel": "Back to file",
+        "confirm": "Import data"
+      }
+    },
+    "googleSheetsImportDisclaimer": "Sheets act as a simulated data source. Their content is fully recreated on each sheets import and does not modify manual or real data.",
     "tabs": {
       "export": "Export",
       "import": "Import"
@@ -841,6 +948,7 @@
         "principal_paid": "Principal paid",
         "product_type": "Product type",
         "profitability": "Profitability",
+        "gross_interest_rate": "Gross interest rate",
         "reference": "Reference",
         "repaid": "Repaid",
         "retained": "Retained",
@@ -1181,6 +1289,7 @@
   "importErrors": {
     "title": "Import Warnings",
     "description": "Your data was imported successfully, but some rows were skipped due to errors. Please review and fix the following issues:",
+    "previewDescription": "We could not include these rows in the preview yet. Fix the issues below before running the full import:",
     "sheetNotFound": "Sheet Not Found",
     "missingField": "Missing Field",
     "validationError": "Validation Error",

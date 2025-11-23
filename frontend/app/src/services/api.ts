@@ -39,6 +39,8 @@ import {
   TemplateCreatePayload,
   TemplateUpdatePayload,
   TemplateFeatureDefinition,
+  FileExportRequest,
+  FileImportRequest,
 } from "@/types"
 import {
   EntityContributions,
@@ -209,6 +211,99 @@ export async function updateSheets(): Promise<void> {
   if (!response.ok) {
     await handleApiError(response)
   }
+}
+
+export interface FileExportResult {
+  blob: Blob
+  filename: string | null
+  contentType: string | null
+}
+
+export async function exportFile(
+  request: FileExportRequest,
+): Promise<FileExportResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/export/file`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  const blob = await response.blob()
+  const dispositionHeader =
+    response.headers.get("Content-Disposition") ??
+    response.headers.get("content-disposition")
+
+  let filename: string | null = null
+  if (dispositionHeader) {
+    const utfMatch = dispositionHeader.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utfMatch?.[1]) {
+      try {
+        filename = decodeURIComponent(utfMatch[1])
+      } catch {
+        filename = utfMatch[1]
+      }
+      filename = filename.replace(/^"|"$/g, "")
+    } else {
+      const fallbackMatch = dispositionHeader.match(/filename="?([^";]+)"?/i)
+      if (fallbackMatch?.[1]) {
+        filename = fallbackMatch[1]
+      }
+    }
+  }
+
+  return {
+    blob,
+    filename,
+    contentType:
+      response.headers.get("Content-Type") ??
+      response.headers.get("content-type"),
+  }
+}
+
+export async function importFile(
+  request: FileImportRequest,
+  file: File,
+): Promise<ImportResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("feature", request.feature)
+  formData.append("product", request.product)
+  if (request.datetime_format) {
+    formData.append("datetimeFormat", request.datetime_format)
+  }
+  if (request.date_format) {
+    formData.append("dateFormat", request.date_format)
+  }
+  formData.append("numberFormat", request.number_format)
+  formData.append("templateId", request.templateId)
+  if (
+    request.templateParams &&
+    Object.keys(request.templateParams).length > 0
+  ) {
+    formData.append("templateParams", JSON.stringify(request.templateParams))
+  }
+
+  const url = new URL(`${baseUrl}/data/import/file`)
+  if (typeof request.preview === "boolean") {
+    url.searchParams.set("preview", request.preview ? "true" : "false")
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  return response.json()
 }
 
 // Templates

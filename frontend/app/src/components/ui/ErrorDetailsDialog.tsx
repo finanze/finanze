@@ -13,12 +13,14 @@ interface ErrorDetailsDialogProps {
   isOpen: boolean
   errors: ImportError[]
   onClose: () => void
+  description?: string
 }
 
 export function ErrorDetailsDialog({
   isOpen,
   errors,
   onClose,
+  description,
 }: ErrorDetailsDialogProps) {
   const { t } = useI18n()
 
@@ -166,7 +168,7 @@ export function ErrorDetailsDialog({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+    <div className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/50 p-4">
       <Card className="w-full max-w-2xl mx-4 max-h-[80vh] flex flex-col">
         <CardHeader className="flex-shrink-0">
           <CardTitle className="text-orange-600 dark:text-orange-400">
@@ -175,7 +177,7 @@ export function ErrorDetailsDialog({
         </CardHeader>
         <CardContent className="flex-1 overflow-y-auto min-h-0">
           <div className="mb-4 text-sm text-gray-700 dark:text-gray-300">
-            {t.importErrors.description}
+            {description ?? t.importErrors.description}
           </div>
 
           <div className="space-y-4">

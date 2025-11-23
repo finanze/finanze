@@ -1,4 +1,6 @@
 import type { ReactNode } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useRef } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowLeftRight,
@@ -98,7 +100,7 @@ type TemplateFormErrors = Partial<
   Record<"name" | "feature" | "products" | "fields" | "submit", string>
 >
 
-const featureIcons: Record<Feature, ReactNode> = {
+export const featureIcons: Record<Feature, ReactNode> = {
   POSITION: <BarChart className="h-4 w-4" />,
   AUTO_CONTRIBUTIONS: <PiggyBankIcon />,
   TRANSACTIONS: <ArrowLeftRight className="h-4 w-4" />,
@@ -266,6 +268,9 @@ export function TemplateManagerDialog({
   const [isDeleting, setIsDeleting] = useState(false)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [touchDragIndex, setTouchDragIndex] = useState<number | null>(null)
+  const [isTouchDragging, setIsTouchDragging] = useState(false)
+  const fieldListRef = useRef<HTMLDivElement | null>(null)
   const [featureDrafts, setFeatureDrafts] = useState<
     Partial<Record<Feature, FeatureDraftSnapshot>>
   >({})
@@ -1049,6 +1054,56 @@ export function TemplateManagerDialog({
     setDragOverIndex(null)
   }
 
+  const handleFieldTouchStart = (index: number) => {
+    setTouchDragIndex(index)
+    setIsTouchDragging(true)
+  }
+
+  const handleFieldTouchMove = (index: number, event: React.TouchEvent) => {
+    if (touchDragIndex === null) return
+    const y = event.touches[0].clientY
+    // Collect all row center positions
+    const rows = Array.from(
+      (fieldListRef.current ?? document).querySelectorAll(
+        "[data-template-field-row]",
+      ),
+    ) as HTMLElement[]
+    if (rows.length === 0) return
+    let closestIndex = index
+    let minDist = Infinity
+    rows.forEach((row, i) => {
+      const rect = row.getBoundingClientRect()
+      const center = rect.top + rect.height / 2
+      const dist = Math.abs(center - y)
+      if (dist < minDist) {
+        minDist = dist
+        closestIndex = i
+      }
+    })
+    if (closestIndex !== dragOverIndex && closestIndex !== touchDragIndex) {
+      setDragOverIndex(closestIndex)
+    }
+  }
+
+  const handleFieldTouchEnd = () => {
+    if (
+      touchDragIndex !== null &&
+      dragOverIndex !== null &&
+      touchDragIndex !== dragOverIndex
+    ) {
+      setDraft(prev => {
+        if (!prev) return prev
+        const nextFields = [...prev.fields]
+        const [moved] = nextFields.splice(touchDragIndex, 1)
+        nextFields.splice(dragOverIndex, 0, moved)
+        return { ...prev, fields: nextFields }
+      })
+    }
+    setTouchDragIndex(null)
+    setDragOverIndex(null)
+    setIsTouchDragging(false)
+  }
+
   const validateDraft = () => {
     if (!draft) return false
     const errors: TemplateFormErrors = {}
@@ -1340,42 +1395,58 @@ export function TemplateManagerDialog({
               {templateTexts.fieldsLabel}
             </p>
             <div className="space-y-2">
-              {(selectedTemplate.fields ?? []).map(field => {
-                const defaultLabel = getFieldLabel(field.field)
-                const finalColumn = field.name?.trim() || field.field
-                return (
-                  <div
-                    key={field.field}
-                    className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold">{defaultLabel}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {templateTexts.finalColumnLabel}:{" "}
-                        <span className="font-medium text-foreground">
-                          {finalColumn}
-                        </span>
-                      </p>
-                      {field.default !== undefined &&
-                        field.default !== null && (
-                          <p className="text-[11px] text-muted-foreground">
-                            {templateTexts.defaultValueFormLabel}:{" "}
-                            <span className="font-medium text-foreground">
-                              {serializeDefaultValue(field.default, field.type)}
-                            </span>
-                          </p>
+              <AnimatePresence>
+                {(selectedTemplate.fields ?? []).map(field => {
+                  const defaultLabel = getFieldLabel(field.field)
+                  const finalColumn = field.name?.trim() || field.field
+                  return (
+                    <motion.div
+                      key={field.field}
+                      className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2"
+                      layout
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 320,
+                        damping: 30,
+                        mass: 0.6,
+                      }}
+                    >
+                      <div>
+                        <p className="text-sm font-semibold">{defaultLabel}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {templateTexts.finalColumnLabel}:{" "}
+                          <span className="font-medium text-foreground">
+                            {finalColumn}
+                          </span>
+                        </p>
+                        {isImportTemplate &&
+                          field.default !== undefined &&
+                          field.default !== null && (
+                            <p className="text-[11px] text-muted-foreground">
+                              {templateTexts.defaultValueFormLabel}:{" "}
+                              <span className="font-medium text-foreground">
+                                {serializeDefaultValue(
+                                  field.default,
+                                  field.type,
+                                )}
+                              </span>
+                            </p>
+                          )}
+                      </div>
+                      <div className="text-right">
+                        {renderFieldTypePill(
+                          field.type,
+                          field.field,
+                          field.enum_values,
                         )}
-                    </div>
-                    <div className="text-right">
-                      {renderFieldTypePill(
-                        field.type,
-                        field.field,
-                        field.enum_values,
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </AnimatePresence>
             </div>
           </div>
         </div>
@@ -1416,7 +1487,7 @@ export function TemplateManagerDialog({
             {selectedCount} / {draft.fields.length}
           </Badge>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2" ref={fieldListRef}>
           {draft.fields.map((field, index) => {
             const isDragTarget =
               dragIndex !== null &&
@@ -1441,27 +1512,41 @@ export function TemplateManagerDialog({
                   )
                 : null
             return (
-              <div
+              <motion.div
                 key={field.field}
                 data-template-field-row
                 className={cn(
-                  "relative rounded-xl border px-3 py-2 transition-colors",
+                  "relative rounded-xl border px-3 py-2 transition-colors will-change-transform",
                   field.selected
                     ? "border-primary/40 bg-primary/5"
                     : "border-border/60 bg-muted/30",
+                  dragIndex === index
+                    ? cn(
+                        "outline outline-2 outline-primary/60 bg-primary/10 scale-[1.015]",
+                        isTouchDragging
+                          ? "shadow-none"
+                          : "shadow-md shadow-primary/10",
+                      )
+                    : undefined,
                   isDragTarget
-                    ? "ring-2 ring-primary/60 shadow-lg shadow-primary/10"
-                    : dragIndex === index
-                      ? "ring-2 ring-primary/50 bg-primary/10 shadow-md"
-                      : undefined,
+                    ? "outline outline-2 outline-primary/50"
+                    : undefined,
                 )}
+                layout
+                layoutId={`template-field-${field.field}`}
+                transition={{
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 28,
+                  mass: 0.5,
+                }}
                 onDragEnter={() => handleFieldDragEnter(index)}
                 onDragLeave={event => handleFieldDragLeave(event, index)}
                 onDragOver={event => event.preventDefault()}
                 onDrop={() => handleFieldDrop(index)}
               >
                 {isDragTarget ? (
-                  <span className="pointer-events-none absolute inset-x-3 -top-1 h-1 rounded-full bg-primary/70 opacity-90" />
+                  <span className="pointer-events-none absolute inset-x-4 -top-1 h-1 rounded-full bg-gradient-to-r from-primary/60 via-primary to-primary/60 opacity-95" />
                 ) : null}
                 <div className="flex flex-1 flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
@@ -1471,7 +1556,7 @@ export function TemplateManagerDialog({
                       className="flex min-w-0 flex-1 items-start gap-3 text-left"
                     >
                       <span
-                        className="shrink-0 text-muted-foreground cursor-grab select-none w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted/40 active:bg-muted/60"
+                        className="shrink-0 text-muted-foreground cursor-grab select-none w-7 h-7 flex items-center justify-center rounded-md hover:bg-muted/40 active:bg-muted/60 touch-none"
                         draggable
                         onDragStart={event => {
                           handleFieldDragStart(index)
@@ -1515,6 +1600,11 @@ export function TemplateManagerDialog({
                           }
                         }}
                         onDragEnd={handleFieldDragEnd}
+                        onTouchStart={() => handleFieldTouchStart(index)}
+                        onTouchMove={event =>
+                          handleFieldTouchMove(index, event)
+                        }
+                        onTouchEnd={handleFieldTouchEnd}
                         aria-label={t.export.templates.dragHandleLabel}
                         tabIndex={0}
                       >
@@ -1653,7 +1743,7 @@ export function TemplateManagerDialog({
                     {hasDefaultEditor ? <div>{defaultEditor}</div> : null}
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )
           })}
         </div>

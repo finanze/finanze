@@ -5,6 +5,7 @@ import {
   InterestType,
   EntitiesPosition,
   ProductType,
+  GlobalPosition,
 } from "./position"
 import type {
   AutoUpdateActionResult,
@@ -13,6 +14,7 @@ import type {
   AutoUpdateInfo,
   AutoUpdateProgressInfo,
 } from "./release"
+import { Transactions } from "./transactions"
 
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
@@ -164,6 +166,11 @@ export interface ImportError {
   row?: string[]
 }
 
+export interface ImportedData {
+  positions?: Array<GlobalPosition>
+  transactions?: Transactions
+}
+
 export interface ImportResult {
   code: ImportResultCode
   data?: any
@@ -227,6 +234,10 @@ export enum FetchResultCode {
 export enum ImportResultCode {
   // Success
   COMPLETED = "COMPLETED",
+
+  // Failure
+  UNSUPPORTED_FILE_FORMAT = "UNSUPPORTED_FILE_FORMAT",
+  INVALID_TEMPLATE = "INVALID_TEMPLATE",
 
   // Import not configured
   DISABLED = "DISABLED",
@@ -850,4 +861,41 @@ export interface TemplateFeatureDefinition {
   fields: TemplateFeatureField[]
   product: ProductType | null
   template_type: TemplateType | null
+}
+
+export enum NumberFormat {
+  EUROPEAN = "EUROPEAN",
+  ENGLISH = "ENGLISH",
+}
+
+export enum FileFormat {
+  CSV = "CSV",
+  TSV = "TSV",
+  XLSX = "XLSX",
+}
+
+export interface TemplateConfigPayload {
+  id: string
+  params?: Record<string, string> | null
+}
+
+export interface FileExportRequest {
+  format: FileFormat
+  number_format: NumberFormat
+  feature: Feature
+  data?: ProductType[] | null
+  datetime_format?: string | null
+  date_format?: string | null
+  template?: TemplateConfigPayload | null
+}
+
+export interface FileImportRequest {
+  feature: Feature
+  number_format: NumberFormat
+  product: ProductType
+  datetime_format?: string | null
+  date_format?: string | null
+  templateId: string
+  templateParams?: Record<string, string> | null
+  preview?: boolean
 }

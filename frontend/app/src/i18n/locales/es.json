@@ -314,7 +314,9 @@
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
     "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
-    "DISABLED": "Importación de datos deshabilitada en configuración."
+    "DISABLED": "Importación de datos deshabilitada en configuración.",
+    "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",
+    "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra."
   },
   "entities": {
     "title": "Integraciones",
@@ -455,9 +457,9 @@
     "dataPlaceholder": "Ingresa tipo(s) de datos",
     "selectDataTypes": "Seleccionar tipos de datos...",
     "dateFormat": "Formato de Fecha",
-    "dateFormatPlaceholder": "%d/%m/%Y",
+    "dateFormatPlaceholder": "%Y-%m-%d",
     "datetimeFormat": "Formato de Fecha y Hora",
-    "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
+    "datetimeFormatPlaceholder": "%Y-%m-%dT%H:%M:%S",
     "filters": "Filtros",
     "optional": "Opcional",
     "extraSettings": "Opciones avanzadas",
@@ -659,7 +661,6 @@
     "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible."
   },
   "export": {
-    "moreOptionsNote": "En el futuro se añadirá compatibilidad con otros formatos y destinos de exportación.",
     "title": "Exportar e Importar",
     "intro": "Coordina cómo fluye la información entre Finanze y tus hojas.",
     "description": "Exporta tus datos financieros a Google Sheets.",
@@ -690,6 +691,112 @@
       "entityRequired": "Selecciona una entidad para continuar.",
       "entityCreateOption": "Crear nueva entidad..."
     },
+    "file": {
+      "cardTitle": "Exportación de archivos",
+      "cardDescription": "Descarga un archivo con los tus datos elegidos.",
+      "singleRunBadge": "Solo archivo",
+      "formatsLabel": "Formatos disponibles:",
+      "exportButton": "Exportar...",
+      "dialogTitle": "Exportar datos a archivo",
+      "dialogDescription": "Elige qué incluir en esta exportación y selecciona el formato.",
+      "featureLabel": "Funcionalidad",
+      "featurePlaceholder": "Selecciona qué quieres exportar",
+      "productsLabel": "Productos",
+      "productsHint": "Selecciona al menos un producto.",
+      "productsPlaceholder": "Limitar exportación a productos",
+      "productsInfo": "Esta funcionalidad no es específica por producto. Se incluirán todos los datos relacionados.",
+      "templateLabel": "Plantilla",
+      "templatePlaceholder": "Usar todas las columnas disponibles",
+      "templateFeatureHint": "Selecciona primero una funcionalidad para ver sus plantillas.",
+      "templateInfo": "Las plantillas te ayudan a limitar las columnas exportadas.",
+      "formatLabel": "Formato",
+      "formatHint": "Selecciona el formato del archivo.",
+      "numberFormatLabel": "Formato numérico",
+      "numberFormatHint": "Elige cómo se separan los miles y los decimales.",
+      "numberFormats": {
+        "ENGLISH": "1,000.00",
+        "EUROPEAN": "1.000,00"
+      },
+      "datetimeHint": "Si los dejas vacíos, se usarán formatos ISO por defecto (p. ej. %Y-%m-%d y %Y-%m-%dT%H:%M:%S).",
+      "exportAction": "Exportar archivo",
+      "formats": {
+        "CSV": "CSV",
+        "TSV": "TSV",
+        "XLSX": "Excel"
+      },
+      "errors": {
+        "featureRequired": "Selecciona una funcionalidad para continuar."
+      },
+      "toast": {
+        "success": "Exportación iniciada. La descarga comenzará en segundos.",
+        "error": "No pudimos exportar el archivo. Inténtalo nuevamente."
+      }
+    },
+    "fileImport": {
+      "cardTitle": "Importación de archivos",
+      "cardDescription": "Sube un archivo CSV, TSV o Excel y aplícale una de tus plantillas.",
+      "singleRunBadge": "Carga manual",
+      "formatsLabel": "Formatos soportados:",
+      "importButton": "Importar...",
+      "dialogTitle": "Importar datos desde archivo",
+      "dialogDescription": "Sube un archivo, elige su plantilla y procesaremos la información al instante.",
+      "additiveDisclaimer": "Los datos importados se agregan a tus registros existentes. Nada previamente guardado se elimina.",
+      "featureLabel": "Funcionalidad",
+      "productsLabel": "Producto",
+      "productsHint": "Selecciona el tipo de producto representado en el archivo.",
+      "productsPlaceholder": "Selecciona un producto",
+      "productsInfo": "Esta funcionalidad no depende de un producto específico.",
+      "templateLabel": "Plantilla",
+      "templatePlaceholder": "Selecciona una plantilla",
+      "templateFeatureHint": "Selecciona primero una funcionalidad para ver sus plantillas.",
+      "templateInfo": "Las plantillas definen cómo interpretamos cada columna.",
+      "fileLabel": "Archivo",
+      "fileButton": "Elegir archivo",
+      "fileButtonChange": "Cambiar archivo",
+      "filePlaceholder": "Aún no seleccionaste un archivo.",
+      "fileHint": "Formatos aceptados: CSV, TSV o XLSX.",
+      "fileHintSelected": "Listo para importar. Cambia el archivo si lo necesitas.",
+      "numberFormatLabel": "Formato numérico",
+      "numberFormatHint": "Usa los mismos separadores que aparecen en tu archivo.",
+      "numberFormats": {
+        "ENGLISH": "1,000.00",
+        "EUROPEAN": "1.000,00"
+      },
+      "datetimeHint": "Usa los mismos formatos de fecha y fecha-hora que están en tu archivo. Ambos son obligatorios.",
+      "importAction": "Previsualizar importación",
+      "errors": {
+        "featureRequired": "Selecciona una funcionalidad para continuar.",
+        "productRequired": "Selecciona un producto para continuar.",
+        "fileRequired": "Selecciona un archivo para importar.",
+        "dateFormatRequired": "Ingresa el formato de fecha usado en el archivo.",
+        "datetimeFormatRequired": "Ingresa el formato de fecha y hora usado en el archivo."
+      },
+      "toast": {
+        "success": "Archivo importado correctamente. Actualizando tus datos...",
+        "error": "No pudimos importar el archivo. Inténtalo nuevamente.",
+        "empty": "Procesamos el archivo pero no detectamos filas nuevas para importar."
+      },
+      "preview": {
+        "title": "Revisa la importación simulada",
+        "description": "Procesamos tu archivo sin guardar cambios. Confirma solo si ves todo correcto.",
+        "empty": "No se detectaron posiciones ni transacciones en este archivo.",
+        "positionsTitle": "Posiciones",
+        "positionsSubtitle": "Agrupadas por entidad y tipo de producto.",
+        "entityTotal": "{count} registros",
+        "productTotal": "{count} filas",
+        "transactionsTitle": "Transacciones",
+        "transactionsSubtitle": "Agrupadas por tipo de producto.",
+        "transactionTotal": "{count} transacciones",
+        "showProductDetails": "Ver detalles",
+        "hideProductDetails": "Ocultar detalles",
+        "sampleEntriesLabel": "Ejemplos",
+        "moreEntries": "+{count} más",
+        "unnamedEntry": "Elemento sin nombre",
+        "cancel": "Volver al archivo",
+        "confirm": "Importar datos"
+      }
+    },
+    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente.",
     "tabs": {
       "export": "Exportar",
       "import": "Importar"
@@ -840,6 +947,7 @@
         "principal_paid": "Capital pagado",
         "product_type": "Tipo de producto",
         "profitability": "Rentabilidad",
+        "gross_interest_rate": "Tasa de interés bruta",
         "reference": "Referencia",
         "repaid": "Reembolsado",
         "retained": "Retenido",
@@ -1180,6 +1288,7 @@
   "importErrors": {
     "title": "Advertencias de Importación",
     "description": "Tus datos fueron importados exitosamente, pero algunas filas fueron omitidas debido a errores. Por favor revisa y corrige los siguientes problemas:",
+    "previewDescription": "Aún no pudimos incluir estas filas en la vista previa. Corrige los siguientes puntos antes de importar de verdad:",
     "sheetNotFound": "Hoja no encontrada",
     "missingField": "Campo faltante",
     "validationError": "Error de validación",

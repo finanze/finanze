@@ -27,6 +27,7 @@ from application.use_cases.disconnect_entity import DisconnectEntityImpl
 from application.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegrationImpl,
 )
+from application.use_cases.export_file import ExportFileImpl
 from application.use_cases.export_sheets import ExportSheetsImpl
 from application.use_cases.fetch_crypto_data import FetchCryptoDataImpl
 from application.use_cases.fetch_external_financial_data import (
@@ -53,6 +54,7 @@ from application.use_cases.get_template_fields import GetTemplateFieldsImpl
 from application.use_cases.get_templates import GetTemplatesImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.import_sheets import ImportSheetsImpl
+from application.use_cases.import_file import ImportFileImpl
 from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
@@ -70,6 +72,7 @@ from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
 from domain.exception.exceptions import UserNotFound
+from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
@@ -120,7 +123,6 @@ from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
-from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
@@ -172,6 +174,10 @@ from infrastructure.repository.virtual.virtual_import_repository import (
 )
 from infrastructure.sheets.sheets_adapter import SheetsAdapter
 from infrastructure.sheets.sheets_service_loader import SheetsServiceLoader
+from infrastructure.table.csv_file_table_adapter import CSVFileTableAdapter
+from infrastructure.table.table_rw_dispatcher import TableRWDispatcher
+from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
+from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
 from infrastructure.user_files.user_data_manager import UserDataManager
 from waitress import serve
@@ -234,6 +240,13 @@ class FinanzeServer:
         }
 
         self.sheets_adapter = SheetsAdapter(self.sheets_initiator)
+        table_rw_adapter = TableRWDispatcher(
+            {
+                FileFormat.CSV: CSVFileTableAdapter(),
+                FileFormat.TSV: CSVFileTableAdapter(),
+                FileFormat.XLSX: XLSXFileTableAdapter(),
+            }
+        )
 
         template_processor = TemplatedDataGenerator()
         template_parser = TemplateDataParser()
@@ -247,7 +260,7 @@ class FinanzeServer:
         historic_repository = HistoricRepository(client=self.db_client)
         entity_repository = EntityRepository(client=self.db_client)
         sessions_repository = SessionsRepository(client=self.db_client)
-        virtual_import_repository = VirtualImportRepository(client=self.db_client)
+        virtual_import_registry = VirtualImportRepository(client=self.db_client)
         crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
             client=self.db_client
         )
@@ -310,7 +323,7 @@ class FinanzeServer:
             credentials_port,
             crypto_wallet_connections_repository,
             last_fetches_repository,
-            virtual_import_repository,
+            virtual_import_registry,
         )
         fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
@@ -356,6 +369,16 @@ class FinanzeServer:
             template_processor,
             self.config_loader,
         )
+        export_file = ExportFileImpl(
+            position_repository,
+            auto_contrib_repository,
+            transaction_repository,
+            historic_repository,
+            entity_repository,
+            template_repository,
+            template_processor,
+            table_rw_adapter,
+        )
         import_sheets = ImportSheetsImpl(
             position_repository,
             transaction_repository,
@@ -363,10 +386,20 @@ class FinanzeServer:
             entity_repository,
             external_integration_repository,
             self.config_loader,
-            virtual_import_repository,
+            virtual_import_registry,
             template_repository,
             template_parser,
             transaction_handler,
+        )
+        import_file = ImportFileImpl(
+            position_port=position_repository,
+            transaction_port=transaction_repository,
+            table_rw_port=table_rw_adapter,
+            entity_port=entity_repository,
+            virtual_import_registry=virtual_import_registry,
+            template_port=template_repository,
+            template_parser=template_parser,
+            transaction_handler_port=transaction_handler,
         )
         add_entity_credentials = AddEntityCredentialsImpl(
             self.financial_entity_fetchers,
@@ -489,31 +522,31 @@ class FinanzeServer:
         update_contributions = UpdateContributionsImpl(
             entity_port=entity_repository,
             auto_contributions_port=auto_contrib_repository,
-            virtual_import_registry=virtual_import_repository,
+            virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
         )
         update_position = UpdatePositionImpl(
             entity_port=entity_repository,
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
-            virtual_import_registry=virtual_import_repository,
+            virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
         )
         add_manual_transaction = AddManualTransactionImpl(
             entity_port=entity_repository,
             transaction_port=transaction_repository,
-            virtual_import_registry=virtual_import_repository,
+            virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
         )
         update_manual_transaction = UpdateManualTransactionImpl(
             entity_port=entity_repository,
             transaction_port=transaction_repository,
-            virtual_import_registry=virtual_import_repository,
+            virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
         )
         delete_manual_transaction = DeleteManualTransactionImpl(
             transaction_port=transaction_repository,
-            virtual_import_registry=virtual_import_repository,
+            virtual_import_registry=virtual_import_registry,
             transaction_handler_port=transaction_handler,
         )
         update_tracked_quotes = UpdateTrackedQuotesImpl(
@@ -545,7 +578,9 @@ class FinanzeServer:
             fetch_crypto_data,
             fetch_external_financial_data,
             export_sheets,
+            export_file,
             import_sheets,
+            import_file,
             add_entity_credentials,
             get_login_status,
             user_logout,

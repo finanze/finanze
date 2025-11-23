@@ -21,6 +21,7 @@ from domain.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegration,
 )
 from domain.use_cases.export_sheets import ExportSheets
+from domain.use_cases.export_file import ExportFile
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
@@ -44,6 +45,7 @@ from domain.use_cases.get_template_fields import GetTemplateFields
 from domain.use_cases.get_templates import GetTemplates
 from domain.use_cases.get_transactions import GetTransactions
 from domain.use_cases.import_sheets import ImportSheets
+from domain.use_cases.import_file import ImportFile
 from domain.use_cases.list_real_estate import ListRealEstate
 from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.save_commodities import SaveCommodities
@@ -96,6 +98,7 @@ from infrastructure.controller.routes.disconnect_external_integration import (
 )
 from infrastructure.controller.routes.exchange_rates import exchange_rates
 from infrastructure.controller.routes.export_sheets import export_sheets
+from infrastructure.controller.routes.export_file import export_file
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
 from infrastructure.controller.routes.fetch_external_financial_data import (
     fetch_external_financial_data,
@@ -118,6 +121,7 @@ from infrastructure.controller.routes.get_template_fields_route import (
 from infrastructure.controller.routes.get_templates import get_templates
 from infrastructure.controller.routes.historic import get_historic
 from infrastructure.controller.routes.import_sheets import import_sheets
+from infrastructure.controller.routes.import_file import import_file_route
 from infrastructure.controller.routes.instrument_details import instrument_details
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
@@ -153,7 +157,9 @@ def register_routes(
     fetch_crypto_data_uc: FetchCryptoData,
     fetch_external_financial_data_uc: FetchExternalFinancialData,
     export_sheets_uc: ExportSheets,
+    export_file_uc: ExportFile,
     import_sheets_uc: ImportSheets,
+    import_file_uc: ImportFile,
     add_entity_credentials_uc: AddEntityCredentials,
     get_login_status_uc: GetLoginStatus,
     user_logout_uc: UserLogout,
@@ -274,6 +280,10 @@ def register_routes(
     async def import_sheets_route():
         return await import_sheets(import_sheets_uc)
 
+    @app.route("/api/v1/data/import/file", methods=["POST"])
+    async def import_file_endpoint():
+        return await import_file_route(import_file_uc)
+
     @app.route("/api/v1/data/fetch/external/<external_entity_id>", methods=["POST"])
     async def fetch_external_entity_route(external_entity_id: str):
         return await fetch_external_financial_data(
@@ -283,6 +293,10 @@ def register_routes(
     @app.route("/api/v1/data/export/sheets", methods=["POST"])
     async def export_sheets_route():
         return await export_sheets(export_sheets_uc)
+
+    @app.route("/api/v1/data/export/file", methods=["POST"])
+    async def export_file_route():
+        return await export_file(export_file_uc)
 
     @app.route("/api/v1/positions", methods=["GET"])
     def positions_route():

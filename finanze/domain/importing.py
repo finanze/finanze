@@ -2,8 +2,11 @@ from enum import Enum
 from typing import Any, Optional
 
 from domain.entity import Entity, Feature
+from domain.export import NumberFormat
 from domain.fetch_record import DataSource
+from domain.file_upload import FileUpload
 from domain.global_position import GlobalPosition, ProductType
+from domain.settings import TemplateConfig
 from domain.template import Template
 from domain.transactions import Transactions
 from pydantic.dataclasses import dataclass
@@ -12,10 +15,11 @@ from pydantic.dataclasses import dataclass
 @dataclass
 class TemplatedDataParserParams:
     template: Template
+    number_format: NumberFormat
     feature: Feature
     product: ProductType
-    datetime_format: str
-    date_format: str
+    datetime_format: Optional[str]
+    date_format: Optional[str]
     params: dict[str, Any]
 
 
@@ -27,9 +31,25 @@ class ImportCandidate:
     data: list[list[str]]
 
 
+@dataclass
+class ImportFileRequest:
+    file: FileUpload
+    number_format: NumberFormat
+    feature: Feature
+    product: ProductType
+    datetime_format: Optional[str]
+    date_format: Optional[str]
+    template: TemplateConfig
+    preview: bool
+
+
 class ImportResultCode(str, Enum):
     # Success
     COMPLETED = "COMPLETED"
+
+    # Failure
+    UNSUPPORTED_FILE_FORMAT = "UNSUPPORTED_FILE_FORMAT"
+    INVALID_TEMPLATE = "INVALID_TEMPLATE"
 
     # Import not configured
     DISABLED = "DISABLED"

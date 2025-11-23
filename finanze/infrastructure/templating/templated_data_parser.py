@@ -8,6 +8,7 @@ from domain.currency_symbols import CURRENCY_SYMBOL_MAP
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityOrigin, EntityType
 from domain.exception.exceptions import MissingFieldsError
+from domain.export import NumberFormat
 from domain.global_position import (
     Account,
     Accounts,
@@ -42,7 +43,7 @@ from domain.importing import (
     TransactionsImportResult,
 )
 from domain.template import EffectiveTemplatedField, get_effective_field
-from domain.template_fields import ENTITY, TemplateFieldType, PORTFOLIO_NAME
+from domain.template_fields import ENTITY, PORTFOLIO_NAME, TemplateFieldType
 from domain.transactions import (
     BaseTx,
     DepositTx,
@@ -63,13 +64,20 @@ class InvalidFieldError(Exception):
         super().__init__(message)
 
 
-def parse_number(value: Any) -> Dezimal:
-    value = (
-        value.strip().replace(".", "").replace(",", ".")
-        if isinstance(value, str)
-        else value
-    )
+def parse_number(value: Any, number_format: NumberFormat) -> Dezimal:
+    if isinstance(value, str):
+        if number_format == NumberFormat.EUROPEAN:
+            value = value.replace(".", "").replace(",", ".")
+        else:
+            value = value.replace(",", "")
+
     return Dezimal(value)
+
+
+def parse_datetime(value: str, date_format: str | None) -> datetime:
+    if date_format is None:
+        return datetime.fromisoformat(value)
+    return datetime.strptime(value, date_format)
 
 
 def _parse_cell(
@@ -77,38 +85,41 @@ def _parse_cell(
 ) -> Any:
     field_type = field.type
     if field_type in (TemplateFieldType.DECIMAL, TemplateFieldType.INTEGER):
-        return parse_number(value)
+        try:
+            return parse_number(value, params.number_format)
+        except ValueError as e:
+            raise InvalidFieldError(field.field, str(value)) from e
 
     elif field_type == TemplateFieldType.DATETIME:
         try:
-            return datetime.strptime(value, params.datetime_format)
+            return parse_datetime(value, params.datetime_format)
         except ValueError:
             try:
-                return datetime.strptime(value, params.date_format)
+                return parse_datetime(value, params.date_format)
             except ValueError:
                 pass
-            raise InvalidFieldError(field.field, value)
+            raise InvalidFieldError(field.field, str(value))
 
     elif field_type == TemplateFieldType.DATE:
         try:
-            return datetime.strptime(value, params.date_format).date()
+            return parse_datetime(value, params.date_format).date()
         except ValueError:
             try:
-                return datetime.strptime(value, params.datetime_format).date()
+                return parse_datetime(value, params.datetime_format).date()
             except ValueError:
                 pass
-            raise InvalidFieldError(field.field, value)
+            raise InvalidFieldError(field.field, str(value))
 
     elif field_type == TemplateFieldType.ENUM:
         enum_str = value.upper()
         if field.values and enum_str not in field.values:
-            raise InvalidFieldError(field.field, value)
+            raise InvalidFieldError(field.field, str(value))
         return enum_str
 
     elif field_type == TemplateFieldType.CURRENCY:
         currency_str = str(value).upper()
         if currency_str not in CURRENCY_SYMBOL_MAP:
-            raise InvalidFieldError(field.field, value)
+            raise InvalidFieldError(field.field, str(value))
 
         return currency_str
 
@@ -119,7 +130,7 @@ def _parse_cell(
         elif lowered in ("false", "0", "no"):
             return False
         else:
-            raise InvalidFieldError(field.field, value)
+            raise InvalidFieldError(field.field, str(value))
 
     return value
 
@@ -240,6 +251,7 @@ class TemplateDataParser(TemplateParserPort):
         def process_entry_fn(row, product_dict):
             p_id = uuid4()
             product_dict["id"] = p_id
+            product_dict["source"] = candidate.source
 
             entity = product_dict.get(ENTITY.field) or candidate.params.params.get(
                 "entity"
@@ -257,6 +269,7 @@ class TemplateDataParser(TemplateParserPort):
                         name=portfolio_name,
                         initial_investment=Dezimal(0),
                         market_value=Dezimal(0),
+                        source=candidate.source,
                     )
 
             entity_products.append(cls.from_dict(product_dict))

@@ -9,7 +9,7 @@ from application.ports.template_processor_port import TemplateProcessorPort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity, Feature
-from domain.export import TemplatedDataProcessorParams
+from domain.export import NumberFormat, TemplatedDataProcessorParams
 from domain.global_position import ProductType
 from domain.template import (
     EffectiveTemplatedField,
@@ -18,12 +18,12 @@ from domain.template import (
     TemplatedField,
     get_effective_field,
 )
-from domain.template_fields import TEMPLATE_FIELD_MATRIX
+from domain.template_fields import ENTITY, PRODUCT_TYPE, TEMPLATE_FIELD_MATRIX
 from domain.template_type import TemplateType
 from pytz import utc
 
-ENTITY_COLUMN = "entity"
-TYPE_COLUMN = "investment_type"
+ENTITY_COLUMN = ENTITY.field
+PRODUCT_TYPE_COLUMN = PRODUCT_TYPE.field
 
 
 def _format_type_name(value: Any):
@@ -34,18 +34,18 @@ def _format_type_name(value: Any):
         return value.upper()
 
 
-def _format_field_value(value: Any, config: TemplatedDataProcessorParams):
+def _format_field_value(value: Any, params: TemplatedDataProcessorParams):
     if value is None:
         return ""
 
     if isinstance(value, date) and not isinstance(value, datetime):
-        date_format = config.date_format
+        date_format = params.date_format
         if not date_format:
             return value.isoformat()
         return value.strftime(date_format)
 
     elif isinstance(value, datetime):
-        datetime_format = config.datetime_format
+        datetime_format = params.datetime_format
         value = value.replace(tzinfo=utc).astimezone(tzlocal())
         if not datetime_format:
             return value.isoformat()
@@ -54,11 +54,18 @@ def _format_field_value(value: Any, config: TemplatedDataProcessorParams):
     elif isinstance(value, dict) or isinstance(value, list):
         return json.dumps(value, default=str)
 
-    elif isinstance(value, Dezimal):
-        return float(value)
+    elif isinstance(value, Dezimal) or isinstance(value, float):
+        number_format = params.number_format
+        if number_format == NumberFormat.EUROPEAN:
+            return str(value).replace(".", ",")
+
+        return str(value)
 
     elif isinstance(value, UUID):
         return str(value)
+
+    elif isinstance(value, Enum):
+        return value.value
 
     return value
 
@@ -257,8 +264,8 @@ class TemplatedDataGenerator(TemplateProcessorPort):
         else:
             element[ENTITY_COLUMN] = element[ENTITY_COLUMN]["name"]
 
-        if field_path:
-            element[TYPE_COLUMN] = _format_type_name(field_path)
+        if PRODUCT_TYPE_COLUMN not in element:
+            element[PRODUCT_TYPE_COLUMN] = _format_type_name(field_path)
 
         for column in columns:
             column_name = column.field

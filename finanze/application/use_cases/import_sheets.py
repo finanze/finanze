@@ -20,7 +20,7 @@ from domain.exception.exceptions import (
     ExternalIntegrationRequired,
     SheetNotFound,
 )
-from domain.export import SheetParams
+from domain.export import SheetParams, NumberFormat
 from domain.external_integration import (
     ExternalIntegrationId,
     ExternalIntegrationPayload,
@@ -254,6 +254,7 @@ class ImportSheetsImpl(ImportSheets):
 
         return TemplatedDataParserParams(
             template=template,
+            number_format=NumberFormat.EUROPEAN,
             feature=feature,
             product=ProductType(config.data),
             datetime_format=config.datetimeFormat

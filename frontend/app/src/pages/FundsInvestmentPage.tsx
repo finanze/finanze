@@ -682,7 +682,7 @@ function FundsInvestmentPageContent({
       </motion.div>
 
       {showDraftList ? (
-        <motion.div variants={fadeListItem}>
+        <motion.div variants={fadeListItem} initial="hidden" animate="show">
           <FundPortfolioDraftList
             manualDrafts={manualPortfolioDrafts}
             readOnlyPortfolios={readOnlyFundPortfolios}

@@ -89,6 +89,12 @@ class TemplateField:
 ENTITY = TemplateField(
     key="entity", field="entity", type=TemplateFieldType.TEXT
 ).disable_default()
+PRODUCT_TYPE = TemplateField(
+    key="product_type",
+    field="product_type",
+    type=TemplateFieldType.ENUM,
+    enum=ProductType,
+)
 
 TOTAL = TemplateField(key="total", field="total", type=TemplateFieldType.DECIMAL)
 CURRENCY = TemplateField(
@@ -135,6 +141,7 @@ ACCOUNT_FIELDS = FieldGroup(
         INTEREST,
         RETAINED,
         PENDING_TRANSFERS,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -161,6 +168,7 @@ CARD_FIELDS = FieldGroup(
         USED.require(),
         LIMIT,
         ACTIVE.default(True),
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -240,6 +248,7 @@ LOAN_FIELDS = FieldGroup(
         EURIBOR_RATE,
         FIXED_YEARS,
         UNPAID,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -292,6 +301,7 @@ STOCK_ETF_FIELDS = FieldGroup(
         EQUITY_TYPE.require().default(EquityType.STOCK),
         SUBTYPE,
         INFO_SHEET_URL,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -328,6 +338,7 @@ FUND_FIELDS = FieldGroup(
         ASSET_TYPE,
         PORTFOLIO_NAME,
         INFO_SHEET_URL,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -361,6 +372,7 @@ FACTORING_FIELDS = FieldGroup(
         MATURITY.require(),
         FACTORING_TYPE.require(),
         STATE.require(),
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -400,6 +412,7 @@ REAL_ESTATE_CF_FIELDS = FieldGroup(
         BUSINESS_TYPE,
         STATE.require(),
         EXTENDED_MATURITY,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -421,6 +434,7 @@ DEPOSIT_FIELDS = FieldGroup(
         INTEREST_RATE.require(),
         CREATION.require(),
         MATURITY.require(),
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
 )
@@ -456,6 +470,7 @@ CRYPTO_FIELDS = FieldGroup(
         CONTRACT_ADDRESS,
         WALLET_ADDRESS,
         WALLET_NAME,
+        PRODUCT_TYPE.with_template(TemplateType.EXPORT),
     ],
 )
 
@@ -467,12 +482,6 @@ TX_TYPE = TemplateField(
     enum=TxType,
 )
 DATE = TemplateField(key="date", field="date", type=TemplateFieldType.DATETIME)
-PRODUCT_TYPE = TemplateField(
-    key="product_type",
-    field="product_type",
-    type=TemplateFieldType.ENUM,
-    enum=ProductType,
-)
 
 FEES = TemplateField(key="fees", field="fees", type=TemplateFieldType.DECIMAL)
 RETENTIONS = TemplateField(

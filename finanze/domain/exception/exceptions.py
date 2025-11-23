@@ -149,3 +149,7 @@ class InvalidTemplateDefaultValue(Exception):
 
 class SheetNotFound(Exception):
     pass
+
+
+class UnsupportedFileFormat(Exception):
+    pass
