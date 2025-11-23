@@ -18,6 +18,8 @@ export:
       - range: Stocks
         data:
           - STOCK
+        template:
+          id: 0ddb21e8-adc7-4d0d-970e-a3e0cfff1ea2
       - range: Real State CF
         data:
           - REAL_ESTATE_CF
@@ -26,34 +28,42 @@ export:
           - FACTORING
           - REAL_ESTATE_CF
       - range: Accounts
+        lastUpdate: yes
         data:
           - ACCOUNT
 
     contributions:
       - range: Contributions
-        data: periodic
 
     transactions:
       - range: Investment TXs
-        data: investment
+        data:
+          - STOCK_ETF
+          - FUND
       - range: Account TXs
-        data: account
+        data:
+          - ACCOUNT
         datetimeFormat: "%-Y-%-m-%-d / %-I:%-M:%-S %Z"
         dateFormat: "%-Y-%-m-%-d"
         filters:
+          - field: source
+            values: REAL
           - field: entity
             values: Trade Republic
       - range: All TXs
         data:
-          - investment
-          - account
+          - STOCK_ETF
+          - FUND
+          - FUND_PORTFOLIO
+          - FACTORING
+          - REAL_ESTATE_CF
+          - ACCOUNT
 
     historic:
       - range: Factoring Historic
-        # "data" config entry is not available for historic, use filters instead
+        data:
+          - FACTORING
         filters:
-          - field: product_type
-            values: FACTORING
           - field: state
             values:
               - COLLECTED
@@ -72,10 +82,16 @@ importing:
         data: DEPOSIT
         datetimeFormat: "%d/%m/%Y %H:%M:%S"
         dateFormat: "%d/%m/%Y"
+        template:
+          id: af5fed95-c282-4df9-ab32-584e715cd29d
 
     transactions:
       - range: Investment TXs
-        data: investment
+        template:
+          id: af5fed95-c282-4df9-ab32-584e715cd29d
+          params:
+            entity: ABank
+        data: STOCK_ETF
 
 assets:
   crypto:

@@ -397,8 +397,11 @@ def _store_position(
     positions: ProductPositions,
     global_position: GlobalPosition,
     product_type: ProductType,
+    products: list[ProductType] | None,
     get_fc: Callable,
 ):
+    if products and product_type not in products:
+        return
     position = get_fc(global_position)
     if position:
         positions[product_type] = position
@@ -509,9 +512,11 @@ class PositionSQLRepository(PositionPort):
 
             cursor.execute(sql, tuple(params))
 
-            return self._map_position_rows(cursor)
+            return self._map_position_rows(cursor, products=query.products)
 
-    def _map_position_rows(self, cursor: DBCursor, multi: bool = False):
+    def _map_position_rows(
+        self, cursor: DBCursor, multi: bool = False, products: list[ProductType] = None
+    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
         rows = cursor.fetchall()
 
         if not multi:
@@ -559,7 +564,7 @@ class PositionSQLRepository(PositionPort):
                 date=datetime.fromisoformat(row["date"]),
                 source=source,
             )
-            position.products = self._get_product_positions(position)
+            position.products = self._get_product_positions(position, products)
 
             lst = result.get(entity)
             if lst is None:
@@ -612,7 +617,7 @@ class PositionSQLRepository(PositionPort):
 
             cursor.execute(sql, tuple(params))
 
-            return self._map_position_rows(cursor, multi=True)
+            return self._map_position_rows(cursor, multi=True, products=query.products)
 
     def _get_accounts(self, global_position: GlobalPosition) -> Optional[Accounts]:
         with self._db_client.read() as cursor:
@@ -1074,45 +1079,64 @@ class PositionSQLRepository(PositionPort):
 
             return Commodities(commodities)
 
-    def _get_product_positions(self, g_position: GlobalPosition) -> ProductPositions:
+    def _get_product_positions(
+        self, g_position: GlobalPosition, products: list[ProductType] = None
+    ) -> ProductPositions:
         positions = {}
-        _store_position(positions, g_position, ProductType.ACCOUNT, self._get_accounts)
-        _store_position(positions, g_position, ProductType.CARD, self._get_cards)
-        _store_position(positions, g_position, ProductType.LOAN, self._get_loans)
-        _store_position(positions, g_position, ProductType.STOCK_ETF, self._get_stocks)
-        _store_position(positions, g_position, ProductType.FUND, self._get_funds)
+        _store_position(
+            positions, g_position, ProductType.ACCOUNT, products, self._get_accounts
+        )
+        _store_position(
+            positions, g_position, ProductType.CARD, products, self._get_cards
+        )
+        _store_position(
+            positions, g_position, ProductType.LOAN, products, self._get_loans
+        )
+        _store_position(
+            positions, g_position, ProductType.STOCK_ETF, products, self._get_stocks
+        )
+        _store_position(
+            positions, g_position, ProductType.FUND, products, self._get_funds
+        )
         _store_position(
             positions,
             g_position,
             ProductType.FUND_PORTFOLIO,
+            products,
             self._get_fund_portfolios,
         )
         _store_position(
-            positions, g_position, ProductType.FACTORING, self._get_factoring
+            positions, g_position, ProductType.FACTORING, products, self._get_factoring
         )
         _store_position(
             positions,
             g_position,
             ProductType.REAL_ESTATE_CF,
+            products,
             self._get_real_estate_cf,
         )
-        _store_position(positions, g_position, ProductType.DEPOSIT, self._get_deposits)
+        _store_position(
+            positions, g_position, ProductType.DEPOSIT, products, self._get_deposits
+        )
         _store_position(
             positions,
             g_position,
             ProductType.CROWDLENDING,
+            products,
             self._get_crowdlending,
         )
         _store_position(
             positions,
             g_position,
             ProductType.CRYPTO,
+            products,
             self._get_cryptocurrency,
         )
         _store_position(
             positions,
             g_position,
             ProductType.COMMODITY,
+            products,
             self._get_commodities,
         )
         return positions

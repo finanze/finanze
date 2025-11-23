@@ -5,15 +5,16 @@ from datetime import datetime
 from decimal import Decimal
 from threading import Lock
 
-from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
+from application.ports.position_port import PositionPort
 from dateutil.tz import tzlocal
 from domain.commodity import COMMODITY_SYMBOLS
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
+from domain.global_position import PositionQueryRequest, ProductType
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 
 
@@ -43,13 +44,13 @@ class GetExchangeRatesImpl(GetExchangeRates):
         crypto_asset_info_provider: CryptoAssetInfoProvider,
         metal_price_provider: MetalPriceProvider,
         exchange_rates_storage: ExchangeRateStorage,
-        crypto_asset_registry_port: CryptoAssetRegistryPort,
+        position_port: PositionPort,
     ):
         self._exchange_rates_provider = exchange_rates_provider
         self._crypto_asset_info_provider = crypto_asset_info_provider
         self._metal_price_provider = metal_price_provider
         self._exchange_rates_storage = exchange_rates_storage
-        self._crypto_asset_registry_port = crypto_asset_registry_port
+        self._position_port = position_port
 
         stored = self._exchange_rates_storage.get()
         self._fiat_matrix: ExchangeRates | None = stored if stored else None
@@ -247,6 +248,53 @@ class GetExchangeRatesImpl(GetExchangeRates):
             for commodity, symbol in COMMODITY_SYMBOLS.items()
         }
 
+    def _get_position_crypto_currency_symbol_address(self) -> dict[str, str | None]:
+        crypto_entity_positions = self._position_port.get_last_grouped_by_entity(
+            PositionQueryRequest(products=[ProductType.CRYPTO])
+        )
+        asset_addresses = {}
+        for position in crypto_entity_positions.values():
+            if ProductType.CRYPTO not in position.products:
+                continue
+            for wallet in position.products[ProductType.CRYPTO].entries:
+                for asset in wallet.assets:
+                    asset_addresses[asset.symbol.upper()] = (
+                        asset.contract_address.lower()
+                        if asset.contract_address
+                        else None
+                    )
+
+        return asset_addresses
+
+    def _get_crypto_price_map(
+        self,
+        symbol_addresses: dict[str, str | None],
+    ) -> dict[str, dict[str, Dezimal]]:
+        price_map: dict[str, dict[str, Dezimal]] = {}
+
+        addresses: dict[str, str] = {}
+        non_address_symbols = []
+        for symbol, address in symbol_addresses.items():
+            if address is None:
+                non_address_symbols.append(symbol)
+            else:
+                addresses[address.lower()] = symbol
+        if non_address_symbols:
+            price_map = self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                non_address_symbols, fiat_isos=self.SUPPORTED_CURRENCIES
+            )
+
+        if addresses:
+            address_prices = self._crypto_asset_info_provider.get_prices_by_addresses(
+                list(addresses.keys()), fiat_isos=self.SUPPORTED_CURRENCIES
+            )
+            for addr, fiat_prices in address_prices.items():
+                contract_address = addr.lower()
+                symbol = addresses[contract_address]
+                price_map[symbol] = fiat_prices
+
+        return price_map
+
     def _schedule_crypto_rates(self, executor, timeout: int, initial_load: bool):
         if initial_load:
             return {
@@ -260,17 +308,15 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 for symbol in self.BASE_CRYPTO_SYMBOLS
             }
 
-        symbols = self._crypto_asset_registry_port.get_symbols()
+        asset_symbol_addresses = self._get_position_crypto_currency_symbol_address()
 
-        if not symbols:
+        if not asset_symbol_addresses:
             return {}
 
         return {
             executor.submit(
-                self._crypto_asset_info_provider.get_multiple_prices_by_symbol,
-                symbols,
-                self.SUPPORTED_CURRENCIES,
-                timeout=timeout,
+                self._get_crypto_price_map,
+                asset_symbol_addresses,
             ): ("crypto_batch", None)
         }
 

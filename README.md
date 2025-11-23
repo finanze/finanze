@@ -129,10 +129,23 @@ Manual commodity input is feature that allows to track market value for them. Cu
 - **Platinum**
 - **Palladium**
 
-### Google Sheets export
+### Export and Importing
 
-This project allows to create complex dashboards and tables in Google Sheets, aggregating and formatting the scraped
-data. Check [Export & Import Configuration](#export--import-configuration) for more technical info.
+This project allows to create specific tables in different formats, aggregating and formatting the scraped data.
+Currently two modalities are supported:
+
+- **Google Sheets**: supported for exporting and importing, which requires to set up a Google Service Account.
+  Also keep in mind that in this modality when importing, the spreadsheets data is considered like a fake source, so
+  each time data is
+  imported will override previous data from Google Sheets (won't affect real data or manually provided).
+- **Files**: CSV, TSV and Excel files are supported for exporting and importing, no special setup is needed for this.
+
+#### Templating
+
+Exporting and importing is highly customizable using templates, which allows to define the structure of the tables,
+data formatting, filters and other features. It's required for importing.
+
+Check [Export & Import Configuration](#export--import-configuration) for more technical info.
 
 ## Usage
 
@@ -195,11 +208,10 @@ This project requires `Python 3.11`.
     pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA
     ```
 
-### Export & Import Configuration
+### How configuration works?
 
 Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
-tables
-and summary dashboards.
+tables and summary dashboards.
 
 ### Environment Variables
 

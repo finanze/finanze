@@ -425,7 +425,7 @@ class FinanzeServer:
             crypto_asset_info_client,
             metal_price_client,
             exchange_rate_storage,
-            crypto_assset_repository,
+            position_repository,
         )
         connect_external_entity = ConnectExternalEntityImpl(
             entity_repository,

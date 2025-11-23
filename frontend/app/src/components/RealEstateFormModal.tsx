@@ -587,12 +587,12 @@ export function RealEstateFormModal({
   const [expandedSections, setExpandedSections] = useState({
     basic: true,
     location: false,
-    purchase: true,
-    valuation: true,
-    loans: true,
-    costs: true,
-    utilities: true,
-    rent: true,
+    purchase: false,
+    valuation: false,
+    loans: false,
+    costs: false,
+    utilities: false,
+    rent: false,
   })
 
   useEffect(() => {

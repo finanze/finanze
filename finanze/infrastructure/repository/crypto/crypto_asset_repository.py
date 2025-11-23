@@ -34,12 +34,6 @@ class CryptoAssetRegistryRepository(CryptoAssetRegistryPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get_symbols(self) -> list[str]:
-        with self._db_client.read() as cursor:
-            cursor.execute("SELECT symbol FROM crypto_assets")
-            rows = cursor.fetchall()
-            return [r["symbol"] for r in rows] if rows else []
-
     def get_by_symbol(self, symbol: str) -> Optional[CryptoAsset]:
         with self._db_client.read() as cursor:
             cursor.execute(

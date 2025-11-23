@@ -263,31 +263,27 @@ class FetchCryptoDataImpl(FetchCryptoData):
         contract_addresses: set[str],
         native_symbols: set[str],
     ) -> dict[str, Dezimal]:
-        valid_token_symbols = {}
-        if contract_addresses:
-            assets_by_contract = (
-                self._crypto_asset_info_provider.get_multiple_overview_by_addresses(
-                    addresses=list(contract_addresses)
+        price_map: dict[str, Dezimal] = {}
+        if native_symbols:
+            symbol_prices = (
+                self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                    list(native_symbols), fiat_isos=[TARGET_FIAT]
                 )
             )
-            for contract_address, asset in assets_by_contract.items():
-                if contract_address in contract_addresses:
-                    valid_token_symbols[asset.symbol] = contract_address
+            for symbol in native_symbols:
+                upper = symbol.upper()
+                fiat_prices = symbol_prices.get(upper)
+                if fiat_prices and TARGET_FIAT in fiat_prices:
+                    price_map[upper] = fiat_prices[TARGET_FIAT]
 
-        price_map = {}
-        symbols = native_symbols | valid_token_symbols.keys()
-        if native_symbols or valid_token_symbols:
-            price = self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
-                list(symbols), fiat_isos=[TARGET_FIAT]
+        if contract_addresses:
+            address_prices = self._crypto_asset_info_provider.get_prices_by_addresses(
+                list(contract_addresses), fiat_isos=[TARGET_FIAT]
             )
-            for symbol in symbols:
-                if symbol in valid_token_symbols:
-                    contract_address = valid_token_symbols[symbol]
-                    price_map[contract_address.lower()] = price[symbol.upper()].get(
-                        TARGET_FIAT
-                    )
-                elif symbol in native_symbols:
-                    price_map[symbol.upper()] = price[symbol.upper()].get(TARGET_FIAT)
+            for addr, fiat_prices in address_prices.items():
+                fiat_price = fiat_prices.get(TARGET_FIAT)
+                if fiat_price is not None:
+                    price_map[addr.lower()] = fiat_price
 
         return price_map
 

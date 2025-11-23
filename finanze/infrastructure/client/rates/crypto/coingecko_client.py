@@ -5,9 +5,7 @@ import requests
 from cachetools import TTLCache, cached
 from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
-from domain.entity import Entity
 from domain.exception.exceptions import (
-    FeatureNotSupported,
     InvalidProvidedCredentials,
     MissingFieldsError,
     TooManyRequests,
@@ -55,58 +53,122 @@ class CoinGeckoClient:
 
         return data
 
-    def get_prices_by_contract(
+    @cached(cache=TTLCache(maxsize=1, ttl=86400))
+    def _get_coin_address_index(self) -> dict[str, dict[str, Any]]:
+        index: dict[str, dict[str, Any]] = {}
+        try:
+            coin_list = self.get_coin_list()
+        except Exception as e:
+            self._log.error(f"Failed to fetch coin list for address overview: {e}")
+            return index
+        for coin in coin_list:
+            self._add_platform_addresses(index, coin)
+        return index
+
+    def _add_platform_addresses(
+        self, index: dict[str, dict[str, Any]], coin: dict[str, Any]
+    ) -> None:
+        try:
+            coin_id = coin.get("id")
+            if not coin_id:
+                return
+            platforms = coin.get("platforms") or {}
+            if not isinstance(platforms, dict):
+                return
+            symbol = (coin.get("symbol") or "").upper() or None
+            for _, addr in platforms.items():
+                if not isinstance(addr, str):
+                    continue
+                normalized = addr.strip().lower()
+                if not normalized or normalized in index:
+                    continue
+                index[normalized] = {
+                    "id": coin_id,
+                    "symbol": symbol,
+                    "name": coin.get("name"),
+                }
+        except Exception:
+            return
+
+    def get_coin_overview_by_addresses(
+        self, addresses: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        if not addresses:
+            return {}
+        index = self._get_coin_address_index()
+        result: dict[str, dict[str, Any]] = {}
+        seen: set[str] = set()
+        for raw in addresses:
+            if not isinstance(raw, str):
+                continue
+            addr = raw.strip().lower()
+            if not addr or addr in seen:
+                continue
+            seen.add(addr)
+            coin = index.get(addr)
+            if coin:
+                result[addr] = coin
+        return result
+
+    def get_prices_by_addresses(
         self,
-        crypto_entity: Entity,
         addresses: list[str],
         vs_currencies: list[str],
         timeout: int = TIMEOUT,
     ) -> dict[str, dict[str, Dezimal]]:
-        chain_slug = self.ENTITY_CHAIN_MAP.get(crypto_entity)
-        if not chain_slug:
-            raise FeatureNotSupported(
-                f"Token prices not supported for chain {getattr(crypto_entity, 'name', 'UNKNOWN')}"
-            )
-        deduped_addresses = self._dedupe_items(addresses, case_insensitive=False)
-        vs_param = ",".join(c.lower() for c in vs_currencies)
+        if not addresses:
+            return {}
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw in addresses:
+            if not isinstance(raw, str):
+                continue
+            addr = raw.strip().lower()
+            if not addr or addr in seen:
+                continue
+            seen.add(addr)
+            normalized.append(addr)
+        if not normalized:
+            return {}
+        overview = self.get_coin_overview_by_addresses(normalized)
+        id_to_addresses: dict[str, list[str]] = {}
+        for addr in normalized:
+            coin = overview.get(addr)
+            coin_id = coin.get("id") if coin else None
+            if not coin_id:
+                continue
+            id_to_addresses.setdefault(coin_id, []).append(addr)
+        if not id_to_addresses:
+            return {}
+        prices_by_id = self.get_prices(
+            symbols=None,
+            vs_currencies=vs_currencies,
+            timeout=timeout,
+            coin_ids=list(id_to_addresses.keys()),
+        )
         result: dict[str, dict[str, Dezimal]] = {}
-        for chunk in self._chunked(deduped_addresses, self.CHUNK_SIZE):
-            chunk_result = self._fetch_token_chunk(chain_slug, chunk, vs_param, timeout)
-            self._merge_prices_map(
-                chunk_result, result, key_transform=lambda k: k.lower()
-            )
+        for coin_id, addr_list in id_to_addresses.items():
+            prices = prices_by_id.get(coin_id)
+            if not prices:
+                continue
+            for addr in addr_list:
+                result[addr] = dict(prices)
         return result
 
-    def _map_search_results(self, coins: list[dict[str, Any]]) -> list[CryptoAsset]:
-        mapped: list[CryptoAsset] = []
-        for c in coins:
-            try:
-                ext_id = c.get("id")
-                name = c.get("name")
-                symbol = c.get("symbol")
-                if not ext_id or not name or not symbol:
-                    continue
-
-                icon_urls = [c.get("large")]
-                external_ids = {
-                    "COINGECKO": ext_id,
-                }
-                mapped.append(
-                    CryptoAsset(
-                        name=name,
-                        symbol=symbol,
-                        icon_urls=icon_urls or [],
-                        external_ids=external_ids,
-                    )
-                )
-            except Exception as e:
-                self._log.error(f"Failed to map coin {c}: {e}")
-                continue
-        return mapped
-
-    def get_prices(  # noqa: C901
-        self, symbols: list[str], vs_currencies: list[str], timeout: int = TIMEOUT
+    def get_prices(
+        self,
+        symbols: list[str] | None,
+        vs_currencies: list[str],
+        timeout: int = TIMEOUT,
+        coin_ids: list[str] | None = None,
     ) -> dict[str, dict[str, Dezimal]]:
+        if coin_ids:
+            deduped_ids, vs_param = self._validate_ids_and_prepare(
+                coin_ids, vs_currencies
+            )
+            return self._aggregate_prices_by_ids(deduped_ids, vs_param, timeout)
+        if not symbols:
+            raise MissingFieldsError(["symbols"])
         return self._get_prices_impl(symbols, vs_currencies, timeout)
 
     def _get_prices_impl(
@@ -135,6 +197,26 @@ class CoinGeckoClient:
             self._merge_prices_map(
                 chunk_result, result, key_transform=lambda k: k.upper()
             )
+        return result
+
+    def _validate_ids_and_prepare(
+        self, coin_ids: list[str], vs_currencies: list[str]
+    ) -> tuple[list[str], str]:
+        if not coin_ids:
+            raise MissingFieldsError(["ids"])
+        if not vs_currencies:
+            raise MissingFieldsError(["vs_currencies"])
+        deduped = self._dedupe_items(coin_ids, case_insensitive=True)
+        vs_param = ",".join(c.lower() for c in vs_currencies)
+        return deduped, vs_param
+
+    def _aggregate_prices_by_ids(
+        self, deduped: list[str], vs_param: str, timeout: int
+    ) -> dict[str, dict[str, Dezimal]]:
+        result: dict[str, dict[str, Dezimal]] = {}
+        for chunk in self._chunked(deduped, self.CHUNK_SIZE):
+            chunk_result = self._fetch_ids_chunk(chunk, vs_param, timeout)
+            self._merge_prices_map(chunk_result, result, key_transform=lambda k: k)
         return result
 
     def _chunked(self, seq: list[str], size: int) -> list[list[str]]:
@@ -179,12 +261,29 @@ class CoinGeckoClient:
     def _fetch_chunk(
         self, chunk: list[str], vs_param: str, timeout: int
     ) -> dict[str, Any]:
-        symbols_param = ",".join(s.lower() for s in chunk)
+        return self._fetch_simple_price(
+            [s.lower() for s in chunk], vs_param, timeout, "symbols"
+        )
+
+    def _fetch_ids_chunk(
+        self, chunk: list[str], vs_param: str, timeout: int
+    ) -> dict[str, Any]:
+        return self._fetch_simple_price(
+            [c.lower() for c in chunk], vs_param, timeout, "ids"
+        )
+
+    def _fetch_simple_price(
+        self,
+        values: list[str],
+        vs_param: str,
+        timeout: int,
+        identifier_key: str,
+    ) -> dict[str, Any]:
         return self._fetch(
             "/simple/price",
             params={
                 "vs_currencies": vs_param,
-                "symbols": symbols_param,
+                identifier_key: ",".join(values),
                 "precision": "full",
             },
             timeout=timeout,

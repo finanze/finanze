@@ -446,6 +446,7 @@ class PositionQueryRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     real: Optional[bool] = None
+    products: Optional[list[ProductType]] = None
 
 
 @dataclass
