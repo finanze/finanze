@@ -2263,5 +2263,32 @@
       "travel": "Travel",
       "weather": "Weather"
     }
+  },
+  "advancedSettings": {
+    "title": "Advanced settings",
+    "subtitle": "Tune technical settings of the application like data location, backend logging, server...",
+    "serverUrl": "Backend server URL",
+    "serverUrlDesc": "Optionally point to a remote backend to disable the local one.",
+    "serverUrlPlaceholder": "http://192.168.1.10:7592",
+    "probeButton": "Test",
+    "probeSuccess": "Server is reachable.",
+    "probeError": "Unable to reach the server.",
+    "probeMissingUrl": "Enter a server URL to probe.",
+    "serverUrlInvalid": "Server URL must start with http:// or https://.",
+    "remoteServerNotice": "Using a remote server. Data directory and third-party log level are managed by the server. Log settings apply to this application only.",
+    "dataDir": "Data directory",
+    "dataDirPlaceholder": "Default location",
+    "logDir": "Log directory",
+    "logDirPlaceholder": "Default location",
+    "logLevel": "Console log level",
+    "logFileLevel": "File log level",
+    "inheritLogLevel": "Same as console log level",
+    "otherSection": "Other options",
+    "thirdPartyLogLevel": "Third-party log level",
+    "restartWarning": "The app will restart when saving these settings.",
+    "resetToDefaults": "Reset to defaults",
+    "resetConfirmTitle": "Reset settings",
+    "resetConfirmMessage": "Are you sure you want to reset all advanced settings to their defaults?",
+    "resetConfirmWarning": "The app will restart after resetting."
   }
 }

@@ -10,11 +10,14 @@ from logs import configure_logging
 def app_args() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Finanze Server")
 
+    default_user_dir = appdirs.user_data_dir("Finanze", False)
+    default_logs_dir = Path(default_user_dir) / "logs"
+
     parser.add_argument(
         "--data-dir",
         help="Directory to store database and configuration files.",
         type=str,
-        default=appdirs.user_data_dir("Finanze", False),
+        default=default_user_dir,
     )
     parser.add_argument(
         "--port",
@@ -29,10 +32,10 @@ def app_args() -> argparse.ArgumentParser:
         default="INFO",
     )
     parser.add_argument(
-        "--log-file",
-        help="Path to log file (default: <data-dir>/logs/finanze.log).",
+        "--log-dir",
+        help="Path to log directory (default: <default-app-data-dir>/logs).",
         type=str,
-        default=None,
+        default=default_logs_dir,
     )
     parser.add_argument(
         "--log-file-level",
@@ -42,7 +45,7 @@ def app_args() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--third-party-log-level",
-        help="Logging level for third-party libraries (waitress, urllib3, requests, selenium). Use NONE to leave unchanged.",
+        help="Logging level for third-party libraries (waitress, urllib3, requests...). Use NONE to disable.",
         choices=["NONE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default="ERROR",
     )

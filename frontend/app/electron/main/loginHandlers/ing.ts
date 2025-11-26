@@ -97,7 +97,7 @@ function sendCompletion(result: LoginHandlerResult) {
   console.debug("Sending completion for ING:", ING_ID)
   console.debug(
     "Result (credentials collected):",
-    Object.keys(result.credentials),
+    Object.keys(result.credentials).length,
   )
 
   ipcMain.emit("completed-external-login", null, ING_ID, result)

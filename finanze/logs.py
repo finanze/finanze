@@ -4,6 +4,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
+LOG_FILENAME = "finanze.log"
+
 
 class TZFormatter(logging.Formatter):
     def formatTime(self, record, datefmt: Optional[str] = None):
@@ -13,6 +15,13 @@ class TZFormatter(logging.Formatter):
         else:
             s = time.strftime("%Y-%m-%d %H:%M:%S%z", ct)
         return s
+
+    def format(self, record):
+        original_levelname = record.levelname
+        record.levelname = record.levelname[0]
+        result = super().format(record)
+        record.levelname = original_levelname
+        return result
 
 
 _THIRD_PARTY_LOGGERS = [
@@ -64,11 +73,8 @@ def configure_logging(args):
 
     log_file_path = None
     if file_enabled:
-        if hasattr(args, "log_file") and args.log_file:
-            given_filepath = Path(args.log_file)
-            log_file_path = given_filepath.parent / given_filepath.name
-        else:
-            log_file_path = Path(args.data_dir) / "logs" / "finanze.log"
+        log_file_path = Path(args.log_dir) / LOG_FILENAME
+
         try:
             log_file_path.parent.mkdir(parents=True, exist_ok=True)
             file_handler = RotatingFileHandler(

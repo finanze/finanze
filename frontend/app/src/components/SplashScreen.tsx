@@ -1,10 +1,24 @@
+import { useState, useEffect } from "react"
 import { useI18n } from "@/i18n"
 import { LoginQuickSettings } from "@/components/ui/ThemeSelector"
+import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { useTheme } from "@/context/ThemeContext"
 
 export default function SplashScreen() {
   const { t } = useI18n()
   const { theme } = useTheme()
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [isDesktopApp, setIsDesktopApp] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    if (window.ipcAPI) {
+      setIsDesktopApp(true)
+    }
+  }, [])
 
   const isLight =
     theme === "light" ||
@@ -30,8 +44,15 @@ export default function SplashScreen() {
         </p>
       </div>
       <div className="absolute bottom-6 left-6">
-        <LoginQuickSettings />
+        <LoginQuickSettings
+          isDesktop={isDesktopApp}
+          onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
+        />
       </div>
+      <AdvancedSettings
+        isOpen={showAdvancedSettings}
+        onClose={() => setShowAdvancedSettings(false)}
+      />
     </div>
   )
 }

@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react"
 import {
-  checkLoginStatus,
+  checkStatus,
   login as apiLogin,
   logout as apiLogout,
   signup as apiSignup,
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       while (true) {
         try {
-          const { status, last_logged } = await checkLoginStatus()
+          const { status, lastLogged: last_logged } = await checkStatus()
           setIsAuthenticated(status === "UNLOCKED")
           setLastLoggedUser(last_logged || null)
           setIsInitializing(false)

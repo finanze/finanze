@@ -36,7 +36,7 @@ from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
-from domain.use_cases.get_login_status import GetLoginStatus
+from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
@@ -125,7 +125,7 @@ from infrastructure.controller.routes.import_file import import_file_route
 from infrastructure.controller.routes.instrument_details import instrument_details
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
-from infrastructure.controller.routes.login_status import login_status
+from infrastructure.controller.routes.get_status import status
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
@@ -161,7 +161,7 @@ def register_routes(
     import_sheets_uc: ImportSheets,
     import_file_uc: ImportFile,
     add_entity_credentials_uc: AddEntityCredentials,
-    get_login_status_uc: GetLoginStatus,
+    get_status_uc: GetStatus,
     user_logout_uc: UserLogout,
     get_settings_uc: GetSettings,
     update_settings_uc: UpdateSettings,
@@ -220,9 +220,9 @@ def register_routes(
     def change_user_password_route():
         return change_user_password(change_user_password_uc)
 
-    @app.route("/api/v1/login", methods=["GET"])
-    def login_status_route():
-        return login_status(get_login_status_uc)
+    @app.route("/api/v1/status", methods=["GET"])
+    def get_status_route():
+        return status(get_status_uc)
 
     @app.route("/api/v1/logout", methods=["POST"])
     def logout_route():

@@ -109,9 +109,11 @@ export interface ChangePasswordRequest {
   newPassword: string
 }
 
-export interface LoginStatusResponse {
+export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
-  last_logged?: string
+  lastLogged?: string
+  user?: string
+  server: BackendOptions
 }
 
 export interface LoginRequest {
@@ -308,10 +310,68 @@ export interface AboutAppInfo {
   platform: PlatformInfo
 }
 
-export interface ExchangeRates {
-  [baseCurrency: string]: {
-    [targetCurrency: string]: number
-  }
+export type BackendLogLevel =
+  | "NONE"
+  | "DEBUG"
+  | "INFO"
+  | "WARNING"
+  | "ERROR"
+  | "CRITICAL"
+
+export interface BackendStartOptions {
+  dataDir?: string
+  port?: number
+  logLevel?: BackendLogLevel
+  logDir?: string
+  logFile?: string
+  logFileLevel?: BackendLogLevel
+  thirdPartyLogLevel?: BackendLogLevel
+}
+
+export interface BackendRuntimeArgs {
+  port: number
+  logLevel: BackendLogLevel
+  dataDir?: string
+  logDir?: string
+  logFileLevel?: BackendLogLevel
+  thirdPartyLogLevel?: BackendLogLevel
+}
+
+export interface BackendOptions extends BackendStartOptions {}
+
+export type BackendState =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "stopping"
+  | "error"
+
+export interface BackendErrorInfo {
+  message: string
+  stack?: string | null
+  code?: string | number | null
+}
+
+export interface BackendStatus {
+  state: BackendState
+  pid: number | null
+  args: BackendRuntimeArgs | null
+  startedAt: number | null
+  exitedAt: number | null
+  error: BackendErrorInfo | null
+}
+
+export interface BackendActionResult {
+  success: boolean
+  status: BackendStatus
+  error?: BackendErrorInfo
+}
+
+export type ExchangeRates = Record<string, Record<string, number>>
+
+export interface FinanzeConfig {
+  backend?: BackendStartOptions
+  serverUrl?: string
 }
 
 export interface CreateCryptoWalletRequest {
@@ -320,20 +380,18 @@ export interface CreateCryptoWalletRequest {
   addresses: string[]
 }
 
-export enum CryptoWalletConnectionFailureCode {
-  ADDRESS_ALREADY_EXISTS = "ADDRESS_ALREADY_EXISTS",
-  ADDRESS_NOT_FOUND = "ADDRESS_NOT_FOUND",
-  TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS",
-  UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
-}
-
-export interface CryptoWalletConnectionResult {
-  failed: Record<string, CryptoWalletConnectionFailureCode>
-}
-
 export interface UpdateCryptoWalletConnectionRequest {
   id: string
   name: string
+}
+
+export interface CryptoWalletConnectionResult {
+  created?: Array<{
+    id: string
+    address: string
+    name?: string | null
+  }>
+  failed?: Record<string, string>
 }
 
 // Electron window interface
@@ -349,6 +407,16 @@ declare global {
         id: string,
         request?: any,
       ) => Promise<{ success: boolean }>
+      startBackend: (
+        options?: BackendStartOptions,
+      ) => Promise<BackendActionResult>
+      stopBackend: () => Promise<BackendActionResult>
+      restartBackend: () => Promise<BackendActionResult>
+      getBackendStatus: () => Promise<BackendStatus>
+      selectDirectory: (initialPath?: string) => Promise<string | null>
+      onBackendStatusChange: (
+        callback: (status: BackendStatus) => void,
+      ) => () => void
       onCompletedExternalLogin: (
         callback: (
           id: string,

@@ -2276,5 +2276,32 @@
       "travel": "Viajes",
       "weather": "Clima"
     }
+  },
+  "advancedSettings": {
+    "title": "Configuración avanzada",
+    "subtitle": "Ajusta la configuración técnica de la aplicación como la ubicación de los datos, el registro del backend, el servidor...",
+    "serverUrl": "URL del servidor remoto",
+    "serverUrlDesc": "Opcional: apunta a un backend remoto para desactivar el backend local.",
+    "serverUrlPlaceholder": "http://192.168.1.10:7592",
+    "probeButton": "Probar",
+    "probeSuccess": "Servidor disponible.",
+    "probeError": "No se pudo contactar el servidor.",
+    "probeMissingUrl": "Ingresa una URL de servidor para probar.",
+    "serverUrlInvalid": "La URL del servidor debe comenzar con http:// o https://.",
+    "remoteServerNotice": "Usando un servidor remoto. El directorio de datos y el nivel de log de terceros son gestionados por el servidor. La configuración de logs aplica solo a esta aplicación.",
+    "dataDir": "Directorio de datos",
+    "dataDirPlaceholder": "Ubicación por defecto",
+    "logDir": "Directorio de logs",
+    "logDirPlaceholder": "Ubicación por defecto",
+    "logLevel": "Nivel de log en consola",
+    "logFileLevel": "Nivel de log en archivo",
+    "inheritLogLevel": "Igual que el nivel de log",
+    "otherSection": "Otras opciones",
+    "thirdPartyLogLevel": "Nivel de log de terceros",
+    "restartWarning": "La aplicación se reiniciará al guardar estos ajustes.",
+    "resetToDefaults": "Restablecer",
+    "resetConfirmTitle": "Restablecer configuración",
+    "resetConfirmMessage": "¿Estás seguro de que quieres restablecer la configuración avanzada a sus valores por defecto?",
+    "resetConfirmWarning": "La aplicación se reiniciará después de restablecer."
   }
 }

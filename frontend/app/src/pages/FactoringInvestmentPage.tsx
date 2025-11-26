@@ -1345,6 +1345,8 @@ function FactoringViewContent({
         <motion.section
           ref={historicSectionRef}
           variants={fadeListItem}
+          initial="hidden"
+          animate="show"
           className="space-y-4 pb-6"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">

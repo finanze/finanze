@@ -25,6 +25,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/Popover"
 import { LoginQuickSettings } from "@/components/ui/ThemeSelector"
+import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -35,6 +36,8 @@ export default function LoginPage() {
   const [errorCode, setErrorCode] = useState<AuthResultCode | null>(null)
   const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [isSignupMode, setIsSignupMode] = useState(false)
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
+  const [isDesktopApp, setIsDesktopApp] = useState(false)
   const {
     login,
     signup,
@@ -61,6 +64,16 @@ export default function LoginPage() {
       setIsSignupMode(true)
     }
   }, [lastLoggedUser, isChangingPassword, pendingPasswordChangeUser])
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    if (window.ipcAPI) {
+      setIsDesktopApp(true)
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -161,7 +174,10 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-50 dark:bg-black p-4 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gradient-100 to-gradient-300 dark:from-gradient-900 dark:to-black">
       <div className="absolute bottom-6 left-6">
-        <LoginQuickSettings />
+        <LoginQuickSettings
+          isDesktop={isDesktopApp}
+          onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
+        />
       </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -365,6 +381,10 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </motion.div>
+      <AdvancedSettings
+        isOpen={showAdvancedSettings}
+        onClose={() => setShowAdvancedSettings(false)}
+      />
     </div>
   )
 }

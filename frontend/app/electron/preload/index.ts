@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { ProgressInfo, UpdateInfo } from "electron-updater"
-import type { ThemeMode, AboutAppInfo } from "../types"
+import type {
+  ThemeMode,
+  AboutAppInfo,
+  BackendStartOptions,
+  BackendStatus,
+  BackendActionResult,
+} from "../types"
 import type {
   ExternalLoginRequest,
   LoginHandlerResult,
@@ -31,6 +37,26 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     request: ExternalLoginRequest = {},
   ) => ipcRenderer.invoke("external-login", id, request),
 
+  startBackend: (options?: BackendStartOptions) =>
+    ipcRenderer.invoke(
+      "backend-start",
+      options,
+    ) as Promise<BackendActionResult>,
+
+  stopBackend: () =>
+    ipcRenderer.invoke("backend-stop") as Promise<BackendActionResult>,
+
+  restartBackend: () =>
+    ipcRenderer.invoke("backend-restart") as Promise<BackendActionResult>,
+
+  getBackendStatus: () =>
+    ipcRenderer.invoke("backend-status") as Promise<BackendStatus>,
+
+  selectDirectory: (initialPath?: string) =>
+    ipcRenderer.invoke("select-directory", initialPath) as Promise<
+      string | null
+    >,
+
   checkForUpdates: () => ipcRenderer.invoke("auto-update-check"),
 
   downloadUpdate: () => ipcRenderer.invoke("auto-update-download"),
@@ -56,6 +82,8 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     stack: string | null
     name: string
   }>("auto-update:error"),
+
+  onBackendStatusChange: createIpcListener<BackendStatus>("backend:status"),
 
   onCompletedExternalLogin: (
     callback: (id: string, result: LoginHandlerResult) => void,

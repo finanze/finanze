@@ -45,7 +45,7 @@ from application.use_cases.get_external_integrations import GetExternalIntegrati
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
-from application.use_cases.get_login_status import GetLoginStatusImpl
+from application.use_cases.get_status import GetStatusImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
@@ -122,6 +122,7 @@ from infrastructure.client.rates.metal.metal_price_client import MetalPriceClien
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
+from infrastructure.config.server_options_adapter import ArgparseServerOptionsAdapter
 from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
@@ -312,7 +313,12 @@ class FinanzeServer:
         change_user_password = ChangeUserPasswordImpl(
             self.db_manager, self.data_manager
         )
-        get_login_status = GetLoginStatusImpl(self.db_manager, self.data_manager)
+        server_options_port = ArgparseServerOptionsAdapter(self.args)
+        get_status = GetStatusImpl(
+            self.db_manager,
+            self.data_manager,
+            server_options_port,
+        )
         user_logout = UserLogoutImpl(
             self.db_manager, self.config_loader, self.sheets_initiator
         )
@@ -582,7 +588,7 @@ class FinanzeServer:
             import_sheets,
             import_file,
             add_entity_credentials,
-            get_login_status,
+            get_status,
             user_logout,
             get_settings,
             update_settings,

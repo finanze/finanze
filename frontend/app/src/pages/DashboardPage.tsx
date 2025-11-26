@@ -2291,7 +2291,13 @@ export default function DashboardPage() {
                               <div className="flex justify-between text-[10px] text-muted-foreground">
                                 <span>{t.dashboard.maturity}</span>
                                 <span>
-                                  {formatDate(project.maturity, locale)}
+                                  {formatDate(
+                                    status.usedExtendedMaturity &&
+                                      project.extendedMaturity
+                                      ? project.extendedMaturity
+                                      : project.maturity,
+                                    locale,
+                                  )}
                                 </span>
                               </div>
                               <div className="flex justify-between items-start mb-2">

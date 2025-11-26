@@ -1,4 +1,5 @@
-import { Sun, Moon, SunMoon, Globe } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Sun, Moon, SunMoon, Globe, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import {
   Popover,
@@ -9,9 +10,31 @@ import { useTheme } from "@/context/ThemeContext"
 import { useI18n } from "@/i18n"
 import type { Locale } from "@/i18n"
 
-export function LoginQuickSettings() {
+interface LoginQuickSettingsProps {
+  isDesktop?: boolean
+  onOpenAdvancedSettings?: () => void
+}
+
+export function LoginQuickSettings({
+  isDesktop,
+  onOpenAdvancedSettings,
+}: LoginQuickSettingsProps) {
   const { theme, setThemeMode } = useTheme()
   const { t, locale, changeLocale } = useI18n()
+  const [detectedDesktop, setDetectedDesktop] = useState<boolean>(
+    Boolean(isDesktop),
+  )
+
+  useEffect(() => {
+    if (typeof isDesktop === "boolean") {
+      setDetectedDesktop(isDesktop)
+      return
+    }
+
+    if (typeof window !== "undefined" && window.ipcAPI) {
+      setDetectedDesktop(true)
+    }
+  }, [isDesktop])
 
   const languages: { code: Locale; label: string }[] = [
     { code: "en-US", label: "EN" },
@@ -95,6 +118,18 @@ export function LoginQuickSettings() {
           </div>
         </PopoverContent>
       </Popover>
+
+      {/* Advanced Settings (Desktop only) */}
+      {detectedDesktop && onOpenAdvancedSettings && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800"
+          onClick={onOpenAdvancedSettings}
+        >
+          <Wrench size={18} />
+        </Button>
+      )}
     </div>
   )
 }

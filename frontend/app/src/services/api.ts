@@ -6,7 +6,7 @@ import {
   LoginResponse,
   AuthRequest,
   ChangePasswordRequest,
-  LoginStatusResponse,
+  StatusResponse,
   ExchangeRates,
   CreateCryptoWalletRequest,
   UpdateCryptoWalletConnectionRequest,
@@ -64,8 +64,23 @@ import { BASE_URL } from "@/env"
 
 let apiBaseUrl = BASE_URL
 let apiUrlInitialized = false
+let apiUrlInitPromise: Promise<void> | null = null
 
-const apiUrlInitPromise: Promise<void> = (async () => {
+const withApiVersionSegment = (url: string): string => {
+  let normalized = url.trim()
+  if (!normalized) {
+    throw new Error("Invalid base URL")
+  }
+  while (normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1)
+  }
+  if (!normalized.endsWith("/api/v1")) {
+    normalized = `${normalized}/api/v1`
+  }
+  return normalized
+}
+
+const initializeApiUrl = async (): Promise<void> => {
   try {
     if (
       typeof window !== "undefined" &&
@@ -75,22 +90,36 @@ const apiUrlInitPromise: Promise<void> = (async () => {
       const url = await window.ipcAPI.apiUrl()
       if (url) {
         apiBaseUrl = url
-        console.log("API URL initialized:", apiBaseUrl)
+        console.log("API URL initialized from IPC:", apiBaseUrl)
       }
     }
   } catch (error) {
     console.error("Error initializing API URL:", error)
   } finally {
+    apiBaseUrl = withApiVersionSegment(apiBaseUrl)
     apiUrlInitialized = true
   }
-  apiBaseUrl += "/api/v1"
-})()
+}
+
+const ensureInitPromise = (): Promise<void> => {
+  if (!apiUrlInitPromise) {
+    apiUrlInitPromise = initializeApiUrl()
+  }
+  return apiUrlInitPromise
+}
 
 const ensureApiUrlInitialized = async (): Promise<string> => {
   if (!apiUrlInitialized) {
-    await apiUrlInitPromise
+    await ensureInitPromise()
   }
   return apiBaseUrl
+}
+
+export const refreshApiBaseUrl = async (): Promise<void> => {
+  apiBaseUrl = BASE_URL
+  apiUrlInitialized = false
+  apiUrlInitPromise = null
+  await await ensureApiUrlInitialized()
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
@@ -398,9 +427,17 @@ export async function saveSettings(settings: any) {
   }
 }
 
-export async function checkLoginStatus(): Promise<LoginStatusResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/login`)
+interface CheckStatusOptions {
+  baseUrlOverride?: string
+}
+
+export async function checkStatus(
+  options?: CheckStatusOptions,
+): Promise<StatusResponse> {
+  const baseUrl = options?.baseUrlOverride
+    ? withApiVersionSegment(options.baseUrlOverride)
+    : await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/status`)
   if (!response.ok) {
     await handleApiError(response)
   }
