@@ -65,6 +65,8 @@ import { BASE_URL } from "@/env"
 let apiBaseUrl = BASE_URL
 let apiUrlInitialized = false
 let apiUrlInitPromise: Promise<void> | null = null
+let isCustomServer = false
+let customServerUrl: string | null = null
 
 const withApiVersionSegment = (url: string): string => {
   let normalized = url.trim()
@@ -87,9 +89,13 @@ const initializeApiUrl = async (): Promise<void> => {
       window.ipcAPI &&
       window.ipcAPI.apiUrl
     ) {
-      const url = await window.ipcAPI.apiUrl()
-      if (url) {
-        apiBaseUrl = url
+      const result = await window.ipcAPI.apiUrl()
+      if (result?.url) {
+        apiBaseUrl = result.url
+        isCustomServer = result.custom
+        if (isCustomServer) {
+          customServerUrl = result.url
+        }
         console.log("API URL initialized from IPC:", apiBaseUrl)
       }
     }
@@ -119,7 +125,22 @@ export const refreshApiBaseUrl = async (): Promise<void> => {
   apiBaseUrl = BASE_URL
   apiUrlInitialized = false
   apiUrlInitPromise = null
-  await await ensureApiUrlInitialized()
+  isCustomServer = false
+  customServerUrl = null
+  await ensureApiUrlInitialized()
+}
+
+export interface ApiServerInfo {
+  isCustomServer: boolean
+  serverDisplay: string | null
+}
+
+export const getApiServerInfo = async (): Promise<ApiServerInfo> => {
+  await ensureInitPromise()
+  return {
+    isCustomServer,
+    serverDisplay: customServerUrl,
+  }
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
@@ -180,7 +201,6 @@ export async function fetchFinancialEntity(
     body: JSON.stringify(request),
   })
 
-  // Even if the response is not OK, we want to get the error code
   const data = await response.json()
 
   if (!response.ok && !data.code) {

@@ -24,8 +24,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import { LoginQuickSettings } from "@/components/ui/ThemeSelector"
+import {
+  LoginQuickSettings,
+  VersionMismatchInfo,
+} from "@/components/ui/ThemeSelector"
 import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
+import { getApiServerInfo, checkStatus } from "@/services/api"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -38,6 +42,8 @@ export default function LoginPage() {
   const [isSignupMode, setIsSignupMode] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [isDesktopApp, setIsDesktopApp] = useState(false)
+  const [versionMismatch, setVersionMismatch] =
+    useState<VersionMismatchInfo | null>(null)
   const {
     login,
     signup,
@@ -73,6 +79,33 @@ export default function LoginPage() {
     if (window.ipcAPI) {
       setIsDesktopApp(true)
     }
+  }, [])
+
+  useEffect(() => {
+    const checkVersionMismatch = async () => {
+      try {
+        const serverInfo = await getApiServerInfo()
+        if (!serverInfo.isCustomServer) {
+          setVersionMismatch(null)
+          return
+        }
+
+        const statusResponse = await checkStatus()
+        const remoteVersion = statusResponse.server?.version
+        const localVersion = __APP_VERSION__
+
+        if (remoteVersion && remoteVersion !== localVersion) {
+          setVersionMismatch({ localVersion, remoteVersion })
+        } else {
+          setVersionMismatch(null)
+        }
+      } catch (error) {
+        console.error("Failed to check version mismatch:", error)
+        setVersionMismatch(null)
+      }
+    }
+
+    checkVersionMismatch()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -177,6 +210,7 @@ export default function LoginPage() {
         <LoginQuickSettings
           isDesktop={isDesktopApp}
           onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
+          versionMismatch={versionMismatch}
         />
       </div>
       <motion.div

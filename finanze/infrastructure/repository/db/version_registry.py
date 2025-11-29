@@ -94,6 +94,9 @@ from infrastructure.repository.db.versions.v0.v07.v070_4_ethplorer_integration i
     V0704Ethplorer,
 )
 from infrastructure.repository.db.versions.v0.v07.v070_5_templates import V0705Templates
+from infrastructure.repository.db.versions.v0.v07.v070_6_add_recf_factoring_start_extended import (
+    V0706RECFAndFactoringFields,
+)
 
 versions = [
     V0Genesis(),
@@ -136,4 +139,5 @@ versions = [
     V0703Cajamar(),
     V0704Ethplorer(),
     V0705Templates(),
+    V0706RECFAndFactoringFields(),
 ]

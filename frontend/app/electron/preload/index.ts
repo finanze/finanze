@@ -21,7 +21,8 @@ function createIpcListener<T>(channel: string) {
 }
 
 contextBridge.exposeInMainWorld("ipcAPI", {
-  apiUrl: () => ipcRenderer.invoke("api-url"),
+  apiUrl: () =>
+    ipcRenderer.invoke("api-url") as Promise<{ url: string; custom: boolean }>,
 
   platform: () => ipcRenderer.invoke("platform"),
 

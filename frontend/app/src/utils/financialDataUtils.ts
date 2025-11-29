@@ -366,6 +366,7 @@ export interface OngoingProject {
   maturity: string
   entity: string
   extendedMaturity?: string | null
+  lateInterestRate?: number | null
 }
 
 export interface StockFundPosition {
@@ -1717,6 +1718,10 @@ export const getOngoingProjects = (
             maturity: factoring.maturity,
             entity: entityPosition.entity?.name || "Unknown",
             extendedMaturity: factoring.extended_maturity ?? null,
+            lateInterestRate:
+              factoring.late_interest_rate != null
+                ? factoring.late_interest_rate * 100
+                : null,
           })
         }
       })

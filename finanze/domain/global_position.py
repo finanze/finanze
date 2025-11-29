@@ -214,22 +214,33 @@ class FactoringDetail(BaseData):
     amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    last_invest_date: datetime
+    start: datetime
     maturity: date
     type: str
     state: str
+    last_invest_date: Optional[datetime] = None
     profitability: Optional[Dezimal] = None
+    late_interest_rate: Optional[Dezimal] = None
     gross_interest_rate: Optional[Dezimal] = None
+    gross_late_interest_rate: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
         if self.gross_interest_rate is None:
             self.gross_interest_rate = self.interest_rate
+        if (
+            self.gross_late_interest_rate is None
+            and self.late_interest_rate is not None
+        ):
+            self.gross_late_interest_rate = self.late_interest_rate
+        if self.last_invest_date is None:
+            self.last_invest_date = self.start
         if self.profitability is None:
             self.profitability = annualized_profitability(
                 interest_rate=self.interest_rate,
-                start_dt=self.last_invest_date,
+                start_dt=self.start,
                 maturity=self.maturity,
+                late_interest_rate=self.late_interest_rate,
             )
 
 
@@ -241,22 +252,27 @@ class RealEstateCFDetail(BaseData):
     pending_amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    last_invest_date: datetime
+    start: datetime
     maturity: date
     type: str
     state: str
     business_type: str = ""
+    last_invest_date: Optional[datetime] = None
     profitability: Optional[Dezimal] = None
     extended_maturity: Optional[date] = None
+    extended_interest_rate: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
+        if not self.last_invest_date:
+            self.last_invest_date = self.start
         if self.profitability is None:
             self.profitability = annualized_profitability(
                 interest_rate=self.interest_rate,
-                start_dt=self.last_invest_date,
+                start_dt=self.start,
                 maturity=self.maturity,
                 extended_maturity=self.extended_maturity,
+                extended_interest_rate=self.extended_interest_rate,
             )
 
 

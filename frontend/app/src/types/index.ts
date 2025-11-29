@@ -113,7 +113,10 @@ export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
   lastLogged?: string
   user?: string
-  server: BackendOptions
+  server: {
+    version: string
+    options: BackendOptions
+  }
 }
 
 export interface LoginRequest {
@@ -398,7 +401,7 @@ export interface CryptoWalletConnectionResult {
 declare global {
   interface Window {
     ipcAPI?: {
-      apiUrl: () => Promise<string>
+      apiUrl: () => Promise<{ url: string; custom: boolean }>
       platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void

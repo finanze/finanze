@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react"
-import { RotateCcw, FolderOpen, ChevronDown, ChevronUp } from "lucide-react"
+import {
+  RotateCcw,
+  FolderOpen,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+} from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
@@ -83,9 +91,9 @@ export function AdvancedSettingsForm({
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showOther, setShowOther] = useState(false)
   const [isProbing, setIsProbing] = useState(false)
-  const [probeState, setProbeState] = useState<"idle" | "success" | "error">(
-    "idle",
-  )
+  const [probeState, setProbeState] = useState<
+    "idle" | "success" | "warning" | "error"
+  >("idle")
   const [probeMessage, setProbeMessage] = useState<string | null>(null)
   const [serverUrlInvalid, setServerUrlInvalid] = useState(false)
   const isElectron = Boolean(window.ipcAPI)
@@ -93,17 +101,23 @@ export function AdvancedSettingsForm({
   const loadConfig = useCallback(async () => {
     try {
       setIsLoading(true)
-      const [currentConfig, status] = await Promise.all([
-        Promise.resolve(getConfig()),
-        checkStatus().catch(error => {
-          console.error("Failed to fetch backend status:", error)
-          return null
-        }),
-      ])
 
+      const currentConfig = getConfig()
       setHasStoredConfig(hasConfig())
 
-      const backendOptions: BackendStartOptions | undefined = status?.server
+      let status = null
+      try {
+        const statusPromise = checkStatus()
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout")), 2500),
+        )
+        status = await Promise.race([statusPromise, timeoutPromise])
+      } catch (error) {
+        console.error("Failed to fetch backend status:", error)
+      }
+
+      const backendOptions: BackendStartOptions | undefined =
+        status?.server?.options
       const userBackend = currentConfig.backend
 
       const mergedBackend =
@@ -269,9 +283,19 @@ export function AdvancedSettingsForm({
     setProbeMessage(null)
 
     try {
-      await checkStatus({ baseUrlOverride: url })
-      setProbeState("success")
-      setProbeMessage(t.advancedSettings.probeSuccess)
+      const statusResponse = await checkStatus({ baseUrlOverride: url })
+      const remoteVersion = statusResponse.server?.version
+      const localVersion = __APP_VERSION__
+
+      if (remoteVersion && remoteVersion !== localVersion) {
+        setProbeState("warning")
+        setProbeMessage(
+          `${t.advancedSettings.probeSuccessVersionMismatch} (${t.advancedSettings.localVersion}: ${localVersion}, ${t.advancedSettings.remoteVersion}: ${remoteVersion})`,
+        )
+      } else {
+        setProbeState("success")
+        setProbeMessage(t.advancedSettings.probeSuccess)
+      }
     } catch (error) {
       console.error("Failed to probe server:", error)
       setProbeState("error")
@@ -336,15 +360,26 @@ export function AdvancedSettingsForm({
           </p>
         )}
         {probeMessage && (
-          <p
-            className={`text-xs ${
+          <div
+            className={`flex items-center gap-2 text-xs ${
               probeState === "success"
                 ? "text-emerald-500 dark:text-emerald-400"
-                : "text-red-500 dark:text-red-400"
+                : probeState === "warning"
+                  ? "text-amber-600 dark:text-amber-400"
+                  : "text-red-500 dark:text-red-400"
             }`}
           >
-            {probeMessage}
-          </p>
+            {probeState === "success" && (
+              <CheckCircle className="h-4 w-4 flex-shrink-0" />
+            )}
+            {probeState === "warning" && (
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            )}
+            {probeState === "error" && (
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            )}
+            <p>{probeMessage}</p>
+          </div>
         )}
       </div>
 

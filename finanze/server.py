@@ -45,16 +45,16 @@ from application.use_cases.get_external_integrations import GetExternalIntegrati
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
-from application.use_cases.get_status import GetStatusImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_settings import GetSettingsImpl
+from application.use_cases.get_status import GetStatusImpl
 from application.use_cases.get_template_fields import GetTemplateFieldsImpl
 from application.use_cases.get_templates import GetTemplatesImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
-from application.use_cases.import_sheets import ImportSheetsImpl
 from application.use_cases.import_file import ImportFileImpl
+from application.use_cases.import_sheets import ImportSheetsImpl
 from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
@@ -120,9 +120,9 @@ from infrastructure.client.rates.crypto.crypto_price_client import CryptoAssetIn
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
 from infrastructure.config.config_loader import ConfigLoader
+from infrastructure.config.server_details_adapter import ArgparseServerDetailsAdapter
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
-from infrastructure.config.server_options_adapter import ArgparseServerOptionsAdapter
 from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
@@ -313,7 +313,7 @@ class FinanzeServer:
         change_user_password = ChangeUserPasswordImpl(
             self.db_manager, self.data_manager
         )
-        server_options_port = ArgparseServerOptionsAdapter(self.args)
+        server_options_port = ArgparseServerDetailsAdapter(self.args)
         get_status = GetStatusImpl(
             self.db_manager,
             self.data_manager,

@@ -314,11 +314,17 @@ app.whenReady().then(async () => {
     platformInfo,
   })
 
-  ipcMain.handle("api-url", () => {
-    if (rendererConfig.serverUrl) {
-      return rendererConfig.serverUrl
+  ipcMain.handle("api-url", async () => {
+    if (!rendererConfig.serverUrl) {
+      rendererConfig = await readRendererConfig()
     }
-    return appConfig.urls.backend + ":" + appConfig.ports.backend
+    if (rendererConfig.serverUrl) {
+      return { url: rendererConfig.serverUrl, custom: true }
+    }
+    return {
+      url: appConfig.urls.backend + ":" + appConfig.ports.backend,
+      custom: false,
+    }
   })
   ipcMain.handle("platform", () => platformInfo)
   ipcMain.on("theme-mode-change", (_, mode: ThemeMode) => {
@@ -365,6 +371,7 @@ app.whenReady().then(async () => {
   await createWindow()
 
   rendererConfig = await readRendererConfig()
+  console.debug("Renderer config loaded:", JSON.stringify(rendererConfig))
   const logConfig = getLogConfigFromRendererConfig(rendererConfig)
   initializeLogger(logConfig)
 

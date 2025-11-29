@@ -100,16 +100,8 @@ export default function SettingsPage() {
     Record<string, boolean>
   >({
     assetsCrypto: false,
-    position: false,
-    contributions: false,
-    transactions: false,
-    historic: false,
-    virtualPosition: false,
-    virtualTransactions: false,
     advancedSettings: false,
   })
-
-  const [, setValidationErrors] = useState<Record<string, string[]>>({})
 
   const [newStablecoin, setNewStablecoin] = useState("")
   const [editingStablecoinIndex, setEditingStablecoinIndex] = useState<
@@ -307,186 +299,7 @@ export default function SettingsPage() {
     })
   }
 
-  const validateSettings = () => {
-    const errors: Record<string, string[]> = {}
-
-    const exportSheets = settings.export?.sheets ?? {}
-    const exportSectionsConfigured = Object.entries(exportSheets).some(
-      ([section, items]) =>
-        section !== "globals" && Array.isArray(items) && items.length > 0,
-    )
-
-    if (exportSectionsConfigured && !exportSheets?.globals?.spreadsheetId) {
-      errors.globals = [t.settings.errors.spreadsheetIdRequired]
-    }
-
-    Object.entries(exportSheets).forEach(([section, items]) => {
-      if (section === "globals" || !Array.isArray(items)) {
-        return
-      }
-
-      const sectionErrors: string[] = []
-
-      items.forEach((item: any, index: number) => {
-        if (!item.range) {
-          if (!sectionErrors[index]) sectionErrors[index] = ""
-          sectionErrors[index] += t.settings.errors.rangeRequired
-        }
-
-        if (
-          (section === "position" ||
-            section === "transactions" ||
-            section === "contributions") &&
-          (!item.data || (Array.isArray(item.data) && item.data.length === 0))
-        ) {
-          if (!sectionErrors[index]) sectionErrors[index] = ""
-          sectionErrors[index] += t.settings.errors.dataRequired
-        }
-      })
-
-      if (sectionErrors.length > 0) {
-        errors[section] = sectionErrors
-      }
-    })
-
-    const virtualConfig = settings.importing?.sheets ?? {}
-    const virtualSectionsConfigured = Object.entries(virtualConfig).some(
-      ([section, items]) =>
-        section !== "globals" && Array.isArray(items) && items.length > 0,
-    )
-
-    if (virtualSectionsConfigured && !virtualConfig?.globals?.spreadsheetId) {
-      errors.virtualGlobals = [t.settings.errors.importSpreadsheetIdRequired]
-    }
-
-    Object.entries(virtualConfig).forEach(([section, items]) => {
-      if (section === "globals" || !Array.isArray(items)) {
-        return
-      }
-
-      const sectionErrors: string[] = []
-
-      items.forEach((item: any, index: number) => {
-        if (!item.range) {
-          if (!sectionErrors[index]) sectionErrors[index] = ""
-          sectionErrors[index] += t.settings.errors.rangeRequired
-        }
-
-        if (
-          (section === "position" || section === "transactions") &&
-          (!item.data || (Array.isArray(item.data) && item.data.length === 0))
-        ) {
-          if (!sectionErrors[index]) sectionErrors[index] = ""
-          sectionErrors[index] += t.settings.errors.dataRequired
-        }
-      })
-
-      if (sectionErrors.length > 0) {
-        errors[`virtual_${section}`] = sectionErrors
-      }
-    })
-
-    setValidationErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-
-  const processDataFields = (settingsObj: any) => {
-    const processed = { ...settingsObj }
-
-    if (processed.export?.sheets) {
-      Object.entries(processed.export.sheets).forEach(([section, items]) => {
-        if (section !== "globals" && Array.isArray(items)) {
-          ;(items as any[]).forEach(item => {
-            // Skip processing data for position section as it's already an array from MultiSelect
-            if (
-              section !== "position" &&
-              item.data &&
-              typeof item.data === "string"
-            ) {
-              if (item.data.includes(",")) {
-                item.data = item.data
-                  .split(",")
-                  .map((v: string) => v.trim())
-                  .filter((v: string) => v !== "")
-              } else if (item.data.trim() !== "") {
-                item.data = [item.data.trim()]
-              } else {
-                item.data = []
-              }
-            }
-
-            if (item.filters && Array.isArray(item.filters)) {
-              item.filters.forEach((filter: any) => {
-                if (filter.values && typeof filter.values === "string") {
-                  if (filter.values.includes(",")) {
-                    filter.values = filter.values
-                      .split(",")
-                      .map((v: string) => v.trim())
-                      .filter((v: string) => v !== "")
-                  } else if (filter.values.trim() !== "") {
-                    filter.values = [filter.values.trim()]
-                  } else {
-                    filter.values = []
-                  }
-                }
-              })
-            }
-          })
-        }
-      })
-    }
-
-    if (processed.importing?.sheets) {
-      Object.entries(processed.importing.sheets).forEach(([section, items]) => {
-        if (section !== "globals" && Array.isArray(items)) {
-          ;(items as any[]).forEach(item => {
-            if (
-              section !== "position" &&
-              item.data &&
-              typeof item.data === "string"
-            ) {
-              if (item.data.includes(",")) {
-                item.data = item.data
-                  .split(",")
-                  .map((v: string) => v.trim())
-                  .filter((v: string) => v !== "")
-              } else if (item.data.trim() !== "") {
-                item.data = [item.data.trim()]
-              } else {
-                item.data = []
-              }
-            }
-
-            if (item.filters && Array.isArray(item.filters)) {
-              item.filters.forEach((filter: any) => {
-                if (filter.values && typeof filter.values === "string") {
-                  if (filter.values.includes(",")) {
-                    filter.values = filter.values
-                      .split(",")
-                      .map((v: string) => v.trim())
-                      .filter((v: string) => v !== "")
-                  } else if (filter.values.trim() !== "") {
-                    filter.values = [filter.values.trim()]
-                  } else {
-                    filter.values = []
-                  }
-                }
-              })
-            }
-          })
-        }
-      })
-    }
-
-    return processed
-  }
-
   const handleSave = async () => {
-    if (!validateSettings()) {
-      showToast(t.settings.validationError, "error")
-      return
-    }
-
     try {
       setIsSaving(true)
 
@@ -511,9 +324,7 @@ export default function SettingsPage() {
 
       setSettings(settingsForSave)
 
-      const processedSettings = processDataFields({ ...settingsForSave })
-
-      const cleanedSettings = cleanObject(processedSettings)
+      const cleanedSettings = cleanObject(settingsForSave)
 
       if (!cleanedSettings.assets) {
         cleanedSettings.assets = {

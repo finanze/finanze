@@ -91,7 +91,8 @@
     "pinAsset": "Fijar activo",
     "unpinAsset": "Quitar activo",
     "continueInBackground": "Continuar en segundo plano",
-    "connectingToServer": "Conectando al servidor"
+    "connectingToServer": "Conectando a",
+    "startingServer": "Iniciando servidor"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -154,6 +155,8 @@
     "investment": "Inversión",
     "interest": "Interés",
     "annually": "anual",
+    "lateInterest": "demora",
+    "lateInterestInfo": "Esta inversión ha superado su fecha de vencimiento y está generando intereses a la tasa de demora.",
     "expected": "Esperado",
     "expectedAtMaturity": "Esperado al vencimiento",
     "profit": "Beneficio",
@@ -914,6 +917,7 @@
         "entity": "Entidad",
         "euribor_rate": "Tasa Euríbor",
         "expected_interests": "Intereses esperados",
+        "extended_interest_rate": "Tasa de interés extendida",
         "extended_maturity": "Vencimiento extendido",
         "fees": "Comisiones",
         "fixed_years": "Años fijos",
@@ -928,6 +932,7 @@
         "isin": "ISIN",
         "last_invest_date": "Última fecha de inversión",
         "last_tx_date": "Última fecha de transacción",
+        "late_interest_rate": "Tasa de interés de demora",
         "limit": "Límite",
         "loan_amount": "Monto del préstamo",
         "market": "Mercado",
@@ -955,6 +960,7 @@
         "returned": "Devuelto",
         "shares": "Acciones",
         "since": "Desde",
+        "start": "Fecha de inicio",
         "state": "Estado",
         "subtype": "Subtipo",
         "target": "Destino",
@@ -1843,8 +1849,9 @@
         "fields": {
           "amount": "Importe",
           "interestRate": "Tipo de interés (%)",
+          "lateInterestRate": "Interés de demora (%)",
           "profitability": "Rentabilidad (%)",
-          "lastInvestDate": "Fecha de última inversión",
+          "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "type": "Tipo",
           "state": "Estado"
@@ -1868,8 +1875,9 @@
           "amount": "Importe",
           "pendingAmount": "Importe pendiente",
           "interestRate": "Tipo de interés (%)",
+          "extendedInterestRate": "Tipo de interés extendido (%)",
           "profitability": "Rentabilidad (%)",
-          "lastInvestDate": "Fecha de última inversión",
+          "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "extendedMaturity": "Vencimiento extendido",
           "type": "Tipo",
@@ -2285,6 +2293,9 @@
     "serverUrlPlaceholder": "http://192.168.1.10:7592",
     "probeButton": "Probar",
     "probeSuccess": "Servidor disponible.",
+    "probeSuccessVersionMismatch": "Servidor disponible pero la versión difiere.",
+    "localVersion": "Local",
+    "remoteVersion": "Remota",
     "probeError": "No se pudo contactar el servidor.",
     "probeMissingUrl": "Ingresa una URL de servidor para probar.",
     "serverUrlInvalid": "La URL del servidor debe comenzar con http:// o https://.",
@@ -2302,6 +2313,7 @@
     "resetToDefaults": "Restablecer",
     "resetConfirmTitle": "Restablecer configuración",
     "resetConfirmMessage": "¿Estás seguro de que quieres restablecer la configuración avanzada a sus valores por defecto?",
-    "resetConfirmWarning": "La aplicación se reiniciará después de restablecer."
+    "resetConfirmWarning": "La aplicación se reiniciará después de restablecer.",
+    "availableAfterLoading": "Disponible después de cargar"
   }
 }

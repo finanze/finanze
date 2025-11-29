@@ -164,8 +164,11 @@ export interface FactoringDetail {
   amount: number
   currency: string
   interest_rate: number
+  late_interest_rate: number
   profitability: number
   gross_interest_rate: number
+  gross_late_interest_rate?: number | null
+  start: string
   last_invest_date: string
   maturity: string
   type: string
@@ -181,12 +184,14 @@ export interface RealEstateCFDetail {
   currency: string
   interest_rate: number
   profitability: number
+  start: string
   last_invest_date: string
   maturity: string
   type: string
   business_type: string
   state: string
   extended_maturity?: string | null
+  extended_interest_rate?: number | null
   source: DataSource
 }
 

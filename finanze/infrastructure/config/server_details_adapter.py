@@ -1,16 +1,36 @@
 from argparse import Namespace
+from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
-from application.ports.server_options_port import ServerOptionsPort
-from domain.status import BackendLogLevel, BackendOptions
+from application.ports.server_details_port import ServerDetailsPort
+from domain.status import BackendDetails, BackendLogLevel, BackendOptions
 
 
-class ArgparseServerOptionsAdapter(ServerOptionsPort):
+def _resolve_version() -> str:
+    pkg_version = _get_installed_version()
+    if pkg_version:
+        return pkg_version
+
+    return "0.0.0"
+
+
+def _get_installed_version() -> Optional[str]:
+    try:
+        return metadata.version("finanze")
+    except metadata.PackageNotFoundError:
+        return None
+
+
+class ArgparseServerDetailsAdapter(ServerDetailsPort):
     def __init__(self, args: Namespace):
         self._args = args
 
-    def get_backend_options(self) -> BackendOptions:
+    def get_backend_details(self) -> BackendDetails:
+        options = self._build_options()
+        return BackendDetails(version=_resolve_version(), options=options)
+
+    def _build_options(self) -> BackendOptions:
         data_dir = getattr(self._args, "data_dir", None)
         log_dir = getattr(self._args, "log_dir", None)
         return BackendOptions(

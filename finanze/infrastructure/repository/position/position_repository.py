@@ -240,9 +240,9 @@ def _save_real_estate_cf(
         cursor.execute(
             """
             INSERT INTO real_estate_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
-                                                 interest_rate, profitability, last_invest_date, maturity, type,
-                                                 business_type, state, extended_maturity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                 interest_rate, profitability, last_invest_date, start, maturity, type,
+                                                 business_type, state, extended_maturity, extended_interest_rate)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -254,12 +254,16 @@ def _save_real_estate_cf(
                 str(detail.interest_rate),
                 str(detail.profitability),
                 detail.last_invest_date.isoformat(),
+                detail.start.isoformat(),
                 detail.maturity.isoformat(),
                 detail.type,
                 detail.business_type,
                 detail.state,
                 detail.extended_maturity.isoformat()
                 if detail.extended_maturity
+                else None,
+                str(detail.extended_interest_rate)
+                if detail.extended_interest_rate
                 else None,
             ),
         )
@@ -270,9 +274,9 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
         cursor.execute(
             """
             INSERT INTO factoring_positions (id, global_position_id, name, amount, currency,
-                                             interest_rate, profitability, gross_interest_rate, last_invest_date,
-                                             maturity, type, state)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                             interest_rate, profitability, gross_interest_rate, late_interest_rate,
+                                             gross_late_interest_rate, last_invest_date, start, maturity, type, state)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(detail.id),
@@ -283,9 +287,14 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
                 str(detail.interest_rate),
                 str(detail.profitability),
                 str(detail.gross_interest_rate),
+                str(detail.late_interest_rate) if detail.late_interest_rate else None,
+                str(detail.gross_late_interest_rate)
+                if detail.gross_late_interest_rate
+                else None,
                 detail.last_invest_date.isoformat()
                 if detail.last_invest_date
                 else None,
+                detail.start.isoformat(),
                 detail.maturity.isoformat(),
                 detail.type,
                 detail.state,
@@ -512,7 +521,9 @@ class PositionSQLRepository(PositionPort):
 
             cursor.execute(sql, tuple(params))
 
-            return self._map_position_rows(cursor, products=query.products)
+            products = query.products if query else None
+
+            return self._map_position_rows(cursor, products=products)
 
     def _map_position_rows(
         self, cursor: DBCursor, multi: bool = False, products: list[ProductType] = None
@@ -617,7 +628,9 @@ class PositionSQLRepository(PositionPort):
 
             cursor.execute(sql, tuple(params))
 
-            return self._map_position_rows(cursor, multi=True, products=query.products)
+            products = query.products if query else None
+
+            return self._map_position_rows(cursor, multi=True, products=products)
 
     def _get_accounts(self, global_position: GlobalPosition) -> Optional[Accounts]:
         with self._db_client.read() as cursor:
@@ -886,9 +899,15 @@ class PositionSQLRepository(PositionPort):
                     amount=Dezimal(row["amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
-                    profitability=Dezimal(row["profitability"]),
                     gross_interest_rate=Dezimal(row["gross_interest_rate"]),
+                    late_interest_rate=Dezimal(row["late_interest_rate"])
+                    if row["late_interest_rate"]
+                    else None,
+                    gross_late_interest_rate=Dezimal(row["gross_late_interest_rate"])
+                    if row["gross_late_interest_rate"]
+                    else None,
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
+                    start=datetime.fromisoformat(row["start"]),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     type=row["type"],
                     state=row["state"],
@@ -919,13 +938,20 @@ class PositionSQLRepository(PositionPort):
                     pending_amount=Dezimal(row["pending_amount"]),
                     currency=row["currency"],
                     interest_rate=Dezimal(row["interest_rate"]),
-                    profitability=Dezimal(row["profitability"]),
                     last_invest_date=datetime.fromisoformat(row["last_invest_date"]),
-                    maturity=row["maturity"],
+                    start=datetime.fromisoformat(row["start"]),
+                    maturity=datetime.fromisoformat(row["maturity"]).date(),
                     type=row["type"],
                     business_type=row["business_type"],
                     state=row["state"],
-                    extended_maturity=row["extended_maturity"],
+                    extended_maturity=datetime.fromisoformat(
+                        row["extended_maturity"]
+                    ).date()
+                    if row["extended_maturity"]
+                    else None,
+                    extended_interest_rate=Dezimal(row["extended_interest_rate"])
+                    if row["extended_interest_rate"]
+                    else None,
                     source=global_position.source,
                 )
                 for row in cursor

@@ -93,7 +93,8 @@
     "pinAsset": "Pin asset",
     "unpinAsset": "Unpin asset",
     "continueInBackground": "Continue in background",
-    "connectingToServer": "Connecting to server"
+    "connectingToServer": "Connecting to",
+    "startingServer": "Starting server"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -156,6 +157,8 @@
     "investment": "Investment",
     "interest": "Interest",
     "annually": "annually",
+    "lateInterest": "late",
+    "lateInterestInfo": "This investment is past its maturity date and is generating interest at the late rate.",
     "expected": "Expected",
     "expectedAtMaturity": "Expected at Maturity",
     "profit": "Profit",
@@ -915,6 +918,7 @@
         "entity": "Entity",
         "euribor_rate": "Euribor rate",
         "expected_interests": "Expected interests",
+        "extended_interest_rate": "Extended interest rate",
         "extended_maturity": "Extended maturity",
         "fees": "Fees",
         "fixed_years": "Fixed years",
@@ -929,6 +933,7 @@
         "isin": "ISIN",
         "last_invest_date": "Last invest date",
         "last_tx_date": "Last transaction date",
+        "late_interest_rate": "Late interest rate",
         "limit": "Limit",
         "loan_amount": "Loan amount",
         "market": "Market",
@@ -956,6 +961,7 @@
         "returned": "Returned",
         "shares": "Shares",
         "since": "Since",
+        "start": "Start date",
         "state": "State",
         "subtype": "Subtype",
         "target": "Target",
@@ -1831,8 +1837,9 @@
         "fields": {
           "amount": "Amount",
           "interestRate": "Interest rate (%)",
+          "lateInterestRate": "Late interest rate (%)",
           "profitability": "Profitability (%)",
-          "lastInvestDate": "Last investment date",
+          "start": "Start date",
           "maturity": "Maturity",
           "type": "Type",
           "state": "State"
@@ -1856,8 +1863,9 @@
           "amount": "Amount",
           "pendingAmount": "Pending amount",
           "interestRate": "Interest rate (%)",
+          "extendedInterestRate": "Extended interest rate (%)",
           "profitability": "Profitability (%)",
-          "lastInvestDate": "Last investment date",
+          "start": "Start date",
           "maturity": "Maturity",
           "extendedMaturity": "Extended maturity",
           "type": "Type",
@@ -2272,6 +2280,9 @@
     "serverUrlPlaceholder": "http://192.168.1.10:7592",
     "probeButton": "Test",
     "probeSuccess": "Server is reachable.",
+    "probeSuccessVersionMismatch": "Server is reachable but version differs.",
+    "localVersion": "Local",
+    "remoteVersion": "Remote",
     "probeError": "Unable to reach the server.",
     "probeMissingUrl": "Enter a server URL to probe.",
     "serverUrlInvalid": "Server URL must start with http:// or https://.",
@@ -2289,6 +2300,7 @@
     "resetToDefaults": "Reset to defaults",
     "resetConfirmTitle": "Reset settings",
     "resetConfirmMessage": "Are you sure you want to reset all advanced settings to their defaults?",
-    "resetConfirmWarning": "The app will restart after resetting."
+    "resetConfirmWarning": "The app will restart after resetting.",
+    "availableAfterLoading": "Available after loading"
   }
 }

@@ -82,6 +82,7 @@ interface FactoringPosition extends Record<string, unknown> {
   profitabilityPct: number | null
   interest_rate: number
   gross_interest_rate: number
+  late_interest_rate?: number | null
   maturity: string
   last_invest_date: string
   state: string
@@ -1159,23 +1160,81 @@ function FactoringViewContent({
                       {translateProjectType(position.type)}
                     </span>
                   </div>,
+                ]
+
+                const isLate =
+                  position.maturity && new Date(position.maturity) < new Date()
+
+                const hasLateInterestRate =
+                  position.late_interest_rate != null &&
+                  position.late_interest_rate > 0
+
+                const showGrossRate =
+                  position.interest_rate !== position.gross_interest_rate
+
+                const interestRateItem = (
                   <div
                     key="interest"
                     className="flex items-center gap-1 text-sm"
                   >
                     <Percent size={14} />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                    <span
+                      className={cn(
+                        "font-medium",
+                        isLate && hasLateInterestRate
+                          ? "text-gray-400 dark:text-gray-500"
+                          : "text-emerald-600 dark:text-emerald-400",
+                      )}
+                    >
                       {(position.interest_rate * 100).toFixed(2)}%
                     </span>
-                    <span className="text-gray-400 dark:text-gray-500">/</span>
-                    <span className="text-blue-600 dark:text-neutral-500 font-medium">
-                      {(position.gross_interest_rate * 100).toFixed(2)}%
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t.investments.gross}
-                    </span>
-                  </div>,
-                ]
+                    {showGrossRate && (
+                      <>
+                        <span className="text-gray-400 dark:text-gray-500">
+                          /
+                        </span>
+                        <span
+                          className={cn(
+                            "font-medium",
+                            isLate && hasLateInterestRate
+                              ? "text-gray-400 dark:text-gray-500"
+                              : "text-blue-600 dark:text-neutral-500",
+                          )}
+                        >
+                          {(position.gross_interest_rate * 100).toFixed(2)}%
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {t.investments.gross}
+                        </span>
+                      </>
+                    )}
+                    {hasLateInterestRate && (
+                      <>
+                        <span className="text-gray-400 dark:text-gray-500">
+                          /
+                        </span>
+                        <span
+                          className={cn(
+                            "font-medium",
+                            isLate
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : "text-gray-400 dark:text-gray-500",
+                          )}
+                        >
+                          {((position.late_interest_rate ?? 0) * 100).toFixed(
+                            2,
+                          )}
+                          %
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {t.investments.lateInterest}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                )
+
+                summaryItems.push(interestRateItem)
 
                 return (
                   <Card
@@ -1281,6 +1340,29 @@ function FactoringViewContent({
                                   </span>
                                 )}
                               </span>
+                              {isLate && hasLateInterestRate && (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center text-amber-500 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300"
+                                      aria-label={
+                                        t.investments.lateInterestInfo
+                                      }
+                                    >
+                                      <Info size={14} />
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    align="end"
+                                    className="w-64 text-sm"
+                                  >
+                                    <p className="text-gray-700 dark:text-gray-300">
+                                      {t.investments.lateInterestInfo}
+                                    </p>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
                             </div>
                           </div>
                         )}
@@ -1403,7 +1485,11 @@ function FactoringViewContent({
               {historicDisplayItems.map(item => {
                 const isExpanded =
                   expandedHistoricEntries[item.entry.id] ?? false
-                const transactions = item.entry.related_txs ?? []
+                const transactions = (item.entry.related_txs ?? []) as Array<
+                  (typeof item.entry.related_txs)[number] & {
+                    net_amount: number
+                  }
+                >
 
                 const chargesStats = [
                   {
@@ -1483,11 +1569,11 @@ function FactoringViewContent({
                 }
 
                 const profitDisplay =
-                  item.profit.formatted && item.profit.amount !== null
-                    ? item.profit.amount > 0
-                      ? `+${item.profit.formatted}`
-                      : item.profit.formatted
-                    : (item.profit.formatted ?? notAvailableLabel)
+                  item.netProfit.formatted && item.netProfit.amount !== null
+                    ? item.netProfit.amount > 0
+                      ? `+${item.netProfit.formatted}`
+                      : item.netProfit.formatted
+                    : (item.netProfit.formatted ?? notAvailableLabel)
 
                 const handleHeaderClick = (
                   event: React.MouseEvent<HTMLDivElement>,
@@ -1525,6 +1611,12 @@ function FactoringViewContent({
                       {item.projectType || notAvailableLabel}
                     </span>
                   </div>,
+                ]
+
+                const historicShowGrossRate =
+                  item.interestRateFormatted !== item.grossInterestRateFormatted
+
+                headerItems.push(
                   <div
                     key="interest"
                     className="flex items-center gap-1 text-sm"
@@ -1536,14 +1628,23 @@ function FactoringViewContent({
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                       {item.interestRateFormatted}
                     </span>
-                    <span className="text-gray-400 dark:text-gray-500">/</span>
-                    <span className="text-blue-600 dark:text-neutral-500 font-medium">
-                      {item.grossInterestRateFormatted}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {t.investments.gross}
-                    </span>
+                    {historicShowGrossRate && (
+                      <>
+                        <span className="text-gray-400 dark:text-gray-500">
+                          /
+                        </span>
+                        <span className="text-blue-600 dark:text-neutral-500 font-medium">
+                          {item.grossInterestRateFormatted}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {t.investments.gross}
+                        </span>
+                      </>
+                    )}
                   </div>,
+                )
+
+                headerItems.push(
                   <div
                     key="maturity"
                     className="flex items-center gap-1 text-sm"
@@ -1559,7 +1660,7 @@ function FactoringViewContent({
                       {item.effectiveMaturity}
                     </span>
                   </div>,
-                ]
+                )
 
                 return (
                   <Card key={item.entry.id} className="p-4 space-y-3">
@@ -1603,7 +1704,7 @@ function FactoringViewContent({
                           <span
                             className={cn(
                               "text-sm",
-                              profitColor(item.profit.amount),
+                              profitColor(item.netProfit.amount),
                             )}
                           >
                             {profitDisplay}
@@ -1671,7 +1772,7 @@ function FactoringViewContent({
                                     <div className="space-y-1">
                                       {transactions.map(tx => {
                                         const amountDisplay = toAmountDisplay(
-                                          tx.amount,
+                                          tx.net_amount,
                                           tx.currency,
                                         )
                                         const direction =

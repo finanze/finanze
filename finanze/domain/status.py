@@ -29,8 +29,14 @@ class BackendOptions:
 
 
 @dataclass
+class BackendDetails:
+    version: str
+    options: BackendOptions
+
+
+@dataclass
 class GlobalStatus:
     status: LoginStatusCode
-    server: BackendOptions
+    server: BackendDetails
     user: Optional[str] = None
     last_logged: Optional[str] = None

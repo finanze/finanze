@@ -2304,9 +2304,36 @@ export default function DashboardPage() {
                                 <p className="text-base font-semibold">
                                   {project.formattedValue}
                                 </p>
-                                <p className="text-base font-semibold text-green-600">
-                                  {formatPercentage(project.roi, locale)}
-                                </p>
+                                {(() => {
+                                  const isLate =
+                                    status.isDelayed &&
+                                    project.type === "FACTORING" &&
+                                    project.lateInterestRate != null &&
+                                    project.lateInterestRate > 0
+                                  if (isLate) {
+                                    return (
+                                      <div className="flex items-center gap-1">
+                                        <p className="text-[9px] text-muted-foreground">
+                                          {formatPercentage(
+                                            project.roi,
+                                            locale,
+                                          )}
+                                        </p>
+                                        <p className="text-base font-semibold text-green-600">
+                                          {formatPercentage(
+                                            project.lateInterestRate!,
+                                            locale,
+                                          )}
+                                        </p>
+                                      </div>
+                                    )
+                                  }
+                                  return (
+                                    <p className="text-base font-semibold text-green-600">
+                                      {formatPercentage(project.roi, locale)}
+                                    </p>
+                                  )
+                                })()}
                               </div>
                             </div>
                           </CardContent>

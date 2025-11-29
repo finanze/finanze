@@ -199,7 +199,7 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
             "pending_amount",
             "currency",
             "interest_rate",
-            "last_invest_date",
+            "start",
             "maturity",
             "type",
             "state",
@@ -214,12 +214,15 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
                 pending_amount=_dez(e["pending_amount"]),
                 currency=e["currency"],
                 interest_rate=_dez(e["interest_rate"]),
-                last_invest_date=_dt(e["last_invest_date"]),
+                start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 business_type=e.get("business_type", ""),
                 state=e["state"],
                 extended_maturity=_date(e.get("extended_maturity")),
+                extended_interest_rate=_dez(e.get("extended_interest_rate"))
+                if e.get("extended_interest_rate")
+                else None,
                 source=DataSource.MANUAL,
             )
         )
@@ -237,7 +240,7 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
             "maturity",
             "type",
             "state",
-            "last_invest_date",
+            "start",
         ):
             if req not in e:
                 raise MissingFieldsError([req])
@@ -248,12 +251,12 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
                 interest_rate=_dez(e["interest_rate"]),
-                last_invest_date=_dt(e["last_invest_date"]),
+                start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 state=e["state"],
-                gross_interest_rate=_dez(e.get("gross_interest_rate"))
-                if e.get("gross_interest_rate")
+                late_interest_rate=_dez(e.get("late_interest_rate"))
+                if e.get("late_interest_rate")
                 else None,
                 source=DataSource.MANUAL,
             )

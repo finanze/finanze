@@ -349,6 +349,12 @@ PROFITABILITY = TemplateField(
     field="profitability",
     type=TemplateFieldType.DECIMAL,
 )
+LATE_INTEREST_RATE = TemplateField(
+    key="late_interest_rate",
+    field="late_interest_rate",
+    type=TemplateFieldType.DECIMAL,
+)
+START = TemplateField(key="start", field="start", type=TemplateFieldType.DATETIME)
 LAST_INVEST_DATE = TemplateField(
     key="last_invest_date",
     field="last_invest_date",
@@ -367,8 +373,10 @@ FACTORING_FIELDS = FieldGroup(
         AMOUNT.require(),
         CURRENCY.require(),
         INTEREST_RATE.require(),
+        LATE_INTEREST_RATE,
         PROFITABILITY.with_template(TemplateType.EXPORT),
-        LAST_INVEST_DATE.require(),
+        START.require(),
+        LAST_INVEST_DATE,
         MATURITY.require(),
         FACTORING_TYPE.require(),
         STATE.require(),
@@ -395,6 +403,11 @@ EXTENDED_MATURITY = TemplateField(
     field="extended_maturity",
     type=TemplateFieldType.DATE,
 )
+EXTENDED_INTEREST_RATE = TemplateField(
+    key="extended_interest_rate",
+    field="extended_interest_rate",
+    type=TemplateFieldType.DECIMAL,
+)
 
 REAL_ESTATE_CF_FIELDS = FieldGroup(
     feature=Feature.POSITION,
@@ -406,12 +419,14 @@ REAL_ESTATE_CF_FIELDS = FieldGroup(
         CURRENCY.require(),
         INTEREST_RATE.require(),
         PROFITABILITY.with_template(TemplateType.EXPORT),
-        LAST_INVEST_DATE.require(),
+        START.require(),
+        LAST_INVEST_DATE,
         MATURITY.require(),
         REAL_ESTATE_CF_TYPE.require(),
         BUSINESS_TYPE,
         STATE.require(),
         EXTENDED_MATURITY,
+        EXTENDED_INTEREST_RATE,
         PRODUCT_TYPE.with_template(TemplateType.EXPORT),
         ENTITY,
     ],
