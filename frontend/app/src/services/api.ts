@@ -41,6 +41,8 @@ import {
   TemplateFeatureDefinition,
   FileExportRequest,
   FileImportRequest,
+  MoneyEvents,
+  MoneyEventQuery,
 } from "@/types"
 import {
   EntityContributions,
@@ -1202,6 +1204,21 @@ export async function getInstrumentDetails(
   const response = await fetch(
     `${baseUrl}/instruments/details?${params.toString()}`,
   )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getMoneyEvents(
+  query: MoneyEventQuery,
+): Promise<MoneyEvents> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
+  params.append("from_date", query.from_date)
+  params.append("to_date", query.to_date)
+
+  const response = await fetch(`${baseUrl}/events?${params.toString()}`)
   if (!response.ok) {
     await handleApiError(response)
   }

@@ -1,5 +1,5 @@
-import { FlowType, type ForecastResult } from "@/types"
-import { getForecast } from "@/services/api"
+import { MoneyEventType, type ForecastResult } from "@/types"
+import { getForecast, getMoneyEvents } from "@/services/api"
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
@@ -75,13 +75,11 @@ export default function DashboardPage() {
   const navigate = useNavigate()
   const {
     positionsData,
-    periodicFlows,
     pendingFlows,
     isLoading: financialDataLoading,
     error: financialDataError,
     refreshData: refreshFinancialData,
     realEstateList,
-    contributions,
     cachedLastTransactions,
     fetchCachedTransactions,
     invalidateTransactionsCache,
@@ -115,6 +113,21 @@ export default function DashboardPage() {
   const [transactionsError, setTransactionsError] = useState<string | null>(
     null,
   )
+
+  const [upcomingEventsRaw, setUpcomingEventsRaw] = useState<
+    Array<{
+      kind: "flow" | "contribution"
+      id: string
+      name: string
+      direction: "in" | "out"
+      recurring: boolean
+      nextDate: Date
+      daysUntil: number
+      amount: number
+      currency: string
+    }>
+  >([])
+  const [upcomingEventsLoading, setUpcomingEventsLoading] = useState(false)
 
   const transactions = cachedLastTransactions
 
@@ -325,6 +338,19 @@ export default function DashboardPage() {
   }, [cachedLastTransactions, t])
 
   const targetCurrency = settings.general.defaultCurrency
+
+  const upcomingEventsData = useMemo(() => {
+    return upcomingEventsRaw.map(event => ({
+      ...event,
+      convertedAmount: convertCurrency(
+        event.amount,
+        event.currency,
+        targetCurrency,
+        exchangeRates,
+      ),
+    }))
+  }, [upcomingEventsRaw, targetCurrency, exchangeRates])
+
   // In forecast mode we never apply current pending flows separately because they're implicitly reflected in the forecast snapshot by date.
   const appliedPendingFlows = forecastMode
     ? []
@@ -1221,94 +1247,81 @@ export default function DashboardPage() {
     )
   }
 
-  // Calculate upcoming flows & contributions data (empty in forecast mode)
-  const upcomingEventsData = useMemo(() => {
-    if (forecastMode) return []
-    const reference = new Date()
-
-    // Flows (periodic + pending)
-    const flowItems = [...periodicFlows, ...pendingFlows]
-      .filter(flow => flow.enabled)
-      .map(flow => {
-        let nextDate: Date | null = null
-        if ("next_date" in flow && flow.next_date)
-          nextDate = new Date(flow.next_date)
-        else if ("date" in flow && flow.date) nextDate = new Date(flow.date)
-        if (!nextDate) return null
-        const daysUntil = Math.ceil(
-          (nextDate.getTime() - reference.getTime()) / (1000 * 60 * 60 * 24),
-        )
-        return {
-          kind: "flow" as const,
-          id: flow.id,
-          name: flow.name,
-          // unify direction for sign
-          direction: flow.flow_type === FlowType.EARNING ? "in" : "out",
-          recurring: "frequency" in flow,
-          flow_type: flow.flow_type,
-          nextDate,
-          daysUntil,
-          convertedAmount: convertCurrency(
-            flow.amount,
-            flow.currency,
-            targetCurrency,
-            exchangeRates,
-          ),
-        }
-      })
-      .filter((f): f is NonNullable<typeof f> => !!f)
-      .filter(f => f.daysUntil >= 0)
-
-    // Contributions
-    const contributionItems: any[] = []
-    if (contributions) {
-      Object.values(contributions).forEach(entityContrib => {
-        const list = (entityContrib as any)?.periodic
-        if (!Array.isArray(list)) return
-        list
-          .filter(c => c && c.active && c.next_date)
-          .forEach(c => {
-            try {
-              const nextDate = new Date(c.next_date)
-              if (isNaN(nextDate.getTime())) return
-              const daysUntil = Math.ceil(
-                (nextDate.getTime() - reference.getTime()) /
-                  (1000 * 60 * 60 * 24),
-              )
-              if (daysUntil < 0) return
-              contributionItems.push({
-                kind: "contribution" as const,
-                id: c.id,
-                name: c.alias || c.target_name,
-                direction: "out" as const,
-                recurring: true,
-                nextDate,
-                daysUntil,
-                convertedAmount: convertCurrency(
-                  c.amount,
-                  c.currency,
-                  targetCurrency,
-                  exchangeRates,
-                ),
-              })
-            } catch {
-              // ignore malformed entry
-            }
-          })
-      })
+  // Fetch upcoming events from API
+  useEffect(() => {
+    if (forecastMode) {
+      setUpcomingEventsRaw([])
+      return
     }
 
-    return [...flowItems, ...contributionItems]
-      .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
-      .slice(0, 5)
-  }, [
-    periodicFlows,
-    pendingFlows,
-    contributions,
-    targetCurrency,
-    exchangeRates,
-    forecastMode,
-  ])
+    const fetchUpcomingEvents = async () => {
+      setUpcomingEventsLoading(true)
+      try {
+        const tomorrow = new Date()
+        tomorrow.setDate(tomorrow.getDate() + 1)
+        const nextMonth = new Date()
+        nextMonth.setMonth(nextMonth.getMonth() + 1)
+
+        const fromDate = tomorrow.toISOString().split("T")[0]
+        const toDate = nextMonth.toISOString().split("T")[0]
+
+        const response = await getMoneyEvents({
+          from_date: fromDate,
+          to_date: toDate,
+        })
+
+        const mappedEvents = response.events
+          .map(event => {
+            const nextDate = new Date(event.date)
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const daysUntil = Math.ceil(
+              (nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+            )
+
+            let kind: "flow" | "contribution"
+            let recurring = false
+
+            if (event.type === MoneyEventType.CONTRIBUTION) {
+              kind = "contribution"
+              recurring = true
+            } else if (event.type === MoneyEventType.PERIODIC_FLOW) {
+              kind = "flow"
+              recurring = true
+            } else {
+              kind = "flow"
+              recurring = false
+            }
+
+            const isEarning = event.amount > 0
+
+            return {
+              kind,
+              id: event.id || `event-${event.name}-${event.date}`,
+              name: event.name,
+              direction: isEarning ? ("in" as const) : ("out" as const),
+              recurring,
+              nextDate,
+              daysUntil,
+              amount: Math.abs(event.amount),
+              currency: event.currency,
+            }
+          })
+          .filter(e => e.daysUntil >= 0)
+          .sort((a, b) => a.nextDate.getTime() - b.nextDate.getTime())
+          .slice(0, 5)
+
+        setUpcomingEventsRaw(mappedEvents)
+      } catch (error) {
+        console.error("Failed to fetch upcoming events:", error)
+        setUpcomingEventsRaw([])
+      } finally {
+        setUpcomingEventsLoading(false)
+      }
+    }
+
+    fetchUpcomingEvents()
+  }, [forecastMode])
 
   const isLoading = financialDataLoading || transactionsLoading
   // Early returns for loading / errors / prerequisites
@@ -1377,84 +1390,93 @@ export default function DashboardPage() {
             <p>{t.forecast.notShowing}</p>
           </div>
         )}
-        {!forecastMode && upcomingEventsData.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
-            <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
-            <p>{t.dashboard.noUpcomingFlows}</p>
+        {!forecastMode && upcomingEventsLoading && (
+          <div className="flex justify-center items-center py-6">
+            <LoadingSpinner size="sm" />
           </div>
         )}
-        {!forecastMode && upcomingEventsData.length > 0 && (
-          <div className="space-y-3">
-            {upcomingEventsData.map((item, index) => {
-              const isEarning = item.direction === "in"
-              const urgencyInfo = getDateUrgencyInfo(
-                item.nextDate.toISOString().split("T")[0],
-              )
-              const fullName = item.name || ""
-              const displayName = fullName
-              const amountColorClass =
-                item.kind === "contribution"
-                  ? "text-foreground"
-                  : isEarning
-                    ? "text-green-600"
-                    : "text-red-600"
-              const amountPrefix =
-                item.kind === "contribution" ? "" : isEarning ? "+" : "-"
-              return (
-                <div
-                  key={`${item.kind}-${item.id}-${index}`}
-                  className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
-                >
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    {item.kind === "contribution" ? (
-                      <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
-                    ) : item.recurring ? (
-                      <CalendarSync
-                        className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
-                      />
-                    ) : (
-                      <HandCoins
-                        className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
-                      />
-                    )}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
-                      <p
-                        className="font-medium text-sm truncate"
-                        title={fullName}
-                      >
-                        {displayName}
-                      </p>
-                      {urgencyInfo?.show && (
-                        <Badge
-                          variant={
-                            urgencyInfo.urgencyLevel === "urgent"
-                              ? "destructive"
-                              : urgencyInfo.urgencyLevel === "soon"
-                                ? "default"
-                                : "outline"
-                          }
-                          className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
-                        >
-                          {urgencyInfo.timeText}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <p
-                    className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
+        {!forecastMode &&
+          !upcomingEventsLoading &&
+          upcomingEventsData.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-6 text-center text-sm text-muted-foreground">
+              <CalendarDays className="h-8 w-8 mb-2 opacity-60" />
+              <p>{t.dashboard.noUpcomingFlows}</p>
+            </div>
+          )}
+        {!forecastMode &&
+          !upcomingEventsLoading &&
+          upcomingEventsData.length > 0 && (
+            <div className="space-y-3">
+              {upcomingEventsData.map((item, index) => {
+                const isEarning = item.direction === "in"
+                const urgencyInfo = getDateUrgencyInfo(
+                  item.nextDate.toISOString().split("T")[0],
+                )
+                const fullName = item.name || ""
+                const displayName = fullName
+                const amountColorClass =
+                  item.kind === "contribution"
+                    ? "text-foreground"
+                    : isEarning
+                      ? "text-green-600"
+                      : "text-red-600"
+                const amountPrefix =
+                  item.kind === "contribution" ? "" : isEarning ? "+" : "-"
+                return (
+                  <div
+                    key={`${item.kind}-${item.id}-${index}`}
+                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 p-3 rounded-lg bg-muted/50"
                   >
-                    {amountPrefix}
-                    {formatCurrency(
-                      Math.abs(item.convertedAmount),
-                      locale,
-                      settings.general.defaultCurrency,
-                    )}
-                  </p>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {item.kind === "contribution" ? (
+                        <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                      ) : item.recurring ? (
+                        <CalendarSync
+                          className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                        />
+                      ) : (
+                        <HandCoins
+                          className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}
+                        />
+                      )}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
+                        <p
+                          className="font-medium text-sm truncate"
+                          title={fullName}
+                        >
+                          {displayName}
+                        </p>
+                        {urgencyInfo?.show && (
+                          <Badge
+                            variant={
+                              urgencyInfo.urgencyLevel === "urgent"
+                                ? "destructive"
+                                : urgencyInfo.urgencyLevel === "soon"
+                                  ? "default"
+                                  : "outline"
+                            }
+                            className="text-[10px] leading-tight px-2 py-0 h-4 self-start sm:self-auto whitespace-nowrap min-w-[65px] inline-flex items-center justify-center"
+                          >
+                            {urgencyInfo.timeText}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <p
+                      className={`font-mono text-sm font-semibold md:flex-shrink-0 text-left md:text-right ${amountColorClass}`}
+                    >
+                      {amountPrefix}
+                      {formatCurrency(
+                        Math.abs(item.convertedAmount),
+                        locale,
+                        settings.general.defaultCurrency,
+                      )}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
       </CardContent>
     </Card>
   )

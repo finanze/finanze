@@ -1038,6 +1038,7 @@
     "interests": "Interests",
     "avgBalance": "Avg Balance",
     "interestRate": "Interest Rate",
+    "grossAmount": "Gross Amount",
     "portfolioName": "Portfolio Name",
     "iban": "IBAN",
     "currency": "Currency",
@@ -1088,6 +1089,12 @@
       "description": "Showing transactions for {project}.",
       "descriptionGeneric": "Historic project filter active.",
       "clear": "Clear historic filter"
+    },
+    "calendar": {
+      "today": "Today",
+      "more": "more",
+      "listView": "List",
+      "calendarView": "Calendar"
     }
   },
   "time": {

@@ -7,6 +7,10 @@ import {
   ProductType,
   GlobalPosition,
 } from "./position"
+import {
+  ContributionTargetType,
+  ContributionTargetSubtype,
+} from "./contributions"
 import type {
   AutoUpdateActionResult,
   AutoUpdateCheckResult,
@@ -969,4 +973,51 @@ export interface FileImportRequest {
   templateId: string
   templateParams?: Record<string, string> | null
   preview?: boolean
+}
+
+// Money Events
+export enum MoneyEventType {
+  CONTRIBUTION = "CONTRIBUTION",
+  PERIODIC_FLOW = "PERIODIC_FLOW",
+  PENDING_FLOW = "PENDING_FLOW",
+}
+
+export enum MoneyEventFrequency {
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  MONTHLY = "MONTHLY",
+  EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
+  EVERY_FOUR_MONTHS = "EVERY_FOUR_MONTHS",
+  QUARTERLY = "QUARTERLY",
+  SEMIANNUAL = "SEMIANNUAL",
+  YEARLY = "YEARLY",
+}
+
+export interface PeriodicContributionDetails {
+  target_type: ContributionTargetType
+  target_subtype?: ContributionTargetSubtype | null
+  target: string
+  target_name?: string | null
+}
+
+export interface MoneyEvent {
+  id?: string | null
+  name: string
+  amount: number
+  currency: string
+  date: string
+  type: MoneyEventType
+  frequency?: MoneyEventFrequency | null
+  icon?: string | null
+  details?: PeriodicContributionDetails | null
+}
+
+export interface MoneyEventQuery {
+  from_date: string
+  to_date: string
+}
+
+export interface MoneyEvents {
+  events: MoneyEvent[]
 }

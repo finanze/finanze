@@ -30,9 +30,9 @@ import {
 } from "@/components/ui/MultiSelect"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
-import { formatCurrency, formatDate } from "@/lib/formatters"
+import { formatCurrency } from "@/lib/formatters"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
-import { SourceBadge, getSourceIcon } from "@/components/ui/SourceBadge"
+import { getSourceIcon } from "@/components/ui/SourceBadge"
 import { EntityBadge } from "@/components/ui/EntityBadge"
 import {
   Search,
@@ -43,6 +43,8 @@ import {
   Pencil,
   Plus,
   Trash2,
+  List,
+  CalendarDays,
 } from "lucide-react"
 import {
   getIconForTxType,
@@ -56,7 +58,10 @@ import {
   type ManualTransactionSubmitResult,
 } from "@/components/transactions/ManualTransactionDialog"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { TransactionsCalendarView } from "@/components/transactions/TransactionsCalendarView"
 import { useLocation, useNavigate } from "react-router-dom"
+
+type ViewMode = "list" | "calendar"
 
 interface TransactionFilters {
   entities: string[]
@@ -97,6 +102,14 @@ export default function TransactionsPage() {
   const [loadingTxs, setLoadingTxs] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<ViewMode>("list")
+
+  const today = new Date()
+  const [calendarMonth, setCalendarMonth] = useState(today.getMonth())
+  const [calendarYear, setCalendarYear] = useState(today.getFullYear())
+  const [calendarTransactions, setCalendarTransactions] = useState<
+    TransactionsResult["transactions"]
+  >([])
 
   const [filters, setFilters] = useState<TransactionFilters>(() => ({
     entities: [],
@@ -333,7 +346,11 @@ export default function TransactionsPage() {
   }, [location.pathname, location.search, navigateRouter])
 
   const handleApplyFilters = () => {
-    fetchTransactions(1, true)
+    if (viewMode === "calendar") {
+      fetchCalendarTransactions(calendarMonth, calendarYear)
+    } else {
+      fetchTransactions(1, true)
+    }
   }
 
   const handleClearFilters = () => {
@@ -346,7 +363,77 @@ export default function TransactionsPage() {
       to_date: "",
       historic_entry_id: "",
     })
-    fetchTransactions(1, true)
+    if (viewMode === "calendar") {
+      fetchCalendarTransactions(calendarMonth, calendarYear, true)
+    } else {
+      fetchTransactions(1, true)
+    }
+  }
+
+  const fetchCalendarTransactions = async (
+    month: number,
+    year: number,
+    clearFilters?: boolean,
+  ) => {
+    const fetchId = ++latestFetchIdRef.current
+    setLoadingTxs(true)
+
+    try {
+      const firstDay = new Date(year, month, 1)
+      const lastDay = new Date(year, month + 1, 0)
+
+      const fromDate = firstDay.toISOString().split("T")[0]
+      const toDate = lastDay.toISOString().split("T")[0]
+
+      const queryParams: TransactionQueryRequest = clearFilters
+        ? {
+            from_date: fromDate,
+            to_date: toDate,
+            limit: 1000,
+          }
+        : {
+            ...filters,
+            from_date: fromDate,
+            to_date: toDate,
+            limit: 1000,
+          }
+
+      Object.keys(queryParams).forEach(key => {
+        const value = queryParams[key as keyof TransactionQueryRequest]
+        if (Array.isArray(value) && value.length === 0) {
+          delete queryParams[key as keyof TransactionQueryRequest]
+        } else if (typeof value === "string" && value === "") {
+          delete queryParams[key as keyof TransactionQueryRequest]
+        }
+      })
+
+      const result = await getTransactions(queryParams)
+      if (latestFetchIdRef.current === fetchId) {
+        setCalendarTransactions(result.transactions)
+      }
+    } catch (err) {
+      console.error("Error fetching calendar transactions:", err)
+      if (latestFetchIdRef.current === fetchId) {
+        showToast(t.common.unexpectedError, "error")
+      }
+    } finally {
+      if (latestFetchIdRef.current === fetchId) {
+        setLoadingTxs(false)
+      }
+    }
+  }
+
+  const handleCalendarMonthChange = (month: number, year: number) => {
+    setCalendarMonth(month)
+    setCalendarYear(year)
+    fetchCalendarTransactions(month, year)
+  }
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode)
+    if (mode === "calendar") {
+      fetchCalendarTransactions(calendarMonth, calendarYear)
+    }
   }
 
   const handlePageChange = (page: number) => {
@@ -683,6 +770,19 @@ export default function TransactionsPage() {
         return (
           <>
             {commonFields}
+            {tx.type === TxType.INTEREST && tx.amount !== undefined && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.grossAmount}:
+                </span>{" "}
+                {formatCurrency(
+                  tx.amount,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
             {accountTx.fees > 0 && (
               <div className={detailRowClass}>
                 <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
@@ -886,32 +986,208 @@ export default function TransactionsPage() {
     }
   }
 
+  const hasTransactionDetails = (tx: any): boolean => {
+    if (tx.source !== DataSource.REAL) return true
+
+    switch (tx.product_type) {
+      case ProductType.STOCK_ETF: {
+        const stockTx = tx as StockTx
+        return !!(
+          stockTx.ticker ||
+          stockTx.isin ||
+          stockTx.shares ||
+          Number(stockTx.price || 0) !== 0 ||
+          (stockTx.fees && stockTx.fees > 0) ||
+          (stockTx.retentions && stockTx.retentions > 0) ||
+          stockTx.market
+        )
+      }
+      case ProductType.FUND: {
+        const fundTx = tx as FundTx
+        return !!(
+          fundTx.isin ||
+          fundTx.shares ||
+          fundTx.price ||
+          fundTx.fees > 0 ||
+          fundTx.market
+        )
+      }
+      case ProductType.FUND_PORTFOLIO: {
+        const fpTx = tx as FundPortfolioTx
+        return !!(
+          (typeof fpTx.fees === "number" && fpTx.fees > 0) ||
+          fpTx.iban ||
+          (fpTx as any).portfolio_name
+        )
+      }
+      case ProductType.ACCOUNT: {
+        const accountTx = tx as AccountTx
+        return !!(
+          tx.type === TxType.INTEREST ||
+          accountTx.fees > 0 ||
+          accountTx.retentions > 0 ||
+          (accountTx.interest_rate && accountTx.interest_rate > 0) ||
+          (accountTx.avg_balance && accountTx.avg_balance > 0)
+        )
+      }
+      case ProductType.FACTORING: {
+        const factoringTx = tx as FactoringTx
+        return !!(factoringTx.fees > 0 || factoringTx.retentions > 0)
+      }
+      case ProductType.REAL_ESTATE_CF: {
+        const realEstateTx = tx as RealEstateCFTx
+        return !!(realEstateTx.fees > 0 || realEstateTx.retentions > 0)
+      }
+      case ProductType.DEPOSIT: {
+        const depositTx = tx as DepositTx
+        return !!(depositTx.fees > 0 || depositTx.retentions > 0)
+      }
+      case ProductType.CRYPTO: {
+        const cryptoTx = tx as any
+        return !!(
+          cryptoTx.ticker ||
+          cryptoTx.shares ||
+          cryptoTx.price ||
+          cryptoTx.fees > 0
+        )
+      }
+      default:
+        return false
+    }
+  }
+
+  interface GroupedDay {
+    dateKey: string
+    dayLabel: string
+    transactions: TransactionItem[]
+  }
+
+  interface GroupedMonth {
+    monthKey: string
+    monthLabel: string
+    days: GroupedDay[]
+  }
+
+  const groupedTransactions = useMemo((): GroupedMonth[] => {
+    if (!transactions?.transactions.length) return []
+
+    const monthsMap = new Map<string, Map<string, TransactionItem[]>>()
+
+    transactions.transactions.forEach(tx => {
+      const date = new Date(tx.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+
+      if (!monthsMap.has(monthKey)) {
+        monthsMap.set(monthKey, new Map())
+      }
+      const daysMap = monthsMap.get(monthKey)!
+      if (!daysMap.has(dayKey)) {
+        daysMap.set(dayKey, [])
+      }
+      daysMap.get(dayKey)!.push(tx)
+    })
+
+    const result: GroupedMonth[] = []
+
+    const sortedMonths = Array.from(monthsMap.keys()).sort((a, b) =>
+      b.localeCompare(a),
+    )
+
+    sortedMonths.forEach(monthKey => {
+      const daysMap = monthsMap.get(monthKey)!
+      const [year, month] = monthKey.split("-").map(Number)
+
+      const monthLabel = new Intl.DateTimeFormat(locale, {
+        month: "long",
+        year: "numeric",
+      }).format(new Date(year, month - 1, 1))
+
+      const sortedDays = Array.from(daysMap.keys()).sort((a, b) =>
+        b.localeCompare(a),
+      )
+
+      const days: GroupedDay[] = sortedDays.map(dayKey => {
+        const [, , day] = dayKey.split("-").map(Number)
+        const dayDate = new Date(year, month - 1, day)
+
+        const dayLabel = new Intl.DateTimeFormat(locale, {
+          weekday: "short",
+          day: "numeric",
+        }).format(dayDate)
+
+        return {
+          dateKey: dayKey,
+          dayLabel,
+          transactions: daysMap.get(dayKey)!,
+        }
+      })
+
+      result.push({
+        monthKey,
+        monthLabel,
+        days,
+      })
+    })
+
+    return result
+  }, [transactions, locale])
+
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 shrink-0">
           {t.transactions.title}
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:p-1">
+            <button
+              onClick={() => handleViewModeChange("list")}
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+                viewMode === "list"
+                  ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              }`}
+            >
+              <List className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">
+                {t.transactions.calendar.listView}
+              </span>
+            </button>
+            <button
+              onClick={() => handleViewModeChange("calendar")}
+              className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+                viewMode === "calendar"
+                  ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              }`}
+            >
+              <CalendarDays className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">
+                {t.transactions.calendar.calendarView}
+              </span>
+            </button>
+          </div>
           <Button
             onClick={handleOpenCreateDialog}
-            className="flex items-center gap-2"
+            size="sm"
+            className="flex items-center gap-1.5 px-2 sm:px-3"
           >
-            <Plus className="h-4 w-4" />
-            {t.transactions.addManualTransaction}
+            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">
+              {t.transactions.addManualTransaction}
+            </span>
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-6 text-gray-900 dark:text-gray-100">
-          {t.transactions.filters}
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-6">
-          <div className="space-y-2 flex flex-col">
-            <Label htmlFor="entities" className="text-sm font-medium">
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[180px] max-w-[240px]">
+            <Label
+              htmlFor="entities"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400"
+            >
               {t.transactions.entities}
             </Label>
             <MultiSelect
@@ -919,12 +1195,15 @@ export default function TransactionsPage() {
               value={filters.entities}
               onChange={value => handleFilterChange("entities", value)}
               placeholder={t.transactions.selectEntities}
-              className="w-full min-h-[40px] flex-1"
+              className="w-full"
             />
           </div>
 
-          <div className="space-y-2 flex flex-col">
-            <Label htmlFor="product-types" className="text-sm font-medium">
+          <div className="flex-1 min-w-[180px] max-w-[240px]">
+            <Label
+              htmlFor="product-types"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400"
+            >
               {t.transactions.productTypes}
             </Label>
             <MultiSelect
@@ -932,12 +1211,15 @@ export default function TransactionsPage() {
               value={filters.product_types}
               onChange={value => handleFilterChange("product_types", value)}
               placeholder={t.transactions.selectProductTypes}
-              className="w-full min-h-[40px] flex-1"
+              className="w-full"
             />
           </div>
 
-          <div className="space-y-2 flex flex-col">
-            <Label htmlFor="transaction-types" className="text-sm font-medium">
+          <div className="flex-1 min-w-[180px] max-w-[240px]">
+            <Label
+              htmlFor="transaction-types"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400"
+            >
               {t.transactions.transactionTypes}
             </Label>
             <MultiSelect
@@ -945,61 +1227,65 @@ export default function TransactionsPage() {
               value={filters.types}
               onChange={value => handleFilterChange("types", value)}
               placeholder={t.transactions.selectTransactionTypes}
-              className="w-full min-h-[40px] flex-1"
+              className="w-full"
             />
           </div>
 
-          <div className="space-y-2 flex flex-col">
-            <Label
-              htmlFor="from-date"
-              className="text-sm font-medium flex items-center gap-1"
+          {viewMode === "list" && (
+            <>
+              <div className="flex-1 min-w-[140px] max-w-[180px]">
+                <Label
+                  htmlFor="from-date"
+                  className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+                >
+                  <Calendar className="h-3 w-3" />
+                  {t.transactions.fromDate}
+                </Label>
+                <DatePicker
+                  id="from-date"
+                  value={filters.from_date}
+                  onChange={value => handleFilterChange("from_date", value)}
+                  placeholder={t.transactions.fromDate}
+                />
+              </div>
+
+              <div className="flex-1 min-w-[140px] max-w-[180px]">
+                <Label
+                  htmlFor="to-date"
+                  className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
+                >
+                  <Calendar className="h-3 w-3" />
+                  {t.transactions.toDate}
+                </Label>
+                <DatePicker
+                  id="to-date"
+                  value={filters.to_date}
+                  onChange={value => handleFilterChange("to_date", value)}
+                  placeholder={t.transactions.toDate}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleApplyFilters}
+              disabled={loadingTxs}
+              size="icon"
+              title={t.transactions.search}
             >
-              <Calendar className="h-3 w-3" />
-              {t.transactions.fromDate}
-            </Label>
-            <DatePicker
-              id="from-date"
-              value={filters.from_date}
-              onChange={value => handleFilterChange("from_date", value)}
-              placeholder={t.transactions.fromDate}
-            />
-          </div>
-
-          <div className="space-y-2 flex flex-col">
-            <Label
-              htmlFor="to-date"
-              className="text-sm font-medium flex items-center gap-1"
+              <Search className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleClearFilters}
+              disabled={loadingTxs}
+              size="icon"
+              title={t.transactions.clear}
             >
-              <Calendar className="h-3 w-3" />
-              {t.transactions.toDate}
-            </Label>
-            <DatePicker
-              id="to-date"
-              value={filters.to_date}
-              onChange={value => handleFilterChange("to_date", value)}
-              placeholder={t.transactions.toDate}
-            />
+              <RotateCcw className="h-4 w-4" />
+            </Button>
           </div>
-        </div>
-
-        <div className="flex gap-3">
-          <Button
-            onClick={handleApplyFilters}
-            disabled={loadingTxs}
-            className="flex items-center gap-2"
-          >
-            <Search className="h-4 w-4" />
-            {t.transactions.search}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleClearFilters}
-            disabled={loadingTxs}
-            className="flex items-center gap-2"
-          >
-            <RotateCcw className="h-4 w-4" />
-            {t.transactions.clear}
-          </Button>
         </div>
       </Card>
 
@@ -1029,23 +1315,26 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {/* Results */}
+      {viewMode === "calendar" && (
+        <TransactionsCalendarView
+          transactions={calendarTransactions}
+          loading={loadingTxs}
+          currentMonth={calendarMonth}
+          currentYear={calendarYear}
+          onMonthChange={handleCalendarMonthChange}
+          onBadgeClick={handleBadgeClick}
+        />
+      )}
 
-      {transactions && (
+      {viewMode === "list" && transactions && (
         <>
           {/* Desktop Results Card */}
           <Card className="hidden md:block overflow-hidden">
-            <div className="flex justify-between items-center mb-4 px-6 pt-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {t.transactions.results}
-                {transactions.transactions.length > 0 && (
-                  <span className="text-sm font-normal text-gray-600 dark:text-gray-400 ml-2">
-                    ({transactions.transactions.length} {t.transactions.items})
-                  </span>
-                )}
-              </h2>
-              {loadingTxs && <LoadingSpinner size="sm" />}
-            </div>
+            {loadingTxs && (
+              <div className="flex justify-end px-6 pt-4">
+                <LoadingSpinner size="sm" />
+              </div>
+            )}
 
             {transactions.transactions.length === 0 ? (
               <div className="flex flex-col items-center gap-4 py-12 px-6 text-center">
@@ -1058,192 +1347,167 @@ export default function TransactionsPage() {
               </div>
             ) : (
               <>
-                {/* Desktop Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                          {t.transactions.date}
-                        </th>
-                        <th className="text-left py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                          {t.transactions.name}
-                        </th>
-                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-24">
-                          {t.transactions.type}
-                        </th>
-                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300 w-32">
-                          {t.transactions.product}
-                        </th>
-                        <th className="text-right py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                          {t.transactions.amount}
-                        </th>
-                        <th className="text-center py-4 px-3 font-medium text-gray-700 dark:text-gray-300">
-                          {t.transactions.entity}
-                        </th>
-                        <th
-                          className="py-4 px-2 w-10"
-                          aria-label="details"
-                        ></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {transactions.transactions.map((tx, index) => {
-                        const isExpanded = expandedCards.has(tx.id)
-                        const hasDetails =
-                          tx.product_type === ProductType.STOCK_ETF ||
-                          tx.product_type === ProductType.FUND ||
-                          tx.product_type === ProductType.ACCOUNT ||
-                          tx.product_type === ProductType.FACTORING ||
-                          tx.product_type === ProductType.REAL_ESTATE_CF ||
-                          tx.product_type === ProductType.DEPOSIT ||
-                          tx.product_type === ProductType.CRYPTO ||
-                          tx.product_type === ProductType.FUND_PORTFOLIO
-                        return (
-                          <React.Fragment key={tx.id}>
-                            <tr
-                              className={`transition-colors duration-300 ${
-                                index % 2 === 0
-                                  ? "bg-neutral-50 dark:bg-black"
-                                  : "bg-white dark:bg-neutral-900"
-                              }`}
-                            >
-                              <td className="py-4 px-3 text-sm text-gray-900 dark:text-gray-100">
-                                {formatDate(tx.date, locale)}
-                              </td>
-                              <td className="py-4 px-3">
-                                <div className="font-medium text-sm text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                                  {tx.name}
-                                </div>
-                              </td>
-                              <td className="py-4 px-3 text-center w-24">
-                                <Badge
-                                  className={`${getTransactionTypeColor(tx.type)} whitespace-normal break-words text-xs inline-flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
-                                  onClick={() =>
-                                    handleBadgeClick("transactionType", tx.type)
-                                  }
-                                >
-                                  {getIconForTxType(tx.type, "h-3 w-3")}
-                                  {t.enums?.transactionType?.[tx.type] ||
-                                    tx.type}
-                                </Badge>
-                              </td>
-                              <td className="py-4 px-3 text-center w-32">
-                                <Badge
-                                  className={`${getProductTypeColor(tx.product_type)} whitespace-normal break-words text-xs inline-flex items-center justify-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
-                                  onClick={() =>
-                                    handleBadgeClick(
-                                      "productType",
-                                      tx.product_type,
-                                    )
-                                  }
-                                >
-                                  {getIconForProductType(tx.product_type)}
-                                  {t.enums?.productType?.[tx.product_type] ||
-                                    tx.product_type}
-                                </Badge>
-                              </td>
-                              <td className="py-4 px-3 text-right">
-                                <div
-                                  className={`font-medium ${
-                                    getTransactionDisplayType(tx.type) === "in"
-                                      ? "text-green-600 dark:text-green-400"
-                                      : tx.type === TxType.FEE
-                                        ? "text-red-600 dark:text-red-400"
-                                        : ""
-                                  }`}
-                                >
-                                  {getTransactionDisplayType(tx.type) === "in"
-                                    ? "+"
-                                    : tx.type === TxType.FEE
-                                      ? "-"
-                                      : ""}
-                                  {formatCurrency(
-                                    tx.net_amount ?? tx.amount,
-                                    locale,
-                                    settings.general.defaultCurrency,
-                                    tx.currency,
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-4 px-3 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <SourceBadge
-                                    source={tx.source}
-                                    title={t.transactions.source}
-                                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
-                                  />
-                                  <EntityBadge
-                                    name={tx.entity.name}
-                                    origin={tx.entity.origin}
-                                    onClick={() =>
-                                      handleBadgeClick("entity", tx.entity.id)
-                                    }
-                                    className="text-xs"
-                                  />
-                                </div>
-                              </td>
-                              <td className="py-4 px-2 text-center w-10">
-                                {hasDetails && (
-                                  <button
-                                    onClick={() => toggleCardExpansion(tx.id)}
-                                    className="inline-flex items-center justify-center p-1 text-gray-500 dark:text-gray-400 hover:text-gray-300 dark:hover:text-gray-200 transition-colors"
+                {/* Desktop Grouped List */}
+                <div className="px-6 pt-6 pb-4 space-y-6">
+                  {groupedTransactions.map(monthGroup => (
+                    <div key={monthGroup.monthKey}>
+                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 capitalize">
+                        {monthGroup.monthLabel}
+                      </h3>
+                      <div className="space-y-1">
+                        {monthGroup.days.map(dayGroup => (
+                          <div key={dayGroup.dateKey}>
+                            <div className="flex items-center gap-3 py-2">
+                              <span className="text-xs font-medium text-gray-400 dark:text-gray-500 w-16 capitalize">
+                                {dayGroup.dayLabel}
+                              </span>
+                              <div className="flex-1 h-px bg-gray-100 dark:bg-gray-800" />
+                            </div>
+                            <div className="space-y-1 ml-0">
+                              {dayGroup.transactions.map(tx => {
+                                const isExpanded = expandedCards.has(tx.id)
+                                const hasDetails = hasTransactionDetails(tx)
+                                return (
+                                  <div
+                                    key={tx.id}
+                                    className="group rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
                                   >
-                                    {isExpanded ? (
-                                      <ChevronUp className="h-4 w-4" />
-                                    ) : (
-                                      <ChevronDown className="h-4 w-4" />
-                                    )}
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                            {hasDetails && isExpanded && (
-                              <tr
-                                className={`${
-                                  index % 2 === 0
-                                    ? "bg-neutral-50 dark:bg-black"
-                                    : "bg-white dark:bg-neutral-900"
-                                }`}
-                              >
-                                <td colSpan={7} className="px-3 pb-4">
-                                  <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
-                                    {renderTransactionDetails(tx)}
-                                    {tx.source === DataSource.MANUAL && (
-                                      <div className="flex flex-wrap gap-2 pt-3">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() =>
-                                            handleEditTransaction(tx)
-                                          }
-                                          className="flex items-center gap-2"
+                                    <div className="flex items-center gap-3 py-3 px-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                                          {tx.name}
+                                        </div>
+                                        <div className="flex items-center gap-2 mt-1">
+                                          <Badge
+                                            className={`${getTransactionTypeColor(tx.type)} text-xs inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                                            onClick={() =>
+                                              handleBadgeClick(
+                                                "transactionType",
+                                                tx.type,
+                                              )
+                                            }
+                                          >
+                                            {getIconForTxType(
+                                              tx.type,
+                                              "h-3 w-3",
+                                            )}
+                                            {t.enums?.transactionType?.[
+                                              tx.type
+                                            ] || tx.type}
+                                          </Badge>
+                                          <Badge
+                                            className={`${getProductTypeColor(tx.product_type)} text-xs inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                                            onClick={() =>
+                                              handleBadgeClick(
+                                                "productType",
+                                                tx.product_type,
+                                              )
+                                            }
+                                          >
+                                            {getIconForProductType(
+                                              tx.product_type,
+                                            )}
+                                            {t.enums?.productType?.[
+                                              tx.product_type
+                                            ] || tx.product_type}
+                                          </Badge>
+                                          <EntityBadge
+                                            name={tx.entity.name}
+                                            origin={tx.entity.origin}
+                                            onClick={() =>
+                                              handleBadgeClick(
+                                                "entity",
+                                                tx.entity.id,
+                                              )
+                                            }
+                                            className="text-xs"
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <div
+                                          className={`font-semibold ${
+                                            getTransactionDisplayType(
+                                              tx.type,
+                                            ) === "in"
+                                              ? "text-green-600 dark:text-green-400"
+                                              : tx.type === TxType.FEE
+                                                ? "text-red-600 dark:text-red-400"
+                                                : "text-gray-900 dark:text-gray-100"
+                                          }`}
                                         >
-                                          <Pencil className="h-4 w-4" />
-                                          {t.common.edit}
-                                        </Button>
-                                        <Button
-                                          variant="destructive"
-                                          size="sm"
+                                          {getTransactionDisplayType(
+                                            tx.type,
+                                          ) === "in"
+                                            ? "+"
+                                            : tx.type === TxType.FEE
+                                              ? "-"
+                                              : ""}
+                                          {formatCurrency(
+                                            tx.net_amount ?? tx.amount,
+                                            locale,
+                                            settings.general.defaultCurrency,
+                                            tx.currency,
+                                          )}
+                                        </div>
+                                      </div>
+                                      {hasDetails && (
+                                        <button
                                           onClick={() =>
-                                            handleRequestDelete(tx)
+                                            toggleCardExpansion(tx.id)
                                           }
-                                          className="flex items-center gap-2"
+                                          className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                                         >
-                                          <Trash2 className="h-4 w-4" />
-                                          {t.common.delete}
-                                        </Button>
+                                          {isExpanded ? (
+                                            <ChevronUp className="h-4 w-4" />
+                                          ) : (
+                                            <ChevronDown className="h-4 w-4" />
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                    {hasDetails && isExpanded && (
+                                      <div className="px-3 pb-3 ml-0">
+                                        <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                                          {renderTransactionDetails(tx)}
+                                          {tx.source === DataSource.MANUAL && (
+                                            <div className="flex flex-wrap gap-2 pt-3">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                  handleEditTransaction(tx)
+                                                }
+                                                className="flex items-center gap-2"
+                                              >
+                                                <Pencil className="h-4 w-4" />
+                                                {t.common.edit}
+                                              </Button>
+                                              <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={() =>
+                                                  handleRequestDelete(tx)
+                                                }
+                                                className="flex items-center gap-2"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                                {t.common.delete}
+                                              </Button>
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     )}
                                   </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {/* Desktop Pagination */}
@@ -1279,18 +1543,11 @@ export default function TransactionsPage() {
             )}
           </Card>
 
-          {/* Mobile Results Header */}
-          <div className="md:hidden flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {t.transactions.results}
-              {transactions.transactions.length > 0 && (
-                <span className="text-sm font-normal text-gray-600 dark:text-gray-400 ml-2">
-                  ({transactions.transactions.length} {t.transactions.items})
-                </span>
-              )}
-            </h2>
-            {loadingTxs && <LoadingSpinner size="sm" />}
-          </div>
+          {loadingTxs && (
+            <div className="md:hidden flex justify-end mb-4">
+              <LoadingSpinner size="sm" />
+            </div>
+          )}
 
           {/* Mobile No Results */}
           {transactions.transactions.length === 0 && (
@@ -1304,146 +1561,154 @@ export default function TransactionsPage() {
             </Card>
           )}
 
-          {/* Mobile Cards */}
+          {/* Mobile Grouped List */}
           {transactions.transactions.length > 0 && (
-            <div className="md:hidden space-y-4">
-              {transactions.transactions.map(tx => {
-                const isExpanded = expandedCards.has(tx.id)
-                const hasDetails =
-                  tx.product_type === ProductType.STOCK_ETF ||
-                  tx.product_type === ProductType.FUND ||
-                  tx.product_type === ProductType.ACCOUNT ||
-                  tx.product_type === ProductType.FACTORING ||
-                  tx.product_type === ProductType.REAL_ESTATE_CF ||
-                  tx.product_type === ProductType.DEPOSIT ||
-                  tx.product_type === ProductType.CRYPTO ||
-                  tx.product_type === ProductType.FUND_PORTFOLIO
-                return (
-                  <Card
-                    key={tx.id}
-                    className="p-4 transition-colors duration-300"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1 min-w-0 pr-3">
-                        <div className="font-medium text-gray-900 dark:text-gray-100 flex items-start gap-2 flex-wrap break-words">
-                          <span className="break-words min-w-0">{tx.name}</span>
+            <div className="md:hidden space-y-6">
+              {groupedTransactions.map(monthGroup => (
+                <div key={monthGroup.monthKey}>
+                  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 capitalize">
+                    {monthGroup.monthLabel}
+                  </h3>
+                  <Card className="divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
+                    {monthGroup.days.map(dayGroup => (
+                      <div key={dayGroup.dateKey} className="px-4 py-3">
+                        <div className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-2 capitalize">
+                          {dayGroup.dayLabel}
                         </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {formatDate(tx.date, locale)}
+                        <div className="space-y-6">
+                          {dayGroup.transactions.map(tx => {
+                            const isExpanded = expandedCards.has(tx.id)
+                            const hasDetails = hasTransactionDetails(tx)
+                            return (
+                              <div key={tx.id}>
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1 min-w-0 pr-3">
+                                    <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                                      {tx.name}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                      <Badge
+                                        className={`${getTransactionTypeColor(tx.type)} text-xs inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                                        onClick={() =>
+                                          handleBadgeClick(
+                                            "transactionType",
+                                            tx.type,
+                                          )
+                                        }
+                                      >
+                                        {getIconForTxType(tx.type, "h-3 w-3")}
+                                        {t.enums?.transactionType?.[tx.type] ||
+                                          tx.type}
+                                      </Badge>
+                                      <Badge
+                                        className={`${getProductTypeColor(tx.product_type)} text-xs inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
+                                        onClick={() =>
+                                          handleBadgeClick(
+                                            "productType",
+                                            tx.product_type,
+                                          )
+                                        }
+                                      >
+                                        {getIconForProductType(tx.product_type)}
+                                        {t.enums?.productType?.[
+                                          tx.product_type
+                                        ] || tx.product_type}
+                                      </Badge>
+                                      <EntityBadge
+                                        name={tx.entity.name}
+                                        origin={tx.entity.origin}
+                                        onClick={() =>
+                                          handleBadgeClick(
+                                            "entity",
+                                            tx.entity.id,
+                                          )
+                                        }
+                                        className="text-xs"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div
+                                      className={`font-semibold text-right ${
+                                        getTransactionDisplayType(tx.type) ===
+                                        "in"
+                                          ? "text-green-600 dark:text-green-400"
+                                          : tx.type === TxType.FEE
+                                            ? "text-red-600 dark:text-red-400"
+                                            : "text-gray-900 dark:text-gray-100"
+                                      }`}
+                                    >
+                                      {getTransactionDisplayType(tx.type) ===
+                                      "in"
+                                        ? "+"
+                                        : tx.type === TxType.FEE
+                                          ? "-"
+                                          : ""}
+                                      {formatCurrency(
+                                        tx.net_amount ?? tx.amount,
+                                        locale,
+                                        settings.general.defaultCurrency,
+                                        tx.currency,
+                                      )}
+                                    </div>
+                                    {hasDetails && (
+                                      <button
+                                        onClick={() =>
+                                          toggleCardExpansion(tx.id)
+                                        }
+                                        className="p-1 text-gray-400"
+                                      >
+                                        {isExpanded ? (
+                                          <ChevronUp className="h-4 w-4" />
+                                        ) : (
+                                          <ChevronDown className="h-4 w-4" />
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                {hasDetails && isExpanded && (
+                                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+                                    <div className="space-y-2">
+                                      {renderTransactionDetails(tx)}
+                                      {tx.source === DataSource.MANUAL && (
+                                        <div className="flex flex-wrap gap-2 pt-2">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleEditTransaction(tx)
+                                            }
+                                            className="flex items-center gap-2"
+                                          >
+                                            <Pencil className="h-4 w-4" />
+                                            {t.common.edit}
+                                          </Button>
+                                          <Button
+                                            variant="destructive"
+                                            size="sm"
+                                            onClick={() =>
+                                              handleRequestDelete(tx)
+                                            }
+                                            className="flex items-center gap-2"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                            {t.common.delete}
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div
-                          className={`font-medium ${
-                            getTransactionDisplayType(tx.type) === "in"
-                              ? "text-green-600 dark:text-green-400"
-                              : tx.type === TxType.FEE
-                                ? "text-red-600 dark:text-red-400"
-                                : ""
-                          }`}
-                        >
-                          {getTransactionDisplayType(tx.type) === "in"
-                            ? "+"
-                            : tx.type === TxType.FEE
-                              ? "-"
-                              : ""}
-                          {formatCurrency(
-                            tx.amount,
-                            locale,
-                            settings.general.defaultCurrency,
-                            tx.currency,
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`flex flex-wrap gap-2 ${hasDetails && isExpanded ? "mb-2" : "mb-0"}`}
-                    >
-                      <Badge
-                        className={`${getTransactionTypeColor(tx.type)} whitespace-normal break-words inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
-                        onClick={() =>
-                          handleBadgeClick("transactionType", tx.type)
-                        }
-                      >
-                        {getIconForTxType(tx.type, "h-3 w-3")}
-                        {t.enums?.transactionType?.[tx.type] || tx.type}
-                      </Badge>
-                      <Badge
-                        className={`${getProductTypeColor(tx.product_type)} whitespace-normal break-words inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
-                        onClick={() =>
-                          handleBadgeClick("productType", tx.product_type)
-                        }
-                      >
-                        {getIconForProductType(tx.product_type)}
-                        {t.enums?.productType?.[tx.product_type] ||
-                          tx.product_type}
-                      </Badge>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <SourceBadge
-                          source={tx.source}
-                          title={t.transactions.source}
-                          className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300"
-                        />
-                        <EntityBadge
-                          name={tx.entity.name}
-                          origin={tx.entity.origin}
-                          onClick={() =>
-                            handleBadgeClick("entity", tx.entity.id)
-                          }
-                        />
-                      </div>
-
-                      {hasDetails && (
-                        <button
-                          onClick={() => toggleCardExpansion(tx.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-                        >
-                          {isExpanded ? (
-                            <>
-                              <ChevronUp className="h-3 w-3" />
-                              Less
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className="h-3 w-3" />
-                              More
-                            </>
-                          )}
-                        </button>
-                      )}
-                    </div>
-
-                    {hasDetails && isExpanded && (
-                      <div className="pt-2 space-y-2 border-t border-gray-100 dark:border-gray-800">
-                        {renderTransactionDetails(tx)}
-                        {tx.source === DataSource.MANUAL && (
-                          <div className="flex flex-wrap gap-2 pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditTransaction(tx)}
-                              className="flex items-center gap-2"
-                            >
-                              <Pencil className="h-4 w-4" />
-                              {t.common.edit}
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleRequestDelete(tx)}
-                              className="flex items-center gap-2"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              {t.common.delete}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    ))}
                   </Card>
-                )
-              })}
+                </div>
+              ))}
 
               {/* Mobile Pagination */}
               <div className="flex justify-center items-center mt-6 gap-3">

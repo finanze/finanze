@@ -45,6 +45,7 @@ from application.use_cases.get_external_integrations import GetExternalIntegrati
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
 from application.use_cases.get_instruments import GetInstrumentsImpl
+from application.use_cases.get_money_events import GetMoneyEventsImpl
 from application.use_cases.get_pending_flows import GetPendingFlowsImpl
 from application.use_cases.get_periodic_flows import GetPeriodicFlowsImpl
 from application.use_cases.get_position import GetPositionImpl
@@ -496,6 +497,12 @@ class FinanzeServer:
             pending_flow_repository, transaction_handler
         )
         get_pending_flows = GetPendingFlowsImpl(pending_flow_repository)
+        get_money_events = GetMoneyEventsImpl(
+            get_contributions,
+            get_periodic_flows,
+            get_pending_flows,
+            entity_repository,
+        )
 
         create_real_estate = CreateRealEstateImpl(
             real_estate_repository,
@@ -598,6 +605,7 @@ class FinanzeServer:
             get_historic,
             get_transactions,
             get_exchange_rates,
+            get_money_events,
             connect_external_entity,
             complete_external_entity_connection,
             delete_external_entity,

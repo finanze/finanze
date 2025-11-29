@@ -1037,6 +1037,7 @@
     "interests": "Intereses",
     "avgBalance": "Saldo Promedio",
     "interestRate": "Tasa de Interés",
+    "grossAmount": "Importe Bruto",
     "portfolioName": "Nombre de Cartera",
     "iban": "IBAN",
     "currency": "Moneda",
@@ -1087,6 +1088,12 @@
       "description": "Mostrando transacciones para {project}.",
       "descriptionGeneric": "Filtro histórico activo.",
       "clear": "Quitar filtro histórico"
+    },
+    "calendar": {
+      "today": "Hoy",
+      "more": "más",
+      "listView": "Lista",
+      "calendarView": "Calendario"
     }
   },
   "time": {

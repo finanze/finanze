@@ -36,6 +36,7 @@ from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
+from domain.use_cases.get_money_events import GetMoneyEvents
 from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
@@ -109,6 +110,7 @@ from infrastructure.controller.routes.get_available_external_entities import (
     get_available_external_entities,
 )
 from infrastructure.controller.routes.get_available_sources import get_available_sources
+from infrastructure.controller.routes.get_money_events import get_money_events
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
@@ -171,6 +173,7 @@ def register_routes(
     get_historic_uc: GetHistoric,
     get_transactions_uc: GetTransactions,
     get_exchange_rates_uc: GetExchangeRates,
+    get_money_events_uc: GetMoneyEvents,
     connect_external_entity_uc: ConnectExternalEntity,
     complete_external_entity_connection_uc: CompleteExternalEntityConnection,
     delete_external_entity_uc: DeleteExternalEntity,
@@ -313,6 +316,10 @@ def register_routes(
     @app.route("/api/v1/exchange-rates", methods=["GET"])
     def exchange_rates_route():
         return exchange_rates(get_exchange_rates_uc)
+
+    @app.route("/api/v1/events", methods=["GET"])
+    def get_money_events_route():
+        return get_money_events(get_money_events_uc)
 
     @app.route("/api/v1/crypto-wallet", methods=["POST"])
     def connect_crypto_wallet_route():
