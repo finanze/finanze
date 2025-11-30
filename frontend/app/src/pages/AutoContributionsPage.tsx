@@ -6,7 +6,7 @@ import {
   useRef,
   type FormEvent,
 } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
 import { useNavigate } from "react-router-dom"
 import {
@@ -1488,400 +1488,420 @@ export default function AutoContributionsPage() {
         )
       })}
 
-      {isModalOpen && modalForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]">
-          <Card className="w-full max-w-3xl max-h-[calc(100vh-2rem)] flex flex-col">
-            <CardHeader className="pb-4 shrink-0">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-xl">
-                    {modalMode === "create"
-                      ? t.management.manualContributions.createTitle
-                      : t.management.manualContributions.editTitle}
-                  </CardTitle>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRequestCloseModal}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <form
-              onSubmit={handleModalSubmit}
-              className="flex flex-1 flex-col overflow-hidden"
+      <AnimatePresence>
+        {isModalOpen && modalForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
             >
-              <CardContent className="space-y-4 flex-1 overflow-y-auto px-6 sm:px-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="entity">
-                      {t.management.manualContributions.entity}
-                    </Label>
-                    <select
-                      id="entity"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.entity_id}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                entity_id: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("entity_id")
-                      }}
+              <Card className="max-h-[calc(100vh-2rem)] flex flex-col">
+                <CardHeader className="pb-4 shrink-0">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-xl">
+                        {modalMode === "create"
+                          ? t.management.manualContributions.createTitle
+                          : t.management.manualContributions.editTitle}
+                      </CardTitle>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleRequestCloseModal}
                     >
-                      <option value="" disabled>
-                        {t.common.selectOptions}
-                      </option>
-                      {financialEntities.map(entity => (
-                        <option key={entity.id} value={entity.id}>
-                          {entity.name}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.entity_id && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.entity_id}
-                      </p>
-                    )}
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="name">{t.management.name}</Label>
-                    <Input
-                      id="name"
-                      value={modalForm.name}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev ? { ...prev, name: event.target.value } : prev,
-                        )
-                        clearFormError("name")
-                      }}
-                    />
-                    {formErrors.name && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.name}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="targetSubtype">
-                      {t.management.targetSubtype}
-                    </Label>
-                    <select
-                      id="targetSubtype"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={
-                        modalForm.target_type ===
-                        ContributionTargetType.FUND_PORTFOLIO
-                          ? "FUND_PORTFOLIO"
-                          : modalForm.target_subtype || ""
-                      }
-                      onChange={event => {
-                        const value = event.target.value as
-                          | ContributionTargetSubtype
-                          | "FUND_PORTFOLIO"
-                        const option = targetSubtypeOptions.find(
-                          opt => opt.value === value,
-                        )
-                        if (!option) {
-                          return
-                        }
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                target_type: option.targetType,
-                                target_subtype:
-                                  value === "FUND_PORTFOLIO" ? "" : value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("target_type")
-                      }}
-                    >
-                      <option value="" disabled>
-                        {t.common.selectOptions}
-                      </option>
-                      {targetSubtypeOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.target_type && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.target_type}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="target">{t.management.target}</Label>
-                    <Input
-                      id="target"
-                      value={modalForm.target}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                target: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("target")
-                      }}
-                      placeholder={
-                        t.management.manualContributions.targetHelper
-                      }
-                    />
-                    {formErrors.target && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.target}
-                      </p>
-                    )}
-                    {(showIsinWarning || showIbanWarning) && (
-                      <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
-                        <span>
-                          {showIsinWarning
-                            ? t.management.manualContributions.warnings.isin
-                            : t.management.manualContributions.warnings.iban}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="targetName">
-                      {t.management.manualContributions.targetName}
-                    </Label>
-                    <Input
-                      id="targetName"
-                      value={modalForm.target_name}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                target_name: event.target.value,
-                              }
-                            : prev,
-                        )
-                      }}
-                      placeholder={
-                        t.management.manualContributions.targetNameHelper
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {t.management.manualContributions.targetNameHelper}
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="currency">
-                      {t.management.manualContributions.currency}
-                    </Label>
-                    <select
-                      id="currency"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.currency}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                currency: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("currency")
-                      }}
-                    >
-                      {currencyOptions.map(option => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.currency && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.currency}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="amount">{t.management.amount}</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      value={modalForm.amount}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                amount: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("amount")
-                      }}
-                    />
-                    {formErrors.amount && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.amount}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="frequency">
-                      {t.management.frequencyLabel}
-                    </Label>
-                    <select
-                      id="frequency"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.frequency}
-                      onChange={event => {
-                        const value = event.target
-                          .value as ContributionFrequency
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                frequency: value,
-                              }
-                            : prev,
-                        )
-                      }}
-                    >
-                      {frequencyOptions.map(option => (
-                        <option key={option} value={option}>
-                          {(t.management.contributionFrequency as any)?.[
-                            option
-                          ] || option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{t.management.since}</Label>
-                    <DatePicker
-                      value={modalForm.since}
-                      onChange={value => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                since: value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("since")
-                      }}
-                    />
-                    {formErrors.since && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.since}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{t.management.until}</Label>
-                    <DatePicker
-                      value={modalForm.until}
-                      onChange={value => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                until: value,
-                              }
-                            : prev,
-                        )
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {t.management.manualContributions.suggestions}
-                  </div>
-                  {modalSuggestions.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {modalSuggestions.map(suggestion => (
-                        <Button
-                          key={suggestion.value}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
+                </CardHeader>
+                <form
+                  onSubmit={handleModalSubmit}
+                  className="flex flex-1 flex-col overflow-hidden"
+                >
+                  <CardContent className="space-y-4 flex-1 overflow-y-auto px-6 sm:px-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="entity">
+                          {t.management.manualContributions.entity}
+                        </Label>
+                        <select
+                          id="entity"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={modalForm.entity_id}
+                          onChange={event => {
                             setModalForm(prev =>
                               prev
                                 ? {
                                     ...prev,
-                                    target: suggestion.value,
-                                    target_name:
-                                      prev.target_name.trim().length > 0
-                                        ? prev.target_name
-                                        : (suggestion.secondary ??
-                                          suggestion.value),
-                                    name:
-                                      prev.name.trim().length > 0
-                                        ? prev.name
-                                        : (suggestion.secondary ??
-                                          (prev.target_name.trim().length > 0
-                                            ? prev.target_name
-                                            : suggestion.value)),
+                                    entity_id: event.target.value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("entity_id")
+                          }}
+                        >
+                          <option value="" disabled>
+                            {t.common.selectOptions}
+                          </option>
+                          {financialEntities.map(entity => (
+                            <option key={entity.id} value={entity.id}>
+                              {entity.name}
+                            </option>
+                          ))}
+                        </select>
+                        {formErrors.entity_id && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.entity_id}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="name">{t.management.name}</Label>
+                        <Input
+                          id="name"
+                          value={modalForm.name}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? { ...prev, name: event.target.value }
+                                : prev,
+                            )
+                            clearFormError("name")
+                          }}
+                        />
+                        {formErrors.name && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="targetSubtype">
+                          {t.management.targetSubtype}
+                        </Label>
+                        <select
+                          id="targetSubtype"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={
+                            modalForm.target_type ===
+                            ContributionTargetType.FUND_PORTFOLIO
+                              ? "FUND_PORTFOLIO"
+                              : modalForm.target_subtype || ""
+                          }
+                          onChange={event => {
+                            const value = event.target.value as
+                              | ContributionTargetSubtype
+                              | "FUND_PORTFOLIO"
+                            const option = targetSubtypeOptions.find(
+                              opt => opt.value === value,
+                            )
+                            if (!option) {
+                              return
+                            }
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    target_type: option.targetType,
+                                    target_subtype:
+                                      value === "FUND_PORTFOLIO" ? "" : value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("target_type")
+                          }}
+                        >
+                          <option value="" disabled>
+                            {t.common.selectOptions}
+                          </option>
+                          {targetSubtypeOptions.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {formErrors.target_type && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.target_type}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="target">{t.management.target}</Label>
+                        <Input
+                          id="target"
+                          value={modalForm.target}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    target: event.target.value,
                                   }
                                 : prev,
                             )
                             clearFormError("target")
-                            clearFormError("name")
+                          }}
+                          placeholder={
+                            t.management.manualContributions.targetHelper
+                          }
+                        />
+                        {formErrors.target && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.target}
+                          </p>
+                        )}
+                        {(showIsinWarning || showIbanWarning) && (
+                          <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                            <span>
+                              {showIsinWarning
+                                ? t.management.manualContributions.warnings.isin
+                                : t.management.manualContributions.warnings
+                                    .iban}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="targetName">
+                          {t.management.manualContributions.targetName}
+                        </Label>
+                        <Input
+                          id="targetName"
+                          value={modalForm.target_name}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    target_name: event.target.value,
+                                  }
+                                : prev,
+                            )
+                          }}
+                          placeholder={
+                            t.management.manualContributions.targetNameHelper
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {t.management.manualContributions.targetNameHelper}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="currency">
+                          {t.management.manualContributions.currency}
+                        </Label>
+                        <select
+                          id="currency"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={modalForm.currency}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    currency: event.target.value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("currency")
                           }}
                         >
-                          <span className="text-xs">
-                            <span className="font-medium">
-                              {suggestion.label}
-                            </span>
-                            {suggestion.secondary && (
-                              <span className="block text-[0.7rem] text-muted-foreground">
-                                {suggestion.secondary}
-                              </span>
-                            )}
-                          </span>
-                        </Button>
-                      ))}
+                          {currencyOptions.map(option => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        {formErrors.currency && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.currency}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="amount">{t.management.amount}</Label>
+                        <Input
+                          id="amount"
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={modalForm.amount}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    amount: event.target.value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("amount")
+                          }}
+                        />
+                        {formErrors.amount && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.amount}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="frequency">
+                          {t.management.frequencyLabel}
+                        </Label>
+                        <select
+                          id="frequency"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={modalForm.frequency}
+                          onChange={event => {
+                            const value = event.target
+                              .value as ContributionFrequency
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    frequency: value,
+                                  }
+                                : prev,
+                            )
+                          }}
+                        >
+                          {frequencyOptions.map(option => (
+                            <option key={option} value={option}>
+                              {(t.management.contributionFrequency as any)?.[
+                                option
+                              ] || option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>{t.management.since}</Label>
+                        <DatePicker
+                          value={modalForm.since}
+                          onChange={value => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    since: value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("since")
+                          }}
+                        />
+                        {formErrors.since && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.since}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>{t.management.until}</Label>
+                        <DatePicker
+                          value={modalForm.until}
+                          onChange={value => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    until: value,
+                                  }
+                                : prev,
+                            )
+                          }}
+                        />
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {t.management.manualContributions.noSuggestions}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2 shrink-0 px-6 pb-6 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleRequestCloseModal}
-                >
-                  {t.common.cancel}
-                </Button>
-                <Button type="submit">
-                  {modalMode === "create" ? t.common.add : t.common.save}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      )}
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        {t.management.manualContributions.suggestions}
+                      </div>
+                      {modalSuggestions.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {modalSuggestions.map(suggestion => (
+                            <Button
+                              key={suggestion.value}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setModalForm(prev =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        target: suggestion.value,
+                                        target_name:
+                                          prev.target_name.trim().length > 0
+                                            ? prev.target_name
+                                            : (suggestion.secondary ??
+                                              suggestion.value),
+                                        name:
+                                          prev.name.trim().length > 0
+                                            ? prev.name
+                                            : (suggestion.secondary ??
+                                              (prev.target_name.trim().length >
+                                              0
+                                                ? prev.target_name
+                                                : suggestion.value)),
+                                      }
+                                    : prev,
+                                )
+                                clearFormError("target")
+                                clearFormError("name")
+                              }}
+                            >
+                              <span className="text-xs">
+                                <span className="font-medium">
+                                  {suggestion.label}
+                                </span>
+                                {suggestion.secondary && (
+                                  <span className="block text-[0.7rem] text-muted-foreground">
+                                    {suggestion.secondary}
+                                  </span>
+                                )}
+                              </span>
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t.management.manualContributions.noSuggestions}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-end gap-2 shrink-0 px-6 pb-6 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRequestCloseModal}
+                    >
+                      {t.common.cancel}
+                    </Button>
+                    <Button type="submit">
+                      {modalMode === "create" ? t.common.add : t.common.save}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <ConfirmationDialog
         isOpen={showCancelConfirm}
         title={t.management.manualContributions.cancelDialog.title}

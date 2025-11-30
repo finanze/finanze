@@ -1245,10 +1245,6 @@ export function TemplateManagerDialog({
     }
   }
 
-  if (!isOpen) {
-    return null
-  }
-
   const renderTemplateList = () => (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -1902,68 +1898,88 @@ export function TemplateManagerDialog({
   }
 
   return (
-    <TooltipProvider>
-      <div className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/60 p-2 sm:p-6">
-        <Card className="flex h-[90vh] w-full max-w-6xl flex-col overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between border-b border-border/60 pb-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <LayoutTemplate className="h-5 w-5 text-primary" />
-                {templateTexts.dialogTitle}
-              </CardTitle>
-              <CardDescription>{templateTexts.dialogSubtitle}</CardDescription>
-            </div>
-            <Button variant="ghost" size="icon" onClick={onClose}>
-              <X className="h-5 w-5" />
-            </Button>
-          </CardHeader>
-          <CardContent className="flex flex-1 flex-col gap-6 overflow-hidden py-4">
-            {formErrors.submit && mode !== "create" && mode !== "edit" ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
-                {formErrors.submit}
-              </div>
-            ) : null}
-            {isLoadingTemplates || isLoadingFields ? (
-              <div className="flex flex-1 items-center justify-center">
-                <LoadingSpinner className="h-6 w-6" />
-              </div>
-            ) : mode === "list" ? (
-              <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[280px_1fr]">
-                <div className="min-h-0 overflow-y-auto pr-1">
-                  {renderTemplateList()}
-                  <Button
-                    className="mt-4 w-full"
-                    variant="outline"
-                    onClick={startCreate}
-                  >
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    {templateTexts.newTemplateButton}
+    <AnimatePresence>
+      {isOpen && (
+        <TooltipProvider>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[10010] flex items-center justify-center bg-black/60 p-2 sm:p-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="flex h-[90vh] w-full max-w-6xl"
+            >
+              <Card className="flex w-full flex-col overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between border-b border-border/60 pb-3">
+                  <div>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <LayoutTemplate className="h-5 w-5 text-primary" />
+                      {templateTexts.dialogTitle}
+                    </CardTitle>
+                    <CardDescription>
+                      {templateTexts.dialogSubtitle}
+                    </CardDescription>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={onClose}>
+                    <X className="h-5 w-5" />
                   </Button>
-                </div>
-                <div className="flex h-full min-h-0 flex-col overflow-hidden">
-                  {renderTemplateDetails()}
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-y-auto pr-1">{renderEditor()}</div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                </CardHeader>
+                <CardContent className="flex flex-1 flex-col gap-6 overflow-hidden py-4">
+                  {formErrors.submit && mode !== "create" && mode !== "edit" ? (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+                      {formErrors.submit}
+                    </div>
+                  ) : null}
+                  {isLoadingTemplates || isLoadingFields ? (
+                    <div className="flex flex-1 items-center justify-center">
+                      <LoadingSpinner className="h-6 w-6" />
+                    </div>
+                  ) : mode === "list" ? (
+                    <div className="grid flex-1 min-h-0 gap-4 lg:grid-cols-[280px_1fr]">
+                      <div className="min-h-0 overflow-y-auto pr-1">
+                        {renderTemplateList()}
+                        <Button
+                          className="mt-4 w-full"
+                          variant="outline"
+                          onClick={startCreate}
+                        >
+                          <PlusCircle className="mr-2 h-4 w-4" />
+                          {templateTexts.newTemplateButton}
+                        </Button>
+                      </div>
+                      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                        {renderTemplateDetails()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-y-auto pr-1">{renderEditor()}</div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-      <ConfirmationDialog
-        isOpen={templateToDelete !== null}
-        title={templateTexts.deleteTitle}
-        message={templateTexts.deleteMessage.replace(
-          "{name}",
-          templateToDelete?.name ?? "",
-        )}
-        confirmText={t.common.delete}
-        cancelText={t.common.cancel}
-        onConfirm={handleConfirmDelete}
-        onCancel={() => setTemplateToDelete(null)}
-        isLoading={isDeleting}
-      />
-    </TooltipProvider>
+          <ConfirmationDialog
+            isOpen={templateToDelete !== null}
+            title={templateTexts.deleteTitle}
+            message={templateTexts.deleteMessage.replace(
+              "{name}",
+              templateToDelete?.name ?? "",
+            )}
+            confirmText={t.common.delete}
+            cancelText={t.common.cancel}
+            onConfirm={handleConfirmDelete}
+            onCancel={() => setTemplateToDelete(null)}
+            isLoading={isDeleting}
+          />
+        </TooltipProvider>
+      )}
+    </AnimatePresence>
   )
 }

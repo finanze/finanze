@@ -16,7 +16,6 @@ import InvestmentsPage from "./pages/InvestmentsPage"
 import BankingPage from "./pages/BankingPage"
 import RealEstatePage from "./pages/RealEstatePage"
 import RealEstateDetailsPage from "./pages/RealEstateDetailsPage"
-import RealEstateEditPage from "./pages/RealEstateEditPage"
 import LoginPage from "./pages/LoginPage"
 import RecurringMoneyPage from "./pages/RecurringMoneyPage"
 import PendingMoneyPage from "./pages/PendingMoneyPage"
@@ -131,10 +130,6 @@ function App() {
               <Route
                 path="/real-estate/:id"
                 element={<RealEstateDetailsPage />}
-              />
-              <Route
-                path="/real-estate/:id/edit"
-                element={<RealEstateEditPage />}
               />
               <Route path="/entities" element={<EntityIntegrationsPage />} />
               <Route path="/transactions" element={<TransactionsPage />} />

@@ -310,7 +310,8 @@ export default function RealEstatePage() {
                         size="sm"
                         onClick={e => {
                           e.stopPropagation()
-                          navigate(`/real-estate/${property.id}/edit`)
+                          setEditingProperty(property)
+                          setIsFormModalOpen(true)
                         }}
                         className="bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 h-9 w-9 p-0"
                       >
@@ -467,17 +468,15 @@ export default function RealEstatePage() {
       )}
 
       {/* Form Modal */}
-      {isFormModalOpen && (
-        <RealEstateFormModal
-          isOpen={isFormModalOpen}
-          onClose={() => {
-            setIsFormModalOpen(false)
-            setEditingProperty(null)
-          }}
-          property={editingProperty}
-          onSuccess={handleFormSuccess}
-        />
-      )}
+      <RealEstateFormModal
+        isOpen={isFormModalOpen}
+        onClose={() => {
+          setIsFormModalOpen(false)
+          setEditingProperty(null)
+        }}
+        property={editingProperty}
+        onSuccess={handleFormSuccess}
+      />
 
       {/* Delete Confirmation Dialog */}
       <DeletePropertyDialog

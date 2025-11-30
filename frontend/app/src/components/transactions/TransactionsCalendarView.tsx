@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import {
@@ -15,7 +16,11 @@ import {
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
 import { getTransactionDisplayType } from "@/utils/financialDataUtils"
-import { getIconForTxType, getProductTypeColor } from "@/utils/dashboardUtils"
+import {
+  getIconForTxType,
+  getProductTypeColor,
+  getIconForAssetType,
+} from "@/utils/dashboardUtils"
 import { Badge } from "@/components/ui/Badge"
 import { Button } from "@/components/ui/Button"
 import { Card } from "@/components/ui/Card"
@@ -216,7 +221,7 @@ export function TransactionsCalendarView({
   const yearOptions = useMemo(() => {
     const years: number[] = []
     const currentYearNow = new Date().getFullYear()
-    for (let y = currentYearNow - 10; y <= currentYearNow + 2; y++) {
+    for (let y = currentYearNow - 10; y <= currentYearNow; y++) {
       years.push(y)
     }
     return years
@@ -239,6 +244,11 @@ export function TransactionsCalendarView({
 
   const selectedDay =
     selectedDayIndex !== null ? calendarDays[selectedDayIndex] : null
+
+  const today = new Date()
+  const isCurrentOrFutureMonth =
+    currentYear > today.getFullYear() ||
+    (currentYear === today.getFullYear() && currentMonth >= today.getMonth())
 
   return (
     <div className="space-y-4">
@@ -276,6 +286,7 @@ export function TransactionsCalendarView({
               size="sm"
               onClick={handleNextMonth}
               className="p-1.5 sm:p-2"
+              disabled={isCurrentOrFutureMonth}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -356,14 +367,21 @@ export function TransactionsCalendarView({
                   {previewTxs.map(tx => (
                     <div
                       key={tx.id}
-                      className={`text-xs truncate rounded px-1 py-0.5 ${getTransactionColor(tx.type)} text-white`}
+                      className={`text-xs truncate rounded px-1 py-0.5 flex items-center gap-1 ${getTransactionColor(tx.type)} text-white ${!day.isCurrentMonth ? "opacity-50" : ""}`}
                       title={tx.name}
                     >
-                      {tx.name}
+                      {getIconForAssetType(
+                        tx.product_type,
+                        "h-3 w-3",
+                        "text-white",
+                      )}
+                      <span className="truncate">{tx.name}</span>
                     </div>
                   ))}
                   {moreCount > 0 && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 pl-1">
+                    <div
+                      className={`text-xs text-gray-500 dark:text-gray-400 pl-1 ${!day.isCurrentMonth ? "opacity-50" : ""}`}
+                    >
                       +{moreCount} {t.transactions.calendar.more}
                     </div>
                   )}
@@ -374,12 +392,14 @@ export function TransactionsCalendarView({
                     {day.transactions.slice(0, 4).map(tx => (
                       <div
                         key={tx.id}
-                        className={`w-2 h-2 rounded-sm ${getTransactionColor(tx.type)}`}
+                        className={`w-2 h-2 rounded-sm ${getTransactionColor(tx.type)} ${!day.isCurrentMonth ? "opacity-50" : ""}`}
                         title={tx.name}
                       />
                     ))}
                     {day.transactions.length > 4 && (
-                      <span className="text-[8px] text-gray-500 dark:text-gray-400">
+                      <span
+                        className={`text-[8px] text-gray-500 dark:text-gray-400 ${!day.isCurrentMonth ? "opacity-50" : ""}`}
+                      >
                         +{day.transactions.length - 4}
                       </span>
                     )}
@@ -391,17 +411,19 @@ export function TransactionsCalendarView({
         </div>
       </Card>
 
-      {selectedDay && (
-        <DayDetailModal
-          day={selectedDay}
-          onClose={() => setSelectedDayIndex(null)}
-          onBadgeClick={onBadgeClick}
-          onPrevDay={() => handleDayNavigation("prev")}
-          onNextDay={() => handleDayNavigation("next")}
-          canNavigatePrev={canNavigatePrev}
-          canNavigateNext={canNavigateNext}
-        />
-      )}
+      <AnimatePresence>
+        {selectedDay && (
+          <DayDetailModal
+            day={selectedDay}
+            onClose={() => setSelectedDayIndex(null)}
+            onBadgeClick={onBadgeClick}
+            onPrevDay={() => handleDayNavigation("prev")}
+            onNextDay={() => handleDayNavigation("next")}
+            canNavigatePrev={canNavigatePrev}
+            canNavigateNext={canNavigateNext}
+          />
+        )}
+      </AnimatePresence>
 
       {showYearPicker && (
         <div
@@ -829,138 +851,155 @@ function DayDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onPrevDay}
-              disabled={!canNavigatePrev}
-              className="shrink-0 h-8 w-8"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-              <CalendarIcon className="h-4 w-4 text-gray-500 shrink-0" />
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize truncate">
-                <span className="hidden sm:inline">{formattedDate}</span>
-                <span className="sm:hidden">{shortFormattedDate}</span>
-              </h3>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onNextDay}
-              disabled={!canNavigateNext}
-              className="shrink-0 h-8 w-8"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-2 ml-2">
-            <span className="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
-              {day.transactions.length} {t.transactions.items}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="p-3 sm:p-4 overflow-y-auto space-y-2 sm:space-y-3">
-          {day.transactions.map(tx => {
-            const isExpanded = expandedTxs.has(tx.id)
-            const hasDetails = hasExtraDetails(tx)
-
-            return (
-              <div
-                key={tx.id}
-                className="p-2 sm:p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
+        className="w-full max-w-2xl"
+      >
+        <Card className="max-h-[80vh] overflow-hidden flex flex-col">
+          <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onPrevDay}
+                disabled={!canNavigatePrev}
+                className="shrink-0 h-8 w-8"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
-                        {tx.name}
-                      </p>
-                      <span
-                        className={`font-semibold text-sm sm:text-base shrink-0 ${
-                          getTransactionDisplayType(tx.type) === "in"
-                            ? "text-green-600 dark:text-green-400"
-                            : tx.type === TxType.FEE
-                              ? "text-red-600 dark:text-red-400"
-                              : "text-gray-900 dark:text-gray-100"
-                        }`}
-                      >
-                        {getTransactionDisplayType(tx.type) === "in"
-                          ? "+"
-                          : tx.type === TxType.FEE
-                            ? "-"
-                            : ""}
-                        {formatCurrency(
-                          tx.net_amount ?? tx.amount,
-                          locale,
-                          settings.general.defaultCurrency,
-                          tx.currency,
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">
-                      <Badge
-                        className={`${getTransactionTypeColor(tx.type)} text-xs cursor-pointer hover:opacity-80 transition-opacity inline-flex items-center gap-1`}
-                        onClick={() => onBadgeClick("transactionType", tx.type)}
-                      >
-                        {getIconForTxType(tx.type, "h-3 w-3")}
-                        {t.enums?.transactionType?.[tx.type] || tx.type}
-                      </Badge>
-                      <Badge
-                        className={`${getProductTypeColor(tx.product_type)} text-xs cursor-pointer hover:opacity-80 transition-opacity`}
-                        onClick={() =>
-                          onBadgeClick("productType", tx.product_type)
-                        }
-                      >
-                        {t.enums?.productType?.[tx.product_type] ||
-                          tx.product_type}
-                      </Badge>
-                      <EntityBadge
-                        name={tx.entity.name}
-                        origin={tx.entity.origin}
-                        onClick={() => onBadgeClick("entity", tx.entity.id)}
-                        className="text-xs"
-                      />
-                      {hasDetails && (
-                        <button
-                          onClick={() => toggleExpanded(tx.id)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                <CalendarIcon className="h-4 w-4 text-gray-500 shrink-0" />
+                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 dark:text-gray-100 capitalize truncate">
+                  <span className="hidden sm:inline">{formattedDate}</span>
+                  <span className="sm:hidden">{shortFormattedDate}</span>
+                </h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onNextDay}
+                disabled={!canNavigateNext}
+                className="shrink-0 h-8 w-8"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="flex items-center gap-2 ml-2">
+              <span className="text-sm text-gray-500 dark:text-gray-400 hidden sm:inline">
+                {day.transactions.length} {t.transactions.items}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="p-3 sm:p-4 overflow-y-auto space-y-2 sm:space-y-3">
+            {day.transactions.map(tx => {
+              const isExpanded = expandedTxs.has(tx.id)
+              const hasDetails = hasExtraDetails(tx)
+
+              return (
+                <div key={tx.id} className="p-3 rounded-lg bg-muted/50">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
+                          {tx.name}
+                        </p>
+                        <span
+                          className={`font-semibold text-sm sm:text-base shrink-0 ${
+                            getTransactionDisplayType(tx.type) === "in"
+                              ? "text-green-600 dark:text-green-400"
+                              : tx.type === TxType.FEE
+                                ? "text-red-600 dark:text-red-400"
+                                : "text-gray-900 dark:text-gray-100"
+                          }`}
                         >
-                          {isExpanded ? (
-                            <ChevronUp className="h-3 w-3" />
-                          ) : (
-                            <ChevronDown className="h-3 w-3" />
+                          {getTransactionDisplayType(tx.type) === "in"
+                            ? "+"
+                            : tx.type === TxType.FEE
+                              ? "-"
+                              : ""}
+                          {formatCurrency(
+                            tx.net_amount ?? tx.amount,
+                            locale,
+                            settings.general.defaultCurrency,
+                            tx.currency,
                           )}
-                        </button>
-                      )}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">
+                        <Badge
+                          className={`${getTransactionTypeColor(tx.type)} text-xs cursor-pointer hover:opacity-80 transition-opacity inline-flex items-center gap-1`}
+                          onClick={() =>
+                            onBadgeClick("transactionType", tx.type)
+                          }
+                        >
+                          {getIconForTxType(tx.type, "h-3 w-3")}
+                          {t.enums?.transactionType?.[tx.type] || tx.type}
+                        </Badge>
+                        <Badge
+                          className={`${getProductTypeColor(tx.product_type)} text-xs cursor-pointer hover:opacity-80 transition-opacity inline-flex items-center gap-1`}
+                          onClick={() =>
+                            onBadgeClick("productType", tx.product_type)
+                          }
+                        >
+                          {getIconForAssetType(tx.product_type, "h-3 w-3", "")}
+                          {t.enums?.productType?.[tx.product_type] ||
+                            tx.product_type}
+                        </Badge>
+                        <EntityBadge
+                          name={tx.entity.name}
+                          origin={tx.entity.origin}
+                          onClick={() => onBadgeClick("entity", tx.entity.id)}
+                          className="text-xs"
+                        />
+                        {hasDetails && (
+                          <button
+                            onClick={() => toggleExpanded(tx.id)}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                          >
+                            {isExpanded ? (
+                              <ChevronUp className="h-3 w-3" />
+                            ) : (
+                              <ChevronDown className="h-3 w-3" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
+
+                  {hasDetails && isExpanded && renderTransactionDetails(tx)}
                 </div>
+              )
+            })}
+          </div>
 
-                {hasDetails && isExpanded && renderTransactionDetails(tx)}
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="p-3 sm:hidden border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 text-center">
-          {day.transactions.length} {t.transactions.items}
-        </div>
-      </Card>
-    </div>
+          <div className="p-3 sm:hidden border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 text-center">
+            {day.transactions.length} {t.transactions.items}
+          </div>
+        </Card>
+      </motion.div>
+    </motion.div>
   )
 }

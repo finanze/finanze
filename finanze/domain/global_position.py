@@ -323,7 +323,7 @@ class CryptoCurrencyPosition(BaseData):
 
 @dataclass
 class CryptoCurrencyWallet(BaseData):
-    id: UUID
+    id: Optional[UUID] = None
     address: Optional[str] = None
     name: Optional[str] = None
     assets: list[CryptoCurrencyPosition] = field(default_factory=list)

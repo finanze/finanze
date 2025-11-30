@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
 import { X } from "lucide-react"
 import { useI18n } from "@/i18n"
@@ -1006,291 +1007,406 @@ export function ManualTransactionDialog({
     onClose()
   }
 
-  if (!isOpen) {
-    return null
-  }
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]">
-      <Card className="w-full max-w-3xl">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">
-              {mode === "create"
-                ? t.transactions.form.createTitle
-                : t.transactions.form.editTitle}
-            </CardTitle>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleClose}
-            disabled={isSubmitting}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
+          onClick={e => {
+            if (e.target === e.currentTarget) handleClose()
+          }}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="w-full max-w-3xl"
           >
-            <X className="h-4 w-4" />
-          </Button>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="transaction-entity">
-                  {t.transactions.form.entity}
-                </Label>
-                <select
-                  id="transaction-entity"
-                  value={formState.entityId}
-                  onChange={event => {
-                    const option = entities.find(
-                      e => e.id === event.target.value,
-                    )
-                    handleBaseChange("entityId", event.target.value)
-                    if (option) {
-                      setFormState(prev => ({
-                        ...prev,
-                        entityName: option.name,
-                        entityOrigin: option.origin,
-                      }))
-                    }
-                  }}
-                  disabled={mode === "edit"}
-                  className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.entityId ? "border-red-500" : ""}`}
-                >
-                  <option value="" disabled>
-                    {t.common.selectOptions}
-                  </option>
-                  {entities.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.entityId && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.entityId}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="transaction-name">{t.transactions.name}</Label>
-                <Input
-                  id="transaction-name"
-                  value={formState.name}
-                  onChange={event =>
-                    handleBaseChange("name", event.target.value)
-                  }
-                  className={errors.name ? "border-red-500" : ""}
-                />
-                {errors.name && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.name}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>{t.transactions.date}</Label>
-                <DatePicker
-                  value={formState.date}
-                  onChange={value => {
-                    handleBaseChange("date", value || "")
-                  }}
-                  placeholder={t.transactions.form.pickDate}
+            <Card>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="text-xl">
+                    {mode === "create"
+                      ? t.transactions.form.createTitle
+                      : t.transactions.form.editTitle}
+                  </CardTitle>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleClose}
                   disabled={isSubmitting}
-                  className={errors.date ? "border-red-500" : ""}
-                />
-                {errors.date && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.date}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="transaction-type">
-                  {t.transactions.form.transactionType}
-                </Label>
-                <select
-                  id="transaction-type"
-                  value={formState.type}
-                  onChange={event =>
-                    handleBaseChange("type", event.target.value as TxType)
-                  }
-                  className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.type ? "border-red-500" : ""}`}
                 >
-                  {Object.values(TxType).map(type => (
-                    <option key={type} value={type}>
-                      {(t.enums as any)?.transactionType?.[type] || type}
-                    </option>
-                  ))}
-                </select>
-                {errors.type && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.type}
-                  </p>
-                )}
-              </div>
+                  <X className="h-4 w-4" />
+                </Button>
+              </CardHeader>
+              <form onSubmit={handleSubmit}>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-entity">
+                        {t.transactions.form.entity}
+                      </Label>
+                      <select
+                        id="transaction-entity"
+                        value={formState.entityId}
+                        onChange={event => {
+                          const option = entities.find(
+                            e => e.id === event.target.value,
+                          )
+                          handleBaseChange("entityId", event.target.value)
+                          if (option) {
+                            setFormState(prev => ({
+                              ...prev,
+                              entityName: option.name,
+                              entityOrigin: option.origin,
+                            }))
+                          }
+                        }}
+                        disabled={mode === "edit"}
+                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.entityId ? "border-red-500" : ""}`}
+                      >
+                        <option value="" disabled>
+                          {t.common.selectOptions}
+                        </option>
+                        {entities.map(option => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.entityId && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.entityId}
+                        </p>
+                      )}
+                    </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="transaction-product">
-                  {t.transactions.product}
-                </Label>
-                <select
-                  id="transaction-product"
-                  value={formState.productType}
-                  onChange={event => {
-                    const value = event.target
-                      .value as SupportedManualProductType
-                    clearError("productType")
-                    setFormState(prev => ({
-                      ...prev,
-                      productType: value,
-                      extra: createExtraDefaults(value),
-                    }))
-                    setErrors(prev => {
-                      const next: Record<string, string> = {}
-                      Object.entries(prev).forEach(([key, message]) => {
-                        if (!key.startsWith("extra.")) {
-                          next[key] = message
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-name">
+                        {t.transactions.name}
+                      </Label>
+                      <Input
+                        id="transaction-name"
+                        value={formState.name}
+                        onChange={event =>
+                          handleBaseChange("name", event.target.value)
                         }
-                      })
-                      return next
-                    })
-                    sharesPriceEditedRef.current = false
-                  }}
-                  className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.productType ? "border-red-500" : ""}`}
-                  disabled={isSubmitting}
-                >
-                  {SUPPORTED_PRODUCT_TYPES.map(type => (
-                    <option key={type} value={type}>
-                      {t.enums?.productType?.[type] || type}
-                    </option>
-                  ))}
-                </select>
-                {errors.productType && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.productType}
-                  </p>
-                )}
-              </div>
+                        className={errors.name ? "border-red-500" : ""}
+                      />
+                      {errors.name && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.name}
+                        </p>
+                      )}
+                    </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="transaction-amount">
-                  {t.transactions.amount}
-                </Label>
-                <Input
-                  id="transaction-amount"
-                  type="number"
-                  inputMode="decimal"
-                  min="0"
-                  step="0.01"
-                  value={formState.amount}
-                  onChange={event =>
-                    handleBaseChange("amount", event.target.value)
-                  }
-                  className={errors.amount ? "border-red-500" : ""}
-                />
-                {errors.amount && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.amount}
-                  </p>
-                )}
-                {supportsNetAmount && formattedNetAmount && (
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium">
-                      {t.transactions.form.netAmountLabel}
-                    </span>{" "}
-                    {formattedNetAmount}
-                    <span className="ml-1 text-[11px] uppercase tracking-wide">
-                      ({netAmountFormulaText})
-                    </span>
-                  </p>
-                )}
-              </div>
+                    <div className="space-y-1.5">
+                      <Label>{t.transactions.date}</Label>
+                      <DatePicker
+                        value={formState.date}
+                        onChange={value => {
+                          handleBaseChange("date", value || "")
+                        }}
+                        placeholder={t.transactions.form.pickDate}
+                        disabled={isSubmitting}
+                        className={errors.date ? "border-red-500" : ""}
+                      />
+                      {errors.date && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.date}
+                        </p>
+                      )}
+                    </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="transaction-currency">
-                  {t.transactions.currency}
-                </Label>
-                <select
-                  id="transaction-currency"
-                  value={formState.currency}
-                  onChange={event =>
-                    handleBaseChange("currency", event.target.value)
-                  }
-                  className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.currency ? "border-red-500" : ""}`}
-                >
-                  {currencyOptions.map(option => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                {errors.currency && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    {errors.currency}
-                  </p>
-                )}
-              </div>
-            </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-type">
+                        {t.transactions.form.transactionType}
+                      </Label>
+                      <select
+                        id="transaction-type"
+                        value={formState.type}
+                        onChange={event =>
+                          handleBaseChange("type", event.target.value as TxType)
+                        }
+                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.type ? "border-red-500" : ""}`}
+                      >
+                        {Object.values(TxType).map(type => (
+                          <option key={type} value={type}>
+                            {(t.enums as any)?.transactionType?.[type] || type}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.type && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.type}
+                        </p>
+                      )}
+                    </div>
 
-            {fieldConfigs.length > 0 && (
-              <div className="border-t border-border pt-4">
-                <h3 className="text-sm font-semibold mb-3 text-muted-foreground">
-                  {t.transactions.form.detailsSection}
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {fieldConfigs.map(field => {
-                    const errorKey = `extra.${field.name}`
-                    const error = errors[errorKey]
-                    if (field.type === "date") {
-                      return (
-                        <div key={field.name} className="space-y-1.5">
-                          <Label>{field.labelKey}</Label>
-                          <DatePicker
-                            value={formState.extra[field.name] ?? ""}
-                            onChange={value =>
-                              handleExtraChange(field.name, value || "")
-                            }
-                            placeholder={t.transactions.form.pickDate}
-                            disabled={isSubmitting}
-                          />
-                          {error && (
-                            <p className="text-xs text-red-600 dark:text-red-400">
-                              {error}
-                            </p>
-                          )}
-                        </div>
-                      )
-                    }
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-product">
+                        {t.transactions.product}
+                      </Label>
+                      <select
+                        id="transaction-product"
+                        value={formState.productType}
+                        onChange={event => {
+                          const value = event.target
+                            .value as SupportedManualProductType
+                          clearError("productType")
+                          setFormState(prev => ({
+                            ...prev,
+                            productType: value,
+                            extra: createExtraDefaults(value),
+                          }))
+                          setErrors(prev => {
+                            const next: Record<string, string> = {}
+                            Object.entries(prev).forEach(([key, message]) => {
+                              if (!key.startsWith("extra.")) {
+                                next[key] = message
+                              }
+                            })
+                            return next
+                          })
+                          sharesPriceEditedRef.current = false
+                        }}
+                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.productType ? "border-red-500" : ""}`}
+                        disabled={isSubmitting}
+                      >
+                        {SUPPORTED_PRODUCT_TYPES.map(type => (
+                          <option key={type} value={type}>
+                            {t.enums?.productType?.[type] || type}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.productType && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.productType}
+                        </p>
+                      )}
+                    </div>
 
-                    const fieldSuggestions =
-                      suggestionsByField[field.name] ?? []
-                    const showSuggestions = fieldSuggestions.length > 0
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-amount">
+                        {t.transactions.amount}
+                      </Label>
+                      <Input
+                        id="transaction-amount"
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        value={formState.amount}
+                        onChange={event =>
+                          handleBaseChange("amount", event.target.value)
+                        }
+                        className={errors.amount ? "border-red-500" : ""}
+                      />
+                      {errors.amount && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.amount}
+                        </p>
+                      )}
+                      {supportsNetAmount && formattedNetAmount && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="font-medium">
+                            {t.transactions.form.netAmountLabel}
+                          </span>{" "}
+                          {formattedNetAmount}
+                          <span className="ml-1 text-[11px] uppercase tracking-wide">
+                            ({netAmountFormulaText})
+                          </span>
+                        </p>
+                      )}
+                    </div>
 
-                    if (
-                      (formState.productType === ProductType.STOCK_ETF ||
-                        formState.productType === ProductType.FUND) &&
-                      field.name === "shares"
-                    ) {
-                      const priceField = fieldConfigs.find(
-                        option => option.name === "price",
-                      )
-                      const priceError = errors["extra.price"]
+                    <div className="space-y-1.5">
+                      <Label htmlFor="transaction-currency">
+                        {t.transactions.currency}
+                      </Label>
+                      <select
+                        id="transaction-currency"
+                        value={formState.currency}
+                        onChange={event =>
+                          handleBaseChange("currency", event.target.value)
+                        }
+                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.currency ? "border-red-500" : ""}`}
+                      >
+                        {currencyOptions.map(option => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.currency && (
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          {errors.currency}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-                      return (
-                        <div
-                          key="shares-price"
-                          className="space-y-2 md:col-span-2"
-                        >
-                          <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                            <div className="flex-1 space-y-1.5">
-                              <Label htmlFor="transaction-shares">
+                  {fieldConfigs.length > 0 && (
+                    <div className="border-t border-border pt-4">
+                      <h3 className="text-sm font-semibold mb-3 text-muted-foreground">
+                        {t.transactions.form.detailsSection}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {fieldConfigs.map(field => {
+                          const errorKey = `extra.${field.name}`
+                          const error = errors[errorKey]
+                          if (field.type === "date") {
+                            return (
+                              <div key={field.name} className="space-y-1.5">
+                                <Label>{field.labelKey}</Label>
+                                <DatePicker
+                                  value={formState.extra[field.name] ?? ""}
+                                  onChange={value =>
+                                    handleExtraChange(field.name, value || "")
+                                  }
+                                  placeholder={t.transactions.form.pickDate}
+                                  disabled={isSubmitting}
+                                />
+                                {error && (
+                                  <p className="text-xs text-red-600 dark:text-red-400">
+                                    {error}
+                                  </p>
+                                )}
+                              </div>
+                            )
+                          }
+
+                          const fieldSuggestions =
+                            suggestionsByField[field.name] ?? []
+                          const showSuggestions = fieldSuggestions.length > 0
+
+                          if (
+                            (formState.productType === ProductType.STOCK_ETF ||
+                              formState.productType === ProductType.FUND) &&
+                            field.name === "shares"
+                          ) {
+                            const priceField = fieldConfigs.find(
+                              option => option.name === "price",
+                            )
+                            const priceError = errors["extra.price"]
+
+                            return (
+                              <div
+                                key="shares-price"
+                                className="space-y-2 md:col-span-2"
+                              >
+                                <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                                  <div className="flex-1 space-y-1.5">
+                                    <Label htmlFor="transaction-shares">
+                                      {field.labelKey}
+                                    </Label>
+                                    <Input
+                                      id="transaction-shares"
+                                      type={
+                                        field.type === "number"
+                                          ? "number"
+                                          : "text"
+                                      }
+                                      inputMode={
+                                        field.type === "number"
+                                          ? "decimal"
+                                          : undefined
+                                      }
+                                      step={
+                                        field.type === "number"
+                                          ? (field.step ?? "0.01")
+                                          : undefined
+                                      }
+                                      value={formState.extra.shares ?? ""}
+                                      onChange={event =>
+                                        handleExtraChange(
+                                          "shares",
+                                          event.target.value,
+                                        )
+                                      }
+                                      className={error ? "border-red-500" : ""}
+                                    />
+                                    {error && (
+                                      <p className="text-xs text-red-600 dark:text-red-400">
+                                        {error}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <span className="flex items-center justify-center text-sm font-semibold text-muted-foreground md:pb-2">
+                                    ×
+                                  </span>
+                                  <div className="flex-1 space-y-1.5">
+                                    <Label htmlFor="transaction-price">
+                                      {priceField?.labelKey ??
+                                        t.transactions.price}
+                                    </Label>
+                                    <Input
+                                      id="transaction-price"
+                                      type={
+                                        priceField?.type === "number"
+                                          ? "number"
+                                          : "text"
+                                      }
+                                      inputMode={
+                                        priceField?.type === "number"
+                                          ? "decimal"
+                                          : undefined
+                                      }
+                                      step={
+                                        priceField?.type === "number"
+                                          ? (priceField.step ?? "0.01")
+                                          : undefined
+                                      }
+                                      value={formState.extra.price ?? ""}
+                                      onChange={event =>
+                                        handleExtraChange(
+                                          "price",
+                                          event.target.value,
+                                        )
+                                      }
+                                      className={
+                                        priceError ? "border-red-500" : ""
+                                      }
+                                    />
+                                    {priceError && (
+                                      <p className="text-xs text-red-600 dark:text-red-400">
+                                        {priceError}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                {t.transactions.form.autoAmountHint &&
+                                  (formState.extra.shares ||
+                                    formState.extra.price) && (
+                                    <p className="text-xs text-muted-foreground">
+                                      {t.transactions.form.autoAmountHint}
+                                    </p>
+                                  )}
+                              </div>
+                            )
+                          }
+
+                          if (
+                            (formState.productType === ProductType.STOCK_ETF ||
+                              formState.productType === ProductType.FUND) &&
+                            field.name === "price"
+                          ) {
+                            return null
+                          }
+
+                          return (
+                            <div key={field.name} className="space-y-1.5">
+                              <Label htmlFor={`transaction-${field.name}`}>
                                 {field.labelKey}
                               </Label>
                               <Input
-                                id="transaction-shares"
+                                id={`transaction-${field.name}`}
                                 type={
                                   field.type === "number" ? "number" : "text"
                                 }
@@ -1304,153 +1420,72 @@ export function ManualTransactionDialog({
                                     ? (field.step ?? "0.01")
                                     : undefined
                                 }
-                                value={formState.extra.shares ?? ""}
+                                value={formState.extra[field.name] ?? ""}
                                 onChange={event =>
                                   handleExtraChange(
-                                    "shares",
+                                    field.name,
                                     event.target.value,
                                   )
                                 }
                                 className={error ? "border-red-500" : ""}
                               />
+                              {showSuggestions && (
+                                <div className="w-full space-y-1 pt-1">
+                                  <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                    {getSuggestionLabel(field.name)}
+                                    {selectedEntityName
+                                      ? ` · ${selectedEntityName}`
+                                      : ""}
+                                  </span>
+                                  <div className="flex max-h-24 flex-wrap items-center gap-1 overflow-y-auto pr-1">
+                                    {fieldSuggestions.map(option => (
+                                      <button
+                                        key={`${field.name}-${option.value}`}
+                                        type="button"
+                                        onClick={() =>
+                                          handleSuggestionApply(
+                                            field.name,
+                                            option.value,
+                                          )
+                                        }
+                                        className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                      >
+                                        {option.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                               {error && (
                                 <p className="text-xs text-red-600 dark:text-red-400">
                                   {error}
                                 </p>
                               )}
                             </div>
-                            <span className="flex items-center justify-center text-sm font-semibold text-muted-foreground md:pb-2">
-                              ×
-                            </span>
-                            <div className="flex-1 space-y-1.5">
-                              <Label htmlFor="transaction-price">
-                                {priceField?.labelKey ?? t.transactions.price}
-                              </Label>
-                              <Input
-                                id="transaction-price"
-                                type={
-                                  priceField?.type === "number"
-                                    ? "number"
-                                    : "text"
-                                }
-                                inputMode={
-                                  priceField?.type === "number"
-                                    ? "decimal"
-                                    : undefined
-                                }
-                                step={
-                                  priceField?.type === "number"
-                                    ? (priceField.step ?? "0.01")
-                                    : undefined
-                                }
-                                value={formState.extra.price ?? ""}
-                                onChange={event =>
-                                  handleExtraChange("price", event.target.value)
-                                }
-                                className={priceError ? "border-red-500" : ""}
-                              />
-                              {priceError && (
-                                <p className="text-xs text-red-600 dark:text-red-400">
-                                  {priceError}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          {t.transactions.form.autoAmountHint &&
-                            (formState.extra.shares ||
-                              formState.extra.price) && (
-                              <p className="text-xs text-muted-foreground">
-                                {t.transactions.form.autoAmountHint}
-                              </p>
-                            )}
-                        </div>
-                      )
-                    }
-
-                    if (
-                      (formState.productType === ProductType.STOCK_ETF ||
-                        formState.productType === ProductType.FUND) &&
-                      field.name === "price"
-                    ) {
-                      return null
-                    }
-
-                    return (
-                      <div key={field.name} className="space-y-1.5">
-                        <Label htmlFor={`transaction-${field.name}`}>
-                          {field.labelKey}
-                        </Label>
-                        <Input
-                          id={`transaction-${field.name}`}
-                          type={field.type === "number" ? "number" : "text"}
-                          inputMode={
-                            field.type === "number" ? "decimal" : undefined
-                          }
-                          step={
-                            field.type === "number"
-                              ? (field.step ?? "0.01")
-                              : undefined
-                          }
-                          value={formState.extra[field.name] ?? ""}
-                          onChange={event =>
-                            handleExtraChange(field.name, event.target.value)
-                          }
-                          className={error ? "border-red-500" : ""}
-                        />
-                        {showSuggestions && (
-                          <div className="w-full space-y-1 pt-1">
-                            <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                              {getSuggestionLabel(field.name)}
-                              {selectedEntityName
-                                ? ` · ${selectedEntityName}`
-                                : ""}
-                            </span>
-                            <div className="flex max-h-24 flex-wrap items-center gap-1 overflow-y-auto pr-1">
-                              {fieldSuggestions.map(option => (
-                                <button
-                                  key={`${field.name}-${option.value}`}
-                                  type="button"
-                                  onClick={() =>
-                                    handleSuggestionApply(
-                                      field.name,
-                                      option.value,
-                                    )
-                                  }
-                                  className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                                >
-                                  {option.label}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {error && (
-                          <p className="text-xs text-red-600 dark:text-red-400">
-                            {error}
-                          </p>
-                        )}
+                          )
+                        })}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              {t.common.cancel}
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? t.common.saving : t.common.save}
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
-    </div>
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleClose}
+                    disabled={isSubmitting}
+                  >
+                    {t.common.cancel}
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? t.common.saving : t.common.save}
+                  </Button>
+                </CardFooter>
+              </form>
+            </Card>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

@@ -1,5 +1,4 @@
 from argparse import Namespace
-from importlib import metadata
 from pathlib import Path
 from typing import Optional
 
@@ -8,18 +7,14 @@ from domain.status import BackendDetails, BackendLogLevel, BackendOptions
 
 
 def _resolve_version() -> str:
-    pkg_version = _get_installed_version()
-    if pkg_version:
-        return pkg_version
-
-    return "0.0.0"
-
-
-def _get_installed_version() -> Optional[str]:
     try:
-        return metadata.version("finanze")
-    except metadata.PackageNotFoundError:
-        return None
+        from finanze.version import __version__
+
+        if __version__:
+            return str(__version__)
+    except Exception:
+        pass
+    return "0.0.0"
 
 
 class ArgparseServerDetailsAdapter(ServerDetailsPort):

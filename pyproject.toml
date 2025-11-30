@@ -9,6 +9,3 @@ dynamic = ["dependencies", "version"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
-
-[tool.setuptools_scm]
-fallback_version = "0.6.0"

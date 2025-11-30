@@ -379,11 +379,28 @@ export default function TransactionsPage() {
     setLoadingTxs(true)
 
     try {
-      const firstDay = new Date(year, month, 1)
-      const lastDay = new Date(year, month + 1, 0)
+      // Calculate the actual visible date range in the calendar grid
+      // The grid always shows 6 weeks (42 days) starting from Monday
+      const firstDayOfMonth = new Date(year, month, 1)
+      let startDay = firstDayOfMonth.getDay()
+      startDay = startDay === 0 ? 6 : startDay - 1 // Adjust for Monday start
 
-      const fromDate = firstDay.toISOString().split("T")[0]
-      const toDate = lastDay.toISOString().split("T")[0]
+      // First visible day (may be in previous month)
+      const firstVisibleDay = new Date(year, month, 1 - startDay)
+      // Last visible day (42 days total in the grid)
+      const lastVisibleDay = new Date(firstVisibleDay)
+      lastVisibleDay.setDate(firstVisibleDay.getDate() + 41)
+
+      // Format dates as YYYY-MM-DD without timezone conversion
+      const formatDateStr = (d: Date) => {
+        const yyyy = d.getFullYear()
+        const mm = String(d.getMonth() + 1).padStart(2, "0")
+        const dd = String(d.getDate()).padStart(2, "0")
+        return `${yyyy}-${mm}-${dd}`
+      }
+
+      const fromDate = formatDateStr(firstVisibleDay)
+      const toDate = formatDateStr(lastVisibleDay)
 
       const queryParams: TransactionQueryRequest = clearFilters
         ? {

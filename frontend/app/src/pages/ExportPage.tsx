@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import {
   AlertCircle,
   AlertTriangle,
@@ -3187,135 +3187,160 @@ export default function ExportPage() {
   }
 
   const renderExportConfigDialog = () => {
-    if (!showExportConfig || !exportConfigDraft) {
-      return null
-    }
-
     const globalsError = exportValidationErrors.globals?.[0]
-    const globals = (exportConfigDraft.globals ?? {}) as Record<string, any>
+    const globals = exportConfigDraft
+      ? ((exportConfigDraft.globals ?? {}) as Record<string, any>)
+      : {}
 
     return (
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6">
-        <Card className="flex max-h-[90vh] w-full max-w-5xl flex-col">
-          <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
-            <div className="space-y-1 pb-1">
-              <h2 className="text-lg font-semibold">
-                {t.export.googleSheetsExportDialogTitle}
-              </h2>
-            </div>
-            <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/20 p-3 sm:space-y-3 sm:p-5">
-              <div>
-                <h3 className="text-sm font-semibold">{t.settings.globals}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {t.settings.sheetsDescription}
-                </p>
-              </div>
-              <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
-                <div className="space-y-1.5 sm:space-y-2 md:col-span-2">
-                  <Label htmlFor="export-spreadsheet-id">
-                    {t.export.spreadsheetId}
-                  </Label>
-                  <Input
-                    id="export-spreadsheet-id"
-                    value={(globals.spreadsheetId as string) ?? ""}
-                    onChange={event =>
-                      handleExportGlobalChange(
-                        "spreadsheetId",
-                        event.target.value,
-                      )
-                    }
-                    className={cn(
-                      globalsError
-                        ? "border-red-500 focus-visible:ring-red-500"
-                        : undefined,
-                    )}
-                    placeholder={t.settings.spreadsheetIdPlaceholder}
-                  />
-                  {globalsError ? (
-                    <p className="text-xs text-red-500">{globalsError}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="export-date-format">
-                    {t.settings.dateFormat}
-                  </Label>
-                  <Input
-                    id="export-date-format"
-                    value={(globals.dateFormat as string) ?? ""}
-                    onChange={event =>
-                      handleExportGlobalChange("dateFormat", event.target.value)
-                    }
-                    placeholder={t.settings.dateFormatPlaceholder}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="export-datetime-format">
-                    {t.settings.datetimeFormat}
-                  </Label>
-                  <Input
-                    id="export-datetime-format"
-                    value={(globals.datetimeFormat as string) ?? ""}
-                    onChange={event =>
-                      handleExportGlobalChange(
-                        "datetimeFormat",
-                        event.target.value,
-                      )
-                    }
-                    placeholder={t.settings.datetimeFormatPlaceholder}
-                  />
-                </div>
-              </div>
-            </div>
+      <AnimatePresence>
+        {showExportConfig && exportConfigDraft && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-5xl"
+            >
+              <Card className="flex max-h-[90vh] flex-col">
+                <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
+                  <div className="space-y-1 pb-1">
+                    <h2 className="text-lg font-semibold">
+                      {t.export.googleSheetsExportDialogTitle}
+                    </h2>
+                  </div>
+                  <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/20 p-3 sm:space-y-3 sm:p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold">
+                        {t.settings.globals}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {t.settings.sheetsDescription}
+                      </p>
+                    </div>
+                    <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5 sm:space-y-2 md:col-span-2">
+                        <Label htmlFor="export-spreadsheet-id">
+                          {t.export.spreadsheetId}
+                        </Label>
+                        <Input
+                          id="export-spreadsheet-id"
+                          value={(globals.spreadsheetId as string) ?? ""}
+                          onChange={event =>
+                            handleExportGlobalChange(
+                              "spreadsheetId",
+                              event.target.value,
+                            )
+                          }
+                          className={cn(
+                            globalsError
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : undefined,
+                          )}
+                          placeholder={t.settings.spreadsheetIdPlaceholder}
+                        />
+                        {globalsError ? (
+                          <p className="text-xs text-red-500">{globalsError}</p>
+                        ) : null}
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="export-date-format">
+                          {t.settings.dateFormat}
+                        </Label>
+                        <Input
+                          id="export-date-format"
+                          value={(globals.dateFormat as string) ?? ""}
+                          onChange={event =>
+                            handleExportGlobalChange(
+                              "dateFormat",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t.settings.dateFormatPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="export-datetime-format">
+                          {t.settings.datetimeFormat}
+                        </Label>
+                        <Input
+                          id="export-datetime-format"
+                          value={(globals.datetimeFormat as string) ?? ""}
+                          onChange={event =>
+                            handleExportGlobalChange(
+                              "datetimeFormat",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t.settings.datetimeFormatPlaceholder}
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="space-y-4">
-              {EXPORT_SECTIONS.map(section => renderExportSection(section))}
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseExportConfig}
-              disabled={isSavingExportConfig}
-              className="inline-flex items-center gap-2"
-            >
-              <X className="h-4 w-4" />
-              {t.common.cancel}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleRevertExportConfig}
-              disabled={isSavingExportConfig || isRevertingExportConfig}
-              aria-label={t.common.discard}
-            >
-              {isRevertingExportConfig ? (
-                <LoadingSpinner className="h-4 w-4" />
-              ) : (
-                <RotateCcw className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isRevertingExportConfig ? t.common.loading : t.common.discard}
-              </span>
-            </Button>
-            <Button
-              size="icon"
-              onClick={handleSaveExportConfig}
-              disabled={isSavingExportConfig}
-              aria-label={t.common.save}
-            >
-              {isSavingExportConfig ? (
-                <LoadingSpinner className="h-4 w-4" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isSavingExportConfig ? t.settings.saving : t.common.save}
-              </span>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+                  <div className="space-y-4">
+                    {EXPORT_SECTIONS.map(section =>
+                      renderExportSection(section),
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCloseExportConfig}
+                    disabled={isSavingExportConfig}
+                    className="inline-flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    {t.common.cancel}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleRevertExportConfig}
+                    disabled={isSavingExportConfig || isRevertingExportConfig}
+                    aria-label={t.common.discard}
+                  >
+                    {isRevertingExportConfig ? (
+                      <LoadingSpinner className="h-4 w-4" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">
+                      {isRevertingExportConfig
+                        ? t.common.loading
+                        : t.common.discard}
+                    </span>
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={handleSaveExportConfig}
+                    disabled={isSavingExportConfig}
+                    aria-label={t.common.save}
+                  >
+                    {isSavingExportConfig ? (
+                      <LoadingSpinner className="h-4 w-4" />
+                    ) : (
+                      <SaveIcon className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">
+                      {isSavingExportConfig ? t.settings.saving : t.common.save}
+                    </span>
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     )
   }
 
@@ -3875,141 +3900,166 @@ export default function ExportPage() {
   }
 
   const renderImportDialog = () => {
-    if (!showImportConfig || !importConfigDraft) {
-      return null
-    }
-
     const globalsError = importValidationErrors.importGlobals?.[0]
-    const globals = (importConfigDraft.globals ?? {}) as Record<string, any>
+    const globals = importConfigDraft
+      ? ((importConfigDraft.globals ?? {}) as Record<string, any>)
+      : {}
 
     return (
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6">
-        <Card className="flex max-h-[90vh] w-full max-w-4xl flex-col">
-          <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
-            <div className="space-y-1 pb-1">
-              <h2 className="text-lg font-semibold">
-                {t.export.googleSheetsImportDialogTitle}
-              </h2>
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
-                <p className="text-xs italic text-muted-foreground">
-                  {t.export.googleSheetsImportDisclaimer}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/20 p-3 sm:space-y-3 sm:p-5">
-              <div>
-                <h3 className="text-sm font-semibold">{t.settings.globals}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {t.export.importDescription}
-                </p>
-              </div>
-              <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
-                <div className="space-y-1.5 sm:space-y-2 md:col-span-2">
-                  <Label htmlFor="import-spreadsheet-id">
-                    {t.export.spreadsheetId}
-                  </Label>
-                  <Input
-                    id="import-spreadsheet-id"
-                    value={(globals.spreadsheetId as string) ?? ""}
-                    onChange={event =>
-                      handleImportGlobalChange(
-                        "spreadsheetId",
-                        event.target.value,
-                      )
-                    }
-                    className={cn(
-                      globalsError
-                        ? "border-red-500 focus-visible:ring-red-500"
-                        : undefined,
-                    )}
-                    placeholder={t.settings.spreadsheetIdPlaceholder}
-                  />
-                  {globalsError ? (
-                    <p className="text-xs text-red-500">{globalsError}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="import-date-format">
-                    {t.settings.dateFormat}
-                  </Label>
-                  <Input
-                    id="import-date-format"
-                    value={(globals.dateFormat as string) ?? ""}
-                    onChange={event =>
-                      handleImportGlobalChange("dateFormat", event.target.value)
-                    }
-                    placeholder={t.settings.dateFormatPlaceholder}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="import-datetime-format">
-                    {t.settings.datetimeFormat}
-                  </Label>
-                  <Input
-                    id="import-datetime-format"
-                    value={(globals.datetimeFormat as string) ?? ""}
-                    onChange={event =>
-                      handleImportGlobalChange(
-                        "datetimeFormat",
-                        event.target.value,
-                      )
-                    }
-                    placeholder={t.settings.datetimeFormatPlaceholder}
-                  />
-                </div>
-              </div>
-            </div>
+      <AnimatePresence>
+        {showImportConfig && importConfigDraft && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-4xl"
+            >
+              <Card className="flex max-h-[90vh] flex-col">
+                <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
+                  <div className="space-y-1 pb-1">
+                    <h2 className="text-lg font-semibold">
+                      {t.export.googleSheetsImportDialogTitle}
+                    </h2>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
+                      <p className="text-xs italic text-muted-foreground">
+                        {t.export.googleSheetsImportDisclaimer}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-2.5 rounded-lg border border-border/60 bg-muted/20 p-3 sm:space-y-3 sm:p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold">
+                        {t.settings.globals}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {t.export.importDescription}
+                      </p>
+                    </div>
+                    <div className="grid gap-2.5 sm:gap-3 md:grid-cols-2">
+                      <div className="space-y-1.5 sm:space-y-2 md:col-span-2">
+                        <Label htmlFor="import-spreadsheet-id">
+                          {t.export.spreadsheetId}
+                        </Label>
+                        <Input
+                          id="import-spreadsheet-id"
+                          value={(globals.spreadsheetId as string) ?? ""}
+                          onChange={event =>
+                            handleImportGlobalChange(
+                              "spreadsheetId",
+                              event.target.value,
+                            )
+                          }
+                          className={cn(
+                            globalsError
+                              ? "border-red-500 focus-visible:ring-red-500"
+                              : undefined,
+                          )}
+                          placeholder={t.settings.spreadsheetIdPlaceholder}
+                        />
+                        {globalsError ? (
+                          <p className="text-xs text-red-500">{globalsError}</p>
+                        ) : null}
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="import-date-format">
+                          {t.settings.dateFormat}
+                        </Label>
+                        <Input
+                          id="import-date-format"
+                          value={(globals.dateFormat as string) ?? ""}
+                          onChange={event =>
+                            handleImportGlobalChange(
+                              "dateFormat",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t.settings.dateFormatPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="import-datetime-format">
+                          {t.settings.datetimeFormat}
+                        </Label>
+                        <Input
+                          id="import-datetime-format"
+                          value={(globals.datetimeFormat as string) ?? ""}
+                          onChange={event =>
+                            handleImportGlobalChange(
+                              "datetimeFormat",
+                              event.target.value,
+                            )
+                          }
+                          placeholder={t.settings.datetimeFormatPlaceholder}
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-            <div className="space-y-4">
-              {IMPORT_SECTIONS.map(section => renderImportSection(section))}
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseImportConfig}
-              disabled={isSavingImportConfig}
-              className="inline-flex items-center gap-2"
-            >
-              <X className="h-4 w-4" />
-              {t.common.cancel}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleRevertImportConfig}
-              disabled={isSavingImportConfig || isRevertingImportConfig}
-              aria-label={t.common.discard}
-            >
-              {isRevertingImportConfig ? (
-                <LoadingSpinner className="h-4 w-4" />
-              ) : (
-                <RotateCcw className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isRevertingImportConfig ? t.common.loading : t.common.discard}
-              </span>
-            </Button>
-            <Button
-              size="icon"
-              onClick={handleSaveImportConfig}
-              disabled={isSavingImportConfig}
-              aria-label={t.common.save}
-            >
-              {isSavingImportConfig ? (
-                <LoadingSpinner className="h-4 w-4" />
-              ) : (
-                <SaveIcon className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isSavingImportConfig ? t.settings.saving : t.common.save}
-              </span>
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+                  <div className="space-y-4">
+                    {IMPORT_SECTIONS.map(section =>
+                      renderImportSection(section),
+                    )}
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCloseImportConfig}
+                    disabled={isSavingImportConfig}
+                    className="inline-flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    {t.common.cancel}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleRevertImportConfig}
+                    disabled={isSavingImportConfig || isRevertingImportConfig}
+                    aria-label={t.common.discard}
+                  >
+                    {isRevertingImportConfig ? (
+                      <LoadingSpinner className="h-4 w-4" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">
+                      {isRevertingImportConfig
+                        ? t.common.loading
+                        : t.common.discard}
+                    </span>
+                  </Button>
+                  <Button
+                    size="icon"
+                    onClick={handleSaveImportConfig}
+                    disabled={isSavingImportConfig}
+                    aria-label={t.common.save}
+                  >
+                    {isSavingImportConfig ? (
+                      <LoadingSpinner className="h-4 w-4" />
+                    ) : (
+                      <SaveIcon className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">
+                      {isSavingImportConfig ? t.settings.saving : t.common.save}
+                    </span>
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     )
   }
 
@@ -4032,10 +4082,6 @@ export default function ExportPage() {
   )
 
   const renderFileExportDialog = () => {
-    if (!isFileExportDialogOpen) {
-      return null
-    }
-
     const requiresProducts =
       fileExportFeature &&
       (FEATURE_PRODUCT_MAP[fileExportFeature]?.length ?? 0) > 0
@@ -4066,222 +4112,239 @@ export default function ExportPage() {
       : []
 
     return (
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6">
-        <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col">
-          <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold">
-                {t.export.file.dialogTitle}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t.export.file.dialogDescription}
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {renderFileExportFeatureSelector()}
-
-              {requiresProducts ? (
-                <div className="space-y-1.5 sm:space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="mb-0">
-                      {t.export.file.productsLabel}
-                      <span className="ml-1 text-red-500">*</span>
-                    </Label>
-                    <span className="text-xs text-muted-foreground">
-                      {t.export.file.productsHint}
-                    </span>
-                  </div>
-                  <MultiSelect
-                    options={fileExportProductOptions}
-                    value={fileExportProducts}
-                    onChange={value => {
-                      setFileExportProducts(value as ProductType[])
-                      clearFileExportError("products")
-                    }}
-                    placeholder={t.export.file.productsPlaceholder}
-                    className={cn(
-                      fileExportErrors.products
-                        ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
-                        : undefined,
-                    )}
-                  />
-                  {fileExportErrors.products ? (
-                    <p className="text-xs text-red-500">
-                      {fileExportErrors.products}
+      <AnimatePresence>
+        {isFileExportDialogOpen && (
+          <motion.div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col">
+                <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold">
+                      {t.export.file.dialogTitle}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {t.export.file.dialogDescription}
                     </p>
-                  ) : null}
-                </div>
-              ) : fileExportFeature ? (
-                <p className="text-xs text-muted-foreground">
-                  {t.export.file.productsInfo}
-                </p>
-              ) : null}
-
-              <div className="space-y-1.5 sm:space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="mb-0" htmlFor="file-export-template">
-                    {t.export.file.templateLabel}
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        className="inline-flex rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={t.export.templates.templateSelectInfo}
-                      >
-                        <Info className="h-3.5 w-3.5" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent side="right" className="w-64">
-                      <p className="text-sm">
-                        {t.export.templates.templateSelectInfo}
-                      </p>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <MultiSelect
-                  options={templateOptions}
-                  value={selectedTemplateValues}
-                  onChange={value => {
-                    const nextValue = value[value.length - 1] ?? null
-                    if (nextValue === CREATE_IMPORT_TEMPLATE_OPTION) {
-                      handleOpenTemplatesDialog(TemplateType.EXPORT)
-                      return
-                    }
-                    setFileExportTemplateId(nextValue ?? null)
-                  }}
-                  placeholder={t.export.file.templatePlaceholder}
-                  disabled={!fileExportFeature}
-                />
-                {!fileExportFeature ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.file.templateFeatureHint}
-                  </p>
-                ) : !hasTemplateOptions ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.templates.templateSelectNoOptions}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.file.templateInfo}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label>{t.export.file.formatLabel}</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {FILE_EXPORT_FORMATS.map(format => (
-                    <button
-                      key={format}
-                      type="button"
-                      onClick={() => setFileExportFormat(format)}
-                      className={cn(
-                        "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                        fileExportFormat === format
-                          ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                          : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
-                      )}
-                    >
-                      {t.export.file.formats[format]}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t.export.file.formatHint}
-                </p>
-              </div>
-
-              <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-3">
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="file-export-date-format">
-                    {t.settings.dateFormat}
-                  </Label>
-                  <Input
-                    id="file-export-date-format"
-                    value={fileExportDateFormat}
-                    onChange={event =>
-                      setFileExportDateFormat(event.target.value)
-                    }
-                    placeholder={t.settings.dateFormatPlaceholder}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="file-export-datetime-format">
-                    {t.settings.datetimeFormat}
-                  </Label>
-                  <Input
-                    id="file-export-datetime-format"
-                    value={fileExportDatetimeFormat}
-                    onChange={event =>
-                      setFileExportDatetimeFormat(event.target.value)
-                    }
-                    placeholder={t.settings.datetimeFormatPlaceholder}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label>{t.export.file.numberFormatLabel}</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {NUMBER_FORMAT_OPTIONS.map(formatOption => (
-                      <button
-                        key={formatOption}
-                        type="button"
-                        onClick={() => setFileExportNumberFormat(formatOption)}
-                        className={cn(
-                          "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                          fileExportNumberFormat === formatOption
-                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                            : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
-                        )}
-                      >
-                        {t.export.file.numberFormats[formatOption]}
-                      </button>
-                    ))}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.file.numberFormatHint}
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {t.export.file.datetimeHint}
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseFileExportDialog}
-              disabled={isFileExporting}
-              className="inline-flex items-center gap-2"
-            >
-              <X className="h-4 w-4" />
-              {t.common.cancel}
-            </Button>
-            <Button
-              onClick={handleFileExport}
-              disabled={isFileExporting}
-              className="w-full sm:w-auto"
-            >
-              {isFileExporting ? (
-                <LoadingSpinner className="mr-2 h-4 w-4" />
-              ) : (
-                <FileUp className="mr-2 h-4 w-4" />
-              )}
-              {isFileExporting ? t.common.loading : t.export.file.exportAction}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+
+                  <div className="space-y-4">
+                    {renderFileExportFeatureSelector()}
+
+                    {requiresProducts ? (
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="mb-0">
+                            {t.export.file.productsLabel}
+                            <span className="ml-1 text-red-500">*</span>
+                          </Label>
+                          <span className="text-xs text-muted-foreground">
+                            {t.export.file.productsHint}
+                          </span>
+                        </div>
+                        <MultiSelect
+                          options={fileExportProductOptions}
+                          value={fileExportProducts}
+                          onChange={value => {
+                            setFileExportProducts(value as ProductType[])
+                            clearFileExportError("products")
+                          }}
+                          placeholder={t.export.file.productsPlaceholder}
+                          className={cn(
+                            fileExportErrors.products
+                              ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
+                              : undefined,
+                          )}
+                        />
+                        {fileExportErrors.products ? (
+                          <p className="text-xs text-red-500">
+                            {fileExportErrors.products}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : fileExportFeature ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t.export.file.productsInfo}
+                      </p>
+                    ) : null}
+
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label className="mb-0" htmlFor="file-export-template">
+                          {t.export.file.templateLabel}
+                        </Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="inline-flex rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={t.export.templates.templateSelectInfo}
+                            >
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent side="right" className="w-64">
+                            <p className="text-sm">
+                              {t.export.templates.templateSelectInfo}
+                            </p>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <MultiSelect
+                        options={templateOptions}
+                        value={selectedTemplateValues}
+                        onChange={value => {
+                          const nextValue = value[value.length - 1] ?? null
+                          if (nextValue === CREATE_IMPORT_TEMPLATE_OPTION) {
+                            handleOpenTemplatesDialog(TemplateType.EXPORT)
+                            return
+                          }
+                          setFileExportTemplateId(nextValue ?? null)
+                        }}
+                        placeholder={t.export.file.templatePlaceholder}
+                        disabled={!fileExportFeature}
+                      />
+                      {!fileExportFeature ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.file.templateFeatureHint}
+                        </p>
+                      ) : !hasTemplateOptions ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.templates.templateSelectNoOptions}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.file.templateInfo}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label>{t.export.file.formatLabel}</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {FILE_EXPORT_FORMATS.map(format => (
+                          <button
+                            key={format}
+                            type="button"
+                            onClick={() => setFileExportFormat(format)}
+                            className={cn(
+                              "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                              fileExportFormat === format
+                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
+                            )}
+                          >
+                            {t.export.file.formats[format]}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t.export.file.formatHint}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-3">
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="file-export-date-format">
+                          {t.settings.dateFormat}
+                        </Label>
+                        <Input
+                          id="file-export-date-format"
+                          value={fileExportDateFormat}
+                          onChange={event =>
+                            setFileExportDateFormat(event.target.value)
+                          }
+                          placeholder={t.settings.dateFormatPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="file-export-datetime-format">
+                          {t.settings.datetimeFormat}
+                        </Label>
+                        <Input
+                          id="file-export-datetime-format"
+                          value={fileExportDatetimeFormat}
+                          onChange={event =>
+                            setFileExportDatetimeFormat(event.target.value)
+                          }
+                          placeholder={t.settings.datetimeFormatPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label>{t.export.file.numberFormatLabel}</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {NUMBER_FORMAT_OPTIONS.map(formatOption => (
+                            <button
+                              key={formatOption}
+                              type="button"
+                              onClick={() =>
+                                setFileExportNumberFormat(formatOption)
+                              }
+                              className={cn(
+                                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                                fileExportNumberFormat === formatOption
+                                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                  : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
+                              )}
+                            >
+                              {t.export.file.numberFormats[formatOption]}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.file.numberFormatHint}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t.export.file.datetimeHint}
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCloseFileExportDialog}
+                    disabled={isFileExporting}
+                    className="inline-flex items-center gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    {t.common.cancel}
+                  </Button>
+                  <Button
+                    onClick={handleFileExport}
+                    disabled={isFileExporting}
+                    className="w-full sm:w-auto"
+                  >
+                    {isFileExporting ? (
+                      <LoadingSpinner className="mr-2 h-4 w-4" />
+                    ) : (
+                      <FileUp className="mr-2 h-4 w-4" />
+                    )}
+                    {isFileExporting
+                      ? t.common.loading
+                      : t.export.file.exportAction}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     )
   }
 
   const renderFileImportDialog = () => {
-    if (!isFileImportDialogOpen) {
-      return null
-    }
-
     const requiresProducts =
       fileImportFeature &&
       (FEATURE_PRODUCT_MAP[fileImportFeature]?.length ?? 0) > 0
@@ -4329,372 +4392,398 @@ export default function ExportPage() {
     const isCreatingEntity = fileImportEntityMode === "new"
 
     return (
-      <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6">
-        <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col">
-          <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold">
-                {t.export.fileImport.dialogTitle}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {t.export.fileImport.dialogDescription}
-              </p>
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
-                <p className="text-xs italic text-muted-foreground">
-                  {t.export.fileImport.additiveDisclaimer}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {renderFileImportFeatureSelector()}
-
-              {requiresProducts ? (
-                <div className="space-y-1.5 sm:space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label className="mb-0">
-                      {t.export.fileImport.productsLabel}
-                      <span className="ml-1 text-red-500">*</span>
-                    </Label>
-                    <span className="text-xs text-muted-foreground">
-                      {t.export.fileImport.productsHint}
-                    </span>
-                  </div>
-                  <MultiSelect
-                    options={fileImportProductOptions}
-                    value={fileImportProduct ? [fileImportProduct] : []}
-                    onChange={value => {
-                      const nextValue = value[value.length - 1]
-                      if (!nextValue) {
-                        setFileImportProduct(null)
-                      } else {
-                        setFileImportProduct(nextValue as ProductType)
-                      }
-                      clearFileImportError("product")
-                    }}
-                    placeholder={t.export.fileImport.productsPlaceholder}
-                    className={cn(
-                      fileImportErrors.product
-                        ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
-                        : undefined,
-                    )}
-                  />
-                  {fileImportErrors.product ? (
-                    <p className="text-xs text-destructive">
-                      {fileImportErrors.product}
+      <AnimatePresence>
+        {isFileImportDialogOpen && (
+          <motion.div
+            className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-1 sm:p-3 lg:p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <Card className="flex max-h-[90vh] w-full max-w-3xl flex-col">
+                <CardContent className="flex-1 space-y-4 overflow-y-auto px-3 py-3 sm:space-y-6 sm:px-6 sm:py-5">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold">
+                      {t.export.fileImport.dialogTitle}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {t.export.fileImport.dialogDescription}
                     </p>
-                  ) : null}
-                </div>
-              ) : fileImportFeature ? (
-                <p className="text-xs text-muted-foreground">
-                  {t.export.fileImport.productsInfo}
-                </p>
-              ) : null}
-
-              <div className="space-y-1.5 sm:space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label className="mb-0" htmlFor="file-import-template">
-                    {t.export.fileImport.templateLabel}
-                    <span className="ml-1 text-red-500">*</span>
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        className="inline-flex rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={t.export.templates.templateSelectInfo}
-                      >
-                        <Info className="h-3.5 w-3.5" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent side="right" className="w-64">
-                      <p className="text-sm">
-                        {t.export.templates.templateSelectInfo}
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-yellow-600 dark:text-yellow-500" />
+                      <p className="text-xs italic text-muted-foreground">
+                        {t.export.fileImport.additiveDisclaimer}
                       </p>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <MultiSelect
-                  options={templateOptions}
-                  value={selectedTemplateValues}
-                  onChange={value => {
-                    const nextValue = value[value.length - 1] ?? null
-                    if (nextValue === CREATE_IMPORT_TEMPLATE_OPTION) {
-                      handleOpenTemplatesDialog(TemplateType.IMPORT)
-                      return
-                    }
-                    if (nextValue) {
-                      setFileImportTemplate({
-                        id: nextValue,
-                        params: {} as Record<string, string>,
-                      })
-                    } else {
-                      setFileImportTemplate(null)
-                    }
-                    setFileImportEntityMode("select")
-                    setFileImportSelectedEntity("")
-                    setFileImportCustomEntity("")
-                    clearFileImportError("template")
-                  }}
-                  placeholder={t.export.fileImport.templatePlaceholder}
-                  disabled={!fileImportFeature}
-                  className={cn(
-                    fileImportErrors.template
-                      ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
-                      : undefined,
-                  )}
-                />
-                {fileImportErrors.template ? (
-                  <p className="text-xs text-destructive">
-                    {fileImportErrors.template}
-                  </p>
-                ) : !fileImportFeature ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.fileImport.templateFeatureHint}
-                  </p>
-                ) : !hasTemplateOptions ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.templates.templateSelectNoOptions}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.fileImport.templateInfo}
-                  </p>
-                )}
-              </div>
-
-              {showEntitySelector ? (
-                <div className="space-y-1.5 sm:space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="file-import-entity" className="mb-0">
-                      {t.export.import.entityLabel}
-                    </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <button
-                          className="inline-flex rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          aria-label={t.export.import.entityInfo}
-                        >
-                          <Info className="h-3.5 w-3.5" />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent side="right" className="w-64">
-                        <p className="text-sm">{t.export.import.entityInfo}</p>
-                      </PopoverContent>
-                    </Popover>
+                    </div>
                   </div>
-                  <div className="flex items-stretch gap-2">
-                    <div className="flex-1">
-                      {isCreatingEntity ? (
-                        <Input
-                          id="file-import-entity-input"
-                          value={fileImportCustomEntity}
-                          placeholder={t.export.import.entityPlaceholder}
-                          onChange={event =>
-                            setFileImportCustomEntity(event.target.value)
-                          }
+
+                  <div className="space-y-4">
+                    {renderFileImportFeatureSelector()}
+
+                    {requiresProducts ? (
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="mb-0">
+                            {t.export.fileImport.productsLabel}
+                            <span className="ml-1 text-red-500">*</span>
+                          </Label>
+                          <span className="text-xs text-muted-foreground">
+                            {t.export.fileImport.productsHint}
+                          </span>
+                        </div>
+                        <MultiSelect
+                          options={fileImportProductOptions}
+                          value={fileImportProduct ? [fileImportProduct] : []}
+                          onChange={value => {
+                            const nextValue = value[value.length - 1]
+                            if (!nextValue) {
+                              setFileImportProduct(null)
+                            } else {
+                              setFileImportProduct(nextValue as ProductType)
+                            }
+                            clearFileImportError("product")
+                          }}
+                          placeholder={t.export.fileImport.productsPlaceholder}
+                          className={cn(
+                            fileImportErrors.product
+                              ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
+                              : undefined,
+                          )}
                         />
-                      ) : (
-                        <select
-                          id="file-import-entity-select"
-                          className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={fileImportSelectedEntity}
-                          onChange={event =>
-                            setFileImportSelectedEntity(event.target.value)
+                        {fileImportErrors.product ? (
+                          <p className="text-xs text-destructive">
+                            {fileImportErrors.product}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : fileImportFeature ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t.export.fileImport.productsInfo}
+                      </p>
+                    ) : null}
+
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Label className="mb-0" htmlFor="file-import-template">
+                          {t.export.fileImport.templateLabel}
+                          <span className="ml-1 text-red-500">*</span>
+                        </Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="inline-flex rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={t.export.templates.templateSelectInfo}
+                            >
+                              <Info className="h-3.5 w-3.5" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent side="right" className="w-64">
+                            <p className="text-sm">
+                              {t.export.templates.templateSelectInfo}
+                            </p>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <MultiSelect
+                        options={templateOptions}
+                        value={selectedTemplateValues}
+                        onChange={value => {
+                          const nextValue = value[value.length - 1] ?? null
+                          if (nextValue === CREATE_IMPORT_TEMPLATE_OPTION) {
+                            handleOpenTemplatesDialog(TemplateType.IMPORT)
+                            return
                           }
-                        >
-                          <option value="">
-                            {t.export.import.entityPlaceholder}
-                          </option>
-                          {entityOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                          if (nextValue) {
+                            setFileImportTemplate({
+                              id: nextValue,
+                              params: {} as Record<string, string>,
+                            })
+                          } else {
+                            setFileImportTemplate(null)
+                          }
+                          setFileImportEntityMode("select")
+                          setFileImportSelectedEntity("")
+                          setFileImportCustomEntity("")
+                          clearFileImportError("template")
+                        }}
+                        placeholder={t.export.fileImport.templatePlaceholder}
+                        disabled={!fileImportFeature}
+                        className={cn(
+                          fileImportErrors.template
+                            ? "[&>div:first-child]:border-red-500 [&>div:first-child]:ring-red-500/50"
+                            : undefined,
+                        )}
+                      />
+                      {fileImportErrors.template ? (
+                        <p className="text-xs text-destructive">
+                          {fileImportErrors.template}
+                        </p>
+                      ) : !fileImportFeature ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.fileImport.templateFeatureHint}
+                        </p>
+                      ) : !hasTemplateOptions ? (
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.templates.templateSelectNoOptions}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.fileImport.templateInfo}
+                        </p>
                       )}
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        if (isCreatingEntity) {
-                          setFileImportEntityMode("select")
-                          setFileImportCustomEntity("")
-                        } else {
-                          setFileImportEntityMode("new")
-                          setFileImportSelectedEntity("")
-                        }
-                      }}
-                      className="h-10 w-10 shrink-0"
-                      title={
-                        isCreatingEntity
-                          ? t.common.cancel
-                          : t.export.import.entityCreateOption
-                      }
-                    >
-                      {isCreatingEntity ? (
-                        <X className="h-4 w-4" />
-                      ) : (
-                        <Plus className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.import.entityInfo}
-                  </p>
-                </div>
-              ) : null}
 
-              <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-3">
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="file-import-date-format">
-                    {t.settings.dateFormat}
-                  </Label>
-                  <Input
-                    id="file-import-date-format"
-                    value={fileImportDateFormat}
-                    onChange={event =>
-                      setFileImportDateFormat(event.target.value)
-                    }
-                    placeholder={t.settings.dateFormatPlaceholder}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label htmlFor="file-import-datetime-format">
-                    {t.settings.datetimeFormat}
-                  </Label>
-                  <Input
-                    id="file-import-datetime-format"
-                    value={fileImportDatetimeFormat}
-                    onChange={event =>
-                      setFileImportDatetimeFormat(event.target.value)
-                    }
-                    placeholder={t.settings.datetimeFormatPlaceholder}
-                  />
-                </div>
-                <div className="space-y-1.5 sm:space-y-2">
-                  <Label>{t.export.fileImport.numberFormatLabel}</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {NUMBER_FORMAT_OPTIONS.map(formatOption => (
-                      <button
-                        key={formatOption}
-                        type="button"
-                        onClick={() => setFileImportNumberFormat(formatOption)}
+                    {showEntitySelector ? (
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="file-import-entity" className="mb-0">
+                            {t.export.import.entityLabel}
+                          </Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                className="inline-flex rounded text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                aria-label={t.export.import.entityInfo}
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent side="right" className="w-64">
+                              <p className="text-sm">
+                                {t.export.import.entityInfo}
+                              </p>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+                        <div className="flex items-stretch gap-2">
+                          <div className="flex-1">
+                            {isCreatingEntity ? (
+                              <Input
+                                id="file-import-entity-input"
+                                value={fileImportCustomEntity}
+                                placeholder={t.export.import.entityPlaceholder}
+                                onChange={event =>
+                                  setFileImportCustomEntity(event.target.value)
+                                }
+                              />
+                            ) : (
+                              <select
+                                id="file-import-entity-select"
+                                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                value={fileImportSelectedEntity}
+                                onChange={event =>
+                                  setFileImportSelectedEntity(
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">
+                                  {t.export.import.entityPlaceholder}
+                                </option>
+                                {entityOptions.map(option => (
+                                  <option
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              if (isCreatingEntity) {
+                                setFileImportEntityMode("select")
+                                setFileImportCustomEntity("")
+                              } else {
+                                setFileImportEntityMode("new")
+                                setFileImportSelectedEntity("")
+                              }
+                            }}
+                            className="h-10 w-10 shrink-0"
+                            title={
+                              isCreatingEntity
+                                ? t.common.cancel
+                                : t.export.import.entityCreateOption
+                            }
+                          >
+                            {isCreatingEntity ? (
+                              <X className="h-4 w-4" />
+                            ) : (
+                              <Plus className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.import.entityInfo}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-3">
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="file-import-date-format">
+                          {t.settings.dateFormat}
+                        </Label>
+                        <Input
+                          id="file-import-date-format"
+                          value={fileImportDateFormat}
+                          onChange={event =>
+                            setFileImportDateFormat(event.target.value)
+                          }
+                          placeholder={t.settings.dateFormatPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label htmlFor="file-import-datetime-format">
+                          {t.settings.datetimeFormat}
+                        </Label>
+                        <Input
+                          id="file-import-datetime-format"
+                          value={fileImportDatetimeFormat}
+                          onChange={event =>
+                            setFileImportDatetimeFormat(event.target.value)
+                          }
+                          placeholder={t.settings.datetimeFormatPlaceholder}
+                        />
+                      </div>
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <Label>{t.export.fileImport.numberFormatLabel}</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {NUMBER_FORMAT_OPTIONS.map(formatOption => (
+                            <button
+                              key={formatOption}
+                              type="button"
+                              onClick={() =>
+                                setFileImportNumberFormat(formatOption)
+                              }
+                              className={cn(
+                                "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                                fileImportNumberFormat === formatOption
+                                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                  : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
+                              )}
+                            >
+                              {t.export.fileImport.numberFormats[formatOption]}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t.export.fileImport.numberFormatHint}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 sm:space-y-2">
+                      <Label htmlFor="file-import-input">
+                        {t.export.fileImport.fileLabel}
+                        <span className="ml-1 text-red-500">*</span>
+                      </Label>
+                      <input
+                        ref={fileImportInputRef}
+                        id="file-import-input"
+                        type="file"
+                        accept=".csv,.tsv,.xlsx"
+                        className="hidden"
+                        onChange={event => {
+                          const nextFile = event.target.files?.[0] ?? null
+                          setFileImportFile(nextFile)
+                          clearFileImportError("file")
+                        }}
+                      />
+                      <div
                         className={cn(
-                          "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                          fileImportNumberFormat === formatOption
-                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                            : "border-border/70 text-muted-foreground hover:border-border hover:text-foreground",
+                          "flex flex-col gap-3 rounded-md border border-dashed border-border/70 bg-muted/30 px-4 py-3 text-sm transition-colors sm:flex-row sm:items-center sm:justify-between",
+                          fileImportErrors.file
+                            ? "border-red-500 bg-destructive/5"
+                            : "hover:border-border",
                         )}
                       >
-                        {t.export.fileImport.numberFormats[formatOption]}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t.export.fileImport.numberFormatHint}
-                  </p>
-                </div>
-              </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full sm:w-auto"
+                          onClick={() => fileImportInputRef.current?.click()}
+                        >
+                          <FileUp className="mr-2 h-4 w-4" />
+                          {fileImportFile
+                            ? t.export.fileImport.fileButtonChange
+                            : t.export.fileImport.fileButton}
+                        </Button>
+                        <div className="flex flex-1 flex-col text-left sm:text-right">
+                          <span
+                            className={cn(
+                              "truncate text-sm",
+                              fileImportFile
+                                ? "text-foreground"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {fileImportFile
+                              ? fileImportFile.name
+                              : t.export.fileImport.filePlaceholder}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {fileImportFile
+                              ? t.export.fileImport.fileHintSelected
+                              : t.export.fileImport.fileHint}
+                          </span>
+                        </div>
+                      </div>
+                      {fileImportErrors.file ? (
+                        <p className="text-xs text-destructive">
+                          {fileImportErrors.file}
+                        </p>
+                      ) : null}
+                    </div>
 
-              <div className="space-y-1.5 sm:space-y-2">
-                <Label htmlFor="file-import-input">
-                  {t.export.fileImport.fileLabel}
-                  <span className="ml-1 text-red-500">*</span>
-                </Label>
-                <input
-                  ref={fileImportInputRef}
-                  id="file-import-input"
-                  type="file"
-                  accept=".csv,.tsv,.xlsx"
-                  className="hidden"
-                  onChange={event => {
-                    const nextFile = event.target.files?.[0] ?? null
-                    setFileImportFile(nextFile)
-                    clearFileImportError("file")
-                  }}
-                />
-                <div
-                  className={cn(
-                    "flex flex-col gap-3 rounded-md border border-dashed border-border/70 bg-muted/30 px-4 py-3 text-sm transition-colors sm:flex-row sm:items-center sm:justify-between",
-                    fileImportErrors.file
-                      ? "border-red-500 bg-destructive/5"
-                      : "hover:border-border",
-                  )}
-                >
+                    <p className="text-xs text-muted-foreground">
+                      {t.export.fileImport.datetimeHint}
+                    </p>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
                   <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={() => fileImportInputRef.current?.click()}
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCloseFileImportDialog}
+                    disabled={isFileImporting}
+                    className="inline-flex items-center gap-2"
                   >
-                    <FileUp className="mr-2 h-4 w-4" />
-                    {fileImportFile
-                      ? t.export.fileImport.fileButtonChange
-                      : t.export.fileImport.fileButton}
+                    <X className="h-4 w-4" />
+                    {t.common.cancel}
                   </Button>
-                  <div className="flex flex-1 flex-col text-left sm:text-right">
-                    <span
-                      className={cn(
-                        "truncate text-sm",
-                        fileImportFile
-                          ? "text-foreground"
-                          : "text-muted-foreground",
-                      )}
-                    >
-                      {fileImportFile
-                        ? fileImportFile.name
-                        : t.export.fileImport.filePlaceholder}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {fileImportFile
-                        ? t.export.fileImport.fileHintSelected
-                        : t.export.fileImport.fileHint}
-                    </span>
-                  </div>
-                </div>
-                {fileImportErrors.file ? (
-                  <p className="text-xs text-destructive">
-                    {fileImportErrors.file}
-                  </p>
-                ) : null}
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                {t.export.fileImport.datetimeHint}
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseFileImportDialog}
-              disabled={isFileImporting}
-              className="inline-flex items-center gap-2"
-            >
-              <X className="h-4 w-4" />
-              {t.common.cancel}
-            </Button>
-            <Button
-              onClick={() => handleFileImport()}
-              disabled={isFileImporting}
-              className="w-full sm:w-auto"
-            >
-              {isFileImporting ? (
-                <LoadingSpinner className="mr-2 h-4 w-4" />
-              ) : (
-                <FileUp className="mr-2 h-4 w-4" />
-              )}
-              {isFileImporting
-                ? t.common.loading
-                : t.export.fileImport.importAction}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
+                  <Button
+                    onClick={() => handleFileImport()}
+                    disabled={isFileImporting}
+                    className="w-full sm:w-auto"
+                  >
+                    {isFileImporting ? (
+                      <LoadingSpinner className="mr-2 h-4 w-4" />
+                    ) : (
+                      <FileUp className="mr-2 h-4 w-4" />
+                    )}
+                    {isFileImporting
+                      ? t.common.loading
+                      : t.export.fileImport.importAction}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     )
   }
 

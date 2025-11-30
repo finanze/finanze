@@ -1,4 +1,5 @@
 import { MoneyEventType, type ForecastResult } from "@/types"
+import { ProductType } from "@/types/position"
 import { getForecast, getMoneyEvents } from "@/services/api"
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
 import { useNavigate } from "react-router-dom"
@@ -116,7 +117,7 @@ export default function DashboardPage() {
 
   const [upcomingEventsRaw, setUpcomingEventsRaw] = useState<
     Array<{
-      kind: "flow" | "contribution"
+      kind: "flow" | "contribution" | "maturity"
       id: string
       name: string
       direction: "in" | "out"
@@ -125,6 +126,7 @@ export default function DashboardPage() {
       daysUntil: number
       amount: number
       currency: string
+      productType?: ProductType
     }>
   >([])
   const [upcomingEventsLoading, setUpcomingEventsLoading] = useState(false)
@@ -1279,7 +1281,7 @@ export default function DashboardPage() {
               (nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
             )
 
-            let kind: "flow" | "contribution"
+            let kind: "flow" | "contribution" | "maturity"
             let recurring = false
 
             if (event.type === MoneyEventType.CONTRIBUTION) {
@@ -1288,6 +1290,9 @@ export default function DashboardPage() {
             } else if (event.type === MoneyEventType.PERIODIC_FLOW) {
               kind = "flow"
               recurring = true
+            } else if (event.type === MoneyEventType.MATURITY) {
+              kind = "maturity"
+              recurring = false
             } else {
               kind = "flow"
               recurring = false
@@ -1305,6 +1310,7 @@ export default function DashboardPage() {
               daysUntil,
               amount: Math.abs(event.amount),
               currency: event.currency,
+              productType: event.product_type ?? undefined,
             }
           })
           .filter(e => e.daysUntil >= 0)
@@ -1417,11 +1423,15 @@ export default function DashboardPage() {
                 const amountColorClass =
                   item.kind === "contribution"
                     ? "text-foreground"
-                    : isEarning
+                    : item.kind === "maturity" || isEarning
                       ? "text-green-600"
                       : "text-red-600"
                 const amountPrefix =
-                  item.kind === "contribution" ? "" : isEarning ? "+" : "-"
+                  item.kind === "contribution"
+                    ? ""
+                    : item.kind === "maturity" || isEarning
+                      ? "+"
+                      : "-"
                 return (
                   <div
                     key={`${item.kind}-${item.id}-${index}`}
@@ -1430,6 +1440,14 @@ export default function DashboardPage() {
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       {item.kind === "contribution" ? (
                         <PiggyBank className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                      ) : item.kind === "maturity" && item.productType ? (
+                        <span className="flex-shrink-0">
+                          {getIconForAssetType(
+                            item.productType,
+                            "h-4 w-4",
+                            null,
+                          )}
+                        </span>
                       ) : item.recurring ? (
                         <CalendarSync
                           className={`h-4 w-4 flex-shrink-0 ${isEarning ? "text-green-500" : "text-red-500"}`}

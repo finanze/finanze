@@ -502,6 +502,7 @@ class FinanzeServer:
             get_periodic_flows,
             get_pending_flows,
             entity_repository,
+            position_repository,
         )
 
         create_real_estate = CreateRealEstateImpl(

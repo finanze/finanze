@@ -10,11 +10,14 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from pydantic.dataclasses import dataclass
 
+from domain.global_position import ProductType
+
 
 class MoneyEventType(str, Enum):
     CONTRIBUTION = "CONTRIBUTION"
     PERIODIC_FLOW = "PERIODIC_FLOW"
     PENDING_FLOW = "PENDING_FLOW"
+    MATURITY = "MATURITY"
 
 
 class MoneyEventFrequency(str, Enum):
@@ -48,6 +51,7 @@ class MoneyEvent:
     frequency: Optional[MoneyEventFrequency] = None
     icon: Optional[str] = None
     details: Optional[PeriodicContributionDetails] = None
+    product_type: Optional[ProductType] = None
 
 
 @dataclass

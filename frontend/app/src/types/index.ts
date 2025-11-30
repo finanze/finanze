@@ -980,6 +980,7 @@ export enum MoneyEventType {
   CONTRIBUTION = "CONTRIBUTION",
   PERIODIC_FLOW = "PERIODIC_FLOW",
   PENDING_FLOW = "PENDING_FLOW",
+  MATURITY = "MATURITY",
 }
 
 export enum MoneyEventFrequency {
@@ -1011,6 +1012,7 @@ export interface MoneyEvent {
   frequency?: MoneyEventFrequency | null
   icon?: string | null
   details?: PeriodicContributionDetails | null
+  product_type?: ProductType | null
 }
 
 export interface MoneyEventQuery {

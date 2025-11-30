@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import type { PinnedShortcutId } from "@/context/PinnedShortcutsContext"
+import { EventsCalendarView } from "@/components/EventsCalendarView"
 
 export default function ManagementPage() {
   const { t } = useI18n()
@@ -64,7 +65,7 @@ export default function ManagementPage() {
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t.management.title}</h1>
       </div>
@@ -106,6 +107,8 @@ export default function ManagementPage() {
           </Card>
         ))}
       </div>
+
+      <EventsCalendarView />
     </div>
   )
 }

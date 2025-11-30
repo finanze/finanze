@@ -44,13 +44,16 @@ def get_money_events(get_money_events_uc: GetMoneyEvents):
             {
                 "id": str(event.id),
                 "name": event.name,
-                "amount": str(event.amount),
+                "amount": event.amount,
                 "currency": event.currency,
                 "date": event.date.isoformat(),
                 "type": event.type.value,
                 "frequency": event.frequency.value if event.frequency else None,
                 "icon": event.icon,
                 "details": details,
+                "product_type": event.product_type.value
+                if event.product_type
+                else None,
             }
         )
 
