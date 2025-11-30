@@ -38,13 +38,10 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         entity_id = login_request.entity_id
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION
+            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
         )
         if not entity:
             raise EntityNotFound(entity_id)
-
-        if entity.type != EntityType.FINANCIAL_INSTITUTION:
-            raise ValueError(f"Invalid entity type: {entity.type}")
 
         credentials = login_request.credentials
 

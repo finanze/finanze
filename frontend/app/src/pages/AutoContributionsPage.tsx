@@ -24,6 +24,7 @@ import {
   Trash2,
   AlertCircle,
   Loader2,
+  Bitcoin,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -66,6 +67,7 @@ import {
   AccountType,
   ProductType,
   type Accounts,
+  type CryptoCurrencies,
   type FundInvestments,
   type StockInvestments,
 } from "@/types/position"
@@ -104,7 +106,7 @@ type ManualContributionField =
 type ManualContributionErrors = Partial<Record<ManualContributionField, string>>
 
 type TargetSubtypeOption = {
-  value: ContributionTargetSubtype | "FUND_PORTFOLIO"
+  value: ContributionTargetSubtype | "FUND_PORTFOLIO" | "CRYPTO"
   label: string
   targetType: ContributionTargetType
 }
@@ -236,7 +238,9 @@ export default function AutoContributionsPage() {
   const financialEntities = useMemo(
     () =>
       (entities ?? []).filter(
-        entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+        entity =>
+          entity.type === EntityType.FINANCIAL_INSTITUTION ||
+          entity.type === EntityType.CRYPTO_WALLET,
       ),
     [entities],
   )
@@ -502,6 +506,11 @@ export default function AutoContributionsPage() {
           ContributionTargetType.FUND_PORTFOLIO,
         targetType: ContributionTargetType.FUND_PORTFOLIO,
       },
+      {
+        value: "CRYPTO" as const,
+        label: productLabels?.["CRYPTO"] ?? "Crypto",
+        targetType: ContributionTargetType.CRYPTO,
+      },
     ]
   }, [t.enums?.contributionTargetSubtype, t.enums?.productType])
 
@@ -528,7 +537,8 @@ export default function AutoContributionsPage() {
       target_name: draft.target_name ?? "",
       target_type: draft.target_type,
       target_subtype:
-        draft.target_type === ContributionTargetType.FUND_PORTFOLIO
+        draft.target_type === ContributionTargetType.FUND_PORTFOLIO ||
+        draft.target_type === ContributionTargetType.CRYPTO
           ? ""
           : (draft.target_subtype ?? ""),
       amount: draft.amount ? draft.amount.toString() : "",
@@ -545,7 +555,9 @@ export default function AutoContributionsPage() {
       const normalizedTarget =
         form.target_type === ContributionTargetType.FUND_PORTFOLIO
           ? form.target.trim().replace(/\s+/g, "").toUpperCase()
-          : form.target.trim().toUpperCase()
+          : form.target_type === ContributionTargetType.CRYPTO
+            ? form.target.trim().toUpperCase()
+            : form.target.trim().toUpperCase()
 
       return {
         localId: form.localId,
@@ -556,7 +568,8 @@ export default function AutoContributionsPage() {
         target_name: form.target_name.trim() ? form.target_name.trim() : null,
         target_type: form.target_type,
         target_subtype:
-          form.target_type === ContributionTargetType.FUND_PORTFOLIO
+          form.target_type === ContributionTargetType.FUND_PORTFOLIO ||
+          form.target_type === ContributionTargetType.CRYPTO
             ? null
             : form.target_subtype
               ? (form.target_subtype as ContributionTargetSubtype)
@@ -721,6 +734,28 @@ export default function AutoContributionsPage() {
               })
             }
           })
+        break
+      }
+      case ContributionTargetType.CRYPTO: {
+        const cryptoWallets =
+          (
+            entityPositions.products[ProductType.CRYPTO] as
+              | CryptoCurrencies
+              | undefined
+          )?.entries ?? []
+        cryptoWallets.forEach(wallet => {
+          wallet.assets?.forEach(asset => {
+            if (!asset.symbol || !asset.crypto_asset) return
+            const value = asset.symbol.toUpperCase()
+            if (!suggestions.has(value)) {
+              suggestions.set(value, {
+                value,
+                label: value,
+                secondary: asset.name || undefined,
+              })
+            }
+          })
+        })
         break
       }
       default:
@@ -952,6 +987,8 @@ export default function AutoContributionsPage() {
         return <BarChart3 className="h-5 w-5" style={style} />
       case "FUND_PORTFOLIO":
         return <Folder className="h-5 w-5" style={style} />
+      case "CRYPTO":
+        return <Bitcoin className="h-5 w-5" style={style} />
       default:
         return <TrendingUp className="h-5 w-5" style={style} />
     }
@@ -1538,11 +1575,22 @@ export default function AutoContributionsPage() {
                           className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           value={modalForm.entity_id}
                           onChange={event => {
+                            const selectedEntityId = event.target.value
+                            const selectedEntity = financialEntities.find(
+                              e => e.id === selectedEntityId,
+                            )
+                            const isCryptoWallet =
+                              selectedEntity?.type === EntityType.CRYPTO_WALLET
                             setModalForm(prev =>
                               prev
                                 ? {
                                     ...prev,
-                                    entity_id: event.target.value,
+                                    entity_id: selectedEntityId,
+                                    ...(isCryptoWallet && {
+                                      target_type:
+                                        ContributionTargetType.CRYPTO,
+                                      target_subtype: "",
+                                    }),
                                   }
                                 : prev,
                             )
@@ -1588,47 +1636,71 @@ export default function AutoContributionsPage() {
                         <Label htmlFor="targetSubtype">
                           {t.management.targetSubtype}
                         </Label>
-                        <select
-                          id="targetSubtype"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={
-                            modalForm.target_type ===
-                            ContributionTargetType.FUND_PORTFOLIO
-                              ? "FUND_PORTFOLIO"
-                              : modalForm.target_subtype || ""
-                          }
-                          onChange={event => {
-                            const value = event.target.value as
-                              | ContributionTargetSubtype
-                              | "FUND_PORTFOLIO"
-                            const option = targetSubtypeOptions.find(
-                              opt => opt.value === value,
-                            )
-                            if (!option) {
-                              return
-                            }
-                            setModalForm(prev =>
-                              prev
-                                ? {
-                                    ...prev,
-                                    target_type: option.targetType,
-                                    target_subtype:
-                                      value === "FUND_PORTFOLIO" ? "" : value,
-                                  }
-                                : prev,
-                            )
-                            clearFormError("target_type")
-                          }}
-                        >
-                          <option value="" disabled>
-                            {t.common.selectOptions}
-                          </option>
-                          {targetSubtypeOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                        {(() => {
+                          const selectedEntity = financialEntities.find(
+                            e => e.id === modalForm.entity_id,
+                          )
+                          const isCryptoWallet =
+                            selectedEntity?.type === EntityType.CRYPTO_WALLET
+                          const filteredOptions = isCryptoWallet
+                            ? targetSubtypeOptions.filter(
+                                opt =>
+                                  opt.targetType ===
+                                  ContributionTargetType.CRYPTO,
+                              )
+                            : targetSubtypeOptions
+                          return (
+                            <select
+                              id="targetSubtype"
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              value={
+                                modalForm.target_type ===
+                                ContributionTargetType.FUND_PORTFOLIO
+                                  ? "FUND_PORTFOLIO"
+                                  : modalForm.target_type ===
+                                      ContributionTargetType.CRYPTO
+                                    ? "CRYPTO"
+                                    : modalForm.target_subtype || ""
+                              }
+                              disabled={isCryptoWallet}
+                              onChange={event => {
+                                const value = event.target.value as
+                                  | ContributionTargetSubtype
+                                  | "FUND_PORTFOLIO"
+                                  | "CRYPTO"
+                                const option = filteredOptions.find(
+                                  opt => opt.value === value,
+                                )
+                                if (!option) {
+                                  return
+                                }
+                                setModalForm(prev =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        target_type: option.targetType,
+                                        target_subtype:
+                                          value === "FUND_PORTFOLIO" ||
+                                          value === "CRYPTO"
+                                            ? ""
+                                            : value,
+                                      }
+                                    : prev,
+                                )
+                                clearFormError("target_type")
+                              }}
+                            >
+                              <option value="" disabled>
+                                {t.common.selectOptions}
+                              </option>
+                              {filteredOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          )
+                        })()}
                         {formErrors.target_type && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                             {formErrors.target_type}

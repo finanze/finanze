@@ -44,7 +44,7 @@ information.
 | Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
 | MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
 | SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ETCs   | ❌     | Private Markets(*)  |
+| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets(*)  |
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |

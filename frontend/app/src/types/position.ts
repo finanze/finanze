@@ -281,9 +281,9 @@ export interface CryptoCurrencyPosition {
 }
 
 export interface CryptoCurrencyWallet {
-  id: string
-  address: string
-  name: string
+  id?: string | null
+  address?: string | null
+  name?: string | null
   assets?: CryptoCurrencyPosition[] | null
 }
 

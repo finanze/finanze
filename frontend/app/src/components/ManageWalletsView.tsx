@@ -150,6 +150,9 @@ export function ManageWalletsView({
     }
 
     positionWallets.forEach(wallet => {
+      if (!wallet.address) {
+        return
+      }
       const addressKey = wallet.address.toLowerCase()
       const connection = connectedWallets.find(
         conn => conn.address.toLowerCase() === addressKey,
@@ -251,8 +254,8 @@ export function ManageWalletsView({
 
       setWallets(prevWallets =>
         prevWallets.map(entry =>
-          entry.wallet.address.toLowerCase() ===
-          walletToEdit.wallet.address.toLowerCase()
+          entry.wallet.address?.toLowerCase() ===
+          walletToEdit.wallet.address?.toLowerCase()
             ? {
                 ...entry,
                 wallet: { ...entry.wallet, name: trimmedName },
@@ -299,8 +302,8 @@ export function ManageWalletsView({
       setWallets(prevWallets =>
         prevWallets.filter(
           entry =>
-            entry.wallet.address.toLowerCase() !==
-            walletToDelete.wallet.address.toLowerCase(),
+            entry.wallet.address?.toLowerCase() !==
+            walletToDelete.wallet.address?.toLowerCase(),
         ),
       )
 
@@ -488,35 +491,38 @@ export function ManageWalletsView({
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 group">
-                            <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
-                              {walletEntry.wallet.address.slice(0, 8)}...
-                              {walletEntry.wallet.address.slice(-6)}
-                            </p>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
-                                copiedAddress === walletEntry.wallet.address
-                                  ? "text-green-600 dark:text-green-400"
-                                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                              }`}
-                              onClick={() =>
-                                handleCopyAddress(walletEntry.wallet.address)
-                              }
-                              title={
-                                copiedAddress === walletEntry.wallet.address
-                                  ? t.common.copied
-                                  : t.common.copy
-                              }
-                            >
-                              {copiedAddress === walletEntry.wallet.address ? (
-                                <Check className="h-3 w-3" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </Button>
-                          </div>
+                          {walletEntry.wallet.address && (
+                            <div className="flex items-center gap-2 group">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 font-mono">
+                                {walletEntry.wallet.address.slice(0, 8)}...
+                                {walletEntry.wallet.address.slice(-6)}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
+                                  copiedAddress === walletEntry.wallet.address
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                }`}
+                                onClick={() =>
+                                  handleCopyAddress(walletEntry.wallet.address!)
+                                }
+                                title={
+                                  copiedAddress === walletEntry.wallet.address
+                                    ? t.common.copied
+                                    : t.common.copy
+                                }
+                              >
+                                {copiedAddress ===
+                                walletEntry.wallet.address ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-1">

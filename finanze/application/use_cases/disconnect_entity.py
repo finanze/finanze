@@ -29,7 +29,7 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
         entity_id = request.entity_id
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION
+            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
         )
         if not entity:
             raise EntityNotFound(entity_id)

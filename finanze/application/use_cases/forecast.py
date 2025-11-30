@@ -30,6 +30,7 @@ from domain.forecast import (
 from domain.global_position import (
     Accounts,
     AccountType,
+    CryptoCurrencies,
     Deposits,
     EntitiesPosition,
     FactoringInvestments,
@@ -446,6 +447,7 @@ class ForecastImpl(Forecast):
             ContributionTargetType.STOCK_ETF: self._apply_stock_contribution,
             ContributionTargetType.FUND: self._apply_fund_contribution,
             ContributionTargetType.FUND_PORTFOLIO: self._apply_fund_portfolio_contribution,
+            ContributionTargetType.CRYPTO: self._apply_crypto_contribution,
         }
         fn = handlers.get(target_type)
         if fn:
@@ -529,6 +531,34 @@ class ForecastImpl(Forecast):
             return
         # Fallback: add to related account cash as before
         acc_match.total = acc_match.total + total
+
+    def _apply_crypto_contribution(
+        self, gp: GlobalPosition, target: Optional[str], total: Dezimal
+    ) -> None:
+        if not target or ProductType.CRYPTO not in gp.products:
+            return
+        wallets: CryptoCurrencies = gp.products[ProductType.CRYPTO]
+        norm_target = target.upper()
+        for wallet in wallets.entries:
+            for asset in getattr(wallet, "assets", []):
+                symbol = getattr(asset, "symbol", None)
+                contract = getattr(asset, "contract_address", None)
+                match_symbol = symbol is not None and symbol.upper() == norm_target
+                match_contract = contract is not None and contract == target
+                if not (match_symbol or match_contract):
+                    continue
+                base_init = asset.initial_investment or Dezimal(0)
+                base_mv = asset.market_value or Dezimal(0)
+                current_amount = asset.amount or Dezimal(0)
+                unit_price: Optional[Dezimal] = None
+                if asset.market_value and asset.amount and asset.amount > Dezimal(0):
+                    unit_price = asset.market_value / asset.amount
+                asset.initial_investment = base_init + total
+                asset.market_value = base_mv + total
+                if unit_price and unit_price > Dezimal(0):
+                    amount_inc = total / unit_price
+                    asset.amount = current_amount + amount_inc
+                return
 
     # ---------- Liquidation helpers ----------
     def _preferred_account(self, gp: GlobalPosition, currency: str):

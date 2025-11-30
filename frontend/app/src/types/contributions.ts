@@ -14,6 +14,7 @@ export enum ContributionTargetType {
   STOCK_ETF = "STOCK_ETF",
   FUND = "FUND",
   FUND_PORTFOLIO = "FUND_PORTFOLIO",
+  CRYPTO = "CRYPTO",
 }
 
 export enum ContributionTargetSubtype {

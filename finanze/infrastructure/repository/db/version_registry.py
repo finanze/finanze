@@ -97,6 +97,12 @@ from infrastructure.repository.db.versions.v0.v07.v070_5_templates import V0705T
 from infrastructure.repository.db.versions.v0.v07.v070_6_add_recf_factoring_start_extended import (
     V0706RECFAndFactoringFields,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_7_add_crypto_tx_column import (
+    V0707CryptoTxColumn,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_8_crypto_initial_investments import (
+    V0708CryptoInitialInvestments,
+)
 
 versions = [
     V0Genesis(),
@@ -140,4 +146,6 @@ versions = [
     V0704Ethplorer(),
     V0705Templates(),
     V0706RECFAndFactoringFields(),
+    V0707CryptoTxColumn(),
+    V0708CryptoInitialInvestments(),
 ]

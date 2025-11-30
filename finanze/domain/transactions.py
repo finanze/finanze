@@ -77,6 +77,18 @@ class StockTx(BaseInvestmentTx):
 
 
 @dataclass
+class CryptoCurrencyTx(BaseInvestmentTx):
+    currency_amount: Dezimal
+    symbol: str
+    price: Dezimal
+    fees: Dezimal
+    contract_address: Optional[str] = None
+    net_amount: Optional[Dezimal] = None
+    retentions: Optional[Dezimal] = None
+    order_date: Optional[datetime] = None
+
+
+@dataclass
 class FundTx(BaseInvestmentTx):
     shares: Dezimal
     price: Dezimal

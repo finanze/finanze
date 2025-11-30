@@ -26,10 +26,11 @@ import {
   CryptoCurrencyPosition,
   CryptoCurrencyType,
 } from "@/types/position"
-import type { Entity, ExchangeRates } from "@/types"
+import type { Entity, EntityType, ExchangeRates } from "@/types"
 import {
   ArrowLeft,
   TrendingUp,
+  TrendingDown,
   Copy,
   Check,
   Plus,
@@ -42,7 +43,7 @@ import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
-import { motion } from "framer-motion"
+import { AnimatePresence, motion } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { deleteCryptoWallet, updateCryptoWallet } from "@/services/api"
@@ -77,7 +78,7 @@ interface WalletWithComputed {
 }
 
 interface EntityWalletGroup {
-  entity: Pick<Entity, "id" | "name">
+  entity: Pick<Entity, "id" | "name"> & { type?: EntityType }
   wallets: WalletWithComputed[]
   totalValue: number
   totalInitialInvestment: number
@@ -110,7 +111,15 @@ interface EntityNetworkGroup {
 type ViewMode = "wallets" | "network"
 
 const getWalletIdentifier = (wallet: CryptoCurrencyWallet): string => {
-  return wallet.id || wallet.address
+  return (
+    wallet.id ??
+    wallet.address ??
+    `wallet-${Math.random().toString(36).slice(2)}`
+  )
+}
+
+const isWalletlessEntry = (wallet: CryptoCurrencyWallet): boolean => {
+  return !wallet.id && !wallet.address
 }
 
 const hasExchangeRateEntry = (
@@ -307,7 +316,7 @@ export default function CryptoInvestmentPage() {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
   const { positionsData, isLoading, refreshEntity } = useFinancialData()
-  const { settings, exchangeRates } = useAppContext()
+  const { settings, exchangeRates, entities } = useAppContext()
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [selectedWalletFilters, setSelectedWalletFilters] = useState<string[]>(
@@ -376,6 +385,9 @@ export default function CryptoInvestmentPage() {
           return acc
         }
 
+        const entityData = entities?.find(e => e.id === entityId)
+        const entityType = entityData?.type
+        const isCryptoWalletEntity = entityType === "CRYPTO_WALLET"
         const entityIconPath = `entities/${entityId}.png`
 
         const wallets = (cryptoProduct.entries as CryptoCurrencyWallet[])
@@ -428,7 +440,9 @@ export default function CryptoInvestmentPage() {
                     CryptoCurrencyType.TOKEN || Boolean(asset.contract_address)
                 const iconUrl = isToken
                   ? (asset.crypto_asset?.icon_urls?.[0] ?? null)
-                  : entityIconPath
+                  : isCryptoWalletEntity
+                    ? entityIconPath
+                    : (asset.crypto_asset?.icon_urls?.[0] ?? null)
 
                 const normalizedSymbol =
                   symbol ||
@@ -510,7 +524,7 @@ export default function CryptoInvestmentPage() {
         )
 
         acc.push({
-          entity: { id: entityId, name: entityName },
+          entity: { id: entityId, name: entityName, type: entityType },
           wallets,
           totalValue: entityTotalValue,
           totalInitialInvestment: entityTotalInitialInvestment,
@@ -525,6 +539,7 @@ export default function CryptoInvestmentPage() {
     exchangeRates,
     settings.general.defaultCurrency,
     settings.assets?.crypto?.hideUnknownTokens,
+    entities,
   ])
 
   const entityOptions = useMemo<MultiSelectOption[]>(() => {
@@ -551,7 +566,7 @@ export default function CryptoInvestmentPage() {
     return entityFilteredWalletGroups.flatMap(group =>
       group.wallets.map(walletGroup => {
         const wallet = walletGroup.wallet
-        const walletName = wallet.name || wallet.address
+        const walletName = wallet.name ?? wallet.address ?? group.entity.name
         return {
           value: getWalletIdentifier(wallet),
           label: `${group.entity.name} - ${walletName}`,
@@ -642,10 +657,13 @@ export default function CryptoInvestmentPage() {
         }
       >()
       entityGroup.wallets.forEach(walletGroup => {
-        const walletName = walletGroup.wallet.name || walletGroup.wallet.address
+        const walletName =
+          walletGroup.wallet.name ??
+          walletGroup.wallet.address ??
+          entityGroup.entity.name
         const walletId = getWalletIdentifier(walletGroup.wallet)
         const walletAddress = walletGroup.wallet.address
-        const walletKey = walletAddress.toLowerCase()
+        const walletKey = walletAddress ? walletAddress.toLowerCase() : walletId
 
         walletGroup.assets.forEach(assetView => {
           const assetKey = assetView.groupingKey
@@ -656,11 +674,13 @@ export default function CryptoInvestmentPage() {
             existing.totalAmount += assetView.amount
             existing.valueAvailable =
               existing.valueAvailable || assetView.valueAvailable
-            existing.wallets.set(walletKey, {
-              id: walletId,
-              name: walletName,
-              address: walletAddress,
-            })
+            if (walletAddress) {
+              existing.wallets.set(walletKey, {
+                id: walletId,
+                name: walletName,
+                address: walletAddress,
+              })
+            }
           } else {
             const wallets = new Map<
               string,
@@ -670,11 +690,13 @@ export default function CryptoInvestmentPage() {
                 address: string
               }
             >()
-            wallets.set(walletKey, {
-              id: walletId,
-              name: walletName,
-              address: walletAddress,
-            })
+            if (walletAddress) {
+              wallets.set(walletKey, {
+                id: walletId,
+                name: walletName,
+                address: walletAddress,
+              })
+            }
             assetMap.set(assetKey, {
               groupingKey: assetKey,
               displayName: assetView.displayName,
@@ -856,7 +878,7 @@ export default function CryptoInvestmentPage() {
 
   const handleEditWallet = (wallet: CryptoCurrencyWallet, entityId: string) => {
     setWalletToEdit(wallet)
-    setEditWalletName(wallet.name || wallet.address)
+    setEditWalletName(wallet.name ?? wallet.address ?? "")
     setEditWalletEntityId(entityId)
     setShowEditDialog(true)
   }
@@ -979,7 +1001,7 @@ export default function CryptoInvestmentPage() {
 
   const walletView = (
     <motion.div
-      key={`wallets-${selectedWalletFilters.join(",")}`}
+      key={`wallets-${filteredCryptoWallets.length}-${totalFilteredWallets}`}
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -993,7 +1015,7 @@ export default function CryptoInvestmentPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center">
+              <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-md">
                 <img
                   src={`entities/${entityGroup.entity.id}.png`}
                   alt={entityGroup.entity.name}
@@ -1029,7 +1051,7 @@ export default function CryptoInvestmentPage() {
             </div>
           </div>
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
-            {entityGroup.wallets.map(walletGroup => {
+            {entityGroup.wallets.flatMap(walletGroup => {
               const {
                 wallet,
                 nativeAssets,
@@ -1037,11 +1059,135 @@ export default function CryptoInvestmentPage() {
                 totalValue: walletTotalValue,
               } = walletGroup
               const hasAssets = walletGroup.assets.length > 0
-              const walletName = wallet.name || wallet.address
+              const isWalletless = isWalletlessEntry(wallet)
+              const walletName =
+                wallet.name ?? wallet.address ?? entityGroup.entity.name
+              const walletKey = getWalletIdentifier(wallet)
+
+              if (isWalletless) {
+                return walletGroup.assets.map(assetView => {
+                  const assetSymbol =
+                    assetView.symbol || assetView.displayName || ""
+                  const amountText =
+                    assetView.asset.amount != null
+                      ? `${formatNumber(assetView.asset.amount, locale)} ${assetSymbol}`
+                      : assetSymbol
+                  const color =
+                    chartColorMap.get(assetView.groupingKey) ?? "transparent"
+                  const hasAccent = color !== "transparent"
+                  const isHighlighted =
+                    highlightedAsset === assetView.groupingKey
+
+                  return (
+                    <div
+                      key={assetView.asset.id}
+                      ref={element =>
+                        registerAssetRef(assetView.groupingKey, element)
+                      }
+                    >
+                      <Card
+                        className={`h-full overflow-hidden ${
+                          hasAccent ? "border-l-[6px]" : ""
+                        } ${
+                          isHighlighted
+                            ? "border-primary/60 dark:border-primary/60 bg-primary/10 dark:bg-primary/20"
+                            : ""
+                        }`}
+                        style={
+                          hasAccent
+                            ? { borderLeftColor: color, borderLeftWidth: 6 }
+                            : undefined
+                        }
+                      >
+                        <CardContent className="space-y-4 pt-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="relative w-8 h-8 flex-shrink-0">
+                                {assetView.iconUrl && (
+                                  <img
+                                    src={assetView.iconUrl}
+                                    alt={assetView.displayName}
+                                    className="h-full w-full object-contain"
+                                    onError={event => {
+                                      event.currentTarget.classList.add(
+                                        "hidden",
+                                      )
+                                      const fallback =
+                                        event.currentTarget.nextElementSibling
+                                      if (fallback instanceof HTMLElement) {
+                                        fallback.classList.remove("hidden")
+                                      }
+                                    }}
+                                  />
+                                )}
+                                <div
+                                  className={`absolute inset-0 flex items-center justify-center rounded-full bg-gray-300 dark:bg-gray-600 ${
+                                    assetView.iconUrl ? "hidden" : ""
+                                  }`}
+                                >
+                                  <span className="text-gray-700 dark:text-gray-300 text-sm font-bold">
+                                    {assetSymbol.slice(0, 2).toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="min-w-0 flex flex-col gap-1">
+                                <p
+                                  className="font-medium truncate"
+                                  title={assetView.displayName}
+                                >
+                                  {assetView.displayName}
+                                </p>
+                                <p
+                                  className="text-sm text-gray-600 dark:text-gray-400 truncate"
+                                  title={amountText}
+                                >
+                                  {amountText}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-semibold">
+                                {assetView.valueAvailable
+                                  ? formatCurrency(
+                                      assetView.value,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )
+                                  : t.common.notAvailable}
+                              </p>
+                              {assetView.roi !== null && (
+                                <div
+                                  className={`flex items-center justify-end gap-1 text-sm ${
+                                    assetView.roi >= 0
+                                      ? "text-green-600 dark:text-green-400"
+                                      : "text-red-600 dark:text-red-400"
+                                  }`}
+                                >
+                                  {assetView.roi >= 0 ? (
+                                    <TrendingUp className="h-3 w-3" />
+                                  ) : (
+                                    <TrendingDown className="h-3 w-3" />
+                                  )}
+                                  <span>
+                                    {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
+                                      Math.abs(assetView.roi),
+                                      locale,
+                                    )}`}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )
+                })
+              }
 
               return (
                 <div
-                  key={wallet.id}
+                  key={walletKey}
                   className={`flex h-full flex-col gap-4 rounded-lg border p-4 transition-all ${hasAssets ? "bg-white dark:bg-gray-900 hover:shadow-sm" : "border-dashed bg-gray-50 dark:bg-gray-900/50 opacity-75"}`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -1060,33 +1206,35 @@ export default function CryptoInvestmentPage() {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 group">
-                          <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
-                            {wallet.address.slice(0, 8)}...
-                            {wallet.address.slice(-6)}
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
-                              copiedAddress === wallet.address
-                                ? "text-green-600 dark:text-green-400"
-                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                            }`}
-                            onClick={() => handleCopyAddress(wallet.address)}
-                            title={
-                              copiedAddress === wallet.address
-                                ? t.common.copied
-                                : t.common.copy
-                            }
-                          >
-                            {copiedAddress === wallet.address ? (
-                              <Check className="h-3 w-3" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </div>
+                        {wallet.address && (
+                          <div className="flex items-center gap-2 group">
+                            <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
+                              {wallet.address.slice(0, 8)}...
+                              {wallet.address.slice(-6)}
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                copiedAddress === wallet.address
+                                  ? "text-green-600 dark:text-green-400"
+                                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                              }`}
+                              onClick={() => handleCopyAddress(wallet.address!)}
+                              title={
+                                copiedAddress === wallet.address
+                                  ? t.common.copied
+                                  : t.common.copy
+                              }
+                            >
+                              {copiedAddress === wallet.address ? (
+                                <Check className="h-3 w-3" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <WalletActionsMenu
@@ -1213,15 +1361,19 @@ export default function CryptoInvestmentPage() {
                                         : t.common.notAvailable}
                                     </p>
                                     {assetView.roi !== null && (
-                                      <div className="flex items-center gap-1 text-sm">
-                                        <TrendingUp className="h-3 w-3" />
-                                        <span
-                                          className={
-                                            assetView.roi >= 0
-                                              ? "text-green-600 dark:text-green-400"
-                                              : "text-red-600 dark:text-red-400"
-                                          }
-                                        >
+                                      <div
+                                        className={`flex items-center gap-1 text-sm ${
+                                          assetView.roi >= 0
+                                            ? "text-green-600 dark:text-green-400"
+                                            : "text-red-600 dark:text-red-400"
+                                        }`}
+                                      >
+                                        {assetView.roi >= 0 ? (
+                                          <TrendingUp className="h-3 w-3" />
+                                        ) : (
+                                          <TrendingDown className="h-3 w-3" />
+                                        )}
+                                        <span>
                                           {`${assetView.roi >= 0 ? "+" : "-"}${formatPercentage(
                                             Math.abs(assetView.roi),
                                             locale,
@@ -1378,7 +1530,7 @@ export default function CryptoInvestmentPage() {
 
   const networkView = (
     <motion.div
-      key={`network-${selectedWalletFilters.join(",")}`}
+      key={`network-${networkGroups.length}-${networkGroups.reduce((sum, g) => sum + g.assets.length, 0)}`}
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -1392,7 +1544,7 @@ export default function CryptoInvestmentPage() {
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center">
+              <div className="w-10 h-10 flex-shrink-0 overflow-hidden rounded-md">
                 <img
                   src={`entities/${networkGroup.entity.id}.png`}
                   alt={networkGroup.entity.name}
@@ -1533,15 +1685,19 @@ export default function CryptoInvestmentPage() {
                                 : t.common.notAvailable}
                             </p>
                             {assetSummary.roi !== null && (
-                              <div className="flex items-center gap-1 text-sm">
-                                <TrendingUp className="h-3 w-3" />
-                                <span
-                                  className={
-                                    assetSummary.roi >= 0
-                                      ? "text-green-600 dark:text-green-400"
-                                      : "text-red-600 dark:text-red-400"
-                                  }
-                                >
+                              <div
+                                className={`flex items-center gap-1 text-sm ${
+                                  assetSummary.roi >= 0
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-red-600 dark:text-red-400"
+                                }`}
+                              >
+                                {assetSummary.roi >= 0 ? (
+                                  <TrendingUp className="h-3 w-3" />
+                                ) : (
+                                  <TrendingDown className="h-3 w-3" />
+                                )}
+                                <span>
                                   {`${assetSummary.roi >= 0 ? "+" : "-"}${formatPercentage(
                                     Math.abs(assetSummary.roi),
                                     locale,
@@ -1732,10 +1888,10 @@ export default function CryptoInvestmentPage() {
             </div>
 
             <TabsContent value="wallets" className="mt-0">
-              {walletView}
+              <AnimatePresence mode="wait">{walletView}</AnimatePresence>
             </TabsContent>
             <TabsContent value="network" className="mt-0">
-              {networkView}
+              <AnimatePresence mode="wait">{networkView}</AnimatePresence>
             </TabsContent>
           </Tabs>
         </div>

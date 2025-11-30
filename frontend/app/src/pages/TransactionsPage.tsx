@@ -13,6 +13,7 @@ import {
   TxType,
   type AccountTx,
   type StockTx,
+  type CryptoCurrencyTx,
   type FundTx,
   type FundPortfolioTx,
   type FactoringTx,
@@ -148,11 +149,16 @@ export default function TransactionsPage() {
   }, [entities])
 
   const productTypeOptions: MultiSelectOption[] = useMemo(() => {
-    const productTypes = Object.values(ProductType).filter(
-      type =>
-        type !== ProductType.CROWDLENDING && type !== ProductType.COMMODITY,
-    )
-    return productTypes.map(type => ({
+    const supportedTypes = [
+      ProductType.STOCK_ETF,
+      ProductType.FUND,
+      ProductType.FUND_PORTFOLIO,
+      ProductType.DEPOSIT,
+      ProductType.FACTORING,
+      ProductType.REAL_ESTATE_CF,
+      ProductType.CRYPTO,
+    ]
+    return supportedTypes.map(type => ({
       value: type,
       label: t.enums?.productType?.[type] || type,
     }))
@@ -708,6 +714,68 @@ export default function TransactionsPage() {
         )
       }
 
+      case ProductType.CRYPTO: {
+        const cryptoTx = tx as CryptoCurrencyTx
+        return (
+          <>
+            {commonFields}
+            {cryptoTx.symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.symbol}:
+                </span>{" "}
+                {cryptoTx.symbol}
+              </div>
+            )}
+            {cryptoTx.currency_amount !== undefined && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.currencyAmount}:
+                </span>{" "}
+                {cryptoTx.currency_amount.toLocaleString()}
+              </div>
+            )}
+            {Number(cryptoTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                {formatCurrency(
+                  cryptoTx.price,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {cryptoTx.fees > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  cryptoTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {cryptoTx.retentions != null && cryptoTx.retentions > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.retentions}:
+                </span>{" "}
+                {formatCurrency(
+                  cryptoTx.retentions,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+          </>
+        )
+      }
+
       case ProductType.FUND: {
         const fundTx = tx as FundTx
         return (
@@ -948,56 +1016,6 @@ export default function TransactionsPage() {
         )
       }
 
-      case ProductType.CRYPTO: {
-        // For crypto, we can show basic investment details if available
-        const cryptoTx = tx as any
-        return (
-          <>
-            {commonFields}
-            {cryptoTx.ticker && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.ticker}:
-                </span>{" "}
-                {cryptoTx.ticker}
-              </div>
-            )}
-            {cryptoTx.shares && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.amount}:
-                </span>{" "}
-                {cryptoTx.shares.toLocaleString()}
-              </div>
-            )}
-            {cryptoTx.price && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>
-                  {t.transactions.price}:
-                </span>{" "}
-                {formatCurrency(
-                  cryptoTx.price,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
-            {cryptoTx.fees > 0 && (
-              <div className={detailRowClass}>
-                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
-                {formatCurrency(
-                  cryptoTx.fees,
-                  locale,
-                  settings.general.defaultCurrency,
-                  tx.currency,
-                )}
-              </div>
-            )}
-          </>
-        )
-      }
-
       default:
         return commonFields
     }
@@ -1060,10 +1078,10 @@ export default function TransactionsPage() {
         return !!(depositTx.fees > 0 || depositTx.retentions > 0)
       }
       case ProductType.CRYPTO: {
-        const cryptoTx = tx as any
+        const cryptoTx = tx as CryptoCurrencyTx
         return !!(
-          cryptoTx.ticker ||
-          cryptoTx.shares ||
+          cryptoTx.symbol ||
+          cryptoTx.currency_amount ||
           cryptoTx.price ||
           cryptoTx.fees > 0
         )

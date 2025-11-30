@@ -68,6 +68,17 @@ export interface StockTx extends BaseInvestmentTx {
   equity_type?: EquityType
 }
 
+export interface CryptoCurrencyTx extends BaseInvestmentTx {
+  net_amount: number
+  currency_amount: number
+  price: number
+  fees: number
+  symbol: string
+  contract_address?: string
+  retentions?: number
+  order_date?: string
+}
+
 // Fund transaction interface
 export interface FundTx extends BaseInvestmentTx {
   net_amount: number
@@ -201,6 +212,7 @@ export interface Transactions {
 
 type Tx = AccountTx &
   StockTx &
+  CryptoCurrencyTx &
   FundTx &
   FactoringTx &
   RealEstateCFTx &

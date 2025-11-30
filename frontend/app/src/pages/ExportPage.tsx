@@ -158,6 +158,7 @@ const AVAILABLE_TRANSACTION_PRODUCTS = [
   ProductType.FACTORING,
   ProductType.REAL_ESTATE_CF,
   ProductType.DEPOSIT,
+  ProductType.CRYPTO,
 ] as const
 
 const AVAILABLE_HISTORIC_PRODUCTS = [
@@ -184,6 +185,7 @@ const AVAILABLE_IMPORT_TRANSACTION_PRODUCTS = [
   ProductType.FACTORING,
   ProductType.REAL_ESTATE_CF,
   ProductType.DEPOSIT,
+  ProductType.CRYPTO,
 ] as const
 
 const FEATURE_PRODUCT_MAP: Record<Feature, readonly ProductType[]> = {

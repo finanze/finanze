@@ -8,7 +8,7 @@ from domain.status import BackendDetails, BackendLogLevel, BackendOptions
 
 def _resolve_version() -> str:
     try:
-        from finanze.version import __version__
+        from version import __version__
 
         if __version__:
             return str(__version__)

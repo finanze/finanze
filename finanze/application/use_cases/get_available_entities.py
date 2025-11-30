@@ -32,7 +32,11 @@ def get_last_fetches_for_virtual(
 
 
 class GetAvailableEntitiesImpl(GetAvailableEntities):
-    LISTED_ENTITY_TYPES = [EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_WALLET]
+    LISTED_ENTITY_TYPES = [
+        EntityType.FINANCIAL_INSTITUTION,
+        EntityType.CRYPTO_EXCHANGE,
+        EntityType.CRYPTO_WALLET,
+    ]
 
     def __init__(
         self,
@@ -92,7 +96,10 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     external_entity_id = external_entity.id
                     dict_entity["features"] = EXTERNAL_ENTITY_FEATURES
 
-            elif entity.type == EntityType.FINANCIAL_INSTITUTION:
+            elif (
+                entity.type == EntityType.FINANCIAL_INSTITUTION
+                or entity.type == EntityType.CRYPTO_EXCHANGE
+            ):
                 status = FinancialEntityStatus.DISCONNECTED
 
                 if entity.origin != EntityOrigin.MANUAL:

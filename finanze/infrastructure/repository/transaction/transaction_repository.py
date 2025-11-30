@@ -12,6 +12,7 @@ from domain.transactions import (
     AccountTx,
     BaseInvestmentTx,
     BaseTx,
+    CryptoCurrencyTx,
     DepositTx,
     FactoringTx,
     FundPortfolioTx,
@@ -89,7 +90,7 @@ def _map_investment_row(
             market=row["market"],
             shares=Dezimal(row["shares"]),
             price=Dezimal(row["price"]),
-            net_amount=Dezimal(row["net_amount"]),
+            net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
             fees=Dezimal(row["fees"]),
             retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
             order_date=datetime.fromisoformat(row["order_date"])
@@ -99,6 +100,20 @@ def _map_investment_row(
             equity_type=EquityType(row["product_subtype"])
             if row["product_subtype"]
             else None,
+        )
+    elif row["product_type"] == ProductType.CRYPTO.value:
+        return CryptoCurrencyTx(
+            **common,
+            symbol=row["ticker"],
+            currency_amount=Dezimal(row["shares"]),
+            price=Dezimal(row["price"]),
+            net_amount=Dezimal(row["net_amount"]) if row["net_amount"] else None,
+            fees=Dezimal(row["fees"]),
+            retentions=Dezimal(row["retentions"]) if row["retentions"] else None,
+            order_date=datetime.fromisoformat(row["order_date"])
+            if row["order_date"]
+            else None,
+            contract_address=row["asset_contract_address"],
         )
     elif row["product_type"] == ProductType.FUND.value:
         return FundTx(
@@ -189,6 +204,7 @@ class TransactionSQLRepository(TransactionPort):
                     "iban": None,
                     "portfolio_name": None,
                     "product_subtype": None,
+                    "asset_contract_address": None,
                 }
 
                 if isinstance(tx, StockTx):
@@ -209,6 +225,21 @@ class TransactionSQLRepository(TransactionPort):
                             "product_subtype": tx.equity_type.value
                             if tx.equity_type
                             else None,
+                        }
+                    )
+                elif isinstance(tx, CryptoCurrencyTx):
+                    entry.update(
+                        {
+                            "ticker": tx.symbol,
+                            "shares": str(tx.currency_amount),
+                            "price": str(tx.price),
+                            "net_amount": str(tx.net_amount),
+                            "fees": str(tx.fees),
+                            "retentions": str(tx.retentions) if tx.retentions else None,
+                            "order_date": tx.order_date.isoformat()
+                            if tx.order_date
+                            else None,
+                            "asset_contract_address": tx.contract_address,
                         }
                     )
                 elif isinstance(tx, FundTx):
@@ -252,12 +283,12 @@ class TransactionSQLRepository(TransactionPort):
                                                          entity_id, is_real, source, product_type, created_at,
                                                          isin, ticker, market, shares, price, net_amount,
                                                          fees, retentions, order_date, linked_tx, interests,
-                                                         iban, portfolio_name, product_subtype)
+                                                         iban, portfolio_name, product_subtype, asset_contract_address)
                     VALUES (:id, :ref, :name, :amount, :currency, :type, :date,
                             :entity_id, :is_real, :source, :product_type, :created_at,
                             :isin, :ticker, :market, :shares, :price, :net_amount,
                             :fees, :retentions, :order_date, :linked_tx, :interests,
-                            :iban, :portfolio_name, :product_subtype)
+                            :iban, :portfolio_name, :product_subtype, :asset_contract_address)
                     """,
                     entry,
                 )
@@ -515,6 +546,7 @@ class TransactionSQLRepository(TransactionPort):
                                 NULL AS avg_balance,
                                 isin,
                                 ticker,
+                                asset_contract_address,
                                 market,
                                 shares,
                                 price,
@@ -544,6 +576,7 @@ class TransactionSQLRepository(TransactionPort):
                                 avg_balance,
                                 NULL      AS isin,
                                 NULL      AS ticker,
+                                NULL      AS asset_contract_address,
                                 NULL      AS market,
                                 NULL      AS shares,
                                 NULL      AS price,

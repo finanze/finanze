@@ -12,6 +12,7 @@ import {
   type FactoringTx,
   type RealEstateCFTx,
   type DepositTx,
+  type CryptoCurrencyTx,
 } from "@/types/transactions"
 import { ProductType } from "@/types/position"
 import { formatCurrency } from "@/lib/formatters"
@@ -556,6 +557,16 @@ function DayDetailModal({
         const simpleTx = tx as FactoringTx | RealEstateCFTx | DepositTx
         return !!(simpleTx.fees || simpleTx.retentions)
       }
+      case ProductType.CRYPTO: {
+        const cryptoTx = tx as CryptoCurrencyTx
+        return !!(
+          cryptoTx.symbol ||
+          cryptoTx.currency_amount ||
+          Number(cryptoTx.price || 0) !== 0 ||
+          (cryptoTx.fees != null && cryptoTx.fees > 0) ||
+          (cryptoTx.retentions != null && cryptoTx.retentions > 0)
+        )
+      }
       default:
         return false
     }
@@ -835,6 +846,67 @@ function DayDetailModal({
                 </span>{" "}
                 {formatCurrency(
                   simpleTx.retentions,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      case ProductType.CRYPTO: {
+        const cryptoTx = tx as CryptoCurrencyTx
+        return (
+          <div className="space-y-1 pt-2">
+            {cryptoTx.symbol && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.symbol}:
+                </span>{" "}
+                {cryptoTx.symbol}
+              </div>
+            )}
+            {cryptoTx.currency_amount !== undefined && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.currencyAmount}:
+                </span>{" "}
+                {cryptoTx.currency_amount.toLocaleString()}
+              </div>
+            )}
+            {Number(cryptoTx.price || 0) !== 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.price}:
+                </span>{" "}
+                {formatCurrency(
+                  cryptoTx.price,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {cryptoTx.fees != null && cryptoTx.fees > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>{t.transactions.fees}:</span>{" "}
+                {formatCurrency(
+                  cryptoTx.fees,
+                  locale,
+                  settings.general.defaultCurrency,
+                  tx.currency,
+                )}
+              </div>
+            )}
+            {cryptoTx.retentions != null && cryptoTx.retentions > 0 && (
+              <div className={detailRowClass}>
+                <span className={detailLabelClass}>
+                  {t.transactions.retentions}:
+                </span>{" "}
+                {formatCurrency(
+                  cryptoTx.retentions,
                   locale,
                   settings.general.defaultCurrency,
                   tx.currency,

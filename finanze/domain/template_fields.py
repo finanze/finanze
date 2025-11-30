@@ -574,6 +574,27 @@ STOCK_ETF_TX_FIELDS = FieldGroup(
         NET_AMOUNT,
     ],
 )
+CURRENCY_AMOUNT = TemplateField(
+    key="currency_amount",
+    field="currency_amount",
+    type=TemplateFieldType.DECIMAL,
+)
+
+CRYPTO_CURRENCY_TX_FIELDS = FieldGroup(
+    feature=Feature.TRANSACTIONS,
+    product=ProductType.CRYPTO,
+    fields=BASE_TX_FIELDS
+    + [
+        SYMBOL.require(),
+        CURRENCY_AMOUNT.require(),
+        PRICE.require(),
+        FEES.default(Dezimal(0)),
+        RETENTIONS.default(Dezimal(0)),
+        ORDER_DATE,
+        NET_AMOUNT,
+        CONTRACT_ADDRESS,
+    ],
+)
 
 FUND_TX_FIELDS = FieldGroup(
     feature=Feature.TRANSACTIONS,
@@ -767,6 +788,7 @@ ALL_TEMPLATE_FIELDS: dict[Feature, list[FieldGroup]] = {
     Feature.TRANSACTIONS: [
         ACCOUNT_TX_FIELDS,
         STOCK_ETF_TX_FIELDS,
+        CRYPTO_CURRENCY_TX_FIELDS,
         FUND_TX_FIELDS,
         FUND_PORTFOLIO_TX_FIELDS,
         FACTORING_TX_FIELDS,

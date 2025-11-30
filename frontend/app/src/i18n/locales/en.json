@@ -980,7 +980,10 @@
         "equity_type": "Equity type",
         "fund_type": "Fund type",
         "portfolio_name": "Portfolio",
-        "iban": "IBAN"
+        "iban": "IBAN",
+        "symbol": "Symbol",
+        "currency_amount": "Currency amount",
+        "contract_address": "Contract address"
       },
       "enumValuesTitle": "Values",
       "errors": {
@@ -1042,6 +1045,8 @@
     "portfolioName": "Portfolio Name",
     "iban": "IBAN",
     "currency": "Currency",
+    "symbol": "Symbol",
+    "currencyAmount": "Currency Amount",
     "addManualTransaction": "Transaction",
     "previous": "Previous",
     "next": "Next",

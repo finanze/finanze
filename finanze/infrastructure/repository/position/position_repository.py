@@ -1,7 +1,7 @@
 import json
 from datetime import date, datetime
 from typing import Callable, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from application.ports.position_port import PositionPort
 from domain.commodity import CommodityType, WeightUnit
@@ -183,8 +183,8 @@ def _save_commodities(cursor, position: GlobalPosition, commodities: Commodities
 def _save_crypto_currencies(
     cursor, position: GlobalPosition, cryptocurrencies: CryptoCurrencies
 ):
-    for entry in cryptocurrencies.entries:
-        for crypto_position in entry.assets:
+    for wallet_entry in cryptocurrencies.entries:
+        for crypto_position in wallet_entry.assets:
             cursor.execute(
                 """
                 INSERT INTO crypto_currency_positions (id, global_position_id, wallet_id, name, symbol, type, amount,
@@ -194,7 +194,7 @@ def _save_crypto_currencies(
                 (
                     str(crypto_position.id),
                     str(position.id),
-                    str(entry.id),
+                    str(wallet_entry.id) if wallet_entry.id else None,
                     crypto_position.name,
                     crypto_position.symbol,
                     crypto_position.type.value,
@@ -209,6 +209,29 @@ def _save_crypto_currencies(
                     else None,
                 ),
             )
+
+            initial_investment = crypto_position.initial_investment
+            avg_buy_price = crypto_position.market_value
+            investment_currency = crypto_position.investment_currency
+            if (
+                initial_investment is not None
+                and avg_buy_price is not None
+                and investment_currency is not None
+            ):
+                cursor.execute(
+                    """
+                    INSERT INTO crypto_currency_initial_investments (id, crypto_currency_position, currency,
+                                                                    initial_investment, average_buy_price)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (
+                        str(uuid4()),
+                        str(crypto_position.id),
+                        investment_currency,
+                        str(initial_investment),
+                        str(avg_buy_price),
+                    ),
+                )
 
 
 def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
@@ -1022,8 +1045,12 @@ class PositionSQLRepository(PositionPort):
                        a.*,
                        a.name as asset_name,
                        c.address,
-                       c.name AS wallet_name
+                       c.name AS wallet_name,
+                        i.initial_investment,
+                        i.average_buy_price,
+                        i.currency as investment_currency
                 FROM crypto_currency_positions p
+                         LEFT JOIN crypto_currency_initial_investments i ON p.id = i.crypto_currency_position
                          LEFT JOIN crypto_assets a ON p.crypto_asset_id = a.id
                          LEFT JOIN crypto_wallet_connections c ON p.wallet_id = c.id
                 WHERE global_position_id = ?
@@ -1032,17 +1059,22 @@ class PositionSQLRepository(PositionPort):
             )
             wallets = {}
             for row in cursor:
-                if not row["wallet_id"]:
-                    continue
-
-                wallet_id = UUID(row["wallet_id"])
-                if wallet_id not in wallets:
-                    wallets[wallet_id] = CryptoCurrencyWallet(
-                        id=wallet_id,
-                        address=row["address"],
-                        name=row["wallet_name"],
-                        assets=[],
-                    )
+                raw_wallet_id = row["wallet_id"]
+                if raw_wallet_id:
+                    wallet_id = UUID(raw_wallet_id)
+                    if wallet_id not in wallets:
+                        wallet = CryptoCurrencyWallet(
+                            id=wallet_id,
+                            address=row["address"],
+                            name=row["wallet_name"],
+                            assets=[],
+                        )
+                        wallets[wallet_id] = wallet
+                    else:
+                        wallet = wallets[wallet_id]
+                else:
+                    wallet = CryptoCurrencyWallet(assets=[])
+                    wallets[None] = wallet
 
                 crypto_asset = (
                     map_crypto_asset_row(row) if row["crypto_asset_id"] else None
@@ -1065,8 +1097,17 @@ class PositionSQLRepository(PositionPort):
                     crypto_asset=crypto_asset,
                     wallet_address=row["address"],
                     wallet_name=row["wallet_name"],
+                    initial_investment=Dezimal(row["initial_investment"])
+                    if row["initial_investment"]
+                    else None,
+                    average_buy_price=Dezimal(row["average_buy_price"])
+                    if row["average_buy_price"]
+                    else None,
+                    investment_currency=row["investment_currency"]
+                    if row["investment_currency"]
+                    else None,
                 )
-                wallets[wallet_id].assets.append(crypto_pos)
+                wallet.assets.append(crypto_pos)
 
             wallets = list(wallets.values())
 

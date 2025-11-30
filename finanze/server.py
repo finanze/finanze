@@ -266,7 +266,7 @@ class FinanzeServer:
         crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
             client=self.db_client
         )
-        crypto_assset_repository = CryptoAssetRegistryRepository(client=self.db_client)
+        crypto_asset_repository = CryptoAssetRegistryRepository(client=self.db_client)
         last_fetches_repository = LastFetchesRepository(client=self.db_client)
         external_integration_repository = ExternalIntegrationRepository(
             client=self.db_client
@@ -342,13 +342,15 @@ class FinanzeServer:
             credentials_port,
             sessions_repository,
             last_fetches_repository,
+            crypto_asset_repository,
+            crypto_asset_info_client,
             transaction_handler,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
             self.crypto_entity_fetchers,
             crypto_wallet_connections_repository,
-            crypto_assset_repository,
+            crypto_asset_repository,
             crypto_asset_info_client,
             last_fetches_repository,
             external_integration_repository,
