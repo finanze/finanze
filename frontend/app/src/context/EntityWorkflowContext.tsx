@@ -28,11 +28,18 @@ import {
   fetchExternalEntity,
   disconnectEntity,
 } from "@/services/api"
+import {
+  recordAutoRefreshSuccess,
+  recordAutoRefreshFailure,
+  getAutoRefreshCandidates,
+} from "@/services/autoRefreshService"
+import { AutoRefreshMode } from "@/types"
 
 export interface FetchOptions {
   deep?: boolean
   avoidNewLogin?: boolean
   code?: string
+  silent?: boolean
 }
 
 interface ResetStateOptions {
@@ -100,7 +107,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
   const { t } = useI18n()
   const navigate = useNavigate()
-  const { showToast, updateEntityStatus, fetchEntities } = useAppContext()
+  const {
+    showToast,
+    updateEntityStatus,
+    fetchEntities,
+    settings,
+    entities,
+    entitiesLoaded,
+  } = useAppContext()
 
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -343,6 +357,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       features: Feature[],
       options: FetchOptions = DEFAULT_FETCH_OPTIONS,
     ) => {
+      const { silent = false } = options
+
+      const notify = (
+        message: string,
+        type: "success" | "error" | "warning",
+      ) => {
+        if (!silent) {
+          showToast(message, type)
+        }
+      }
+
       try {
         setPinError(false)
 
@@ -354,6 +379,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         }
 
         let response
+        let httpError: number | undefined
         if (entity) {
           if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
             try {
@@ -361,13 +387,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 entity.external_entity_id || "",
               )
             } catch (e: any) {
+              httpError = e?.status
               if (e?.status === 429) {
                 const entityName = entity?.name || t.common.crypto
                 const cooldownMsg = t.errors.COOLDOWN.replace(
                   "{entity}",
                   entityName,
                 )
-                showToast(cooldownMsg, "warning")
+                notify(cooldownMsg, "warning")
+                if (silent && entity) {
+                  recordAutoRefreshFailure(entity.id, undefined, httpError)
+                }
                 throw e
               }
               throw e
@@ -377,29 +407,47 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entity: entity.id,
               features: features,
               processId: processId || undefined,
-              ...options,
+              deep: options.deep,
+              avoidNewLogin: options.avoidNewLogin,
+              code: options.code,
             })
           } else {
             response = await fetchCryptoEntity({
               entity: entity.id,
               features: features,
-              ...options,
+              deep: options.deep,
+              avoidNewLogin: options.avoidNewLogin,
+              code: options.code,
             })
           }
         } else {
           response = await fetchCryptoEntity({
             entity: undefined,
             features: features,
-            ...options,
+            deep: options.deep,
+            avoidNewLogin: options.avoidNewLogin,
+            code: options.code,
           })
         }
 
         if (response.code === FetchResultCode.CODE_REQUESTED) {
+          if (silent) {
+            if (entity) {
+              recordAutoRefreshFailure(entity.id, response)
+            }
+            return
+          }
           setPinRequired(true)
           setProcessId(response.details?.processId || null)
           setPinLength(entity?.pin?.positions || 4)
           setCurrentAction("scrape")
         } else if (response.code === FetchResultCode.MANUAL_LOGIN) {
+          if (silent) {
+            if (entity) {
+              recordAutoRefreshFailure(entity.id, response)
+            }
+            return
+          }
           if (entity) {
             scrapeManualLogin.current = {
               active: true,
@@ -410,7 +458,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             await startExternalLogin(entity, response.details?.credentials)
           } else {
             console.debug("MANUAL_LOGIN response without credentials or entity")
-            showToast(t.common.fetchError, "error")
+            notify(t.common.fetchError, "error")
             resetState({ preserveSelectedFeatures: true })
           }
         } else if (response.code === FetchResultCode.COOLDOWN) {
@@ -422,22 +470,36 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 formatCooldownTime(waitSeconds),
               ).replace("{entity}", entityName)
             : t.errors.COOLDOWN.replace("{entity}", entityName)
-          showToast(cooldownMessage, "warning")
-          resetState({ preserveSelectedFeatures: true })
+          notify(cooldownMessage, "warning")
+          if (silent && entity) {
+            recordAutoRefreshFailure(entity.id, response)
+          }
+          if (!silent) {
+            resetState({ preserveSelectedFeatures: true })
+          }
         } else if (response.code === FetchResultCode.LOGIN_REQUIRED) {
-          showToast(t.errors.LOGIN_REQUIRED_SCRAPE, "warning")
+          notify(t.errors.LOGIN_REQUIRED_SCRAPE, "warning")
           if (entity) {
             updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
+            if (silent) {
+              recordAutoRefreshFailure(entity.id, response)
+            }
           }
-          resetState({ preserveSelectedFeatures: true })
-          setView("entities")
+          if (!silent) {
+            resetState({ preserveSelectedFeatures: true })
+            setView("entities")
+          }
         } else if (response.code === FetchResultCode.PARTIALLY_COMPLETED) {
           const entityName = entity?.name || t.common.crypto
           const warningMessage = t.errors.PARTIALLY_COMPLETED.replace(
             "{entity}",
             entityName,
           )
-          showToast(warningMessage, "warning")
+          notify(warningMessage, "warning")
+
+          if (silent && entity) {
+            recordAutoRefreshFailure(entity.id, response)
+          }
 
           if (onScrapeCompletedRef.current) {
             try {
@@ -450,8 +512,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          resetState()
-          setView("entities")
+          if (!silent) {
+            setSelectedEntity(currentSelected => {
+              if (!currentSelected || currentSelected.id === entity?.id) {
+                resetState()
+                setView("entities")
+              }
+              return currentSelected
+            })
+          }
         } else if (response.code === FetchResultCode.COMPLETED) {
           let successMessage: string
           if (entity) {
@@ -459,10 +528,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               "{entity}",
               entity.name,
             )
+            recordAutoRefreshSuccess(entity.id)
           } else {
             successMessage = `${t.common.fetchSuccess}: ${t.common.crypto}`
           }
-          showToast(successMessage, "success")
+          notify(successMessage, "success")
 
           if (onScrapeCompletedRef.current) {
             try {
@@ -475,32 +545,60 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
           }
 
-          resetState()
-          setView("entities")
+          if (!silent) {
+            setSelectedEntity(currentSelected => {
+              if (!currentSelected || currentSelected.id === entity?.id) {
+                resetState()
+                setView("entities")
+              }
+              return currentSelected
+            })
+          }
         } else if (response.code === FetchResultCode.INVALID_CODE) {
+          if (silent) {
+            if (entity) {
+              recordAutoRefreshFailure(entity.id, response)
+            }
+            return
+          }
           setPinError(true)
           const entityName = entity?.name || t.common.crypto
           const errorMessage =
             t.errors[response.code as keyof typeof t.errors] ||
             t.common.fetchErrorEntity.replace("{entity}", entityName)
-          showToast(errorMessage, "error")
+          notify(errorMessage, "error")
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
-          navigate("/entities")
+          if (!silent) {
+            navigate("/entities")
+          }
           const entityName = entity?.name || t.common.crypto
           const errorMessage = (
             t.errors[response.code as keyof typeof t.errors] ||
             t.common.fetchErrorEntity
           )?.replace("{entity}", entityName)
-          showToast(errorMessage, "error")
+          notify(errorMessage, "error")
+          if (silent && entity) {
+            recordAutoRefreshFailure(entity.id, response)
+          }
         } else if (response.code === FetchResultCode.LINK_EXPIRED) {
-          showToast(t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED, "warning")
+          notify(t.errors.LINK_EXPIRED || t.errors.LOGIN_REQUIRED, "warning")
           if (entity) {
             updateEntityStatus(entity.id, EntityStatus.REQUIRES_LOGIN)
+            if (silent) {
+              recordAutoRefreshFailure(entity.id, response)
+            }
           }
-          resetState({ preserveSelectedFeatures: true })
+          if (!silent) {
+            resetState({ preserveSelectedFeatures: true })
+          }
         } else if (response.code === FetchResultCode.REMOTE_FAILED) {
-          showToast(t.errors.REMOTE_FAILED, "error")
-          resetState({ preserveSelectedFeatures: true })
+          notify(t.errors.REMOTE_FAILED, "error")
+          if (silent && entity) {
+            recordAutoRefreshFailure(entity.id, response)
+          }
+          if (!silent) {
+            resetState({ preserveSelectedFeatures: true })
+          }
         } else {
           const entityName = entity?.name || t.common.crypto
           const errorMessage = t.errors[response.code as keyof typeof t.errors]
@@ -515,18 +613,28 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entityName,
             )
           }
-          showToast(finalMessage, "error")
-          resetState({ preserveSelectedFeatures: true })
+          notify(finalMessage, "error")
+          if (silent && entity) {
+            recordAutoRefreshFailure(entity.id, response)
+          }
+          if (!silent) {
+            resetState({ preserveSelectedFeatures: true })
+          }
         }
-      } catch {
-        showToast(
+      } catch (e: any) {
+        notify(
           t.common.fetchErrorEntity.replace(
             "{entity}",
             entity?.name || t.common.crypto,
           ),
           "error",
         )
-        resetState({ preserveSelectedFeatures: true })
+        if (silent && entity) {
+          recordAutoRefreshFailure(entity.id, undefined, e?.status)
+        }
+        if (!silent) {
+          resetState({ preserveSelectedFeatures: true })
+        }
       } finally {
         if (entity) {
           setFetchingEntityState(prev => ({
@@ -656,6 +764,39 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     showToast,
     t,
   ])
+
+  const autoRefreshExecutedRef = useRef(false)
+
+  useEffect(() => {
+    if (autoRefreshExecutedRef.current) return
+    if (!entitiesLoaded || entities.length === 0) return
+
+    const autoRefreshSettings = settings.data?.autoRefresh
+    if (
+      !autoRefreshSettings ||
+      autoRefreshSettings.mode === AutoRefreshMode.OFF
+    )
+      return
+
+    autoRefreshExecutedRef.current = true
+
+    const candidates = getAutoRefreshCandidates(
+      entities,
+      autoRefreshSettings.max_outdated,
+      autoRefreshSettings.entities,
+    )
+
+    if (candidates.length === 0) return
+
+    const AUTO_REFRESH_DELAY_MS = 3000
+    const timeoutId = setTimeout(() => {
+      candidates.forEach(({ entity, features }) => {
+        scrape(entity, features, { silent: true, avoidNewLogin: true })
+      })
+    }, AUTO_REFRESH_DELAY_MS)
+
+    return () => clearTimeout(timeoutId)
+  }, [entitiesLoaded, entities, settings, scrape])
 
   const disconnectEntityHandler = useCallback(
     async (entityId: string) => {

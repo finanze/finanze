@@ -68,9 +68,21 @@ class EntitySetupLoginType(str, Enum):
     AUTOMATED = "AUTOMATED"
 
 
+class EntitySessionCategory(str, Enum):
+    # No session requiring human action to re-create or minutes-long session
+    NONE = "NONE"
+    # Little hours-long session
+    SHORT = "SHORT"
+    # Some days-long session
+    MEDIUM = "MEDIUM"
+    # No session, renewable or weeks-long session
+    UNDEFINED = "UNDEFINED"
+
+
 @dataclass(eq=False)
 class NativeFinancialEntity(Entity):
     setup_login_type: EntitySetupLoginType
+    session_category: EntitySessionCategory
     credentials_template: dict[str, CredentialType]
     features: list[Feature]
     pin: Optional[PinDetails] = None

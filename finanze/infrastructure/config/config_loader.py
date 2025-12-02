@@ -1,5 +1,6 @@
 import logging
 from dataclasses import asdict
+from enum import Enum
 from pathlib import Path
 
 import strictyaml
@@ -49,6 +50,7 @@ class ConfigLoader(ConfigPort):
                 k: v for (k, v) in x if (v is not None and v != {} and v != [])
             },
         )
+        config_as_dict = self._to_yaml_safe(config_as_dict)
         config_as_dict["version"] = CURRENT_VERSION
         new_yaml = strictyaml.as_document(config_as_dict).as_yaml()
         with open(self._config_file, "w") as file:
@@ -76,3 +78,13 @@ class ConfigLoader(ConfigPort):
             self.save(settings)
 
         self._log.debug(f"Config file loaded from {self._config_file}")
+
+    @staticmethod
+    def _to_yaml_safe(value):
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, list):
+            return [ConfigLoader._to_yaml_safe(item) for item in value]
+        if isinstance(value, dict):
+            return {key: ConfigLoader._to_yaml_safe(val) for key, val in value.items()}
+        return value

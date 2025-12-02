@@ -373,7 +373,8 @@
     "continueLink": "Continue link",
     "relink": "Relink",
     "confirmRelink": "Confirm Relink",
-    "confirmRelinkMessage": "Relinking will refresh the external connection for {entity}. Continue?"
+    "confirmRelinkMessage": "Relinking will refresh the external connection for {entity}. Continue?",
+    "sessionExpiredHint": "Session expired. Please log in again to enable automatic updates."
   },
   "features": {
     "POSITION": "Positions",
@@ -425,6 +426,34 @@
         "cancelEdit": "Cancel edit",
         "hideUnknownTokensLabel": "Hide unknown tokens",
         "hideUnknownTokensDescription": "Exclude tokens without reference data from views and calculations"
+      }
+    },
+    "dataSettings": {
+      "title": "Data",
+      "description": "Configure data refresh and synchronization settings",
+      "autoRefresh": {
+        "title": "Auto-refresh",
+        "description": "Automatically refresh data from your connected entities",
+        "enableLabel": "Enable auto-refresh",
+        "enableDescription": "Automatically fetch updated data from entities that support it",
+        "maxOutdatedLabel": "Max outdated time",
+        "maxOutdatedDescription": "Refresh entities that haven't been updated in this time",
+        "maxOutdatedOptions": {
+          "THREE_HOURS": "3h",
+          "SIX_HOURS": "6h",
+          "TWELVE_HOURS": "12h",
+          "DAY": "1d",
+          "TWO_DAYS": "2d",
+          "WEEK": "1w"
+        },
+        "entitiesLabel": "Select entities",
+        "entitiesDescription": "If none selected, all compatible entities will be refreshed",
+        "entitiesPlaceholder": "Select entities...",
+        "allEntities": "All compatible",
+        "selectedCount": "{count} selected",
+        "noEntitiesAvailable": "No compatible entities available",
+        "pinWarning": "PIN required",
+        "pinWarningTooltip": "Entities that require a PIN won't refresh if the session expires"
       }
     },
     "integrations": "Integrations",
@@ -659,6 +688,7 @@
     "notShowing": "This is hidden in forecast mode",
     "upcomingAt": "Upcoming by {date}",
     "close": "Close",
+    "calculating": "Calculating forecast...",
     "pendingPaymentsLegendLabel": "Projected pending payments",
     "pendingPaymentsLegend": "Projected pending cash payments of {amount} (future outflows not counted in total assets yet)",
     "negativeCashWarningTitle": "Unfeasible projection",

@@ -4,11 +4,15 @@ import { getForecast, getMoneyEvents } from "@/services/api"
 import { useEffect, useRef, useState, useMemo, useLayoutEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
+
+let hasLoadedTransactionsThisSession = false
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { TxType } from "@/types/transactions"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
+import { useSkipMountAnimation } from "@/lib/animations"
+import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
@@ -77,7 +81,7 @@ export default function DashboardPage() {
   const {
     positionsData,
     pendingFlows,
-    isLoading: financialDataLoading,
+    isInitialLoading,
     error: financialDataError,
     refreshData: refreshFinancialData,
     realEstateList,
@@ -86,6 +90,8 @@ export default function DashboardPage() {
     invalidateTransactionsCache,
   } = useFinancialData()
   const { settings, exchangeRates, refreshExchangeRates } = useAppContext()
+
+  const skipAnimations = useSkipMountAnimation(!isInitialLoading)
 
   const stablecoinSymbols = settings.assets?.crypto?.stablecoins ?? []
   const stablecoinSymbolsSet = useMemo(() => {
@@ -170,15 +176,23 @@ export default function DashboardPage() {
       return
     }
 
-    setTransactionsLoading(true)
+    // Only show loading spinner on very first load of the session
+    // Not on cache invalidation or return visits to dashboard
+    const isFirstLoadEver = !hasLoadedTransactionsThisSession
+    if (isFirstLoadEver) {
+      setTransactionsLoading(true)
+    }
     setTransactionsError(null)
     try {
       await fetchCachedTransactions()
+      hasLoadedTransactionsThisSession = true
     } catch (err) {
       console.error("Error fetching transactions:", err)
       setTransactionsError(t.common.unexpectedError)
     } finally {
-      setTransactionsLoading(false)
+      if (isFirstLoadEver) {
+        setTransactionsLoading(false)
+      }
     }
   }
 
@@ -222,10 +236,13 @@ export default function DashboardPage() {
     }
   }
 
-  const hasData =
-    positionsData !== null &&
-    positionsData.positions &&
-    Object.keys(positionsData.positions).length > 0
+  const hasData = useMemo(
+    () =>
+      positionsData !== null &&
+      positionsData.positions &&
+      Object.keys(positionsData.positions).length > 0,
+    [positionsData],
+  )
 
   // Build derived forecast positions + adjustments (cash delta & remove change data)
   const forecastAdjustedPositionsData = useMemo(() => {
@@ -261,9 +278,13 @@ export default function DashboardPage() {
   }, [forecastResult, t.forecast.cashDeltaEntity, t.forecast.cashDeltaLabel])
 
   // Decide which positions data to use for computations
-  const effectivePositionsData = forecastMode
-    ? (forecastAdjustedPositionsData as any) || positionsData
-    : positionsData
+  const effectivePositionsData = useMemo(
+    () =>
+      forecastMode
+        ? (forecastAdjustedPositionsData as any) || positionsData
+        : positionsData,
+    [forecastMode, forecastAdjustedPositionsData, positionsData],
+  )
 
   useLayoutEffect(() => {
     if (hasData) {
@@ -354,21 +375,31 @@ export default function DashboardPage() {
   }, [upcomingEventsRaw, targetCurrency, exchangeRates])
 
   // In forecast mode we never apply current pending flows separately because they're implicitly reflected in the forecast snapshot by date.
-  const appliedPendingFlows = forecastMode
-    ? []
-    : dashboardOptions.includePending
-      ? pendingFlows
-      : []
-  const appliedRealEstateList = filterRealEstateByOptions(
-    realEstateList,
-    dashboardOptions,
+  const appliedPendingFlows = useMemo(
+    () =>
+      forecastMode ? [] : dashboardOptions.includePending ? pendingFlows : [],
+    [forecastMode, dashboardOptions.includePending, pendingFlows],
   )
-  const assetDistributionBase = getAssetDistribution(
-    effectivePositionsData,
-    targetCurrency,
-    exchangeRates,
-    appliedPendingFlows,
-    appliedRealEstateList,
+  const appliedRealEstateList = useMemo(
+    () => filterRealEstateByOptions(realEstateList, dashboardOptions),
+    [realEstateList, dashboardOptions],
+  )
+  const assetDistributionBase = useMemo(
+    () =>
+      getAssetDistribution(
+        effectivePositionsData,
+        targetCurrency,
+        exchangeRates,
+        appliedPendingFlows,
+        appliedRealEstateList,
+      ),
+    [
+      effectivePositionsData,
+      targetCurrency,
+      exchangeRates,
+      appliedPendingFlows,
+      appliedRealEstateList,
+    ],
   )
   const assetDistribution = useMemo(() => {
     if (!forecastMode || !forecastResult) {
@@ -441,12 +472,22 @@ export default function DashboardPage() {
     dashboardOptions.includeResidences,
     realEstateList,
   ])
-  const entityDistributionBase = getEntityDistribution(
-    effectivePositionsData,
-    targetCurrency,
-    exchangeRates,
-    appliedPendingFlows,
-    appliedRealEstateList,
+  const entityDistributionBase = useMemo(
+    () =>
+      getEntityDistribution(
+        effectivePositionsData,
+        targetCurrency,
+        exchangeRates,
+        appliedPendingFlows,
+        appliedRealEstateList,
+      ),
+    [
+      effectivePositionsData,
+      targetCurrency,
+      exchangeRates,
+      appliedPendingFlows,
+      appliedRealEstateList,
+    ],
   )
   const entityDistribution = useMemo(() => {
     if (!forecastMode || !forecastResult) return entityDistributionBase
@@ -626,10 +667,14 @@ export default function DashboardPage() {
     )
   }, [forecastMode, forecastResult, targetCurrency, exchangeRates])
   // Base ongoing projects (unfiltered)
-  const ongoingProjectsBase = getOngoingProjects(
-    positionsData,
-    locale,
-    settings.general.defaultCurrency,
+  const ongoingProjectsBase = useMemo(
+    () =>
+      getOngoingProjects(
+        positionsData,
+        locale,
+        settings.general.defaultCurrency,
+      ),
+    [positionsData, locale, settings.general.defaultCurrency],
   )
   // When forecasting, only show projects whose maturity is after the forecast target date
   const ongoingProjects = useMemo(() => {
@@ -641,24 +686,52 @@ export default function DashboardPage() {
       return ongoingProjectsBase
     }
   }, [forecastMode, forecastResult, ongoingProjectsBase])
-  const stockAndFundPositions = getStockAndFundPositions(
-    effectivePositionsData,
-    locale,
-    settings.general.defaultCurrency,
-    exchangeRates,
+  const stockAndFundPositions = useMemo(
+    () =>
+      getStockAndFundPositions(
+        effectivePositionsData,
+        locale,
+        settings.general.defaultCurrency,
+        exchangeRates,
+      ),
+    [
+      effectivePositionsData,
+      locale,
+      settings.general.defaultCurrency,
+      exchangeRates,
+    ],
   )
-  const cryptoPositions = getCryptoPositions(
-    effectivePositionsData,
-    locale,
-    settings.general.defaultCurrency,
-    exchangeRates,
+  const cryptoPositions = useMemo(
+    () =>
+      getCryptoPositions(
+        effectivePositionsData,
+        locale,
+        settings.general.defaultCurrency,
+        exchangeRates,
+      ),
+    [
+      effectivePositionsData,
+      locale,
+      settings.general.defaultCurrency,
+      exchangeRates,
+    ],
   )
-  const commodityPositions = getCommodityPositions(
-    effectivePositionsData,
-    locale,
-    settings.general.defaultCurrency,
-    exchangeRates,
-    settings,
+  const commodityPositions = useMemo(
+    () =>
+      getCommodityPositions(
+        effectivePositionsData,
+        locale,
+        settings.general.defaultCurrency,
+        exchangeRates,
+        settings,
+      ),
+    [
+      effectivePositionsData,
+      locale,
+      settings.general.defaultCurrency,
+      exchangeRates,
+      settings,
+    ],
   )
   // Asset presence flags for conditional forecast inputs
   const hasMarketAssets = useMemo(
@@ -670,25 +743,37 @@ export default function DashboardPage() {
   )
   const hasCryptoAssets = cryptoPositions.length > 0
   const hasCommodityAssets = commodityPositions.length > 0
-  const recentTransactions = getRecentTransactions(
-    transactions,
-    locale,
-    settings.general.defaultCurrency,
+  const recentTransactions = useMemo(
+    () =>
+      getRecentTransactions(
+        transactions,
+        locale,
+        settings.general.defaultCurrency,
+      ),
+    [transactions, locale, settings.general.defaultCurrency],
   )
 
-  const fundItems = stockAndFundPositions
-    .filter(p => p.type === "FUND")
-    .map((p, index) => ({
-      ...p,
-      id: `fund-${p.name}-${p.entity}-${p.portfolioName || "default"}-${index}`,
-    }))
+  const fundItems = useMemo(
+    () =>
+      stockAndFundPositions
+        .filter(p => p.type === "FUND")
+        .map((p, index) => ({
+          ...p,
+          id: `fund-${p.name}-${p.entity}-${p.portfolioName || "default"}-${index}`,
+        })),
+    [stockAndFundPositions],
+  )
 
-  const stockItems = stockAndFundPositions
-    .filter(p => p.type === "STOCK_ETF")
-    .map((p, index) => ({
-      ...p,
-      id: `${p.symbol}-stock-${index}-${p.entity}`,
-    }))
+  const stockItems = useMemo(
+    () =>
+      stockAndFundPositions
+        .filter(p => p.type === "STOCK_ETF")
+        .map((p, index) => ({
+          ...p,
+          id: `${p.symbol}-stock-${index}-${p.entity}`,
+        })),
+    [stockAndFundPositions],
+  )
 
   // Apply appreciation in forecast mode for crypto & commodities (excluding stablecoins)
   const cryptoItems = useMemo(() => {
@@ -1329,9 +1414,8 @@ export default function DashboardPage() {
     fetchUpcomingEvents()
   }, [forecastMode])
 
-  const isLoading = financialDataLoading || transactionsLoading
-  // Early returns for loading / errors / prerequisites
-  if (isLoading || forecastLoading) {
+  const isLoading = isInitialLoading || transactionsLoading
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-[70vh]">
         <LoadingSpinner size="lg" />
@@ -1561,1884 +1645,1989 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-        <h1 className="text-3xl font-bold flex-shrink-0">
-          {t.common.dashboard}
-        </h1>
-        <div className="flex flex-wrap gap-2 items-center justify-end">
-          {/* Forecast active indicator / trigger */}
-          <Popover open={forecastOpen} onOpenChange={setForecastOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant={forecastMode ? "default" : "outline"}
-                className="flex items-center h-9 px-3 text-sm"
-              >
-                <TrendingUpDown className="h-4 w-4 mr-1 flex-shrink-0" />
-                <span className="whitespace-nowrap">
-                  {forecastMode && forecastResult
-                    ? formatDate(forecastResult.target_date, locale)
-                    : t.forecast.title}
-                </span>
-                {forecastMode && (
-                  <span
-                    onClick={e => {
-                      e.stopPropagation()
-                      setForecastResult(null)
-                      setForecastTargetDate("")
-                      setForecastAnnualIncrease("")
-                      setForecastAnnualCryptoIncrease("")
-                      setForecastAnnualCommodityIncrease("")
-                    }}
-                    className="ml-2 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
-                    aria-label={t.forecast.close}
-                  >
-                    ×
-                  </span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 z-[50]" align="end">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">
-                    {t.forecast.targetDate}
-                  </label>
-                  <DatePicker
-                    value={forecastTargetDate}
-                    onChange={setForecastTargetDate}
-                    placeholder={t.forecast.targetDate}
-                  />
-                </div>
-                {hasMarketAssets && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium flex items-center justify-between">
-                      <span>{t.forecast.avgAnnualIncrease}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        %
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={forecastAnnualIncrease}
-                      onChange={e => setForecastAnnualIncrease(e.target.value)}
-                      className="w-full h-9 px-2 rounded-md border bg-background text-sm"
-                      placeholder="0.0"
-                    />
-                  </div>
-                )}
-                {hasCryptoAssets && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium flex items-center justify-between">
-                      <span>{t.forecast.avgAnnualCryptoIncrease}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        %
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={forecastAnnualCryptoIncrease}
-                      onChange={e =>
-                        setForecastAnnualCryptoIncrease(e.target.value)
-                      }
-                      className="w-full h-9 px-2 rounded-md border bg-background text-sm"
-                      placeholder="0.0"
-                    />
-                  </div>
-                )}
-                {hasCommodityAssets && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium flex items-center justify-between">
-                      <span>{t.forecast.avgAnnualCommodityIncrease}</span>
-                      <span className="text-[10px] text-muted-foreground">
-                        %
-                      </span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={forecastAnnualCommodityIncrease}
-                      onChange={e =>
-                        setForecastAnnualCommodityIncrease(e.target.value)
-                      }
-                      className="w-full h-9 px-2 rounded-md border bg-background text-sm"
-                      placeholder="0.0"
-                    />
-                  </div>
-                )}
-                <div className="flex justify-end gap-2">
-                  {forecastMode && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setForecastResult(null)
-                        setForecastTargetDate("")
-                        setForecastAnnualIncrease("")
-                        setForecastAnnualCryptoIncrease("")
-                        setForecastAnnualCommodityIncrease("")
-                      }}
-                      className="text-xs"
-                    >
-                      {t.forecast.reset}
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    disabled={
-                      !forecastTargetDate ||
-                      forecastLoading ||
-                      (!!forecastTargetDate &&
-                        new Date(forecastTargetDate) <= new Date())
-                    }
-                    onClick={async () => {
-                      try {
-                        setForecastLoading(true)
-                        const result = await getForecast({
-                          target_date: forecastTargetDate,
-                          avg_annual_market_increase: forecastAnnualIncrease
-                            ? parseFloat(forecastAnnualIncrease) / 100
-                            : null,
-                          avg_annual_crypto_increase:
-                            forecastAnnualCryptoIncrease
-                              ? parseFloat(forecastAnnualCryptoIncrease) / 100
-                              : null,
-                          avg_annual_commodity_increase:
-                            forecastAnnualCommodityIncrease
-                              ? parseFloat(forecastAnnualCommodityIncrease) /
-                                100
-                              : null,
-                        })
-                        setForecastResult(result)
-                        setForecastOpen(false)
-                      } catch (err) {
-                        console.error("Forecast error", err)
-                      } finally {
-                        setForecastLoading(false)
-                      }
-                    }}
-                    className="text-xs"
-                  >
-                    {forecastLoading ? t.common.loading : t.forecast.run}
-                  </Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground">
-                  {t.forecast.disclaimer}
-                </p>
-              </div>
-            </PopoverContent>
-          </Popover>
-          {/* Dashboard Options */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="flex items-center h-9 px-3">
-                <SlidersHorizontal className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm flex items-center gap-2">
-                    <HandCoins className="h-4 w-4 text-muted-foreground" />
-                    {t.dashboard.includePendingMoney}
-                  </div>
-                  <Switch
-                    disabled={forecastMode}
-                    checked={
-                      forecastMode ? false : dashboardOptions.includePending
-                    }
-                    onCheckedChange={val =>
-                      setDashboardOptions(prev => ({
-                        ...prev,
-                        includePending: Boolean(val),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="text-sm flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    {t.dashboard.includeCardExpenses}
-                  </div>
-                  <Switch
-                    checked={dashboardOptions.includeCardExpenses}
-                    onCheckedChange={val =>
-                      setDashboardOptions(prev => ({
-                        ...prev,
-                        includeCardExpenses: Boolean(val),
-                      }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm flex items-center gap-2">
-                      <Home className="h-4 w-4 text-muted-foreground" />
-                      {t.dashboard.includeRealEstateEquity}
-                    </div>
-                    <Switch
-                      checked={dashboardOptions.includeRealEstate}
-                      onCheckedChange={val =>
-                        setDashboardOptions(prev => ({
-                          ...prev,
-                          includeRealEstate: Boolean(val),
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center justify-between pl-6">
-                    <div className="text-sm text-muted-foreground">
-                      {t.dashboard.includeResidences}
-                    </div>
-                    <Switch
-                      checked={dashboardOptions.includeResidences}
-                      onCheckedChange={val =>
-                        setDashboardOptions(prev => ({
-                          ...prev,
-                          includeResidences: Boolean(val),
-                        }))
-                      }
-                      disabled={!dashboardOptions.includeRealEstate}
-                    />
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          <EntityRefreshDropdown />
+      {forecastLoading ? (
+        <div className="flex justify-center items-center h-[70vh]">
+          <LoadingSpinner size="lg" />
         </div>
-      </div>
-
-      {!hasData ? (
+      ) : (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="flex flex-col items-center justify-center h-[70vh] text-center"
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
         >
-          <BarChart3 className="h-16 w-16 text-gray-400 mb-6" />
-          <h2 className="text-2xl font-bold mb-3">{t.dashboard.noDataTitle}</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
-            {t.dashboard.noDataSubtitle}
-          </p>
-          <Button onClick={() => navigate("/entities")}>
-            {t.dashboard.connectEntitiesButton}
-          </Button>
-        </motion.div>
-      ) : (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="order-2 lg:order-1 lg:col-span-7"
-            >
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold flex items-center">
-                    <PieChartIcon className="h-5 w-5 mr-2 text-primary" />
-                    {t.dashboard.assetDistribution}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent ref={assetDistributionCardRef} className="px-2">
-                  <Tabs defaultValue="by-asset" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="by-asset">
-                        {t.dashboard.assetDistributionByType}
-                      </TabsTrigger>
-                      <TabsTrigger value="by-entity">
-                        {t.dashboard.assetDistributionByEntity}
-                      </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="by-asset" className="mt-4">
-                      {assetDistribution.length > 0 ? (
-                        <div
-                          className={
-                            assetDistributionCardSmall
-                              ? "h-[450px] px-2"
-                              : "h-[300px] px-4"
-                          }
-                        >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart
-                              key={`pie-asset-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
-                              style={{ userSelect: "none" }}
-                            >
-                              <Pie
-                                data={assetDistribution}
-                                cx={assetDistributionCardSmall ? "50%" : "45%"}
-                                cy={assetDistributionCardSmall ? "40%" : "50%"}
-                                labelLine={false}
-                                innerRadius={
-                                  assetDistributionCardSmall ? 60 : 70
-                                }
-                                outerRadius={
-                                  assetDistributionCardSmall ? 100 : 110
-                                }
-                                fill="#8884d8"
-                                dataKey="value"
-                                nameKey="type"
-                                isAnimationActive={false}
-                                stroke="hsl(var(--background))"
-                                strokeWidth={2}
-                                label={({
-                                  cx,
-                                  cy,
-                                  midAngle,
-                                  innerRadius,
-                                  outerRadius,
-                                  percentage,
-                                }) => {
-                                  if (percentage < 3) return null
-
-                                  const RADIAN = Math.PI / 180
-
-                                  const isLargeSegment = percentage >= 15
-                                  const radius = isLargeSegment
-                                    ? innerRadius +
-                                      (outerRadius - innerRadius) * 0.45 // Inside
-                                    : innerRadius +
-                                      (outerRadius - innerRadius) * 1.25 // Outside
-
-                                  const x =
-                                    cx + radius * Math.cos(-midAngle * RADIAN)
-                                  const y =
-                                    cy + radius * Math.sin(-midAngle * RADIAN)
-
-                                  return (
-                                    <g>
-                                      <text
-                                        x={x}
-                                        y={y}
-                                        fill={
-                                          isLargeSegment
-                                            ? "white"
-                                            : "hsl(var(--foreground))"
-                                        }
-                                        textAnchor="middle"
-                                        dominantBaseline="central"
-                                        fontSize={isLargeSegment ? "12" : "10"}
-                                        fontWeight="600"
-                                      >
-                                        {percentage.toFixed(0)}%
-                                      </text>
-                                    </g>
-                                  )
-                                }}
-                              >
-                                {assetDistribution.map((entry, index) => (
-                                  <Cell
-                                    key={`cell-${index}`}
-                                    fill={getPieSliceColorForAssetType(
-                                      entry.type,
-                                    )}
-                                    style={{ outline: "none" }}
-                                  />
-                                ))}
-                              </Pie>
-                              <Tooltip content={<CustomTooltip />} />
-                              <Legend
-                                layout="vertical"
-                                verticalAlign={
-                                  assetDistributionCardSmall
-                                    ? "bottom"
-                                    : "middle"
-                                }
-                                align={
-                                  assetDistributionCardSmall
-                                    ? "center"
-                                    : "right"
-                                }
-                                wrapperStyle={
-                                  assetDistributionCardSmall
-                                    ? {
-                                        maxHeight: "200px",
-                                        overflowY: "auto",
-                                        width: "95%",
-                                        margin: "0 auto",
-                                      }
-                                    : {
-                                        paddingRight: "10px",
-                                        maxHeight: "260px",
-                                        overflowY: "auto",
-                                      }
-                                }
-                                content={<CustomLegend />}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          {t.common.noDataAvailable}
-                        </p>
-                      )}
-                    </TabsContent>
-
-                    <TabsContent value="by-entity" className="mt-4">
-                      {adjustedEntityDistribution.length > 0 ? (
-                        <div
-                          className={
-                            assetDistributionCardSmall
-                              ? "h-[450px] px-2"
-                              : "h-[300px] px-4"
-                          }
-                        >
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart
-                              key={`pie-entity-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
-                              style={{ userSelect: "none" }}
-                            >
-                              <Pie
-                                data={adjustedEntityDistribution}
-                                cx={assetDistributionCardSmall ? "50%" : "45%"}
-                                cy={assetDistributionCardSmall ? "40%" : "50%"}
-                                labelLine={false}
-                                innerRadius={
-                                  assetDistributionCardSmall ? 60 : 70
-                                }
-                                outerRadius={
-                                  assetDistributionCardSmall ? 100 : 110
-                                }
-                                fill="#8884d8"
-                                dataKey="value"
-                                nameKey="name"
-                                isAnimationActive={false}
-                                stroke="hsl(var(--background))"
-                                strokeWidth={2}
-                                label={({
-                                  cx,
-                                  cy,
-                                  midAngle,
-                                  innerRadius,
-                                  outerRadius,
-                                  percentage,
-                                }) => {
-                                  if (percentage < 3) return null
-
-                                  const RADIAN = Math.PI / 180
-
-                                  const isLargeSegment = percentage >= 15
-                                  const radius = isLargeSegment
-                                    ? innerRadius +
-                                      (outerRadius - innerRadius) * 0.45 // Inside
-                                    : innerRadius +
-                                      (outerRadius - innerRadius) * 1.25 // Outside
-
-                                  const x =
-                                    cx + radius * Math.cos(-midAngle * RADIAN)
-                                  const y =
-                                    cy + radius * Math.sin(-midAngle * RADIAN)
-
-                                  return (
-                                    <g>
-                                      <text
-                                        x={x}
-                                        y={y}
-                                        fill={
-                                          isLargeSegment
-                                            ? "white"
-                                            : "hsl(var(--foreground))"
-                                        }
-                                        textAnchor="middle"
-                                        dominantBaseline="central"
-                                        fontSize={isLargeSegment ? "12" : "10"}
-                                        fontWeight="600"
-                                      >
-                                        {percentage.toFixed(0)}%
-                                      </text>
-                                    </g>
-                                  )
-                                }}
-                              >
-                                {adjustedEntityDistribution.map(
-                                  (entry, index) => (
-                                    <Cell
-                                      key={`entity-cell-${index}`}
-                                      fill={entityColorMap.get(entry.id)}
-                                      style={{ outline: "none" }}
-                                    />
-                                  ),
-                                )}
-                              </Pie>
-                              <Tooltip content={<CustomEntityTooltip />} />
-                              <Legend
-                                layout="vertical"
-                                verticalAlign={
-                                  assetDistributionCardSmall
-                                    ? "bottom"
-                                    : "middle"
-                                }
-                                align={
-                                  assetDistributionCardSmall
-                                    ? "center"
-                                    : "right"
-                                }
-                                wrapperStyle={
-                                  assetDistributionCardSmall
-                                    ? {
-                                        maxHeight: "200px",
-                                        overflowY: "auto",
-                                        width: "95%",
-                                        margin: "0 auto",
-                                      }
-                                    : {
-                                        paddingRight: "10px",
-                                        maxHeight: "260px",
-                                        overflowY: "auto",
-                                      }
-                                }
-                                content={<CustomEntityLegend />}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          {t.common.noDataAvailable}
-                        </p>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="order-3 lg:hidden"
-            >
-              {renderUpcomingCard()}
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="order-1 lg:order-2 lg:col-span-5 lg:col-start-8 space-y-6"
-            >
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold flex items-center">
-                    <Wallet className="h-5 w-5 mr-2 text-primary" />
-                    {t.dashboard.netWorth}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-y-1">
-                    <p className="text-4xl font-bold">
-                      {formatCurrency(
-                        adjustedTotalAssets,
-                        locale,
-                        settings.general.defaultCurrency,
-                      )}
-                    </p>
-                    {adjustedInvestedAmount > 0 &&
-                      (() => {
-                        const percentageValue =
-                          ((adjustedTotalAssets - adjustedInvestedAmount) /
-                            adjustedInvestedAmount) *
-                          100
-                        const sign = percentageValue >= 0 ? "+" : "-"
-                        return (
-                          <p
-                            className={`text-xl font-medium sm:text-right sm:self-end ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                          >
-                            {sign}
-                            {formatPercentage(
-                              Math.abs(percentageValue),
-                              locale,
-                            )}
-                          </p>
-                        )
-                      })()}
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {t.dashboard.investedAmount}{" "}
-                    {formatCurrency(
-                      adjustedInvestedAmount,
-                      locale,
-                      settings.general.defaultCurrency,
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+            <h1 className="text-3xl font-bold flex-shrink-0">
+              {t.common.dashboard}
+            </h1>
+            <div className="flex flex-wrap gap-2 items-center justify-end">
+              {/* Forecast active indicator / trigger */}
+              <Popover open={forecastOpen} onOpenChange={setForecastOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={forecastMode ? "default" : "outline"}
+                    className="flex items-center h-9 px-3 text-sm"
+                  >
+                    <TrendingUpDown className="h-4 w-4 mr-1 flex-shrink-0" />
+                    <span className="whitespace-nowrap">
+                      {forecastMode && forecastResult
+                        ? formatDate(forecastResult.target_date, locale)
+                        : t.forecast.title}
+                    </span>
+                    {forecastMode && (
+                      <span
+                        onClick={e => {
+                          e.stopPropagation()
+                          setForecastResult(null)
+                          setForecastTargetDate("")
+                          setForecastAnnualIncrease("")
+                          setForecastAnnualCryptoIncrease("")
+                          setForecastAnnualCommodityIncrease("")
+                        }}
+                        className="ml-2 text-xs font-semibold opacity-80 hover:opacity-100 cursor-pointer"
+                        aria-label={t.forecast.close}
+                      >
+                        ×
+                      </span>
                     )}
-                  </p>
-                  {forecastMode && projectedCash < 0 && (
-                    <div className="mt-3 flex items-start gap-3 rounded-md border border-amber-400/60 bg-amber-100/70 dark:bg-amber-900/40 px-3 py-2.5 text-sm">
-                      <div className="shrink-0 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 p-1.5 ring-1 ring-amber-500/30">
-                        <AlertCircle className="h-5 w-5" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 z-[50]" align="end">
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">
+                        {t.forecast.targetDate}
+                      </label>
+                      <DatePicker
+                        value={forecastTargetDate}
+                        onChange={setForecastTargetDate}
+                        placeholder={t.forecast.targetDate}
+                      />
+                    </div>
+                    {hasMarketAssets && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium flex items-center justify-between">
+                          <span>{t.forecast.avgAnnualIncrease}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            %
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={forecastAnnualIncrease}
+                          onChange={e =>
+                            setForecastAnnualIncrease(e.target.value)
+                          }
+                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          placeholder="0.0"
+                        />
                       </div>
-                      <div className="space-y-0.5">
-                        <p className="font-semibold text-amber-800 dark:text-amber-200 tracking-tight">
-                          {t.forecast.negativeCashWarningTitle}
-                        </p>
-                        <p className="text-amber-800/90 dark:text-amber-100/80 leading-snug">
-                          {t.forecast.negativeCashWarning.replace(
-                            "{amount}",
-                            formatCurrency(
-                              projectedCash,
-                              locale,
-                              settings.general.defaultCurrency,
-                            ),
-                          )}
-                        </p>
+                    )}
+                    {hasCryptoAssets && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium flex items-center justify-between">
+                          <span>{t.forecast.avgAnnualCryptoIncrease}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            %
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={forecastAnnualCryptoIncrease}
+                          onChange={e =>
+                            setForecastAnnualCryptoIncrease(e.target.value)
+                          }
+                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          placeholder="0.0"
+                        />
+                      </div>
+                    )}
+                    {hasCommodityAssets && (
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium flex items-center justify-between">
+                          <span>{t.forecast.avgAnnualCommodityIncrease}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            %
+                          </span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={forecastAnnualCommodityIncrease}
+                          onChange={e =>
+                            setForecastAnnualCommodityIncrease(e.target.value)
+                          }
+                          className="w-full h-9 px-2 rounded-md border bg-background text-sm"
+                          placeholder="0.0"
+                        />
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2">
+                      {forecastMode && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setForecastResult(null)
+                            setForecastTargetDate("")
+                            setForecastAnnualIncrease("")
+                            setForecastAnnualCryptoIncrease("")
+                            setForecastAnnualCommodityIncrease("")
+                          }}
+                          className="text-xs"
+                        >
+                          {t.forecast.reset}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        disabled={
+                          !forecastTargetDate ||
+                          forecastLoading ||
+                          (!!forecastTargetDate &&
+                            new Date(forecastTargetDate) <= new Date())
+                        }
+                        onClick={async () => {
+                          try {
+                            setForecastLoading(true)
+                            const result = await getForecast({
+                              target_date: forecastTargetDate,
+                              avg_annual_market_increase: forecastAnnualIncrease
+                                ? parseFloat(forecastAnnualIncrease) / 100
+                                : null,
+                              avg_annual_crypto_increase:
+                                forecastAnnualCryptoIncrease
+                                  ? parseFloat(forecastAnnualCryptoIncrease) /
+                                    100
+                                  : null,
+                              avg_annual_commodity_increase:
+                                forecastAnnualCommodityIncrease
+                                  ? parseFloat(
+                                      forecastAnnualCommodityIncrease,
+                                    ) / 100
+                                  : null,
+                            })
+                            setForecastResult(result)
+                            setForecastOpen(false)
+                          } catch (err) {
+                            console.error("Forecast error", err)
+                          } finally {
+                            setForecastLoading(false)
+                          }
+                        }}
+                        className="text-xs"
+                      >
+                        {forecastLoading ? t.common.loading : t.forecast.run}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {t.forecast.disclaimer}
+                    </p>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {/* Dashboard Options */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex items-center h-9 px-3"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm flex items-center gap-2">
+                        <HandCoins className="h-4 w-4 text-muted-foreground" />
+                        {t.dashboard.includePendingMoney}
+                      </div>
+                      <Switch
+                        disabled={forecastMode}
+                        checked={
+                          forecastMode ? false : dashboardOptions.includePending
+                        }
+                        onCheckedChange={val =>
+                          setDashboardOptions(prev => ({
+                            ...prev,
+                            includePending: Boolean(val),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        {t.dashboard.includeCardExpenses}
+                      </div>
+                      <Switch
+                        checked={dashboardOptions.includeCardExpenses}
+                        onCheckedChange={val =>
+                          setDashboardOptions(prev => ({
+                            ...prev,
+                            includeCardExpenses: Boolean(val),
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm flex items-center gap-2">
+                          <Home className="h-4 w-4 text-muted-foreground" />
+                          {t.dashboard.includeRealEstateEquity}
+                        </div>
+                        <Switch
+                          checked={dashboardOptions.includeRealEstate}
+                          onCheckedChange={val =>
+                            setDashboardOptions(prev => ({
+                              ...prev,
+                              includeRealEstate: Boolean(val),
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between pl-6">
+                        <div className="text-sm text-muted-foreground">
+                          {t.dashboard.includeResidences}
+                        </div>
+                        <Switch
+                          checked={dashboardOptions.includeResidences}
+                          onCheckedChange={val =>
+                            setDashboardOptions(prev => ({
+                              ...prev,
+                              includeResidences: Boolean(val),
+                            }))
+                          }
+                          disabled={!dashboardOptions.includeRealEstate}
+                        />
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-              <div className="hidden lg:block">{renderUpcomingCard()}</div>
-            </motion.div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <EntityRefreshDropdown />
+            </div>
           </div>
 
-          {ongoingProjects.length > 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+          {!hasData ? (
+            <AnimatedContainer
+              skipAnimation={skipAnimations}
+              delay={0.2}
+              className="flex flex-col items-center justify-center h-[70vh] text-center"
             >
-              {/* Ongoing investments (full-width, no card background) */}
-              <div className="relative w-full">
-                <div className="flex flex-row items-center justify-between pb-3">
-                  <div>
-                    <h2 className="text-lg font-bold flex items-center">
-                      <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                      {t.dashboard.ongoingProjects}
-                    </h2>
-                  </div>
-                  {ongoingProjects.length > 3 && (
-                    <div className="flex space-x-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => scrollProjects("left")}
-                        disabled={!showLeftScroll}
-                        className={`h-7 w-7 p-0 ${
-                          !showLeftScroll ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        <ChevronLeft className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => scrollProjects("right")}
-                        disabled={!showRightScroll}
-                        className={`h-7 w-7 p-0 ${
-                          !showRightScroll
-                            ? "opacity-50 cursor-not-allowed"
-                            : ""
-                        }`}
-                      >
-                        <ChevronRight className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                {/* Full-bleed horizontal scroller */}
-                <div className="-mx-4 sm:-mx-6">
-                  <div
-                    ref={projectsContainerRef}
-                    className="flex overflow-x-auto overflow-y-visible space-x-3 scrollbar-none px-4 sm:px-6 pb-4"
-                    onScroll={handleScroll}
-                    style={{
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none",
-                    }}
-                  >
-                    {ongoingProjects.map((project, index) => {
-                      const status = getDaysStatus(
-                        project.maturity,
-                        t,
-                        project.extendedMaturity,
-                      )
-                      const route = getInvestmentRouteForProject(project.type)
-                      return (
-                        <Card
-                          key={index}
-                          className={`flex-shrink-0 w-[280px] ${route ? "cursor-pointer hover:border-primary/40 transition-colors" : ""}`}
-                          onClick={() => route && navigate(route)}
-                          role={route ? "button" : undefined}
-                          tabIndex={route ? 0 : -1}
-                          onKeyDown={e => {
-                            if (route && (e.key === "Enter" || e.key === " ")) {
-                              e.preventDefault()
-                              navigate(route)
-                            }
-                          }}
-                        >
-                          <CardContent className="p-3 flex flex-col justify-between h-full">
-                            <div>
-                              <div className="flex justify-between items-start mb-2">
-                                <div className="flex-grow mr-2 min-w-0">
-                                  <h3
-                                    className="font-medium text-sm truncate"
-                                    title={project.name}
+              <BarChart3 className="h-16 w-16 text-gray-400 mb-6" />
+              <h2 className="text-2xl font-bold mb-3">
+                {t.dashboard.noDataTitle}
+              </h2>
+              <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md">
+                {t.dashboard.noDataSubtitle}
+              </p>
+              <Button onClick={() => navigate("/entities")}>
+                {t.dashboard.connectEntitiesButton}
+              </Button>
+            </AnimatedContainer>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <AnimatedContainer
+                  skipAnimation={skipAnimations}
+                  delay={0.1}
+                  className="order-2 lg:order-1 lg:col-span-7"
+                >
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg font-bold flex items-center">
+                        <PieChartIcon className="h-5 w-5 mr-2 text-primary" />
+                        {t.dashboard.assetDistribution}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent
+                      ref={assetDistributionCardRef}
+                      className="px-2"
+                    >
+                      <Tabs defaultValue="by-asset" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                          <TabsTrigger value="by-asset">
+                            {t.dashboard.assetDistributionByType}
+                          </TabsTrigger>
+                          <TabsTrigger value="by-entity">
+                            {t.dashboard.assetDistributionByEntity}
+                          </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="by-asset" className="mt-4">
+                          {assetDistribution.length > 0 ? (
+                            <div
+                              className={
+                                assetDistributionCardSmall
+                                  ? "h-[450px] px-2"
+                                  : "h-[300px] px-4"
+                              }
+                            >
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart
+                                  key={`pie-asset-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                                  style={{ userSelect: "none" }}
+                                >
+                                  <Pie
+                                    data={assetDistribution}
+                                    cx={
+                                      assetDistributionCardSmall ? "50%" : "45%"
+                                    }
+                                    cy={
+                                      assetDistributionCardSmall ? "40%" : "50%"
+                                    }
+                                    labelLine={false}
+                                    innerRadius={
+                                      assetDistributionCardSmall ? 60 : 70
+                                    }
+                                    outerRadius={
+                                      assetDistributionCardSmall ? 100 : 110
+                                    }
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                    nameKey="type"
+                                    isAnimationActive={false}
+                                    stroke="hsl(var(--background))"
+                                    strokeWidth={2}
+                                    label={({
+                                      cx,
+                                      cy,
+                                      midAngle,
+                                      innerRadius,
+                                      outerRadius,
+                                      percentage,
+                                    }) => {
+                                      if (percentage < 3) return null
+
+                                      const RADIAN = Math.PI / 180
+
+                                      const isLargeSegment = percentage >= 15
+                                      const radius = isLargeSegment
+                                        ? innerRadius +
+                                          (outerRadius - innerRadius) * 0.45 // Inside
+                                        : innerRadius +
+                                          (outerRadius - innerRadius) * 1.25 // Outside
+
+                                      const x =
+                                        cx +
+                                        radius * Math.cos(-midAngle * RADIAN)
+                                      const y =
+                                        cy +
+                                        radius * Math.sin(-midAngle * RADIAN)
+
+                                      return (
+                                        <g>
+                                          <text
+                                            x={x}
+                                            y={y}
+                                            fill={
+                                              isLargeSegment
+                                                ? "white"
+                                                : "hsl(var(--foreground))"
+                                            }
+                                            textAnchor="middle"
+                                            dominantBaseline="central"
+                                            fontSize={
+                                              isLargeSegment ? "12" : "10"
+                                            }
+                                            fontWeight="600"
+                                          >
+                                            {percentage.toFixed(0)}%
+                                          </text>
+                                        </g>
+                                      )
+                                    }}
                                   >
-                                    {project.name}
-                                  </h3>
-                                  <div className="flex items-center text-xs text-muted-foreground mt-0.5">
-                                    <Badge
-                                      variant="outline"
-                                      className="mr-1.5 text-[10px] py-0 px-1"
-                                    >
-                                      {project.entity}
-                                    </Badge>
-                                    <div className="flex items-center">
-                                      {getIconForAssetType(project.type)}
-                                      <span className="ml-1 capitalize text-[10px]">
-                                        {t.enums &&
-                                        t.enums.productType &&
-                                        (t.enums.productType as any)[
-                                          project.type
-                                        ]
-                                          ? (t.enums.productType as any)[
+                                    {assetDistribution.map((entry, index) => (
+                                      <Cell
+                                        key={`cell-${index}`}
+                                        fill={getPieSliceColorForAssetType(
+                                          entry.type,
+                                        )}
+                                        style={{ outline: "none" }}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip content={<CustomTooltip />} />
+                                  <Legend
+                                    layout="vertical"
+                                    verticalAlign={
+                                      assetDistributionCardSmall
+                                        ? "bottom"
+                                        : "middle"
+                                    }
+                                    align={
+                                      assetDistributionCardSmall
+                                        ? "center"
+                                        : "right"
+                                    }
+                                    wrapperStyle={
+                                      assetDistributionCardSmall
+                                        ? {
+                                            maxHeight: "200px",
+                                            overflowY: "auto",
+                                            width: "95%",
+                                            margin: "0 auto",
+                                          }
+                                        : {
+                                            paddingRight: "10px",
+                                            maxHeight: "260px",
+                                            overflowY: "auto",
+                                          }
+                                    }
+                                    content={<CustomLegend />}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {t.common.noDataAvailable}
+                            </p>
+                          )}
+                        </TabsContent>
+
+                        <TabsContent value="by-entity" className="mt-4">
+                          {adjustedEntityDistribution.length > 0 ? (
+                            <div
+                              className={
+                                assetDistributionCardSmall
+                                  ? "h-[450px] px-2"
+                                  : "h-[300px] px-4"
+                              }
+                            >
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart
+                                  key={`pie-entity-${assetDistributionCardSmall ? "small" : "large"}-${chartRenderKey}`}
+                                  style={{ userSelect: "none" }}
+                                >
+                                  <Pie
+                                    data={adjustedEntityDistribution}
+                                    cx={
+                                      assetDistributionCardSmall ? "50%" : "45%"
+                                    }
+                                    cy={
+                                      assetDistributionCardSmall ? "40%" : "50%"
+                                    }
+                                    labelLine={false}
+                                    innerRadius={
+                                      assetDistributionCardSmall ? 60 : 70
+                                    }
+                                    outerRadius={
+                                      assetDistributionCardSmall ? 100 : 110
+                                    }
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                    nameKey="name"
+                                    isAnimationActive={false}
+                                    stroke="hsl(var(--background))"
+                                    strokeWidth={2}
+                                    label={({
+                                      cx,
+                                      cy,
+                                      midAngle,
+                                      innerRadius,
+                                      outerRadius,
+                                      percentage,
+                                    }) => {
+                                      if (percentage < 3) return null
+
+                                      const RADIAN = Math.PI / 180
+
+                                      const isLargeSegment = percentage >= 15
+                                      const radius = isLargeSegment
+                                        ? innerRadius +
+                                          (outerRadius - innerRadius) * 0.45 // Inside
+                                        : innerRadius +
+                                          (outerRadius - innerRadius) * 1.25 // Outside
+
+                                      const x =
+                                        cx +
+                                        radius * Math.cos(-midAngle * RADIAN)
+                                      const y =
+                                        cy +
+                                        radius * Math.sin(-midAngle * RADIAN)
+
+                                      return (
+                                        <g>
+                                          <text
+                                            x={x}
+                                            y={y}
+                                            fill={
+                                              isLargeSegment
+                                                ? "white"
+                                                : "hsl(var(--foreground))"
+                                            }
+                                            textAnchor="middle"
+                                            dominantBaseline="central"
+                                            fontSize={
+                                              isLargeSegment ? "12" : "10"
+                                            }
+                                            fontWeight="600"
+                                          >
+                                            {percentage.toFixed(0)}%
+                                          </text>
+                                        </g>
+                                      )
+                                    }}
+                                  >
+                                    {adjustedEntityDistribution.map(
+                                      (entry, index) => (
+                                        <Cell
+                                          key={`entity-cell-${index}`}
+                                          fill={entityColorMap.get(entry.id)}
+                                          style={{ outline: "none" }}
+                                        />
+                                      ),
+                                    )}
+                                  </Pie>
+                                  <Tooltip content={<CustomEntityTooltip />} />
+                                  <Legend
+                                    layout="vertical"
+                                    verticalAlign={
+                                      assetDistributionCardSmall
+                                        ? "bottom"
+                                        : "middle"
+                                    }
+                                    align={
+                                      assetDistributionCardSmall
+                                        ? "center"
+                                        : "right"
+                                    }
+                                    wrapperStyle={
+                                      assetDistributionCardSmall
+                                        ? {
+                                            maxHeight: "200px",
+                                            overflowY: "auto",
+                                            width: "95%",
+                                            margin: "0 auto",
+                                          }
+                                        : {
+                                            paddingRight: "10px",
+                                            maxHeight: "260px",
+                                            overflowY: "auto",
+                                          }
+                                    }
+                                    content={<CustomEntityLegend />}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              {t.common.noDataAvailable}
+                            </p>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                </AnimatedContainer>
+
+                <AnimatedContainer
+                  skipAnimation={skipAnimations}
+                  delay={0.25}
+                  className="order-3 lg:hidden"
+                >
+                  {renderUpcomingCard()}
+                </AnimatedContainer>
+
+                <AnimatedContainer
+                  skipAnimation={skipAnimations}
+                  delay={0.2}
+                  className="order-1 lg:order-2 lg:col-span-5 lg:col-start-8 space-y-6"
+                >
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg font-bold flex items-center">
+                        <Wallet className="h-5 w-5 mr-2 text-primary" />
+                        {t.dashboard.netWorth}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-y-1">
+                        <p className="text-4xl font-bold">
+                          {formatCurrency(
+                            adjustedTotalAssets,
+                            locale,
+                            settings.general.defaultCurrency,
+                          )}
+                        </p>
+                        {adjustedInvestedAmount > 0 &&
+                          (() => {
+                            const percentageValue =
+                              ((adjustedTotalAssets - adjustedInvestedAmount) /
+                                adjustedInvestedAmount) *
+                              100
+                            const sign = percentageValue >= 0 ? "+" : "-"
+                            return (
+                              <p
+                                className={`text-xl font-medium sm:text-right sm:self-end ${percentageValue === 0 ? "text-gray-500 dark:text-gray-400" : percentageValue > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
+                              >
+                                {sign}
+                                {formatPercentage(
+                                  Math.abs(percentageValue),
+                                  locale,
+                                )}
+                              </p>
+                            )
+                          })()}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {t.dashboard.investedAmount}{" "}
+                        {formatCurrency(
+                          adjustedInvestedAmount,
+                          locale,
+                          settings.general.defaultCurrency,
+                        )}
+                      </p>
+                      {forecastMode && projectedCash < 0 && (
+                        <div className="mt-3 flex items-start gap-3 rounded-md border border-amber-400/60 bg-amber-100/70 dark:bg-amber-900/40 px-3 py-2.5 text-sm">
+                          <div className="shrink-0 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 p-1.5 ring-1 ring-amber-500/30">
+                            <AlertCircle className="h-5 w-5" />
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="font-semibold text-amber-800 dark:text-amber-200 tracking-tight">
+                              {t.forecast.negativeCashWarningTitle}
+                            </p>
+                            <p className="text-amber-800/90 dark:text-amber-100/80 leading-snug">
+                              {t.forecast.negativeCashWarning.replace(
+                                "{amount}",
+                                formatCurrency(
+                                  projectedCash,
+                                  locale,
+                                  settings.general.defaultCurrency,
+                                ),
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <div className="hidden lg:block">{renderUpcomingCard()}</div>
+                </AnimatedContainer>
+              </div>
+
+              {ongoingProjects.length > 0 ? (
+                <AnimatedContainer skipAnimation={skipAnimations} delay={0.3}>
+                  {/* Ongoing investments (full-width, no card background) */}
+                  <div className="relative w-full">
+                    <div className="flex flex-row items-center justify-between pb-3">
+                      <div>
+                        <h2 className="text-lg font-bold flex items-center">
+                          <TrendingUp className="h-5 w-5 mr-2 text-primary" />
+                          {t.dashboard.ongoingProjects}
+                        </h2>
+                      </div>
+                      {ongoingProjects.length > 3 && (
+                        <div className="flex space-x-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => scrollProjects("left")}
+                            disabled={!showLeftScroll}
+                            className={`h-7 w-7 p-0 ${
+                              !showLeftScroll
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
+                          >
+                            <ChevronLeft className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => scrollProjects("right")}
+                            disabled={!showRightScroll}
+                            className={`h-7 w-7 p-0 ${
+                              !showRightScroll
+                                ? "opacity-50 cursor-not-allowed"
+                                : ""
+                            }`}
+                          >
+                            <ChevronRight className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    {/* Full-bleed horizontal scroller */}
+                    <div className="-mx-4 sm:-mx-6">
+                      <div
+                        ref={projectsContainerRef}
+                        className="flex overflow-x-auto overflow-y-visible space-x-3 scrollbar-none px-4 sm:px-6 pb-4"
+                        onScroll={handleScroll}
+                        style={{
+                          scrollbarWidth: "none",
+                          msOverflowStyle: "none",
+                        }}
+                      >
+                        {ongoingProjects.map((project, index) => {
+                          const status = getDaysStatus(
+                            project.maturity,
+                            t,
+                            project.extendedMaturity,
+                          )
+                          const route = getInvestmentRouteForProject(
+                            project.type,
+                          )
+                          return (
+                            <Card
+                              key={index}
+                              className={`flex-shrink-0 w-[280px] ${route ? "cursor-pointer hover:border-primary/40 transition-colors" : ""}`}
+                              onClick={() => route && navigate(route)}
+                              role={route ? "button" : undefined}
+                              tabIndex={route ? 0 : -1}
+                              onKeyDown={e => {
+                                if (
+                                  route &&
+                                  (e.key === "Enter" || e.key === " ")
+                                ) {
+                                  e.preventDefault()
+                                  navigate(route)
+                                }
+                              }}
+                            >
+                              <CardContent className="p-3 flex flex-col justify-between h-full">
+                                <div>
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-grow mr-2 min-w-0">
+                                      <h3
+                                        className="font-medium text-sm truncate"
+                                        title={project.name}
+                                      >
+                                        {project.name}
+                                      </h3>
+                                      <div className="flex items-center text-xs text-muted-foreground mt-0.5">
+                                        <Badge
+                                          variant="outline"
+                                          className="mr-1.5 text-[10px] py-0 px-1"
+                                        >
+                                          {project.entity}
+                                        </Badge>
+                                        <div className="flex items-center">
+                                          {getIconForAssetType(project.type)}
+                                          <span className="ml-1 capitalize text-[10px]">
+                                            {t.enums &&
+                                            t.enums.productType &&
+                                            (t.enums.productType as any)[
                                               project.type
                                             ]
-                                          : project.type
-                                              .toLowerCase()
-                                              .replace(/_/g, " ")}
-                                      </span>
+                                              ? (t.enums.productType as any)[
+                                                  project.type
+                                                ]
+                                              : project.type
+                                                  .toLowerCase()
+                                                  .replace(/_/g, " ")}
+                                          </span>
+                                        </div>
+                                      </div>
                                     </div>
+                                    <Badge
+                                      variant="outline"
+                                      className={`flex-shrink-0 h-auto px-1.5 py-0.5 text-center text-[10px] whitespace-nowrap ${
+                                        status.isDelayed
+                                          ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
+                                          : status.days < 30
+                                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+                                            : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
+                                      }`}
+                                    >
+                                      <span className="font-semibold inline-flex items-center gap-1">
+                                        {status.usedExtendedMaturity && (
+                                          <CalendarPlus className="h-3 w-3" />
+                                        )}
+                                        {status.statusText}
+                                      </span>
+                                    </Badge>
                                   </div>
                                 </div>
-                                <Badge
-                                  variant="outline"
-                                  className={`flex-shrink-0 h-auto px-1.5 py-0.5 text-center text-[10px] whitespace-nowrap ${
-                                    status.isDelayed
-                                      ? "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300"
-                                      : status.days < 30
-                                        ? "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
-                                        : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300"
-                                  }`}
-                                >
-                                  <span className="font-semibold inline-flex items-center gap-1">
-                                    {status.usedExtendedMaturity && (
-                                      <CalendarPlus className="h-3 w-3" />
-                                    )}
-                                    {status.statusText}
-                                  </span>
-                                </Badge>
-                              </div>
-                            </div>
-                            <div className="space-y-1 mt-auto">
-                              <div className="flex justify-between text-[10px] text-muted-foreground">
-                                <span>{t.dashboard.maturity}</span>
-                                <span>
-                                  {formatDate(
-                                    status.usedExtendedMaturity &&
-                                      project.extendedMaturity
-                                      ? project.extendedMaturity
-                                      : project.maturity,
-                                    locale,
-                                  )}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-start mb-2">
-                                <p className="text-base font-semibold">
-                                  {project.formattedValue}
-                                </p>
-                                {(() => {
-                                  const isLate =
-                                    status.isDelayed &&
-                                    project.type === "FACTORING" &&
-                                    project.lateInterestRate != null &&
-                                    project.lateInterestRate > 0
-                                  if (isLate) {
-                                    return (
-                                      <div className="flex items-center gap-1">
-                                        <p className="text-[9px] text-muted-foreground">
+                                <div className="space-y-1 mt-auto">
+                                  <div className="flex justify-between text-[10px] text-muted-foreground">
+                                    <span>{t.dashboard.maturity}</span>
+                                    <span>
+                                      {formatDate(
+                                        status.usedExtendedMaturity &&
+                                          project.extendedMaturity
+                                          ? project.extendedMaturity
+                                          : project.maturity,
+                                        locale,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-start mb-2">
+                                    <p className="text-base font-semibold">
+                                      {project.formattedValue}
+                                    </p>
+                                    {(() => {
+                                      const isLate =
+                                        status.isDelayed &&
+                                        project.type === "FACTORING" &&
+                                        project.lateInterestRate != null &&
+                                        project.lateInterestRate > 0
+                                      if (isLate) {
+                                        return (
+                                          <div className="flex items-center gap-1">
+                                            <p className="text-[9px] text-muted-foreground">
+                                              {formatPercentage(
+                                                project.roi,
+                                                locale,
+                                              )}
+                                            </p>
+                                            <p className="text-base font-semibold text-green-600">
+                                              {formatPercentage(
+                                                project.lateInterestRate!,
+                                                locale,
+                                              )}
+                                            </p>
+                                          </div>
+                                        )
+                                      }
+                                      return (
+                                        <p className="text-base font-semibold text-green-600">
                                           {formatPercentage(
                                             project.roi,
                                             locale,
                                           )}
                                         </p>
-                                        <p className="text-base font-semibold text-green-600">
-                                          {formatPercentage(
-                                            project.lateInterestRate!,
-                                            locale,
-                                          )}
-                                        </p>
-                                      </div>
-                                    )
-                                  }
-                                  return (
-                                    <p className="text-base font-semibold text-green-600">
-                                      {formatPercentage(project.roi, locale)}
-                                    </p>
-                                  )
-                                })()}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ) : null}
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="lg:col-span-7"
-            >
-              <Card className="h-full flex flex-col">
-                <CardHeader>
-                  <CardTitle className="text-lg font-bold flex items-center">
-                    <BarChart3 className="h-5 w-5 mr-2 text-primary" />
-                    {t.dashboard.stocksAndFunds.title}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex-grow flex flex-col space-y-3 p-4 overflow-hidden min-h-[350px] max-h-[650px]">
-                  {fundItems.length > 0 ||
-                  stockItems.length > 0 ||
-                  cryptoItems.length > 0 ||
-                  commodityItems.length > 0 ? (
-                    <div className="flex flex-grow space-x-3 overflow-hidden">
-                      <div className="flex-grow space-y-2 overflow-y-auto scrollbar-thin pr-2">
-                        {fundItems.length > 0 ? (
-                          <div className="pb-2">
-                            <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
-                              {t.dashboard.stocksAndFunds.funds}
-                            </h3>
-                            {fundItems.map((item, index) => (
-                              <div
-                                key={item.id}
-                                className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
-                              >
-                                <div
-                                  className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "FUND")}`}
-                                ></div>
-                                <div className="flex-grow min-w-0">
-                                  <div className="flex justify-between items-center">
-                                    <div className="flex items-center flex-1 min-w-0 mr-2">
-                                      <span
-                                        className="font-medium truncate text-base"
-                                        title={item.name}
-                                      >
-                                        {item.name}
-                                      </span>
-                                      {item.portfolioName && (
-                                        <Badge
-                                          className={`ml-2 py-0.5 px-1.5 text-[10px] leading-tight rounded-md ${fundPortfolioColorMap.get(item.portfolioName as string) || "bg-gray-400"} ${(fundPortfolioColorMap.get(item.portfolioName as string) || "bg-gray-400").replace("bg-", "hover:bg-")} text-white`}
-                                          title={item.portfolioName}
-                                        >
-                                          <span className="truncate max-w-[120px]">
-                                            {item.portfolioName}
-                                          </span>
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <span className="font-semibold whitespace-nowrap text-sm">
-                                      {item.formattedValue}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
-                                    <Badge
-                                      variant="outline"
-                                      className="py-0.5 px-1.5 text-[10px] leading-tight"
-                                    >
-                                      {item.entity}
-                                    </Badge>
-                                    {item.change !== 0 && (
-                                      <span
-                                        className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
-                                      >
-                                        {formatPercentage(item.change, locale)}
-                                      </span>
-                                    )}
+                                      )
+                                    })()}
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {stockItems.length > 0 ? (
-                          <div className="pb-2">
-                            <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
-                              {t.dashboard.stocksAndFunds.stocksEtfs}
-                            </h3>
-                            {stockItems.map((item, index) => (
-                              <div
-                                key={item.id}
-                                className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
-                              >
-                                <div
-                                  className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "STOCK_ETF")}`}
-                                ></div>
-                                <div className="flex-grow min-w-0">
-                                  <div className="flex justify-between items-center">
-                                    <span
-                                      className="font-medium truncate flex-1 mr-2 text-base"
-                                      title={item.name}
-                                    >
-                                      {item.name}
-                                    </span>
-                                    <span className="font-semibold whitespace-nowrap text-sm">
-                                      {item.formattedValue}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
-                                    <Badge
-                                      variant="outline"
-                                      className="py-0.5 px-1.5 text-[10px] leading-tight"
-                                    >
-                                      {item.entity}
-                                    </Badge>
-                                    {item.change !== 0 && (
-                                      <span
-                                        className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
-                                      >
-                                        {formatPercentage(item.change, locale)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {cryptoItems.length > 0 ? (
-                          <div className="pb-2">
-                            <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
-                              {t.common.crypto}
-                            </h3>
-                            {cryptoItems.map((item, index) => (
-                              <div
-                                key={item.id}
-                                className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
-                              >
-                                <div
-                                  className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")}`}
-                                ></div>
-                                <div className="flex-grow min-w-0">
-                                  <div className="flex justify-between items-center">
-                                    <span
-                                      className="font-medium truncate flex-1 mr-2 text-base"
-                                      title={item.name}
-                                    >
-                                      {item.name}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                        {item.amount?.toLocaleString(locale, {
-                                          minimumFractionDigits:
-                                            item.amount < 1 ? 6 : 2,
-                                          maximumFractionDigits:
-                                            item.amount < 1 ? 6 : 2,
-                                        })}{" "}
-                                        {item.symbol}
-                                      </span>
-                                      <span className="font-semibold whitespace-nowrap text-sm">
-                                        {item.formattedValue}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
-                                    {item.showEntityBadge &&
-                                    item.entities &&
-                                    item.entities.length > 0 ? (
-                                      <div className="flex gap-1 flex-wrap">
-                                        {item.entities.map(
-                                          (entity, entityIndex) => (
-                                            <Badge
-                                              key={entityIndex}
-                                              variant="outline"
-                                              className="py-0.5 px-1.5 text-[10px] leading-tight"
-                                            >
-                                              {entity}
-                                            </Badge>
-                                          ),
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span>&nbsp;</span>
-                                    )}
-                                    {item.change !== 0 && (
-                                      <span
-                                        className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
-                                      >
-                                        {formatPercentage(item.change, locale)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-
-                        {commodityItems.length > 0 ? (
-                          <div className="pb-2">
-                            <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
-                              {t.common.commodities}
-                            </h3>
-                            {commodityItems.map((item, index) => (
-                              <div
-                                key={item.id}
-                                className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
-                              >
-                                <div
-                                  className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "COMMODITY")}`}
-                                ></div>
-                                <div className="flex-grow min-w-0">
-                                  <div className="flex justify-between items-center">
-                                    <span
-                                      className="font-medium truncate flex-1 mr-2 text-base"
-                                      title={
-                                        t.enums.commodityType[
-                                          item.type as keyof typeof t.enums.commodityType
-                                        ]
-                                      }
-                                    >
-                                      {
-                                        t.enums.commodityType[
-                                          item.type as keyof typeof t.enums.commodityType
-                                        ]
-                                      }
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                        {item.amount?.toLocaleString(locale, {
-                                          minimumFractionDigits: 0,
-                                          maximumFractionDigits: 1,
-                                        })}{" "}
-                                        {
-                                          t.enums.weightUnit[
-                                            item.unit as keyof typeof t.enums.weightUnit
-                                          ]
-                                        }
-                                      </span>
-                                      <span className="font-semibold whitespace-nowrap text-sm">
-                                        {item.formattedValue}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
-                                    {item.showEntityBadge &&
-                                    item.entities &&
-                                    item.entities.length > 0 ? (
-                                      <div className="flex gap-1 flex-wrap">
-                                        {item.entities.map(
-                                          (
-                                            entity: string,
-                                            entityIndex: number,
-                                          ) => (
-                                            <Badge
-                                              key={entityIndex}
-                                              variant="outline"
-                                              className="py-0.5 px-1.5 text-[10px] leading-tight"
-                                            >
-                                              {entity}
-                                            </Badge>
-                                          ),
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span>&nbsp;</span>
-                                    )}
-                                    {item.change !== 0 && (
-                                      <span
-                                        className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
-                                      >
-                                        {formatPercentage(item.change, locale)}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
                       </div>
+                    </div>
+                  </div>
+                </AnimatedContainer>
+              ) : null}
 
-                      <div className="flex-shrink-0 w-6 relative">
-                        {hasDetailedAssets && (
-                          <div className="h-full w-full flex flex-col rounded-sm overflow-hidden">
-                            {fundItems.map(
-                              (item, index) =>
-                                item.percentageOfTotalPortfolio > 0 && (
-                                  <Popover
-                                    key={`bar-fund-${item.id}`}
-                                    open={isPopoverOpen(`fund-${item.id}`)}
-                                    onOpenChange={open => {
-                                      if (!open) {
-                                        setHoveredItem(null)
-                                        setClickedItem(null)
-                                      }
-                                    }}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <AnimatedContainer
+                  skipAnimation={skipAnimations}
+                  delay={0.4}
+                  className="lg:col-span-7"
+                >
+                  <Card className="h-full flex flex-col">
+                    <CardHeader>
+                      <CardTitle className="text-lg font-bold flex items-center">
+                        <BarChart3 className="h-5 w-5 mr-2 text-primary" />
+                        {t.dashboard.stocksAndFunds.title}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-grow flex flex-col space-y-3 p-4 overflow-hidden min-h-[350px] max-h-[650px]">
+                      {fundItems.length > 0 ||
+                      stockItems.length > 0 ||
+                      cryptoItems.length > 0 ||
+                      commodityItems.length > 0 ? (
+                        <div className="flex flex-grow space-x-3 overflow-hidden">
+                          <div className="flex-grow space-y-2 overflow-y-auto scrollbar-thin pr-2">
+                            {fundItems.length > 0 ? (
+                              <div className="pb-2">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                  {t.dashboard.stocksAndFunds.funds}
+                                </h3>
+                                {fundItems.map((item, index) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
                                   >
-                                    <PopoverTrigger asChild>
-                                      <div
-                                        className={`w-full ${getItemColorByIndex(index, "FUND")} cursor-pointer hover:opacity-80 transition-opacity`}
-                                        style={{
-                                          height: `${item.percentageOfTotalPortfolio}%`,
-                                        }}
-                                        onMouseEnter={() =>
-                                          handleMouseEnter(`fund-${item.id}`)
-                                        }
-                                        onMouseLeave={() =>
-                                          setHoveredItem(null)
-                                        }
-                                        onClick={() =>
-                                          handlePopoverClick(`fund-${item.id}`)
-                                        }
-                                      ></div>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="w-80"
-                                      side="left"
-                                      onMouseEnter={() =>
-                                        handleMouseEnter(`fund-${item.id}`)
-                                      }
-                                      onMouseLeave={() => setHoveredItem(null)}
-                                    >
-                                      <div className="space-y-2">
-                                        <div className="flex items-center space-x-2">
-                                          <div
-                                            className={`w-4 h-4 rounded ${getItemColorByIndex(index, "FUND")}`}
-                                          ></div>
-                                          <h4 className="font-medium text-sm">
-                                            {item.name}
-                                          </h4>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.value}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {item.formattedValue}
-                                            </div>
-                                          </div>
-                                          {item.percentageOfTotalVariableRent <
-                                            100 && (
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.stakeInFunds}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {formatPercentage(
-                                                  item.percentageOfTotalVariableRent,
-                                                  locale,
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div className="col-span-2">
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.entity}:
-                                            </span>
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                              <Badge
-                                                variant="outline"
-                                                className="text-xs"
-                                              >
-                                                {item.entity}
-                                              </Badge>
-                                            </div>
-                                          </div>
-                                          {item.portfolioName && (
-                                            <div className="col-span-2">
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.portfolio}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {item.portfolioName}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div className="col-span-2">
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.change}:
-                                            </span>
-                                            <div
-                                              className={`font-semibold ${
-                                                item.change > 0
-                                                  ? "text-green-500"
-                                                  : item.change < 0
-                                                    ? "text-red-500"
-                                                    : "text-white"
-                                              }`}
-                                            >
-                                              {item.change === 0
-                                                ? "-"
-                                                : (item.change > 0 ? "+" : "") +
-                                                  formatPercentage(
-                                                    item.change,
-                                                    locale,
-                                                  )}
-                                            </div>
-                                          </div>
-                                          <div className="col-span-2">
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.investedAmount}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {(item as any)
-                                                .formattedInitialInvestment ||
-                                                (item as any)
-                                                  .formattedOriginalValue ||
-                                                item.formattedValue}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                ),
-                            )}
-                            {fundItems.length > 0 &&
-                              stockItems.length > 0 &&
-                              stockItems.some(
-                                si => si.percentageOfTotalVariableRent > 0,
-                              ) &&
-                              fundItems.some(
-                                fi => fi.percentageOfTotalVariableRent > 0,
-                              ) && <div className="h-1 w-full my-0.5"></div>}
-                            {stockItems.map(
-                              (item, index) =>
-                                item.percentageOfTotalPortfolio > 0 && (
-                                  <Popover
-                                    key={`bar-stock-${item.id}`}
-                                    open={isPopoverOpen(`stock-${item.id}`)}
-                                    onOpenChange={open => {
-                                      if (!open) {
-                                        setHoveredItem(null)
-                                        setClickedItem(null)
-                                      }
-                                    }}
-                                  >
-                                    <PopoverTrigger asChild>
-                                      <div
-                                        className={`w-full ${getItemColorByIndex(index, "STOCK_ETF")} cursor-pointer hover:opacity-80 transition-opacity`}
-                                        style={{
-                                          height: `${item.percentageOfTotalPortfolio}%`,
-                                        }}
-                                        onMouseEnter={() =>
-                                          handleMouseEnter(`stock-${item.id}`)
-                                        }
-                                        onMouseLeave={() =>
-                                          setHoveredItem(null)
-                                        }
-                                        onClick={() =>
-                                          handlePopoverClick(`stock-${item.id}`)
-                                        }
-                                      ></div>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="w-80"
-                                      side="left"
-                                      onMouseEnter={() =>
-                                        handleMouseEnter(`stock-${item.id}`)
-                                      }
-                                      onMouseLeave={() => setHoveredItem(null)}
-                                    >
-                                      <div className="space-y-2">
-                                        <div className="flex items-center space-x-2">
-                                          <div
-                                            className={`w-4 h-4 rounded ${getItemColorByIndex(index, "STOCK_ETF")}`}
-                                          ></div>
-                                          <h4 className="font-medium text-sm">
-                                            {item.name}
-                                          </h4>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.value}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {item.formattedValue}
-                                            </div>
-                                          </div>
-                                          {item.percentageOfTotalVariableRent <
-                                            100 && (
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.stakeInStocks}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {formatPercentage(
-                                                  item.percentageOfTotalVariableRent,
-                                                  locale,
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {item.symbol && (
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.symbol}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {item.symbol}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div
-                                            className={
-                                              item.symbol ? "" : "col-span-2"
-                                            }
+                                    <div
+                                      className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "FUND")}`}
+                                    ></div>
+                                    <div className="flex-grow min-w-0">
+                                      <div className="flex justify-between items-center">
+                                        <div className="flex items-center flex-1 min-w-0 mr-2">
+                                          <span
+                                            className="font-medium truncate text-base"
+                                            title={item.name}
                                           >
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.entity}:
-                                            </span>
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                              <Badge
-                                                variant="outline"
-                                                className="text-xs"
-                                              >
-                                                {item.entity}
-                                              </Badge>
-                                            </div>
-                                          </div>
-                                          <div className="col-span-2">
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.change}:
-                                            </span>
-                                            <div
-                                              className={`font-semibold ${
-                                                item.change > 0
-                                                  ? "text-green-500"
-                                                  : item.change < 0
-                                                    ? "text-red-500"
-                                                    : "text-white"
-                                              }`}
-                                            >
-                                              {item.change === 0
-                                                ? "-"
-                                                : (item.change > 0 ? "+" : "") +
-                                                  formatPercentage(
-                                                    item.change,
-                                                    locale,
-                                                  )}
-                                            </div>
-                                          </div>
-                                          <div className="col-span-2">
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.investedAmount}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {(item as any)
-                                                .formattedInitialInvestment ||
-                                                (item as any)
-                                                  .formattedOriginalValue ||
-                                                item.formattedValue}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                ),
-                            )}
-                            {(fundItems.length > 0 || stockItems.length > 0) &&
-                              cryptoItems.length > 0 &&
-                              cryptoItems.some(
-                                ci => ci.percentageOfTotalVariableRent > 0,
-                              ) && <div className="h-1 w-full my-0.5"></div>}
-                            {cryptoItems.map(
-                              (item, index) =>
-                                item.percentageOfTotalPortfolio > 0 && (
-                                  <Popover
-                                    key={`bar-crypto-${item.id}`}
-                                    open={isPopoverOpen(`crypto-${item.id}`)}
-                                    onOpenChange={open => {
-                                      if (!open) {
-                                        setHoveredItem(null)
-                                        setClickedItem(null)
-                                      }
-                                    }}
-                                  >
-                                    <PopoverTrigger asChild>
-                                      <div
-                                        className={`w-full ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")} cursor-pointer hover:opacity-80 transition-opacity`}
-                                        style={{
-                                          height: `${item.percentageOfTotalPortfolio}%`,
-                                        }}
-                                        onMouseEnter={() =>
-                                          handleMouseEnter(`crypto-${item.id}`)
-                                        }
-                                        onMouseLeave={() =>
-                                          setHoveredItem(null)
-                                        }
-                                        onClick={() =>
-                                          handlePopoverClick(
-                                            `crypto-${item.id}`,
-                                          )
-                                        }
-                                      ></div>
-                                    </PopoverTrigger>
-                                    <PopoverContent
-                                      className="w-80"
-                                      side="left"
-                                      onMouseEnter={() =>
-                                        handleMouseEnter(`crypto-${item.id}`)
-                                      }
-                                      onMouseLeave={() => setHoveredItem(null)}
-                                    >
-                                      <div className="space-y-2">
-                                        <div className="flex items-center space-x-2">
-                                          <div
-                                            className={`w-4 h-4 rounded ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")}`}
-                                          ></div>
-                                          <h4 className="font-medium text-sm">
                                             {item.name}
-                                          </h4>
+                                          </span>
+                                          {item.portfolioName && (
+                                            <Badge
+                                              className={`ml-2 py-0.5 px-1.5 text-[10px] leading-tight rounded-md ${fundPortfolioColorMap.get(item.portfolioName as string) || "bg-gray-400"} ${(fundPortfolioColorMap.get(item.portfolioName as string) || "bg-gray-400").replace("bg-", "hover:bg-")} text-white`}
+                                              title={item.portfolioName}
+                                            >
+                                              <span className="truncate max-w-[120px]">
+                                                {item.portfolioName}
+                                              </span>
+                                            </Badge>
+                                          )}
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2 text-xs">
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.value}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {(item as any)
-                                                .formattedInitialInvestment ||
-                                                item.formattedValue}
-                                            </div>
-                                          </div>
-                                          {item.percentageOfTotalVariableRent <
-                                            100 && (
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.stakeInCryptos}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {formatPercentage(
-                                                  item.percentageOfTotalVariableRent,
-                                                  locale,
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              Amount:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {item.amount?.toLocaleString(
-                                                locale,
-                                                {
-                                                  minimumFractionDigits:
-                                                    item.amount < 1 ? 6 : 2,
-                                                  maximumFractionDigits:
-                                                    item.amount < 1 ? 6 : 2,
-                                                },
-                                              )}{" "}
-                                              {item.symbol}
-                                            </div>
-                                          </div>
-                                          {item.symbol && (
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.symbol}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {item.symbol}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div>
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.type}:
-                                            </span>
-                                            <div className="font-semibold capitalize">
-                                              {item.type === "CRYPTO"
-                                                ? t.dashboard.mainCrypto
-                                                : t.dashboard.token}
-                                            </div>
-                                          </div>
-                                          {item.showEntityBadge &&
-                                            item.entities &&
-                                            item.entities.length > 0 && (
-                                              <div className="col-span-2">
-                                                <span className="text-muted-foreground">
-                                                  {t.dashboard.entities}:
-                                                </span>
-                                                <div className="flex flex-wrap gap-1 mt-1">
-                                                  {item.entities.map(
-                                                    (entity, entityIndex) => (
-                                                      <Badge
-                                                        key={entityIndex}
-                                                        variant="outline"
-                                                        className="text-xs"
-                                                      >
-                                                        {entity}
-                                                      </Badge>
-                                                    ),
-                                                  )}
-                                                </div>
-                                              </div>
+                                        <span className="font-semibold whitespace-nowrap text-sm">
+                                          {item.formattedValue}
+                                        </span>
+                                      </div>
+
+                                      <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
+                                        <Badge
+                                          variant="outline"
+                                          className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                        >
+                                          {item.entity}
+                                        </Badge>
+                                        {item.change !== 0 && (
+                                          <span
+                                            className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
+                                          >
+                                            {formatPercentage(
+                                              item.change,
+                                              locale,
                                             )}
-                                          {item.change !== 0 && (
-                                            <div className="col-span-2">
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.change}:
-                                              </span>
-                                              <div
-                                                className={`font-semibold ${
-                                                  item.change > 0
-                                                    ? "text-green-500"
-                                                    : "text-red-500"
-                                                }`}
-                                              >
-                                                {item.change >= 0 ? "+" : ""}
-                                                {formatPercentage(
-                                                  item.change,
-                                                  locale,
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                          <div className="col-span-2">
-                                            <span className="text-muted-foreground">
-                                              {t.dashboard.investedAmount}:
-                                            </span>
-                                            <div className="font-semibold">
-                                              {item.formattedValue}
-                                            </div>
-                                          </div>
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {stockItems.length > 0 ? (
+                              <div className="pb-2">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                  {t.dashboard.stocksAndFunds.stocksEtfs}
+                                </h3>
+                                {stockItems.map((item, index) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
+                                  >
+                                    <div
+                                      className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "STOCK_ETF")}`}
+                                    ></div>
+                                    <div className="flex-grow min-w-0">
+                                      <div className="flex justify-between items-center">
+                                        <span
+                                          className="font-medium truncate flex-1 mr-2 text-base"
+                                          title={item.name}
+                                        >
+                                          {item.name}
+                                        </span>
+                                        <span className="font-semibold whitespace-nowrap text-sm">
+                                          {item.formattedValue}
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
+                                        <Badge
+                                          variant="outline"
+                                          className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                        >
+                                          {item.entity}
+                                        </Badge>
+                                        {item.change !== 0 && (
+                                          <span
+                                            className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
+                                          >
+                                            {formatPercentage(
+                                              item.change,
+                                              locale,
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {cryptoItems.length > 0 ? (
+                              <div className="pb-2">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                  {t.common.crypto}
+                                </h3>
+                                {cryptoItems.map((item, index) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
+                                  >
+                                    <div
+                                      className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")}`}
+                                    ></div>
+                                    <div className="flex-grow min-w-0">
+                                      <div className="flex justify-between items-center">
+                                        <span
+                                          className="font-medium truncate flex-1 mr-2 text-base"
+                                          title={item.name}
+                                        >
+                                          {item.name}
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                            {item.amount?.toLocaleString(
+                                              locale,
+                                              {
+                                                minimumFractionDigits:
+                                                  item.amount < 1 ? 6 : 2,
+                                                maximumFractionDigits:
+                                                  item.amount < 1 ? 6 : 2,
+                                              },
+                                            )}{" "}
+                                            {item.symbol}
+                                          </span>
+                                          <span className="font-semibold whitespace-nowrap text-sm">
+                                            {item.formattedValue}
+                                          </span>
                                         </div>
                                       </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                ),
-                            )}
-                            {(fundItems.length > 0 ||
-                              stockItems.length > 0 ||
-                              cryptoItems.length > 0) &&
-                              commodityItems.length > 0 &&
-                              commodityItems.some(
-                                ci => ci.percentageOfTotalVariableRent > 0,
-                              ) && <div className="h-1 w-full my-0.5"></div>}
-                            {commodityItems.map(
-                              (item, index) =>
-                                item.percentageOfTotalPortfolio > 0 && (
-                                  <Popover
-                                    key={`bar-commodity-${item.id}`}
-                                    open={isPopoverOpen(`commodity-${item.id}`)}
-                                    onOpenChange={open => {
-                                      if (!open) {
-                                        setHoveredItem(null)
-                                        setClickedItem(null)
-                                      }
-                                    }}
-                                  >
-                                    <PopoverTrigger asChild>
-                                      <div
-                                        className={`w-full ${getItemColorByIndex(index, "COMMODITY")} cursor-pointer hover:opacity-80 transition-opacity`}
-                                        style={{
-                                          height: `${item.percentageOfTotalPortfolio}%`,
-                                        }}
-                                        onClick={() =>
-                                          handlePopoverClick(
-                                            `commodity-${item.id}`,
-                                          )
-                                        }
-                                        onMouseEnter={() =>
-                                          handleMouseEnter(
-                                            `commodity-${item.id}`,
-                                          )
-                                        }
-                                        onMouseLeave={() =>
-                                          setHoveredItem(null)
-                                        }
-                                      ></div>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80">
-                                      <div
-                                        onMouseEnter={() =>
-                                          handleMouseEnter(
-                                            `commodity-${item.id}`,
-                                          )
-                                        }
-                                        onMouseLeave={() =>
-                                          setHoveredItem(null)
-                                        }
-                                      >
-                                        <div className="space-y-2">
-                                          <div className="flex items-center space-x-2">
-                                            <div
-                                              className={`w-4 h-4 rounded ${getItemColorByIndex(index, "COMMODITY")}`}
-                                            ></div>
-                                            <h4 className="font-medium text-sm">
-                                              {
-                                                t.enums.commodityType[
-                                                  item.type as keyof typeof t.enums.commodityType
-                                                ]
-                                              }
-                                            </h4>
+                                      <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
+                                        {item.showEntityBadge &&
+                                        item.entities &&
+                                        item.entities.length > 0 ? (
+                                          <div className="flex gap-1 flex-wrap">
+                                            {item.entities.map(
+                                              (entity, entityIndex) => (
+                                                <Badge
+                                                  key={entityIndex}
+                                                  variant="outline"
+                                                  className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                                >
+                                                  {entity}
+                                                </Badge>
+                                              ),
+                                            )}
                                           </div>
-                                          <div className="grid grid-cols-2 gap-2 text-xs">
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.value}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {(item as any)
-                                                  .formattedInitialInvestment ||
-                                                  item.formattedValue}
-                                              </div>
+                                        ) : (
+                                          <span>&nbsp;</span>
+                                        )}
+                                        {item.change !== 0 && (
+                                          <span
+                                            className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
+                                          >
+                                            {formatPercentage(
+                                              item.change,
+                                              locale,
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+
+                            {commodityItems.length > 0 ? (
+                              <div className="pb-2">
+                                <h3 className="text-sm font-semibold mb-1.5 text-muted-foreground sticky top-0 bg-card z-10 py-1">
+                                  {t.common.commodities}
+                                </h3>
+                                {commodityItems.map((item, index) => (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-stretch space-x-2 py-3 border-b border-border last:border-b-0"
+                                  >
+                                    <div
+                                      className={`flex-shrink-0 w-1 rounded-sm ${getItemColorByIndex(index, "COMMODITY")}`}
+                                    ></div>
+                                    <div className="flex-grow min-w-0">
+                                      <div className="flex justify-between items-center">
+                                        <span
+                                          className="font-medium truncate flex-1 mr-2 text-base"
+                                          title={
+                                            t.enums.commodityType[
+                                              item.type as keyof typeof t.enums.commodityType
+                                            ]
+                                          }
+                                        >
+                                          {
+                                            t.enums.commodityType[
+                                              item.type as keyof typeof t.enums.commodityType
+                                            ]
+                                          }
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                            {item.amount?.toLocaleString(
+                                              locale,
+                                              {
+                                                minimumFractionDigits: 0,
+                                                maximumFractionDigits: 1,
+                                              },
+                                            )}{" "}
+                                            {
+                                              t.enums.weightUnit[
+                                                item.unit as keyof typeof t.enums.weightUnit
+                                              ]
+                                            }
+                                          </span>
+                                          <span className="font-semibold whitespace-nowrap text-sm">
+                                            {item.formattedValue}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="flex justify-between items-center text-muted-foreground text-xs mt-0.5">
+                                        {item.showEntityBadge &&
+                                        item.entities &&
+                                        item.entities.length > 0 ? (
+                                          <div className="flex gap-1 flex-wrap">
+                                            {item.entities.map(
+                                              (
+                                                entity: string,
+                                                entityIndex: number,
+                                              ) => (
+                                                <Badge
+                                                  key={entityIndex}
+                                                  variant="outline"
+                                                  className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                                >
+                                                  {entity}
+                                                </Badge>
+                                              ),
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span>&nbsp;</span>
+                                        )}
+                                        {item.change !== 0 && (
+                                          <span
+                                            className={`whitespace-nowrap ${item.change >= 0 ? "text-green-500" : "text-red-500"}`}
+                                          >
+                                            {formatPercentage(
+                                              item.change,
+                                              locale,
+                                            )}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="flex-shrink-0 w-6 relative">
+                            {hasDetailedAssets && (
+                              <div className="h-full w-full flex flex-col rounded-sm overflow-hidden">
+                                {fundItems.map(
+                                  (item, index) =>
+                                    item.percentageOfTotalPortfolio > 0 && (
+                                      <Popover
+                                        key={`bar-fund-${item.id}`}
+                                        open={isPopoverOpen(`fund-${item.id}`)}
+                                        onOpenChange={open => {
+                                          if (!open) {
+                                            setHoveredItem(null)
+                                            setClickedItem(null)
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <div
+                                            className={`w-full ${getItemColorByIndex(index, "FUND")} cursor-pointer hover:opacity-80 transition-opacity`}
+                                            style={{
+                                              height: `${item.percentageOfTotalPortfolio}%`,
+                                            }}
+                                            onMouseEnter={() =>
+                                              handleMouseEnter(
+                                                `fund-${item.id}`,
+                                              )
+                                            }
+                                            onMouseLeave={() =>
+                                              setHoveredItem(null)
+                                            }
+                                            onClick={() =>
+                                              handlePopoverClick(
+                                                `fund-${item.id}`,
+                                              )
+                                            }
+                                          ></div>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                          className="w-80"
+                                          side="left"
+                                          onMouseEnter={() =>
+                                            handleMouseEnter(`fund-${item.id}`)
+                                          }
+                                          onMouseLeave={() =>
+                                            setHoveredItem(null)
+                                          }
+                                        >
+                                          <div className="space-y-2">
+                                            <div className="flex items-center space-x-2">
+                                              <div
+                                                className={`w-4 h-4 rounded ${getItemColorByIndex(index, "FUND")}`}
+                                              ></div>
+                                              <h4 className="font-medium text-sm">
+                                                {item.name}
+                                              </h4>
                                             </div>
-                                            {item.percentageOfTotalVariableRent <
-                                              100 && (
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
                                               <div>
                                                 <span className="text-muted-foreground">
-                                                  {
-                                                    t.dashboard
-                                                      .stakeInCommodities
-                                                  }
-                                                  :
+                                                  {t.dashboard.value}:
                                                 </span>
                                                 <div className="font-semibold">
-                                                  {formatPercentage(
-                                                    item.percentageOfTotalVariableRent,
-                                                    locale,
-                                                  )}
+                                                  {item.formattedValue}
                                                 </div>
                                               </div>
-                                            )}
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.amount}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {item.amount?.toLocaleString(
-                                                  locale,
-                                                  {
-                                                    minimumFractionDigits: 0,
-                                                    maximumFractionDigits: 1,
-                                                  },
-                                                )}{" "}
-                                                {
-                                                  t.enums.weightUnit[
-                                                    item.unit as keyof typeof t.enums.weightUnit
-                                                  ]
-                                                }
-                                              </div>
-                                            </div>
-                                            <div>
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.change}:
-                                              </span>
-                                              <div
-                                                className={`font-semibold ${
-                                                  item.change > 0
-                                                    ? "text-green-500"
-                                                    : item.change < 0
-                                                      ? "text-red-500"
-                                                      : "text-white"
-                                                }`}
-                                              >
-                                                {item.change === 0
-                                                  ? "-"
-                                                  : (item.change > 0
-                                                      ? "+"
-                                                      : "") +
-                                                    formatPercentage(
-                                                      item.change,
-                                                      locale,
-                                                    )}
-                                              </div>
-                                            </div>
-                                            <div className="col-span-2">
-                                              <span className="text-muted-foreground">
-                                                {t.dashboard.investedAmount}:
-                                              </span>
-                                              <div className="font-semibold">
-                                                {item.formattedValue}
-                                              </div>
-                                            </div>
-                                            {item.showEntityBadge &&
-                                              item.entities &&
-                                              item.entities.length > 0 && (
-                                                <div className="col-span-2">
+                                              {item.percentageOfTotalVariableRent <
+                                                100 && (
+                                                <div>
                                                   <span className="text-muted-foreground">
-                                                    {t.dashboard.entities}:
+                                                    {t.dashboard.stakeInFunds}:
                                                   </span>
-                                                  <div className="flex flex-wrap gap-1 mt-1">
-                                                    {item.entities.map(
-                                                      (entity, entityIndex) => (
-                                                        <Badge
-                                                          key={entityIndex}
-                                                          variant="outline"
-                                                          className="text-xs"
-                                                        >
-                                                          {entity}
-                                                        </Badge>
-                                                      ),
+                                                  <div className="font-semibold">
+                                                    {formatPercentage(
+                                                      item.percentageOfTotalVariableRent,
+                                                      locale,
                                                     )}
                                                   </div>
                                                 </div>
                                               )}
+                                              <div className="col-span-2">
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.entity}:
+                                                </span>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-xs"
+                                                  >
+                                                    {item.entity}
+                                                  </Badge>
+                                                </div>
+                                              </div>
+                                              {item.portfolioName && (
+                                                <div className="col-span-2">
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.portfolio}:
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {item.portfolioName}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div className="col-span-2">
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.change}:
+                                                </span>
+                                                <div
+                                                  className={`font-semibold ${
+                                                    item.change > 0
+                                                      ? "text-green-500"
+                                                      : item.change < 0
+                                                        ? "text-red-500"
+                                                        : "text-white"
+                                                  }`}
+                                                >
+                                                  {item.change === 0
+                                                    ? "-"
+                                                    : (item.change > 0
+                                                        ? "+"
+                                                        : "") +
+                                                      formatPercentage(
+                                                        item.change,
+                                                        locale,
+                                                      )}
+                                                </div>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.investedAmount}:
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {(item as any)
+                                                    .formattedInitialInvestment ||
+                                                    (item as any)
+                                                      .formattedOriginalValue ||
+                                                    item.formattedValue}
+                                                </div>
+                                              </div>
+                                            </div>
                                           </div>
-                                        </div>
-                                      </div>
-                                    </PopoverContent>
-                                  </Popover>
-                                ),
+                                        </PopoverContent>
+                                      </Popover>
+                                    ),
+                                )}
+                                {fundItems.length > 0 &&
+                                  stockItems.length > 0 &&
+                                  stockItems.some(
+                                    si => si.percentageOfTotalVariableRent > 0,
+                                  ) &&
+                                  fundItems.some(
+                                    fi => fi.percentageOfTotalVariableRent > 0,
+                                  ) && (
+                                    <div className="h-1 w-full my-0.5"></div>
+                                  )}
+                                {stockItems.map(
+                                  (item, index) =>
+                                    item.percentageOfTotalPortfolio > 0 && (
+                                      <Popover
+                                        key={`bar-stock-${item.id}`}
+                                        open={isPopoverOpen(`stock-${item.id}`)}
+                                        onOpenChange={open => {
+                                          if (!open) {
+                                            setHoveredItem(null)
+                                            setClickedItem(null)
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <div
+                                            className={`w-full ${getItemColorByIndex(index, "STOCK_ETF")} cursor-pointer hover:opacity-80 transition-opacity`}
+                                            style={{
+                                              height: `${item.percentageOfTotalPortfolio}%`,
+                                            }}
+                                            onMouseEnter={() =>
+                                              handleMouseEnter(
+                                                `stock-${item.id}`,
+                                              )
+                                            }
+                                            onMouseLeave={() =>
+                                              setHoveredItem(null)
+                                            }
+                                            onClick={() =>
+                                              handlePopoverClick(
+                                                `stock-${item.id}`,
+                                              )
+                                            }
+                                          ></div>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                          className="w-80"
+                                          side="left"
+                                          onMouseEnter={() =>
+                                            handleMouseEnter(`stock-${item.id}`)
+                                          }
+                                          onMouseLeave={() =>
+                                            setHoveredItem(null)
+                                          }
+                                        >
+                                          <div className="space-y-2">
+                                            <div className="flex items-center space-x-2">
+                                              <div
+                                                className={`w-4 h-4 rounded ${getItemColorByIndex(index, "STOCK_ETF")}`}
+                                              ></div>
+                                              <h4 className="font-medium text-sm">
+                                                {item.name}
+                                              </h4>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                              <div>
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.value}:
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {item.formattedValue}
+                                                </div>
+                                              </div>
+                                              {item.percentageOfTotalVariableRent <
+                                                100 && (
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.stakeInStocks}:
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {formatPercentage(
+                                                      item.percentageOfTotalVariableRent,
+                                                      locale,
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              {item.symbol && (
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.symbol}:
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {item.symbol}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div
+                                                className={
+                                                  item.symbol
+                                                    ? ""
+                                                    : "col-span-2"
+                                                }
+                                              >
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.entity}:
+                                                </span>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                  <Badge
+                                                    variant="outline"
+                                                    className="text-xs"
+                                                  >
+                                                    {item.entity}
+                                                  </Badge>
+                                                </div>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.change}:
+                                                </span>
+                                                <div
+                                                  className={`font-semibold ${
+                                                    item.change > 0
+                                                      ? "text-green-500"
+                                                      : item.change < 0
+                                                        ? "text-red-500"
+                                                        : "text-white"
+                                                  }`}
+                                                >
+                                                  {item.change === 0
+                                                    ? "-"
+                                                    : (item.change > 0
+                                                        ? "+"
+                                                        : "") +
+                                                      formatPercentage(
+                                                        item.change,
+                                                        locale,
+                                                      )}
+                                                </div>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.investedAmount}:
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {(item as any)
+                                                    .formattedInitialInvestment ||
+                                                    (item as any)
+                                                      .formattedOriginalValue ||
+                                                    item.formattedValue}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    ),
+                                )}
+                                {(fundItems.length > 0 ||
+                                  stockItems.length > 0) &&
+                                  cryptoItems.length > 0 &&
+                                  cryptoItems.some(
+                                    ci => ci.percentageOfTotalVariableRent > 0,
+                                  ) && (
+                                    <div className="h-1 w-full my-0.5"></div>
+                                  )}
+                                {cryptoItems.map(
+                                  (item, index) =>
+                                    item.percentageOfTotalPortfolio > 0 && (
+                                      <Popover
+                                        key={`bar-crypto-${item.id}`}
+                                        open={isPopoverOpen(
+                                          `crypto-${item.id}`,
+                                        )}
+                                        onOpenChange={open => {
+                                          if (!open) {
+                                            setHoveredItem(null)
+                                            setClickedItem(null)
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <div
+                                            className={`w-full ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")} cursor-pointer hover:opacity-80 transition-opacity`}
+                                            style={{
+                                              height: `${item.percentageOfTotalPortfolio}%`,
+                                            }}
+                                            onMouseEnter={() =>
+                                              handleMouseEnter(
+                                                `crypto-${item.id}`,
+                                              )
+                                            }
+                                            onMouseLeave={() =>
+                                              setHoveredItem(null)
+                                            }
+                                            onClick={() =>
+                                              handlePopoverClick(
+                                                `crypto-${item.id}`,
+                                              )
+                                            }
+                                          ></div>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                          className="w-80"
+                                          side="left"
+                                          onMouseEnter={() =>
+                                            handleMouseEnter(
+                                              `crypto-${item.id}`,
+                                            )
+                                          }
+                                          onMouseLeave={() =>
+                                            setHoveredItem(null)
+                                          }
+                                        >
+                                          <div className="space-y-2">
+                                            <div className="flex items-center space-x-2">
+                                              <div
+                                                className={`w-4 h-4 rounded ${getItemColorByIndex(index, item.type as "CRYPTO" | "CRYPTO_TOKEN")}`}
+                                              ></div>
+                                              <h4 className="font-medium text-sm">
+                                                {item.name}
+                                              </h4>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 text-xs">
+                                              <div>
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.value}:
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {(item as any)
+                                                    .formattedInitialInvestment ||
+                                                    item.formattedValue}
+                                                </div>
+                                              </div>
+                                              {item.percentageOfTotalVariableRent <
+                                                100 && (
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.stakeInCryptos}
+                                                    :
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {formatPercentage(
+                                                      item.percentageOfTotalVariableRent,
+                                                      locale,
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div>
+                                                <span className="text-muted-foreground">
+                                                  Amount:
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {item.amount?.toLocaleString(
+                                                    locale,
+                                                    {
+                                                      minimumFractionDigits:
+                                                        item.amount < 1 ? 6 : 2,
+                                                      maximumFractionDigits:
+                                                        item.amount < 1 ? 6 : 2,
+                                                    },
+                                                  )}{" "}
+                                                  {item.symbol}
+                                                </div>
+                                              </div>
+                                              {item.symbol && (
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.symbol}:
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {item.symbol}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div>
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.type}:
+                                                </span>
+                                                <div className="font-semibold capitalize">
+                                                  {item.type === "CRYPTO"
+                                                    ? t.dashboard.mainCrypto
+                                                    : t.dashboard.token}
+                                                </div>
+                                              </div>
+                                              {item.showEntityBadge &&
+                                                item.entities &&
+                                                item.entities.length > 0 && (
+                                                  <div className="col-span-2">
+                                                    <span className="text-muted-foreground">
+                                                      {t.dashboard.entities}:
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                      {item.entities.map(
+                                                        (
+                                                          entity,
+                                                          entityIndex,
+                                                        ) => (
+                                                          <Badge
+                                                            key={entityIndex}
+                                                            variant="outline"
+                                                            className="text-xs"
+                                                          >
+                                                            {entity}
+                                                          </Badge>
+                                                        ),
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              {item.change !== 0 && (
+                                                <div className="col-span-2">
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.change}:
+                                                  </span>
+                                                  <div
+                                                    className={`font-semibold ${
+                                                      item.change > 0
+                                                        ? "text-green-500"
+                                                        : "text-red-500"
+                                                    }`}
+                                                  >
+                                                    {item.change >= 0
+                                                      ? "+"
+                                                      : ""}
+                                                    {formatPercentage(
+                                                      item.change,
+                                                      locale,
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              )}
+                                              <div className="col-span-2">
+                                                <span className="text-muted-foreground">
+                                                  {t.dashboard.investedAmount}:
+                                                </span>
+                                                <div className="font-semibold">
+                                                  {item.formattedValue}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    ),
+                                )}
+                                {(fundItems.length > 0 ||
+                                  stockItems.length > 0 ||
+                                  cryptoItems.length > 0) &&
+                                  commodityItems.length > 0 &&
+                                  commodityItems.some(
+                                    ci => ci.percentageOfTotalVariableRent > 0,
+                                  ) && (
+                                    <div className="h-1 w-full my-0.5"></div>
+                                  )}
+                                {commodityItems.map(
+                                  (item, index) =>
+                                    item.percentageOfTotalPortfolio > 0 && (
+                                      <Popover
+                                        key={`bar-commodity-${item.id}`}
+                                        open={isPopoverOpen(
+                                          `commodity-${item.id}`,
+                                        )}
+                                        onOpenChange={open => {
+                                          if (!open) {
+                                            setHoveredItem(null)
+                                            setClickedItem(null)
+                                          }
+                                        }}
+                                      >
+                                        <PopoverTrigger asChild>
+                                          <div
+                                            className={`w-full ${getItemColorByIndex(index, "COMMODITY")} cursor-pointer hover:opacity-80 transition-opacity`}
+                                            style={{
+                                              height: `${item.percentageOfTotalPortfolio}%`,
+                                            }}
+                                            onClick={() =>
+                                              handlePopoverClick(
+                                                `commodity-${item.id}`,
+                                              )
+                                            }
+                                            onMouseEnter={() =>
+                                              handleMouseEnter(
+                                                `commodity-${item.id}`,
+                                              )
+                                            }
+                                            onMouseLeave={() =>
+                                              setHoveredItem(null)
+                                            }
+                                          ></div>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80">
+                                          <div
+                                            onMouseEnter={() =>
+                                              handleMouseEnter(
+                                                `commodity-${item.id}`,
+                                              )
+                                            }
+                                            onMouseLeave={() =>
+                                              setHoveredItem(null)
+                                            }
+                                          >
+                                            <div className="space-y-2">
+                                              <div className="flex items-center space-x-2">
+                                                <div
+                                                  className={`w-4 h-4 rounded ${getItemColorByIndex(index, "COMMODITY")}`}
+                                                ></div>
+                                                <h4 className="font-medium text-sm">
+                                                  {
+                                                    t.enums.commodityType[
+                                                      item.type as keyof typeof t.enums.commodityType
+                                                    ]
+                                                  }
+                                                </h4>
+                                              </div>
+                                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.value}:
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {(item as any)
+                                                      .formattedInitialInvestment ||
+                                                      item.formattedValue}
+                                                  </div>
+                                                </div>
+                                                {item.percentageOfTotalVariableRent <
+                                                  100 && (
+                                                  <div>
+                                                    <span className="text-muted-foreground">
+                                                      {
+                                                        t.dashboard
+                                                          .stakeInCommodities
+                                                      }
+                                                      :
+                                                    </span>
+                                                    <div className="font-semibold">
+                                                      {formatPercentage(
+                                                        item.percentageOfTotalVariableRent,
+                                                        locale,
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.amount}:
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {item.amount?.toLocaleString(
+                                                      locale,
+                                                      {
+                                                        minimumFractionDigits: 0,
+                                                        maximumFractionDigits: 1,
+                                                      },
+                                                    )}{" "}
+                                                    {
+                                                      t.enums.weightUnit[
+                                                        item.unit as keyof typeof t.enums.weightUnit
+                                                      ]
+                                                    }
+                                                  </div>
+                                                </div>
+                                                <div>
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.change}:
+                                                  </span>
+                                                  <div
+                                                    className={`font-semibold ${
+                                                      item.change > 0
+                                                        ? "text-green-500"
+                                                        : item.change < 0
+                                                          ? "text-red-500"
+                                                          : "text-white"
+                                                    }`}
+                                                  >
+                                                    {item.change === 0
+                                                      ? "-"
+                                                      : (item.change > 0
+                                                          ? "+"
+                                                          : "") +
+                                                        formatPercentage(
+                                                          item.change,
+                                                          locale,
+                                                        )}
+                                                  </div>
+                                                </div>
+                                                <div className="col-span-2">
+                                                  <span className="text-muted-foreground">
+                                                    {t.dashboard.investedAmount}
+                                                    :
+                                                  </span>
+                                                  <div className="font-semibold">
+                                                    {item.formattedValue}
+                                                  </div>
+                                                </div>
+                                                {item.showEntityBadge &&
+                                                  item.entities &&
+                                                  item.entities.length > 0 && (
+                                                    <div className="col-span-2">
+                                                      <span className="text-muted-foreground">
+                                                        {t.dashboard.entities}:
+                                                      </span>
+                                                      <div className="flex flex-wrap gap-1 mt-1">
+                                                        {item.entities.map(
+                                                          (
+                                                            entity,
+                                                            entityIndex,
+                                                          ) => (
+                                                            <Badge
+                                                              key={entityIndex}
+                                                              variant="outline"
+                                                              className="text-xs"
+                                                            >
+                                                              {entity}
+                                                            </Badge>
+                                                          ),
+                                                        )}
+                                                      </div>
+                                                    </div>
+                                                  )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    ),
+                                )}
+                              </div>
                             )}
                           </div>
+                        </div>
+                      ) : (
+                        <div className="flex-grow flex flex-col items-center justify-center text-center">
+                          <BarChart3 className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+                          <p className="text-sm text-muted-foreground">
+                            {t.dashboard.noInvestments}
+                          </p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </AnimatedContainer>
+
+                <AnimatedContainer
+                  skipAnimation={skipAnimations}
+                  delay={0.5}
+                  className="lg:col-span-5"
+                >
+                  <Card className="h-full flex flex-col">
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <CardTitle className="text-lg font-bold flex items-center">
+                          <ArrowLeftRight className="h-5 w-5 mr-2 text-primary" />
+                          {t.dashboard.recentTransactions}
+                        </CardTitle>
+                        {!forecastMode && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => navigate("/transactions")}
+                            className="flex items-center gap-1"
+                          >
+                            {t.dashboard.viewAll}
+                            <ArrowRight className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex-grow flex flex-col items-center justify-center text-center">
-                      <BarChart3 className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
-                      <p className="text-sm text-muted-foreground">
-                        {t.dashboard.noInvestments}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="lg:col-span-5"
-            >
-              <Card className="h-full flex flex-col">
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg font-bold flex items-center">
-                      <ArrowLeftRight className="h-5 w-5 mr-2 text-primary" />
-                      {t.dashboard.recentTransactions}
-                    </CardTitle>
-                    {!forecastMode && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => navigate("/transactions")}
-                        className="flex items-center gap-1"
-                      >
-                        {t.dashboard.viewAll}
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-grow overflow-y-auto scrollbar-thin min-h-[350px] max-h-[650px]">
-                  {forecastMode ? (
-                    <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
-                      <TrendingUpDown className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
-                      <p className="text-sm text-muted-foreground mb-1">
-                        {t.forecast.notShowing}
-                      </p>
-                    </div>
-                  ) : Object.keys(recentTransactions).length > 0 ? (
-                    <ul className="space-y-0">
-                      {Object.entries(recentTransactions).map(
-                        ([date, txsOnDate]) => (
-                          <li key={date} className="py-2">
-                            <h4 className="text-sm font-semibold text-muted-foreground mb-2 sticky top-0 bg-card z-5 py-1 px-4 -mx-4 border-b border-t">
-                              {date}
-                            </h4>
-                            <ul className="space-y-0 pr-4">
-                              {(txsOnDate as any[]).map(
-                                (tx: any, index: number) => (
-                                  <li
-                                    key={`${tx.date}-${tx.description}-${index}`}
-                                    className="flex items-center justify-between py-3 border-b border-border last:border-b-0"
-                                  >
-                                    <div className="flex items-center flex-grow min-w-0">
-                                      <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-4 text-muted-foreground">
-                                        {getIconForTxType(
-                                          tx.type as TxType,
-                                          "h-full w-full",
-                                        )}
-                                      </div>
-                                      <div className="flex-grow min-w-0">
-                                        <p
-                                          className="text-sm font-medium truncate"
-                                          title={tx.description}
-                                        >
-                                          {tx.description}
-                                        </p>
-                                        <div className="flex items-center space-x-1.5 text-xs text-muted-foreground mt-0.5">
-                                          <Badge
-                                            variant="outline"
-                                            className="py-0.5 px-1.5 text-[10px] leading-tight"
-                                          >
-                                            {tx.entity}
-                                          </Badge>
-                                          {tx.product_type && (
-                                            <Badge
-                                              variant="secondary"
-                                              className="py-0.5 px-1.5 text-[10px] leading-tight"
+                    </CardHeader>
+                    <CardContent className="flex-grow overflow-y-auto scrollbar-thin min-h-[350px] max-h-[650px]">
+                      {forecastMode ? (
+                        <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
+                          <TrendingUpDown className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+                          <p className="text-sm text-muted-foreground mb-1">
+                            {t.forecast.notShowing}
+                          </p>
+                        </div>
+                      ) : Object.keys(recentTransactions).length > 0 ? (
+                        <ul className="space-y-0">
+                          {Object.entries(recentTransactions).map(
+                            ([date, txsOnDate]) => (
+                              <li key={date} className="py-2">
+                                <h4 className="text-sm font-semibold text-muted-foreground mb-2 sticky top-0 bg-card z-5 py-1 px-4 -mx-4 border-b border-t">
+                                  {date}
+                                </h4>
+                                <ul className="space-y-0 pr-4">
+                                  {(txsOnDate as any[]).map(
+                                    (tx: any, index: number) => (
+                                      <li
+                                        key={`${tx.date}-${tx.description}-${index}`}
+                                        className="flex items-center justify-between py-3 border-b border-border last:border-b-0"
+                                      >
+                                        <div className="flex items-center flex-grow min-w-0">
+                                          <div className="flex-shrink-0 w-4 h-4 flex items-center justify-center mr-4 text-muted-foreground">
+                                            {getIconForTxType(
+                                              tx.type as TxType,
+                                              "h-full w-full",
+                                            )}
+                                          </div>
+                                          <div className="flex-grow min-w-0">
+                                            <p
+                                              className="text-sm font-medium truncate"
+                                              title={tx.description}
                                             >
-                                              {t.enums &&
-                                              t.enums.productType &&
-                                              (t.enums.productType as any)[
-                                                tx.product_type
-                                              ]
-                                                ? (t.enums.productType as any)[
+                                              {tx.description}
+                                            </p>
+                                            <div className="flex items-center space-x-1.5 text-xs text-muted-foreground mt-0.5">
+                                              <Badge
+                                                variant="outline"
+                                                className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                              >
+                                                {tx.entity}
+                                              </Badge>
+                                              {tx.product_type && (
+                                                <Badge
+                                                  variant="secondary"
+                                                  className="py-0.5 px-1.5 text-[10px] leading-tight"
+                                                >
+                                                  {t.enums &&
+                                                  t.enums.productType &&
+                                                  (t.enums.productType as any)[
                                                     tx.product_type
                                                   ]
-                                                : tx.product_type
-                                                    .toLowerCase()
-                                                    .replace(/_/g, " ")}
-                                            </Badge>
-                                          )}
+                                                    ? (
+                                                        t.enums
+                                                          .productType as any
+                                                      )[tx.product_type]
+                                                    : tx.product_type
+                                                        .toLowerCase()
+                                                        .replace(/_/g, " ")}
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </div>
                                         </div>
-                                      </div>
-                                    </div>
-                                    <div className="text-right flex-shrink-0 pl-2">
-                                      <p
-                                        className={`text-sm font-semibold ${
-                                          tx.displayType === "in"
-                                            ? "text-green-600 dark:text-green-400"
-                                            : tx.type === TxType.FEE
-                                              ? "text-red-600 dark:text-red-400"
-                                              : undefined
-                                        }`}
-                                      >
-                                        {tx.displayType === "in"
-                                          ? "+"
-                                          : tx.type === TxType.FEE
-                                            ? "-"
-                                            : ""}
-                                        {tx.formattedAmount}
-                                      </p>
-                                    </div>
-                                  </li>
-                                ),
-                              )}
-                            </ul>
-                          </li>
-                        ),
+                                        <div className="text-right flex-shrink-0 pl-2">
+                                          <p
+                                            className={`text-sm font-semibold ${
+                                              tx.displayType === "in"
+                                                ? "text-green-600 dark:text-green-400"
+                                                : tx.type === TxType.FEE
+                                                  ? "text-red-600 dark:text-red-400"
+                                                  : undefined
+                                            }`}
+                                          >
+                                            {tx.displayType === "in"
+                                              ? "+"
+                                              : tx.type === TxType.FEE
+                                                ? "-"
+                                                : ""}
+                                            {tx.formattedAmount}
+                                          </p>
+                                        </div>
+                                      </li>
+                                    ),
+                                  )}
+                                </ul>
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      ) : (
+                        <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
+                          <ArrowLeftRight className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
+                          <p className="text-sm text-muted-foreground">
+                            {t.dashboard.noTransactions}
+                          </p>
+                        </div>
                       )}
-                    </ul>
-                  ) : (
-                    <div className="flex-grow flex flex-col items-center justify-center h-full text-center">
-                      <ArrowLeftRight className="h-12 w-12 text-gray-400 dark:text-gray-500 mb-4" />
-                      <p className="text-sm text-muted-foreground">
-                        {t.dashboard.noTransactions}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          </div>
-        </div>
+                    </CardContent>
+                  </Card>
+                </AnimatedContainer>
+              </div>
+            </div>
+          )}
+        </motion.div>
       )}
     </div>
   )

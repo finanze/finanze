@@ -206,7 +206,9 @@ export async function fetchFinancialEntity(
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Fetch failed")
+    const error = new Error("Fetch failed") as Error & { status?: number }
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -228,7 +230,9 @@ export async function fetchCryptoEntity(
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Fetch failed")
+    const error = new Error("Fetch failed") as Error & { status?: number }
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -1167,7 +1171,9 @@ export async function fetchExternalEntity(
   )
   const data = await response.json()
   if (!response.ok && !data.code) {
-    throw new Error("Fetch failed")
+    const error = new Error("Fetch failed") as Error & { status?: number }
+    error.status = response.status
+    throw error
   }
   return data
 }

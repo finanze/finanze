@@ -767,15 +767,6 @@ export default function CryptoInvestmentPage() {
     [filteredCryptoWallets],
   )
 
-  const totalInitialInvestment = useMemo(
-    () =>
-      filteredCryptoWallets.reduce(
-        (sum, group) => sum + group.totalInitialInvestment,
-        0,
-      ),
-    [filteredCryptoWallets],
-  )
-
   const formattedTotalValue = useMemo(
     () => formatCurrency(totalValue, locale, settings.general.defaultCurrency),
     [totalValue, locale, settings.general.defaultCurrency],
@@ -792,15 +783,6 @@ export default function CryptoInvestmentPage() {
     )
     return uniqueIdentifiers.size
   }, [filteredCryptoWallets])
-
-  const totalPerformance = useMemo(() => {
-    if (totalInitialInvestment <= 0) {
-      return null
-    }
-    return (
-      ((totalValue - totalInitialInvestment) / totalInitialInvestment) * 100
-    )
-  }, [totalValue, totalInitialInvestment])
 
   const chartPositions = useMemo(
     () =>
@@ -1779,27 +1761,7 @@ export default function CryptoInvestmentPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="pt-0">
-                  <div className="flex justify-between items-baseline">
-                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                    {totalPerformance !== null && (
-                      <p
-                        className={`text-sm font-medium ${totalPerformance === 0 ? "text-gray-500 dark:text-gray-400" : totalPerformance > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}
-                      >
-                        {totalPerformance >= 0 ? "+" : "-"}
-                        {formatPercentage(Math.abs(totalPerformance), locale)}
-                      </p>
-                    )}
-                  </div>
-                  {totalInitialInvestment > 0 && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t.dashboard.investedAmount}{" "}
-                      {formatCurrency(
-                        totalInitialInvestment,
-                        locale,
-                        settings.general.defaultCurrency,
-                      )}
-                    </p>
-                  )}
+                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
                 </CardContent>
               </Card>
               <Card>

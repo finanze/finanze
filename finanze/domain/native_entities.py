@@ -11,6 +11,7 @@ from domain.entity import (
     NativeCryptoWalletEntity,
     NativeFinancialEntity,
     PinDetails,
+    EntitySessionCategory,
 )
 from domain.external_integration import ExternalIntegrationId
 
@@ -22,6 +23,7 @@ MY_INVESTOR = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.ID,
@@ -37,6 +39,7 @@ UNICAJA = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.MANUAL,
+    session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD,
@@ -52,6 +55,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.SHORT,
     pin=PinDetails(positions=4),
     credentials_template={
         "phone": CredentialType.PHONE,
@@ -67,6 +71,7 @@ URBANITAE = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -81,6 +86,7 @@ WECITY = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.MEDIUM,
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.EMAIL,
@@ -96,6 +102,7 @@ SEGO = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.MEDIUM,
     pin=PinDetails(positions=6),
     credentials_template={
         "user": CredentialType.EMAIL,
@@ -111,6 +118,7 @@ MINTOS = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
     setup_login_type=EntitySetupLoginType.MANUAL,
+    session_category=EntitySessionCategory.NONE,
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -126,6 +134,7 @@ F24 = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
@@ -140,6 +149,7 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={"token": CredentialType.API_TOKEN},
 )
 
@@ -151,6 +161,7 @@ ING = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
     setup_login_type=EntitySetupLoginType.MANUAL,
+    session_category=EntitySessionCategory.NONE,
     credentials_template={
         "genomaCookie": CredentialType.INTERNAL_TEMP,
         "genomaSessionId": CredentialType.INTERNAL_TEMP,
@@ -168,6 +179,7 @@ CAJAMAR = NativeFinancialEntity(
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
         "user": CredentialType.USER,
         "password": CredentialType.PASSWORD,

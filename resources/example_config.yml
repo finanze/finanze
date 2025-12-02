@@ -3,6 +3,14 @@ version: 2
 general:
   defaultCurrency: EUR
 
+data:
+  autoRefresh:
+    mode: NO_2FA
+    max_outdated: DAILY
+    entities:
+      0ddb21e8-adc7-4d0d-970e-a3e0cfff1ea1: { }
+      0ddb21e8-adc7-4d0d-970e-a3e0cfff1ea2: { }
+
 export:
   sheets:
     globals:

@@ -1,10 +1,12 @@
 import type React from "react"
+import { useRef } from "react"
 import { Sidebar } from "./Sidebar"
 import { Toast } from "@/components/ui/Toast"
 import { useAppContext } from "@/context/AppContext"
 import { motion, AnimatePresence } from "framer-motion"
 import { PlatformType } from "@/types"
 import { useI18n } from "@/i18n"
+import { useLocation } from "react-router-dom"
 
 interface LayoutProps {
   children: React.ReactNode
@@ -13,12 +15,17 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { toast, hideToast, platform } = useAppContext()
   const { t } = useI18n()
+  const location = useLocation()
+  const prevPathnameRef = useRef(location.pathname)
+  const isRouteChange = prevPathnameRef.current !== location.pathname
+  if (isRouteChange) {
+    prevPathnameRef.current = location.pathname
+  }
 
   return (
     <>
       <div className="flex h-screen min-h-0 overflow-hidden bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
         <Sidebar />
-        {/* Titlebar control buttons */}
         <main
           className={`flex-1 min-h-0 overflow-auto ${
             platform === PlatformType.WINDOWS || platform === PlatformType.LINUX
@@ -26,18 +33,15 @@ export function Layout({ children }: LayoutProps) {
               : ""
           }`}
         >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={window.location.pathname}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className="p-6 h-full"
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
+          <motion.div
+            key={location.pathname}
+            initial={isRouteChange ? { opacity: 0, y: 10 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+            className="p-6 h-full"
+          >
+            {children}
+          </motion.div>
         </main>
       </div>
 

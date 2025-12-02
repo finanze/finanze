@@ -1,4 +1,5 @@
 from dataclasses import field
+from enum import Enum
 from typing import Optional
 
 from domain.commodity import WeightUnit
@@ -123,10 +124,42 @@ class GeneralConfig:
     defaultCommodityWeightUnit: str = WeightUnit.GRAM.value
 
 
+class AutoRefreshMode(str, Enum):
+    OFF = "OFF"
+    NO_2FA = "NO_2FA"
+
+
+class AutoRefreshMaxOutdatedTime(str, Enum):
+    THREE_HOURS = "THREE_HOURS"
+    SIX_HOURS = "SIX_HOURS"
+    TWELVE_HOURS = "TWELVE_HOURS"
+    DAY = "DAY"
+    TWO_DAYS = "TWO_DAYS"
+    WEEK = "WEEK"
+
+
+@dataclass
+class AutoRefreshEntityEntry:
+    id: str
+
+
+@dataclass
+class AutoRefresh:
+    mode: AutoRefreshMode = AutoRefreshMode.NO_2FA
+    max_outdated: AutoRefreshMaxOutdatedTime = AutoRefreshMaxOutdatedTime.TWELVE_HOURS
+    entities: list[AutoRefreshEntityEntry] = field(default_factory=list)
+
+
+@dataclass
+class DataConfig:
+    autoRefresh: AutoRefresh = field(default_factory=AutoRefresh)
+
+
 @dataclass
 class Settings:
     version: int = CURRENT_VERSION
     general: GeneralConfig = field(default_factory=GeneralConfig)
+    data: DataConfig = field(default_factory=DataConfig)
     export: ExportConfig = field(default_factory=ExportConfig)
     importing: ImportConfig = field(default_factory=ImportConfig)
     assets: AssetConfig = field(default_factory=AssetConfig)

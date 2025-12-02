@@ -26,12 +26,15 @@ import {
   X,
   Check,
   AlertTriangle,
+  Database,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { WeightUnit } from "@/types/position"
+import { AutoRefreshMaxOutdatedTime, AutoRefreshMode } from "@/types"
 import { AdvancedSettingsForm } from "@/components/ui/AdvancedSettingsForm"
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
+import { EntitySelector } from "@/components/settings/EntitySelector"
 
 const cleanObject = (obj: any): any => {
   if (obj === null || obj === undefined) {
@@ -99,6 +102,7 @@ export default function SettingsPage() {
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
+    dataAutoRefresh: false,
     assetsCrypto: false,
     advancedSettings: false,
   })
@@ -112,6 +116,15 @@ export default function SettingsPage() {
   const newStablecoinInputRef = useRef<HTMLInputElement | null>(null)
   const stablecoins = settings.assets?.crypto?.stablecoins ?? []
   const hideUnknownTokens = settings.assets?.crypto?.hideUnknownTokens ?? false
+
+  const autoRefreshEnabled =
+    settings.data?.autoRefresh?.mode === AutoRefreshMode.NO_2FA
+  const autoRefreshMaxOutdated =
+    settings.data?.autoRefresh?.max_outdated ??
+    AutoRefreshMaxOutdatedTime.TWELVE_HOURS
+  const autoRefreshEntityIds = (settings.data?.autoRefresh?.entities ?? []).map(
+    entry => entry.id,
+  )
 
   const isDesktopApp = typeof window !== "undefined" && !!window.ipcAPI
 
@@ -145,6 +158,65 @@ export default function SettingsPage() {
           crypto: {
             ...prev.assets?.crypto,
             hideUnknownTokens: checked,
+          },
+        },
+      }))
+    },
+    [setSettings],
+  )
+
+  const handleAutoRefreshEnabledChange = useCallback(
+    (checked: boolean) => {
+      setSettings(prev => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          autoRefresh: {
+            ...prev.data?.autoRefresh,
+            mode: checked ? AutoRefreshMode.NO_2FA : AutoRefreshMode.OFF,
+            max_outdated:
+              prev.data?.autoRefresh?.max_outdated ??
+              AutoRefreshMaxOutdatedTime.TWELVE_HOURS,
+            entities: prev.data?.autoRefresh?.entities ?? [],
+          },
+        },
+      }))
+    },
+    [setSettings],
+  )
+
+  const handleAutoRefreshMaxOutdatedChange = useCallback(
+    (value: AutoRefreshMaxOutdatedTime) => {
+      setSettings(prev => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          autoRefresh: {
+            ...prev.data?.autoRefresh,
+            mode: prev.data?.autoRefresh?.mode ?? AutoRefreshMode.OFF,
+            max_outdated: value,
+            entities: prev.data?.autoRefresh?.entities ?? [],
+          },
+        },
+      }))
+    },
+    [setSettings],
+  )
+
+  const handleAutoRefreshEntitiesChange = useCallback(
+    (entityIds: string[]) => {
+      const entities = entityIds.map(id => ({ id }))
+      setSettings(prev => ({
+        ...prev,
+        data: {
+          ...prev.data,
+          autoRefresh: {
+            ...prev.data?.autoRefresh,
+            mode: prev.data?.autoRefresh?.mode ?? AutoRefreshMode.OFF,
+            max_outdated:
+              prev.data?.autoRefresh?.max_outdated ??
+              AutoRefreshMaxOutdatedTime.TWELVE_HOURS,
+            entities,
           },
         },
       }))
@@ -272,6 +344,10 @@ export default function SettingsPage() {
     fetchExternalIntegrations()
   }, [])
 
+  useEffect(() => {
+    setSettings(storedSettings)
+  }, [storedSettings])
+
   const toggleSection = (section: string) => {
     setExpandedSections({
       ...expandedSections,
@@ -337,6 +413,13 @@ export default function SettingsPage() {
           stablecoins: [],
         }
         cleanedSettings.assets.crypto.stablecoins = sanitizedStablecoins
+      }
+
+      if (settingsForSave.data?.autoRefresh) {
+        cleanedSettings.data = cleanedSettings.data || {}
+        cleanedSettings.data.autoRefresh = {
+          ...settingsForSave.data.autoRefresh,
+        }
       }
 
       await saveSettings(cleanedSettings)
@@ -490,6 +573,142 @@ export default function SettingsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.3, delay: 0.05 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle>{t.settings.dataSettings.title}</CardTitle>
+                <CardDescription>
+                  {t.settings.dataSettings.description}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3">
+                  <div
+                    className="flex cursor-pointer items-center justify-between rounded-md border border-border/50 bg-muted/20 px-3 py-2 transition-colors hover:bg-muted/30 dark:bg-muted/10 dark:hover:bg-muted/20"
+                    onClick={() => toggleSection("dataAutoRefresh")}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Database className="mt-0.5 h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">
+                          {t.settings.dataSettings.autoRefresh.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.settings.dataSettings.autoRefresh.description}
+                        </p>
+                      </div>
+                    </div>
+                    {expandedSections.dataAutoRefresh ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </div>
+                  {expandedSections.dataAutoRefresh && (
+                    <div className="space-y-4 rounded-md border border-dashed border-border/60 bg-background/60 p-4 dark:bg-muted/10">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">
+                            {t.settings.dataSettings.autoRefresh.enableLabel}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {
+                              t.settings.dataSettings.autoRefresh
+                                .enableDescription
+                            }
+                          </p>
+                        </div>
+                        <Switch
+                          checked={autoRefreshEnabled}
+                          onCheckedChange={handleAutoRefreshEnabledChange}
+                        />
+                      </div>
+                      {autoRefreshEnabled && (
+                        <>
+                          <div className="border-t border-border/50 pt-4">
+                            <div className="space-y-3">
+                              <div className="space-y-1">
+                                <Label htmlFor="max-outdated">
+                                  {
+                                    t.settings.dataSettings.autoRefresh
+                                      .maxOutdatedLabel
+                                  }
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  {
+                                    t.settings.dataSettings.autoRefresh
+                                      .maxOutdatedDescription
+                                  }
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {Object.values(AutoRefreshMaxOutdatedTime)
+                                  .filter(
+                                    option =>
+                                      import.meta.env.DEV ||
+                                      option !==
+                                        AutoRefreshMaxOutdatedTime.THREE_HOURS,
+                                  )
+                                  .map(option => (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      onClick={() =>
+                                        handleAutoRefreshMaxOutdatedChange(
+                                          option,
+                                        )
+                                      }
+                                      className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                                        autoRefreshMaxOutdated === option
+                                          ? "bg-primary text-primary-foreground"
+                                          : "bg-muted/50 text-muted-foreground hover:bg-muted"
+                                      }`}
+                                    >
+                                      {
+                                        t.settings.dataSettings.autoRefresh
+                                          .maxOutdatedOptions[option]
+                                      }
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="border-t border-border/50 pt-4">
+                            <div className="space-y-3">
+                              <div className="space-y-1">
+                                <Label>
+                                  {
+                                    t.settings.dataSettings.autoRefresh
+                                      .entitiesLabel
+                                  }
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  {
+                                    t.settings.dataSettings.autoRefresh
+                                      .entitiesDescription
+                                  }
+                                </p>
+                              </div>
+                              <EntitySelector
+                                selectedEntityIds={autoRefreshEntityIds}
+                                onSelectionChange={
+                                  handleAutoRefreshEntitiesChange
+                                }
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
           >
             <Card>
               <CardHeader onClick={() => toggleSection("assets")}>

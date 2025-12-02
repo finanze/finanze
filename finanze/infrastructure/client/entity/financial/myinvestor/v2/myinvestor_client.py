@@ -188,27 +188,38 @@ class MyInvestorAPIV2Client:
             "data"
         ]
 
-    def get_account_remuneration(self, account_id):
-        return self._get_request(
-            f"/myinvestor-server/api/v2/cash-accounts/{account_id}/remuneration"
-        )["payload"]["data"]
+    def get_account_remuneration(self, account_id: str, version: int = 2):
+        base_path = (
+            "/myinvestor-server/api/v2/cash-accounts"
+            if version == 2
+            else "/account/api/v3/account"
+        )
+        return self._get_request(f"{base_path}/{account_id}/remuneration")["payload"][
+            "data"
+        ]
 
     def get_account_movements(
         self,
-        account_id,
+        account_id: str,
         from_date: Optional[date] = None,
         to_date: Optional[date] = None,
         concept: Optional[str] = None,
         amount_from: Optional[float] = None,
         amount_to: Optional[float] = None,
         flow_type: Optional[str] = None,
+        version: int = 2,
     ):
         to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
         from_date = date.strftime(
             from_date or (date.today() - relativedelta(months=1)), GET_DATE_FORMAT
         )
 
-        path = f"/myinvestor-server/api/v2/cash-accounts/{account_id}/flows?dateFrom={from_date}&dateTo={to_date}"
+        base_path = (
+            "/myinvestor-server/api/v2/cash-accounts"
+            if version == 2
+            else "/account/api/v3/account"
+        )
+        path = f"{base_path}/{account_id}/flows?dateFrom={from_date}&dateTo={to_date}"
 
         if concept:
             path += f"&concept={concept}"

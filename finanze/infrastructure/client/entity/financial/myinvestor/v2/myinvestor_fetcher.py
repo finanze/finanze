@@ -249,6 +249,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         min_creation_date = date.today()
         for account in target_accounts:
             account_id = account["accountId"]
+            if not account_id or account_id == "null":
+                continue
             creation_date = datetime.fromisoformat(account["creationDate"]).date()
             if creation_date < min_creation_date:
                 min_creation_date = creation_date
@@ -494,28 +496,40 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return result
 
-    def fetch_accounts(self) -> list[tuple[dict, Account, dict]]:
+    def fetch_accounts(self) -> list[tuple[dict, Account, dict | None]]:
         accounts = self._get_active_owned_accounts()
 
         accounts_with_security = []
 
         for account in accounts:
             account_type = ACCOUNT_TYPE_MAP[account["accountType"]]
-            account_id = account["accountId"]
-            security_account = self._get_related_security_account(account_id)
-            current_interest_rate = self._get_account_remuneration(account_id)
+            account_id = account.get("accountId")
+            account_uuid = account.get("accountUuid")
+            no_id = not account_id or account_id == "null"
+            account_id = account_uuid if no_id else account_id
+            if not account_uuid and no_id:
+                continue
+
+            accounts_version = 3 if no_id else 2
+            current_interest_rate = self._get_account_remuneration(
+                account_id, version=accounts_version
+            )
+            security_account = None
+            if not no_id:
+                security_account = self._get_related_security_account(account_id)
 
             iban = account["iban"]
             alias = account["alias"]
             total = Dezimal(account["enabledBalance"])
             retained = Dezimal(account["withheldBalance"])
+            currency = account.get("currency") or "EUR"
 
             entry = (
                 account,
                 Account(
                     id=uuid4(),
                     total=total,
-                    currency="EUR",
+                    currency=currency,
                     name=alias,
                     iban=iban,
                     type=account_type,
@@ -529,19 +543,33 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
 
         return accounts_with_security
 
-    def _get_account_remuneration(self, account_id) -> Dezimal:
+    def _get_account_remuneration(self, account_id, version: int = 2) -> Dezimal:
         current_interest_rate = Dezimal(0)
         try:
-            remuneration_details = self._client.get_account_remuneration(account_id)
-            current_interest_rate = round(remuneration_details["taePromotion"] / 100, 4)
+            remuneration_details = self._client.get_account_remuneration(
+                account_id, version=version
+            )
+            raw_tae_promotion = remuneration_details.get("taePromotion") or None
+            if raw_tae_promotion:
+                current_interest_rate = round(
+                    remuneration_details["taePromotion"] / 100, 4
+                )
             if not current_interest_rate:
-                current_interest_rate = round(
-                    Dezimal(remuneration_details["remunerationPercentage"]) / 100, 4
+                raw_remuneration_percentage = (
+                    remuneration_details.get("remunerationPercentage") or None
                 )
+                if raw_remuneration_percentage:
+                    current_interest_rate = round(
+                        Dezimal(remuneration_details["remunerationPercentage"]) / 100, 4
+                    )
             else:
-                current_interest_rate = round(
-                    Dezimal(remuneration_details["calculateTaeAverage"]) / 100, 4
+                raw_calculate_tae_average = (
+                    remuneration_details.get("calculateTaeAverage") or None
                 )
+                if raw_calculate_tae_average:
+                    current_interest_rate = round(
+                        Dezimal(remuneration_details["calculateTaeAverage"]) / 100, 4
+                    )
         except Exception as e:
             self._log.error(f"Error getting account remuneration: {e}")
 
@@ -551,7 +579,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         cards = []
 
         for raw_account, account, _ in accounts:
-            account_id = raw_account["accountId"]
+            account_id = raw_account.get("accountId")
+            if not account_id or account_id == "null":
+                continue
             raw_cards = self._client.get_cards(account_id=account_id)
             credit_card = next(
                 (card for card in raw_cards if card["cardType"] == "CREDIT"), None
@@ -634,7 +664,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             (
                 security_account
                 for raw_account, _, security_account in account_entries
-                if raw_account["accountType"] == "CASH_ACCOUNT"
+                if security_account and raw_account["accountType"] == "CASH_ACCOUNT"
             ),
             None,
         )

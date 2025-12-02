@@ -63,6 +63,7 @@ export interface Entity {
   features: Feature[]
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
+  session_category?: EntitySessionCategory
   pin?: {
     positions: number
   }
@@ -71,6 +72,17 @@ export interface Entity {
   required_external_integrations?: string[]
   external_entity_id?: string | null
   virtual_features: Record<Feature, string>
+}
+
+export enum EntitySessionCategory {
+  // No session requiring human action to re-create or minutes-long session
+  NONE = "NONE",
+  // Little hours-long session
+  SHORT = "SHORT",
+  // Some days-long session
+  MEDIUM = "MEDIUM",
+  // No session, renewable or weeks-long session
+  UNDEFINED = "UNDEFINED",
 }
 
 export enum EntitySetupLoginType {
@@ -1023,4 +1035,33 @@ export interface MoneyEventQuery {
 
 export interface MoneyEvents {
   events: MoneyEvent[]
+}
+
+// Auto-refresh configuration
+export enum AutoRefreshMode {
+  OFF = "OFF",
+  NO_2FA = "NO_2FA",
+}
+
+export enum AutoRefreshMaxOutdatedTime {
+  THREE_HOURS = "THREE_HOURS",
+  SIX_HOURS = "SIX_HOURS",
+  TWELVE_HOURS = "TWELVE_HOURS",
+  DAY = "DAY",
+  TWO_DAYS = "TWO_DAYS",
+  WEEK = "WEEK",
+}
+
+export interface AutoRefreshEntityEntry {
+  id: string
+}
+
+export interface AutoRefresh {
+  mode: AutoRefreshMode
+  max_outdated: AutoRefreshMaxOutdatedTime
+  entities: AutoRefreshEntityEntry[]
+}
+
+export interface DataConfig {
+  autoRefresh: AutoRefresh
 }

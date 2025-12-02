@@ -2,7 +2,9 @@ from domain.commodity import WeightUnit
 from domain.settings import (
     CURRENT_VERSION,
     AssetConfig,
+    AutoRefresh,
     CryptoAssetConfig,
+    DataConfig,
     GeneralConfig,
     Settings,
 )
@@ -41,5 +43,6 @@ BASE_CONFIG = Settings(
     general=GeneralConfig(
         defaultCurrency="EUR", defaultCommodityWeightUnit=WeightUnit.GRAM.value
     ),
+    data=DataConfig(autoRefresh=AutoRefresh()),
     assets=AssetConfig(crypto=CryptoAssetConfig(stablecoins=DEFAULT_STABLECOINS)),
 )

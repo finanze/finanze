@@ -7,9 +7,25 @@ import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Entity, EntityStatus, EntityType } from "@/types"
-import { Database, RefreshCw, History, ChevronDown } from "lucide-react"
+import {
+  Database,
+  RefreshCw,
+  History,
+  ChevronDown,
+  AlertCircle,
+} from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { formatTimeAgo } from "@/lib/timeUtils"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
+import {
+  getAutoRefreshEntityState,
+  requiresUserAction,
+} from "@/services/autoRefreshService"
+import { isAutoRefreshCompatibleEntity } from "@/utils/autoRefreshUtils"
 
 export function EntityRefreshDropdown() {
   const { entities } = useAppContext()
@@ -120,6 +136,12 @@ export function EntityRefreshDropdown() {
     return fetchDates.length > 0
       ? new Date(Math.max(...fetchDates.map(date => date.getTime())))
       : null
+  }
+
+  const entityRequiresLogin = (entity: Entity): boolean => {
+    if (!isAutoRefreshCompatibleEntity(entity)) return false
+    const state = getAutoRefreshEntityState(entity.id)
+    return state ? requiresUserAction(state) : false
   }
 
   const entitiesWithLastUpdate = useMemo(() => {
@@ -245,19 +267,41 @@ export function EntityRefreshDropdown() {
                             </p>
                           )}
                         </div>
-                        {fetchingEntityIds.includes(entity.id) ? (
-                          <div className="p-1.5">
-                            <LoadingSpinner size="sm" className="p-1.5" />
-                          </div>
-                        ) : (
-                          <button
-                            onClick={e => handleRefreshEntity(entity, e)}
-                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                            aria-label={`Refresh ${entity.name}`}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {entityRequiresLogin(entity) && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="p-1.5 text-amber-500 hover:text-amber-400 transition-colors"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <AlertCircle className="h-4 w-4" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                className="w-56 p-2 text-xs"
+                                side="left"
+                                align="center"
+                              >
+                                {t.entities.sessionExpiredHint}
+                              </PopoverContent>
+                            </Popover>
+                          )}
+                          {fetchingEntityIds.includes(entity.id) ? (
+                            <div className="p-1.5">
+                              <LoadingSpinner size="sm" className="p-1.5" />
+                            </div>
+                          ) : (
+                            <button
+                              onClick={e => handleRefreshEntity(entity, e)}
+                              className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                              aria-label={`Refresh ${entity.name}`}
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )
                   } else {

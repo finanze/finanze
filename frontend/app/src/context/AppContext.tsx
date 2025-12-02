@@ -10,10 +10,14 @@ import {
 import {
   EntityStatus,
   PlatformType,
+  AutoRefreshMode,
+  AutoRefreshMaxOutdatedTime,
   type Entity,
   type PlatformInfo,
   type ExchangeRates,
   type ExternalIntegration,
+  type DataConfig,
+  type AutoRefresh,
 } from "@/types"
 import {
   getEntities,
@@ -48,6 +52,7 @@ export interface AppSettings {
       hideUnknownTokens: boolean
     }
   }
+  data?: DataConfig
 }
 
 export interface ExportState {
@@ -77,6 +82,7 @@ interface AppContextType {
   ) => void
   fetchEntities: () => Promise<void>
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
+  updateEntityLastFetch: (entityId: string, features: string[]) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
@@ -100,10 +106,23 @@ const defaultSettings: AppSettings = {
   },
   assets: {
     crypto: {
-      stablecoins: ["USDC", "USDT"],
+      stablecoins: [],
       hideUnknownTokens: false,
     },
   },
+  data: {
+    autoRefresh: {
+      mode: AutoRefreshMode.OFF,
+      max_outdated: AutoRefreshMaxOutdatedTime.TWELVE_HOURS,
+      entities: [],
+    },
+  },
+}
+
+const defaultAutoRefresh: AutoRefresh = {
+  mode: AutoRefreshMode.OFF,
+  max_outdated: AutoRefreshMaxOutdatedTime.TWELVE_HOURS,
+  entities: [],
 }
 
 const mergeSettingsWithDefaults = (
@@ -164,6 +183,13 @@ const mergeSettingsWithDefaults = (
         }
       : incoming?.importing,
     assets: mergedAssets,
+    data: {
+      autoRefresh: {
+        ...defaultAutoRefresh,
+        ...incoming?.data?.autoRefresh,
+        entities: incoming?.data?.autoRefresh?.entities ?? [],
+      },
+    },
   }
 }
 
@@ -200,7 +226,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
-  const SIX_HOURS_MS = 6 * 60 * 60 * 1000
+  const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
+  const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
   useEffect(() => {
     const getPlatformInfo = async () => {
@@ -254,14 +281,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearInterval(exchangeRatesTimerRef.current)
     }
 
-    exchangeRatesTimerRef.current = setInterval(
-      () => {
-        if (isAuthenticated) {
-          fetchExchangeRatesSilently()
-        }
-      },
-      10 * 60 * 1000,
-    )
+    exchangeRatesTimerRef.current = setInterval(() => {
+      if (isAuthenticated) {
+        fetchExchangeRatesSilently()
+      }
+    }, EXCHANGE_RATES_REFRESH_INTERVAL_MS)
   }, [fetchExchangeRatesSilently, isAuthenticated])
 
   const stopExchangeRatesTimer = useCallback(() => {
@@ -358,6 +382,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const updateEntityLastFetch = useCallback(
+    (entityId: string, features: string[]) => {
+      const now = new Date().toISOString()
+      setEntities(prevEntities =>
+        prevEntities.map(entity =>
+          entity.id === entityId
+            ? {
+                ...entity,
+                last_fetch: {
+                  ...entity.last_fetch,
+                  ...Object.fromEntries(features.map(f => [f, now])),
+                },
+              }
+            : entity,
+        ),
+      )
+    },
+    [],
+  )
+
   const fetchExternalIntegrations = useCallback(async () => {
     try {
       setExternalIntegrationsLoading(true)
@@ -376,7 +420,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const lastCallTimeStr = localStorage.getItem(LAST_UPDATE_QUOTES_KEY)
     const lastCallTime = lastCallTimeStr ? parseInt(lastCallTimeStr, 10) : null
 
-    if (lastCallTime === null || now - lastCallTime >= SIX_HOURS_MS) {
+    if (
+      lastCallTime === null ||
+      now - lastCallTime >= QUOTES_UPDATE_INTERVAL_MS
+    ) {
       try {
         await updateQuotesManualPositions()
         localStorage.setItem(LAST_UPDATE_QUOTES_KEY, now.toString())
@@ -384,7 +431,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error("Error updating manual positions quotes:", error)
       }
     }
-  }, [LAST_UPDATE_QUOTES_KEY, SIX_HOURS_MS])
+  }, [LAST_UPDATE_QUOTES_KEY, QUOTES_UPDATE_INTERVAL_MS])
 
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
@@ -432,6 +479,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setExportState,
         fetchEntities,
         updateEntityStatus,
+        updateEntityLastFetch,
         showToast,
         hideToast,
         fetchSettings,

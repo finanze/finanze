@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/Popover"
 import { PlatformType } from "@/types"
 import { ProductType } from "@/types/position"
-// Removed dynamic filtering for assets; all asset subsections always visible
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import {
   usePinnedShortcuts,
@@ -83,7 +82,6 @@ export function Sidebar() {
         const product = entity.products[pt]
         if (!product) return false
         if (product.entries && product.entries.length > 0) return true
-        // some product structures might store positions differently; fallback checks
         return Array.isArray(product) && product.length > 0
       })
     }
@@ -217,15 +215,23 @@ export function Sidebar() {
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
-  // Update investments expanded state when navigating
   useEffect(() => {
+    const isPinnedRoute = pinnedShortcuts.some(pinnedKey => {
+      const investmentRoute = investmentRoutes.find(r => r.key === pinnedKey)
+      const managementRoute = managementRoutes.find(r => r.key === pinnedKey)
+      const route = investmentRoute ?? managementRoute
+      return route?.path === location.pathname
+    })
+
+    if (isPinnedRoute) return
+
     if (location.pathname.startsWith("/investments")) {
       setInvestmentsExpanded(true)
     }
     if (location.pathname.startsWith("/management")) {
       setManagementExpanded(true)
     }
-  }, [location.pathname])
+  }, [location.pathname, pinnedShortcuts, investmentRoutes, managementRoutes])
 
   const navItems = [
     {
@@ -233,7 +239,6 @@ export function Sidebar() {
       label: t.common.dashboard,
       icon: <LayoutDashboard size={20} />,
     },
-    // Banking & Real Estate now inside assets section (and can be pinned)
     {
       path: "/transactions",
       label: t.common.transactions,

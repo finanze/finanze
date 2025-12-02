@@ -1,0 +1,36 @@
+from argparse import Namespace
+from pathlib import Path
+from typing import Optional
+
+from application.ports.server_options_port import ServerOptionsPort
+from domain.status import BackendLogLevel, BackendOptions
+
+
+class ArgparseServerOptionsAdapter(ServerOptionsPort):
+    def __init__(self, args: Namespace):
+        self._args = args
+
+    def get_backend_options(self) -> BackendOptions:
+        data_dir = getattr(self._args, "data_dir", None)
+        log_dir = getattr(self._args, "log_dir", None)
+        return BackendOptions(
+            data_dir=str(Path(data_dir).resolve()) if data_dir else None,
+            port=getattr(self._args, "port", None),
+            log_level=self._to_log_level(getattr(self._args, "log_level", None)),
+            log_dir=str(Path(log_dir).resolve()) if log_dir else None,
+            log_file_level=self._to_log_level(
+                getattr(self._args, "log_file_level", None)
+            ),
+            third_party_log_level=self._to_log_level(
+                getattr(self._args, "third_party_log_level", None)
+            ),
+        )
+
+    @staticmethod
+    def _to_log_level(level_name: Optional[str]) -> Optional[BackendLogLevel]:
+        if not level_name:
+            return None
+        try:
+            return BackendLogLevel(level_name)
+        except ValueError:
+            return None

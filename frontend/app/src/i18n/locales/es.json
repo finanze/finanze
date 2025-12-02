@@ -371,7 +371,8 @@
     "continueLink": "Continuar enlace",
     "relink": "Re-enlazar",
     "confirmRelink": "Confirmar Re-enlace",
-    "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}, ¿quieres continuar?"
+    "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}, ¿quieres continuar?",
+    "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas."
   },
   "features": {
     "POSITION": "Posiciones",
@@ -424,6 +425,34 @@
         "cancelEdit": "Cancelar edición",
         "hideUnknownTokensLabel": "Ocultar tokens desconocidos",
         "hideUnknownTokensDescription": "Excluye los tokens sin datos de referencia de las vistas y cálculos"
+      }
+    },
+    "dataSettings": {
+      "title": "Datos",
+      "description": "Configura la actualización y sincronización de datos",
+      "autoRefresh": {
+        "title": "Auto-actualización",
+        "description": "Actualiza automáticamente los datos de tus entidades conectadas",
+        "enableLabel": "Habilitar auto-actualización",
+        "enableDescription": "Obtener automáticamente datos actualizados de entidades que lo soporten",
+        "maxOutdatedLabel": "Tiempo máximo sin actualizar",
+        "maxOutdatedDescription": "Actualizar entidades que no se hayan actualizado en este tiempo",
+        "maxOutdatedOptions": {
+          "THREE_HOURS": "3h",
+          "SIX_HOURS": "6h",
+          "TWELVE_HOURS": "12h",
+          "DAY": "1d",
+          "TWO_DAYS": "2d",
+          "WEEK": "1w"
+        },
+        "entitiesLabel": "Seleccionar entidades",
+        "entitiesDescription": "Si no se selecciona ninguna, se actualizarán todas las posibles",
+        "entitiesPlaceholder": "Seleccionar entidades...",
+        "allEntities": "Todas las compatibles",
+        "selectedCount": "{count} seleccionadas",
+        "noEntitiesAvailable": "No hay entidades compatibles disponibles",
+        "pinWarning": "PIN requerido",
+        "pinWarningTooltip": "Las entidades que requieren PIN no se actualizarán si su sesión ha caducado"
       }
     },
     "integrations": "Integraciones",
@@ -658,6 +687,7 @@
     "notShowing": "Oculto en modo proyección",
     "upcomingAt": "Próximos para {date}",
     "close": "Cerrar",
+    "calculating": "Calculando proyección...",
     "pendingPaymentsLegendLabel": "Pagos pendientes proyectados",
     "pendingPaymentsLegend": "Pagos de efectivo pendientes proyectados de {amount} (salidas futuras no contadas aún en activos totales)",
     "negativeCashWarningTitle": "Proyección inviable",
