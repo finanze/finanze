@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.dezimal import Dezimal
-from domain.entity import EntitySetupLoginType
+from domain.native_entity import EntitySetupLoginType
 from domain.entity_login import EntityLoginParams, EntityLoginResult, LoginResultCode
 from domain.global_position import (
     Account,

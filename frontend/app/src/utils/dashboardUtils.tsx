@@ -83,6 +83,10 @@ export function getIconForAssetType(
       return <FileText className={`${size} ${color ?? "text-indigo-500"}`} />
     case "DERIVATIVE":
       return <FlaskConical className={`${size} ${color ?? "text-brown-500"}`} />
+    case "CARD":
+      return <CreditCard className={`${size} ${color ?? "text-orange-500"}`} />
+    case "LOAN":
+      return <HandCoins className={`${size} ${color ?? "text-teal-500"}`} />
     default:
       return <Coins className={`${size} ${color ?? "text-gray-500"}`} />
   }
@@ -154,6 +158,10 @@ export const getProductTypeColor = (type: ProductType): string => {
       return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100"
     case ProductType.DERIVATIVE:
       return "bg-brown-100 text-brown-800 dark:bg-brown-900 dark:text-brown-100"
+    case ProductType.CARD:
+      return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
+    case ProductType.LOAN:
+      return "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-100"
     default:
       return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100"
   }

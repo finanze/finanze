@@ -44,7 +44,7 @@ information.
 | Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
 | MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
 | SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets(*)  |
+| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets     |
 | Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
 | Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
 | Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
@@ -52,8 +52,6 @@ information.
 | Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
 | ING            | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
 | Grupo Cajamar  | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-
-(*) Private Markets are alternative investments available in Trade Republic, currently under development.
 
 #### GoCardless Integration
 
@@ -113,12 +111,14 @@ Crypto is a bit special, as it is not a financial entity, but a financial produc
 currently the following are supported:
 
 - **Bitcoin**
-- **Ethereum**: ERC20 tokens are supported too, currently **USDT** and **USDC** are supported.
+- **Ethereum**: ERC20 tokens are supported too.
 - **Litecoin**
-- **Tron**: TRC20 tokens are supported too, same as ETH.
+- **Tron**: TRC20 tokens are supported too.
 - **Binance Smart Chain**: BSC tokens are supported too (requires Etherscan integration setup with an API Key).
 
 At the moment the only available feature for crypto is **Global Position**, transactions are WIP.
+
+Some financial entities such as Trade Republic support crypto too.
 
 ### Commodities
 

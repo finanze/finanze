@@ -323,7 +323,10 @@ export function EntityCard({
               <span className="truncate max-sm:text-center">{entity.name}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
-              <FeaturesBadge features={entity.features} />
+              <FeaturesBadge
+                features={entity.features}
+                nativelySupportedProducts={entity.natively_supported_products}
+              />
               {badgeInfo &&
                 (badgeInfo.isMissingIntegrations ? (
                   <Popover>

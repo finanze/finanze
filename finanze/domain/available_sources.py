@@ -6,14 +6,17 @@ from uuid import UUID
 
 from domain.crypto import CryptoWalletConnection
 from domain.entity import (
-    CredentialType,
     Entity,
-    EntitySessionCategory,
-    EntitySetupLoginType,
     Feature,
+)
+from domain.native_entity import (
     PinDetails,
+    CredentialType,
+    EntitySetupLoginType,
+    EntitySessionCategory,
 )
 from domain.external_integration import ExternalIntegrationId
+from domain.global_position import ProductType
 from pydantic.dataclasses import dataclass
 
 
@@ -33,9 +36,12 @@ class AvailableSource(Entity):
     pin: Optional[PinDetails] = None
     status: Optional[FinancialEntityStatus] = None
     connected: Optional[list[CryptoWalletConnection]] = None
-    required_external_integrations: list[ExternalIntegrationId] = None
+    required_external_integrations: list[ExternalIntegrationId] = field(
+        default_factory=list
+    )
     external_entity_id: Optional[UUID] = None
     virtual_features: dict[Feature, datetime] = field(default_factory=dict)
+    natively_supported_products: Optional[list[ProductType]] = None
 
 
 @dataclass

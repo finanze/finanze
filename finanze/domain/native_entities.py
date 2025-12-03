@@ -2,18 +2,21 @@ from typing import Optional
 from uuid import UUID
 
 from domain.entity import (
-    CredentialType,
     Entity,
     EntityOrigin,
-    EntitySetupLoginType,
     EntityType,
     Feature,
-    NativeCryptoWalletEntity,
-    NativeFinancialEntity,
+)
+from domain.native_entity import (
     PinDetails,
+    CredentialType,
+    EntitySetupLoginType,
     EntitySessionCategory,
+    NativeFinancialEntity,
+    NativeCryptoWalletEntity,
 )
 from domain.external_integration import ExternalIntegrationId
+from domain.global_position import ProductType
 
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
@@ -22,6 +25,14 @@ MY_INVESTOR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS, Feature.TRANSACTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.CARD,
+        ProductType.STOCK_ETF,
+        ProductType.FUND,
+        ProductType.FUND_PORTFOLIO,
+        ProductType.DEPOSIT,
+    ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     pin=PinDetails(positions=6),
@@ -38,6 +49,7 @@ UNICAJA = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.AUTO_CONTRIBUTIONS],
+    products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
@@ -54,6 +66,12 @@ TRADE_REPUBLIC = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.STOCK_ETF,
+        ProductType.FUND,
+        ProductType.CRYPTO,
+    ],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.SHORT,
     pin=PinDetails(positions=4),
@@ -70,6 +88,7 @@ URBANITAE = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    products=[ProductType.ACCOUNT, ProductType.REAL_ESTATE_CF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
@@ -85,6 +104,7 @@ WECITY = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    products=[ProductType.ACCOUNT, ProductType.REAL_ESTATE_CF],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.MEDIUM,
     pin=PinDetails(positions=6),
@@ -101,6 +121,7 @@ SEGO = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.HISTORIC],
+    products=[ProductType.ACCOUNT, ProductType.FACTORING],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.MEDIUM,
     pin=PinDetails(positions=6),
@@ -117,6 +138,7 @@ MINTOS = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
+    products=[ProductType.ACCOUNT, ProductType.CROWDLENDING],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.NONE,
     credentials_template={
@@ -133,6 +155,7 @@ F24 = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.ACCOUNT, ProductType.DEPOSIT],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={
@@ -148,6 +171,7 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.ACCOUNT, ProductType.FUND, ProductType.FUND_PORTFOLIO],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={"token": CredentialType.API_TOKEN},
@@ -160,6 +184,12 @@ ING = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION, Feature.TRANSACTIONS, Feature.AUTO_CONTRIBUTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.CARD,
+        ProductType.STOCK_ETF,
+        ProductType.FUND,
+    ],
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.NONE,
     credentials_template={
@@ -178,6 +208,7 @@ CAJAMAR = NativeFinancialEntity(
     type=EntityType.FINANCIAL_INSTITUTION,
     origin=EntityOrigin.NATIVE,
     features=[Feature.POSITION],
+    products=[ProductType.ACCOUNT, ProductType.CARD, ProductType.LOAN],
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={

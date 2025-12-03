@@ -389,6 +389,7 @@
     "deepScrapeDescription": "Re-fetch previous data (could take a long time, be blocked and its not recommended)",
     "advancedOptions": "Advanced options",
     "availableFeatures": "Available Features",
+    "supportedProducts": "Supported Products",
     "transactionsLoadingNotice": "Fetching transactions for the first time or forcing a full fetch can take several minutes depending on the amount of data.",
     "jumpToPin": "Already have the 2FA code? Jump to PIN"
   },

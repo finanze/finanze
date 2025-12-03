@@ -5,7 +5,7 @@ from typing import Optional
 import requests
 from cachetools import TTLCache, cached
 from dateutil.tz import tzlocal
-from domain.entity import EntityCredentials
+from domain.native_entity import EntityCredentials
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,

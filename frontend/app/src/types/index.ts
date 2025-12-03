@@ -72,6 +72,7 @@ export interface Entity {
   required_external_integrations?: string[]
   external_entity_id?: string | null
   virtual_features: Record<Feature, string>
+  natively_supported_products?: ProductType[] | null
 }
 
 export enum EntitySessionCategory {

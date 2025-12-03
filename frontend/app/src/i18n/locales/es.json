@@ -387,6 +387,7 @@
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
     "availableFeatures": "Características Disponibles",
+    "supportedProducts": "Productos Soportados",
     "transactionsLoadingNotice": "La primera vez que importas transacciones o al forzar una recarga completa puede tardar varios minutos según la cantidad de datos.",
     "jumpToPin": "¿Ya tienes el código 2FA? Ir al PIN"
   },

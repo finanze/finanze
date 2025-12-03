@@ -6,7 +6,8 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
-from domain.entity import CredentialType, Entity, EntityType
+from domain.entity import Entity, EntityType
+from domain.native_entity import CredentialType
 from domain.entity_login import (
     EntityLoginParams,
     EntityLoginRequest,

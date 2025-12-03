@@ -22,7 +22,8 @@ from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.dezimal import Dezimal
-from domain.entity import CredentialType, Entity, EntityType, Feature
+from domain.entity import Entity, EntityType, Feature
+from domain.native_entity import CredentialType
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import DataSource, FetchRecord
