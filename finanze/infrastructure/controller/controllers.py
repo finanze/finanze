@@ -1,6 +1,7 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 from domain.use_cases.add_manual_transaction import AddManualTransaction
 from domain.use_cases.calculate_loan import CalculateLoan
+from domain.use_cases.calculate_savings import CalculateSavings
 from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
@@ -20,8 +21,8 @@ from domain.use_cases.disconnect_entity import DisconnectEntity
 from domain.use_cases.disconnect_external_integration import (
     DisconnectExternalIntegration,
 )
-from domain.use_cases.export_sheets import ExportSheets
 from domain.use_cases.export_file import ExportFile
+from domain.use_cases.export_sheets import ExportSheets
 from domain.use_cases.fetch_crypto_data import FetchCryptoData
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
 from domain.use_cases.fetch_financial_data import FetchFinancialData
@@ -37,16 +38,16 @@ from domain.use_cases.get_historic import GetHistoric
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
 from domain.use_cases.get_instruments import GetInstruments
 from domain.use_cases.get_money_events import GetMoneyEvents
-from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_pending_flows import GetPendingFlows
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
 from domain.use_cases.get_position import GetPosition
 from domain.use_cases.get_settings import GetSettings
+from domain.use_cases.get_status import GetStatus
 from domain.use_cases.get_template_fields import GetTemplateFields
 from domain.use_cases.get_templates import GetTemplates
 from domain.use_cases.get_transactions import GetTransactions
-from domain.use_cases.import_sheets import ImportSheets
 from domain.use_cases.import_file import ImportFile
+from domain.use_cases.import_sheets import ImportSheets
 from domain.use_cases.list_real_estate import ListRealEstate
 from domain.use_cases.register_user import RegisterUser
 from domain.use_cases.save_commodities import SaveCommodities
@@ -69,6 +70,7 @@ from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
 )
 from infrastructure.controller.routes.calculate_loan import calculate_loan
+from infrastructure.controller.routes.calculate_savings import calculate_savings
 from infrastructure.controller.routes.change_user_password import change_user_password
 from infrastructure.controller.routes.complete_external_entity_connection import (
     complete_external_entity_connection,
@@ -98,8 +100,8 @@ from infrastructure.controller.routes.disconnect_external_integration import (
     disconnect_external_integration,
 )
 from infrastructure.controller.routes.exchange_rates import exchange_rates
-from infrastructure.controller.routes.export_sheets import export_sheets
 from infrastructure.controller.routes.export_file import export_file
+from infrastructure.controller.routes.export_sheets import export_sheets
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
 from infrastructure.controller.routes.fetch_external_financial_data import (
     fetch_external_financial_data,
@@ -110,24 +112,24 @@ from infrastructure.controller.routes.get_available_external_entities import (
     get_available_external_entities,
 )
 from infrastructure.controller.routes.get_available_sources import get_available_sources
-from infrastructure.controller.routes.get_money_events import get_money_events
 from infrastructure.controller.routes.get_external_integrations import (
     get_external_integrations,
 )
+from infrastructure.controller.routes.get_money_events import get_money_events
 from infrastructure.controller.routes.get_pending_flows import get_pending_flows
 from infrastructure.controller.routes.get_periodic_flows import get_periodic_flows
 from infrastructure.controller.routes.get_settings import get_settings
+from infrastructure.controller.routes.get_status import status
 from infrastructure.controller.routes.get_template_fields_route import (
     get_template_fields,
 )
 from infrastructure.controller.routes.get_templates import get_templates
 from infrastructure.controller.routes.historic import get_historic
-from infrastructure.controller.routes.import_sheets import import_sheets
 from infrastructure.controller.routes.import_file import import_file_route
+from infrastructure.controller.routes.import_sheets import import_sheets
 from infrastructure.controller.routes.instrument_details import instrument_details
 from infrastructure.controller.routes.instruments import instruments
 from infrastructure.controller.routes.list_real_estate import list_real_estate
-from infrastructure.controller.routes.get_status import status
 from infrastructure.controller.routes.logout import logout
 from infrastructure.controller.routes.positions import positions
 from infrastructure.controller.routes.register_user import register_user
@@ -196,6 +198,7 @@ def register_routes(
     delete_real_estate_uc: DeleteRealEstate,
     list_real_estate_uc: ListRealEstate,
     calculate_loan_uc: CalculateLoan,
+    calculate_savings_uc: CalculateSavings,
     forecast_uc: Forecast,
     update_contributions_uc: UpdateContributions,
     update_position_uc: UpdatePosition,
@@ -456,3 +459,7 @@ def register_routes(
     @app.route("/api/v1/templates/fields", methods=["GET"])
     def get_template_fields_route():
         return get_template_fields(get_template_fields_uc)
+
+    @app.route("/api/v1/calculations/savings", methods=["POST"])
+    def calculate_savings_route():
+        return calculate_savings(calculate_savings_uc)

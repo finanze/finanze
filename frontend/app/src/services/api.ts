@@ -43,6 +43,8 @@ import {
   FileImportRequest,
   MoneyEvents,
   MoneyEventQuery,
+  SavingsCalculationRequest,
+  SavingsCalculationResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -1225,6 +1227,23 @@ export async function getMoneyEvents(
   params.append("to_date", query.to_date)
 
   const response = await fetch(`${baseUrl}/events?${params.toString()}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function calculateSavings(
+  request: SavingsCalculationRequest,
+): Promise<SavingsCalculationResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/calculations/savings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
   if (!response.ok) {
     await handleApiError(response)
   }

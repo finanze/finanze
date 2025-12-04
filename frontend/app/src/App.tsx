@@ -21,6 +21,7 @@ import RecurringMoneyPage from "./pages/RecurringMoneyPage"
 import PendingMoneyPage from "./pages/PendingMoneyPage"
 import AutoContributionsPage from "./pages/AutoContributionsPage"
 import ManagementPage from "./pages/ManagementPage"
+import CalculationsPage from "./pages/CalculationsPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
@@ -175,6 +176,7 @@ function App() {
                 path="/management/auto-contributions"
                 element={<AutoContributionsPage />}
               />
+              <Route path="/calculations" element={<CalculationsPage />} />
               <Route path="/export" element={<ExportPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

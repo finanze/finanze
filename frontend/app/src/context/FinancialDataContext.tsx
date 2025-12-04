@@ -160,7 +160,6 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         console.log(`Refreshing financial data for entity: ${entityId}`)
 
         let queryParams: { entities: string[] }
-        let entityIdsToUpdate: string[]
 
         if (entityId === "crypto") {
           const cryptoEntities =
@@ -174,13 +173,11 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
           }
 
           queryParams = { entities: cryptoEntities.map(entity => entity.id) }
-          entityIdsToUpdate = cryptoEntities.map(entity => entity.id)
           console.log(
             `Refreshing crypto entities: ${cryptoEntities.map(e => e.name).join(", ")}`,
           )
         } else {
           queryParams = { entities: [entityId] }
-          entityIdsToUpdate = [entityId]
         }
 
         const [positionsResponse, contributionsData] = await Promise.all([
@@ -215,11 +212,6 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
 
         // Invalidate cached transactions since new data may be available
         invalidateTransactionsCache()
-
-        // Update last_fetch locally for the refreshed entities
-        entityIdsToUpdate.forEach(id => {
-          updateEntityLastFetch(id, ["POSITION"])
-        })
       } catch (err) {
         console.error(
           `Error refreshing ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}:`,

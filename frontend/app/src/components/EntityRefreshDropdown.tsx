@@ -1,12 +1,12 @@
 import type React from "react"
 import { motion, AnimatePresence } from "framer-motion"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/Button"
 import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
-import { Entity, EntityStatus, EntityType } from "@/types"
+import { Entity, EntityOrigin, EntityStatus, EntityType } from "@/types"
 import {
   Database,
   RefreshCw,
@@ -15,7 +15,8 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
-import { formatTimeAgo } from "@/lib/timeUtils"
+import { formatTimeAgoAbbr } from "@/lib/timeUtils"
+import { getImageUrl } from "@/services/api"
 import {
   Popover,
   PopoverContent,
@@ -33,15 +34,19 @@ export function EntityRefreshDropdown() {
     useEntityWorkflow()
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
+  const [entityImages, setEntityImages] = useState<Record<string, string>>({})
 
   const { fetchingEntityIds } = fetchingEntityState
 
-  const connectedEntities =
-    entities?.filter(
-      entity =>
-        entity.status !== EntityStatus.DISCONNECTED &&
-        entity.origin !== "MANUAL",
-    ) || []
+  const connectedEntities = useMemo(
+    () =>
+      entities?.filter(
+        entity =>
+          entity.status !== EntityStatus.DISCONNECTED &&
+          entity.origin !== "MANUAL",
+      ) || [],
+    [entities],
+  )
 
   // Separate financial institutions and crypto wallets
   const financialEntities = connectedEntities.filter(
@@ -59,6 +64,28 @@ export function EntityRefreshDropdown() {
   const isCryptoFetching = cryptoEntities.some(entity =>
     fetchingEntityIds.includes(entity.id),
   )
+
+  useEffect(() => {
+    const loadImages = async () => {
+      const images: Record<string, string> = {}
+      for (const entity of connectedEntities) {
+        try {
+          if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
+            const src = await getImageUrl(
+              `/static/entities/logos/${entity.id}.png`,
+            )
+            images[entity.id] = src
+          } else {
+            images[entity.id] = `entities/${entity.id}.png`
+          }
+        } catch {
+          images[entity.id] = `entities/${entity.id}.png`
+        }
+      }
+      setEntityImages(images)
+    }
+    loadImages()
+  }, [connectedEntities])
 
   const handleRefreshEntity = async (entity: Entity, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -247,25 +274,40 @@ export function EntityRefreshDropdown() {
                     return (
                       <div
                         key={entity.id}
-                        className="px-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
-                        <div>
-                          <span>{entity.name}</span>
-                          {lastUpdatedAt ? (
-                            <p
-                              className={`text-xs mt-0.5 ${
-                                isUpdateOld(lastUpdatedAt)
-                                  ? "text-orange-300"
-                                  : "text-neutral-400"
-                              }`}
-                            >
-                              {formatTimeAgo(lastUpdatedAt, t)}
-                            </p>
-                          ) : (
-                            <p className="text-xs mt-0.5 text-neutral-500">
-                              {t.common.never}
-                            </p>
-                          )}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="h-5 w-5 flex-shrink-0 overflow-hidden rounded">
+                            <img
+                              src={entityImages[entity.id]}
+                              alt={entity.name}
+                              className="h-full w-full object-contain"
+                              onError={e =>
+                                (e.currentTarget.src =
+                                  "entities/entity_placeholder.png")
+                              }
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="truncate block">
+                              {entity.name}
+                            </span>
+                            {lastUpdatedAt ? (
+                              <p
+                                className={`text-xs mt-0.5 ${
+                                  isUpdateOld(lastUpdatedAt)
+                                    ? "text-orange-300"
+                                    : "text-neutral-400"
+                                }`}
+                              >
+                                {formatTimeAgoAbbr(lastUpdatedAt, t)}
+                              </p>
+                            ) : (
+                              <p className="text-xs mt-0.5 text-neutral-500">
+                                {t.common.never}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1">
                           {entityRequiresLogin(entity) && (
@@ -321,30 +363,52 @@ export function EntityRefreshDropdown() {
                     return (
                       <div
                         key="crypto-group"
-                        className="px-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                        className="pl-3 pr-4 py-1.5 text-sm flex items-center justify-between hover:bg-neutral-100 dark:hover:bg-neutral-800"
                       >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span>{t.common.crypto}</span>
-                            <span className="text-xs text-neutral-500">
-                              {cryptoDisplay}
-                            </span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex -space-x-2 flex-shrink-0 w-5">
+                            {activeCryptoEntities
+                              .slice(0, 3)
+                              .map(cryptoEntity => (
+                                <div
+                                  key={cryptoEntity.id}
+                                  className="h-5 w-5 overflow-hidden rounded"
+                                >
+                                  <img
+                                    src={entityImages[cryptoEntity.id]}
+                                    alt={cryptoEntity.name}
+                                    className="h-full w-full object-contain"
+                                    onError={e =>
+                                      (e.currentTarget.src =
+                                        "entities/entity_placeholder.png")
+                                    }
+                                  />
+                                </div>
+                              ))}
                           </div>
-                          {lastUpdatedAt ? (
-                            <p
-                              className={`text-xs mt-0.5 ${
-                                isUpdateOld(lastUpdatedAt)
-                                  ? "text-orange-300"
-                                  : "text-neutral-400"
-                              }`}
-                            >
-                              {formatTimeAgo(lastUpdatedAt, t)}
-                            </p>
-                          ) : (
-                            <p className="text-xs mt-0.5 text-neutral-500">
-                              {t.common.never}
-                            </p>
-                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span>{t.common.crypto}</span>
+                              <span className="text-xs text-neutral-500 truncate">
+                                {cryptoDisplay}
+                              </span>
+                            </div>
+                            {lastUpdatedAt ? (
+                              <p
+                                className={`text-xs mt-0.5 ${
+                                  isUpdateOld(lastUpdatedAt)
+                                    ? "text-orange-300"
+                                    : "text-neutral-400"
+                                }`}
+                              >
+                                {formatTimeAgoAbbr(lastUpdatedAt, t)}
+                              </p>
+                            ) : (
+                              <p className="text-xs mt-0.5 text-neutral-500">
+                                {t.common.never}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         {isCryptoFetching ? (
                           <div className="p-1.5">

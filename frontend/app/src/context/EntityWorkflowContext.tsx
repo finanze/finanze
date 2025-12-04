@@ -110,6 +110,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const {
     showToast,
     updateEntityStatus,
+    updateEntityLastFetch,
     fetchEntities,
     settings,
     entities,
@@ -497,6 +498,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           )
           notify(warningMessage, "warning")
 
+          if (entity) {
+            updateEntityLastFetch(entity.id, features)
+          }
+
           if (silent && entity) {
             recordAutoRefreshFailure(entity.id, response)
           }
@@ -529,6 +534,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entity.name,
             )
             recordAutoRefreshSuccess(entity.id)
+            updateEntityLastFetch(entity.id, features)
           } else {
             successMessage = `${t.common.fetchSuccess}: ${t.common.crypto}`
           }

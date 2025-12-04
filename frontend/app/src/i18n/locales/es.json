@@ -348,7 +348,7 @@
     "disconnect": "Desconectar",
     "confirmDisconnect": "Confirmar desconexión",
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos, y una vez desconectada no se tendrán en cuenta.",
-    "refreshEntity": "Actualizar datos de entidades",
+    "refreshEntity": "Actualizar datos",
     "financialInstitutions": "Instituciones Financieras",
     "cryptoWallets": "Billeteras Crypto",
     "commodities": "Materias Primas",
@@ -1145,7 +1145,20 @@
     "monthAgo": "hace 1 mes",
     "monthsAgo": "hace {count} meses",
     "yearAgo": "hace 1 año",
-    "yearsAgo": "hace {count} años"
+    "yearsAgo": "hace {count} años",
+    "justNowAbbr": "ahora",
+    "minuteAgoAbbr": "hace 1 min",
+    "minutesAgoAbbr": "hace {count} min",
+    "hourAgoAbbr": "hace 1 h",
+    "hoursAgoAbbr": "hace {count} h",
+    "dayAgoAbbr": "hace 1 día",
+    "daysAgoAbbr": "hace {count} días",
+    "weekAgoAbbr": "hace 1 sem",
+    "weeksAgoAbbr": "hace {count} sem",
+    "monthAgoAbbr": "hace 1 mes",
+    "monthsAgoAbbr": "hace {count} meses",
+    "yearAgoAbbr": "hace 1 año",
+    "yearsAgoAbbr": "hace {count} años"
   },
   "enums": {
     "dataSource": {
@@ -1932,6 +1945,98 @@
         "saveSuccess": "Posiciones manuales guardadas correctamente.",
         "saveError": "No pudimos guardar las posiciones manuales. Inténtalo de nuevo."
       }
+    }
+  },
+  "calculations": {
+    "title": "Cálculos",
+    "savings": {
+      "title": "Calculadora de Ahorro",
+      "description": "Calcula y compara aportaciones periódicas en distintos escenarios, con proyecciones de jubilación opcionales.",
+      "baseAmount": "Cantidad inicial",
+      "baseAmountPlaceholder": "Saldo inicial de ahorro",
+      "years": "Años de inversión",
+      "yearsPlaceholder": "Número de años",
+      "periodicity": "Frecuencia de aportación",
+      "periodicities": {
+        "MONTHLY": "Mensual",
+        "QUARTERLY": "Trimestral",
+        "YEARLY": "Anual"
+      },
+      "scenarios": "Escenarios",
+      "addScenario": "Añadir escenario",
+      "removeScenario": "Eliminar escenario",
+      "scenarioName": "Escenario {number}",
+      "annualReturn": "Rentabilidad anual (%)",
+      "annualReturnPlaceholder": "Rentabilidad esperada",
+      "contribution": "Aportación periódica",
+      "contributionPlaceholder": "Cantidad por periodo",
+      "targetAmount": "Cantidad objetivo",
+      "targetAmountPlaceholder": "Saldo final deseado",
+      "retirement": "Jubilación",
+      "enableRetirement": "Calcular fase de jubilación",
+      "withdrawalAmount": "Retirada por periodo",
+      "withdrawalAmountPlaceholder": "Cantidad a retirar",
+      "withdrawalYears": "Años de retirada",
+      "withdrawalYearsPlaceholder": "Años de jubilación",
+      "calculate": "Calcular",
+      "results": "Resultados",
+      "noResults": "Configura y calcula para ver resultados",
+      "finalBalance": "Saldo final",
+      "totalContributions": "Aportaciones totales",
+      "totalRevaluation": "Ganancias totales",
+      "periodicContribution": "Aportación periódica",
+      "yearsToTarget": "Años hasta objetivo",
+      "retirementPhase": "Fase de Jubilación",
+      "retirementDuration": "Duración",
+      "totalWithdrawn": "Total retirado",
+      "withdrawalPerPeriod": "Retirada por periodo",
+      "yearsLabel": "{years} años",
+      "monthsLabel": "{months} meses",
+      "simulation": "Simulación",
+      "period": "Periodo",
+      "periodLabels": {
+        "year": "Año {year}",
+        "month": "Mes {period}",
+        "quarter": "Trimestre {period}"
+      },
+      "balance": "Saldo",
+      "contributed": "Aportado",
+      "gains": "Ganancias",
+      "withdrawal": "Retirada",
+      "remaining": "Restante",
+      "chart": {
+        "capital": "Capital",
+        "gains": "Ganancias",
+        "withdrawal": "Retirada",
+        "balance": "Saldo"
+      },
+      "errors": {
+        "calculationFailed": "El cálculo falló. Por favor, revisa los datos.",
+        "atLeastOneScenario": "Añade al menos un escenario.",
+        "invalidYears": "Introduce años de inversión válidos.",
+        "invalidContributionOrTarget": "Introduce una aportación periódica o una cantidad objetivo por escenario.",
+        "invalidRetirement": "Introduce la cantidad de retirada o los años de retirada para la jubilación.",
+        "invalidAnnualReturn": "Introduce un porcentaje de rentabilidad anual válido."
+      },
+      "mode": {
+        "label": "Modo de cálculo",
+        "contribution": "Aportación",
+        "target": "Objetivo",
+        "years": "Años",
+        "retirement": "Jubilación",
+        "contributionDesc": "Calcular crecimiento basado en una aportación periódica fija",
+        "targetDesc": "Calcular aportación necesaria para alcanzar un objetivo",
+        "yearsDesc": "Calcular años necesarios para alcanzar un objetivo con aportación fija",
+        "retirementDesc": "Calcular aportación necesaria para ingresos de jubilación deseados"
+      },
+      "summary": {
+        "title": "Resumen",
+        "scenario": "Escenario",
+        "compare": "Comparar escenarios"
+      },
+      "yearlyView": "Vista anual",
+      "periodView": "Vista por periodo",
+      "retirementModeInfo": "La aportación se calculará según los objetivos de jubilación"
     }
   },
   "datePicker": {

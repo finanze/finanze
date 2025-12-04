@@ -1066,3 +1066,71 @@ export interface AutoRefresh {
 export interface DataConfig {
   autoRefresh: AutoRefresh
 }
+
+// Savings Calculations
+export enum SavingsPeriodicity {
+  MONTHLY = "MONTHLY",
+  QUARTERLY = "QUARTERLY",
+  YEARLY = "YEARLY",
+}
+
+export interface SavingsScenarioRequest {
+  id: string
+  annual_market_performance: number
+  periodic_contribution?: number | null
+  target_amount?: number | null
+}
+
+export interface SavingsRetirementRequest {
+  withdrawal_amount?: number | null
+  withdrawal_years?: number | null
+}
+
+export interface SavingsCalculationRequest {
+  base_amount?: number | null
+  years?: number | null
+  periodicity: SavingsPeriodicity
+  scenarios: SavingsScenarioRequest[]
+  retirement?: SavingsRetirementRequest | null
+}
+
+export interface SavingsPeriodEntry {
+  period_index: number
+  contributed: number
+  total_contributed: number
+  total_invested: number
+  revaluation: number
+  total_revaluation: number
+  balance: number
+}
+
+export interface SavingsRetirementPeriodEntry {
+  period_index: number
+  withdrawal: number
+  total_withdrawn: number
+  revaluation: number
+  balance: number
+}
+
+export interface SavingsRetirementResult {
+  withdrawal_amount: number
+  duration_periods: number
+  duration_years: number
+  total_withdrawn: number
+  periods: SavingsRetirementPeriodEntry[]
+}
+
+export interface SavingsScenarioResult {
+  scenario_id: string
+  annual_market_performance: number
+  periodic_contribution: number
+  accumulation_periods: SavingsPeriodEntry[]
+  total_contributions: number
+  total_revaluation: number
+  final_balance: number
+  retirement?: SavingsRetirementResult | null
+}
+
+export interface SavingsCalculationResult {
+  scenarios: SavingsScenarioResult[]
+}

@@ -350,7 +350,7 @@
     "disconnect": "Disconnect",
     "confirmDisconnect": "Confirm Disconnect",
     "confirmDisconnectMessage": "Are you sure you want to disconnect {entity}? You will need to log in again to access its data, and once disconnected it will not be shown.",
-    "refreshEntity": "Update entity data",
+    "refreshEntity": "Update data",
     "financialInstitutions": "Financial Institutions",
     "cryptoWallets": "Crypto Wallets",
     "commodities": "Commodities",
@@ -1146,7 +1146,20 @@
     "monthAgo": "1 month ago",
     "monthsAgo": "{count} months ago",
     "yearAgo": "1 year ago",
-    "yearsAgo": "{count} years ago"
+    "yearsAgo": "{count} years ago",
+    "justNowAbbr": "now",
+    "minuteAgoAbbr": "1 min ago",
+    "minutesAgoAbbr": "{count} mins ago",
+    "hourAgoAbbr": "1 hr ago",
+    "hoursAgoAbbr": "{count} hrs ago",
+    "dayAgoAbbr": "1 day ago",
+    "daysAgoAbbr": "{count} days ago",
+    "weekAgoAbbr": "1 wk ago",
+    "weeksAgoAbbr": "{count} wks ago",
+    "monthAgoAbbr": "1 mo ago",
+    "monthsAgoAbbr": "{count} mos ago",
+    "yearAgoAbbr": "1 yr ago",
+    "yearsAgoAbbr": "{count} yrs ago"
   },
   "enums": {
     "dataSource": {
@@ -1920,6 +1933,98 @@
         "saveSuccess": "Manual positions saved successfully.",
         "saveError": "We couldn't save manual positions. Try again."
       }
+    }
+  },
+  "calculations": {
+    "title": "Calculations",
+    "savings": {
+      "title": "Savings Calculator",
+      "description": "Calculate and compare periodic savings across different scenarios, with optional retirement projections.",
+      "baseAmount": "Starting amount",
+      "baseAmountPlaceholder": "Initial savings balance",
+      "years": "Investment years",
+      "yearsPlaceholder": "Number of years",
+      "periodicity": "Contribution frequency",
+      "periodicities": {
+        "MONTHLY": "Monthly",
+        "QUARTERLY": "Quarterly",
+        "YEARLY": "Yearly"
+      },
+      "scenarios": "Scenarios",
+      "addScenario": "Add scenario",
+      "removeScenario": "Remove scenario",
+      "scenarioName": "Scenario {number}",
+      "annualReturn": "Annual return (%)",
+      "annualReturnPlaceholder": "Expected return",
+      "contribution": "Periodic contribution",
+      "contributionPlaceholder": "Amount per period",
+      "targetAmount": "Target amount",
+      "targetAmountPlaceholder": "Desired final balance",
+      "retirement": "Retirement",
+      "enableRetirement": "Calculate retirement phase",
+      "withdrawalAmount": "Withdrawal per period",
+      "withdrawalAmountPlaceholder": "Amount to withdraw",
+      "withdrawalYears": "Withdrawal years",
+      "withdrawalYearsPlaceholder": "Years of retirement",
+      "calculate": "Calculate",
+      "results": "Results",
+      "noResults": "Configure and calculate to see results",
+      "finalBalance": "Final balance",
+      "totalContributions": "Total contributions",
+      "totalRevaluation": "Total gains",
+      "periodicContribution": "Periodic contribution",
+      "yearsToTarget": "Years to target",
+      "retirementPhase": "Retirement Phase",
+      "retirementDuration": "Duration",
+      "totalWithdrawn": "Total withdrawn",
+      "withdrawalPerPeriod": "Withdrawal per period",
+      "yearsLabel": "{years} years",
+      "monthsLabel": "{months} months",
+      "simulation": "Simulation",
+      "period": "Period",
+      "periodLabels": {
+        "year": "Year {year}",
+        "month": "Month {period}",
+        "quarter": "Quarter {period}"
+      },
+      "balance": "Balance",
+      "contributed": "Contributed",
+      "gains": "Gains",
+      "withdrawal": "Withdrawal",
+      "remaining": "Remaining",
+      "chart": {
+        "capital": "Capital",
+        "gains": "Gains",
+        "withdrawal": "Withdrawal",
+        "balance": "Balance"
+      },
+      "errors": {
+        "calculationFailed": "Calculation failed. Please check your inputs.",
+        "atLeastOneScenario": "Add at least one scenario.",
+        "invalidYears": "Enter valid investment years.",
+        "invalidContributionOrTarget": "Enter either a periodic contribution or a target amount per scenario.",
+        "invalidRetirement": "Enter either withdrawal amount or withdrawal years for retirement.",
+        "invalidAnnualReturn": "Enter a valid annual return percentage."
+      },
+      "mode": {
+        "label": "Calculation mode",
+        "contribution": "Contribution",
+        "target": "Target",
+        "years": "Years",
+        "retirement": "Retirement",
+        "contributionDesc": "Calculate growth based on a fixed periodic contribution",
+        "targetDesc": "Calculate required contribution to reach a target",
+        "yearsDesc": "Calculate years required to reach a target with a fixed contribution",
+        "retirementDesc": "Calculate required contribution for desired retirement income"
+      },
+      "summary": {
+        "title": "Summary",
+        "scenario": "Scenario",
+        "compare": "Compare scenarios"
+      },
+      "yearlyView": "Yearly view",
+      "periodView": "Period view",
+      "retirementModeInfo": "Contribution will be calculated based on retirement goals"
     }
   },
   "datePicker": {

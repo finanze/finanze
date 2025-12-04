@@ -6,6 +6,7 @@ import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
+from application.use_cases.calculate_savings import CalculateSavingsImpl
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
@@ -527,6 +528,7 @@ class FinanzeServer:
         )
         list_real_estate = ListRealEstateImpl(real_estate_repository)
         calculate_loan = CalculateLoanImpl()
+        calculate_savings = CalculateSavingsImpl()
         forecast = ForecastImpl(
             position_port=position_repository,
             auto_contributions_port=auto_contrib_repository,
@@ -631,6 +633,7 @@ class FinanzeServer:
             delete_real_estate,
             list_real_estate,
             calculate_loan,
+            calculate_savings,
             forecast,
             update_contributions,
             update_position,

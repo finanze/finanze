@@ -153,3 +153,9 @@ class SheetNotFound(Exception):
 
 class UnsupportedFileFormat(Exception):
     pass
+
+
+class CalculationInputError(Exception):
+    def __init__(self, details: str):
+        self.details = details
+        super().__init__(details)
