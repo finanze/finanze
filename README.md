@@ -3,7 +3,7 @@
 
 <p align="center">
 An application designed to aggregate financial data from various banking and investment
-platforms. It supports multiple entities and features, providing a unified interface to gather and process financial
+platforms fully locally. It supports multiple entities, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial
 information.
 </p>
 
@@ -13,7 +13,9 @@ information.
   <img src="resources/dashboard.png" width="49%" />
   <img src="resources/entitiespage.png" width="49%" /> 
   <img src="resources/earningsexpenses.png" width="49%" /> 
-  <img src="resources/realestate.png" width="49%" /> 
+  <img src="resources/realestate.png" width="49%" />
+  <img src="resources/savingscalculator.png" width="49%" /> 
+  <img src="resources/crypto.png" width="49%" /> 
 </p>
 
 ## Table of Contents
@@ -36,6 +38,8 @@ information.
 - 🔐 Local encrypted database for secure data storage
 - 📤 Dynamic and customizable data export to Google Sheets
 - 📥 Manual data importing
+- ⚙️ Highly configurable with templating for exports and imports
+- 📊 Complex savings & retirement calculator with multiple scenarios and variables
 
 ### Supported Assets by Financial Entity
 
