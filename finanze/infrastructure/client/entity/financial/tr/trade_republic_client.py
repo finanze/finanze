@@ -225,8 +225,10 @@ class TradeRepublicClient:
         r.raise_for_status()
         return r.json()
 
-    def get_active_interest_rate(self):
-        r = self._tr_api._web_request("/api/v1/banking/consumer/interest/rate")
+    def get_active_interest_rate(self, account_number: str):
+        r = self._tr_api._web_request(
+            f"/api/v1/banking/consumer/interest/{account_number}/rate"
+        )
         r.raise_for_status()
         return r.json()
 

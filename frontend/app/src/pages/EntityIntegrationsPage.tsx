@@ -528,6 +528,8 @@ export default function EntityIntegrationsPage() {
                       <motion.div
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         variants={fadeListContainer}
+                        initial={false}
+                        animate="show"
                       >
                         {connectedFinancialEntities.map(entity => (
                           <motion.div key={entity.id} variants={fadeListItem}>
@@ -562,6 +564,8 @@ export default function EntityIntegrationsPage() {
                       <motion.div
                         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
                         variants={fadeListContainer}
+                        initial={false}
+                        animate="show"
                       >
                         {connectedCryptoEntities.map(entity => (
                           <motion.div key={entity.id} variants={fadeListItem}>

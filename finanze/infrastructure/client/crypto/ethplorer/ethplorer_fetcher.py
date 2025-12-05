@@ -8,7 +8,7 @@ from domain.global_position import (
     CryptoCurrencyType,
     CryptoCurrencyWallet,
 )
-from infrastructure.client.crypto.etherscan.ethplorer_client import EthplorerClient
+from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 
 
 class EthplorerFetcher:

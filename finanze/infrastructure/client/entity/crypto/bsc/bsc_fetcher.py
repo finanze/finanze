@@ -9,8 +9,8 @@ from domain.global_position import (
 )
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.etherscan.etherscan_fetcher import EtherscanFetcher
-from infrastructure.client.crypto.etherscan.ethplorer_client import EthplorerClient
-from infrastructure.client.crypto.etherscan.ethplorer_fetcher import EthplorerFetcher
+from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
+from infrastructure.client.crypto.ethplorer.ethplorer_fetcher import EthplorerFetcher
 
 
 class BSCFetcher(CryptoEntityFetcher):

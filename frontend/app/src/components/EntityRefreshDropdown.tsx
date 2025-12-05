@@ -35,6 +35,7 @@ export function EntityRefreshDropdown() {
   const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const [entityImages, setEntityImages] = useState<Record<string, string>>({})
+  const [refreshCooldown, setRefreshCooldown] = useState(false)
 
   const { fetchingEntityIds } = fetchingEntityState
 
@@ -90,7 +91,10 @@ export function EntityRefreshDropdown() {
   const handleRefreshEntity = async (entity: Entity, e: React.MouseEvent) => {
     e.stopPropagation()
 
-    if (!entity) return
+    if (!entity || refreshCooldown) return
+
+    setRefreshCooldown(true)
+    setTimeout(() => setRefreshCooldown(false), 1500)
 
     try {
       setFetchingEntityState(prev => ({
@@ -99,7 +103,8 @@ export function EntityRefreshDropdown() {
       }))
 
       const features = entity.features || []
-      const options = { avoidNewLogin: true }
+      const avoidNewLogin = false
+      const options = { avoidNewLogin }
       await scrape(entity, features, options)
     } finally {
       setFetchingEntityState(prev => ({
@@ -114,7 +119,10 @@ export function EntityRefreshDropdown() {
   const handleRefreshCrypto = async (e: React.MouseEvent) => {
     e.stopPropagation()
 
-    if (cryptoEntities.length === 0) return
+    if (cryptoEntities.length === 0 || refreshCooldown) return
+
+    setRefreshCooldown(true)
+    setTimeout(() => setRefreshCooldown(false), 1000)
 
     try {
       // Add all connected crypto entities to fetchingEntityIds
@@ -337,7 +345,8 @@ export function EntityRefreshDropdown() {
                           ) : (
                             <button
                               onClick={e => handleRefreshEntity(entity, e)}
-                              className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                              disabled={refreshCooldown}
+                              className={`p-1.5 rounded-full transition-all duration-300 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
                               aria-label={`Refresh ${entity.name}`}
                             >
                               <RefreshCw className="h-4 w-4" />
@@ -417,7 +426,8 @@ export function EntityRefreshDropdown() {
                         ) : (
                           <button
                             onClick={handleRefreshCrypto}
-                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            disabled={refreshCooldown}
+                            className={`p-1.5 rounded-full transition-all duration-300 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
                             aria-label={`Refresh ${t.common.crypto}`}
                           >
                             <RefreshCw className="h-4 w-4" />

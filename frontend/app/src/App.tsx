@@ -27,6 +27,7 @@ import SplashScreen from "./components/SplashScreen"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
 import { PinnedShortcutsProvider } from "./context/PinnedShortcutsContext"
 import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
+import { GlobalEntityModals } from "./components/GlobalEntityModals"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { useAppContext } from "./context/AppContext"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
@@ -208,6 +209,8 @@ function App() {
               }}
             />
           )}
+
+          <GlobalEntityModals />
         </PinnedShortcutsProvider>
       </FinancialDataProvider>
     </EntityWorkflowProvider>

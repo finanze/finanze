@@ -438,6 +438,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
             return
           }
+          if (entity) {
+            setSelectedEntity(entity)
+          }
           setPinRequired(true)
           setProcessId(response.details?.processId || null)
           setPinLength(entity?.pin?.positions || 4)
@@ -450,6 +453,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             return
           }
           if (entity) {
+            setSelectedEntity(entity)
+
             scrapeManualLogin.current = {
               active: true,
               features: features,
@@ -656,6 +661,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       formatCooldownTime,
       navigate,
       processId,
+      setSelectedEntity,
       resetState,
       setView,
       showToast,
@@ -690,7 +696,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             options: DEFAULT_FETCH_OPTIONS,
           }
 
-          await scrape(selectedEntity, features, options)
+          try {
+            await scrape(selectedEntity, features, options)
+          } finally {
+            setView("entities")
+          }
         } else {
           showToast(
             t.errors[loginResponse.code as keyof typeof t.errors] ||
@@ -718,7 +728,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     }
 
     const cleanupListener = window.ipcAPI.onCompletedExternalLogin(
-      (id, result) => {
+      async (id, result) => {
         console.debug("External login completed:", id)
 
         if (!selectedEntity) {
@@ -746,7 +756,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             ).every(key => result.credentials[key])
 
             if (allCredentialsProvided) {
-              login(result.credentials)
+              try {
+                await login(result.credentials)
+              } finally {
+                setView("entities")
+              }
             } else {
               setStoredCredentials(result.credentials)
               setView("login")

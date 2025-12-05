@@ -237,9 +237,9 @@ class MyInvestorAPIV2Client:
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_security_accounts(self):
-        return self._get_request(
-            "/myinvestor-server/api/v2/securities-accounts/self-basic"
-        )["payload"]["data"]
+        return self._get_request("/cperf-server/api/v2/securities-accounts/self-basic")[
+            "payload"
+        ]["data"]
 
     def get_cards(self, account_id=None):
         params = f"?accountId={account_id}" if account_id else ""
@@ -253,7 +253,7 @@ class MyInvestorAPIV2Client:
     @cached(cache=TTLCache(maxsize=10, ttl=30))
     def get_security_account_details(self, security_account_id: str):
         return self._get_request(
-            f"/myinvestor-server/api/v2/securities-accounts/{security_account_id}"
+            f"/cperf-server/api/v2/securities-accounts/{security_account_id}"
         )["payload"]["data"]
 
     def get_stock_orders(

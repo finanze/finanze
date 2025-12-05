@@ -93,6 +93,20 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             fund_details.get("apreciationProfitability")
             or fund_details.get("totalNetProfitability")
         )
+
+        fields = fund_details.get("fields", [])
+        for field in fields:
+            field_name = field.get("name", "").lower()
+            field_unit = field.get("unit", "").upper()
+            if "PERCENTAGE" in field_unit and "anual" in field_name:
+                field_percentage = Dezimal(field.get("amount") or 0)
+                if field_percentage > 0:
+                    interest_rate = (
+                        field_percentage
+                        if field_percentage < interest_rate
+                        else interest_rate
+                    )
+
         last_invest_date = datetime.strptime(
             inv["lastInvestDate"], self.DATETIME_FORMAT
         )

@@ -331,12 +331,23 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         if cash_account:
             iban = cash_account.get("iban")
 
-        active_interest = round(
-            Dezimal(self._client.get_active_interest_rate().get("activeInterestRate"))
-            / 100,
-            4,
-        )
         raw_portfolio = await self._client.get_portfolio()
+
+        try:
+            # This doesn't work anymore, throws 401 :(, wrong param?, or is this only available in mobile app?
+            cash_acc_num = raw_portfolio.cash[0].get("accountNumber")
+            active_interest = round(
+                Dezimal(
+                    self._client.get_active_interest_rate(cash_acc_num).get(
+                        "activeInterestRate"
+                    )
+                )
+                / 100,
+                4,
+            )
+        except Exception as e:
+            self._log.error(f"Could not fetch active interest rate: {e}")
+            active_interest = None
 
         accounts = []
         currency = None

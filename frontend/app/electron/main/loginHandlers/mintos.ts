@@ -11,9 +11,14 @@ export async function promptLogin(
   request: ExternalLoginRequest,
 ): Promise<ExternalLoginRequestResult> {
   const mintosPartition = `persist:mintos`
+  const mintosSession = session.fromPartition(mintosPartition)
+
+  mintosSession.webRequest.onSendHeaders(null)
+
   let mintosWindow: BrowserWindow | null = new BrowserWindow({
     width: 1250,
     height: 900,
+    show: false,
     webPreferences: {
       partition: mintosPartition,
       nodeIntegration: false,
@@ -21,15 +26,13 @@ export async function promptLogin(
     },
   })
 
-  const mintosSession = session.fromPartition(mintosPartition)
-
   const result: LoginHandlerResult = {
     success: false,
     credentials: {},
   }
 
   mintosSession.webRequest.onSendHeaders(
-    { types: ["xhr"], urls: [] },
+    { types: ["xhr"], urls: ["<all_urls>"] },
     details => {
       if (details.url.includes("/api/auth/login")) {
         mintosWindow?.webContents
@@ -58,7 +61,17 @@ export async function promptLogin(
     },
   )
 
-  await mintosWindow.loadURL("https://www.mintos.com/en/login")
+  mintosWindow.once("ready-to-show", () => {
+    mintosWindow?.show()
+  })
+
+  try {
+    await mintosWindow.loadURL("https://www.mintos.com/en/login")
+  } catch (error) {
+    console.error("Failed to load Mintos login page:", error)
+    mintosWindow?.close()
+    return { success: false }
+  }
 
   if (request.credentials)
     await mintosWindow?.webContents.executeJavaScript(`
@@ -68,8 +81,8 @@ export async function promptLogin(
         `)
 
   mintosWindow.on("closed", () => {
+    mintosSession.webRequest.onSendHeaders(null)
     mintosWindow?.removeAllListeners()
-    mintosSession.removeAllListeners()
     if (
       !result.credentials ||
       !result.credentials.cookie ||

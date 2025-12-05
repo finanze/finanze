@@ -103,6 +103,9 @@ from infrastructure.repository.db.versions.v0.v07.v070_7_add_crypto_tx_column im
 from infrastructure.repository.db.versions.v0.v07.v070_8_crypto_initial_investments import (
     V0708CryptoInitialInvestments,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_9_clear_sego_txs import (
+    V0709ClearSegoTXs,
+)
 
 versions = [
     V0Genesis(),
@@ -148,4 +151,5 @@ versions = [
     V0706RECFAndFactoringFields(),
     V0707CryptoTxColumn(),
     V0708CryptoInitialInvestments(),
+    V0709ClearSegoTXs(),
 ]

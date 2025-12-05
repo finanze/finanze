@@ -78,7 +78,7 @@ from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
-from infrastructure.client.crypto.etherscan.ethplorer_client import EthplorerClient
+from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
 from infrastructure.client.entity.crypto.bsc.bsc_fetcher import BSCFetcher
 from infrastructure.client.entity.crypto.ethereum.ethereum_fetcher import (

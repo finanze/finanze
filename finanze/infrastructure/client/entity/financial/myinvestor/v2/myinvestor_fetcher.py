@@ -105,7 +105,7 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
         for stock in broker_investments["investmentList"]:
             product_type = (
                 EquityType.STOCK
-                if stock["brokerProductType"] == "RV"
+                if stock.get("brokerProductType") == "RV"
                 else EquityType.ETF
             )
             stock_list.append(
@@ -116,9 +116,12 @@ def _get_stock_investments(broker_investments) -> StockInvestments:
                     isin=stock["isin"],
                     market=stock["marketCode"],
                     shares=Dezimal(stock["shares"]),
-                    initial_investment=round(Dezimal(stock["initialInvestment"]), 4),
+                    initial_investment=round(
+                        Dezimal(stock["initialInvestmentCurrency"]), 4
+                    ),
                     average_buy_price=round(
-                        Dezimal(stock["initialInvestment"]) / Dezimal(stock["shares"]),
+                        Dezimal(stock["initialInvestmentCurrency"])
+                        / Dezimal(stock["shares"]),
                         4,
                     ),
                     market_value=round(Dezimal(stock["marketValue"]), 4),
@@ -518,10 +521,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             if not no_id:
                 security_account = self._get_related_security_account(account_id)
 
-            iban = account["iban"]
-            alias = account["alias"]
-            total = Dezimal(account["enabledBalance"])
-            retained = Dezimal(account["withheldBalance"])
+            iban = account.get("iban")
+            alias = account.get("alias")
+            total = Dezimal(account.get("enabledBalance") or 0)
+            retained = Dezimal(account.get("withheldBalance") or 0)
             currency = account.get("currency") or "EUR"
 
             entry = (
@@ -1114,7 +1117,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
                 initial_investment = (
                     added_values.get("investmentAddedValue")
-                    or fund["initialInvestment"]
+                    or fund["initialInvestmentCurrency"]
                 )
                 initial_investment = round(Dezimal(initial_investment), 4)
 
@@ -1127,14 +1130,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         shares=Dezimal(fund["shares"]),
                         initial_investment=initial_investment,
                         average_buy_price=round(
-                            Dezimal(fund["initialInvestment"])
+                            Dezimal(fund["initialInvestmentCurrency"])
                             / Dezimal(fund["shares"]),
                             4,
                         ),  # averageCost
                         market_value=round(Dezimal(fund["marketValue"]), 4),
                         type=FundType.MUTUAL_FUND,
                         asset_type=asset_type,
-                        currency="EUR",  # Values are in EUR, anyway "liquidationValueCurrency" has fund currency
+                        currency=fund.get("liquidationValueCurrency", "EUR"),
                         info_sheet_url=key_info_sheet,
                         portfolio=FundPortfolio(id=portfolio_id)
                         if portfolio_id

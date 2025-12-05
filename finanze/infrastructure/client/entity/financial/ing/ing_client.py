@@ -5,13 +5,13 @@ from typing import Optional
 import requests
 from cachetools import TTLCache, cached
 from dateutil.tz import tzlocal
-from domain.native_entity import EntityCredentials
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
     LoginOptions,
     LoginResultCode,
 )
+from domain.native_entity import EntityCredentials
 
 SESSION_LIFETIME = 4 * 60  # 4 minutes
 
@@ -64,7 +64,7 @@ class INGAPIClient:
         session: Optional[EntitySession] = None,
     ) -> EntityLoginResult:
         logging_in = len(credentials) > 0
-        if not logging_in and session is None:
+        if not logging_in and not self._alive_session(session):
             if login_options.avoid_new_login:
                 return EntityLoginResult(code=LoginResultCode.NOT_LOGGED)
 
@@ -102,6 +102,10 @@ class INGAPIClient:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
             return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR)
+
+    @staticmethod
+    def _alive_session(session: EntitySession) -> bool:
+        return session is not None and datetime.now(tzlocal()) < session.expiration
 
     def _resumable_session(self) -> bool:
         try:

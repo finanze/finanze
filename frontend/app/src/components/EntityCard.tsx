@@ -21,11 +21,10 @@ import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import {
-  RefreshCw,
+  KeyRound,
   Settings,
   Wallet,
-  Download,
-  LogIn,
+  ArrowBigDownDash,
   AlertCircle,
   Unplug,
 } from "lucide-react"
@@ -430,7 +429,7 @@ export function EntityCard({
                   </>
                 ) : (
                   <>
-                    <LogIn className="mr-2 h-4 w-4" />
+                    <KeyRound className="mr-2 h-4 w-4" />
                     {getButtonText()}
                   </>
                 )}
@@ -457,7 +456,7 @@ export function EntityCard({
                     </>
                   ) : (
                     <>
-                      <LogIn className="mr-2 h-4 w-4" />
+                      <KeyRound className="mr-2 h-4 w-4" />
                       {t.entities.continueLink}
                     </>
                   )}
@@ -501,7 +500,7 @@ export function EntityCard({
                   onClick={() => setShowRelinkConfirmation(true)}
                   disabled={entityFetching}
                 >
-                  <RefreshCw className="mr-1 h-4 w-4 flex-shrink-0" />
+                  <KeyRound className="mr-1 h-4 w-4 flex-shrink-0" />
                   {t.entities.relink}
                 </Button>
                 <Button
@@ -520,7 +519,7 @@ export function EntityCard({
                     </>
                   ) : (
                     <>
-                      <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                      <ArrowBigDownDash className="mr-2 h-4 w-4 flex-shrink-0" />
                       {t.entities.fetchData}
                     </>
                   )}
@@ -554,7 +553,7 @@ export function EntityCard({
                           onClick={onRelogin}
                           disabled={entityFetching}
                         >
-                          <RefreshCw className="mr-1 h-4 w-4 flex-shrink-0" />
+                          <KeyRound className="mr-1 h-4 w-4 flex-shrink-0" />
                           {t.entities.relogin}
                         </Button>
 
@@ -574,7 +573,7 @@ export function EntityCard({
                             </>
                           ) : (
                             <>
-                              <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                              <ArrowBigDownDash className="mr-2 h-4 w-4 flex-shrink-0" />
                               {getButtonText()}
                             </>
                           )}
@@ -607,7 +606,7 @@ export function EntityCard({
                       onClick={onManage}
                       disabled={entityFetching || !onManage}
                     >
-                      <Settings className="mr-1 h-4 w-4 flex-shrink-0" />
+                      <Wallet className="mr-1 h-4 w-4 flex-shrink-0" />
                       {t.entities.manage}
                     </Button>
 
@@ -627,7 +626,7 @@ export function EntityCard({
                         </>
                       ) : (
                         <>
-                          <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+                          <ArrowBigDownDash className="mr-2 h-4 w-4 flex-shrink-0" />
                           {getButtonText()}
                         </>
                       )}
