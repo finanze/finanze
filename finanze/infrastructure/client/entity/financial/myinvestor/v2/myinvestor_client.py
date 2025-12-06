@@ -178,7 +178,7 @@ class MyInvestorAPIV2Client:
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]
 
     def get_user(self):
-        return self._get_request("/myinvestor-server/api/v3/customers/self")["payload"][
+        return self._get_request("/cperf-server/api/v3/customers/self")["payload"][
             "data"
         ]
 
@@ -190,7 +190,7 @@ class MyInvestorAPIV2Client:
 
     def get_account_remuneration(self, account_id: str, version: int = 2):
         base_path = (
-            "/myinvestor-server/api/v2/cash-accounts"
+            "/cperf-server/api/v2/cash-accounts"
             if version == 2
             else "/account/api/v3/account"
         )
@@ -215,7 +215,7 @@ class MyInvestorAPIV2Client:
         )
 
         base_path = (
-            "/myinvestor-server/api/v2/cash-accounts"
+            "/cperf-server/api/v2/cash-accounts"
             if version == 2
             else "/account/api/v3/account"
         )
@@ -304,7 +304,7 @@ class MyInvestorAPIV2Client:
             from_date or (date.today().replace(month=1, day=1)), GET_DATE_FORMAT
         )
 
-        path = f"/myinvestor-server/api/v2/securities-accounts/{securities_account_id}/orders?dateFrom={from_date}&dateTo={to_date}"
+        path = f"/cperf-server/api/v2/securities-accounts/{securities_account_id}/orders?dateFrom={from_date}&dateTo={to_date}"
 
         if tx_type:
             path += f"&type={tx_type}"  # PERIODIC ORDINARY None (=ALL)
@@ -326,16 +326,16 @@ class MyInvestorAPIV2Client:
     @cached(cache=TTLCache(maxsize=1000, ttl=60))
     def get_fund_order_details(self, securities_account_id: str, order_id: str):
         return self._get_request(
-            f"/myinvestor-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
+            f"/cperf-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
         )["payload"]["data"]
 
     def get_auto_contributions(self):
-        return self._get_request(
-            "/myinvestor-server/api/v2/automatic-contributions/self"
-        )["payload"]["data"]
+        return self._get_request("/cperf-server/api/v2/automatic-contributions/self")[
+            "payload"
+        ]["data"]
 
     def get_deposits(self):
-        return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"][
+        return self._get_request("/cperf-server/api/v2/deposits/self")["payload"][
             "data"
         ]
 

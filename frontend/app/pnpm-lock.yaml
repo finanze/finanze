@@ -45,6 +45,9 @@ importers:
       electron-updater:
         specifier: ^6.6.2
         version: 6.6.2
+      electron-window-state:
+        specifier: ^5.0.3
+        version: 5.0.3
       framer-motion:
         specifier: ^12.23.25
         version: 12.23.25(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
@@ -2970,6 +2973,13 @@ packages:
       {
         integrity: sha512-Cr4GDOkbAUqRHP5/oeOmH/L2Bn6+FQPxVLZtPbcmKZC63a1F3uu5EefYOssgZXG3u/zBlubbJ5PJdITdMVggbw==,
       }
+
+  electron-window-state@5.0.3:
+    resolution:
+      {
+        integrity: sha512-1mNTwCfkolXl3kMf50yW3vE2lZj0y92P/HYWFBrb+v2S/pCka5mdwN3cagKm458A7NjndSwijynXgcLWRodsVg==,
+      }
+    engines: { node: ">=8.0.0" }
 
   electron-winstaller@5.4.0:
     resolution:
@@ -8504,6 +8514,11 @@ snapshots:
       tiny-typed-emitter: 2.1.0
     transitivePeerDependencies:
       - supports-color
+
+  electron-window-state@5.0.3:
+    dependencies:
+      jsonfile: 4.0.0
+      mkdirp: 0.5.6
 
   electron-winstaller@5.4.0:
     dependencies:

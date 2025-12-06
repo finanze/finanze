@@ -24,7 +24,7 @@ import {
   KeyRound,
   Settings,
   Wallet,
-  ArrowBigDownDash,
+  RefreshCw,
   AlertCircle,
   Unplug,
 } from "lucide-react"
@@ -519,7 +519,7 @@ export function EntityCard({
                     </>
                   ) : (
                     <>
-                      <ArrowBigDownDash className="mr-2 h-4 w-4 flex-shrink-0" />
+                      <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
                       {t.entities.fetchData}
                     </>
                   )}
@@ -573,7 +573,7 @@ export function EntityCard({
                             </>
                           ) : (
                             <>
-                              <ArrowBigDownDash className="mr-2 h-4 w-4 flex-shrink-0" />
+                              <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
                               {getButtonText()}
                             </>
                           )}
@@ -626,7 +626,7 @@ export function EntityCard({
                         </>
                       ) : (
                         <>
-                          <ArrowBigDownDash className="mr-2 h-4 w-4 flex-shrink-0" />
+                          <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
                           {getButtonText()}
                         </>
                       )}

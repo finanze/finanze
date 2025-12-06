@@ -8,7 +8,9 @@ import {
   ipcMain,
   nativeTheme,
   shell,
+  type BrowserWindowConstructorOptions,
 } from "electron"
+import windowStateKeeper from "electron-window-state"
 import isDev from "electron-is-dev"
 import { createMenu } from "./menu"
 import {
@@ -129,7 +131,7 @@ if (!app.requestSingleInstanceLock()) {
 
 function getSuitableTitleBarOverlay() {
   if (appConfig.os === OS.MAC) {
-    return undefined // No overlay for macOS
+    return undefined // Use native decorations on macOS
   }
 
   const shouldUseDarkColors = nativeTheme.shouldUseDarkColors
@@ -150,17 +152,32 @@ function updateTitleBarOverlay(mainWindow: BrowserWindow | null) {
 }
 
 async function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: appConfig.isDev ? 1900 : 1250,
-    height: appConfig.isDev ? 1200 : 900,
+  const defaultWidth = appConfig.isDev ? 1900 : 1250
+  const defaultHeight = appConfig.isDev ? 1200 : 900
+
+  const mainWindowState = windowStateKeeper({
+    defaultWidth,
+    defaultHeight,
+  })
+
+  const windowOptions: BrowserWindowConstructorOptions = {
+    width: mainWindowState.width,
+    height: mainWindowState.height,
+    x: mainWindowState.x,
+    y: mainWindowState.y,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: preload,
     },
-    titleBarStyle: "hidden",
-    titleBarOverlay: getSuitableTitleBarOverlay(),
-  })
+  }
+
+  windowOptions.titleBarStyle = "hidden"
+  windowOptions.titleBarOverlay = getSuitableTitleBarOverlay()
+
+  mainWindow = new BrowserWindow(windowOptions)
+
+  mainWindowState.manage(mainWindow)
 
   setMainWindow(mainWindow)
 

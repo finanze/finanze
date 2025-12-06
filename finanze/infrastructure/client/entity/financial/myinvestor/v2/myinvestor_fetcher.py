@@ -107,6 +107,12 @@ def _get_stock_investments(broker_investments) -> list[StockDetail]:
                 if stock.get("brokerProductType") == "RV"
                 else EquityType.ETF
             )
+            origin_currency_liquidation_value = Dezimal(
+                stock.get("originCurrencyLiquidationValue")
+            )
+            shares = Dezimal(stock.get("shares"))
+            market_value = Dezimal(origin_currency_liquidation_value * shares)
+
             stock_list.append(
                 StockDetail(
                     id=uuid4(),
@@ -114,7 +120,7 @@ def _get_stock_investments(broker_investments) -> list[StockDetail]:
                     ticker=stock.get("ticker", ""),
                     isin=stock["isin"],
                     market=stock["marketCode"],
-                    shares=Dezimal(stock["shares"]),
+                    shares=shares,
                     initial_investment=round(
                         Dezimal(stock["initialInvestmentCurrency"]), 4
                     ),
@@ -123,7 +129,7 @@ def _get_stock_investments(broker_investments) -> list[StockDetail]:
                         / Dezimal(stock["shares"]),
                         4,
                     ),
-                    market_value=round(Dezimal(stock["marketValue"]), 4),
+                    market_value=round(market_value, 4),
                     currency=stock["liquidationValueCurrency"],
                     type=product_type,
                     subtype=stock.get("activeTypeCode"),
@@ -558,18 +564,18 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             remuneration_details = self._client.get_account_remuneration(
                 account_id, version=version
             )
+
             raw_tae_promotion = remuneration_details.get("taePromotion") or None
             if raw_tae_promotion:
-                current_interest_rate = round(
-                    remuneration_details["taePromotion"] / 100, 4
-                )
-            if not current_interest_rate:
+                current_interest_rate = round(raw_tae_promotion / 100, 4)
+
+            if not current_interest_rate or current_interest_rate == 0:
                 raw_remuneration_percentage = (
                     remuneration_details.get("remunerationPercentage") or None
                 )
                 if raw_remuneration_percentage:
                     current_interest_rate = round(
-                        Dezimal(remuneration_details["remunerationPercentage"]) / 100, 4
+                        Dezimal(raw_remuneration_percentage) / 100, 4
                     )
             else:
                 raw_calculate_tae_average = (
@@ -577,7 +583,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
                 if raw_calculate_tae_average:
                     current_interest_rate = round(
-                        Dezimal(remuneration_details["calculateTaeAverage"]) / 100, 4
+                        Dezimal(raw_calculate_tae_average) / 100, 4
                     )
         except Exception as e:
             self._log.exception(f"Error getting account remuneration: {e}")
@@ -972,17 +978,36 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 raw_order_details["orderDate"], ISO_DATE_TIME_FORMAT
             )
             execution_op, execution_date = None, None
-            amount, net_amount, fees, price = (Dezimal(0),) * 4
-            linked_ops = raw_order_details.get("relatedOperations", [])
-            if linked_ops:
-                execution_op = linked_ops[0]
 
+            shares = Dezimal(raw_order_details.get("executedShares") or 0)
+            price = Dezimal(raw_order_details.get("liquidationValue") or 0)
+            amount = Dezimal(
+                raw_order_details.get("grossAmountOperationFundCurrency") or 0
+            )
+            net_amount = Dezimal(raw_order_details.get("netAmountFundCurrency") or 0)
+            fees = Dezimal(raw_order_details.get("commissions") or 0)
+
+            if raw_order_details.get("executionDate"):
                 execution_date = datetime.strptime(
-                    execution_op["executionDate"], ISO_DATE_TIME_FORMAT
+                    raw_order_details.get("executionDate"), ISO_DATE_TIME_FORMAT
                 )
 
-                counted_shares = Dezimal(0)
+            linked_ops = raw_order_details.get("relatedOperations", [])
+            if linked_ops:
+                ops_amount, ops_net_amount, ops_fees, counted_shares = (Dezimal(0),) * 4
+                execution_op = linked_ops[0]
+                if execution_op and execution_op.get("executionDate"):
+                    execution_date = datetime.strptime(
+                        execution_op.get("executionDate"), ISO_DATE_TIME_FORMAT
+                    )
+
+                if execution_op:
+                    price = Dezimal(execution_op.get("liquidationValue") or 0)
+
                 for op in linked_ops:
+                    if not op:
+                        continue
+
                     current_shares = Dezimal(counted_shares)
 
                     exec_shares = Dezimal(op.get("executedShares", 0))
@@ -995,14 +1020,22 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     counted_shares += exec_shares
 
                     if op.get("grossAmountOperationFundCurrency"):
-                        amount += Dezimal(op["grossAmountOperationFundCurrency"] or 0)
+                        ops_amount += Dezimal(
+                            op["grossAmountOperationFundCurrency"] or 0
+                        )
                     if op.get("netAmountFundCurrency"):
-                        net_amount += Dezimal(op["netAmountFundCurrency"] or 0)
+                        ops_net_amount += Dezimal(op["netAmountFundCurrency"] or 0)
                     if op.get("commissions"):
-                        fees += Dezimal(op["commissions"] or 0)
+                        ops_fees += Dezimal(op["commissions"] or 0)
 
-            shares = Dezimal(raw_order_details.get("executedShares") or 0)
-            price = Dezimal(execution_op.get("liquidationValue") or 0)
+                if ops_amount > 0:
+                    amount = ops_amount
+                if ops_net_amount > 0:
+                    net_amount = ops_net_amount
+                if ops_fees > 0:
+                    fees = ops_fees
+                if counted_shares > 0:
+                    shares = counted_shares
 
             fund_txs.append(
                 FundTx(
@@ -1150,11 +1183,29 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 added_values = self._client.get_fund_added_values(
                     security_account_id, isin
                 )
-                initial_investment = (
-                    added_values.get("investmentAddedValue")
-                    or fund["initialInvestmentCurrency"]
+                standard_initial_investment = Dezimal(fund["initialInvestmentCurrency"])
+                raw_av_initial_investment = added_values.get("investmentAddedValue")
+                av_initial_investment = (
+                    Dezimal(raw_av_initial_investment)
+                    if raw_av_initial_investment
+                    else None
                 )
-                initial_investment = round(Dezimal(initial_investment), 4)
+                if av_initial_investment:
+                    standard_eur_initial_investment = Dezimal(fund["initialInvestment"])
+                    exchange_rate = (
+                        standard_initial_investment / standard_eur_initial_investment
+                    )
+                    av_initial_investment = av_initial_investment * exchange_rate
+
+                initial_investment = round(
+                    av_initial_investment or standard_initial_investment, 4
+                )
+
+                origin_currency_liquidation_value = Dezimal(
+                    fund.get("originCurrencyLiquidationValue")
+                )
+                shares = Dezimal(fund.get("shares"))
+                market_value = Dezimal(origin_currency_liquidation_value * shares)
 
                 fund_list.append(
                     FundDetail(
@@ -1162,14 +1213,13 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         name=fund["investmentName"],
                         isin=isin,
                         market=fund["marketCode"],
-                        shares=Dezimal(fund["shares"]),
+                        shares=shares,
                         initial_investment=initial_investment,
                         average_buy_price=round(
-                            Dezimal(fund["initialInvestmentCurrency"])
-                            / Dezimal(fund["shares"]),
+                            standard_initial_investment / shares,
                             4,
                         ),  # averageCost
-                        market_value=round(Dezimal(fund["marketValue"]), 4),
+                        market_value=round(market_value, 4),
                         type=FundType.MUTUAL_FUND,
                         asset_type=asset_type,
                         currency=fund.get("liquidationValueCurrency", "EUR"),
