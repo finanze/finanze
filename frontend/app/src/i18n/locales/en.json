@@ -1646,11 +1646,11 @@
         "description": "Keep balances for accounts that aren't connected automatically.",
         "add": "Add",
         "empty": {
-          "title": "No manual bank accounts",
-          "description": "Add a manual bank account to include its balance in your overview."
+          "title": "No accounts",
+          "description": "Add an account to include its balance in your overview."
         },
         "form": {
-          "createTitle": "Add manual bank account",
+          "createTitle": "Add an account",
           "createDescription": "Fill in the account details to track it manually.",
           "editTitle": "Edit manual bank account",
           "editDescription": "Update the selected manual bank account."
@@ -1680,11 +1680,11 @@
         "description": "Track credit or debit cards that you manage manually.",
         "add": "Add",
         "empty": {
-          "title": "No manual cards",
-          "description": "Add a manual card to monitor its spending and limit."
+          "title": "No cards",
+          "description": "Add a card to monitor its spending and limit."
         },
         "form": {
-          "createTitle": "Add manual card",
+          "createTitle": "Add a card",
           "createDescription": "Provide the card information to manage it manually.",
           "editTitle": "Edit manual card",
           "editDescription": "Update the selected manual card."
@@ -1707,11 +1707,11 @@
         "description": "Maintain loan data that isn't synced through an integration.",
         "add": "Add",
         "empty": {
-          "title": "No manual loans",
-          "description": "Add a manual loan to track payments and balances."
+          "title": "No loans",
+          "description": "Add a loan to track payments and balances."
         },
         "form": {
-          "createTitle": "Add manual loan",
+          "createTitle": "Add a loan",
           "createDescription": "Enter the loan details to manage it manually.",
           "editTitle": "Edit manual loan",
           "editDescription": "Update the selected manual loan."

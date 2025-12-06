@@ -132,8 +132,7 @@ export interface ManualTransactionBasePayload {
   product_type: ProductType
 }
 
-export interface ManualAccountTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualAccountTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.ACCOUNT
   fees?: number
   retentions?: number
@@ -141,8 +140,7 @@ export interface ManualAccountTransactionPayload
   avg_balance?: number
 }
 
-export interface ManualStockTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualStockTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.STOCK_ETF
   ticker?: string
   isin?: string
@@ -154,8 +152,7 @@ export interface ManualStockTransactionPayload
   order_date?: string
 }
 
-export interface ManualFundTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualFundTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.FUND
   isin: string
   shares: number
@@ -166,30 +163,26 @@ export interface ManualFundTransactionPayload
   order_date?: string
 }
 
-export interface ManualFundPortfolioTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualFundPortfolioTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.FUND_PORTFOLIO
   portfolio_name: string
   fees?: number
   iban?: string
 }
 
-export interface ManualFactoringTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualFactoringTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.FACTORING
   fees?: number
   retentions?: number
 }
 
-export interface ManualRealEstateTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualRealEstateTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.REAL_ESTATE_CF
   fees?: number
   retentions?: number
 }
 
-export interface ManualDepositTransactionPayload
-  extends ManualTransactionBasePayload {
+export interface ManualDepositTransactionPayload extends ManualTransactionBasePayload {
   product_type: ProductType.DEPOSIT
   fees?: number
   retentions?: number

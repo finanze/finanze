@@ -74,7 +74,7 @@ class DBManager(DatasourceInitiator):
 
             except Exception as e:
                 if isinstance(e, DatabaseError):
-                    self._log.error(f"Failed to unlock database: {e}")
+                    self._log.exception(f"Failed to unlock database: {e}")
                     if "file is not a database" in str(e) or "encrypted" in str(e):
                         raise DecryptionError(
                             "Failed to decrypt database. Incorrect password or corrupted file"

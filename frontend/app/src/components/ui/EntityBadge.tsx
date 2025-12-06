@@ -4,7 +4,8 @@ import { cn, getColorForName } from "@/lib/utils"
 import { EntityOrigin } from "@/types"
 
 export interface EntityBadgeProps
-  extends Omit<BadgeProps, "variant" | "children">,
+  extends
+    Omit<BadgeProps, "variant" | "children">,
     Pick<HTMLAttributes<HTMLDivElement>, "onClick" | "title"> {
   name: string
   origin?: EntityOrigin | null

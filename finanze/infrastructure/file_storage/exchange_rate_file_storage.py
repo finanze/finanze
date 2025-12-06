@@ -88,7 +88,7 @@ class ExchangeRateFileStorage(ExchangeRateStorage):
                 json.dump(data, f, indent=2)
             self._rates_cache = exchange_rates
         except Exception as e:
-            self._log.error(f"Failed to persist exchange rates: {e}")
+            self._log.exception(f"Failed to persist exchange rates: {e}")
 
     def get_last_saved(self) -> datetime | None:
         return self._last_saved

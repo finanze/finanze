@@ -1210,7 +1210,7 @@ export default function RecurringMoneyPage() {
                           const sourceCategory = earning.sourceCategory ?? null
                           const canFilter = Boolean(
                             sourceCategory &&
-                              existingCategories.includes(sourceCategory),
+                            existingCategories.includes(sourceCategory),
                           )
                           return (
                             <div
@@ -1312,7 +1312,7 @@ export default function RecurringMoneyPage() {
                           const sourceCategory = expense.sourceCategory ?? null
                           const canFilter = Boolean(
                             sourceCategory &&
-                              existingCategories.includes(sourceCategory),
+                            existingCategories.includes(sourceCategory),
                           )
                           return (
                             <div
@@ -1461,7 +1461,7 @@ export default function RecurringMoneyPage() {
                   const sourceCategory = earning.sourceCategory ?? null
                   const canFilter = Boolean(
                     sourceCategory &&
-                      existingCategories.includes(sourceCategory),
+                    existingCategories.includes(sourceCategory),
                   )
                   return (
                     <div
@@ -1494,7 +1494,7 @@ export default function RecurringMoneyPage() {
                   const sourceCategory = expense.sourceCategory ?? null
                   const canFilter = Boolean(
                     sourceCategory &&
-                      existingCategories.includes(sourceCategory),
+                    existingCategories.includes(sourceCategory),
                   )
                   return (
                     <div

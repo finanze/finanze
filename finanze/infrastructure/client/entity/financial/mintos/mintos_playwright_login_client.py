@@ -46,7 +46,7 @@ async def login(
             return EntityLoginResult(LoginResultCode.CREATED)
 
         except Exception as e:
-            log.error(f"An error occurred while logging in: {e}")
+            log.exception(f"An error occurred while logging in: {e}")
             return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 
         finally:

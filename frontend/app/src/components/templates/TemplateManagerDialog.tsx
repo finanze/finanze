@@ -378,7 +378,7 @@ export function TemplateManagerDialog({
             )
             const isUsingSystemDefault = Boolean(
               field.systemDefaultValue &&
-                normalizedValue === field.systemDefaultValue,
+              normalizedValue === field.systemDefaultValue,
             )
             return {
               ...field,
