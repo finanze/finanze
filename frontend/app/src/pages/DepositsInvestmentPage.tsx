@@ -176,15 +176,20 @@ export default function DepositsInvestmentPage() {
     return deposits
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
-  // Get entity options for the filter
+  // Get entity options for the filter - only entities with deposits
   const entityOptions: MultiSelectOption[] = useMemo(() => {
-    return (
-      entities?.map(entity => ({
-        value: entity.id,
-        label: entity.name,
-      })) ?? []
+    const entitiesWithDeposits = new Set(
+      allDepositPositions.map(position => position.entityId).filter(Boolean),
     )
-  }, [entities])
+    return (
+      entities
+        ?.filter(entity => entitiesWithDeposits.has(entity.id))
+        .map(entity => ({
+          value: entity.id,
+          label: entity.name,
+        })) ?? []
+    )
+  }, [entities, allDepositPositions])
 
   if (isLoading) {
     return (

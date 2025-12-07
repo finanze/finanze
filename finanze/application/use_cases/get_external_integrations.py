@@ -1,5 +1,8 @@
 from application.ports.external_integration_port import ExternalIntegrationPort
-from domain.external_integration import AvailableExternalIntegrations
+from domain.external_integration import (
+    EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS,
+    AvailableExternalIntegrations,
+)
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 
 
@@ -8,4 +11,11 @@ class GetExternalIntegrationsImpl(GetExternalIntegrations):
         self._external_integration_port = external_integration_port
 
     def execute(self) -> AvailableExternalIntegrations:
-        return AvailableExternalIntegrations(self._external_integration_port.get_all())
+        integrations = self._external_integration_port.get_all()
+
+        for integration in integrations:
+            integration.payload_schema = EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS[
+                integration.id
+            ]
+
+        return AvailableExternalIntegrations(integrations)

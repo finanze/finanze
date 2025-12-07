@@ -1581,7 +1581,11 @@ function RealEstateViewContent({
               {historicDisplayItems.map(item => {
                 const isExpanded =
                   expandedHistoricEntries[item.entry.id] ?? false
-                const transactions = item.entry.related_txs ?? []
+                const transactions = (item.entry.related_txs ?? []) as Array<
+                  (typeof item.entry.related_txs)[number] & {
+                    net_amount: number
+                  }
+                >
 
                 const chargesStats = [
                   {
@@ -1661,11 +1665,11 @@ function RealEstateViewContent({
                 }
 
                 const profitDisplay =
-                  item.profit.formatted && item.profit.amount !== null
-                    ? item.profit.amount > 0
-                      ? `+${item.profit.formatted}`
-                      : item.profit.formatted
-                    : (item.profit.formatted ?? notAvailableLabel)
+                  item.netProfit.formatted && item.netProfit.amount !== null
+                    ? item.netProfit.amount > 0
+                      ? `+${item.netProfit.formatted}`
+                      : item.netProfit.formatted
+                    : (item.netProfit.formatted ?? notAvailableLabel)
 
                 const handleHeaderClick = (
                   event: React.MouseEvent<HTMLDivElement>,
@@ -1788,7 +1792,7 @@ function RealEstateViewContent({
                           <span
                             className={cn(
                               "text-sm",
-                              profitColor(item.profit.amount),
+                              profitColor(item.netProfit.amount),
                             )}
                           >
                             {profitDisplay}
@@ -1856,7 +1860,7 @@ function RealEstateViewContent({
                                     <div className="space-y-1">
                                       {transactions.map(tx => {
                                         const amountDisplay = toAmountDisplay(
-                                          tx.amount,
+                                          tx.net_amount,
                                           tx.currency,
                                         )
                                         const direction =

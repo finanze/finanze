@@ -1,5 +1,4 @@
 import logging
-import time
 from uuid import uuid4
 
 import requests
@@ -9,11 +8,11 @@ from domain.crypto import CryptoFetchRequest
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
 from domain.global_position import (
-    CryptoCurrency,
-    CryptoCurrencyToken,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
-    CryptoToken,
 )
+from infrastructure.client.http.backoff import http_get_with_backoff
 
 
 class TronFetcher(CryptoEntityFetcher):
@@ -21,6 +20,8 @@ class TronFetcher(CryptoEntityFetcher):
     BASE_URL = "https://apilist.tronscan.org/api/account"
     TRX_SCALE = Dezimal("1e-6")
     COOLDOWN = 0.2
+    MAX_RETRIES = 3
+    BACKOFF_FACTOR = 0.5
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -33,18 +34,22 @@ class TronFetcher(CryptoEntityFetcher):
 
         trx_balance = Dezimal(data.get("balance", "0")) * self.TRX_SCALE
 
-        tokens = self._parse_tokens(data)
+        assets = [
+            CryptoCurrencyPosition(
+                id=uuid4(),
+                symbol="TRX",
+                amount=trx_balance,
+                type=CryptoCurrencyType.NATIVE,
+            )
+        ]
+        assets += self._parse_tokens(data)
 
         return CryptoCurrencyWallet(
-            id=uuid4(),
-            wallet_connection_id=request.connection_id,
-            symbol="TRX",
-            crypto=CryptoCurrency.TRON,
-            amount=trx_balance,
-            tokens=tokens,
+            id=request.connection_id,
+            assets=assets,
         )
 
-    def _parse_tokens(self, data: dict) -> list[CryptoCurrencyToken]:
+    def _parse_tokens(self, data: dict) -> list[CryptoCurrencyPosition]:
         tokens = []
         if "trc20token_balances" not in data:
             return tokens
@@ -52,12 +57,6 @@ class TronFetcher(CryptoEntityFetcher):
         for token_data in data["trc20token_balances"]:
             symbol = token_data.get("tokenAbbr")
             if not symbol:
-                continue
-
-            try:
-                token_enum = CryptoToken(symbol)
-            except (ValueError, TypeError):
-                self._log.debug(f"Token {symbol} not supported. Skipping.")
                 continue
 
             try:
@@ -69,14 +68,13 @@ class TronFetcher(CryptoEntityFetcher):
                 continue
 
             tokens.append(
-                CryptoCurrencyToken(
+                CryptoCurrencyPosition(
                     id=uuid4(),
-                    token_id=token_data.get("tokenId"),
+                    contract_address=token_data.get("tokenId", "").lower(),
                     name=token_data.get("tokenName"),
                     symbol=symbol,
-                    token=token_enum,
                     amount=amount,
-                    type=token_data.get("tokenType"),
+                    type=CryptoCurrencyType.TOKEN,
                 )
             )
         return tokens
@@ -87,9 +85,17 @@ class TronFetcher(CryptoEntityFetcher):
         return self._fetch(url)
 
     def _fetch(self, url: str) -> dict:
-        response = requests.get(url)
-
-        time.sleep(self.COOLDOWN)
+        try:
+            response = http_get_with_backoff(
+                url,
+                cooldown=self.COOLDOWN,
+                max_retries=self.MAX_RETRIES,
+                backoff_factor=self.BACKOFF_FACTOR,
+                log=self._log,
+            )
+        except requests.RequestException as e:
+            self._log.error(f"Request error calling Tronscan endpoint {url}: {e}")
+            raise
 
         if not response.ok:
             if response.status_code == 429:

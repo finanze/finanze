@@ -1,3 +1,51 @@
+## [0.7.0] - 2025-12-07
+
+### 🚀 Features
+
+- Add multiple addresses at once feature
+- Add MyInvestor pension plan funds
+- Add contribution target subtypes (mutual fund, private equity, pension plan, etc) and minor MyInvestor fetch improvements
+- Add rate/price storage to avoid third party providers outage errors
+- Pinnable money management pages and more info in recurring money page
+- Crypto redesign with improved asset view and limitless token support within supported networks
+- Add ING broker portfolio support (stocks & ETFs)
+- Etherscan integration no longer required to connect BSC & new hide unknown tokens option to avoid fake tokens
+- Improve external integration system & add integration disconnection
+- Add Cajamar support (global position: accounts, cards & loans)
+- Add application specific settings and move settings tab
+- Improve logging and add log storage
+- Add Ethplorer API for ETH and BSC
+- Moved all export and import features to a single page, to allow configuring and use it from a single point
+- New export & import template based system (breaking)
+- Add file export and import from & to CSV, TSV and Excel
+- Improved crypto exchange rate with contract addresses
+- Advanced backend server configuration (logs & external server config)
+- Improved profitability calculation, remade SEGO factoring transaction handling (deep fetch required), add factoring late interest rate and historic fixes
+- Redesign transactions view and added calendar view, redesigned upcoming money events loading
+- Add money events calendar and improve overall animations
+- Support TradeRepublic crypto natively and add crypto periodic contributions
+- Add Auto Refresh to automatically update entity data if possible
+- Show compatible entity products in integrations
+- Add savings calculator with retirement support, multi scenarios and more
+- Allow pin input from refresh dropdown, improve MyInvestor asset currency handling, Urbanitae annual interest fetch and TR account interest temporarily unavailable
+- Add simultaneous entity fetch
+
+### 🐛 Bug Fixes
+
+- Export not exporting all data & improve overall entity loading
+- Minor real estate UI enhacements
+- Handle multiple security accounts in MyInvestor
+- Keep window position, MyInvestor origin currencies and minor improvements
+
+### 📚 Documentation
+
+- Update README and screenshots
+
+### ⚙️ Miscellaneous Tasks
+
+- Packaging updates to boost startup time & auto updates (alpha)
+- Docker dev versioning
+- Github Workflow improvements
 ## [0.6.0] - 2025-10-26
 
 ### 🚀 Features

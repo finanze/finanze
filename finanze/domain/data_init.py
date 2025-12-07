@@ -1,3 +1,5 @@
+from typing import Any, Optional
+
 from domain.user import User
 from pydantic.dataclasses import dataclass
 
@@ -27,6 +29,12 @@ class MigrationAheadOfTime(MigrationError):
 
 
 @dataclass
+class DatasourceInitContext:
+    config: Optional[Any]
+
+
+@dataclass
 class DatasourceInitParams:
     user: User
     password: str
+    context: DatasourceInitContext

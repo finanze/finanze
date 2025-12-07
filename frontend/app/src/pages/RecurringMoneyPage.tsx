@@ -5,6 +5,7 @@ import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/Button"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { Input } from "@/components/ui/Input"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
@@ -18,29 +19,31 @@ import {
 } from "@/components/ui/MultiSelect"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
-  Plus,
-  Edit,
-  Trash2,
-  BanknoteArrowUp,
-  BanknoteArrowDown,
-  Tag,
-  Clock,
+  AlertTriangle,
   ArrowLeft,
+  BanknoteArrowDown,
+  BanknoteArrowUp,
   CalendarDays,
+  Check,
+  Clock,
+  Edit,
+  Eye,
+  EyeOff,
   Lightbulb,
   LightbulbOff,
-  X,
-  Check,
   Link2,
-  AlertTriangle,
   PiggyBank,
+  Plus,
+  Tag,
+  Trash2,
+  X,
 } from "lucide-react"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
+import { cn, getColorForName, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -51,8 +54,8 @@ import {
   CreatePeriodicFlowRequest,
   UpdatePeriodicFlowRequest,
 } from "@/types"
-import { ProductType, Loan, Loans } from "@/types/position"
 import { ContributionFrequency } from "@/types/contributions"
+import { Loan, Loans, ProductType } from "@/types/position"
 import {
   createPeriodicFlow,
   updatePeriodicFlow,
@@ -80,6 +83,8 @@ export default function RecurringMoneyPage() {
   // When category filter is active we suppress contributions per requirement
   const effectiveShowContributions =
     showContributions && categoryFilter.length === 0
+  const singleCategoryFiltered = categoryFilter.length === 1
+  const showSavingsCard = categoryFilter.length === 0
   const [formData, setFormData] = useState<CreatePeriodicFlowRequest>({
     name: "",
     amount: 0,
@@ -180,9 +185,9 @@ export default function RecurringMoneyPage() {
         return total + convertedAmount
       }, 0)
 
-    // Monthly contributions (active only) if enabled
+    // Monthly contributions (always computed, visibility handled separately)
     let monthlyContributions = 0
-    if (effectiveShowContributions && contributions) {
+    if (contributions) {
       Object.values(contributions).forEach(group => {
         if (!group?.periodic) return
         group.periodic.forEach(c => {
@@ -212,7 +217,15 @@ export default function RecurringMoneyPage() {
         })
       })
     }
-    return { monthlyEarnings, monthlyExpenses, monthlyContributions }
+    const monthlyContributionsVisible = effectiveShowContributions
+      ? monthlyContributions
+      : 0
+    return {
+      monthlyEarnings,
+      monthlyExpenses,
+      monthlyContributions,
+      monthlyContributionsVisible,
+    }
   }, [
     periodicFlows,
     categoryFilter,
@@ -221,6 +234,29 @@ export default function RecurringMoneyPage() {
     exchangeRates,
     defaultCurrency,
   ])
+
+  const savingsSummary = useMemo(() => {
+    const totalSavable =
+      monthlyAmounts.monthlyEarnings - monthlyAmounts.monthlyExpenses
+    const investedAmount = monthlyAmounts.monthlyContributions
+    const freeSavings = totalSavable - investedAmount
+
+    const earningsBase = monthlyAmounts.monthlyEarnings
+    const totalPercent =
+      earningsBase > 0 ? (totalSavable / earningsBase) * 100 : 0
+    const investedPercent =
+      earningsBase > 0 ? (investedAmount / earningsBase) * 100 : 0
+    const freePercent = Math.max(totalPercent - investedPercent, 0)
+
+    return {
+      totalSavable,
+      investedAmount,
+      freeSavings,
+      totalPercent,
+      investedPercent,
+      freePercent,
+    }
+  }, [monthlyAmounts])
 
   // Utilization badge color scale (starts warm >55%)
   const getUtilizationBadgeClasses = (percent: number) => {
@@ -271,120 +307,125 @@ export default function RecurringMoneyPage() {
         )
       : periodicFlows
     const enabledFlows = baseFlows.filter(flow => flow.enabled)
+    const singleCategoryMode = categoryFilter.length === 1
 
-    // Group earnings by category
-    const earningsGroups = enabledFlows
-      .filter(flow => flow.flow_type === FlowType.EARNING)
-      .reduce(
-        (groups, flow) => {
+    const toMonthlyAmount = (flow: PeriodicFlow): number => {
+      const multiplier =
+        flow.frequency === FlowFrequency.DAILY
+          ? 30
+          : flow.frequency === FlowFrequency.WEEKLY
+            ? 4.33
+            : flow.frequency === FlowFrequency.MONTHLY
+              ? 1
+              : flow.frequency === FlowFrequency.EVERY_TWO_MONTHS
+                ? 0.5
+                : flow.frequency === FlowFrequency.QUARTERLY
+                  ? 1 / 3
+                  : flow.frequency === FlowFrequency.EVERY_FOUR_MONTHS
+                    ? 1 / 4
+                    : flow.frequency === FlowFrequency.SEMIANNUALLY
+                      ? 1 / 6
+                      : flow.frequency === FlowFrequency.YEARLY
+                        ? 1 / 12
+                        : 1
+      const normalized = flow.amount * multiplier
+      return convertCurrency(
+        normalized,
+        flow.currency,
+        defaultCurrency,
+        exchangeRates,
+      )
+    }
+
+    const buildEntries = (
+      flows: PeriodicFlow[],
+      type: FlowType,
+    ): Array<{
+      id: string
+      label: string
+      amount: number
+      flows: PeriodicFlow[]
+      sourceCategory: string | null
+    }> => {
+      if (singleCategoryMode) {
+        return flows.map((flow, index) => ({
+          id: flow.id ?? `${type}-${index}-${flow.name}`,
+          label: flow.name,
+          amount: toMonthlyAmount(flow),
+          flows: [flow],
+          sourceCategory: flow.category ?? null,
+        }))
+      }
+
+      const grouped = flows.reduce(
+        (acc, flow) => {
           const category = flow.category || flow.name
-          const multiplier =
-            flow.frequency === FlowFrequency.DAILY
-              ? 30
-              : flow.frequency === FlowFrequency.WEEKLY
-                ? 4.33
-                : flow.frequency === FlowFrequency.MONTHLY
-                  ? 1
-                  : flow.frequency === FlowFrequency.EVERY_TWO_MONTHS
-                    ? 0.5
-                    : flow.frequency === FlowFrequency.QUARTERLY
-                      ? 1 / 3
-                      : flow.frequency === FlowFrequency.EVERY_FOUR_MONTHS
-                        ? 1 / 4
-                        : flow.frequency === FlowFrequency.SEMIANNUALLY
-                          ? 1 / 6
-                          : flow.frequency === FlowFrequency.YEARLY
-                            ? 1 / 12
-                            : 1
-          const normalized = flow.amount * multiplier
-          const monthlyAmount = convertCurrency(
-            normalized,
-            flow.currency,
-            defaultCurrency,
-            exchangeRates,
-          )
-
-          if (!groups[category]) {
-            groups[category] = { amount: 0, flows: [] }
+          if (!acc[category]) {
+            acc[category] = {
+              id: category,
+              label: category,
+              amount: 0,
+              flows: [] as PeriodicFlow[],
+              sourceCategory: flow.category ?? null,
+            }
           }
-          groups[category].amount += monthlyAmount
-          groups[category].flows.push(flow)
-          return groups
+          acc[category].amount += toMonthlyAmount(flow)
+          acc[category].flows.push(flow)
+          return acc
         },
-        {} as Record<string, { amount: number; flows: PeriodicFlow[] }>,
+        {} as Record<
+          string,
+          {
+            id: string
+            label: string
+            amount: number
+            flows: PeriodicFlow[]
+            sourceCategory: string | null
+          }
+        >,
       )
 
-    // Group expenses by category
-    const expensesGroups = enabledFlows
-      .filter(flow => flow.flow_type === FlowType.EXPENSE)
-      .reduce(
-        (groups, flow) => {
-          const category = flow.category || flow.name
-          const multiplier =
-            flow.frequency === FlowFrequency.DAILY
-              ? 30
-              : flow.frequency === FlowFrequency.WEEKLY
-                ? 4.33
-                : flow.frequency === FlowFrequency.MONTHLY
-                  ? 1
-                  : flow.frequency === FlowFrequency.EVERY_TWO_MONTHS
-                    ? 0.5
-                    : flow.frequency === FlowFrequency.QUARTERLY
-                      ? 1 / 3
-                      : flow.frequency === FlowFrequency.EVERY_FOUR_MONTHS
-                        ? 1 / 4
-                        : flow.frequency === FlowFrequency.SEMIANNUALLY
-                          ? 1 / 6
-                          : flow.frequency === FlowFrequency.YEARLY
-                            ? 1 / 12
-                            : 1
-          const normalized = flow.amount * multiplier
-          const monthlyAmount = convertCurrency(
-            normalized,
-            flow.currency,
-            defaultCurrency,
-            exchangeRates,
-          )
+      return Object.values(grouped)
+    }
 
-          if (!groups[category]) {
-            groups[category] = { amount: 0, flows: [] }
-          }
-          groups[category].amount += monthlyAmount
-          groups[category].flows.push(flow)
-          return groups
-        },
-        {} as Record<string, { amount: number; flows: PeriodicFlow[] }>,
-      )
+    const earningsEntries = buildEntries(
+      enabledFlows.filter(flow => flow.flow_type === FlowType.EARNING),
+      FlowType.EARNING,
+    )
+
+    const expensesEntries = buildEntries(
+      enabledFlows.filter(flow => flow.flow_type === FlowType.EXPENSE),
+      FlowType.EXPENSE,
+    )
 
     const totalEarnings = monthlyAmounts.monthlyEarnings
     const totalExpensesBase = monthlyAmounts.monthlyExpenses
-    const totalContributions = monthlyAmounts.monthlyContributions
-    const totalExpenses =
-      totalExpensesBase + (effectiveShowContributions ? totalContributions : 0)
+    const totalContributions = monthlyAmounts.monthlyContributionsVisible
+    const totalExpenses = totalExpensesBase + totalContributions
     const totalAmount = totalEarnings + totalExpenses
 
     // Convert to arrays with percentages
-    const earningsData = Object.entries(earningsGroups).map(
-      ([category, data], index) => ({
-        category,
-        amount: data.amount,
-        percentage: totalAmount > 0 ? (data.amount / totalAmount) * 100 : 0,
-        flows: data.flows,
-        type: "earning" as const,
-        color: getEarningsColor(index),
-      }),
-    )
+    const earningsData = earningsEntries.map((entry, index) => ({
+      id: entry.id,
+      category: entry.label,
+      amount: entry.amount,
+      percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
+      flows: entry.flows,
+      type: "earning" as const,
+      color: getEarningsColor(index),
+      sourceCategory: entry.sourceCategory,
+    }))
 
-    const expensesData = Object.entries(expensesGroups).map(
-      ([category, data], index) => ({
-        category,
-        amount: data.amount,
-        percentage: totalAmount > 0 ? (data.amount / totalAmount) * 100 : 0,
-        flows: data.flows,
-        type: "expense" as const,
-        color: getExpensesColor(index),
-      }),
-    )
+    const expensesData = expensesEntries.map((entry, index) => ({
+      id: entry.id,
+      category: entry.label,
+      amount: entry.amount,
+      percentage: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
+      flows: entry.flows,
+      type: "expense" as const,
+      color: getExpensesColor(index),
+      sourceCategory: entry.sourceCategory,
+    }))
 
     return {
       earnings: earningsData.sort((a, b) => b.amount - a.amount), // Biggest first (leftmost)
@@ -402,6 +443,28 @@ export default function RecurringMoneyPage() {
     exchangeRates,
     defaultCurrency,
   ])
+
+  const flowHighlightMap = useMemo(() => {
+    if (!singleCategoryFiltered) {
+      return {}
+    }
+    const map: Record<string, string> = {}
+    flowDistribution.earnings.forEach(entry => {
+      entry.flows.forEach(flow => {
+        if (flow.id) {
+          map[String(flow.id)] = entry.color
+        }
+      })
+    })
+    flowDistribution.expenses.forEach(entry => {
+      entry.flows.forEach(flow => {
+        if (flow.id) {
+          map[String(flow.id)] = entry.color
+        }
+      })
+    })
+    return map
+  }, [flowDistribution, singleCategoryFiltered])
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
@@ -774,12 +837,15 @@ export default function RecurringMoneyPage() {
                 exchangeRates,
               )
               const showOriginalCurrency = flow.currency !== defaultCurrency
+              const highlightColor = flow.id
+                ? flowHighlightMap[String(flow.id)]
+                : undefined
 
               return (
                 <motion.div
                   key={flow.id}
                   className={cn(
-                    "flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
+                    "relative flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
                     !flow.enabled
                       ? "opacity-50 bg-gray-50 dark:bg-black"
                       : "bg-card shadow-sm",
@@ -788,6 +854,14 @@ export default function RecurringMoneyPage() {
                   initial={initialVariant}
                   animate="show"
                 >
+                  {highlightColor && (
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute left-0 top-0 h-full w-1 rounded-l-lg",
+                        highlightColor,
+                      )}
+                    />
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-4 flex-wrap">
@@ -932,7 +1006,10 @@ export default function RecurringMoneyPage() {
         >
           <ArrowLeft size={16} />
         </Button>
-        <h1 className="text-2xl font-bold">{t.management.recurringMoney}</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">{t.management.recurringMoney}</h1>
+          <PinAssetButton assetId="management-recurring" />
+        </div>
       </motion.div>
 
       {/* KPI Cards */}
@@ -940,7 +1017,10 @@ export default function RecurringMoneyPage() {
         variants={fadeListItem}
         initial={runEntranceAnimation ? "hidden" : false}
         animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        className={cn(
+          "grid grid-cols-1 gap-4",
+          showSavingsCard ? "md:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2",
+        )}
       >
         <Card className="p-4">
           <div className="flex items-center gap-2 mb-2">
@@ -1015,6 +1095,88 @@ export default function RecurringMoneyPage() {
               : t.management.expenses.toLowerCase()}
           </div>
         </Card>
+        {showSavingsCard && (
+          <Card className="p-4 md:col-span-2 xl:col-span-1">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <PiggyBank className="h-5 w-5 text-emerald-500" />
+                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    {t.management.savableAmount}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <div
+                    className={cn(
+                      "text-2xl font-bold",
+                      savingsSummary.totalSavable >= 0
+                        ? "text-emerald-600"
+                        : "text-red-600",
+                    )}
+                  >
+                    {formatCurrency(
+                      savingsSummary.totalSavable,
+                      locale,
+                      settings?.general?.defaultCurrency,
+                    )}
+                  </div>
+                  <div
+                    className={cn(
+                      "text-xs px-2 py-0.5 rounded-md font-semibold",
+                      savingsSummary.totalSavable >= 0
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+                    )}
+                  >
+                    {savingsSummary.totalPercent.toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1 sm:text-right">
+                <div className="flex items-center gap-2 sm:justify-end">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    {t.management.monthlyInvestedAmount}
+                  </span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setShowContributions(prev => !prev)}
+                    className={cn(
+                      "h-8 w-8 rounded-full border border-transparent transition-colors",
+                      showContributions
+                        ? "bg-cyan-600 text-white hover:bg-cyan-600/90 dark:bg-cyan-500 dark:text-black dark:hover:bg-cyan-500/90"
+                        : "text-muted-foreground hover:text-cyan-600 dark:hover:text-cyan-300",
+                    )}
+                    aria-pressed={showContributions}
+                    aria-label={t.management.contributionsShort}
+                    title={t.management.contributionsShort}
+                  >
+                    {showContributions ? (
+                      <Eye className="h-4 w-4" />
+                    ) : (
+                      <EyeOff className="h-4 w-4" />
+                    )}
+                    <span className="sr-only">
+                      {t.management.contributionsShort}
+                    </span>
+                  </Button>
+                </div>
+                <div className="flex items-baseline gap-2 sm:justify-end">
+                  <span className="text-lg font-semibold text-cyan-600 dark:text-cyan-300">
+                    {formatCurrency(
+                      savingsSummary.investedAmount,
+                      locale,
+                      settings?.general?.defaultCurrency,
+                    )}
+                  </span>
+                  <span className="text-xs px-2 py-0.5 rounded-md font-semibold bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300">
+                    {savingsSummary.investedPercent.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </motion.div>
 
       {/* Earnings vs Expenses Consumption Bars */}
@@ -1045,23 +1207,25 @@ export default function RecurringMoneyPage() {
                       <div className="flex h-full relative">
                         {flowDistribution.earnings.map(earning => {
                           const w = (earning.amount / scale) * 100
-                          const isRealCategory = existingCategories.includes(
-                            earning.category,
+                          const sourceCategory = earning.sourceCategory ?? null
+                          const canFilter = Boolean(
+                            sourceCategory &&
+                            existingCategories.includes(sourceCategory),
                           )
                           return (
                             <div
-                              key={`earning-bar-${earning.category}`}
+                              key={`earning-bar-${earning.id}`}
                               className={cn(
                                 "h-full transition-all duration-300 hover:opacity-80 relative group",
                                 earning.color,
-                                isRealCategory
+                                canFilter
                                   ? "cursor-pointer"
                                   : "cursor-default opacity-70",
                               )}
                               style={{ width: `${w}%` }}
                               onClick={() =>
-                                isRealCategory &&
-                                toggleCategoryFilter(earning.category)
+                                canFilter &&
+                                toggleCategoryFilter(sourceCategory!)
                               }
                               title={`${earning.category}: ${formatCurrency(
                                 earning.amount,
@@ -1145,23 +1309,25 @@ export default function RecurringMoneyPage() {
                       <div className="flex h-full relative">
                         {flowDistribution.expenses.map(expense => {
                           const w = (expense.amount / scale) * 100
-                          const isRealCategory = existingCategories.includes(
-                            expense.category,
+                          const sourceCategory = expense.sourceCategory ?? null
+                          const canFilter = Boolean(
+                            sourceCategory &&
+                            existingCategories.includes(sourceCategory),
                           )
                           return (
                             <div
-                              key={`expense-bar-${expense.category}`}
+                              key={`expense-bar-${expense.id}`}
                               className={cn(
                                 "h-full transition-all duration-300 hover:opacity-80 relative group",
                                 expense.color,
-                                isRealCategory
+                                canFilter
                                   ? "cursor-pointer"
                                   : "cursor-default opacity-70",
                               )}
                               style={{ width: `${w}%` }}
                               onClick={() =>
-                                isRealCategory &&
-                                toggleCategoryFilter(expense.category)
+                                canFilter &&
+                                toggleCategoryFilter(sourceCategory!)
                               }
                               title={`${expense.category}: ${formatCurrency(
                                 expense.amount,
@@ -1183,13 +1349,13 @@ export default function RecurringMoneyPage() {
                         {(() => {
                           if (
                             !effectiveShowContributions ||
-                            monthlyAmounts.monthlyContributions <= 0
+                            monthlyAmounts.monthlyContributionsVisible <= 0
                           )
                             return null
                           const earnings = flowDistribution.totalEarnings
                           const expensesOnly = monthlyAmounts.monthlyExpenses
                           const contributionsAmt =
-                            monthlyAmounts.monthlyContributions
+                            monthlyAmounts.monthlyContributionsVisible
                           const contributionsCount = (() => {
                             if (!contributions) return 0
                             let count = 0
@@ -1225,7 +1391,7 @@ export default function RecurringMoneyPage() {
                                     <div className="absolute top-full mt-1 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap">
                                       {t.management.contributionsShort}:{" "}
                                       {formatCurrency(
-                                        monthlyAmounts.monthlyContributions,
+                                        monthlyAmounts.monthlyContributionsVisible,
                                         locale,
                                         settings?.general?.defaultCurrency,
                                       )}
@@ -1244,7 +1410,7 @@ export default function RecurringMoneyPage() {
                                       const tpl = t.management
                                         .contributionsPopoverDetails as string
                                       const formattedAmount = formatCurrency(
-                                        monthlyAmounts.monthlyContributions,
+                                        monthlyAmounts.monthlyContributionsVisible,
                                         locale,
                                         settings?.general?.defaultCurrency,
                                       )
@@ -1292,20 +1458,22 @@ export default function RecurringMoneyPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
               <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
                 {flowDistribution.earnings.map(earning => {
-                  const isRealCategory = existingCategories.includes(
-                    earning.category,
+                  const sourceCategory = earning.sourceCategory ?? null
+                  const canFilter = Boolean(
+                    sourceCategory &&
+                    existingCategories.includes(sourceCategory),
                   )
                   return (
                     <div
-                      key={`legend2-earning-${earning.category}`}
+                      key={`legend2-earning-${earning.id}`}
                       className={cn(
                         "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
-                        isRealCategory
+                        canFilter
                           ? "cursor-pointer"
                           : "cursor-default opacity-70",
                       )}
                       onClick={() =>
-                        isRealCategory && toggleCategoryFilter(earning.category)
+                        canFilter && toggleCategoryFilter(sourceCategory!)
                       }
                     >
                       <div className={`w-3 h-3 rounded ${earning.color}`}></div>
@@ -1323,20 +1491,22 @@ export default function RecurringMoneyPage() {
               </div>
               <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto justify-end">
                 {flowDistribution.expenses.map(expense => {
-                  const isRealCategory = existingCategories.includes(
-                    expense.category,
+                  const sourceCategory = expense.sourceCategory ?? null
+                  const canFilter = Boolean(
+                    sourceCategory &&
+                    existingCategories.includes(sourceCategory),
                   )
                   return (
                     <div
-                      key={`legend2-expense-${expense.category}`}
+                      key={`legend2-expense-${expense.id}`}
                       className={cn(
                         "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
-                        isRealCategory
+                        canFilter
                           ? "cursor-pointer"
                           : "cursor-default opacity-70",
                       )}
                       onClick={() =>
-                        isRealCategory && toggleCategoryFilter(expense.category)
+                        canFilter && toggleCategoryFilter(sourceCategory!)
                       }
                     >
                       <div className={`w-3 h-3 rounded ${expense.color}`}></div>
@@ -1391,22 +1561,6 @@ export default function RecurringMoneyPage() {
         </div>
 
         <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
-          <Button
-            size="sm"
-            variant={effectiveShowContributions ? "default" : "outline"}
-            onClick={() => setShowContributions(s => !s)}
-            className={cn(
-              "h-8 px-2 text-xs font-medium flex items-center justify-center flex-shrink-0",
-              effectiveShowContributions
-                ? "bg-cyan-600 hover:bg-cyan-600/90 dark:bg-cyan-500 dark:hover:bg-cyan-500/90"
-                : "",
-            )}
-            aria-label={t.management.contributionsShort}
-            title={t.management.contributionsShort}
-          >
-            <PiggyBank className="h-4 w-4" />
-            <span className="sr-only">{t.management.contributionsShort}</span>
-          </Button>
           <span className="text-sm text-muted-foreground">
             {t.management.category}
           </span>

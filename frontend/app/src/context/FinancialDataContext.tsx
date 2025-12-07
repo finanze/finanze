@@ -33,6 +33,7 @@ interface FinancialDataContextType {
   periodicFlows: PeriodicFlow[]
   pendingFlows: PendingFlow[]
   isLoading: boolean
+  isInitialLoading: boolean
   error: string | null
   refreshData: () => Promise<void>
   refreshEntity: (entityId: string) => Promise<void>
@@ -40,7 +41,7 @@ interface FinancialDataContextType {
   realEstateList: RealEstate[]
   refreshRealEstate: () => Promise<void>
   cachedLastTransactions: TransactionsResult | null
-  fetchCachedTransactions: (excludedEntityIds: string[]) => Promise<void>
+  fetchCachedTransactions: () => Promise<void>
   invalidateTransactionsCache: () => void
 }
 
@@ -60,14 +61,14 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   const [cachedLastTransactions, setCachedLastTransactions] =
     useState<TransactionsResult | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const initialFetchDone = useRef(false)
   const realEstateFetchInFlight = useRef<Promise<void> | null>(null)
   const {
-    inactiveEntities,
     entities,
     entitiesLoaded,
-    fetchEntities,
+    updateEntityLastFetch,
     exchangeRates,
     exchangeRatesLoading,
   } = useAppContext()
@@ -78,18 +79,14 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     setError(null)
 
     try {
-      const entityIds = inactiveEntities?.map(entity => entity.id) ?? []
-      const baseQuery =
-        entityIds.length > 0 ? { excluded_entities: entityIds } : undefined
-
       const [
         positionsResponse,
         contributionsData,
         periodicFlowsData,
         pendingFlowsData,
       ] = await Promise.all([
-        getPositions(baseQuery as PositionQueryRequest | undefined),
-        getContributions(baseQuery as ContributionQueryRequest | undefined),
+        getPositions(),
+        getContributions(),
         getAllPeriodicFlows(),
         getAllPendingFlows(),
       ])
@@ -103,6 +100,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setError("Failed to load financial data. Please try again.")
     } finally {
       setIsLoading(false)
+      setIsInitialLoading(false)
     }
   }
 
@@ -139,106 +137,91 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     return p
   }, [])
 
-  const fetchCachedTransactions = useCallback(
-    async (excludedEntityIds: string[]) => {
-      try {
-        const result = await getTransactions({
-          excluded_entities: excludedEntityIds,
-          limit: 8,
-        })
-        setCachedLastTransactions(result)
-      } catch (err) {
-        console.error("Error fetching cached transactions:", err)
-      }
-    },
-    [],
-  )
+  const fetchCachedTransactions = useCallback(async () => {
+    try {
+      const result = await getTransactions({
+        limit: 8,
+      })
+      setCachedLastTransactions(result)
+    } catch (err) {
+      console.error("Error fetching cached transactions:", err)
+    }
+  }, [])
 
   const invalidateTransactionsCache = useCallback(() => {
     setCachedLastTransactions(null)
   }, [])
 
-  const refreshEntity = async (entityId: string) => {
-    setIsLoading(true)
-    setError(null)
+  const refreshEntity = useCallback(
+    async (entityId: string) => {
+      setError(null)
 
-    try {
-      console.log(`Refreshing financial data for entity: ${entityId}`)
-
-      let queryParams: { entities: string[] }
-
-      if (entityId === "crypto") {
-        const cryptoEntities =
-          entities?.filter(
-            entity => entity.type === EntityType.CRYPTO_WALLET,
-          ) || []
-
-        if (cryptoEntities.length === 0) {
-          console.log("No crypto entities found")
-          return
-        }
-
-        queryParams = { entities: cryptoEntities.map(entity => entity.id) }
-        console.log(
-          `Refreshing crypto entities: ${cryptoEntities.map(e => e.name).join(", ")}`,
-        )
-      } else {
-        queryParams = { entities: [entityId] }
-      }
-
-      const [positionsResponse, contributionsData] = await Promise.all([
-        getPositions(queryParams as PositionQueryRequest),
-        getContributions(queryParams as ContributionQueryRequest),
-      ])
-
-      // Update only the specific entity's data in the existing state
-      setPositionsData(prevPositions => {
-        if (!prevPositions) return positionsResponse
-
-        return {
-          ...prevPositions,
-          positions: {
-            ...prevPositions.positions,
-            ...positionsResponse.positions,
-          },
-        }
-      })
-
-      setContributions(prevContributions => {
-        if (!prevContributions) return contributionsData
-        return {
-          ...prevContributions,
-          ...contributionsData,
-        }
-      })
-
-      console.log(
-        `Successfully refreshed ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}`,
-      )
-
-      // Invalidate cached transactions since new data may be available
-      invalidateTransactionsCache()
-
-      // Refresh entities to get updated last_fetch data
       try {
-        await fetchEntities()
-        console.log("Entities refreshed to update last_fetch data")
-      } catch (error) {
-        console.error(
-          "Error refreshing entities after financial data refresh:",
-          error,
+        console.log(`Refreshing financial data for entity: ${entityId}`)
+
+        let queryParams: { entities: string[] }
+
+        if (entityId === "crypto") {
+          const cryptoEntities =
+            entities?.filter(
+              entity => entity.type === EntityType.CRYPTO_WALLET,
+            ) || []
+
+          if (cryptoEntities.length === 0) {
+            console.log("No crypto entities found")
+            return
+          }
+
+          queryParams = { entities: cryptoEntities.map(entity => entity.id) }
+          console.log(
+            `Refreshing crypto entities: ${cryptoEntities.map(e => e.name).join(", ")}`,
+          )
+        } else {
+          queryParams = { entities: [entityId] }
+        }
+
+        const [positionsResponse, contributionsData] = await Promise.all([
+          getPositions(queryParams as PositionQueryRequest),
+          getContributions(queryParams as ContributionQueryRequest),
+        ])
+
+        // Update only the specific entity's data in the existing state
+        setPositionsData(prevPositions => {
+          if (!prevPositions) return positionsResponse
+
+          return {
+            ...prevPositions,
+            positions: {
+              ...prevPositions.positions,
+              ...positionsResponse.positions,
+            },
+          }
+        })
+
+        setContributions(prevContributions => {
+          if (!prevContributions) return contributionsData
+          return {
+            ...prevContributions,
+            ...contributionsData,
+          }
+        })
+
+        console.log(
+          `Successfully refreshed ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}`,
         )
+
+        // Invalidate cached transactions since new data may be available
+        invalidateTransactionsCache()
+      } catch (err) {
+        console.error(
+          `Error refreshing ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}:`,
+          err,
+        )
+        setError(`Failed to refresh entity. Please try again.`)
       }
-    } catch (err) {
-      console.error(
-        `Error refreshing ${entityId === "crypto" ? "crypto entities" : `entity ${entityId}`}:`,
-        err,
-      )
-      setError(`Failed to refresh entity. Please try again.`)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+    },
+    [entities, invalidateTransactionsCache, updateEntityLastFetch],
+  )
 
   useEffect(() => {
     // Only fetch financial data if entities are loaded, exchange rates are not loading and are available
@@ -259,16 +242,6 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     }
   }, [entitiesLoaded, exchangeRatesLoading, exchangeRates, refreshRealEstate])
 
-  // Separate effect for inactive entities changes that should trigger refetch
-  useEffect(() => {
-    // Only refetch if we've already done the initial fetch
-    if (initialFetchDone.current) {
-      fetchFinancialData()
-      // Keep real estate list in sync when filters change
-      refreshRealEstate()
-    }
-  }, [inactiveEntities, refreshRealEstate])
-
   // Register the refreshEntity callback with AppContext
   useEffect(() => {
     setOnScrapeCompleted(refreshEntity)
@@ -285,6 +258,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         periodicFlows,
         pendingFlows,
         isLoading,
+        isInitialLoading,
         error,
         refreshData: fetchFinancialData,
         refreshEntity,

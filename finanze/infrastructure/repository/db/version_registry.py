@@ -80,6 +80,32 @@ from infrastructure.repository.db.versions.v0.v06.v060_5_add_tx_product_subype i
 from infrastructure.repository.db.versions.v0.v06.v060_6_migrate_equity_types import (
     V0606,
 )
+from infrastructure.repository.db.versions.v0.v07.v070_0_add_contrib_target_subype import (
+    V0700ContribTargetSubtype,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_1_crypto_currencies_v2 import (
+    V0701CryptoCurrenciesV2,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_2_external_integrations_migration import (
+    V0702ExternalIntegrationsMigration,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_3_cajamar import V0703Cajamar
+from infrastructure.repository.db.versions.v0.v07.v070_4_ethplorer_integration import (
+    V0704Ethplorer,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_5_templates import V0705Templates
+from infrastructure.repository.db.versions.v0.v07.v070_6_add_recf_factoring_start_extended import (
+    V0706RECFAndFactoringFields,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_7_add_crypto_tx_column import (
+    V0707CryptoTxColumn,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_8_crypto_initial_investments import (
+    V0708CryptoInitialInvestments,
+)
+from infrastructure.repository.db.versions.v0.v07.v070_9_clear_sego_txs import (
+    V0709ClearSegoTXs,
+)
 
 versions = [
     V0Genesis(),
@@ -116,4 +142,14 @@ versions = [
     V0604ManualPositionData(),
     V0605TxProductSubtype(),
     V0606(),
+    V0700ContribTargetSubtype(),
+    V0701CryptoCurrenciesV2(),
+    V0702ExternalIntegrationsMigration(),
+    V0703Cajamar(),
+    V0704Ethplorer(),
+    V0705Templates(),
+    V0706RECFAndFactoringFields(),
+    V0707CryptoTxColumn(),
+    V0708CryptoInitialInvestments(),
+    V0709ClearSegoTXs(),
 ]

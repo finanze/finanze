@@ -42,16 +42,16 @@ export async function findAndKillProcesses() {
     ) as Array<ProcessInfo>
 
   if (processesToKill.length === 0) {
-    console.log(`No target processes to kill.`)
+    console.info(`No target processes to kill.`)
     return
   }
 
-  console.log(`Killing ${processesToKill.map(p => p.pid).join(", ")}`)
+  console.info(`Killing ${processesToKill.map(p => p.pid).join(", ")}`)
 
   const killPromises = processesToKill.map(proc => {
     const killCommand = `taskkill /f /t /pid ${proc.pid}`
     return execPromise(killCommand)
-      .then(() => console.log(`Terminated #${proc.pid}`))
+      .then(() => console.info(`Terminated #${proc.pid}`))
       .catch(err =>
         console.error(
           `Failed to terminate ${proc.name} (PID: ${

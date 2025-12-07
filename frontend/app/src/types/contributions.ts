@@ -14,6 +14,15 @@ export enum ContributionTargetType {
   STOCK_ETF = "STOCK_ETF",
   FUND = "FUND",
   FUND_PORTFOLIO = "FUND_PORTFOLIO",
+  CRYPTO = "CRYPTO",
+}
+
+export enum ContributionTargetSubtype {
+  STOCK = "STOCK",
+  ETF = "ETF",
+  MUTUAL_FUND = "MUTUAL_FUND",
+  PENSION_FUND = "PENSION_FUND",
+  PRIVATE_EQUITY = "PRIVATE_EQUITY",
 }
 
 export interface PeriodicContribution {
@@ -22,6 +31,7 @@ export interface PeriodicContribution {
   target: string
   target_name: string
   target_type: ContributionTargetType
+  target_subtype?: ContributionTargetSubtype
   amount: number
   currency: string
   since: string
@@ -38,6 +48,7 @@ export interface ManualPeriodicContribution {
   target: string
   target_name?: string | null
   target_type: ContributionTargetType
+  target_subtype?: ContributionTargetSubtype | null
   amount: number
   currency: string
   since: string
@@ -57,5 +68,4 @@ export type EntityContributions = Record<string, AutoContributions>
 
 export interface ContributionQueryRequest {
   entities?: string[]
-  excluded_entities?: string[]
 }

@@ -4129,7 +4129,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       amount: "",
       currency: defaultCurrency,
       interest_rate: "",
-      last_invest_date: "",
+      late_interest_rate: "",
+      start: "",
       maturity: "",
       type: "",
       state: "",
@@ -4147,7 +4148,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         draft.interest_rate != null
           ? formatNumberInput(draft.interest_rate * 100)
           : "",
-      last_invest_date: normalizeDateInput(draft.last_invest_date ?? ""),
+      late_interest_rate:
+        draft.late_interest_rate != null
+          ? formatNumberInput(draft.late_interest_rate * 100)
+          : "",
+      start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
       type: draft.type ?? "",
       state: draft.state ?? "",
@@ -4156,15 +4161,19 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const amount = parseNumberInput(form.amount)
       const interestRatePercent = parseNumberInput(form.interest_rate)
       if (amount === null || interestRatePercent === null) return null
+      const lateInterestRatePercent = parseNumberInput(form.late_interest_rate)
       const entry: FactoringDetail = {
         id: previous?.id || previous?.originalId || "",
         name: form.name.trim(),
         amount,
         currency: form.currency,
         interest_rate: interestRatePercent / 100,
+        late_interest_rate:
+          lateInterestRatePercent != null ? lateInterestRatePercent / 100 : 0,
         profitability: 0,
         gross_interest_rate: interestRatePercent / 100,
-        last_invest_date: form.last_invest_date || "",
+        start: form.start || "",
+        last_invest_date: form.start || "",
         maturity: form.maturity || "",
         type: form.type || "",
         state: form.state || "",
@@ -4185,7 +4194,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (amount === null || amount < 0) errors.amount = numberFieldError(t)
       const interest = parseNumberInput(form.interest_rate)
       if (interest === null) errors.interest_rate = numberFieldError(t)
-      if (!form.last_invest_date) errors.last_invest_date = requiredField(t)
+      const lateInterest = form.late_interest_rate.trim()
+      if (lateInterest && parseNumberInput(lateInterest) === null)
+        errors.late_interest_rate = numberFieldError(t)
+      if (!form.start) errors.start = requiredField(t)
       if (!form.maturity) errors.maturity = requiredField(t)
       return errors
     },
@@ -4215,9 +4227,17 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props,
           { type: "number", step: "0.01", inputMode: "decimal" },
         )}
+        {renderTextInput(
+          "late_interest_rate",
+          props.t(
+            "management.manualPositions.factoring.fields.lateInterestRate",
+          ),
+          props,
+          { type: "number", step: "0.01", inputMode: "decimal" },
+        )}
         {renderDateInput(
-          "last_invest_date",
-          props.t("management.manualPositions.factoring.fields.lastInvestDate"),
+          "start",
+          props.t("management.manualPositions.factoring.fields.start"),
           props,
         )}
         {renderDateInput(
@@ -4260,7 +4280,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       amount: draft.amount,
       currency: draft.currency,
       interest_rate: draft.interest_rate,
-      last_invest_date: normalizeDateInput(draft.last_invest_date ?? ""),
+      late_interest_rate: draft.late_interest_rate ?? null,
+      start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
       type: draft.type,
       state: draft.state,
@@ -4271,9 +4292,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       amount: draft.amount,
       currency: draft.currency,
       interest_rate: draft.interest_rate,
+      late_interest_rate: draft.late_interest_rate ?? 0,
       profitability: 0,
       gross_interest_rate: draft.interest_rate,
-      last_invest_date: draft.last_invest_date,
+      start: draft.start,
+      last_invest_date: draft.start,
       maturity: draft.maturity,
       type: draft.type,
       state: draft.state,
@@ -4315,7 +4338,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       pending_amount: "",
       currency: defaultCurrency,
       interest_rate: "",
-      last_invest_date: "",
+      extended_interest_rate: "",
+      start: "",
       maturity: "",
       type: "",
       business_type: "",
@@ -4339,7 +4363,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         draft.interest_rate != null
           ? formatNumberInput(draft.interest_rate * 100)
           : "",
-      last_invest_date: normalizeDateInput(draft.last_invest_date ?? ""),
+      extended_interest_rate:
+        draft.extended_interest_rate != null
+          ? formatNumberInput(draft.extended_interest_rate * 100)
+          : "",
+      start: normalizeDateInput(draft.start ?? ""),
       maturity: normalizeDateInput(draft.maturity ?? ""),
       type: draft.type ?? "",
       business_type: draft.business_type ?? "",
@@ -4352,6 +4380,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const pending = parseNumberInput(form.pending_amount)
       const interestPercent = parseNumberInput(form.interest_rate)
       if (interestPercent === null) return null
+      const extendedInterestPercent = parseNumberInput(
+        form.extended_interest_rate,
+      )
       const resolvedPending = pending ?? amount
       const entry: RealEstateCFDetail = {
         id: previous?.id || previous?.originalId || "",
@@ -4360,8 +4391,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         pending_amount: resolvedPending,
         currency: form.currency,
         interest_rate: interestPercent / 100,
+        extended_interest_rate:
+          extendedInterestPercent != null
+            ? extendedInterestPercent / 100
+            : null,
         profitability: 0,
-        last_invest_date: form.last_invest_date || null,
+        start: form.start || null,
+        last_invest_date: form.start || null,
         maturity: form.maturity || null,
         type: form.type.trim(),
         business_type: form.business_type.trim(),
@@ -4379,7 +4415,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
       if (!form.type.trim()) errors.type = requiredField(t)
-      if (!form.business_type.trim()) errors.business_type = requiredField(t)
+      // business_type is now optional
       if (!form.state.trim()) errors.state = requiredField(t)
       const amount = parseNumberInput(form.amount)
       if (amount === null || amount < 0) errors.amount = numberFieldError(t)
@@ -4388,7 +4424,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         errors.pending_amount = numberFieldError(t)
       const interest = parseNumberInput(form.interest_rate)
       if (interest === null) errors.interest_rate = numberFieldError(t)
-      if (!form.last_invest_date) errors.last_invest_date = requiredField(t)
+      const extendedInterest = form.extended_interest_rate.trim()
+      if (extendedInterest && parseNumberInput(extendedInterest) === null)
+        errors.extended_interest_rate = numberFieldError(t)
+      if (!form.start) errors.start = requiredField(t)
       if (!form.maturity) errors.maturity = requiredField(t)
       return errors
     },
@@ -4443,11 +4482,17 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props,
           { type: "number", step: "0.01", inputMode: "decimal" },
         )}
-        {renderDateInput(
-          "last_invest_date",
+        {renderTextInput(
+          "extended_interest_rate",
           props.t(
-            "management.manualPositions.realEstateCf.fields.lastInvestDate",
+            "management.manualPositions.realEstateCf.fields.extendedInterestRate",
           ),
+          props,
+          { type: "number", step: "0.01", inputMode: "decimal" },
+        )}
+        {renderDateInput(
+          "start",
+          props.t("management.manualPositions.realEstateCf.fields.start"),
           props,
         )}
         {renderDateInput(
@@ -4505,7 +4550,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       pending_amount: draft.pending_amount ?? null,
       currency: draft.currency,
       interest_rate: draft.interest_rate,
-      last_invest_date: draft.last_invest_date,
+      extended_interest_rate: draft.extended_interest_rate ?? null,
+      start: draft.start,
       maturity: draft.maturity,
       type: draft.type,
       business_type: draft.business_type,
@@ -4519,8 +4565,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       pending_amount: draft.pending_amount ?? 0,
       currency: draft.currency,
       interest_rate: draft.interest_rate,
+      extended_interest_rate: draft.extended_interest_rate ?? null,
       profitability: 0,
-      last_invest_date: draft.last_invest_date,
+      start: draft.start,
+      last_invest_date: draft.start,
       maturity: draft.maturity,
       type: draft.type,
       business_type: draft.business_type,

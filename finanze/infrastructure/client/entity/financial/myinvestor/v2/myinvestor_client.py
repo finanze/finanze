@@ -42,6 +42,13 @@ class MyInvestorAPIV2Client:
         return {}
 
     def _get_request(self, path: str, base_url: str = BASE_URL) -> requests.Response:
+        try:
+            return self._base_get_request(path, base_url)
+        except requests.HTTPError as e:
+            self._log.exception(f"GET request to {path} failed: {e}")
+            return self._base_get_request(path, base_url)
+
+    def _base_get_request(self, path: str, base_url: str) -> requests.Response:
         return self._execute_request(path, "GET", body=None, base_url=base_url)
 
     def _post_request(
@@ -171,7 +178,7 @@ class MyInvestorAPIV2Client:
         return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]
 
     def get_user(self):
-        return self._get_request("/myinvestor-server/api/v3/customers/self")["payload"][
+        return self._get_request("/cperf-server/api/v3/customers/self")["payload"][
             "data"
         ]
 
@@ -181,27 +188,38 @@ class MyInvestorAPIV2Client:
             "data"
         ]
 
-    def get_account_remuneration(self, account_id):
-        return self._get_request(
-            f"/myinvestor-server/api/v2/cash-accounts/{account_id}/remuneration"
-        )["payload"]["data"]
+    def get_account_remuneration(self, account_id: str, version: int = 2):
+        base_path = (
+            "/cperf-server/api/v2/cash-accounts"
+            if version == 2
+            else "/account/api/v3/account"
+        )
+        return self._get_request(f"{base_path}/{account_id}/remuneration")["payload"][
+            "data"
+        ]
 
     def get_account_movements(
         self,
-        account_id,
+        account_id: str,
         from_date: Optional[date] = None,
         to_date: Optional[date] = None,
         concept: Optional[str] = None,
         amount_from: Optional[float] = None,
         amount_to: Optional[float] = None,
         flow_type: Optional[str] = None,
+        version: int = 2,
     ):
         to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
         from_date = date.strftime(
             from_date or (date.today() - relativedelta(months=1)), GET_DATE_FORMAT
         )
 
-        path = f"/myinvestor-server/api/v2/cash-accounts/{account_id}/flows?dateFrom={from_date}&dateTo={to_date}"
+        base_path = (
+            "/cperf-server/api/v2/cash-accounts"
+            if version == 2
+            else "/account/api/v3/account"
+        )
+        path = f"{base_path}/{account_id}/flows?dateFrom={from_date}&dateTo={to_date}"
 
         if concept:
             path += f"&concept={concept}"
@@ -219,9 +237,9 @@ class MyInvestorAPIV2Client:
 
     @cached(cache=TTLCache(maxsize=1, ttl=120))
     def get_security_accounts(self):
-        return self._get_request(
-            "/myinvestor-server/api/v2/securities-accounts/self-basic"
-        )["payload"]["data"]
+        return self._get_request("/cperf-server/api/v2/securities-accounts/self-basic")[
+            "payload"
+        ]["data"]
 
     def get_cards(self, account_id=None):
         params = f"?accountId={account_id}" if account_id else ""
@@ -235,7 +253,7 @@ class MyInvestorAPIV2Client:
     @cached(cache=TTLCache(maxsize=10, ttl=30))
     def get_security_account_details(self, security_account_id: str):
         return self._get_request(
-            f"/myinvestor-server/api/v2/securities-accounts/{security_account_id}"
+            f"/cperf-server/api/v2/securities-accounts/{security_account_id}"
         )["payload"]["data"]
 
     def get_stock_orders(
@@ -286,7 +304,7 @@ class MyInvestorAPIV2Client:
             from_date or (date.today().replace(month=1, day=1)), GET_DATE_FORMAT
         )
 
-        path = f"/myinvestor-server/api/v2/securities-accounts/{securities_account_id}/orders?dateFrom={from_date}&dateTo={to_date}"
+        path = f"/cperf-server/api/v2/securities-accounts/{securities_account_id}/orders?dateFrom={from_date}&dateTo={to_date}"
 
         if tx_type:
             path += f"&type={tx_type}"  # PERIODIC ORDINARY None (=ALL)
@@ -308,16 +326,16 @@ class MyInvestorAPIV2Client:
     @cached(cache=TTLCache(maxsize=1000, ttl=60))
     def get_fund_order_details(self, securities_account_id: str, order_id: str):
         return self._get_request(
-            f"/myinvestor-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
+            f"/cperf-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
         )["payload"]["data"]
 
     def get_auto_contributions(self):
-        return self._get_request(
-            "/myinvestor-server/api/v2/automatic-contributions/self"
-        )["payload"]["data"]
+        return self._get_request("/cperf-server/api/v2/automatic-contributions/self")[
+            "payload"
+        ]["data"]
 
     def get_deposits(self):
-        return self._get_request("/myinvestor-server/api/v2/deposits/self")["payload"][
+        return self._get_request("/cperf-server/api/v2/deposits/self")["payload"][
             "data"
         ]
 
@@ -344,3 +362,62 @@ class MyInvestorAPIV2Client:
         return self._get_request(
             f"/cperf-server/api/v2/securities-accounts/{security_account_id}/investment-summary/funds/{fund_isin}/added-values"
         )["payload"]["data"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=21600))
+    def get_pension_accounts(self):
+        return self._get_request("/cperf-server/api/v2/pension-accounts/self")[
+            "payload"
+        ]["data"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=21600))
+    def get_pension_account_details(self, pension_account_id: str):
+        return self._get_request(
+            f"/cperf-server/api/v2/pension-accounts/{pension_account_id}"
+        )["payload"]["data"]
+
+    def get_pension_plan_orders(
+        self,
+        pension_account_id: str,
+        from_date: Optional[date] = None,
+        to_date: Optional[date] = None,
+        status: Optional[str] = "COMPLETE",
+        tx_type: Optional[str] = None,
+        from_amount: Optional[float] = None,
+        to_amount: Optional[float] = None,
+        dgs: Optional[str] = None,
+    ):
+        to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
+        from_date = date.strftime(
+            from_date or (date.today().replace(month=1, day=1)), GET_DATE_FORMAT
+        )
+
+        path = f"/cperf-server/api/v2/pension-accounts/{pension_account_id}/orders?dateFrom={from_date}&dateTo={to_date}"
+
+        if tx_type:
+            path += f"&type={tx_type}"  # PERIODIC ORDINARY None (=ALL)
+
+        if status:
+            path += f"&status={status}"  # COMPLETE PENDING REJECTED CANCEL IN_PROGRESS
+
+        if from_amount:
+            path += f"&amountFrom={from_amount}"
+
+        if to_amount:
+            path += f"&amountTo={to_amount}"
+
+        if dgs:
+            path += f"&dgsCode={dgs}"
+
+        return self._get_request(path)["payload"]["data"]
+
+    @cached(cache=TTLCache(maxsize=1000, ttl=60))
+    def get_pension_plan_order_details(self, pension_account_id: str, order_id: str):
+        return self._get_request(
+            f"/cperf-server/api/v2/pension-accounts/{pension_account_id}/orders/{order_id}"
+        )["payload"]["data"]
+
+    @cached(cache=TTLCache(maxsize=50, ttl=21600))
+    def get_pension_fund_details(self, dgs_code: str):
+        return self._get_request(f"/cperf-server/api/v2/pension-plans/{dgs_code}")[
+            "payload"
+        ]["data"]

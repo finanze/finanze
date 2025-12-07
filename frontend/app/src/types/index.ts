@@ -4,7 +4,21 @@ import {
   LoanType,
   InterestType,
   EntitiesPosition,
+  ProductType,
+  GlobalPosition,
 } from "./position"
+import {
+  ContributionTargetType,
+  ContributionTargetSubtype,
+} from "./contributions"
+import type {
+  AutoUpdateActionResult,
+  AutoUpdateCheckResult,
+  AutoUpdateErrorInfo,
+  AutoUpdateInfo,
+  AutoUpdateProgressInfo,
+} from "./release"
+import { Transactions } from "./transactions"
 
 export enum EntityStatus {
   CONNECTED = "CONNECTED",
@@ -15,6 +29,7 @@ export enum EntityStatus {
 export enum EntityType {
   FINANCIAL_INSTITUTION = "FINANCIAL_INSTITUTION",
   CRYPTO_WALLET = "CRYPTO_WALLET",
+  CRYPTO_EXCHANGE = "CRYPTO_EXCHANGE",
   COMMODITY = "COMMODITY",
 }
 
@@ -48,6 +63,7 @@ export interface Entity {
   features: Feature[]
   credentials_template?: Record<string, string>
   setup_login_type?: EntitySetupLoginType
+  session_category?: EntitySessionCategory
   pin?: {
     positions: number
   }
@@ -56,6 +72,18 @@ export interface Entity {
   required_external_integrations?: string[]
   external_entity_id?: string | null
   virtual_features: Record<Feature, string>
+  natively_supported_products?: ProductType[] | null
+}
+
+export enum EntitySessionCategory {
+  // No session requiring human action to re-create or minutes-long session
+  NONE = "NONE",
+  // Little hours-long session
+  SHORT = "SHORT",
+  // Some days-long session
+  MEDIUM = "MEDIUM",
+  // No session, renewable or weeks-long session
+  UNDEFINED = "UNDEFINED",
 }
 
 export enum EntitySetupLoginType {
@@ -99,9 +127,14 @@ export interface ChangePasswordRequest {
   newPassword: string
 }
 
-export interface LoginStatusResponse {
+export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
-  last_logged?: string
+  lastLogged?: string
+  user?: string
+  server: {
+    version: string
+    options: BackendOptions
+  }
 }
 
 export interface LoginRequest {
@@ -136,14 +169,16 @@ export interface FetchResponse {
   data?: any
 }
 
-export enum VirtualFetchErrorType {
+export enum ImportErrorType {
   SHEET_NOT_FOUND = "SHEET_NOT_FOUND",
   MISSING_FIELD = "MISSING_FIELD",
   VALIDATION_ERROR = "VALIDATION_ERROR",
+  UNEXPECTED_COLUMN = "UNEXPECTED_COLUMN",
+  UNEXPECTED_ERROR = "UNEXPECTED_ERROR",
 }
 
-export interface VirtualFetchError {
-  type: VirtualFetchErrorType
+export interface ImportError {
+  type: ImportErrorType
   entry: string
   detail?:
     | {
@@ -154,10 +189,15 @@ export interface VirtualFetchError {
   row?: string[]
 }
 
-export interface VirtualFetchResponse {
-  code: VirtualFetchResultCode
+export interface ImportedData {
+  positions?: Array<GlobalPosition>
+  transactions?: Transactions
+}
+
+export interface ImportResult {
+  code: ImportResultCode
   data?: any
-  errors?: VirtualFetchError[]
+  errors?: ImportError[]
 }
 
 export interface EntitiesResponse {
@@ -214,56 +254,53 @@ export enum FetchResultCode {
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",
 }
 
-export enum VirtualFetchResultCode {
+export enum ImportResultCode {
   // Success
   COMPLETED = "COMPLETED",
 
-  // Virtual fetch not enabled
+  // Failure
+  UNSUPPORTED_FILE_FORMAT = "UNSUPPORTED_FILE_FORMAT",
+  INVALID_TEMPLATE = "INVALID_TEMPLATE",
+
+  // Import not configured
   DISABLED = "DISABLED",
 }
 
 export interface Settings {
   general: {
     defaultCurrency: string
+    defaultCommodityWeightUnit: string
   }
-  export: {
-    sheets: {
-      globals: {
-        spreadsheetId: string
-        datetimeFormat: string
-        dateFormat: string
+  export?: {
+    sheets?: {
+      globals?: {
+        spreadsheetId?: string
+        datetimeFormat?: string
+        dateFormat?: string
       }
-      position: any[]
-      contributions: any[]
-      transactions: any[]
-      historic: any[]
+      position?: any[]
+      contributions?: any[]
+      transactions?: any[]
+      historic?: any[]
     }
   }
-  fetch: {
-    virtual: {
-      enabled: boolean
-      globals: {
-        spreadsheetId: string
-        datetimeFormat: string
-        dateFormat: string
+  importing?: {
+    sheets?: {
+      globals?: {
+        spreadsheetId?: string
+        datetimeFormat?: string
+        dateFormat?: string
       }
-      investments: any[]
-      transactions: any[]
+      position?: any[]
+      transactions?: any[]
     }
   }
-}
-
-export enum ExportTarget {
-  GOOGLE_SHEETS = "GOOGLE_SHEETS",
-}
-
-export interface ExportOptions {
-  exclude_non_real?: boolean
-}
-
-export interface ExportRequest {
-  target: ExportTarget
-  options: ExportOptions
+  assets: {
+    crypto: {
+      stablecoins: string[]
+      hideUnknownTokens: boolean
+    }
+  }
 }
 
 export enum PlatformType {
@@ -294,16 +331,74 @@ export interface AboutAppInfo {
   platform: PlatformInfo
 }
 
-export interface ExchangeRates {
-  [baseCurrency: string]: {
-    [targetCurrency: string]: number
-  }
+export type BackendLogLevel =
+  | "NONE"
+  | "DEBUG"
+  | "INFO"
+  | "WARNING"
+  | "ERROR"
+  | "CRITICAL"
+
+export interface BackendStartOptions {
+  dataDir?: string
+  port?: number
+  logLevel?: BackendLogLevel
+  logDir?: string
+  logFile?: string
+  logFileLevel?: BackendLogLevel
+  thirdPartyLogLevel?: BackendLogLevel
+}
+
+export interface BackendRuntimeArgs {
+  port: number
+  logLevel: BackendLogLevel
+  dataDir?: string
+  logDir?: string
+  logFileLevel?: BackendLogLevel
+  thirdPartyLogLevel?: BackendLogLevel
+}
+
+export interface BackendOptions extends BackendStartOptions {}
+
+export type BackendState =
+  | "stopped"
+  | "starting"
+  | "running"
+  | "stopping"
+  | "error"
+
+export interface BackendErrorInfo {
+  message: string
+  stack?: string | null
+  code?: string | number | null
+}
+
+export interface BackendStatus {
+  state: BackendState
+  pid: number | null
+  args: BackendRuntimeArgs | null
+  startedAt: number | null
+  exitedAt: number | null
+  error: BackendErrorInfo | null
+}
+
+export interface BackendActionResult {
+  success: boolean
+  status: BackendStatus
+  error?: BackendErrorInfo
+}
+
+export type ExchangeRates = Record<string, Record<string, number>>
+
+export interface FinanzeConfig {
+  backend?: BackendStartOptions
+  serverUrl?: string
 }
 
 export interface CreateCryptoWalletRequest {
   entityId: string
   name: string
-  address: string
+  addresses: string[]
 }
 
 export interface UpdateCryptoWalletConnectionRequest {
@@ -311,11 +406,20 @@ export interface UpdateCryptoWalletConnectionRequest {
   name: string
 }
 
+export interface CryptoWalletConnectionResult {
+  created?: Array<{
+    id: string
+    address: string
+    name?: string | null
+  }>
+  failed?: Record<string, string>
+}
+
 // Electron window interface
 declare global {
   interface Window {
     ipcAPI?: {
-      apiUrl: () => Promise<string>
+      apiUrl: () => Promise<{ url: string; custom: boolean }>
       platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
@@ -324,6 +428,16 @@ declare global {
         id: string,
         request?: any,
       ) => Promise<{ success: boolean }>
+      startBackend: (
+        options?: BackendStartOptions,
+      ) => Promise<BackendActionResult>
+      stopBackend: () => Promise<BackendActionResult>
+      restartBackend: () => Promise<BackendActionResult>
+      getBackendStatus: () => Promise<BackendStatus>
+      selectDirectory: (initialPath?: string) => Promise<string | null>
+      onBackendStatusChange: (
+        callback: (status: BackendStatus) => void,
+      ) => () => void
       onCompletedExternalLogin: (
         callback: (
           id: string,
@@ -333,6 +447,25 @@ declare global {
           },
         ) => void,
       ) => void
+      checkForUpdates: () => Promise<AutoUpdateCheckResult>
+      downloadUpdate: () => Promise<AutoUpdateActionResult>
+      quitAndInstall: () => Promise<AutoUpdateActionResult>
+      onCheckingForUpdate: (callback: () => void) => () => void
+      onUpdateAvailable: (
+        callback: (info: AutoUpdateInfo) => void,
+      ) => () => void
+      onUpdateNotAvailable: (
+        callback: (info: AutoUpdateInfo) => void,
+      ) => () => void
+      onUpdateDownloaded: (
+        callback: (info: AutoUpdateInfo) => void,
+      ) => () => void
+      onDownloadProgress: (
+        callback: (progress: AutoUpdateProgressInfo) => void,
+      ) => () => void
+      onUpdateError: (
+        callback: (error: AutoUpdateErrorInfo) => void,
+      ) => () => void
     }
   }
 }
@@ -355,6 +488,7 @@ export enum ExternalIntegrationType {
   CRYPTO_PROVIDER = "CRYPTO_PROVIDER",
   DATA_SOURCE = "DATA_SOURCE",
   ENTITY_PROVIDER = "ENTITY_PROVIDER",
+  CRYPTO_MARKET_PROVIDER = "CRYPTO_MARKET_PROVIDER",
 }
 
 export enum ExternalIntegrationStatus {
@@ -367,28 +501,24 @@ export interface ExternalIntegration {
   name: string
   status: ExternalIntegrationStatus
   type: ExternalIntegrationType
+  payload_schema?: Record<string, string> | null
 }
 
 export interface ExternalIntegrations {
   integrations: ExternalIntegration[]
 }
 
-export enum ExternalIntegrationId {
-  GOOGLE_SHEETS = "GOOGLE_SHEETS",
-  ETHERSCAN = "ETHERSCAN",
-  GOCARDLESS = "GOCARDLESS",
-}
-
 export enum ExternalEntityStatus {
   UNLINKED = "UNLINKED",
   LINKED = "LINKED",
+  ORPHAN = "ORPHAN",
 }
 
 export interface ExternalEntity {
   id: string
   entity_id: string
   status: ExternalEntityStatus
-  provider: ExternalIntegrationId
+  provider: string
   date: string
   provider_instance_id: string
   payload?: Record<string, any> | null
@@ -422,7 +552,7 @@ export interface ExternalEntityConnectionResult {
 export interface ConnectExternalEntityRequest {
   institution_id?: string | null
   external_entity_id?: string | null
-  provider?: ExternalIntegrationId | null
+  provider?: string | null
   relink?: boolean
 }
 
@@ -676,7 +806,6 @@ export interface LoanCalculationResult {
 export interface ForecastRequest {
   target_date: string
   entities?: string[]
-  excluded_entities?: string[]
   avg_annual_market_increase?: number | null
   avg_annual_crypto_increase?: number | null
   avg_annual_commodity_increase?: number | null
@@ -748,4 +877,260 @@ export interface InstrumentInfo {
 
 export interface InstrumentsResponse {
   entries: InstrumentInfo[]
+}
+
+// Template system
+export enum TemplateType {
+  EXPORT = "EXPORT",
+  IMPORT = "IMPORT",
+}
+
+export enum TemplateFieldType {
+  TEXT = "TEXT",
+  CURRENCY = "CURRENCY",
+  INTEGER = "INTEGER",
+  DECIMAL = "DECIMAL",
+  DATE = "DATE",
+  DATETIME = "DATETIME",
+  BOOLEAN = "BOOLEAN",
+  ENUM = "ENUM",
+}
+
+export interface TemplateField {
+  field: string
+  type: TemplateFieldType
+  name?: string | null
+  enum_values?: string[]
+  default?: any
+}
+
+export interface Template {
+  id?: string | null
+  name: string
+  feature: Feature
+  type: TemplateType
+  fields: TemplateField[]
+  products?: ProductType[] | null
+}
+
+export interface TemplateCreateField {
+  field: string
+  custom_name?: string
+  default?: any
+}
+
+export interface TemplateUpdateField extends TemplateCreateField {}
+
+export interface TemplateCreatePayload {
+  name: string
+  feature: Feature
+  type: TemplateType
+  fields: TemplateCreateField[]
+  products?: ProductType[]
+}
+
+export interface TemplateUpdatePayload extends TemplateCreatePayload {
+  id: string
+}
+
+export interface TemplateFeatureField {
+  field: string
+  key: string
+  required: boolean
+  type: TemplateFieldType
+  enum_values?: string[]
+  or_requires?: string[]
+  template_type?: TemplateType
+  default?: any
+  disabled_default: boolean
+}
+
+export interface TemplateFeatureDefinition {
+  feature: Feature
+  fields: TemplateFeatureField[]
+  product: ProductType | null
+  template_type: TemplateType | null
+}
+
+export enum NumberFormat {
+  EUROPEAN = "EUROPEAN",
+  ENGLISH = "ENGLISH",
+}
+
+export enum FileFormat {
+  CSV = "CSV",
+  TSV = "TSV",
+  XLSX = "XLSX",
+}
+
+export interface TemplateConfigPayload {
+  id: string
+  params?: Record<string, string> | null
+}
+
+export interface FileExportRequest {
+  format: FileFormat
+  number_format: NumberFormat
+  feature: Feature
+  data?: ProductType[] | null
+  datetime_format?: string | null
+  date_format?: string | null
+  template?: TemplateConfigPayload | null
+}
+
+export interface FileImportRequest {
+  feature: Feature
+  number_format: NumberFormat
+  product: ProductType
+  datetime_format?: string | null
+  date_format?: string | null
+  templateId: string
+  templateParams?: Record<string, string> | null
+  preview?: boolean
+}
+
+// Money Events
+export enum MoneyEventType {
+  CONTRIBUTION = "CONTRIBUTION",
+  PERIODIC_FLOW = "PERIODIC_FLOW",
+  PENDING_FLOW = "PENDING_FLOW",
+  MATURITY = "MATURITY",
+}
+
+export enum MoneyEventFrequency {
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  MONTHLY = "MONTHLY",
+  EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
+  EVERY_FOUR_MONTHS = "EVERY_FOUR_MONTHS",
+  QUARTERLY = "QUARTERLY",
+  SEMIANNUAL = "SEMIANNUAL",
+  YEARLY = "YEARLY",
+}
+
+export interface PeriodicContributionDetails {
+  target_type: ContributionTargetType
+  target_subtype?: ContributionTargetSubtype | null
+  target: string
+  target_name?: string | null
+}
+
+export interface MoneyEvent {
+  id?: string | null
+  name: string
+  amount: number
+  currency: string
+  date: string
+  type: MoneyEventType
+  frequency?: MoneyEventFrequency | null
+  icon?: string | null
+  details?: PeriodicContributionDetails | null
+  product_type?: ProductType | null
+}
+
+export interface MoneyEventQuery {
+  from_date: string
+  to_date: string
+}
+
+export interface MoneyEvents {
+  events: MoneyEvent[]
+}
+
+// Auto-refresh configuration
+export enum AutoRefreshMode {
+  OFF = "OFF",
+  NO_2FA = "NO_2FA",
+}
+
+export enum AutoRefreshMaxOutdatedTime {
+  THREE_HOURS = "THREE_HOURS",
+  SIX_HOURS = "SIX_HOURS",
+  TWELVE_HOURS = "TWELVE_HOURS",
+  DAY = "DAY",
+  TWO_DAYS = "TWO_DAYS",
+  WEEK = "WEEK",
+}
+
+export interface AutoRefreshEntityEntry {
+  id: string
+}
+
+export interface AutoRefresh {
+  mode: AutoRefreshMode
+  max_outdated: AutoRefreshMaxOutdatedTime
+  entities: AutoRefreshEntityEntry[]
+}
+
+export interface DataConfig {
+  autoRefresh: AutoRefresh
+}
+
+// Savings Calculations
+export enum SavingsPeriodicity {
+  MONTHLY = "MONTHLY",
+  QUARTERLY = "QUARTERLY",
+  YEARLY = "YEARLY",
+}
+
+export interface SavingsScenarioRequest {
+  id: string
+  annual_market_performance: number
+  periodic_contribution?: number | null
+  target_amount?: number | null
+}
+
+export interface SavingsRetirementRequest {
+  withdrawal_amount?: number | null
+  withdrawal_years?: number | null
+}
+
+export interface SavingsCalculationRequest {
+  base_amount?: number | null
+  years?: number | null
+  periodicity: SavingsPeriodicity
+  scenarios: SavingsScenarioRequest[]
+  retirement?: SavingsRetirementRequest | null
+}
+
+export interface SavingsPeriodEntry {
+  period_index: number
+  contributed: number
+  total_contributed: number
+  total_invested: number
+  revaluation: number
+  total_revaluation: number
+  balance: number
+}
+
+export interface SavingsRetirementPeriodEntry {
+  period_index: number
+  withdrawal: number
+  total_withdrawn: number
+  revaluation: number
+  balance: number
+}
+
+export interface SavingsRetirementResult {
+  withdrawal_amount: number
+  duration_periods: number
+  duration_years: number
+  total_withdrawn: number
+  periods: SavingsRetirementPeriodEntry[]
+}
+
+export interface SavingsScenarioResult {
+  scenario_id: string
+  annual_market_performance: number
+  periodic_contribution: number
+  accumulation_periods: SavingsPeriodEntry[]
+  total_contributions: number
+  total_revaluation: number
+  final_balance: number
+  retirement?: SavingsRetirementResult | null
+}
+
+export interface SavingsCalculationResult {
+  scenarios: SavingsScenarioResult[]
 }

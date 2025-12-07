@@ -31,9 +31,9 @@ def _parse_expiration_datetime(expiration: str) -> Optional[datetime]:
 
 
 class SegoAPIClient:
-    BASE_URL = "https://apim-sego-core-prod.azure-api.net"
+    BASE_URL = "https://api.segofinance.com"
 
-    API_KEY = "2r73914170s440ooo8r60qrq6s77n41n"
+    API_KEY = "3215739s71p549r6no77368ps1o40rp8"
 
     def __init__(self):
         self._headers = {}
@@ -94,7 +94,7 @@ class SegoAPIClient:
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
         request = {
-            "codigoPlataforma": "web-sego",
+            "plataforma": "web-sego",
             "email": username,
             "password": password,
             "tipoTfaCodigo": "login",

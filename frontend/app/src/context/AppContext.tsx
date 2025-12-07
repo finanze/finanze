@@ -10,10 +10,14 @@ import {
 import {
   EntityStatus,
   PlatformType,
+  AutoRefreshMode,
+  AutoRefreshMaxOutdatedTime,
   type Entity,
   type PlatformInfo,
   type ExchangeRates,
   type ExternalIntegration,
+  type DataConfig,
+  type AutoRefresh,
 } from "@/types"
 import {
   getEntities,
@@ -28,30 +32,13 @@ import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
 
 export interface AppSettings {
-  integrations?: {
-    sheets?: {
-      credentials?: {
-        client_id?: string
-        client_secret?: string
-      }
-    }
-    etherscan?: {
-      api_key?: string
-    }
-    gocardless?: {
-      secret_id: string
-      secret_key: string
-    }
-  }
   export?: {
     sheets?: {
-      enabled?: boolean
       [key: string]: any
     }
   }
-  fetch: {
-    virtual: {
-      enabled: boolean
+  importing?: {
+    sheets?: {
       [key: string]: any
     }
   }
@@ -59,6 +46,13 @@ export interface AppSettings {
     defaultCurrency: string
     defaultCommodityWeightUnit: string
   }
+  assets: {
+    crypto: {
+      stablecoins: string[]
+      hideUnknownTokens: boolean
+    }
+  }
+  data?: DataConfig
 }
 
 export interface ExportState {
@@ -69,7 +63,6 @@ export interface ExportState {
 interface AppContextType {
   entities: Entity[]
   entitiesLoaded: boolean
-  inactiveEntities: Entity[]
   isLoadingEntities: boolean
   toast: {
     message: string
@@ -89,10 +82,11 @@ interface AppContextType {
   ) => void
   fetchEntities: () => Promise<void>
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
+  updateEntityLastFetch: (entityId: string, features: string[]) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
-  saveSettings: (settings: AppSettings) => Promise<void>
+  saveSettings: (settings: AppSettings) => Promise<boolean>
   refreshExchangeRates: () => Promise<void>
   fetchExternalIntegrations: () => Promise<void>
 }
@@ -101,25 +95,107 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 
 const defaultSettings: AppSettings = {
   export: {
-    sheets: {
-      enabled: false,
-    },
+    sheets: {},
   },
-  fetch: {
-    virtual: {
-      enabled: false,
-    },
+  importing: {
+    sheets: {},
   },
   general: {
     defaultCurrency: "EUR",
     defaultCommodityWeightUnit: WeightUnit.GRAM,
   },
+  assets: {
+    crypto: {
+      stablecoins: [],
+      hideUnknownTokens: false,
+    },
+  },
+  data: {
+    autoRefresh: {
+      mode: AutoRefreshMode.OFF,
+      max_outdated: AutoRefreshMaxOutdatedTime.TWELVE_HOURS,
+      entities: [],
+    },
+  },
+}
+
+const defaultAutoRefresh: AutoRefresh = {
+  mode: AutoRefreshMode.OFF,
+  max_outdated: AutoRefreshMaxOutdatedTime.TWELVE_HOURS,
+  entities: [],
+}
+
+const mergeSettingsWithDefaults = (
+  incoming?: Partial<AppSettings>,
+): AppSettings => {
+  const mergedExportSheets = {
+    ...(defaultSettings.export?.sheets ?? {}),
+    ...(incoming?.export?.sheets ?? {}),
+    globals: {
+      ...(defaultSettings.export?.sheets?.globals ?? {}),
+      ...(incoming?.export?.sheets?.globals ?? {}),
+    },
+  }
+
+  const mergedImportingSheets = {
+    ...(defaultSettings.importing?.sheets ?? {}),
+    ...(incoming?.importing?.sheets ?? {}),
+    globals: {
+      ...(defaultSettings.importing?.sheets?.globals ?? {}),
+      ...(incoming?.importing?.sheets?.globals ?? {}),
+    },
+  }
+
+  const mergedAssets = {
+    ...defaultSettings.assets,
+    ...incoming?.assets,
+    crypto: {
+      ...defaultSettings.assets.crypto,
+      ...incoming?.assets?.crypto,
+      stablecoins:
+        incoming?.assets?.crypto?.stablecoins ??
+        defaultSettings.assets.crypto.stablecoins,
+      hideUnknownTokens:
+        incoming?.assets?.crypto?.hideUnknownTokens ??
+        defaultSettings.assets.crypto.hideUnknownTokens,
+    },
+  }
+
+  return {
+    ...defaultSettings,
+    ...incoming,
+    general: {
+      ...defaultSettings.general,
+      ...(incoming?.general ?? {}),
+    },
+    export: defaultSettings.export
+      ? {
+          ...defaultSettings.export,
+          ...(incoming?.export ?? {}),
+          sheets: mergedExportSheets,
+        }
+      : incoming?.export,
+    importing: defaultSettings.importing
+      ? {
+          ...defaultSettings.importing,
+          ...(incoming?.importing ?? {}),
+          sheets: mergedImportingSheets,
+        }
+      : incoming?.importing,
+    assets: mergedAssets,
+    data: {
+      autoRefresh: {
+        ...defaultAutoRefresh,
+        ...incoming?.data?.autoRefresh,
+        entities: incoming?.data?.autoRefresh?.entities ?? [],
+      },
+    },
+  }
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
   const [entitiesLoaded, setEntitiesLoaded] = useState(false)
-  const [inactiveEntities, setInactiveEntities] = useState<Entity[]>([])
   const [isLoadingEntities, setIsLoadingEntities] = useState(false)
   const [toast, setToast] = useState<{
     message: string
@@ -150,7 +226,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
-  const SIX_HOURS_MS = 6 * 60 * 60 * 1000
+  const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
+  const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
   useEffect(() => {
     const getPlatformInfo = async () => {
@@ -204,14 +281,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearInterval(exchangeRatesTimerRef.current)
     }
 
-    exchangeRatesTimerRef.current = setInterval(
-      () => {
-        if (isAuthenticated) {
-          fetchExchangeRatesSilently()
-        }
-      },
-      5 * 60 * 1000,
-    )
+    exchangeRatesTimerRef.current = setInterval(() => {
+      if (isAuthenticated) {
+        fetchExchangeRatesSilently()
+      }
+    }, EXCHANGE_RATES_REFRESH_INTERVAL_MS)
   }, [fetchExchangeRatesSilently, isAuthenticated])
 
   const stopExchangeRatesTimer = useCallback(() => {
@@ -267,7 +341,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoadingSettings(true)
       const data = await getSettings()
-      setSettings(data)
+      setSettings(mergeSettingsWithDefaults(data))
     } catch (error) {
       console.error("Error fetching settings:", error)
       showToast(t.settings.fetchError, "error")
@@ -280,11 +354,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (settingsData: AppSettings) => {
       try {
         await saveSettings(settingsData)
-        setSettings(settingsData)
+        setSettings(mergeSettingsWithDefaults(settingsData))
         showToast(t.settings.saveSuccess, "success")
+        return true
       } catch (error) {
         console.error("Error saving settings:", error)
         showToast(t.settings.saveError, "error")
+        return false
       }
     },
     [showToast, t],
@@ -298,6 +374,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ? {
                 ...entity,
                 status,
+              }
+            : entity,
+        ),
+      )
+    },
+    [],
+  )
+
+  const updateEntityLastFetch = useCallback(
+    (entityId: string, features: string[]) => {
+      const now = new Date().toISOString()
+      setEntities(prevEntities =>
+        prevEntities.map(entity =>
+          entity.id === entityId
+            ? {
+                ...entity,
+                last_fetch: {
+                  ...entity.last_fetch,
+                  ...Object.fromEntries(features.map(f => [f, now])),
+                },
               }
             : entity,
         ),
@@ -324,7 +420,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const lastCallTimeStr = localStorage.getItem(LAST_UPDATE_QUOTES_KEY)
     const lastCallTime = lastCallTimeStr ? parseInt(lastCallTimeStr, 10) : null
 
-    if (lastCallTime === null || now - lastCallTime >= SIX_HOURS_MS) {
+    if (
+      lastCallTime === null ||
+      now - lastCallTime >= QUOTES_UPDATE_INTERVAL_MS
+    ) {
       try {
         await updateQuotesManualPositions()
         localStorage.setItem(LAST_UPDATE_QUOTES_KEY, now.toString())
@@ -332,7 +431,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error("Error updating manual positions quotes:", error)
       }
     }
-  }, [LAST_UPDATE_QUOTES_KEY, SIX_HOURS_MS])
+  }, [LAST_UPDATE_QUOTES_KEY, QUOTES_UPDATE_INTERVAL_MS])
 
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
@@ -361,18 +460,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [stopExchangeRatesTimer])
 
-  useEffect(() => {
-    setInactiveEntities(
-      entities.filter(entity => entity.status === EntityStatus.DISCONNECTED),
-    )
-  }, [entities])
-
   return (
     <AppContext.Provider
       value={{
         entities,
         entitiesLoaded,
-        inactiveEntities,
         isLoadingEntities,
         toast,
         settings,
@@ -387,6 +479,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setExportState,
         fetchEntities,
         updateEntityStatus,
+        updateEntityLastFetch,
         showToast,
         hideToast,
         fetchSettings,

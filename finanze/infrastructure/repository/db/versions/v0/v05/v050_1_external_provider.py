@@ -1,3 +1,4 @@
+from domain.data_init import DatasourceInitContext
 from infrastructure.repository.db.client import DBCursor
 from infrastructure.repository.db.query_mixin import QueryMixin
 from infrastructure.repository.db.upgrader import DBVersionMigration
@@ -77,7 +78,7 @@ class V0501ExternalEntityProvider(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.5.0:1_external_entity_provider"
 
-    def upgrade(self, cursor: DBCursor):
+    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(DDL)
         for statement in statements:
             cursor.execute(statement)

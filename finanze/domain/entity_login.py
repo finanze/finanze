@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic.dataclasses import dataclass
 
-from domain.entity import EntityCredentials
+from domain.native_entity import EntityCredentials
 
 
 class LoginResultCode(str, Enum):

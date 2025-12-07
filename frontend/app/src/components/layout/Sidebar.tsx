@@ -7,14 +7,12 @@ import { useFinancialData } from "@/context/FinancialDataContext"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  Settings,
   LogOut,
   KeyRound,
   Sun,
   Moon,
   ChevronRight,
   ChevronLeft,
-  Globe,
   FileUp,
   SunMoon,
   TrendingUp,
@@ -27,6 +25,9 @@ import {
   CalendarSync,
   HandCoins,
   PiggyBank,
+  Settings,
+  LucideIcon,
+  Calculator,
 } from "lucide-react"
 import { useState, useEffect, useMemo, useRef } from "react"
 import { Button } from "@/components/ui/Button"
@@ -35,20 +36,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import type { Locale } from "@/i18n"
 import { PlatformType } from "@/types"
 import { ProductType } from "@/types/position"
-// Removed dynamic filtering for assets; all asset subsections always visible
 import { getIconForProductType } from "@/utils/dashboardUtils"
-import { usePinnedAssets } from "@/context/PinnedAssetsContext"
+import {
+  usePinnedShortcuts,
+  type PinnedShortcutId,
+} from "@/context/PinnedShortcutsContext"
 
 export function Sidebar() {
-  const { t, locale, changeLocale } = useI18n()
+  const { t } = useI18n()
   const { theme, setThemeMode } = useTheme()
   const { logout, startPasswordChange } = useAuth()
   const { platform } = useAppContext()
   const { positionsData, realEstateList } = useFinancialData()
-  const { pinnedAssets } = usePinnedAssets()
+  const { pinnedShortcuts } = usePinnedShortcuts()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -81,7 +83,6 @@ export function Sidebar() {
         const product = entity.products[pt]
         if (!product) return false
         if (product.entries && product.entries.length > 0) return true
-        // some product structures might store positions differently; fallback checks
         return Array.isArray(product) && product.length > 0
       })
     }
@@ -156,23 +157,46 @@ export function Sidebar() {
     return routes
   }, [t, positionsData, realEstateList])
 
-  const managementRoutes = [
-    {
-      path: "/management/recurring",
-      label: t.management.recurringMoney,
-      icon: <CalendarSync className="h-4 w-4" />,
-    },
-    {
-      path: "/management/pending",
-      label: t.management.pendingMoney,
-      icon: <HandCoins className="h-4 w-4" />,
-    },
-    {
-      path: "/management/auto-contributions",
-      label: t.management.autoContributions,
-      icon: <PiggyBank className="h-4 w-4" />,
-    },
-  ]
+  type ManagementRoute = {
+    path: string
+    label: string
+    Icon: LucideIcon
+    key: PinnedShortcutId
+  }
+
+  const managementRoutes = useMemo<ManagementRoute[]>(
+    () => [
+      {
+        path: "/management/recurring",
+        label: t.management.recurringMoney,
+        Icon: CalendarSync,
+        key: "management-recurring",
+      },
+      {
+        path: "/management/pending",
+        label: t.management.pendingMoney,
+        Icon: HandCoins,
+        key: "management-pending",
+      },
+      {
+        path: "/management/auto-contributions",
+        label: t.management.autoContributions,
+        Icon: PiggyBank,
+        key: "management-auto-contributions",
+      },
+    ],
+    [
+      t.management.recurringMoney,
+      t.management.pendingMoney,
+      t.management.autoContributions,
+    ],
+  )
+
+  const unpinnedManagementRoutes = useMemo(
+    () =>
+      managementRoutes.filter(route => !pinnedShortcuts.includes(route.key)),
+    [managementRoutes, pinnedShortcuts],
+  )
 
   const wasNarrowRef = useRef(isNarrowView)
 
@@ -192,15 +216,23 @@ export function Sidebar() {
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
-  // Update investments expanded state when navigating
   useEffect(() => {
+    const isPinnedRoute = pinnedShortcuts.some(pinnedKey => {
+      const investmentRoute = investmentRoutes.find(r => r.key === pinnedKey)
+      const managementRoute = managementRoutes.find(r => r.key === pinnedKey)
+      const route = investmentRoute ?? managementRoute
+      return route?.path === location.pathname
+    })
+
+    if (isPinnedRoute) return
+
     if (location.pathname.startsWith("/investments")) {
       setInvestmentsExpanded(true)
     }
     if (location.pathname.startsWith("/management")) {
       setManagementExpanded(true)
     }
-  }, [location.pathname])
+  }, [location.pathname, pinnedShortcuts, investmentRoutes, managementRoutes])
 
   const navItems = [
     {
@@ -208,11 +240,15 @@ export function Sidebar() {
       label: t.common.dashboard,
       icon: <LayoutDashboard size={20} />,
     },
-    // Banking & Real Estate now inside assets section (and can be pinned)
     {
       path: "/transactions",
       label: t.common.transactions,
       icon: <ArrowLeftRight size={20} />,
+    },
+    {
+      path: "/calculations",
+      label: t.calculations.title,
+      icon: <Calculator size={20} />,
     },
     {
       path: "/entities",
@@ -220,16 +256,6 @@ export function Sidebar() {
       icon: <Blocks size={20} />,
     },
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
-    {
-      path: "/settings",
-      label: t.common.settings,
-      icon: <Settings size={20} />,
-    },
-  ]
-
-  const languages: { code: Locale; label: string }[] = [
-    { code: "en-US", label: "EN" },
-    { code: "es-ES", label: "ES" },
   ]
 
   const toggleSidebar = () => {
@@ -269,7 +295,7 @@ export function Sidebar() {
       ? "w-16"
       : "w-64"
   const containerClass = cn(
-    "relative h-screen flex-shrink-0",
+    "relative h-screen flex-shrink-0 overflow-x-hidden",
     overlayVisible ? "" : "transition-all duration-300",
     containerWidthClass,
   )
@@ -332,9 +358,17 @@ export function Sidebar() {
               </li>
 
               {/* Pinned assets */}
-              {pinnedAssets.map(p => {
-                const item = investmentRoutes.find(r => r.key === p)
+              {pinnedShortcuts.map(p => {
+                const investmentItem = investmentRoutes.find(r => r.key === p)
+                const managementItem = managementRoutes.find(r => r.key === p)
+                const item = investmentItem ?? managementItem
                 if (!item) return null
+                const icon = investmentItem
+                  ? getIconForProductType(investmentItem.productType, "h-5 w-5")
+                  : (() => {
+                      const Icon = managementItem!.Icon
+                      return <Icon className="h-5 w-5" />
+                    })()
                 return (
                   <li key={`pinned-${p}`}>
                     <Button
@@ -349,7 +383,7 @@ export function Sidebar() {
                       onClick={() => navigate(item.path)}
                     >
                       <span className="flex items-center">
-                        {getIconForProductType(item.productType, "h-5 w-5")}
+                        {icon}
                         {!collapsed && (
                           <span className="ml-3">{item.label}</span>
                         )}
@@ -377,8 +411,9 @@ export function Sidebar() {
                         // If current route is a pinned asset root path, don't highlight section
                         const pinnedRouteMatch = investmentRoutes.find(
                           r =>
-                            pinnedAssets.includes(r.key as any) &&
-                            location.pathname === r.path,
+                            pinnedShortcuts.includes(
+                              r.key as PinnedShortcutId,
+                            ) && location.pathname === r.path,
                         )
                         if (pinnedRouteMatch) {
                           return "hover:bg-gray-200 dark:hover:bg-gray-900"
@@ -424,7 +459,12 @@ export function Sidebar() {
                   {!collapsed && investmentsExpanded && (
                     <ul className="mt-1 space-y-1">
                       {investmentRoutes
-                        .filter(r => !pinnedAssets.includes(r.key as any))
+                        .filter(
+                          r =>
+                            !pinnedShortcuts.includes(
+                              r.key as PinnedShortcutId,
+                            ),
+                        )
                         .map(route => (
                           <li key={route.path}>
                             <Button
@@ -454,72 +494,74 @@ export function Sidebar() {
               )}
 
               {/* Management Section */}
-              <li>
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "w-full rounded-none h-12",
-                    collapsed ? "justify-center" : "justify-between",
-                    location.pathname.startsWith("/management")
-                      ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                      : "hover:bg-gray-200 dark:hover:bg-gray-900",
-                  )}
-                  onClick={() => {
-                    const isOnManagementSubpage =
-                      location.pathname.startsWith("/management/")
-                    const isOnManagementPage =
-                      location.pathname.endsWith("/management")
-                    if (
-                      !collapsed &&
-                      !isOnManagementSubpage &&
-                      isOnManagementPage
-                    ) {
-                      toggleManagement()
-                    }
-                    navigate("/management")
-                  }}
-                >
-                  <span className="flex items-center">
-                    <CalendarCog size={20} />
-                    {!collapsed && (
-                      <span className="ml-3">{t.management.title}</span>
+              {unpinnedManagementRoutes.length > 0 && (
+                <li>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "w-full rounded-none h-12",
+                      collapsed ? "justify-center" : "justify-between",
+                      location.pathname.startsWith("/management")
+                        ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                        : "hover:bg-gray-200 dark:hover:bg-gray-900",
                     )}
-                  </span>
-                  {!collapsed && managementRoutes.length > 0 && (
-                    <span className="ml-auto">
-                      {managementExpanded ? (
-                        <ChevronUp size={16} />
-                      ) : (
-                        <ChevronDown size={16} />
+                    onClick={() => {
+                      const isOnManagementSubpage =
+                        location.pathname.startsWith("/management/")
+                      const isOnManagementPage =
+                        location.pathname.endsWith("/management")
+                      if (
+                        !collapsed &&
+                        !isOnManagementSubpage &&
+                        isOnManagementPage
+                      ) {
+                        toggleManagement()
+                      }
+                      navigate("/management")
+                    }}
+                  >
+                    <span className="flex items-center">
+                      <CalendarCog size={20} />
+                      {!collapsed && (
+                        <span className="ml-3">{t.management.title}</span>
                       )}
                     </span>
-                  )}
-                </Button>
+                    {!collapsed && (
+                      <span className="ml-auto">
+                        {managementExpanded ? (
+                          <ChevronUp size={16} />
+                        ) : (
+                          <ChevronDown size={16} />
+                        )}
+                      </span>
+                    )}
+                  </Button>
 
-                {/* Management Subsections */}
-                {!collapsed && managementExpanded && (
-                  <ul className="mt-1 space-y-1">
-                    {managementRoutes.map(route => (
-                      <li key={route.path}>
-                        <Button
-                          variant="ghost"
-                          className={cn(
-                            "w-full rounded-none h-10 pl-6",
-                            "text-sm justify-start",
-                            location.pathname === route.path
-                              ? "bg-gray-200 dark:bg-gray-900 text-primary"
-                              : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
-                          )}
-                          onClick={() => navigate(route.path)}
-                        >
-                          {route.icon}
-                          <span className="ml-2">{route.label}</span>
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
+                  {/* Management Subsections */}
+                  {!collapsed && managementExpanded && (
+                    <ul className="mt-1 space-y-1">
+                      {unpinnedManagementRoutes.map(route => (
+                        <li key={route.path}>
+                          <Button
+                            variant="ghost"
+                            className={cn(
+                              "w-full rounded-none h-10 pl-6",
+                              "text-sm justify-start",
+                              location.pathname === route.path
+                                ? "bg-gray-200 dark:bg-gray-900 text-primary"
+                                : "hover:bg-gray-200 dark:hover:bg-gray-900 text-gray-600 dark:text-gray-400",
+                            )}
+                            onClick={() => navigate(route.path)}
+                          >
+                            <route.Icon className="h-4 w-4" />
+                            <span className="ml-2">{route.label}</span>
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              )}
 
               {/* Other navigation items */}
               {navItems.slice(1).map(item => (
@@ -550,34 +592,32 @@ export function Sidebar() {
           {!collapsed ? (
             <div className="space-y-2">
               <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  className="flex-1"
+                  size="sm"
+                  onClick={() => navigate("/settings")}
+                  aria-label={t.common.settings}
+                >
+                  <Settings size={18} strokeWidth={2.5} />
+                </Button>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" className="flex-1" size="sm">
-                      <Globe size={16} className="mr-2" />
-                      {languages.find(lang => lang.code === locale)?.label}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" className="p-1 w-auto">
-                    <div className="flex flex-col gap-1">
-                      {languages.map(lang => (
-                        <Button
-                          key={lang.code}
-                          variant={locale === lang.code ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => changeLocale(lang.code)}
-                        >
-                          {lang.label}
-                        </Button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="ghost" className="flex-1" size="sm">
-                      {theme === "light" && <Sun size={16} />}
-                      {theme === "dark" && <Moon size={16} />}
-                      {theme === "system" && <SunMoon size={16} />}
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      size="sm"
+                      aria-label={t.common.darkMode}
+                    >
+                      {theme === "light" && (
+                        <Sun size={18} fill="currentColor" />
+                      )}
+                      {theme === "dark" && (
+                        <Moon size={18} fill="currentColor" />
+                      )}
+                      {theme === "system" && (
+                        <SunMoon size={18} fill="currentColor" />
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent side="top" className="p-1 w-auto">
@@ -611,8 +651,13 @@ export function Sidebar() {
                 </Popover>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="ghost" className="flex-1" size="sm">
-                      <User size={16} />
+                    <Button
+                      variant="ghost"
+                      className="flex-1"
+                      size="sm"
+                      aria-label={t.common.logout}
+                    >
+                      <User size={18} fill="currentColor" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent side="top" className="p-1 w-auto">
@@ -642,33 +687,28 @@ export function Sidebar() {
             </div>
           ) : (
             <div className="space-y-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-full"
+                onClick={() => navigate("/settings")}
+                aria-label={t.common.settings}
+              >
+                <Settings size={18} strokeWidth={2.5} />
+              </Button>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-full">
-                    <Globe size={20} />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent side="right" className="p-1 w-auto">
-                  <div className="flex flex-col gap-1">
-                    {languages.map(lang => (
-                      <Button
-                        key={lang.code}
-                        variant={locale === lang.code ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => changeLocale(lang.code)}
-                      >
-                        {lang.label}
-                      </Button>
-                    ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-full">
-                    {theme === "light" && <Sun size={20} />}
-                    {theme === "dark" && <Moon size={20} />}
-                    {theme === "system" && <SunMoon size={20} />}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-full"
+                    aria-label={t.common.darkMode}
+                  >
+                    {theme === "light" && <Sun size={18} fill="currentColor" />}
+                    {theme === "dark" && <Moon size={18} fill="currentColor" />}
+                    {theme === "system" && (
+                      <SunMoon size={18} fill="currentColor" />
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent side="right" className="p-1 w-auto">
@@ -702,8 +742,13 @@ export function Sidebar() {
               </Popover>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="w-full">
-                    <User size={20} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="w-full"
+                    aria-label={t.common.logout}
+                  >
+                    <User size={18} fill="currentColor" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent side="right" className="p-1 w-auto">

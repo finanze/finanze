@@ -2,28 +2,22 @@ import logging
 from copy import deepcopy
 
 from infrastructure.config.base_config import CURRENT_VERSION
-
-
-def _migrate_v1_to_v2(data: dict) -> dict:
-    if "scrape" in data:
-        data["fetch"] = data.pop("scrape")
-
-    if isinstance(export := data.get("export"), dict) and isinstance(
-        sheets := export.get("sheets"), dict
-    ):
-        sheets.pop("summary", None)
-        if "investments" in sheets:
-            sheets["position"] = sheets.pop("investments")
-
-    data["version"] = 2
-    return data
+from infrastructure.config.versions import (
+    migrate_v1_to_v2,
+    migrate_v2_to_v3,
+    migrate_v3_to_v4,
+    migrate_v4_to_v5,
+)
 
 
 class ConfigMigrator:
     def __init__(self):
         self._log = logging.getLogger(__name__)
         self.migrations = {
-            1: _migrate_v1_to_v2,
+            1: migrate_v1_to_v2,
+            2: migrate_v2_to_v3,
+            3: migrate_v3_to_v4,
+            4: migrate_v4_to_v5,
         }
 
     def migrate(self, data: dict) -> tuple[dict, bool]:
@@ -35,13 +29,13 @@ class ConfigMigrator:
             self._log.info("No config version found, assuming version 1.")
             version = 1
         else:
-            version = migrated_data["version"]
+            version = int(migrated_data["version"])
 
         was_migrated = False
         while version in self.migrations:
             self._log.info(f"Migrating config from version {version} to {version + 1}.")
             migrated_data = self.migrations[version](migrated_data)
-            version = migrated_data["version"]
+            version = int(migrated_data["version"])
             was_migrated = True
 
         if was_migrated:

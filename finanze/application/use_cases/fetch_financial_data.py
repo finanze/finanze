@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.credentials_port import CredentialsPort
+from application.ports.crypto_asset_port import CryptoAssetRegistryPort
+from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
@@ -20,7 +22,8 @@ from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.dezimal import Dezimal
-from domain.entity import CredentialType, Entity, EntityType, Feature
+from domain.entity import Entity, EntityType, Feature
+from domain.native_entity import CredentialType
 from domain.entity_login import EntityLoginParams, LoginResultCode
 from domain.exception.exceptions import EntityNotFound, ExecutionConflict
 from domain.fetch_record import DataSource, FetchRecord
@@ -34,6 +37,7 @@ from domain.fetch_result import (
 )
 from domain.global_position import (
     FactoringDetail,
+    GlobalPosition,
     HistoricalPosition,
     ProductType,
     RealEstateCFDetail,
@@ -163,6 +167,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
         credentials_port: CredentialsPort,
         sessions_port: SessionsPort,
         last_fetches_port: LastFetchesPort,
+        crypto_asset_registry_port: CryptoAssetRegistryPort,
+        crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
     ):
         self._position_port = position_port
@@ -174,6 +180,8 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
         self._last_fetches_port = last_fetches_port
+        self._crypto_asset_info_provider = crypto_asset_info_provider
+        self._crypto_asset_registry_port = crypto_asset_registry_port
         self._transaction_handler_port = transaction_handler_port
 
         self._locks: dict[UUID, Lock] = {}
@@ -189,7 +197,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         entity_id = fetch_request.entity_id
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION
+            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
         )
         if not entity:
             raise EntityNotFound(entity_id)
@@ -294,6 +302,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         position = None
         if Feature.POSITION in features:
             position = await specific_fetcher.global_position()
+            self._enrich_crypto_assets(position)
 
         auto_contributions = None
         if Feature.AUTO_CONTRIBUTIONS in features:
@@ -458,3 +467,24 @@ class FetchFinancialDataImpl(FetchFinancialData):
         for feature in features:
             records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
         self._last_fetches_port.save(records)
+
+    def _enrich_crypto_assets(self, position: GlobalPosition):
+        crypto_entries = position.products.get(ProductType.CRYPTO)
+        if not crypto_entries:
+            return
+
+        for wallet_entry in crypto_entries.entries:
+            for crypto_entry in wallet_entry.assets:
+                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                    crypto_entry.symbol
+                )
+                if asset_details is None:
+                    candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
+                        crypto_entry.symbol
+                    )
+                    if candidate_assets:
+                        asset_info = candidate_assets[0]
+                        asset_info.id = uuid4()
+                        self._crypto_asset_registry_port.save(asset_info)
+
+                crypto_entry.crypto_asset = asset_details

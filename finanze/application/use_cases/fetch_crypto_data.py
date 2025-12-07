@@ -4,26 +4,32 @@ import os
 from asyncio import Lock
 from dataclasses import asdict
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from uuid import UUID, uuid4
 
-from application.ports.config_port import ConfigPort
+from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from application.ports.crypto_price_provider import CryptoPriceProvider
+from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
-from application.use_cases.connect_crypto_wallet import from_config
 from application.use_cases.fetch_financial_data import handle_cooldown
 from dateutil.tz import tzlocal
 from domain import native_entities
-from domain.crypto import CryptoFetchIntegrations, CryptoFetchRequest
+from domain.crypto import (
+    CryptoFetchRequest,
+)
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
 from domain.exception.exceptions import (
     EntityNotFound,
     ExecutionConflict,
+)
+from domain.external_integration import (
+    EnabledExternalIntegrations,
+    ExternalIntegrationType,
 )
 from domain.fetch_record import FetchRecord
 from domain.fetch_result import (
@@ -34,9 +40,9 @@ from domain.fetch_result import (
     FetchResultCode,
 )
 from domain.global_position import (
-    CryptoAsset,
     CryptoCurrencies,
-    CryptoCurrencyToken,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
     GlobalPosition,
     ProductType,
@@ -55,17 +61,19 @@ class FetchCryptoDataImpl(FetchCryptoData):
         position_port: PositionPort,
         entity_fetchers: dict[Entity, CryptoEntityFetcher],
         crypto_wallet_connection_port: CryptoWalletConnectionPort,
-        crypto_price_provider: CryptoPriceProvider,
-        config_port: ConfigPort,
+        crypto_asset_registry_port: CryptoAssetRegistryPort,
+        crypto_asset_info_provider: CryptoAssetInfoProvider,
         last_fetches_port: LastFetchesPort,
+        external_integration_port: ExternalIntegrationPort,
         transaction_handler_port: TransactionHandlerPort,
     ):
         self._position_port = position_port
         self._entity_fetchers = entity_fetchers
         self._crypto_wallet_connection_port = crypto_wallet_connection_port
-        self._crypto_price_provider = crypto_price_provider
+        self._crypto_asset_info_provider = crypto_asset_info_provider
+        self._crypto_asset_registry_port = crypto_asset_registry_port
         self._last_fetches_port = last_fetches_port
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
         self._transaction_handler_port = transaction_handler_port
 
         self._locks: dict[UUID, Lock] = {}
@@ -104,10 +112,12 @@ class FetchCryptoDataImpl(FetchCryptoData):
             if result:
                 return result
 
-        integrations = from_config(self._config_port.load().integrations)
+        enabled_integrations = self._external_integration_port.get_payloads_by_type(
+            ExternalIntegrationType.CRYPTO_PROVIDER
+        )
 
         fetched_data = []
-        partial = False
+        exception = None
         for entity in entities:
             lock = self._get_lock(entity.id)
 
@@ -123,17 +133,21 @@ class FetchCryptoDataImpl(FetchCryptoData):
                             entity,
                             specific_fetcher,
                             fetch_request.fetch_options,
-                            integrations,
+                            enabled_integrations,
                         )
                     )
-                except Exception:
-                    partial = True
+                except Exception as e:
+                    self._log.exception(e)
+                    exception = e
 
         code = (
             FetchResultCode.COMPLETED
-            if not partial
+            if not exception
             else FetchResultCode.PARTIALLY_COMPLETED
         )
+        if exception and len(entities) == 1:
+            raise exception
+
         return FetchResult(code, data=fetched_data)
 
     async def get_data(
@@ -141,7 +155,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         entity: Entity,
         specific_fetcher: CryptoEntityFetcher,
         options: FetchOptions,
-        integrations: CryptoFetchIntegrations,
+        integrations: EnabledExternalIntegrations,
     ) -> FetchedData:
         existing_connections = self._crypto_wallet_connection_port.get_by_entity_id(
             entity.id
@@ -165,9 +179,26 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 wallet = specific_fetcher.fetch(fetch_request)
                 candidate_wallets.append(wallet)
 
+        wallets_by_id = {wallet.id: wallet for wallet in candidate_wallets}
+        for connection in existing_connections:
+            wallet = wallets_by_id[connection.id]
+            wallet.name = connection.name
+            wallet.address = connection.address
+
+        contract_addresses = set()
+        native_symbols = set()
+        for wallet in candidate_wallets:
+            for asset in wallet.assets:
+                if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
+                    contract_addresses.add(asset.contract_address.lower())
+                elif asset.type == CryptoCurrencyType.NATIVE:
+                    native_symbols.add(asset.symbol)
+
+        price_map = self._get_price_map(contract_addresses, native_symbols)
+
         wallets = []
         for w in candidate_wallets:
-            wallet = self._update_market_value(w)
+            wallet = self._process_wallet_data(w, price_map)
             wallets.append(wallet)
 
         products = {ProductType.CRYPTO: CryptoCurrencies(wallets)}
@@ -187,40 +218,90 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 position=position,
             )
 
-    def _update_market_value(
-        self, wallet: CryptoCurrencyWallet
+    def _process_wallet_data(
+        self, wallet: CryptoCurrencyWallet, price_map: dict[str, Dezimal]
     ) -> CryptoCurrencyWallet:
-        tokens = []
-        if wallet.tokens is not None:
-            for token in wallet.tokens:
-                token_dict = asdict(token)
-                del token_dict["market_value"]
-                del token_dict["currency"]
-                tokens.append(
-                    CryptoCurrencyToken(
-                        **token_dict,
-                        market_value=self._get_market_value(token.token, token.amount),
-                        currency=TARGET_FIAT,
-                    )
+        assets = []
+        if wallet.assets:
+            for asset in wallet.assets:
+                asset_dict = asdict(asset)
+                market_value = self._get_market_value(price_map, asset)
+                asset_dict["market_value"] = market_value
+                asset_dict["currency"] = TARGET_FIAT
+                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                    asset.symbol
                 )
+                asset_info = asset_details
+                if (market_value is not None and asset.amount > 0) and not asset_info:
+                    candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
+                        asset.symbol
+                    )
+                    if candidate_assets:
+                        asset_info = candidate_assets[0]
+                        asset_info.id = uuid4()
+                        self._crypto_asset_registry_port.save(asset_info)
 
-        market_value = self._get_market_value(wallet.crypto, wallet.amount)
+                if asset_info and market_value is None:
+                    asset_info = None
+
+                if asset_info:
+                    asset_dict["name"] = asset_info.name
+                asset_dict["crypto_asset"] = asset_info
+                position = CryptoCurrencyPosition(**asset_dict)
+                if position.name:
+                    position.name = position.name[:150]
+                if position.symbol:
+                    position.symbol = position.symbol[:30]
+                assets.append(position)
+
         wallet_dict = asdict(wallet)
-        del wallet_dict["market_value"]
-        del wallet_dict["currency"]
-        del wallet_dict["tokens"]
-        return CryptoCurrencyWallet(
-            **wallet_dict,
-            market_value=market_value,
-            currency=TARGET_FIAT,
-            tokens=tokens,
-        )
+        wallet_dict["assets"] = assets
+        return CryptoCurrencyWallet(**wallet_dict)
 
-    def _get_market_value(self, crypto: CryptoAsset, crypto_amount: Dezimal) -> Dezimal:
-        return round(
-            crypto_amount * self._crypto_price_provider.get_price(crypto, TARGET_FIAT),
-            2,
+    def _get_price_map(
+        self,
+        contract_addresses: set[str],
+        native_symbols: set[str],
+    ) -> dict[str, Dezimal]:
+        price_map: dict[str, Dezimal] = {}
+        if native_symbols:
+            symbol_prices = (
+                self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                    list(native_symbols), fiat_isos=[TARGET_FIAT]
+                )
+            )
+            for symbol in native_symbols:
+                upper = symbol.upper()
+                fiat_prices = symbol_prices.get(upper)
+                if fiat_prices and TARGET_FIAT in fiat_prices:
+                    price_map[upper] = fiat_prices[TARGET_FIAT]
+
+        if contract_addresses:
+            address_prices = self._crypto_asset_info_provider.get_prices_by_addresses(
+                list(contract_addresses), fiat_isos=[TARGET_FIAT]
+            )
+            for addr, fiat_prices in address_prices.items():
+                fiat_price = fiat_prices.get(TARGET_FIAT)
+                if fiat_price is not None:
+                    price_map[addr.lower()] = fiat_price
+
+        return price_map
+
+    def _get_market_value(
+        self, price_map: dict[str, Dezimal], crypto_currency: CryptoCurrencyPosition
+    ) -> Optional[Dezimal]:
+        if crypto_currency.amount <= 0:
+            return Dezimal(0)
+
+        price_key = (
+            crypto_currency.symbol
+            if crypto_currency.type == CryptoCurrencyType.NATIVE
+            else crypto_currency.contract_address.lower()
         )
+        price = price_map.get(price_key) if price_key else None
+        if price is None:
+            return None
+        return round(crypto_currency.amount * price, 2)
 
     def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())

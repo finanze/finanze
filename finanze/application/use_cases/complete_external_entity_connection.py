@@ -1,17 +1,14 @@
 import logging
 
-from application.ports.config_port import ConfigPort
 from application.ports.external_entity_fetcher import ExternalEntityFetcher
 from application.ports.external_entity_port import ExternalEntityPort
-from application.use_cases.fetch_external_financial_data import (
-    external_entity_provider_integrations_from_config,
-)
+from application.ports.external_integration_port import ExternalIntegrationPort
 from domain.exception.exceptions import ExternalEntityLinkError, ExternalEntityNotFound
 from domain.external_entity import (
     CompleteExternalEntityLinkRequest,
     ExternalEntityStatus,
 )
-from domain.external_integration import ExternalIntegrationId
+from domain.external_integration import ExternalIntegrationId, ExternalIntegrationType
 from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
 )
@@ -22,11 +19,11 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
         self,
         external_entity_port: ExternalEntityPort,
         external_entity_fetchers: dict[ExternalIntegrationId, ExternalEntityFetcher],
-        config_port: ConfigPort,
+        external_integration_port: ExternalIntegrationPort,
     ):
         self._external_entity_port = external_entity_port
         self._external_entity_fetchers = external_entity_fetchers
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
 
         self._log = logging.getLogger(__name__)
 
@@ -57,11 +54,11 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
             return
 
         provider = self._external_entity_fetchers.get(external_entity.provider)
-        provider.setup(
-            external_entity_provider_integrations_from_config(
-                self._config_port.load().integrations
-            ),
+        enabled_integrations = self._external_integration_port.get_payloads_by_type(
+            ExternalIntegrationType.ENTITY_PROVIDER
         )
+        provider.setup(enabled_integrations)
+
         is_linked = await provider.is_linked(external_entity.provider_instance_id)
         if not is_callback and not is_linked:
             raise ExternalEntityLinkError(details="Entity noy properly linked.")

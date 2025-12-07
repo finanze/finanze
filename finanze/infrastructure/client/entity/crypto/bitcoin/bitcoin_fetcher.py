@@ -3,17 +3,17 @@ from urllib.parse import quote
 from uuid import uuid4
 
 import requests
-import time
-
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from cachetools import TTLCache, cached
 from domain.crypto import CryptoFetchRequest
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
 from domain.global_position import (
-    CryptoCurrency,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
     CryptoCurrencyWallet,
 )
+from infrastructure.client.http.backoff import http_get_with_backoff
 from requests import Response
 
 
@@ -22,7 +22,9 @@ class BitcoinFetcher(CryptoEntityFetcher):
 
     BASE_URL = "https://blockchain.info"
     SCALE = Dezimal("1e-8")
-    COOLDOWN = 0.25
+    COOLDOWN = 0.4
+    MAX_RETRIES = 3
+    BACKOFF_FACTOR = 0.5
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
@@ -31,11 +33,15 @@ class BitcoinFetcher(CryptoEntityFetcher):
         balance = self._fetch_address(request.address)
 
         return CryptoCurrencyWallet(
-            id=uuid4(),
-            wallet_connection_id=request.connection_id,
-            symbol="BTC",
-            crypto=CryptoCurrency.BITCOIN,
-            amount=balance,
+            id=request.connection_id,
+            assets=[
+                CryptoCurrencyPosition(
+                    id=uuid4(),
+                    symbol="BTC",
+                    amount=balance,
+                    type=CryptoCurrencyType.NATIVE,
+                )
+            ],
         )
 
     def fetch_multiple(
@@ -61,11 +67,15 @@ class BitcoinFetcher(CryptoEntityFetcher):
             amount = balances_map.get(req.address, Dezimal(0))
             wallets.append(
                 CryptoCurrencyWallet(
-                    id=uuid4(),
-                    wallet_connection_id=req.connection_id,
-                    symbol="BTC",
-                    crypto=CryptoCurrency.BITCOIN,
-                    amount=amount,
+                    id=req.connection_id,
+                    assets=[
+                        CryptoCurrencyPosition(
+                            id=uuid4(),
+                            symbol="BTC",
+                            amount=amount,
+                            type=CryptoCurrencyType.NATIVE,
+                        )
+                    ],
                 )
             )
 
@@ -86,15 +96,26 @@ class BitcoinFetcher(CryptoEntityFetcher):
         return Dezimal(text) * self.SCALE
 
     def _fetch(self, url: str) -> Response:
-        response = requests.get(url)
-        time.sleep(self.COOLDOWN)
+        try:
+            response = http_get_with_backoff(
+                url,
+                cooldown=self.COOLDOWN,
+                max_retries=self.MAX_RETRIES,
+                backoff_factor=self.BACKOFF_FACTOR,
+                log=self._log,
+            )
+        except requests.RequestException as e:
+            self._log.error(
+                f"Request error calling blockchain.info endpoint {url}: {e}"
+            )
+            raise
+
         if response.ok:
             return response
 
         if response.status_code == 404:
             raise AddressNotFound()
-
-        elif response.status_code == 429:
+        if response.status_code == 429:
             raise TooManyRequests()
 
         self._log.error("Error Response Body:" + response.text)

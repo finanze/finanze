@@ -19,11 +19,11 @@ from domain.external_entity import (
     ExternalEntityConnectionResult,
     ExternalEntityFetchRequest,
     ExternalEntityLoginRequest,
-    ExternalEntityProviderIntegrations,
     ExternalEntitySetupResponseCode,
     ProviderExternalEntityDetails,
 )
 from domain.external_integration import (
+    EnabledExternalIntegrations,
     ExternalIntegrationId,
 )
 from domain.global_position import (
@@ -44,11 +44,11 @@ class GoCardlessFetcher(ExternalEntityFetcher):
         self._client = client
         self._log = logging.getLogger(__name__)
 
-    def setup(self, integration_data: ExternalEntityProviderIntegrations):
-        if not integration_data or not integration_data.gocardless:
+    def setup(self, integrations: EnabledExternalIntegrations):
+        if not integrations or ExternalIntegrationId.GOCARDLESS not in integrations:
             raise ExternalIntegrationRequired([ExternalIntegrationId.GOCARDLESS])
 
-        client_credentials = integration_data.gocardless
+        client_credentials = integrations[ExternalIntegrationId.GOCARDLESS]
         self._client.setup(client_credentials)
 
     async def create_or_link(

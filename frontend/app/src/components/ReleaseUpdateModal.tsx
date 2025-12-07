@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import type { ReactNode } from "react"
 import { Button } from "@/components/ui/Button"
 import {
   Card,
@@ -15,7 +16,14 @@ import {
   formatFileSize,
   formatReleaseDate,
 } from "@/utils/releaseUtils"
-import { Download, ExternalLink, Calendar, Package } from "lucide-react"
+import {
+  Download,
+  ExternalLink,
+  Calendar,
+  Package,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import ReactMarkdown from "react-markdown"
 
@@ -27,6 +35,15 @@ interface ReleaseUpdateModalProps {
   release: GitHubRelease
   platform: PlatformType | null
   onSkipVersion?: (version: string) => void
+  autoUpdateSupported: boolean
+  isAutoUpdateDownloading: boolean
+  autoUpdateProgress: number | null
+  autoUpdateDownloadedBytes: number | null
+  autoUpdateTotalBytes: number | null
+  isAutoUpdateDownloaded: boolean
+  autoUpdateErrorMessage: string | null
+  onStartAutoUpdate?: () => void
+  onInstallAutoUpdate?: () => void
 }
 
 export function ReleaseUpdateModal({
@@ -37,9 +54,20 @@ export function ReleaseUpdateModal({
   release,
   platform,
   onSkipVersion,
+  autoUpdateSupported,
+  isAutoUpdateDownloading,
+  autoUpdateProgress,
+  autoUpdateDownloadedBytes,
+  autoUpdateTotalBytes,
+  isAutoUpdateDownloaded,
+  autoUpdateErrorMessage,
+  onStartAutoUpdate,
+  onInstallAutoUpdate,
 }: ReleaseUpdateModalProps) {
   const { t, locale } = useI18n()
   const [showFullNotes, setShowFullNotes] = useState(false)
+  const [showManualDownloads, setShowManualDownloads] =
+    useState(!autoUpdateSupported)
 
   if (!isOpen) return null
 
@@ -84,6 +112,151 @@ export function ReleaseUpdateModal({
     return text.substring(0, maxLength) + "..."
   }
 
+  useEffect(() => {
+    setShowManualDownloads(!autoUpdateSupported)
+  }, [autoUpdateSupported])
+
+  useEffect(() => {
+    if (autoUpdateSupported && autoUpdateErrorMessage) {
+      setShowManualDownloads(true)
+    }
+  }, [autoUpdateSupported, autoUpdateErrorMessage])
+
+  const renderAutoUpdateSection = () => {
+    if (!autoUpdateSupported) {
+      return null
+    }
+
+    const progressValue = Math.min(100, Math.max(0, autoUpdateProgress ?? 0))
+
+    const progressLabel =
+      autoUpdateDownloadedBytes !== null && autoUpdateTotalBytes !== null
+        ? t.release.autoUpdate.progress
+            .replace("{percent}", Math.round(progressValue).toString())
+            .replace("{downloaded}", formatFileSize(autoUpdateDownloadedBytes))
+            .replace("{total}", formatFileSize(autoUpdateTotalBytes))
+        : t.release.autoUpdate.progressFallback.replace(
+            "{percent}",
+            Math.round(progressValue).toString(),
+          )
+
+    const handleAutoUpdateDownload = () => {
+      onStartAutoUpdate?.()
+    }
+
+    const handleAutoUpdateInstall = () => {
+      onInstallAutoUpdate?.()
+    }
+
+    return (
+      <div className="space-y-3">
+        <h4 className="font-medium text-sm">{t.release.autoUpdate.title}</h4>
+        <p className="text-sm text-muted-foreground">
+          {t.release.autoUpdate.description}
+        </p>
+        {autoUpdateErrorMessage && (
+          <p className="text-xs text-destructive-foreground">
+            {autoUpdateErrorMessage}
+          </p>
+        )}
+        {isAutoUpdateDownloaded ? (
+          <Button
+            onClick={handleAutoUpdateInstall}
+            className="w-full sm:w-auto"
+            disabled={!onInstallAutoUpdate}
+          >
+            {t.release.autoUpdate.install}
+          </Button>
+        ) : (
+          <Button
+            onClick={handleAutoUpdateDownload}
+            className="w-full sm:w-auto"
+            disabled={isAutoUpdateDownloading || !onStartAutoUpdate}
+          >
+            {isAutoUpdateDownloading
+              ? t.release.autoUpdate.downloading
+              : t.release.autoUpdate.download}
+          </Button>
+        )}
+        {isAutoUpdateDownloading && (
+          <div className="space-y-2">
+            <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-green-500 transition-all"
+                style={{ width: `${progressValue}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">{progressLabel}</p>
+          </div>
+        )}
+        {isAutoUpdateDownloaded && (
+          <p className="text-xs text-muted-foreground">
+            {t.release.autoUpdate.ready}
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  let manualDownloadContent: ReactNode = null
+
+  if (platformAssets.length > 0) {
+    manualDownloadContent = (
+      <>
+        <h4 className="font-medium text-sm">
+          {t.release.downloadFor.replace(
+            "{platform}",
+            getPlatformDisplayName(platform),
+          )}
+        </h4>
+        <div className="space-y-2">
+          {platformAssets.map((asset, index) => (
+            <div
+              key={index}
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-muted rounded-lg gap-3"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm break-all">
+                  {asset.name}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {formatFileSize(asset.size)}
+                </div>
+              </div>
+              <Button
+                onClick={() => handleDownload(asset.url)}
+                size="sm"
+                className="w-full sm:w-auto flex-shrink-0"
+              >
+                <Download className="h-4 w-4 mr-1" />
+                {t.common.download}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </>
+    )
+  } else if (platform === PlatformType.WEB) {
+    manualDownloadContent = (
+      <>
+        <h4 className="font-medium text-sm">{t.release.downloadAssets}</h4>
+        <div className="p-3 bg-muted rounded-lg">
+          <p className="text-sm text-muted-foreground mb-3">
+            {t.release.releasePageLink}
+          </p>
+          <Button
+            onClick={handleViewRelease}
+            size="sm"
+            className="w-full sm:w-auto"
+          >
+            <ExternalLink className="h-4 w-4 mr-1" />
+            {t.common.viewRelease}
+          </Button>
+        </div>
+      </>
+    )
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-2 sm:p-4 z-50">
       <AnimatePresence>
@@ -95,7 +268,7 @@ export function ReleaseUpdateModal({
           className="w-full"
         >
           <Card className="w-full max-w-2xl mx-auto max-h-[95vh] sm:max-h-[90vh] flex flex-col">
-            <CardHeader className="flex-shrink-0 p-4 sm:p-6">
+            <CardHeader className="flex-shrink-0 px-4 pt-4 pb-0 sm:pt-6 sm:px-6">
               <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-400 text-lg sm:text-xl">
                 <Package className="h-5 w-5 flex-shrink-0" />
                 {t.release.newVersionAvailable}
@@ -125,61 +298,32 @@ export function ReleaseUpdateModal({
             </CardHeader>
 
             <CardContent className="flex-1 overflow-y-auto min-h-0 space-y-4 p-4 sm:p-6">
-              {/* Download Section */}
-              {platformAssets.length > 0 ? (
+              {renderAutoUpdateSection()}
+              {manualDownloadContent && (
                 <div className="space-y-3">
-                  <h4 className="font-medium text-sm">
-                    {t.release.downloadFor.replace(
-                      "{platform}",
-                      getPlatformDisplayName(platform),
-                    )}
-                  </h4>
-                  <div className="space-y-2">
-                    {platformAssets.map((asset, index) => (
-                      <div
-                        key={index}
-                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-muted rounded-lg gap-3"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm break-all">
-                            {asset.name}
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatFileSize(asset.size)}
-                          </div>
-                        </div>
-                        <Button
-                          onClick={() => handleDownload(asset.url)}
-                          size="sm"
-                          className="w-full sm:w-auto flex-shrink-0"
-                        >
-                          <Download className="h-4 w-4 mr-1" />
-                          {t.common.download}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : platform === PlatformType.WEB ? (
-                <div className="space-y-3">
-                  <h4 className="font-medium text-sm">
-                    {t.release.downloadAssets}
-                  </h4>
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {t.release.releasePageLink}
-                    </p>
+                  {autoUpdateSupported && (
                     <Button
-                      onClick={handleViewRelease}
+                      variant="ghost"
                       size="sm"
-                      className="w-full sm:w-auto"
+                      onClick={() => setShowManualDownloads(prev => !prev)}
+                      className="w-full sm:w-auto justify-start gap-2"
                     >
-                      <ExternalLink className="h-4 w-4 mr-1" />
-                      {t.common.viewRelease}
+                      {showManualDownloads ? (
+                        <ChevronDown className="h-4 w-4" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4" />
+                      )}
+                      {showManualDownloads
+                        ? t.release.manualDownloads.hide
+                        : t.release.manualDownloads.show}
                     </Button>
-                  </div>
+                  )}
+
+                  {(!autoUpdateSupported || showManualDownloads) && (
+                    <div className="space-y-3">{manualDownloadContent}</div>
+                  )}
                 </div>
-              ) : null}
+              )}
 
               {/* Release Notes */}
               <div className="space-y-3">

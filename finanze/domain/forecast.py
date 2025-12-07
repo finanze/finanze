@@ -10,8 +10,6 @@ from pydantic.dataclasses import dataclass
 @dataclass
 class ForecastRequest:
     target_date: date
-    entities: Optional[list[UUID]] = None
-    excluded_entities: Optional[list[UUID]] = None
     avg_annual_market_increase: Optional[Dezimal] = None
     avg_annual_crypto_increase: Optional[Dezimal] = None
     avg_annual_commodity_increase: Optional[Dezimal] = None

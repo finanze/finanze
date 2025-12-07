@@ -63,11 +63,12 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         investments_data = self._client.get_investments()
 
-        real_estate_cf_inv_details = [
-            self._map_investment(inv)
-            for inv in investments_data
-            if inv["projectPhase"] in ACTIVE_PHASES
-        ]
+        real_estate_cf_inv_details = []
+        for inv in investments_data:
+            if inv["projectPhase"] in ACTIVE_PHASES:
+                mapped_inv = self._map_investment(inv)
+                if mapped_inv:
+                    real_estate_cf_inv_details.append(mapped_inv)
 
         products = {
             ProductType.ACCOUNT: Accounts([account]),
@@ -78,12 +79,34 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=URBANITAE, products=products)
 
-    def _map_investment(self, inv):
-        project_details = self._client.get_project_detail(inv["projectId"])
+    def _map_investment(self, inv) -> RealEstateCFDetail | None:
+        project_id = inv.get("projectId")
+        project_details = self._client.get_project_detail(project_id)
+        details = project_details.get("details")
+        fund_details = project_details.get("fund")
+        if not details or not fund_details:
+            self._log.warning("No details found for project %s", project_id)
+            return None
 
-        months = int(project_details["details"]["investmentPeriod"])
-        interest_rate = Dezimal(project_details["fund"]["apreciationProfitability"])
-        profitability = Dezimal(project_details["fund"]["totalNetProfitability"])
+        months = int(details["investmentPeriod"])
+        interest_rate = Dezimal(
+            fund_details.get("apreciationProfitability")
+            or fund_details.get("totalNetProfitability")
+        )
+
+        fields = fund_details.get("fields", [])
+        for field in fields:
+            field_name = field.get("name", "").lower()
+            field_unit = field.get("unit", "").upper()
+            if "PERCENTAGE" in field_unit and "anual" in field_name:
+                field_percentage = Dezimal(field.get("amount") or 0)
+                if field_percentage > 0:
+                    interest_rate = (
+                        field_percentage
+                        if field_percentage < interest_rate
+                        else interest_rate
+                    )
+
         last_invest_date = datetime.strptime(
             inv["lastInvestDate"], self.DATETIME_FORMAT
         )
@@ -106,8 +129,8 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             pending_amount=pending_amount,
             currency="EUR",
             interest_rate=round(interest_rate / 100, 4),
-            profitability=round(profitability / 100, 4),
             last_invest_date=last_invest_date,
+            start=last_invest_date,
             maturity=(last_invest_date + relativedelta(months=months)).date(),
             extended_maturity=None,
             type=project_type,
@@ -185,9 +208,11 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
     async def historical_position(self) -> HistoricalPosition:
         investments_data = self._client.get_investments()
 
-        real_estate_cf_inv_details = [
-            self._map_investment(inv) for inv in investments_data
-        ]
+        real_estate_cf_inv_details = []
+        for investment in investments_data:
+            mapped_inv = self._map_investment(investment)
+            if mapped_inv:
+                real_estate_cf_inv_details.append(mapped_inv)
 
         return HistoricalPosition(
             {

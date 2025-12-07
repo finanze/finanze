@@ -1,5 +1,6 @@
 import logging
 from dataclasses import asdict
+from enum import Enum
 from pathlib import Path
 
 import strictyaml
@@ -21,23 +22,26 @@ class ConfigLoader(ConfigPort):
         self._migrator = ConfigMigrator()
 
     def disconnect(self):
+        self._log.debug("Disconnecting config loader")
         self._config_file = None
         if hasattr(self.load, "cache") and hashkey(self) in self.load.cache:
             del self.load.cache[hashkey(self)]
 
     def connect(self, user: User):
+        self._log.debug("Connecting config loader")
         self._config_file = str(user.path / CONFIG_NAME)
         self.check_or_create_default_config()
+        self.load()
 
     @cached(cache=TTLCache(maxsize=1, ttl=30))
     def load(self) -> Settings:
         with open(self._config_file, "r") as file:
             data = strictyaml.load(file.read()).data
-            migrated_data, was_migrated = self._migrator.migrate(data)
-            settings = Settings(**migrated_data)
-            if was_migrated:
-                self.save(settings)
-            return settings
+            return Settings(**data)
+
+    def raw_load(self) -> dict:
+        with open(self._config_file, "r") as file:
+            return strictyaml.load(file.read()).data
 
     def save(self, new_config: Settings):
         config_as_dict = asdict(
@@ -46,6 +50,7 @@ class ConfigLoader(ConfigPort):
                 k: v for (k, v) in x if (v is not None and v != {} and v != [])
             },
         )
+        config_as_dict = self._to_yaml_safe(config_as_dict)
         config_as_dict["version"] = CURRENT_VERSION
         new_yaml = strictyaml.as_document(config_as_dict).as_yaml()
         with open(self._config_file, "w") as file:
@@ -64,5 +69,22 @@ class ConfigLoader(ConfigPort):
                 f"Config file not found, creating default config at {self._config_file}"
             )
             self.save(BASE_CONFIG)
-        self.load()
+
+        data = self.raw_load()
+
+        migrated_data, was_migrated = self._migrator.migrate(data)
+        settings = Settings(**migrated_data)
+        if was_migrated:
+            self.save(settings)
+
         self._log.debug(f"Config file loaded from {self._config_file}")
+
+    @staticmethod
+    def _to_yaml_safe(value):
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, list):
+            return [ConfigLoader._to_yaml_safe(item) for item in value]
+        if isinstance(value, dict):
+            return {key: ConfigLoader._to_yaml_safe(val) for key, val in value.items()}
+        return value

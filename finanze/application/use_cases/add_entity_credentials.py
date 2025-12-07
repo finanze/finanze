@@ -6,7 +6,8 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
-from domain.entity import CredentialType, Entity, EntityType
+from domain.entity import Entity, EntityType
+from domain.native_entity import CredentialType
 from domain.entity_login import (
     EntityLoginParams,
     EntityLoginRequest,
@@ -38,13 +39,10 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         entity_id = login_request.entity_id
 
         entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION
+            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
         )
         if not entity:
             raise EntityNotFound(entity_id)
-
-        if entity.type != EntityType.FINANCIAL_INSTITUTION:
-            raise ValueError(f"Invalid entity type: {entity.type}")
 
         credentials = login_request.credentials
 

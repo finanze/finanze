@@ -5,7 +5,7 @@ from PyInstaller.utils.hooks import (
     collect_data_files,
     collect_dynamic_libs,
 )
-from PyInstaller.building.build_main import Analysis, PYZ, EXE
+from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
 
 numpy_submodules = collect_submodules("numpy")
 numpy_datas = collect_data_files("numpy")
@@ -21,8 +21,7 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=['speech_recognition', 'pydub', 'aiohttp', 'selenium', 'seleniumwire', 'playwright'],
-    noarchive=False,
-    optimize=0,
+    optimize=1,
 )
 pyz = PYZ(a.pure)
 
@@ -34,9 +33,8 @@ exec_name = 'finanze-server-{}'.format(platform_name)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name=exec_name,
     debug=False,
     bootloader_ignore_signals=False,
@@ -50,4 +48,15 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name=exec_name,
 )

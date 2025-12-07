@@ -16,14 +16,7 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
-    Commodities,
-    Commodity,
     Crowdlending,
-    CryptoCurrencies,
-    CryptoCurrency,
-    CryptoCurrencyToken,
-    CryptoCurrencyWallet,
-    CryptoToken,
     Deposit,
     Deposits,
     EquityType,
@@ -117,7 +110,7 @@ def _map_accounts(entries: list[dict]) -> Accounts:
 def _map_cards(entries: list[dict]) -> Cards:
     result = []
     for e in entries:
-        for req in ("currency", "type", "used", "active"):
+        for req in ("currency", "type", "used"):
             if req not in e:
                 raise MissingFieldsError([req])
         result.append(
@@ -126,7 +119,7 @@ def _map_cards(entries: list[dict]) -> Cards:
                 currency=e["currency"],
                 type=CardType(e["type"]),
                 used=_dez(e["used"]),
-                active=bool(e["active"]),
+                active=bool(e["active"]) if e.get("active") is not None else True,
                 limit=_dez(e.get("limit")),
                 name=e.get("name"),
                 ending=e.get("ending"),
@@ -171,8 +164,8 @@ def _map_funds(entries: list[dict]) -> FundInvestments:
                 market_value=_dez(portfolio_data.get("market_value")),
                 source=DataSource.MANUAL,
             )
-        init_inv = _dez(e.get("initial_investment")) or Dezimal(0)
-        avg_buy = _dez(e.get("average_buy_price")) or Dezimal(0)
+        init_inv = _dez(e.get("initial_investment"))
+        avg_buy = _dez(e.get("average_buy_price"))
         market_value = _dez(e.get("market_value")) or Dezimal(0)
         result.append(
             FundDetail(
@@ -206,10 +199,9 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
             "pending_amount",
             "currency",
             "interest_rate",
-            "last_invest_date",
+            "start",
             "maturity",
             "type",
-            "business_type",
             "state",
         ):
             if req not in e:
@@ -222,13 +214,15 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
                 pending_amount=_dez(e["pending_amount"]),
                 currency=e["currency"],
                 interest_rate=_dez(e["interest_rate"]),
-                profitability=Dezimal(0),
-                last_invest_date=_dt(e["last_invest_date"]),
+                start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
-                business_type=e["business_type"],
+                business_type=e.get("business_type", ""),
                 state=e["state"],
                 extended_maturity=_date(e.get("extended_maturity")),
+                extended_interest_rate=_dez(e.get("extended_interest_rate"))
+                if e.get("extended_interest_rate")
+                else None,
                 source=DataSource.MANUAL,
             )
         )
@@ -243,11 +237,10 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
             "amount",
             "currency",
             "interest_rate",
-            "gross_interest_rate",
             "maturity",
             "type",
             "state",
-            "last_invest_date",
+            "start",
         ):
             if req not in e:
                 raise MissingFieldsError([req])
@@ -258,12 +251,13 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
                 interest_rate=_dez(e["interest_rate"]),
-                profitability=Dezimal(0),
-                gross_interest_rate=_dez(e["gross_interest_rate"]),
-                last_invest_date=_dt(e["last_invest_date"]),
+                start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 state=e["state"],
+                late_interest_rate=_dez(e.get("late_interest_rate"))
+                if e.get("late_interest_rate")
+                else None,
                 source=DataSource.MANUAL,
             )
         )
@@ -345,7 +339,6 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
             "name",
             "ticker",
             "isin",
-            "market",
             "shares",
             "currency",
             "type",
@@ -353,8 +346,8 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
         ):
             if req not in e:
                 raise MissingFieldsError([req])
-        init_inv = _dez(e.get("initial_investment")) or Dezimal(0)
-        avg_buy = _dez(e.get("average_buy_price")) or Dezimal(0)
+        init_inv = _dez(e.get("initial_investment"))
+        avg_buy = _dez(e.get("average_buy_price"))
         market_value = _dez(e.get("market_value")) or Dezimal(0)
         result.append(
             StockDetail(
@@ -362,7 +355,7 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
                 name=e["name"],
                 ticker=e["ticker"],
                 isin=e["isin"],
-                market=e["market"],
+                market=e.get("market", ""),
                 shares=_dez(e["shares"]),
                 initial_investment=init_inv,
                 average_buy_price=avg_buy,
@@ -391,67 +384,6 @@ def _map_crowdlending(entries: list[dict]) -> Crowdlending:
     )
 
 
-def _map_crypto(entries: list[dict]) -> CryptoCurrencies:
-    wallets = []
-    for e in entries:
-        for req in ("symbol", "crypto", "amount"):
-            if req not in e:
-                raise MissingFieldsError([req])
-        tokens_raw = e.get("tokens", []) or []
-        tokens = []
-        for t in tokens_raw:
-            for req in ("id", "token_id", "name", "symbol", "token", "amount"):
-                if req not in t:
-                    raise MissingFieldsError([req])
-            tokens.append(
-                CryptoCurrencyToken(
-                    id=_uuid(t["id"]) or UUID(int=0),
-                    token_id=t["token_id"],
-                    name=t["name"],
-                    symbol=t["symbol"],
-                    token=CryptoToken(t["token"]),
-                    amount=_dez(t["amount"]),
-                    initial_investment=_dez(t.get("initial_investment")),
-                    average_buy_price=_dez(t.get("average_buy_price")),
-                    investment_currency=t.get("investment_currency"),
-                    market_value=_dez(t.get("market_value")),
-                    currency=t.get("currency"),
-                    type=t.get("type"),
-                )
-            )
-        wallets.append(
-            CryptoCurrencyWallet(
-                id=_uuid(e.get("id")) or UUID(int=0),
-                wallet_connection_id=_uuid(e.get("wallet_connection_id")),
-                symbol=e["symbol"],
-                crypto=CryptoCurrency(e["crypto"]),
-                amount=_dez(e["amount"]),
-                address=e.get("address"),
-                name=e.get("name"),
-                initial_investment=_dez(e.get("initial_investment")),
-                average_buy_price=_dez(e.get("average_buy_price")),
-                investment_currency=e.get("investment_currency"),
-                market_value=_dez(e.get("market_value")),
-                currency=e.get("currency"),
-                tokens=tokens,
-            )
-        )
-    return CryptoCurrencies(wallets)
-
-
-def _map_commodities(entries: list[dict]) -> Commodities:
-    result = []
-    for e in entries:
-        if "id" not in e:
-            raise MissingFieldsError(["id"])
-        result.append(
-            Commodity(
-                id=_uuid(e["id"]),
-            )
-        )
-    return Commodities(result)
-
-
 _MAPPER_DISPATCH = {
     ProductType.ACCOUNT: _map_accounts,
     ProductType.CARD: _map_cards,
@@ -463,8 +395,6 @@ _MAPPER_DISPATCH = {
     ProductType.LOAN: _map_loans,
     ProductType.STOCK_ETF: _map_stocks,
     ProductType.CROWDLENDING: _map_crowdlending,
-    ProductType.CRYPTO: _map_crypto,
-    ProductType.COMMODITY: _map_commodities,
 }
 
 

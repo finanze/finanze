@@ -10,9 +10,10 @@ from domain.auto_contributions import (
     ContributionFrequency,
     ContributionTargetType,
     PeriodicContribution,
+    ContributionTargetSubtype,
 )
 from domain.dezimal import Dezimal
-from domain.entity import EntitySetupLoginType
+from domain.native_entity import EntitySetupLoginType
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_record import DataSource
 from domain.global_position import (
@@ -268,6 +269,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
                     target=isin,
                     target_name=name,
                     target_type=ContributionTargetType.FUND,
+                    target_subtype=ContributionTargetSubtype.MUTUAL_FUND,
                     amount=amount,
                     currency=currency,
                     since=datetime.strptime(sub["fechaAlta"], "%Y-%m-%d").date(),

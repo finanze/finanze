@@ -22,3 +22,4 @@ class UserLogoutImpl(UserLogout):
         self._config_port.disconnect()
         self._sheets_initiator.disconnect()
         self._source_initiator.lock()
+        self._log.info("User logged out successfully")

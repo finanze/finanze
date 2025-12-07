@@ -6,7 +6,7 @@ import {
   useRef,
   type FormEvent,
 } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
 import { useNavigate } from "react-router-dom"
 import {
@@ -24,11 +24,13 @@ import {
   Trash2,
   AlertCircle,
   Loader2,
+  Bitcoin,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
 import { Button } from "@/components/ui/Button"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   Card,
   CardContent,
@@ -51,9 +53,11 @@ import { formatCurrency, formatDate } from "@/lib/formatters"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
+import { getProductTypeColor } from "@/utils/dashboardUtils"
 import {
   ContributionFrequency,
   ContributionTargetType,
+  ContributionTargetSubtype,
   ManualContributionsRequest,
   ManualPeriodicContribution,
   PeriodicContribution,
@@ -63,6 +67,7 @@ import {
   AccountType,
   ProductType,
   type Accounts,
+  type CryptoCurrencies,
   type FundInvestments,
   type StockInvestments,
 } from "@/types/position"
@@ -81,6 +86,7 @@ interface ManualContributionFormState {
   target: string
   target_name: string
   target_type: ContributionTargetType
+  target_subtype: ContributionTargetSubtype | ""
   amount: string
   currency: string
   since: string
@@ -98,6 +104,12 @@ type ManualContributionField =
   | "since"
 
 type ManualContributionErrors = Partial<Record<ManualContributionField, string>>
+
+type TargetSubtypeOption = {
+  value: ContributionTargetSubtype | "FUND_PORTFOLIO" | "CRYPTO"
+  label: string
+  targetType: ContributionTargetType
+}
 
 interface TargetSuggestion {
   value: string
@@ -226,7 +238,9 @@ export default function AutoContributionsPage() {
   const financialEntities = useMemo(
     () =>
       (entities ?? []).filter(
-        entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+        entity =>
+          entity.type === EntityType.FINANCIAL_INSTITUTION ||
+          entity.type === EntityType.CRYPTO_WALLET,
       ),
     [entities],
   )
@@ -317,6 +331,7 @@ export default function AutoContributionsPage() {
         target: contribution.target || "",
         target_name: contribution.target_name ?? null,
         target_type: contribution.target_type,
+        target_subtype: contribution.target_subtype ?? null,
         amount: contribution.amount,
         currency: (contribution.currency || defaultCurrency).toUpperCase(),
         since: contribution.since,
@@ -405,6 +420,7 @@ export default function AutoContributionsPage() {
         draft.target === original.target &&
         (draft.target_name ?? null) === (original.target_name ?? null) &&
         draft.target_type === original.target_type &&
+        (draft.target_subtype ?? null) === (original.target_subtype ?? null) &&
         draft.amount === original.amount &&
         draft.currency === original.currency &&
         draft.since === original.since &&
@@ -439,10 +455,64 @@ export default function AutoContributionsPage() {
     return sorted.filter(code => supportedCurrencySet.has(code.toUpperCase()))
   }, [exchangeRates, defaultCurrency, supportedCurrencySet])
 
-  const targetTypeOptions = useMemo(
-    () => Object.values(ContributionTargetType),
-    [],
-  )
+  const targetSubtypeOptions = useMemo<TargetSubtypeOption[]>(() => {
+    const subtypeLabels = t.enums?.contributionTargetSubtype as
+      | Record<string, string>
+      | undefined
+    const productLabels = t.enums?.productType as
+      | Record<string, string>
+      | undefined
+
+    return [
+      {
+        value: ContributionTargetSubtype.STOCK,
+        label:
+          subtypeLabels?.[ContributionTargetSubtype.STOCK] ??
+          ContributionTargetSubtype.STOCK,
+        targetType: ContributionTargetType.STOCK_ETF,
+      },
+      {
+        value: ContributionTargetSubtype.ETF,
+        label:
+          subtypeLabels?.[ContributionTargetSubtype.ETF] ??
+          ContributionTargetSubtype.ETF,
+        targetType: ContributionTargetType.STOCK_ETF,
+      },
+      {
+        value: ContributionTargetSubtype.MUTUAL_FUND,
+        label:
+          subtypeLabels?.[ContributionTargetSubtype.MUTUAL_FUND] ??
+          ContributionTargetSubtype.MUTUAL_FUND,
+        targetType: ContributionTargetType.FUND,
+      },
+      {
+        value: ContributionTargetSubtype.PENSION_FUND,
+        label:
+          subtypeLabels?.[ContributionTargetSubtype.PENSION_FUND] ??
+          ContributionTargetSubtype.PENSION_FUND,
+        targetType: ContributionTargetType.FUND,
+      },
+      {
+        value: ContributionTargetSubtype.PRIVATE_EQUITY,
+        label:
+          subtypeLabels?.[ContributionTargetSubtype.PRIVATE_EQUITY] ??
+          ContributionTargetSubtype.PRIVATE_EQUITY,
+        targetType: ContributionTargetType.FUND,
+      },
+      {
+        value: "FUND_PORTFOLIO" as const,
+        label:
+          productLabels?.[ContributionTargetType.FUND_PORTFOLIO] ??
+          ContributionTargetType.FUND_PORTFOLIO,
+        targetType: ContributionTargetType.FUND_PORTFOLIO,
+      },
+      {
+        value: "CRYPTO" as const,
+        label: productLabels?.["CRYPTO"] ?? "Crypto",
+        targetType: ContributionTargetType.CRYPTO,
+      },
+    ]
+  }, [t.enums?.contributionTargetSubtype, t.enums?.productType])
 
   const frequencyOptions = useMemo(
     () => Object.values(ContributionFrequency),
@@ -466,6 +536,11 @@ export default function AutoContributionsPage() {
       target: draft.target,
       target_name: draft.target_name ?? "",
       target_type: draft.target_type,
+      target_subtype:
+        draft.target_type === ContributionTargetType.FUND_PORTFOLIO ||
+        draft.target_type === ContributionTargetType.CRYPTO
+          ? ""
+          : (draft.target_subtype ?? ""),
       amount: draft.amount ? draft.amount.toString() : "",
       currency: draft.currency,
       since: draft.since,
@@ -480,7 +555,9 @@ export default function AutoContributionsPage() {
       const normalizedTarget =
         form.target_type === ContributionTargetType.FUND_PORTFOLIO
           ? form.target.trim().replace(/\s+/g, "").toUpperCase()
-          : form.target.trim().toUpperCase()
+          : form.target_type === ContributionTargetType.CRYPTO
+            ? form.target.trim().toUpperCase()
+            : form.target.trim().toUpperCase()
 
       return {
         localId: form.localId,
@@ -490,6 +567,13 @@ export default function AutoContributionsPage() {
         target: normalizedTarget,
         target_name: form.target_name.trim() ? form.target_name.trim() : null,
         target_type: form.target_type,
+        target_subtype:
+          form.target_type === ContributionTargetType.FUND_PORTFOLIO ||
+          form.target_type === ContributionTargetType.CRYPTO
+            ? null
+            : form.target_subtype
+              ? (form.target_subtype as ContributionTargetSubtype)
+              : null,
         amount: Number.parseFloat(form.amount),
         currency: form.currency,
         since: form.since,
@@ -509,6 +593,7 @@ export default function AutoContributionsPage() {
       target: "",
       target_name: "",
       target_type: ContributionTargetType.FUND,
+      target_subtype: ContributionTargetSubtype.MUTUAL_FUND,
       amount: "",
       currency: defaultCurrency.toUpperCase(),
       since: format(new Date(), "yyyy-MM-dd"),
@@ -567,6 +652,7 @@ export default function AutoContributionsPage() {
       a.target === b.target &&
       a.target_name === b.target_name &&
       a.target_type === b.target_type &&
+      a.target_subtype === b.target_subtype &&
       a.amount === b.amount &&
       a.currency === b.currency &&
       a.since === b.since &&
@@ -648,6 +734,28 @@ export default function AutoContributionsPage() {
               })
             }
           })
+        break
+      }
+      case ContributionTargetType.CRYPTO: {
+        const cryptoWallets =
+          (
+            entityPositions.products[ProductType.CRYPTO] as
+              | CryptoCurrencies
+              | undefined
+          )?.entries ?? []
+        cryptoWallets.forEach(wallet => {
+          wallet.assets?.forEach(asset => {
+            if (!asset.symbol || !asset.crypto_asset) return
+            const value = asset.symbol.toUpperCase()
+            if (!suggestions.has(value)) {
+              suggestions.set(value, {
+                value,
+                label: value,
+                secondary: asset.name || undefined,
+              })
+            }
+          })
+        })
         break
       }
       default:
@@ -810,6 +918,7 @@ export default function AutoContributionsPage() {
           target: draft.target,
           target_name: draft.target_name ?? null,
           target_type: draft.target_type,
+          target_subtype: draft.target_subtype ?? null,
           amount: draft.amount,
           currency: draft.currency,
           since: draft.since,
@@ -878,6 +987,8 @@ export default function AutoContributionsPage() {
         return <BarChart3 className="h-5 w-5" style={style} />
       case "FUND_PORTFOLIO":
         return <Folder className="h-5 w-5" style={style} />
+      case "CRYPTO":
+        return <Bitcoin className="h-5 w-5" style={style} />
       default:
         return <TrendingUp className="h-5 w-5" style={style} />
     }
@@ -927,6 +1038,12 @@ export default function AutoContributionsPage() {
     const target = manualDraft?.target ?? contribution?.target ?? ""
     const targetName =
       manualDraft?.target_name ?? contribution?.target_name ?? null
+    const targetSubtype =
+      manualDraft?.target_subtype ?? contribution?.target_subtype ?? null
+    const targetSubtypeLabel = targetSubtype
+      ? (t.enums?.contributionTargetSubtype as any)?.[targetSubtype] ||
+        targetSubtype
+      : null
     const since = manualDraft?.since ?? contribution?.since ?? ""
     const until = manualDraft
       ? manualDraft.until
@@ -937,6 +1054,9 @@ export default function AutoContributionsPage() {
         contribution?.target ||
         contribution?.target_type
     const iconColor = colorKey ? distributionColorMap[colorKey] : undefined
+    const productTypeBadgeClass = getProductTypeColor(
+      targetType as unknown as ProductType,
+    )
 
     return (
       <Card
@@ -993,6 +1113,21 @@ export default function AutoContributionsPage() {
             </div>
             <div className="flex items-center justify-between pt-1 text-[0.7rem] font-medium">
               <div className="flex items-center gap-3 flex-wrap">
+                <Badge
+                  className={cn(
+                    "gap-1 border-transparent px-2 py-0.5",
+                    productTypeBadgeClass,
+                  )}
+                >
+                  {productTypeLabel}
+                </Badge>
+                {targetSubtype &&
+                  targetSubtype !== ContributionTargetSubtype.MUTUAL_FUND &&
+                  targetSubtypeLabel && (
+                    <Badge className="border-transparent bg-muted text-foreground/80 dark:bg-muted/70 px-2 py-0.5">
+                      {targetSubtypeLabel}
+                    </Badge>
+                  )}
                 <SourceBadge
                   source={source}
                   title={t.management.source}
@@ -1035,6 +1170,16 @@ export default function AutoContributionsPage() {
                       </span>
                       <span className="font-medium">{productTypeLabel}</span>
                     </div>
+                    {targetSubtypeLabel && (
+                      <div className="flex justify-between gap-4">
+                        <span className="font-medium text-muted-foreground">
+                          {t.management.targetSubtype}
+                        </span>
+                        <span className="truncate max-w-[55%] text-right">
+                          {targetSubtypeLabel}
+                        </span>
+                      </div>
+                    )}
                     {targetName && (
                       <div className="flex justify-between gap-4">
                         <span className="font-medium text-muted-foreground">
@@ -1136,12 +1281,20 @@ export default function AutoContributionsPage() {
     flatContributions.length === 0 &&
     manualDrafts.every(draft => draft.originalId)
 
-  const showIsinWarning =
-    modalForm &&
-    (modalForm.target_type === ContributionTargetType.FUND ||
-      modalForm.target_type === ContributionTargetType.STOCK_ETF) &&
-    modalForm.target.trim().length > 0 &&
-    !isValidIsin(modalForm.target)
+  const showIsinWarning = (() => {
+    if (!modalForm) return false
+    const isFundOrStock =
+      modalForm.target_type === ContributionTargetType.FUND ||
+      modalForm.target_type === ContributionTargetType.STOCK_ETF
+    if (!isFundOrStock) return false
+    const normalizedTarget = modalForm.target.trim()
+    if (normalizedTarget.length === 0) return false
+    const isDgsCode =
+      modalForm.target_type === ContributionTargetType.FUND &&
+      /^N\d{2,}$/i.test(normalizedTarget)
+    if (isDgsCode) return false
+    return !isValidIsin(normalizedTarget)
+  })()
 
   const showIbanWarning =
     modalForm &&
@@ -1170,9 +1323,12 @@ export default function AutoContributionsPage() {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl font-bold">
-            {t.management.autoContributions}
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">
+              {t.management.autoContributions}
+            </h1>
+            <PinAssetButton assetId="management-auto-contributions" />
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -1329,18 +1485,11 @@ export default function AutoContributionsPage() {
         const unsavedDrafts = draftsForEntity.filter(draft => !draft.originalId)
 
         return (
-          <motion.div
-            key={entityId}
-            variants={fadeListItem}
-            className="space-y-4"
-          >
+          <div key={entityId} className="space-y-4">
             <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
               {entityName}
             </h2>
-            <motion.div
-              variants={fadeListContainer}
-              className="grid grid-cols-1 gap-4 md:grid-cols-2"
-            >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {list.map(c => {
                 const manualDraft = manualDraftByOriginalId.get(c.id)
                 if (
@@ -1355,403 +1504,476 @@ export default function AutoContributionsPage() {
                   : false
 
                 return (
-                  <motion.div
-                    key={manualDraft?.localId ?? c.id}
-                    variants={fadeListItem}
-                    className="h-full"
-                  >
+                  <div key={manualDraft?.localId ?? c.id} className="h-full">
                     {renderContributionCard(c, entityId, manualDraft, isDirty)}
-                  </motion.div>
+                  </div>
                 )
               })}
               {isEditMode &&
                 unsavedDrafts.map(draft => (
-                  <motion.div
-                    key={draft.localId}
-                    variants={fadeListItem}
-                    className="h-full"
-                  >
+                  <div key={draft.localId} className="h-full">
                     {renderContributionCard(
                       null,
                       entityId,
                       draft,
                       isManualDraftDirty(draft),
                     )}
-                  </motion.div>
+                  </div>
                 ))}
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )
       })}
 
-      {isModalOpen && modalForm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]">
-          <Card className="w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col">
-            <CardHeader className="pb-4 shrink-0">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-xl">
-                    {modalMode === "create"
-                      ? t.management.manualContributions.createTitle
-                      : t.management.manualContributions.editTitle}
-                  </CardTitle>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleRequestCloseModal}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <form
-              onSubmit={handleModalSubmit}
-              className="flex flex-1 flex-col overflow-hidden"
+      <AnimatePresence>
+        {isModalOpen && modalForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[10002]"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
             >
-              <CardContent className="space-y-4 flex-1 overflow-y-auto pr-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="entity">
-                      {t.management.manualContributions.entity}
-                    </Label>
-                    <select
-                      id="entity"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.entity_id}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                entity_id: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("entity_id")
-                      }}
+              <Card className="max-h-[calc(100vh-2rem)] flex flex-col">
+                <CardHeader className="pb-4 shrink-0">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-xl">
+                        {modalMode === "create"
+                          ? t.management.manualContributions.createTitle
+                          : t.management.manualContributions.editTitle}
+                      </CardTitle>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleRequestCloseModal}
                     >
-                      <option value="" disabled>
-                        {t.common.selectOptions}
-                      </option>
-                      {financialEntities.map(entity => (
-                        <option key={entity.id} value={entity.id}>
-                          {entity.name}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.entity_id && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.entity_id}
-                      </p>
-                    )}
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="name">{t.management.name}</Label>
-                    <Input
-                      id="name"
-                      value={modalForm.name}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev ? { ...prev, name: event.target.value } : prev,
-                        )
-                        clearFormError("name")
-                      }}
-                    />
-                    {formErrors.name && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.name}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="targetType">
-                      {t.management.targetType}
-                    </Label>
-                    <select
-                      id="targetType"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.target_type}
-                      onChange={event => {
-                        const value = event.target
-                          .value as ContributionTargetType
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                target_type: value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("target_type")
-                      }}
-                    >
-                      {targetTypeOptions.map(option => (
-                        <option key={option} value={option}>
-                          {(t.enums?.productType as any)?.[option] || option}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.target_type && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.target_type}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="target">{t.management.target}</Label>
-                    <Input
-                      id="target"
-                      value={modalForm.target}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                target: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("target")
-                      }}
-                      placeholder={
-                        t.management.manualContributions.targetHelper
-                      }
-                    />
-                    {formErrors.target && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.target}
-                      </p>
-                    )}
-                    {(showIsinWarning || showIbanWarning) && (
-                      <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
-                        <span>
-                          {showIsinWarning
-                            ? t.management.manualContributions.warnings.isin
-                            : t.management.manualContributions.warnings.iban}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="targetName">
-                      {t.management.manualContributions.targetName}
-                    </Label>
-                    <Input
-                      id="targetName"
-                      value={modalForm.target_name}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                target_name: event.target.value,
-                              }
-                            : prev,
-                        )
-                      }}
-                      placeholder={
-                        t.management.manualContributions.targetNameHelper
-                      }
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {t.management.manualContributions.targetNameHelper}
-                    </p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="currency">
-                      {t.management.manualContributions.currency}
-                    </Label>
-                    <select
-                      id="currency"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.currency}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                currency: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("currency")
-                      }}
-                    >
-                      {currencyOptions.map(option => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                    {formErrors.currency && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.currency}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="amount">{t.management.amount}</Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      inputMode="decimal"
-                      min="0"
-                      step="0.01"
-                      value={modalForm.amount}
-                      onChange={event => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                amount: event.target.value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("amount")
-                      }}
-                    />
-                    {formErrors.amount && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.amount}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="frequency">
-                      {t.management.frequencyLabel}
-                    </Label>
-                    <select
-                      id="frequency"
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      value={modalForm.frequency}
-                      onChange={event => {
-                        const value = event.target
-                          .value as ContributionFrequency
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                frequency: value,
-                              }
-                            : prev,
-                        )
-                      }}
-                    >
-                      {frequencyOptions.map(option => (
-                        <option key={option} value={option}>
-                          {(t.management.contributionFrequency as any)?.[
-                            option
-                          ] || option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{t.management.since}</Label>
-                    <DatePicker
-                      value={modalForm.since}
-                      onChange={value => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                since: value,
-                              }
-                            : prev,
-                        )
-                        clearFormError("since")
-                      }}
-                    />
-                    {formErrors.since && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                        {formErrors.since}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>{t.management.until}</Label>
-                    <DatePicker
-                      value={modalForm.until}
-                      onChange={value => {
-                        setModalForm(prev =>
-                          prev
-                            ? {
-                                ...prev,
-                                until: value,
-                              }
-                            : prev,
-                        )
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {t.management.manualContributions.suggestions}
-                  </div>
-                  {modalSuggestions.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {modalSuggestions.map(suggestion => (
-                        <Button
-                          key={suggestion.value}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
+                </CardHeader>
+                <form
+                  onSubmit={handleModalSubmit}
+                  className="flex flex-1 flex-col overflow-hidden"
+                >
+                  <CardContent className="space-y-4 flex-1 overflow-y-auto px-6 sm:px-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="entity">
+                          {t.management.manualContributions.entity}
+                        </Label>
+                        <select
+                          id="entity"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={modalForm.entity_id}
+                          onChange={event => {
+                            const selectedEntityId = event.target.value
+                            const selectedEntity = financialEntities.find(
+                              e => e.id === selectedEntityId,
+                            )
+                            const isCryptoWallet =
+                              selectedEntity?.type === EntityType.CRYPTO_WALLET
                             setModalForm(prev =>
                               prev
                                 ? {
                                     ...prev,
-                                    target: suggestion.value,
-                                    target_name:
-                                      prev.target_name ||
-                                      suggestion.secondary ||
-                                      prev.target_name,
+                                    entity_id: selectedEntityId,
+                                    ...(isCryptoWallet && {
+                                      target_type:
+                                        ContributionTargetType.CRYPTO,
+                                      target_subtype: "",
+                                    }),
+                                  }
+                                : prev,
+                            )
+                            clearFormError("entity_id")
+                          }}
+                        >
+                          <option value="" disabled>
+                            {t.common.selectOptions}
+                          </option>
+                          {financialEntities.map(entity => (
+                            <option key={entity.id} value={entity.id}>
+                              {entity.name}
+                            </option>
+                          ))}
+                        </select>
+                        {formErrors.entity_id && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.entity_id}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="name">{t.management.name}</Label>
+                        <Input
+                          id="name"
+                          value={modalForm.name}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? { ...prev, name: event.target.value }
+                                : prev,
+                            )
+                            clearFormError("name")
+                          }}
+                        />
+                        {formErrors.name && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="targetSubtype">
+                          {t.management.targetSubtype}
+                        </Label>
+                        {(() => {
+                          const selectedEntity = financialEntities.find(
+                            e => e.id === modalForm.entity_id,
+                          )
+                          const isCryptoWallet =
+                            selectedEntity?.type === EntityType.CRYPTO_WALLET
+                          const filteredOptions = isCryptoWallet
+                            ? targetSubtypeOptions.filter(
+                                opt =>
+                                  opt.targetType ===
+                                  ContributionTargetType.CRYPTO,
+                              )
+                            : targetSubtypeOptions
+                          return (
+                            <select
+                              id="targetSubtype"
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              value={
+                                modalForm.target_type ===
+                                ContributionTargetType.FUND_PORTFOLIO
+                                  ? "FUND_PORTFOLIO"
+                                  : modalForm.target_type ===
+                                      ContributionTargetType.CRYPTO
+                                    ? "CRYPTO"
+                                    : modalForm.target_subtype || ""
+                              }
+                              disabled={isCryptoWallet}
+                              onChange={event => {
+                                const value = event.target.value as
+                                  | ContributionTargetSubtype
+                                  | "FUND_PORTFOLIO"
+                                  | "CRYPTO"
+                                const option = filteredOptions.find(
+                                  opt => opt.value === value,
+                                )
+                                if (!option) {
+                                  return
+                                }
+                                setModalForm(prev =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        target_type: option.targetType,
+                                        target_subtype:
+                                          value === "FUND_PORTFOLIO" ||
+                                          value === "CRYPTO"
+                                            ? ""
+                                            : value,
+                                      }
+                                    : prev,
+                                )
+                                clearFormError("target_type")
+                              }}
+                            >
+                              <option value="" disabled>
+                                {t.common.selectOptions}
+                              </option>
+                              {filteredOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          )
+                        })()}
+                        {formErrors.target_type && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.target_type}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="target">{t.management.target}</Label>
+                        <Input
+                          id="target"
+                          value={modalForm.target}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    target: event.target.value,
                                   }
                                 : prev,
                             )
                             clearFormError("target")
                           }}
-                        >
-                          <span className="text-xs">
-                            <span className="font-medium">
-                              {suggestion.label}
+                          placeholder={
+                            t.management.manualContributions.targetHelper
+                          }
+                        />
+                        {formErrors.target && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.target}
+                          </p>
+                        )}
+                        {(showIsinWarning || showIbanWarning) && (
+                          <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 mt-1">
+                            <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+                            <span>
+                              {showIsinWarning
+                                ? t.management.manualContributions.warnings.isin
+                                : t.management.manualContributions.warnings
+                                    .iban}
                             </span>
-                            {suggestion.secondary && (
-                              <span className="block text-[0.7rem] text-muted-foreground">
-                                {suggestion.secondary}
-                              </span>
-                            )}
-                          </span>
-                        </Button>
-                      ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="targetName">
+                          {t.management.manualContributions.targetName}
+                        </Label>
+                        <Input
+                          id="targetName"
+                          value={modalForm.target_name}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    target_name: event.target.value,
+                                  }
+                                : prev,
+                            )
+                          }}
+                          placeholder={
+                            t.management.manualContributions.targetNameHelper
+                          }
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          {t.management.manualContributions.targetNameHelper}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="currency">
+                          {t.management.manualContributions.currency}
+                        </Label>
+                        <select
+                          id="currency"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={modalForm.currency}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    currency: event.target.value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("currency")
+                          }}
+                        >
+                          {currencyOptions.map(option => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        {formErrors.currency && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.currency}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="amount">{t.management.amount}</Label>
+                        <Input
+                          id="amount"
+                          type="number"
+                          inputMode="decimal"
+                          min="0"
+                          step="0.01"
+                          value={modalForm.amount}
+                          onChange={event => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    amount: event.target.value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("amount")
+                          }}
+                        />
+                        {formErrors.amount && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.amount}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="frequency">
+                          {t.management.frequencyLabel}
+                        </Label>
+                        <select
+                          id="frequency"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          value={modalForm.frequency}
+                          onChange={event => {
+                            const value = event.target
+                              .value as ContributionFrequency
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    frequency: value,
+                                  }
+                                : prev,
+                            )
+                          }}
+                        >
+                          {frequencyOptions.map(option => (
+                            <option key={option} value={option}>
+                              {(t.management.contributionFrequency as any)?.[
+                                option
+                              ] || option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>{t.management.since}</Label>
+                        <DatePicker
+                          value={modalForm.since}
+                          onChange={value => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    since: value,
+                                  }
+                                : prev,
+                            )
+                            clearFormError("since")
+                          }}
+                        />
+                        {formErrors.since && (
+                          <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                            {formErrors.since}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>{t.management.until}</Label>
+                        <DatePicker
+                          value={modalForm.until}
+                          onChange={value => {
+                            setModalForm(prev =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    until: value,
+                                  }
+                                : prev,
+                            )
+                          }}
+                        />
+                      </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      {t.management.manualContributions.noSuggestions}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2 shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleRequestCloseModal}
-                >
-                  {t.common.cancel}
-                </Button>
-                <Button type="submit">
-                  {modalMode === "create" ? t.common.add : t.common.save}
-                </Button>
-              </CardFooter>
-            </form>
-          </Card>
-        </div>
-      )}
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        {t.management.manualContributions.suggestions}
+                      </div>
+                      {modalSuggestions.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {modalSuggestions.map(suggestion => (
+                            <Button
+                              key={suggestion.value}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setModalForm(prev =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        target: suggestion.value,
+                                        target_name:
+                                          prev.target_name.trim().length > 0
+                                            ? prev.target_name
+                                            : (suggestion.secondary ??
+                                              suggestion.value),
+                                        name:
+                                          prev.name.trim().length > 0
+                                            ? prev.name
+                                            : (suggestion.secondary ??
+                                              (prev.target_name.trim().length >
+                                              0
+                                                ? prev.target_name
+                                                : suggestion.value)),
+                                      }
+                                    : prev,
+                                )
+                                clearFormError("target")
+                                clearFormError("name")
+                              }}
+                            >
+                              <span className="text-xs">
+                                <span className="font-medium">
+                                  {suggestion.label}
+                                </span>
+                                {suggestion.secondary && (
+                                  <span className="block text-[0.7rem] text-muted-foreground">
+                                    {suggestion.secondary}
+                                  </span>
+                                )}
+                              </span>
+                            </Button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t.management.manualContributions.noSuggestions}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex justify-end gap-2 shrink-0 px-6 pb-6 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleRequestCloseModal}
+                    >
+                      {t.common.cancel}
+                    </Button>
+                    <Button type="submit">
+                      {modalMode === "create" ? t.common.add : t.common.save}
+                    </Button>
+                  </CardFooter>
+                </form>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <ConfirmationDialog
         isOpen={showCancelConfirm}
         title={t.management.manualContributions.cancelDialog.title}

@@ -211,29 +211,6 @@ class HistoricSQLRepository(HistoricPort):
 
         return historic_entries
 
-    def get_all(self, fetch_related_txs: bool = False) -> Historic:
-        with self._db_client.read() as cursor:
-            cursor.execute("""
-                           SELECT h.*,
-                                  e.id         AS entity_id,
-                                  e.name       AS entity_name,
-                                  e.natural_id AS entity_natural_id,
-                                  e.type       as entity_type,
-                                  e.origin     as entity_origin
-                           FROM investment_historic h
-                                    JOIN entities e ON h.entity_id = e.id
-                           """)
-            entries = cursor.fetchall()
-
-            if not entries:
-                return Historic(entries=[])
-
-            historic_entries = self._build_historic_entries(
-                entries, fetch_related_txs, cursor
-            )
-
-            return Historic(entries=historic_entries)
-
     def delete_by_entity(self, entity_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(

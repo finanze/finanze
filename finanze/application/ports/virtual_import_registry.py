@@ -3,7 +3,7 @@ from typing import Optional
 from uuid import UUID
 
 from domain.entity import Feature
-from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
+from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
 
 class VirtualImportRegistry(metaclass=abc.ABCMeta):

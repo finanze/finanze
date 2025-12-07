@@ -16,9 +16,10 @@ from domain.available_sources import (
 )
 from domain.entity import EntityOrigin, EntityType, Feature
 from domain.external_entity import EXTERNAL_ENTITY_FEATURES, ExternalEntityStatus
+from domain.global_position import ProductType
 from domain.native_entities import NATIVE_ENTITIES
 from domain.use_cases.get_available_entities import GetAvailableEntities
-from domain.virtual_fetch import VirtualDataImport
+from domain.virtual_data import VirtualDataImport
 
 
 def get_last_fetches_for_virtual(
@@ -32,7 +33,14 @@ def get_last_fetches_for_virtual(
 
 
 class GetAvailableEntitiesImpl(GetAvailableEntities):
-    LISTED_ENTITY_TYPES = [EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_WALLET]
+    LISTED_ENTITY_TYPES = [
+        EntityType.FINANCIAL_INSTITUTION,
+        EntityType.CRYPTO_EXCHANGE,
+        EntityType.CRYPTO_WALLET,
+    ]
+
+    EXTERNAL_ENTITY_PRODUCTS = [ProductType.ACCOUNT]
+    CRYPTO_WALLET_PRODUCTS = [ProductType.CRYPTO]
 
     def __init__(
         self,
@@ -68,6 +76,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             status = None
             wallets = None
             external_entity_id = None
+            products = None
 
             last_virtual_imported_data = last_virtual_imported_entities.get(entity.id)
             virtual_features = {}
@@ -79,6 +88,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             dict_entity = asdict(native_entity or entity)
 
             if entity.origin == EntityOrigin.EXTERNALLY_PROVIDED:
+                products = self.EXTERNAL_ENTITY_PRODUCTS
                 external_entity = self._external_entity_port.get_by_entity_id(entity.id)
                 if not external_entity:
                     status = FinancialEntityStatus.DISCONNECTED
@@ -92,8 +102,12 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     external_entity_id = external_entity.id
                     dict_entity["features"] = EXTERNAL_ENTITY_FEATURES
 
-            elif entity.type == EntityType.FINANCIAL_INSTITUTION:
+            elif (
+                entity.type == EntityType.FINANCIAL_INSTITUTION
+                or entity.type == EntityType.CRYPTO_EXCHANGE
+            ):
                 status = FinancialEntityStatus.DISCONNECTED
+                products = dict_entity.get("products")
 
                 if entity.origin != EntityOrigin.MANUAL:
                     if entity.id in logged_entity_ids:
@@ -110,6 +124,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 wallets = self._crypto_wallet_connections_port.get_by_entity_id(
                     entity.id
                 )
+                products = self.CRYPTO_WALLET_PRODUCTS
 
             last_fetch = {}
             if entity.origin != EntityOrigin.MANUAL:
@@ -138,6 +153,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     last_fetch=last_fetch,
                     external_entity_id=external_entity_id,
                     virtual_features=virtual_features,
+                    natively_supported_products=products,
                 )
             )
 

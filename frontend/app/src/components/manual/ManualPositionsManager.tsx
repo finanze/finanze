@@ -67,6 +67,7 @@ import {
 import { Button } from "@/components/ui/Button"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
 import { AlertCircle, Pencil, Plus, Save, X } from "lucide-react"
 import { saveManualPositions } from "@/services/api"
 import {
@@ -1739,159 +1740,173 @@ export function ManualPositionsManager({
         }
       />
 
-      {formState && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[16000]">
-          <Card className="w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
-            <CardHeader className="space-y-2">
-              <CardTitle>
-                {formMode === "create"
-                  ? translate(`${assetPath}.form.createTitle`)
-                  : translate(`${assetPath}.form.editTitle`)}
-              </CardTitle>
-              <CardDescription>
-                {formMode === "create"
-                  ? translate(`${assetPath}.form.createDescription`)
-                  : translate(`${assetPath}.form.editDescription`)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto">
-              {config.renderFormFields({
-                form: formState,
-                updateField: (field, value) =>
-                  updateField(field as string, value),
-                errors: formErrors,
-                clearError: field => clearError(field as string),
-                t: translate,
-                entityOptions: manualEntities,
-                currencyOptions,
-                defaultCurrency,
-                locale,
-                mode: formMode,
-                canEditEntity:
-                  formMode === "create" ||
-                  !activeDraft?.originalId ||
-                  Boolean(activeDraft?.isNewEntity),
-                exchangeRates,
-                accountOptions: linkedAccountOptions,
-                portfolioOptions: linkedPortfolioOptions,
-              })}
-            </CardContent>
-            {(() => {
-              if (!formState) return null
+      <AnimatePresence>
+        {formState && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[16000]"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
+            >
+              <Card className="max-h-[90vh] overflow-hidden flex flex-col">
+                <CardHeader className="space-y-2">
+                  <CardTitle>
+                    {formMode === "create"
+                      ? translate(`${assetPath}.form.createTitle`)
+                      : translate(`${assetPath}.form.editTitle`)}
+                  </CardTitle>
+                  <CardDescription>
+                    {formMode === "create"
+                      ? translate(`${assetPath}.form.createDescription`)
+                      : translate(`${assetPath}.form.editDescription`)}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-y-auto">
+                  {config.renderFormFields({
+                    form: formState,
+                    updateField: (field, value) =>
+                      updateField(field as string, value),
+                    errors: formErrors,
+                    clearError: field => clearError(field as string),
+                    t: translate,
+                    entityOptions: manualEntities,
+                    currencyOptions,
+                    defaultCurrency,
+                    locale,
+                    mode: formMode,
+                    canEditEntity:
+                      formMode === "create" ||
+                      !activeDraft?.originalId ||
+                      Boolean(activeDraft?.isNewEntity),
+                    exchangeRates,
+                    accountOptions: linkedAccountOptions,
+                    portfolioOptions: linkedPortfolioOptions,
+                  })}
+                </CardContent>
+                {(() => {
+                  if (!formState) return null
 
-              let trackerCandidate: string | null = null
-              let trackerStatus: "auto" | "on" | "off" = "auto"
+                  let trackerCandidate: string | null = null
+                  let trackerStatus: "auto" | "on" | "off" = "auto"
 
-              if (asset === "funds") {
-                const fundForm = formState as unknown as FundFormState
-                trackerCandidate = getFundTrackerCandidate(fundForm)
-                trackerStatus = fundForm._tracker_status ?? "auto"
-              } else if (asset === "stocks") {
-                const stockForm = formState as unknown as StockFormState
-                trackerCandidate = getStockTrackerCandidate(stockForm)
-                trackerStatus = stockForm._tracker_status ?? "auto"
-              }
+                  if (asset === "funds") {
+                    const fundForm = formState as unknown as FundFormState
+                    trackerCandidate = getFundTrackerCandidate(fundForm)
+                    trackerStatus = fundForm._tracker_status ?? "auto"
+                  } else if (asset === "stocks") {
+                    const stockForm = formState as unknown as StockFormState
+                    trackerCandidate = getStockTrackerCandidate(stockForm)
+                    trackerStatus = stockForm._tracker_status ?? "auto"
+                  }
 
-              const isTrackingAvailable = Boolean(trackerCandidate)
-              const isTrackingActive =
-                isTrackingAvailable &&
-                (trackerStatus === "on" || trackerStatus === "auto")
+                  const isTrackingAvailable = Boolean(trackerCandidate)
+                  const isTrackingActive =
+                    isTrackingAvailable &&
+                    (trackerStatus === "on" || trackerStatus === "auto")
 
-              const handleToggleTrack = () => {
-                if (!isTrackingAvailable) return
-                const nextStatus = isTrackingActive ? "off" : "on"
-                updateField("_tracker_status", nextStatus)
+                  const handleToggleTrack = () => {
+                    if (!isTrackingAvailable) return
+                    const nextStatus = isTrackingActive ? "off" : "on"
+                    updateField("_tracker_status", nextStatus)
 
-                // When re-enabling tracking, recalculate market value
-                if (nextStatus === "on") {
-                  const form = formState as any
-                  const instrumentPriceString =
-                    form._instrument_price_value?.trim() ?? ""
-                  const instrumentPrice =
-                    instrumentPriceString &&
-                    !isNaN(Number(instrumentPriceString))
-                      ? Number(instrumentPriceString)
-                      : null
+                    // When re-enabling tracking, recalculate market value
+                    if (nextStatus === "on") {
+                      const form = formState as any
+                      const instrumentPriceString =
+                        form._instrument_price_value?.trim() ?? ""
+                      const instrumentPrice =
+                        instrumentPriceString &&
+                        !isNaN(Number(instrumentPriceString))
+                          ? Number(instrumentPriceString)
+                          : null
 
-                  if (
-                    instrumentPrice != null &&
-                    Number.isFinite(instrumentPrice)
-                  ) {
-                    const instrumentCurrency =
-                      form._instrument_currency?.trim().toUpperCase() ?? ""
-                    const selectedCurrency =
-                      form.currency?.trim().toUpperCase() ?? ""
+                      if (
+                        instrumentPrice != null &&
+                        Number.isFinite(instrumentPrice)
+                      ) {
+                        const instrumentCurrency =
+                          form._instrument_currency?.trim().toUpperCase() ?? ""
+                        const selectedCurrency =
+                          form.currency?.trim().toUpperCase() ?? ""
 
-                    const priceInSelectedCurrency =
-                      manualPositionConvertPriceToCurrency(
-                        instrumentPrice,
-                        instrumentCurrency || null,
-                        selectedCurrency || null,
-                        exchangeRates ?? null,
-                      )
+                        const priceInSelectedCurrency =
+                          manualPositionConvertPriceToCurrency(
+                            instrumentPrice,
+                            instrumentCurrency || null,
+                            selectedCurrency || null,
+                            exchangeRates ?? null,
+                          )
 
-                    const sharesString = form.shares?.trim() ?? ""
-                    const shares =
-                      sharesString && !isNaN(Number(sharesString))
-                        ? Number(sharesString)
-                        : null
+                        const sharesString = form.shares?.trim() ?? ""
+                        const shares =
+                          sharesString && !isNaN(Number(sharesString))
+                            ? Number(sharesString)
+                            : null
 
-                    if (shares != null && shares > 0) {
-                      const total = priceInSelectedCurrency * shares
-                      const formattedTotal = manualPositionFormatNumberInput(
-                        total,
-                        {
-                          maximumFractionDigits: 4,
-                        },
-                      )
-                      if (formattedTotal) {
-                        updateField("market_value", formattedTotal)
-                        clearError("market_value")
+                        if (shares != null && shares > 0) {
+                          const total = priceInSelectedCurrency * shares
+                          const formattedTotal =
+                            manualPositionFormatNumberInput(total, {
+                              maximumFractionDigits: 4,
+                            })
+                          if (formattedTotal) {
+                            updateField("market_value", formattedTotal)
+                            clearError("market_value")
+                          }
+                        }
                       }
                     }
                   }
-                }
-              }
 
-              return (
-                <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2">
-                    {asset !== "funds" && asset !== "stocks" ? null : (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={isTrackingActive ? "secondary" : "outline"}
-                        onClick={handleToggleTrack}
-                        disabled={!isTrackingAvailable}
-                        aria-pressed={isTrackingActive}
-                        title={
-                          isTrackingAvailable
-                            ? undefined
-                            : translate(
-                                "management.manualPositions.shared.trackPriceUnavailable",
-                              )
-                        }
-                      >
-                        {translate(
-                          "management.manualPositions.shared.trackPrice",
+                  return (
+                    <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-2">
+                        {asset !== "funds" && asset !== "stocks" ? null : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={isTrackingActive ? "secondary" : "outline"}
+                            onClick={handleToggleTrack}
+                            disabled={!isTrackingAvailable}
+                            aria-pressed={isTrackingActive}
+                            title={
+                              isTrackingAvailable
+                                ? undefined
+                                : translate(
+                                    "management.manualPositions.shared.trackPriceUnavailable",
+                                  )
+                            }
+                          >
+                            {translate(
+                              "management.manualPositions.shared.trackPrice",
+                            )}
+                          </Button>
                         )}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex w-full justify-end gap-2 sm:w-auto">
-                    <Button variant="outline" onClick={handleCloseForm}>
-                      {translate("common.cancel")}
-                    </Button>
-                    <Button onClick={handleSubmitForm}>
-                      {translate("common.save")}
-                    </Button>
-                  </div>
-                </CardFooter>
-              )
-            })()}
-          </Card>
-        </div>
-      )}
+                      </div>
+                      <div className="flex w-full justify-end gap-2 sm:w-auto">
+                        <Button variant="outline" onClick={handleCloseForm}>
+                          {translate("common.cancel")}
+                        </Button>
+                        <Button onClick={handleSubmitForm}>
+                          {translate("common.save")}
+                        </Button>
+                      </div>
+                    </CardFooter>
+                  )
+                })()}
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </ManualPositionsContext.Provider>
   )
 }

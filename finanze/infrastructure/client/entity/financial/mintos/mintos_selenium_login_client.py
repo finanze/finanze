@@ -83,7 +83,7 @@ async def login(
         if invalid_credentials_element:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
-        log.error(f"An error occurred while logging in: {e}")
+        log.exception(f"An error occurred while logging in: {e}")
         return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 
     finally:

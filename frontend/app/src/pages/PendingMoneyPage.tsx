@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/Switch"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
 import { Card } from "@/components/ui/Card"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   MultiSelect,
   type MultiSelectOption,
@@ -88,12 +89,20 @@ export default function PendingMoneyPage() {
     if (editingFlowId) return flows
     if (sortBy === "amount") {
       return flows.sort((a, b) => {
+        // Deprioritize disabled flows
+        if (a.enabled !== b.enabled) {
+          return a.enabled ? -1 : 1
+        }
         const amountA = a.amount
         const amountB = b.amount
         return amountB - amountA // Descending order
       })
     } else {
       return flows.sort((a, b) => {
+        // Deprioritize disabled flows
+        if (a.enabled !== b.enabled) {
+          return a.enabled ? -1 : 1
+        }
         if (!a.date && !b.date) return 0
         if (!a.date) return 1
         if (!b.date) return -1
@@ -772,7 +781,10 @@ export default function PendingMoneyPage() {
           >
             <ArrowLeft size={16} />
           </Button>
-          <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
+            <PinAssetButton assetId="management-pending" />
+          </div>
         </div>
 
         {unsavedChanges && (

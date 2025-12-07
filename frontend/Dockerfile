@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN npm install -g pnpm
 
-COPY ./app/package.json ./app/pnpm-lock.yaml ./
+COPY ./app/package.json ./app/pnpm-lock.yaml ./app/pnpm-workspace.yaml ./
 
 RUN pnpm install --frozen-lockfile
 

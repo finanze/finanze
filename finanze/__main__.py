@@ -3,6 +3,7 @@ import sys
 import traceback
 
 from args import parse_args
+from infrastructure.config.server_details_adapter import _resolve_version
 from server import FinanzeServer
 
 log = logging.getLogger(__name__)
@@ -13,7 +14,7 @@ def main() -> None:
     try:
         args = parse_args()
 
-        log.info("Initializing Finanze server...")
+        log.info(f"Initializing Finanze server v{_resolve_version()}...")
         server = FinanzeServer(args)
 
         server.run()

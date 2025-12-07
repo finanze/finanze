@@ -3,6 +3,7 @@ from uuid import UUID
 
 from domain.auto_contributions import (
     ContributionFrequency,
+    ContributionTargetSubtype,
     ContributionTargetType,
     ManualPeriodicContribution,
 )
@@ -47,6 +48,9 @@ async def update_contributions(update_contributions_uc: UpdateContributions):
                 target=target,
                 target_name=item.get("target_name"),
                 target_type=target_type,
+                target_subtype=ContributionTargetSubtype(item.get("target_subtype"))
+                if item.get("target_subtype")
+                else None,
                 amount=amount,
                 currency=currency,
                 since=since,

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from application.ports.credentials_port import CredentialsPort
 from dateutil.tz import tzlocal
-from domain.entity import EntityCredentials, FinancialEntityCredentialsEntry
+from domain.native_entity import EntityCredentials, FinancialEntityCredentialsEntry
 from infrastructure.repository.db.client import DBClient
 
 

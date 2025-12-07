@@ -8,6 +8,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
+    ContributionTargetSubtype,
     ContributionTargetType,
     PeriodicContribution,
 )
@@ -20,6 +21,10 @@ from domain.global_position import (
     Accounts,
     AccountType,
     AssetType,
+    CryptoCurrencies,
+    CryptoCurrencyPosition,
+    CryptoCurrencyType,
+    CryptoCurrencyWallet,
     EquityType,
     FundDetail,
     FundInvestments,
@@ -30,7 +35,14 @@ from domain.global_position import (
     StockInvestments,
 )
 from domain.native_entities import TRADE_REPUBLIC
-from domain.transactions import AccountTx, FundTx, StockTx, Transactions, TxType
+from domain.transactions import (
+    AccountTx,
+    CryptoCurrencyTx,
+    FundTx,
+    StockTx,
+    Transactions,
+    TxType,
+)
 from infrastructure.client.entity.financial.tr.trade_republic_client import (
     TradeRepublicClient,
 )
@@ -163,9 +175,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.warning("No ISIN found for private equity instrument")
             return None
 
+        self._log.info(position)
         details = await self._client.get_instrument_details(isin)
 
-        raw_average_buy = position.get("averageBuyIn") or 0
+        raw_average_buy = position.get("averageBuyIn", {}).get("value", 0)
         average_buy = round(Dezimal(raw_average_buy), 4)
         shares = Dezimal(position.get("netSize") or 0)
         # available_shares = position.get("availableSize") # Don't know what is this
@@ -199,7 +212,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def _instrument_mapper(
         self, instrument: dict, currency: str
-    ) -> Optional[StockDetail | FundDetail]:
+    ) -> Optional[StockDetail | FundDetail | CryptoCurrencyPosition]:
         isin = instrument.get("instrumentId") or instrument.get("isin")
         instrument_type = instrument.get("instrumentType", "").upper()
         if instrument_type not in ["FUND", "STOCK", "CRYPTO", "MUTUALFUND"]:
@@ -236,8 +249,22 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         subtype = ""
         type_id = instrument_type
 
-        if instrument_type == "FUND" or instrument_type == "CRYPTO":
+        if instrument_type == "FUND":
             type_id = "ETF"
+
+        elif instrument_type == "CRYPTO":
+            return CryptoCurrencyPosition(
+                id=uuid4(),
+                name=name,
+                amount=shares,
+                symbol=ticker,
+                type=CryptoCurrencyType.NATIVE,
+                initial_investment=initial_investment,
+                average_buy_price=average_buy,
+                market_value=market_value,
+                currency=currency,
+                investment_currency=currency,
+            )
 
         elif instrument_type == "STOCK":
             name = details.stock_details["company"]["name"]
@@ -304,12 +331,23 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         if cash_account:
             iban = cash_account.get("iban")
 
-        active_interest = round(
-            Dezimal(self._client.get_active_interest_rate().get("activeInterestRate"))
-            / 100,
-            4,
-        )
         raw_portfolio = await self._client.get_portfolio()
+
+        try:
+            # This doesn't work anymore, throws 401 :(, wrong param?, or is this only available in mobile app?
+            cash_acc_num = raw_portfolio.cash[0].get("accountNumber")
+            active_interest = round(
+                Dezimal(
+                    self._client.get_active_interest_rate(cash_acc_num).get(
+                        "activeInterestRate"
+                    )
+                )
+                / 100,
+                4,
+            )
+        except Exception as e:
+            self._log.error(f"Could not fetch active interest rate: {e}")
+            active_interest = None
 
         accounts = []
         currency = None
@@ -365,11 +403,13 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         stocks = [i for i in investments if isinstance(i, StockDetail)]
         funds = [i for i in investments if isinstance(i, FundDetail)]
+        crypto = [i for i in investments if isinstance(i, CryptoCurrencyPosition)]
 
         products = {
             ProductType.ACCOUNT: Accounts(accounts),
             ProductType.STOCK_ETF: StockInvestments(stocks),
             ProductType.FUND: FundInvestments(funds),
+            ProductType.CRYPTO: CryptoCurrencies([CryptoCurrencyWallet(assets=crypto)]),
         }
 
         return GlobalPosition(
@@ -421,9 +461,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             status = raw_tx.get("status", None)
             event_type = raw_tx.get("eventType", None)
             if not (
-                event_type
-                and status == "EXECUTED"
-                and event_type.upper() in self.HANDLED_TX_TYPES
+                status == "EXECUTED"
+                and (not event_type or event_type.upper() in self.HANDLED_TX_TYPES)
             ):
                 continue
 
@@ -459,15 +498,22 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             self._log.warning(f"Unknown contribution frequency: {frequency}")
             return None
 
+        target_subtype = None
         raw_target_type = saving_plan.get("instrumentType")
         if raw_target_type == "stock":
             target_type = ContributionTargetType.STOCK_ETF
+            target_subtype = ContributionTargetSubtype.STOCK
+        elif raw_target_type == "crypto":
+            target_type = ContributionTargetType.CRYPTO
         elif raw_target_type == "fund":
             target_type = ContributionTargetType.STOCK_ETF
+            target_subtype = ContributionTargetSubtype.ETF
         elif raw_target_type in ("mutualFund", "privateFund"):
             target_type = ContributionTargetType.FUND
-        elif raw_target_type == "crypto":
-            target_type = ContributionTargetType.STOCK_ETF
+            if raw_target_type == "mutualFund":
+                target_subtype = ContributionTargetSubtype.MUTUAL_FUND
+            else:
+                target_subtype = ContributionTargetSubtype.PRIVATE_EQUITY
         else:
             self._log.warning(f"Unknown contribution target type: {raw_target_type}")
             return None
@@ -502,6 +548,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             target=isin,
             target_name=instrument_name,
             target_type=target_type,
+            target_subtype=target_subtype,
             amount=amount,
             currency=currency,
             since=since,
@@ -532,14 +579,14 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
     async def map_investment_tx(
         self, raw_tx: dict, date: datetime
-    ) -> Optional[StockTx | FundTx]:
+    ) -> Optional[StockTx | FundTx | CryptoCurrencyTx]:
         name = raw_tx.get("title", "").strip()
         subtitle = (raw_tx.get("subtitle") or "").strip().lower()
         amount_obj = raw_tx.get("amount", {})
         currency = amount_obj.get("currency")
         raw_amount_value = amount_obj.get("value")
         event_type = raw_tx.get("eventType", "").strip().upper()
-        if not event_type or not amount_obj or not currency or not raw_amount_value:
+        if not amount_obj or not currency or not raw_amount_value:
             self._log.warning(f"Incomplete transaction data: {raw_tx['id']}")
             return None
 
@@ -575,7 +622,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             product_type = ProductType.STOCK_ETF
             product_subtype = EquityType.STOCK
 
-        elif raw_type == "FUND" or raw_type == "CRYPTO":
+        elif raw_type == "CRYPTO":
+            product_type = ProductType.CRYPTO
+
+        elif raw_type == "FUND":
             product_type = ProductType.STOCK_ETF
             product_subtype = EquityType.ETF
 
@@ -662,13 +712,40 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 shares=Dezimal(shares),
                 price=Dezimal(price),
                 market=None,
-                fees=Dezimal(fees + taxes),
-                retentions=Dezimal(0),
+                fees=Dezimal(fees),
+                retentions=Dezimal(taxes),
                 order_date=None,
                 product_type=product_type,
                 fund_type=product_subtype,
                 source=DataSource.REAL,
             )
+        elif product_type == ProductType.CRYPTO:
+            symbol = instrument_details.get("homeSymbol")
+            if not symbol:
+                self._log.warning(f"Crypto symbol not found for name {name}")
+                return None
+
+            return CryptoCurrencyTx(
+                id=uuid4(),
+                ref=raw_tx["id"],
+                name=name,
+                amount=Dezimal(amount),
+                currency=currency,
+                type=tx_type,
+                date=date,
+                entity=TRADE_REPUBLIC,
+                net_amount=Dezimal(net_amount),
+                symbol=symbol,
+                contract_address=None,
+                currency_amount=Dezimal(shares),
+                price=Dezimal(price),
+                fees=Dezimal(fees),
+                retentions=Dezimal(taxes),
+                order_date=None,
+                product_type=product_type,
+                source=DataSource.REAL,
+            )
+
         else:
             return StockTx(
                 id=uuid4(),
@@ -685,8 +762,8 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 shares=Dezimal(shares),
                 price=Dezimal(price),
                 market=None,
-                fees=Dezimal(fees + taxes),
-                retentions=Dezimal(0),
+                fees=Dezimal(fees),
+                retentions=Dezimal(taxes),
                 order_date=None,
                 product_type=product_type,
                 equity_type=product_subtype,
@@ -739,17 +816,23 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 self._log.warning(f"No interest rate found in tx: {raw_tx['id']}")
                 return None
 
-        if raw_tx["eventType"] == "INTEREST_PAYOUT":
-            tx_section = get_section(detail_sections, "Transaction")["data"]
-            inferred_locale = infer_locale_from_section(
-                get_section(ov_section, "Total")
-            ) or infer_locale_from_section(get_section(ov_section, "Accrued"))
-            accrued = parse_sub_section_float(
-                get_section(tx_section, "Accrued"), inferred_locale
-            )
-            taxes = parse_sub_section_float(
-                get_section(tx_section, "Tax"), inferred_locale
-            )
+        event_type = raw_tx.get("eventType", "").strip().upper()
+        if title in ["Interest"] or event_type == "INTEREST_PAYOUT":
+            tx_section_parent = get_section(detail_sections, "Transaction")
+            if tx_section_parent:
+                tx_section = get_section(detail_sections, "Transaction")["data"]
+                inferred_locale = infer_locale_from_section(
+                    get_section(ov_section, "Total")
+                ) or infer_locale_from_section(get_section(ov_section, "Accrued"))
+                accrued = parse_sub_section_float(
+                    get_section(tx_section, "Accrued"), inferred_locale
+                )
+                taxes = parse_sub_section_float(
+                    get_section(tx_section, "Tax"), inferred_locale
+                )
+            else:
+                taxes = 0
+                accrued = amount_obj["value"]
         else:
             taxes = 0
             accrued = amount_obj["value"]

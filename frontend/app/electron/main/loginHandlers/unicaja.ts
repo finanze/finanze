@@ -5,9 +5,14 @@ export const UNICAJA_ID = "e0000000-0000-0000-0000-000000000002"
 
 export async function promptLogin(): Promise<ExternalLoginRequestResult> {
   const unicajaPartition = `persist:unicaja`
+  const unicajaSession = session.fromPartition(unicajaPartition)
+
+  unicajaSession.webRequest.onSendHeaders(null)
+
   let unicajaWindow: BrowserWindow | null = new BrowserWindow({
     width: 1250,
     height: 900,
+    show: false,
     webPreferences: {
       partition: unicajaPartition,
       nodeIntegration: false,
@@ -15,7 +20,6 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
     },
   })
 
-  const unicajaSession = session.fromPartition(unicajaPartition)
   const result: LoginHandlerResult = {
     success: false,
     credentials: {},
@@ -23,7 +27,7 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
   unicajaSession.clearStorageData()
 
   unicajaSession.webRequest.onSendHeaders(
-    { types: ["xhr"], urls: [] },
+    { types: ["xhr"], urls: ["<all_urls>"] },
     details => {
       if (details.url.includes("/rest/autenticacion")) {
         unicajaWindow?.webContents
@@ -52,10 +56,26 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
       }
     },
   )
-  unicajaWindow.loadURL("https://univia.unicajabanco.es/login")
+  unicajaWindow.once("ready-to-show", () => {
+    unicajaWindow?.show()
+  })
+
+  try {
+    await unicajaWindow.loadURL("https://univia.unicajabanco.es/login")
+  } catch (error: any) {
+    // ERR_ABORTED (-3) happens on redirects, which is expected for login pages
+    const isAborted =
+      error?.message?.includes("ERR_ABORTED") ||
+      error?.toString?.()?.includes("ERR_ABORTED")
+    if (!isAborted) {
+      console.error("Failed to load Unicaja login page:", error)
+      unicajaWindow?.close()
+      return { success: false }
+    }
+  }
 
   unicajaWindow.on("closed", () => {
-    unicajaSession.removeAllListeners()
+    unicajaSession.webRequest.onSendHeaders(null)
     unicajaWindow?.removeAllListeners()
     if (!result.success && !result.credentials.abck) {
       sendCompletion(result)

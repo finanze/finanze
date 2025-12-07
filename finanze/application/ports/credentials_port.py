@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from domain.entity import EntityCredentials, FinancialEntityCredentialsEntry
+from domain.native_entity import EntityCredentials, FinancialEntityCredentialsEntry
 
 
 class CredentialsPort(metaclass=abc.ABCMeta):

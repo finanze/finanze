@@ -1,6 +1,6 @@
 from domain.crypto import ConnectCryptoWallet as ConnectCryptoWalletRequest
 from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
-from flask import request
+from flask import jsonify, request
 
 
 def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
@@ -9,16 +9,16 @@ def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
     if (
         not body
         or not body.get("entityId")
-        or not body.get("address")
+        or not body.get("addresses")
         or not body.get("name")
     ):
         return {"message": "entityId, address and name are required"}, 400
 
-    connect_crypto_wallet_uc.execute(
+    response = connect_crypto_wallet_uc.execute(
         ConnectCryptoWalletRequest(
             entity_id=body.get("entityId"),
-            address=body.get("address"),
+            addresses=body.get("addresses"),
             name=body.get("name"),
         )
     )
-    return "", 204
+    return jsonify(response), 200

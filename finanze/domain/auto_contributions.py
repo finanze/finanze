@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from domain.dezimal import Dezimal
+from domain.entity import Entity
 from domain.fetch_record import DataSource
 from pydantic.dataclasses import dataclass
 
@@ -23,6 +24,15 @@ class ContributionTargetType(str, Enum):
     STOCK_ETF = "STOCK_ETF"
     FUND = "FUND"
     FUND_PORTFOLIO = "FUND_PORTFOLIO"
+    CRYPTO = "CRYPTO"
+
+
+class ContributionTargetSubtype(str, Enum):
+    STOCK = "STOCK"
+    ETF = "ETF"
+    MUTUAL_FUND = "MUTUAL_FUND"
+    PRIVATE_EQUITY = "PRIVATE_EQUITY"
+    PENSION_FUND = "PENSION_FUND"
 
 
 @dataclass
@@ -40,6 +50,8 @@ class PeriodicContribution:
     active: bool
     source: DataSource
     next_date: Optional[date] = None
+    target_subtype: Optional[ContributionTargetSubtype] = None
+    entity: Optional[Entity] = None
 
 
 @dataclass
@@ -66,6 +78,7 @@ class ManualPeriodicContribution:
     target: str
     target_name: Optional[str]
     target_type: ContributionTargetType
+    target_subtype: Optional[ContributionTargetSubtype]
     amount: Dezimal
     currency: str
     since: date

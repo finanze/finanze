@@ -6,7 +6,7 @@ from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Feature
 from domain.transactions import BaseTx, TxType
-from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
+from domain.virtual_data import VirtualDataImport, VirtualDataSource
 
 
 class ManualTransactionVirtualImportHelper:

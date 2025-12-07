@@ -3,39 +3,69 @@ import { useI18n } from "@/i18n"
 import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { CalendarSync, HandCoins, PiggyBank } from "lucide-react"
+import {
+  CalendarSync,
+  HandCoins,
+  PiggyBank,
+  type LucideIcon,
+} from "lucide-react"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import type { PinnedShortcutId } from "@/context/PinnedShortcutsContext"
+import { EventsCalendarView } from "@/components/EventsCalendarView"
 
 export default function ManagementPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
 
-  const managementRoutes = [
-    {
-      path: "/management/recurring",
-      label: t.management.recurringMoney,
-      icon: <CalendarSync className="h-6 w-6" />,
-      color: "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300",
-      description: t.management.recurringMoneyDescription,
-    },
-    {
-      path: "/management/pending",
-      label: t.management.pendingMoney,
-      icon: <HandCoins className="h-6 w-6" />,
-      color:
-        "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300",
-      description: t.management.pendingMoneyDescription,
-    },
-    {
-      path: "/management/auto-contributions",
-      label: t.management.autoContributions,
-      icon: <PiggyBank className="h-6 w-6" />,
-      color: "bg-pink-100 text-pink-600 dark:bg-pink-900 dark:text-pink-300",
-      description: t.management.autoContributionsDescription,
-    },
-  ]
+  type ManagementRoute = {
+    path: string
+    label: string
+    Icon: LucideIcon
+    color: string
+    description: string
+    assetId: PinnedShortcutId
+  }
+
+  const managementRoutes = React.useMemo<ManagementRoute[]>(
+    () => [
+      {
+        path: "/management/recurring",
+        label: t.management.recurringMoney,
+        Icon: CalendarSync,
+        color: "bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300",
+        description: t.management.recurringMoneyDescription,
+        assetId: "management-recurring",
+      },
+      {
+        path: "/management/pending",
+        label: t.management.pendingMoney,
+        Icon: HandCoins,
+        color:
+          "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300",
+        description: t.management.pendingMoneyDescription,
+        assetId: "management-pending",
+      },
+      {
+        path: "/management/auto-contributions",
+        label: t.management.autoContributions,
+        Icon: PiggyBank,
+        color: "bg-pink-100 text-pink-600 dark:bg-pink-900 dark:text-pink-300",
+        description: t.management.autoContributionsDescription,
+        assetId: "management-auto-contributions",
+      },
+    ],
+    [
+      t.management.recurringMoney,
+      t.management.recurringMoneyDescription,
+      t.management.pendingMoney,
+      t.management.pendingMoneyDescription,
+      t.management.autoContributions,
+      t.management.autoContributionsDescription,
+    ],
+  )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t.management.title}</h1>
       </div>
@@ -44,12 +74,15 @@ export default function ManagementPage() {
         {managementRoutes.map(route => (
           <Card
             key={route.path}
-            className="p-6 transition-all cursor-pointer hover:shadow-lg"
+            className="relative p-6 transition-all cursor-pointer group hover:shadow-lg"
             onClick={() => navigate(route.path)}
           >
+            <div className="absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100">
+              <PinAssetButton assetId={route.assetId} />
+            </div>
             <div className="flex items-center space-x-4">
               <div className={`p-3 rounded-lg ${route.color}`}>
-                {route.icon}
+                <route.Icon className="h-6 w-6" />
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
@@ -74,6 +107,8 @@ export default function ManagementPage() {
           </Card>
         ))}
       </div>
+
+      <EventsCalendarView />
     </div>
   )
 }

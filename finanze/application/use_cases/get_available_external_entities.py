@@ -1,20 +1,18 @@
 import logging
 
-from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_fetcher import (
     ExternalEntityFetcher,
 )
 from application.ports.external_entity_port import ExternalEntityPort
-from application.use_cases.fetch_external_financial_data import (
-    external_entity_provider_integrations_from_config,
-)
+from application.ports.external_integration_port import ExternalIntegrationPort
 from domain.external_entity import (
     ExternalEntityCandidates,
     ExternalEntityCandidatesQuery,
 )
 from domain.external_integration import (
     ExternalIntegrationId,
+    ExternalIntegrationType,
 )
 from domain.use_cases.get_available_external_entities import (
     GetAvailableExternalEntities,
@@ -29,12 +27,12 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
         entity_port: EntityPort,
         external_entity_port: ExternalEntityPort,
         external_entity_fetchers: dict[ExternalIntegrationId, ExternalEntityFetcher],
-        config_port: ConfigPort,
+        external_integration_port: ExternalIntegrationPort,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
         self._external_entity_fetchers = external_entity_fetchers
-        self._config_port = config_port
+        self._external_integration_port = external_integration_port
 
         self._log = logging.getLogger(__name__)
 
@@ -49,11 +47,10 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
             ee.entity_id for ee in self._external_entity_port.get_all()
         }
 
-        provider.setup(
-            external_entity_provider_integrations_from_config(
-                self._config_port.load().integrations
-            ),
+        enabled_integrations = self._external_integration_port.get_payloads_by_type(
+            ExternalIntegrationType.ENTITY_PROVIDER
         )
+        provider.setup(enabled_integrations)
 
         all_candidates = await provider.get_entities(country=request.country)
         filtered_candidates = []

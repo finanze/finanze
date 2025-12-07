@@ -33,3 +33,7 @@ class EntityPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def delete_by_id(self, entity_id: UUID):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_disabled_entities(self) -> list[Entity]:
+        raise NotImplementedError

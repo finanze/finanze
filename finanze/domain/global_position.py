@@ -7,9 +7,12 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 from domain.base import BaseData
 from domain.commodity import CommodityRegister
+from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
 from domain.entity import Entity
+from domain.exception.exceptions import MissingFieldsError
 from domain.fetch_record import DataSource
+from domain.profitability import annualized_profitability
 from pydantic.dataclasses import dataclass
 
 
@@ -68,7 +71,7 @@ class Card(BaseData):
     currency: str
     type: CardType
     used: Dezimal
-    active: bool
+    active: bool = True
     limit: Optional[Dezimal] = None
     name: Optional[str] = None
     ending: Optional[str | int] = None
@@ -136,17 +139,29 @@ class StockDetail(BaseData):
     name: str
     ticker: str
     isin: str
-    market: str
     shares: Dezimal
-    initial_investment: Dezimal
-    average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
     type: EquityType
+    initial_investment: Optional[Dezimal] = None
+    average_buy_price: Optional[Dezimal] = None
+    market: str = ""
     subtype: Optional[str] = None
     info_sheet_url: Optional[str] = None
     manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        ii = self.initial_investment
+        abp = self.average_buy_price
+        shares = self.shares
+
+        if ii is None and abp is not None and shares and shares != 0:
+            self.initial_investment = abp * shares
+        elif abp is None and ii is not None and shares and shares != 0:
+            self.average_buy_price = ii / shares
+        elif ii is None and abp is None:
+            raise MissingFieldsError(["initial_investment", "average_buy_price"])
 
 
 @dataclass
@@ -168,16 +183,28 @@ class FundDetail(BaseData):
     isin: str
     market: Optional[str]
     shares: Dezimal
-    initial_investment: Dezimal
-    average_buy_price: Dezimal
     market_value: Dezimal
     currency: str
     type: FundType
+    initial_investment: Optional[Dezimal] = None
+    average_buy_price: Optional[Dezimal] = None
     asset_type: Optional[AssetType] = None
     portfolio: Optional[FundPortfolio] = None
     info_sheet_url: Optional[str] = None
     manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        ii = self.initial_investment
+        abp = self.average_buy_price
+        shares = self.shares
+
+        if ii is None and abp is not None and shares and shares != 0:
+            self.initial_investment = abp * shares
+        elif abp is None and ii is not None and shares and shares != 0:
+            self.average_buy_price = ii / shares
+        elif ii is None and abp is None:
+            raise MissingFieldsError(["initial_investment", "average_buy_price"])
 
 
 @dataclass
@@ -187,13 +214,34 @@ class FactoringDetail(BaseData):
     amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    profitability: Dezimal
-    gross_interest_rate: Dezimal
-    last_invest_date: datetime
+    start: datetime
     maturity: date
     type: str
     state: str
+    last_invest_date: Optional[datetime] = None
+    profitability: Optional[Dezimal] = None
+    late_interest_rate: Optional[Dezimal] = None
+    gross_interest_rate: Optional[Dezimal] = None
+    gross_late_interest_rate: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        if self.gross_interest_rate is None:
+            self.gross_interest_rate = self.interest_rate
+        if (
+            self.gross_late_interest_rate is None
+            and self.late_interest_rate is not None
+        ):
+            self.gross_late_interest_rate = self.late_interest_rate
+        if self.last_invest_date is None:
+            self.last_invest_date = self.start
+        if self.profitability is None:
+            self.profitability = annualized_profitability(
+                interest_rate=self.interest_rate,
+                start_dt=self.start,
+                maturity=self.maturity,
+                late_interest_rate=self.late_interest_rate,
+            )
 
 
 @dataclass
@@ -204,14 +252,28 @@ class RealEstateCFDetail(BaseData):
     pending_amount: Dezimal
     currency: str
     interest_rate: Dezimal
-    profitability: Dezimal
-    last_invest_date: datetime
+    start: datetime
     maturity: date
     type: str
-    business_type: str
     state: str
+    business_type: str = ""
+    last_invest_date: Optional[datetime] = None
+    profitability: Optional[Dezimal] = None
     extended_maturity: Optional[date] = None
+    extended_interest_rate: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        if not self.last_invest_date:
+            self.last_invest_date = self.start
+        if self.profitability is None:
+            self.profitability = annualized_profitability(
+                interest_rate=self.interest_rate,
+                start_dt=self.start,
+                maturity=self.maturity,
+                extended_maturity=self.extended_maturity,
+                extended_interest_rate=self.extended_interest_rate,
+            )
 
 
 @dataclass
@@ -220,70 +282,51 @@ class Deposit(BaseData):
     name: str
     amount: Dezimal
     currency: str
-    expected_interests: Dezimal
     interest_rate: Dezimal
     creation: datetime
     maturity: date
+    expected_interests: Optional[Dezimal] = None
     source: DataSource = DataSource.REAL
 
-
-class CryptoCurrency(str, Enum):
-    BITCOIN = "BITCOIN"
-    ETHEREUM = "ETHEREUM"
-    LITECOIN = "LITECOIN"
-    TRON = "TRON"
-    BNB = "BNB"
-
-
-class CryptoToken(str, Enum):
-    USDT = "USDT"
-    USDC = "USDC"
+    def __post_init__(self):
+        if self.expected_interests is None and self.amount is not None:
+            prof = annualized_profitability(
+                interest_rate=self.interest_rate,
+                start_dt=self.creation,
+                maturity=self.maturity,
+            )
+            self.expected_interests = round(self.amount * prof, 2)
 
 
-CryptoAsset = CryptoCurrency | CryptoToken
-
-CRYPTO_SYMBOLS = {
-    CryptoCurrency.BITCOIN: "BTC",
-    CryptoCurrency.ETHEREUM: "ETH",
-    CryptoCurrency.LITECOIN: "LTC",
-    CryptoCurrency.TRON: "TRX",
-    CryptoCurrency.BNB: "BNB",
-    CryptoToken.USDT: "USDT",
-    CryptoToken.USDC: "USDC",
-}
+class CryptoCurrencyType(str, Enum):
+    NATIVE = "NATIVE"
+    TOKEN = "TOKEN"
 
 
 @dataclass
-class CryptoCurrencyToken(BaseData):
+class CryptoCurrencyPosition(BaseData):
     id: UUID
-    token_id: str
-    name: str
     symbol: str
-    token: CryptoToken
     amount: Dezimal
+    type: CryptoCurrencyType
+    name: Optional[str] = None
+    crypto_asset: Optional[CryptoAsset] = None
+    market_value: Optional[Dezimal] = None
+    currency: Optional[str] = None
+    contract_address: Optional[str] = None
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
     investment_currency: Optional[str] = None
-    market_value: Optional[Dezimal] = None
-    currency: Optional[str] = None
-    type: Optional[str] = None
+    wallet_address: Optional[str] = None
+    wallet_name: Optional[str] = None
 
 
 @dataclass
 class CryptoCurrencyWallet(BaseData):
-    id: UUID
-    wallet_connection_id: Optional[UUID]
-    symbol: str
-    crypto: CryptoCurrency
-    amount: Dezimal
+    id: Optional[UUID] = None
     address: Optional[str] = None
     name: Optional[str] = None
-    initial_investment: Optional[Dezimal] = None
-    average_buy_price: Optional[Dezimal] = None
-    investment_currency: Optional[str] = None
-    market_value: Optional[Dezimal] = None
-    currency: Optional[str] = None
-    tokens: list[CryptoCurrencyToken] = None
+    assets: list[CryptoCurrencyPosition] = field(default_factory=list)
 
 
 class CryptoInitialInvestmentType(str, Enum):
@@ -419,6 +462,7 @@ class PositionQueryRequest:
     entities: Optional[list[UUID]] = None
     excluded_entities: Optional[list[UUID]] = None
     real: Optional[bool] = None
+    products: Optional[list[ProductType]] = None
 
 
 @dataclass

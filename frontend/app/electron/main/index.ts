@@ -1,4 +1,4 @@
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import {
   app,
@@ -6,19 +6,46 @@ import {
   dialog,
   globalShortcut,
   ipcMain,
-  Menu,
   nativeTheme,
   shell,
-  Tray,
+  type BrowserWindowConstructorOptions,
 } from "electron"
+import windowStateKeeper from "electron-window-state"
 import isDev from "electron-is-dev"
-import { type ChildProcess, spawn } from "child_process"
 import { createMenu } from "./menu"
-import { ThemeMode, AppConfig, OS, PlatformInfo, AboutAppInfo } from "../types"
+import {
+  ThemeMode,
+  AppConfig,
+  OS,
+  PlatformInfo,
+  BackendStartOptions,
+  BackendActionResult,
+  BackendErrorInfo,
+  FinanzeConfig,
+} from "../types"
 import { promptLogin } from "./loginHandlers"
-import { readdirSync } from "node:fs"
-import { findAndKillProcesses } from "./windows-process"
 import packageJson from "../../package.json" assert { type: "json" }
+import { BackendController } from "./backend-controller"
+import {
+  initializeLogger,
+  mapBackendLogLevel,
+  updateLoggerConfig,
+  type LogLevel,
+} from "./logging"
+import { setMainWindow, readRendererConfig } from "./renderer-config"
+import {
+  setupAutoUpdater,
+  initializeAutoUpdater,
+  registerAutoUpdateHandlers,
+  checkForUpdatesOnStartup,
+} from "./auto-updater"
+import {
+  setupAboutWindow,
+  createAboutWindow,
+  closeAboutWindow,
+  getAboutInfo,
+} from "./about-window"
+import { createTray } from "./tray"
 
 const packageMetadata = packageJson as {
   author?: string | { name?: string }
@@ -57,6 +84,8 @@ const appConfig: AppConfig = {
   },
 }
 
+setupAutoUpdater(appConfig, OS)
+
 const platformInfo: PlatformInfo = {
   type: appConfig.os,
   arch: process.arch,
@@ -66,23 +95,43 @@ const platformInfo: PlatformInfo = {
 
 const preload = join(__dirname, "../preload/index.mjs")
 
-const apiUrl = appConfig.urls.backend + ":" + appConfig.ports.backend
+const backendController = new BackendController({
+  appConfig,
+  devEntryPoint: join(__dirname, "..", "..", "..", "..", "finanze"),
+  defaultArgs: {
+    port: appConfig.ports.backend,
+    logLevel: appConfig.isDev ? "DEBUG" : "INFO",
+    dataDir: appConfig.isDev ? join("..", "..", ".storage") : undefined,
+    logDir: appConfig.isDev ? join("..", "..", ".storage", "logs") : undefined,
+    logFileLevel: undefined,
+    thirdPartyLogLevel: undefined,
+  },
+})
+
+const BACKEND_STATUS_CHANNEL = "backend:status"
 
 let mainWindow: BrowserWindow | null = null
-let tray = null
-let pythonProcess: ChildProcess | null = null
-let aboutWindow: BrowserWindow | null = null
+let rendererConfig: FinanzeConfig = {}
+
+backendController.on("status-changed", status => {
+  sendToAllWindows(BACKEND_STATUS_CHANNEL, status)
+})
 
 if (appConfig.os === OS.WINDOWS) app.setAppUserModelId(app.getName())
 
 if (!app.requestSingleInstanceLock()) {
-  app.quit()
-  process.exit(0)
+  console.warn("Failed to acquire single instance lock")
+  if (!appConfig.isDev) {
+    app.quit()
+    process.exit(0)
+  } else {
+    console.warn("Continuing despite lock failure (Dev mode)")
+  }
 }
 
 function getSuitableTitleBarOverlay() {
   if (appConfig.os === OS.MAC) {
-    return undefined // No overlay for macOS
+    return undefined // Use native decorations on macOS
   }
 
   const shouldUseDarkColors = nativeTheme.shouldUseDarkColors
@@ -102,101 +151,35 @@ function updateTitleBarOverlay(mainWindow: BrowserWindow | null) {
   }
 }
 
-function getAboutInfo(): AboutAppInfo {
-  const authorField = packageMetadata.author
-  const author =
-    typeof authorField === "string" ? authorField : (authorField?.name ?? null)
-
-  const repositoryField = packageMetadata.repository
-  const repository =
-    typeof repositoryField === "string"
-      ? repositoryField
-      : (repositoryField?.url ?? null)
-
-  return {
-    appName: app.getName(),
-    version: app.getVersion(),
-    author,
-    repository,
-    homepage: packageMetadata.homepage ?? null,
-    electronVersion: process.versions.electron ?? null,
-    chromiumVersion: process.versions.chrome ?? null,
-    nodeVersion: process.versions.node ?? null,
-    platform: platformInfo,
-  }
-}
-
-function startPythonBackend() {
-  const args = ["--port", appConfig.ports.backend.toString()]
-  if (appConfig.isDev) {
-    const backendPyPath = join(__dirname, "..", "..", "..", "..", "finanze")
-
-    const executablePath = "python"
-    console.log(
-      `Starting dev Python backend: ${executablePath} ${backendPyPath}`,
-    )
-
-    const devArgs = [
-      backendPyPath,
-      "--data-dir",
-      "../../.storage",
-      "--log-level",
-      "DEBUG",
-    ]
-
-    pythonProcess = spawn(executablePath, [...devArgs, ...args], {
-      shell: true,
-    })
-  } else {
-    const binPath = join(process.resourcesPath, "bin")
-    const binnaryFiles = readdirSync(binPath)
-    const serverFile = binnaryFiles.find(file =>
-      file.startsWith("finanze-server-"),
-    )
-
-    if (!serverFile) {
-      throw new Error(`Expected one finanze-server-* file in ${binPath}`)
-    }
-
-    const executablePath = join(binPath, serverFile)
-
-    console.log(`Starting Python backend: f ${executablePath}`)
-
-    pythonProcess = spawn(executablePath, args)
-  }
-
-  pythonProcess?.on("error", err => {
-    dialog.showErrorBox("Failed to start backend", err.stack ?? err.message)
-    app.quit()
-    process.exit(1)
-  })
-
-  pythonProcess?.stdout?.on("data", data => {
-    console.log(`>> ${data}`)
-  })
-
-  pythonProcess?.stderr?.on("data", data => {
-    console.log(`>> ${data}`)
-  })
-
-  pythonProcess?.on("close", code => {
-    console.log(`Python process exited with code ${code}`)
-    pythonProcess = null
-  })
-}
-
 async function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: appConfig.isDev ? 1900 : 1250,
-    height: appConfig.isDev ? 1200 : 900,
+  const defaultWidth = appConfig.isDev ? 1900 : 1250
+  const defaultHeight = appConfig.isDev ? 1200 : 900
+
+  const mainWindowState = windowStateKeeper({
+    defaultWidth,
+    defaultHeight,
+  })
+
+  const windowOptions: BrowserWindowConstructorOptions = {
+    width: mainWindowState.width,
+    height: mainWindowState.height,
+    x: mainWindowState.x,
+    y: mainWindowState.y,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: preload,
     },
-    titleBarStyle: "hidden",
-    titleBarOverlay: getSuitableTitleBarOverlay(),
-  })
+  }
+
+  windowOptions.titleBarStyle = "hidden"
+  windowOptions.titleBarOverlay = getSuitableTitleBarOverlay()
+
+  mainWindow = new BrowserWindow(windowOptions)
+
+  mainWindowState.manage(mainWindow)
+
+  setMainWindow(mainWindow)
 
   globalShortcut.register("CommandOrControl+Alt+I", () => {
     mainWindow?.webContents.toggleDevTools()
@@ -216,132 +199,224 @@ async function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null
+    setMainWindow(null)
   })
 
   createMenu(mainWindow, () => {
-    createAboutWindow()
+    createAboutWindow(mainWindow)
   })
 }
 
-function createTray() {
-  tray = new Tray(join(VITE_PUBLIC, "tray.png"))
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: "Finanze",
-      click: async () => {
-        if (mainWindow === null) {
-          await createWindow()
-        } else {
-          mainWindow.show()
-        }
-      },
-    },
-    { type: "separator" },
-    {
-      label: "Quit",
-      click: () => {
-        app.quit()
-      },
-    },
-  ])
-  tray.setToolTip("Finanze")
-  tray.setContextMenu(contextMenu)
-
-  tray.on("click", async () => {
-    if (mainWindow === null) {
-      await createWindow()
-    } else {
-      mainWindow.show()
-    }
-  })
+async function showOrCreateMainWindow(): Promise<void> {
+  if (mainWindow === null) {
+    await createWindow()
+  } else {
+    mainWindow.show()
+  }
 }
 
 // Helper function to send events to all windows
 function sendToAllWindows(channel: string, ...args: any[]) {
   BrowserWindow.getAllWindows().forEach(window => {
-    if (!window.isDestroyed()) {
-      console.log(`Sending ${channel} to window ${window.id}`)
-      window.webContents.send(channel, ...args)
+    if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+      try {
+        console.debug(`Sending ${channel} to window ${window.id}`)
+        window.webContents.send(channel, ...args)
+      } catch (error) {
+        console.error(`Failed to send ${channel} to window ${window.id}`, error)
+      }
     }
   })
 }
 
-function getAboutWindowUrl() {
-  if (appConfig.isDev && VITE_DEV_SERVER_URL) {
-    return new URL("about.html", VITE_DEV_SERVER_URL).toString()
-  }
+function getLogConfigFromRendererConfig(config: FinanzeConfig): {
+  logDir: string | undefined
+  minLevel: LogLevel
+  minFileLevel: LogLevel | undefined
+} {
+  const logDir =
+    config.backend?.logDir ??
+    (appConfig.isDev
+      ? join(__dirname, "..", "..", "..", "..", ".storage", "logs")
+      : undefined)
 
-  return pathToFileURL(join(RENDERER_DIST, "about.html")).toString()
+  const minLevel = config.backend?.logLevel
+    ? mapBackendLogLevel(config.backend.logLevel)
+    : appConfig.isDev
+      ? "DEBUG"
+      : "INFO"
+
+  const minFileLevel = config.backend?.logFileLevel
+    ? mapBackendLogLevel(config.backend.logFileLevel)
+    : undefined
+
+  return { logDir, minLevel, minFileLevel }
 }
 
-function createAboutWindow() {
-  if (aboutWindow && !aboutWindow.isDestroyed()) {
-    aboutWindow.focus()
-    return aboutWindow
+async function applyLogConfigFromRenderer(): Promise<void> {
+  const config = await readRendererConfig()
+  rendererConfig = config
+  const logConfig = getLogConfigFromRendererConfig(config)
+  updateLoggerConfig(logConfig)
+}
+
+async function startBackendProcess(
+  options?: BackendStartOptions,
+): Promise<BackendActionResult> {
+  try {
+    const status = await backendController.start(options)
+    return { success: true, status }
+  } catch (error) {
+    return {
+      success: false,
+      status: backendController.getStatus(),
+      error: serializeBackendError(error),
+    }
+  }
+}
+
+async function stopBackendProcess(): Promise<BackendActionResult> {
+  try {
+    await applyLogConfigFromRenderer()
+    const status = await backendController.stop()
+    return { success: true, status }
+  } catch (error) {
+    return {
+      success: false,
+      status: backendController.getStatus(),
+      error: serializeBackendError(error),
+    }
+  }
+}
+
+async function restartBackendProcess(): Promise<BackendActionResult> {
+  try {
+    await applyLogConfigFromRenderer()
+    await backendController.stop()
+    const status = await backendController.start(rendererConfig.backend)
+    return { success: true, status }
+  } catch (error) {
+    return {
+      success: false,
+      status: backendController.getStatus(),
+      error: serializeBackendError(error),
+    }
+  }
+}
+
+function serializeBackendError(error: unknown): BackendErrorInfo {
+  if (error instanceof Error) {
+    const err = error as NodeJS.ErrnoException
+    return {
+      message: error.message,
+      stack: error.stack ?? null,
+      code: err.code ?? null,
+    }
   }
 
-  aboutWindow = new BrowserWindow({
-    width: 440,
-    height: 560,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
-    title: app.getName(),
-    show: false,
-    parent: mainWindow ?? undefined,
-    modal: false,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload,
-    },
-  })
-
-  aboutWindow.setMenu(null)
-
-  aboutWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https:")) {
-      shell.openExternal(url)
-    }
-    return { action: "deny" }
-  })
-
-  aboutWindow.on("closed", () => {
-    aboutWindow = null
-  })
-
-  aboutWindow.once("ready-to-show", () => {
-    aboutWindow?.show()
-  })
-
-  void aboutWindow.loadURL(getAboutWindowUrl())
-
-  return aboutWindow
+  return {
+    message: typeof error === "string" ? error : "Unknown error",
+    stack: null,
+    code: null,
+  }
 }
 
 app.whenReady().then(async () => {
-  ipcMain.handle("api-url", () => apiUrl)
+  setupAboutWindow({
+    isDev: appConfig.isDev,
+    viteDevServerUrl: VITE_DEV_SERVER_URL,
+    rendererDist: RENDERER_DIST,
+    preload,
+    packageMetadata,
+    platformInfo,
+  })
+
+  ipcMain.handle("api-url", async () => {
+    if (!rendererConfig.serverUrl) {
+      rendererConfig = await readRendererConfig()
+    }
+    if (rendererConfig.serverUrl) {
+      return { url: rendererConfig.serverUrl, custom: true }
+    }
+    return {
+      url: appConfig.urls.backend + ":" + appConfig.ports.backend,
+      custom: false,
+    }
+  })
   ipcMain.handle("platform", () => platformInfo)
   ipcMain.on("theme-mode-change", (_, mode: ThemeMode) => {
     nativeTheme.themeSource = mode
     updateTitleBarOverlay(mainWindow)
   })
   ipcMain.on("open-about-window", () => {
-    createAboutWindow()
+    createAboutWindow(mainWindow)
   })
   ipcMain.handle("about-info", () => getAboutInfo())
   ipcMain.handle("external-login", async (_, id, request) => {
     return await promptLogin(id, request)
   })
 
+  ipcMain.handle("backend-status", () => backendController.getStatus())
+  ipcMain.handle(
+    "backend-start",
+    async (_, options: BackendStartOptions = {}) =>
+      await startBackendProcess(options),
+  )
+  ipcMain.handle("backend-stop", async () => await stopBackendProcess())
+  ipcMain.handle("backend-restart", async () => await restartBackendProcess())
+
+  ipcMain.handle("select-directory", async (_, initialPath?: string) => {
+    const result = await dialog.showOpenDialog({
+      title: "Select directory",
+      properties: ["openDirectory", "createDirectory"],
+      defaultPath: initialPath,
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return result.filePaths[0]
+  })
+
   ipcMain.on("completed-external-login", (_, id, result) => {
     sendToAllWindows("completed-external-login", id, result)
   })
 
-  startPythonBackend()
+  registerAutoUpdateHandlers()
 
   await createWindow()
-  createTray()
+
+  rendererConfig = await readRendererConfig()
+  console.debug("Renderer config loaded:", JSON.stringify(rendererConfig))
+  const logConfig = getLogConfigFromRendererConfig(rendererConfig)
+  initializeLogger(logConfig)
+
+  if (!rendererConfig.serverUrl) {
+    const startupBackendResult = await startBackendProcess(
+      rendererConfig.backend,
+    )
+    if (!startupBackendResult.success && startupBackendResult.error) {
+      dialog.showErrorBox(
+        "Failed to start backend",
+        startupBackendResult.error.message,
+      )
+    }
+  } else {
+    console.info(
+      "Skipping backend start because custom serverUrl is configured:",
+      rendererConfig.serverUrl,
+    )
+  }
+
+  createTray({
+    publicPath: VITE_PUBLIC,
+    onShowWindow: showOrCreateMainWindow,
+    onAbout: () => createAboutWindow(mainWindow),
+  })
+
+  initializeAutoUpdater()
+  checkForUpdatesOnStartup()
 
   app.on("activate", async () => {
     // On macOS it's common to re-create a window in the app when the
@@ -363,7 +438,7 @@ app.on("second-instance", () => {
 // Quit when all windows are closed, except on macOS
 app.on("window-all-closed", () => {
   mainWindow = null
-  aboutWindow?.close()
+  closeAboutWindow()
   if (appConfig.os !== OS.MAC) {
     app.quit()
   }
@@ -385,22 +460,8 @@ async function quit() {
 
   try {
     try {
-      aboutWindow?.close()
-      if (appConfig.os === OS.WINDOWS) {
-        if (appConfig.isDev) {
-          if (pythonProcess)
-            spawn("taskkill", [
-              "/pid",
-              pythonProcess.pid!.toString(),
-              "/f",
-              "/t",
-            ])
-        } else {
-          await findAndKillProcesses()
-        }
-      } else {
-        pythonProcess?.kill()
-      }
+      closeAboutWindow()
+      await stopBackendProcess()
       await new Promise(resolve => setTimeout(resolve, 1000))
     } catch (error) {
       console.error("Error terminating backend:", error)

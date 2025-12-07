@@ -16,27 +16,36 @@ import InvestmentsPage from "./pages/InvestmentsPage"
 import BankingPage from "./pages/BankingPage"
 import RealEstatePage from "./pages/RealEstatePage"
 import RealEstateDetailsPage from "./pages/RealEstateDetailsPage"
-import RealEstateEditPage from "./pages/RealEstateEditPage"
 import LoginPage from "./pages/LoginPage"
 import RecurringMoneyPage from "./pages/RecurringMoneyPage"
 import PendingMoneyPage from "./pages/PendingMoneyPage"
 import AutoContributionsPage from "./pages/AutoContributionsPage"
 import ManagementPage from "./pages/ManagementPage"
+import CalculationsPage from "./pages/CalculationsPage"
 import { useAuth } from "./context/AuthContext"
 import SplashScreen from "./components/SplashScreen"
 import { FinancialDataProvider } from "./context/FinancialDataContext"
-import { PinnedAssetsProvider } from "./context/PinnedAssetsContext"
+import { PinnedShortcutsProvider } from "./context/PinnedShortcutsContext"
 import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
+import { GlobalEntityModals } from "./components/GlobalEntityModals"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { useAppContext } from "./context/AppContext"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { useState, useEffect } from "react"
+import { useAutoUpdater } from "./hooks/useAutoUpdater"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
   const { platform } = useAppContext()
   const [showReleaseModal, setShowReleaseModal] = useState(false)
   const [skippedVersions, setSkippedVersions] = useState<string[]>([])
+  const {
+    state: autoUpdateState,
+    downloadUpdate: startAutoUpdateDownload,
+    quitAndInstall: startAutoUpdateInstallation,
+  } = useAutoUpdater({
+    checkOnMount: isAuthenticated && !isInitializing,
+  })
 
   // Load skipped versions from localStorage on mount
   useEffect(() => {
@@ -82,6 +91,22 @@ function App() {
     setShowReleaseModal(false)
   }
 
+  useEffect(() => {
+    if (
+      isAuthenticated &&
+      autoUpdateState.isSupported &&
+      autoUpdateState.updateInfo &&
+      !showReleaseModal
+    ) {
+      setShowReleaseModal(true)
+    }
+  }, [
+    autoUpdateState.isSupported,
+    autoUpdateState.updateInfo,
+    isAuthenticated,
+    showReleaseModal,
+  ])
+
   if (isInitializing) {
     return <SplashScreen />
   }
@@ -98,7 +123,7 @@ function App() {
   return (
     <EntityWorkflowProvider>
       <FinancialDataProvider>
-        <PinnedAssetsProvider>
+        <PinnedShortcutsProvider>
           <Layout>
             <Routes>
               <Route path="/" element={<DashboardPage />} />
@@ -107,10 +132,6 @@ function App() {
               <Route
                 path="/real-estate/:id"
                 element={<RealEstateDetailsPage />}
-              />
-              <Route
-                path="/real-estate/:id/edit"
-                element={<RealEstateEditPage />}
               />
               <Route path="/entities" element={<EntityIntegrationsPage />} />
               <Route path="/transactions" element={<TransactionsPage />} />
@@ -156,6 +177,7 @@ function App() {
                 path="/management/auto-contributions"
                 element={<AutoContributionsPage />}
               />
+              <Route path="/calculations" element={<CalculationsPage />} />
               <Route path="/export" element={<ExportPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
@@ -172,9 +194,24 @@ function App() {
               release={updateInfo.release}
               platform={platform}
               onSkipVersion={handleSkipVersion}
+              autoUpdateSupported={autoUpdateState.isSupported}
+              isAutoUpdateDownloading={autoUpdateState.isDownloading}
+              autoUpdateProgress={autoUpdateState.progress}
+              autoUpdateDownloadedBytes={autoUpdateState.downloadedBytes}
+              autoUpdateTotalBytes={autoUpdateState.totalBytes}
+              isAutoUpdateDownloaded={autoUpdateState.isDownloaded}
+              autoUpdateErrorMessage={autoUpdateState.error?.message ?? null}
+              onStartAutoUpdate={() => {
+                void startAutoUpdateDownload()
+              }}
+              onInstallAutoUpdate={() => {
+                void startAutoUpdateInstallation()
+              }}
             />
           )}
-        </PinnedAssetsProvider>
+
+          <GlobalEntityModals />
+        </PinnedShortcutsProvider>
       </FinancialDataProvider>
     </EntityWorkflowProvider>
   )

@@ -1,12 +1,28 @@
 import { contextBridge, ipcRenderer } from "electron"
-import type { ThemeMode, AboutAppInfo } from "../types"
+import type { ProgressInfo, UpdateInfo } from "electron-updater"
+import type {
+  ThemeMode,
+  AboutAppInfo,
+  BackendStartOptions,
+  BackendStatus,
+  BackendActionResult,
+} from "../types"
 import type {
   ExternalLoginRequest,
   LoginHandlerResult,
 } from "../main/loginHandlers"
 
+function createIpcListener<T>(channel: string) {
+  return (callback: (payload: T) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, data: T) => callback(data)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  }
+}
+
 contextBridge.exposeInMainWorld("ipcAPI", {
-  apiUrl: () => ipcRenderer.invoke("api-url"),
+  apiUrl: () =>
+    ipcRenderer.invoke("api-url") as Promise<{ url: string; custom: boolean }>,
 
   platform: () => ipcRenderer.invoke("platform"),
 
@@ -21,6 +37,54 @@ contextBridge.exposeInMainWorld("ipcAPI", {
     id: string,
     request: ExternalLoginRequest = {},
   ) => ipcRenderer.invoke("external-login", id, request),
+
+  startBackend: (options?: BackendStartOptions) =>
+    ipcRenderer.invoke(
+      "backend-start",
+      options,
+    ) as Promise<BackendActionResult>,
+
+  stopBackend: () =>
+    ipcRenderer.invoke("backend-stop") as Promise<BackendActionResult>,
+
+  restartBackend: () =>
+    ipcRenderer.invoke("backend-restart") as Promise<BackendActionResult>,
+
+  getBackendStatus: () =>
+    ipcRenderer.invoke("backend-status") as Promise<BackendStatus>,
+
+  selectDirectory: (initialPath?: string) =>
+    ipcRenderer.invoke("select-directory", initialPath) as Promise<
+      string | null
+    >,
+
+  checkForUpdates: () => ipcRenderer.invoke("auto-update-check"),
+
+  downloadUpdate: () => ipcRenderer.invoke("auto-update-download"),
+
+  quitAndInstall: () => ipcRenderer.invoke("auto-update-install"),
+
+  onCheckingForUpdate: createIpcListener<void>("auto-update:checking"),
+
+  onUpdateAvailable: createIpcListener<UpdateInfo>("auto-update:available"),
+
+  onUpdateNotAvailable: createIpcListener<UpdateInfo>(
+    "auto-update:not-available",
+  ),
+
+  onUpdateDownloaded: createIpcListener<UpdateInfo>("auto-update:downloaded"),
+
+  onDownloadProgress: createIpcListener<ProgressInfo>(
+    "auto-update:download-progress",
+  ),
+
+  onUpdateError: createIpcListener<{
+    message: string
+    stack: string | null
+    name: string
+  }>("auto-update:error"),
+
+  onBackendStatusChange: createIpcListener<BackendStatus>("backend:status"),
 
   onCompletedExternalLogin: (
     callback: (id: string, result: LoginHandlerResult) => void,

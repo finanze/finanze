@@ -5,7 +5,7 @@ from uuid import UUID
 
 import domain.native_entities
 from application.ports.credentials_port import CredentialsPort
-from domain.entity import EntityCredentials, FinancialEntityCredentialsEntry
+from domain.native_entity import EntityCredentials, FinancialEntityCredentialsEntry
 from domain.native_entities import NATIVE_ENTITIES
 
 

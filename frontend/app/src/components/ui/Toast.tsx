@@ -26,7 +26,7 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
       <div
         ref={ref}
         className={cn(
-          "fixed bottom-4 right-4 left-4 sm:left-auto z-[10001] flex max-w-md items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all backdrop-blur-sm",
+          "fixed bottom-4 right-4 left-4 sm:left-auto z-[10050] flex max-w-md items-center justify-between space-x-4 overflow-hidden rounded-md border p-6 pr-8 shadow-lg transition-all backdrop-blur-sm",
           {
             "success group border-green-200 bg-green-50 text-green-900 dark:bg-green-900 dark:border-green-800 dark:text-green-100":
               variant === "success",

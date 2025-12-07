@@ -1,17 +1,55 @@
-import { Sun, Moon, SunMoon, Globe } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Sun, Moon, SunMoon, Globe, Wrench, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/Button"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { useTheme } from "@/context/ThemeContext"
 import { useI18n } from "@/i18n"
 import type { Locale } from "@/i18n"
 
-export function LoginQuickSettings() {
+export interface VersionMismatchInfo {
+  localVersion: string
+  remoteVersion: string
+}
+
+interface LoginQuickSettingsProps {
+  isDesktop?: boolean
+  onOpenAdvancedSettings?: () => void
+  advancedSettingsDisabled?: boolean
+  versionMismatch?: VersionMismatchInfo | null
+}
+
+export function LoginQuickSettings({
+  isDesktop,
+  onOpenAdvancedSettings,
+  advancedSettingsDisabled,
+  versionMismatch,
+}: LoginQuickSettingsProps) {
   const { theme, setThemeMode } = useTheme()
   const { t, locale, changeLocale } = useI18n()
+  const [detectedDesktop, setDetectedDesktop] = useState<boolean>(
+    Boolean(isDesktop),
+  )
+
+  useEffect(() => {
+    if (typeof isDesktop === "boolean") {
+      setDetectedDesktop(isDesktop)
+      return
+    }
+
+    if (typeof window !== "undefined" && window.ipcAPI) {
+      setDetectedDesktop(true)
+    }
+  }, [isDesktop])
 
   const languages: { code: Locale; label: string }[] = [
     { code: "en-US", label: "EN" },
@@ -95,6 +133,63 @@ export function LoginQuickSettings() {
           </div>
         </PopoverContent>
       </Popover>
+
+      {/* Advanced Settings (Desktop only) */}
+      {detectedDesktop && onOpenAdvancedSettings && (
+        <div className="flex items-center">
+          {versionMismatch && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full h-8 w-8 hover:bg-gray-200 dark:hover:bg-gray-800 -mr-1"
+                >
+                  <AlertTriangle
+                    size={16}
+                    className="text-amber-500 dark:text-amber-400"
+                  />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent side="top" className="w-auto p-3">
+                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                  {t.advancedSettings.probeSuccessVersionMismatch}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t.advancedSettings.localVersion}:{" "}
+                  {versionMismatch.localVersion}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t.advancedSettings.remoteVersion}:{" "}
+                  {versionMismatch.remoteVersion}
+                </p>
+              </PopoverContent>
+            </Popover>
+          )}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-full h-10 w-10 hover:bg-gray-200 dark:hover:bg-gray-800"
+                    onClick={onOpenAdvancedSettings}
+                    disabled={advancedSettingsDisabled}
+                  >
+                    <Wrench size={18} />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {advancedSettingsDisabled && (
+                <TooltipContent>
+                  <p>{t.advancedSettings.availableAfterLoading}</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      )}
     </div>
   )
 }

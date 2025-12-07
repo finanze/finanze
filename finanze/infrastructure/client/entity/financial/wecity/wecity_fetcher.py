@@ -100,7 +100,9 @@ class WecityFetcher(FinancialEntityFetcher):
                 "movements"
             ]
             related_txs = _normalize_transactions(raw_related_txs)
-            investment_details.append(self._map_investment(related_txs, inv_id, inv))
+            mapped_investment = self._map_investment(related_txs, inv_id, inv)
+            if mapped_investment:
+                investment_details.append(mapped_investment)
 
         products = {
             ProductType.ACCOUNT: Accounts([account]),
@@ -109,7 +111,7 @@ class WecityFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=WECITY, products=products)
 
-    def _map_investment(self, related_txs, inv_id, inv):
+    def _map_investment(self, related_txs, inv_id, inv) -> RealEstateCFDetail | None:
         opportunity = inv["opportunity"]
         name = opportunity["name"].strip()
         amount = Dezimal(inv["amount"]["initial"])
@@ -158,41 +160,86 @@ class WecityFetcher(FinancialEntityFetcher):
         elif state_id == 5:
             state = "COMPLETED"
 
+        periods = inv.get("periods", {})
+        ordinary_period = periods.get("ordinary")
+        if not periods or not ordinary_period:
+            self._log.warning("Investment without ordinary period: %s", inv_id)
+            return None
+
         last_invest_date = max(
             [tx["date"] for tx in related_txs if "investment" == tx["category"]],
             default=None,
         )
 
-        last_invest_date = last_invest_date.replace(tzinfo=tzlocal())
+        last_invest_date = (
+            last_invest_date.replace(tzinfo=tzlocal()) if last_invest_date else None
+        )
+        start_date = last_invest_date.date() if last_invest_date else None
 
-        periods = inv["periods"]
-        ordinary_period = periods["ordinary"]
-        start_date = last_invest_date.date()
+        original_start_date = opportunity.get("date_start")
+        if original_start_date:
+            start_date = (
+                datetime.fromtimestamp(original_start_date)
+                .replace(tzinfo=tzlocal())
+                .date()
+            )
 
-        if not start_date:
-            original_start_date = opportunity.get("date_start")
-            if original_start_date:
-                start_date = (
-                    datetime.fromtimestamp(original_start_date)
-                    .replace(tzinfo=tzlocal())
-                    .date()
+        start_date_field = ordinary_period.get("fecha_inicio")
+        if start_date_field:
+            start_date = datetime.strptime(start_date_field, DATE_FORMAT).date()
+
+        maturity = datetime.strptime(
+            ordinary_period.get("fecha_vencimiento")
+            or ordinary_period.get("fecha_fin"),
+            DATE_FORMAT,
+        ).date()
+
+        extended_maturity = None
+        extended_period = periods.get("prorroga", {})
+        if extended_period:
+            raw_extended_maturity = extended_period.get(
+                "fecha_vencimiento"
+            ) or extended_period.get("fecha_fin")
+            if raw_extended_maturity:
+                extended_maturity = datetime.strptime(
+                    raw_extended_maturity, DATE_FORMAT
+                ).date()
+
+        if not extended_maturity and extended_period.get("plazo"):
+            extended_months = extended_period.get("plazo", 0)
+            extended_maturity = (
+                (maturity + relativedelta(months=int(extended_months)))
+                if extended_period
+                else None
+            )
+
+        raw_interest_rate = opportunity.get("annual_profitability")
+        if raw_interest_rate:
+            interest_rate = round(Dezimal(raw_interest_rate) / 100, 4)
+
+        extended_interest_rate = None
+        if extended_period:
+            raw_extended_interest_rate = extended_period.get(
+                "porcentaje_rentabilidad_anual"
+            )
+            if raw_extended_interest_rate:
+                extended_interest_rate = round(
+                    Dezimal(raw_extended_interest_rate) / 100, 4
                 )
 
-        if ordinary_period:
-            start_date_field = ordinary_period.get("fecha_inicio")
-            if start_date_field:
-                start_date = datetime.strptime(start_date_field, DATE_FORMAT).date()
+        raw_profitability = opportunity.get("total_profitability")
+        if raw_profitability:
+            profitability = round(Dezimal(raw_profitability) / 100, 4)
+        else:
+            profitability = extended_period.get("porcentaje_rentabilidad_total")
+            if profitability:
+                profitability = round(Dezimal(profitability) / 100, 4)
 
-        extended_period = periods.get("prorroga", None)
-        if extended_period:
-            extended_period = extended_period["plazo"]
-
-        maturity = start_date + relativedelta(months=int(ordinary_period["plazo"]))
-        extended_maturity = (
-            (maturity + relativedelta(months=int(extended_period)))
-            if extended_period
-            else None
-        )
+            extended_profitability = extended_period.get(
+                "porcentaje_rentabilidad_total"
+            )
+            if extended_profitability:
+                profitability += round(Dezimal(extended_profitability) / 100, 4)
 
         return RealEstateCFDetail(
             id=uuid4(),
@@ -200,11 +247,13 @@ class WecityFetcher(FinancialEntityFetcher):
             amount=round(amount, 2),
             pending_amount=round(pending, 2),
             currency="EUR",
-            interest_rate=round(Dezimal(opportunity["annual_profitability"]) / 100, 4),
-            profitability=round(Dezimal(opportunity["total_profitability"]) / 100, 4),
+            interest_rate=interest_rate,
+            profitability=profitability,
             last_invest_date=last_invest_date,
+            start=start_date,
             maturity=maturity,
             extended_maturity=extended_maturity,
+            extended_interest_rate=extended_interest_rate,
             type=project_type,
             business_type=business_type,
             state=state,
@@ -291,7 +340,9 @@ class WecityFetcher(FinancialEntityFetcher):
                 "movements"
             ]
             related_txs = _normalize_transactions(raw_related_txs)
-            investment_details.append(self._map_investment(related_txs, inv_id, inv))
+            mapped_investment = self._map_investment(related_txs, inv_id, inv)
+            if mapped_investment:
+                investment_details.append(mapped_investment)
 
         return HistoricalPosition(
             {ProductType.REAL_ESTATE_CF: RealEstateCFInvestments(investment_details)}

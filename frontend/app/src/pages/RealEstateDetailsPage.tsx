@@ -40,6 +40,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/Popover"
+import { RealEstateFormModal } from "@/components/RealEstateFormModal"
 import { FlowFrequency } from "@/types"
 export default function RealEstateDetailsPage() {
   const { t, locale } = useI18n()
@@ -50,6 +51,7 @@ export default function RealEstateDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [property, setProperty] = useState<RealEstate | null>(null)
 
   const frequencyLabel = (freq?: FlowFrequency | string) => {
@@ -144,7 +146,23 @@ export default function RealEstateDetailsPage() {
 
   const handleEdit = () => {
     if (!property) return
-    navigate(`/real-estate/${property.id}/edit`)
+    setIsEditModalOpen(true)
+  }
+
+  const handleEditSuccess = async () => {
+    setIsEditModalOpen(false)
+    // Reload property data
+    try {
+      const list = await getAllRealEstate()
+      const found = list.find(p => p.id === id) || null
+      setProperty(found)
+      if (found?.basic_info.photo_url) {
+        const url = await getImageUrl(found.basic_info.photo_url)
+        setImageUrl(url)
+      }
+    } catch (e) {
+      console.error(e)
+    }
   }
 
   const handleDelete = async (removeRelatedFlows: boolean) => {
@@ -1019,6 +1037,13 @@ export default function RealEstateDetailsPage() {
         propertyName={property.basic_info.name}
         onCancel={() => setIsDeleteDialogOpen(false)}
         onConfirm={handleDelete}
+      />
+
+      <RealEstateFormModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        property={property}
+        onSuccess={handleEditSuccess}
       />
     </div>
   )

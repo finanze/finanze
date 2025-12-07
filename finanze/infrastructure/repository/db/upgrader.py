@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List
 
 from dateutil.tz import tzlocal
-from domain.data_init import MigrationAheadOfTime, MigrationError
+from domain.data_init import DatasourceInitContext, MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
 
 
@@ -28,7 +28,7 @@ class DBVersionMigration(ABC):
         pass
 
     @abstractmethod
-    def upgrade(self, cursor: DBCursor):
+    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         """
         Perform the database upgrade for this migration.
         """
@@ -40,9 +40,15 @@ class DatabaseUpgrader:
     Handles database version upgrades using SQL transactions and tracks migration history.
     """
 
-    def __init__(self, db_client: DBClient, versions: List[DBVersionMigration]):
+    def __init__(
+        self,
+        db_client: DBClient,
+        versions: List[DBVersionMigration],
+        context: DatasourceInitContext,
+    ):
         self._db_client = db_client
         self._versions = versions
+        self._context = context
 
         self._log = logging.getLogger(__name__)
 
@@ -119,7 +125,6 @@ class DatabaseUpgrader:
 
         self._validate_migrations()
 
-        # Calculate versions to apply
         versions_to_apply = range(current + 1, target + 1)
 
         for version in versions_to_apply:
@@ -128,7 +133,7 @@ class DatabaseUpgrader:
 
                 self._log.info(f"Applying migration: {migration.name}")
                 try:
-                    migration.upgrade(cursor)
+                    migration.upgrade(cursor, self._context)
                 except Exception as e:
                     raise MigrationError(
                         f"There was an error while executing migration {migration.name}: {str(e)}"
@@ -136,7 +141,6 @@ class DatabaseUpgrader:
 
                 applied_at = datetime.now(tzlocal())
 
-                # Record the migration
                 cursor.execute(
                     "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
                     (version, applied_at, migration.name),

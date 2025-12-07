@@ -1,8 +1,19 @@
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from domain.external_integration import EtherscanIntegrationData
 from pydantic.dataclasses import dataclass
+
+from domain.external_integration import EnabledExternalIntegrations
+
+
+@dataclass
+class CryptoAsset:
+    name: str
+    symbol: Optional[str]
+    icon_urls: Optional[list[str]]
+    external_ids: dict[str, str]
+    id: Optional[UUID] = None
 
 
 @dataclass
@@ -14,22 +25,29 @@ class CryptoWalletConnection:
 
 
 @dataclass
-class CryptoFetchIntegrations:
-    etherscan: Optional[EtherscanIntegrationData] = None
-
-
-@dataclass
 class CryptoFetchRequest:
     address: str
-    integrations: CryptoFetchIntegrations
+    integrations: EnabledExternalIntegrations
     connection_id: Optional[UUID] = None
 
 
 @dataclass
 class ConnectCryptoWallet:
     entity_id: UUID
-    address: str
+    addresses: list[str]
     name: str
+
+
+class CryptoWalletConnectionFailureCode(str, Enum):
+    ADDRESS_ALREADY_EXISTS = "ADDRESS_ALREADY_EXISTS"
+    ADDRESS_NOT_FOUND = "ADDRESS_NOT_FOUND"
+    TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS"
+    UNEXPECTED_ERROR = "UNEXPECTED_ERROR"
+
+
+@dataclass
+class CryptoWalletConnectionResult:
+    failed: dict[str, CryptoWalletConnectionFailureCode]
 
 
 @dataclass

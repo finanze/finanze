@@ -1,12 +1,10 @@
-import copy
 import logging
 from datetime import date, datetime
 from hashlib import sha1
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
-from domain.currency_symbols import SYMBOL_CURRENCY_MAP
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_record import DataSource
@@ -24,52 +22,8 @@ from domain.global_position import (
 from domain.native_entities import SEGO
 from domain.transactions import FactoringTx, Transactions, TxType
 from infrastructure.client.entity.financial.sego.sego_client import SegoAPIClient
-from pytz import utc
-
-DATETIME_FORMAT = "%d/%m/%Y %H:%M"
-TAG_TIME_FORMAT = "%H:%M:%S"
 
 ACTIVE_SEGO_STATES = ["disputa", "gestionando-cobro", "no-llego-fecha-cobro"]
-FINISHED_SEGO_STATES = frozenset({"cobrado", "fallido"})
-
-
-def parse_tag(tag: str) -> dict:
-    tag_props = {}
-    for e in tag.split(";"):
-        k, v = e.split(":", 1)
-        tag_props[k] = v
-
-    return tag_props
-
-
-def map_txs(
-    ref: str,
-    tx: dict,
-    name: str,
-    tx_type: TxType,
-    amount: Dezimal,
-    net_amount: Dezimal,
-    fee: Dezimal,
-    tax: Dezimal,
-) -> Optional[FactoringTx]:
-    tx_date = tx["date"]
-    currency = tx["currency"]
-
-    return FactoringTx(
-        id=uuid4(),
-        ref=ref,
-        name=name,
-        amount=round(amount, 2),
-        currency=currency,
-        type=tx_type,
-        date=tx_date,
-        entity=SEGO,
-        product_type=ProductType.FACTORING,
-        fees=fee,
-        retentions=tax,
-        net_amount=round(net_amount, 2),
-        source=DataSource.REAL,
-    )
 
 
 class SegoFetcher(FinancialEntityFetcher):
@@ -102,10 +56,6 @@ class SegoFetcher(FinancialEntityFetcher):
             type=AccountType.VIRTUAL_WALLET,
         )
 
-        investment_movements = self._get_normalized_movements(
-            ["TRANSFER"], ["Inversión Factoring"]
-        )
-
         raw_sego_investments = (
             self._client.get_investments() + self._client.get_pending_investments()
         )
@@ -117,9 +67,9 @@ class SegoFetcher(FinancialEntityFetcher):
 
         factoring_investments = []
         for investment in active_sego_investments:
-            factoring_investments.append(
-                self._map_investment(investment_movements, investment)
-            )
+            mapped_inv = self._map_investment(investment)
+            if mapped_inv:
+                factoring_investments.append(mapped_inv)
 
         products = {
             ProductType.ACCOUNT: Accounts([account]),
@@ -130,7 +80,7 @@ class SegoFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=SEGO, products=products)
 
-    def _map_investment(self, investment_movements, investment) -> FactoringDetail:
+    def _map_investment(self, investment) -> FactoringDetail | None:
         raw_proj_type = investment["tipoOperacionCodigo"]
         proj_type = None
         if raw_proj_type == "admin-publica":
@@ -153,30 +103,30 @@ class SegoFetcher(FinancialEntityFetcher):
 
         name = investment["nombreOperacion"].strip()
         gross_interest_rate = Dezimal(investment["tasaInteres"])
-
-        last_invest_date = next(
-            (
-                movement["date"]
-                for movement in investment_movements
-                if name in movement["mensajeCompleto"]
-            ),
-            None,
+        raw_gross_late_interest_rate = investment.get("tasaInteresDemora")
+        gross_late_interest_rate = (
+            Dezimal(raw_gross_late_interest_rate)
+            if raw_gross_late_interest_rate
+            else None
         )
 
+        raw_invest_date = investment.get("fechaCreacion")
+        if not raw_invest_date:
+            self._log.warning(f"No investment date for SEGO investment: {investment}")
+            return None
+        last_invest_date = datetime.fromisoformat(raw_invest_date)
+
         interest_rate = round(gross_interest_rate * (1 - self.SEGO_FEE) / 100, 4)
+        late_interest_rate = (
+            round(gross_late_interest_rate * (1 - self.SEGO_FEE) / 100, 4)
+            if gross_late_interest_rate is not None
+            else None
+        )
         expected_maturity = (
             date.fromisoformat(investment["fechaDevolucion"][:10])
             if investment["fechaDevolucion"]
             else None
         )
-
-        profitability = Dezimal(0)
-        if last_invest_date and expected_maturity:
-            days = (expected_maturity - last_invest_date.date()).days
-            if days > 0:
-                profitability = Dezimal(
-                    round(interest_rate * Dezimal(days) / Dezimal(365), 4)
-                )
 
         return FactoringDetail(
             id=uuid4(),
@@ -184,69 +134,15 @@ class SegoFetcher(FinancialEntityFetcher):
             amount=round(Dezimal(investment["importe"]), 2),
             currency="EUR",
             interest_rate=interest_rate,
-            profitability=profitability,
-            gross_interest_rate=round(gross_interest_rate / 100, 4),
+            late_interest_rate=late_interest_rate,
             last_invest_date=last_invest_date,
+            start=last_invest_date,
             maturity=expected_maturity,
             type=proj_type,
             state=state,
+            gross_interest_rate=round(gross_interest_rate / 100, 4),
+            gross_late_interest_rate=round(gross_late_interest_rate / 100, 4),
         )
-
-    def _get_normalized_movements(self, types=None, subtypes=None) -> list[dict]:
-        if subtypes is None:
-            subtypes = []
-        if types is None:
-            types = []
-
-        raw_movements = []
-        page = 1
-        while True:
-            fetched_movs = copy.deepcopy(
-                self._client.get_movements(page=page, limit=100)
-            )
-            raw_movements += fetched_movs
-
-            if len(fetched_movs) < 100:
-                break
-            page += 1
-
-        normalized_movs = []
-        for movement in raw_movements:
-            if "Factoring" not in (movement.get("plataforma") or ""):
-                continue
-
-            if (not types or movement["type"] in types) and (
-                not subtypes or movement["tipo"] in subtypes
-            ):
-                tag = movement.get("tag", None)
-                parsed_tag_time = None
-                if tag:
-                    tag_props = parse_tag(tag)
-                    if raw_tag_time := tag_props.get("date", None):
-                        parsed_tag_time = datetime.strptime(
-                            raw_tag_time.split(" ")[-1], TAG_TIME_FORMAT
-                        )
-
-                mov_datetime = datetime.strptime(
-                    movement["creationDate"], DATETIME_FORMAT
-                )
-                if parsed_tag_time:
-                    mov_datetime = mov_datetime.replace(second=parsed_tag_time.second)
-
-                movement["date"] = mov_datetime.replace(tzinfo=utc)
-
-                currency_symbol = movement["amount"][-1]
-                currency = SYMBOL_CURRENCY_MAP.get(currency_symbol, "EUR")
-                raw_formated_amount = movement["amount"]
-                movement["amount"] = Dezimal(
-                    raw_formated_amount[2:-1].replace(".", "").replace(",", ".")
-                )
-                movement["currency"] = currency
-                movement["currencySymbol"] = currency_symbol
-
-                normalized_movs.append(movement)
-
-        return sorted(normalized_movs, key=lambda m: m["date"])
 
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
@@ -256,100 +152,147 @@ class SegoFetcher(FinancialEntityFetcher):
         return Transactions(investment=factoring_txs)
 
     def fetch_factoring_txs(self, registered_txs: set[str]) -> list[FactoringTx]:
-        completed_investments = self._client.get_investments(FINISHED_SEGO_STATES)
-
-        txs = self._get_normalized_movements(
-            ["TRANSFER"],
-            [
-                "Inversión Factoring",
-                "Devolución Capital",
-                "Ganancias",
-                "Ganancias extraordinarias",
-            ],
+        raw_sego_investments = (
+            self._client.get_investments() + self._client.get_pending_investments()
         )
 
         investment_txs = []
-
-        for tx in txs:
-            tag_props = parse_tag(tx["tag"]) if tx.get("tag", None) else None
-            if not tag_props:
-                self._log.warning(f"No tag in SEGO transaction: {tx}")
+        for inv in raw_sego_investments:
+            name = inv.get("nombreOperacion")
+            if not name:
+                self._log.warning("SEGO investment without a name")
                 continue
 
-            investment_name = tag_props["operacion"].strip()
-            tx_date = tx["date"]
-            raw_tx_type = tx["tipo"]
-            if raw_tx_type == "Inversión Factoring":
-                tx_type = TxType.INVESTMENT
-            elif raw_tx_type == "Devolución Capital":
-                tx_type = TxType.REPAYMENT
-            elif (
-                raw_tx_type == "Ganancias" or raw_tx_type == "Ganancias extraordinarias"
-            ):
-                tx_type = TxType.INTEREST
-            else:
-                self._log.warning(f"Unknown transaction type: {raw_tx_type}")
-                continue
+            draft_txs = []
 
-            amount: Dezimal = tx["amount"]
-            ref = self._calc_sego_tx_id(investment_name, tx_date, amount, tx_type)
-            if ref in registered_txs:
-                continue
+            amount = Dezimal(inv["importe"])
+            investment_op_id = inv.get("inversionOperacionId")
 
-            fee, tax = Dezimal(0), Dezimal(0)
-            net_amount = amount
-            if tx_type == TxType.INTEREST:
-                matching_investment = next(
-                    (
-                        investment
-                        for investment in completed_investments
-                        if investment["nombreOperacion"].strip() == investment_name
-                    ),
-                    None,
-                )
-
-                ordinary_interests = Dezimal(matching_investment["gananciasOrdinarias"])
-                extraordinary_interests = Dezimal(
-                    matching_investment["gananciasExtraOrdinarias"]
-                )
-                total_interests = ordinary_interests + extraordinary_interests
-                percentage = amount / total_interests
-
-                fee = round(percentage * Dezimal(matching_investment["comision"]), 2)
-                tax = round(percentage * Dezimal(matching_investment["retencion"]), 2)
-
-                net_amount = amount - fee - tax
-
-            stored_tx = map_txs(
-                ref, tx, investment_name, tx_type, amount, net_amount, fee, tax
+            investment_tx = self.map_txs(
+                name, inv.get("fechaCreacion"), TxType.INVESTMENT, amount, amount
             )
-            investment_txs.append(stored_tx)
+            draft_txs.append(investment_tx)
+
+            raw_repayment_date = inv.get("fechaDePago")
+            if raw_repayment_date:
+                repayment_tx = self.map_txs(
+                    name, raw_repayment_date, TxType.REPAYMENT, amount, amount
+                )
+                draft_txs.append(repayment_tx)
+
+                ordinary_interests = Dezimal(inv["gananciasOrdinarias"])
+                late_interests = Dezimal(inv["gananciasExtraOrdinarias"])
+                fees = Dezimal(inv["comision"])
+                retention = Dezimal(inv["retencion"])
+
+                if ordinary_interests and ordinary_interests > 0:
+                    ordinary_fees = round(
+                        (ordinary_interests / (ordinary_interests + late_interests))
+                        * fees,
+                        2,
+                    )
+                    ordinary_retention = round(
+                        (ordinary_interests / (ordinary_interests + late_interests))
+                        * retention,
+                        2,
+                    )
+                    interest_tx = self.map_txs(
+                        name,
+                        raw_repayment_date,
+                        TxType.INTEREST,
+                        ordinary_interests,
+                        ordinary_interests - ordinary_fees - ordinary_retention,
+                        ordinary_fees,
+                        ordinary_retention,
+                    )
+                    draft_txs.append(interest_tx)
+
+                if late_interests and late_interests > 0:
+                    late_fees = round(
+                        (late_interests / (ordinary_interests + late_interests)) * fees,
+                        2,
+                    )
+                    late_retention = round(
+                        (late_interests / (ordinary_interests + late_interests))
+                        * retention,
+                        2,
+                    )
+                    late_interest_tx = self.map_txs(
+                        name,
+                        raw_repayment_date,
+                        TxType.INTEREST,
+                        late_interests,
+                        late_interests - late_fees - late_retention,
+                        late_fees,
+                        late_retention,
+                    )
+                    draft_txs.append(late_interest_tx)
+
+            for draft_tx in draft_txs:
+                ref = self._calc_sego_tx_id(
+                    name, draft_tx.date, amount, draft_tx.type, investment_op_id
+                )
+                if ref in registered_txs:
+                    continue
+
+                draft_tx.ref = ref
+
+                investment_txs.append(draft_tx)
 
         return investment_txs
 
     @staticmethod
     def _calc_sego_tx_id(
-        inv_name: str, tx_date: datetime, amount: Dezimal, tx_type: TxType
+        inv_name: str,
+        tx_date: datetime,
+        amount: Dezimal,
+        tx_type: TxType,
+        investment_op_id: Any,
     ) -> str:
         return sha1(
-            f"S_{inv_name}_{tx_date.isoformat()}_{amount}_{tx_type}".encode("UTF-8")
+            f"S_{inv_name}_{investment_op_id}_{tx_date.isoformat()}_{amount}_{tx_type}".encode(
+                "UTF-8"
+            )
         ).hexdigest()
 
-    async def historical_position(self) -> HistoricalPosition:
-        investment_movements = self._get_normalized_movements(
-            ["TRANSFER"], ["Inversión Factoring"]
+    @staticmethod
+    def map_txs(
+        name: str,
+        raw_date: str,
+        tx_type: TxType,
+        amount: Dezimal,
+        net_amount: Dezimal,
+        fee: Optional[Dezimal] = Dezimal(0),
+        tax: Optional[Dezimal] = Dezimal(0),
+    ) -> Optional[FactoringTx]:
+        tx_date = datetime.fromisoformat(raw_date)
+
+        return FactoringTx(
+            id=uuid4(),
+            ref="",
+            name=name,
+            amount=round(Dezimal(amount), 2),
+            currency="EUR",
+            type=tx_type,
+            date=tx_date,
+            entity=SEGO,
+            product_type=ProductType.FACTORING,
+            fees=round(Dezimal(fee), 2),
+            retentions=round(Dezimal(tax), 2),
+            net_amount=round(Dezimal(net_amount), 2),
+            source=DataSource.REAL,
         )
 
+    async def historical_position(self) -> HistoricalPosition:
         raw_sego_investments = (
             self._client.get_investments() + self._client.get_pending_investments()
         )
-        active_sego_investments = [investment for investment in raw_sego_investments]
 
         factoring_investments = []
-        for investment in active_sego_investments:
-            factoring_investments.append(
-                self._map_investment(investment_movements, investment)
-            )
+        for investment in raw_sego_investments:
+            mapped_inv = self._map_investment(investment)
+            if mapped_inv:
+                factoring_investments.append(mapped_inv)
 
         return HistoricalPosition(
             {ProductType.FACTORING: FactoringInvestments(factoring_investments)}

@@ -7,6 +7,7 @@ from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
     ContributionQueryRequest,
+    ContributionTargetSubtype,
     ContributionTargetType,
     PeriodicContribution,
 )
@@ -32,15 +33,16 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             for contrib in data.periodic:
                 cursor.execute(
                     """
-                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, alias, target_name, amount, currency,
+                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, target_subtype, alias, target_name, amount, currency,
                                                         since, until, frequency, active, is_real, source, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(contrib.id),
                         str(entity_id),
                         contrib.target,
                         contrib.target_type,
+                        contrib.target_subtype.name if contrib.target_subtype else None,
                         contrib.alias,
                         contrib.target_name,
                         str(contrib.amount),
@@ -116,6 +118,11 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         target=row["target"],
                         target_name=row["target_name"],
                         target_type=ContributionTargetType[row["target_type"]],
+                        target_subtype=(
+                            ContributionTargetSubtype[row["target_subtype"]]
+                            if row["target_subtype"]
+                            else None
+                        ),
                         amount=Dezimal(row["amount"]),
                         currency=row["currency"],
                         since=datetime.fromisoformat(row["since"]).date(),
@@ -125,6 +132,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         frequency=ContributionFrequency[row["frequency"]],
                         active=bool(row["active"]),
                         source=row["source"],
+                        entity=entity,
                     )
                 )
 

@@ -4,19 +4,15 @@ import {
   FetchRequest,
   FetchResponse,
   LoginResponse,
-  ExportRequest,
   AuthRequest,
   ChangePasswordRequest,
-  LoginStatusResponse,
+  StatusResponse,
   ExchangeRates,
   CreateCryptoWalletRequest,
   UpdateCryptoWalletConnectionRequest,
   SaveCommodityRequest,
-  VirtualFetchResponse,
+  ImportResult,
   ExternalIntegrations,
-  GoogleIntegrationCredentials,
-  EtherscanIntegrationData,
-  GoCardlessIntegrationCredentials,
   PeriodicFlow,
   PendingFlow,
   CreatePeriodicFlowRequest,
@@ -37,6 +33,18 @@ import {
   InstrumentDataRequest,
   InstrumentOverview,
   InstrumentsResponse,
+  CryptoWalletConnectionResult,
+  TemplateType,
+  Template,
+  TemplateCreatePayload,
+  TemplateUpdatePayload,
+  TemplateFeatureDefinition,
+  FileExportRequest,
+  FileImportRequest,
+  MoneyEvents,
+  MoneyEventQuery,
+  SavingsCalculationRequest,
+  SavingsCalculationResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -60,33 +68,83 @@ import { BASE_URL } from "@/env"
 
 let apiBaseUrl = BASE_URL
 let apiUrlInitialized = false
+let apiUrlInitPromise: Promise<void> | null = null
+let isCustomServer = false
+let customServerUrl: string | null = null
 
-const apiUrlInitPromise: Promise<void> = (async () => {
+const withApiVersionSegment = (url: string): string => {
+  let normalized = url.trim()
+  if (!normalized) {
+    throw new Error("Invalid base URL")
+  }
+  while (normalized.endsWith("/")) {
+    normalized = normalized.slice(0, -1)
+  }
+  if (!normalized.endsWith("/api/v1")) {
+    normalized = `${normalized}/api/v1`
+  }
+  return normalized
+}
+
+const initializeApiUrl = async (): Promise<void> => {
   try {
     if (
       typeof window !== "undefined" &&
       window.ipcAPI &&
       window.ipcAPI.apiUrl
     ) {
-      const url = await window.ipcAPI.apiUrl()
-      if (url) {
-        apiBaseUrl = url
-        console.log("API URL initialized:", apiBaseUrl)
+      const result = await window.ipcAPI.apiUrl()
+      if (result?.url) {
+        apiBaseUrl = result.url
+        isCustomServer = result.custom
+        if (isCustomServer) {
+          customServerUrl = result.url
+        }
+        console.log("API URL initialized from IPC:", apiBaseUrl)
       }
     }
   } catch (error) {
     console.error("Error initializing API URL:", error)
   } finally {
+    apiBaseUrl = withApiVersionSegment(apiBaseUrl)
     apiUrlInitialized = true
   }
-  apiBaseUrl += "/api/v1"
-})()
+}
+
+const ensureInitPromise = (): Promise<void> => {
+  if (!apiUrlInitPromise) {
+    apiUrlInitPromise = initializeApiUrl()
+  }
+  return apiUrlInitPromise
+}
 
 const ensureApiUrlInitialized = async (): Promise<string> => {
   if (!apiUrlInitialized) {
-    await apiUrlInitPromise
+    await ensureInitPromise()
   }
   return apiBaseUrl
+}
+
+export const refreshApiBaseUrl = async (): Promise<void> => {
+  apiBaseUrl = BASE_URL
+  apiUrlInitialized = false
+  apiUrlInitPromise = null
+  isCustomServer = false
+  customServerUrl = null
+  await ensureApiUrlInitialized()
+}
+
+export interface ApiServerInfo {
+  isCustomServer: boolean
+  serverDisplay: string | null
+}
+
+export const getApiServerInfo = async (): Promise<ApiServerInfo> => {
+  await ensureInitPromise()
+  return {
+    isCustomServer,
+    serverDisplay: customServerUrl,
+  }
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
@@ -147,11 +205,12 @@ export async function fetchFinancialEntity(
     body: JSON.stringify(request),
   })
 
-  // Even if the response is not OK, we want to get the error code
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Fetch failed")
+    const error = new Error("Fetch failed") as Error & { status?: number }
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -173,15 +232,17 @@ export async function fetchCryptoEntity(
   const data = await response.json()
 
   if (!response.ok && !data.code) {
-    throw new Error("Fetch failed")
+    const error = new Error("Fetch failed") as Error & { status?: number }
+    error.status = response.status
+    throw error
   }
 
   return data
 }
 
-export async function virtualFetch(): Promise<VirtualFetchResponse> {
+export async function importFetch(): Promise<ImportResult> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/fetch/virtual`, {
+  const response = await fetch(`${baseUrl}/data/import/sheets`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -198,12 +259,172 @@ export async function virtualFetch(): Promise<VirtualFetchResponse> {
   return data
 }
 
-export async function updateSheets(request: ExportRequest): Promise<void> {
+export async function updateSheets(): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/export`, {
+  const response = await fetch(`${baseUrl}/data/export/sheets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+}
+
+export interface FileExportResult {
+  blob: Blob
+  filename: string | null
+  contentType: string | null
+}
+
+export async function exportFile(
+  request: FileExportRequest,
+): Promise<FileExportResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/data/export/file`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  const blob = await response.blob()
+  const dispositionHeader =
+    response.headers.get("Content-Disposition") ??
+    response.headers.get("content-disposition")
+
+  let filename: string | null = null
+  if (dispositionHeader) {
+    const utfMatch = dispositionHeader.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utfMatch?.[1]) {
+      try {
+        filename = decodeURIComponent(utfMatch[1])
+      } catch {
+        filename = utfMatch[1]
+      }
+      filename = filename.replace(/^"|"$/g, "")
+    } else {
+      const fallbackMatch = dispositionHeader.match(/filename="?([^";]+)"?/i)
+      if (fallbackMatch?.[1]) {
+        filename = fallbackMatch[1]
+      }
+    }
+  }
+
+  return {
+    blob,
+    filename,
+    contentType:
+      response.headers.get("Content-Type") ??
+      response.headers.get("content-type"),
+  }
+}
+
+export async function importFile(
+  request: FileImportRequest,
+  file: File,
+): Promise<ImportResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const formData = new FormData()
+  formData.append("file", file)
+  formData.append("feature", request.feature)
+  formData.append("product", request.product)
+  if (request.datetime_format) {
+    formData.append("datetimeFormat", request.datetime_format)
+  }
+  if (request.date_format) {
+    formData.append("dateFormat", request.date_format)
+  }
+  formData.append("numberFormat", request.number_format)
+  formData.append("templateId", request.templateId)
+  if (
+    request.templateParams &&
+    Object.keys(request.templateParams).length > 0
+  ) {
+    formData.append("templateParams", JSON.stringify(request.templateParams))
+  }
+
+  const url = new URL(`${baseUrl}/data/import/file`)
+  if (typeof request.preview === "boolean") {
+    url.searchParams.set("preview", request.preview ? "true" : "false")
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  return response.json()
+}
+
+// Templates
+export async function getTemplates(type: TemplateType): Promise<Template[]> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams({ type })
+  const response = await fetch(`${baseUrl}/templates?${params.toString()}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getTemplateFields(): Promise<
+  Record<string, TemplateFeatureDefinition[]>
+> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates/fields`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function createTemplate(
+  payload: TemplateCreatePayload,
+): Promise<Template | null> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  if (response.status === 204) {
+    return null
+  }
+  return response.json()
+}
+
+export async function updateTemplate(
+  payload: TemplateUpdatePayload,
+): Promise<Template | null> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  if (response.status === 204) {
+    return null
+  }
+  return response.json()
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/templates/${id}`, {
+    method: "DELETE",
   })
   if (!response.ok) {
     await handleApiError(response)
@@ -234,9 +455,17 @@ export async function saveSettings(settings: any) {
   }
 }
 
-export async function checkLoginStatus(): Promise<LoginStatusResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/login`)
+interface CheckStatusOptions {
+  baseUrlOverride?: string
+}
+
+export async function checkStatus(
+  options?: CheckStatusOptions,
+): Promise<StatusResponse> {
+  const baseUrl = options?.baseUrlOverride
+    ? withApiVersionSegment(options.baseUrlOverride)
+    : await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/status`)
   if (!response.ok) {
     await handleApiError(response)
   }
@@ -328,14 +557,6 @@ export async function getContributions(
         params.append("entity", entity)
       })
     }
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach((entity: string) => {
-        params.append("excluded_entity", entity)
-      })
-    }
     if (params.toString()) {
       queryString = `?${params.toString()}`
     }
@@ -359,14 +580,6 @@ export async function getPositions(
     if (queryParams.entities && queryParams.entities.length > 0) {
       queryParams.entities.forEach((entity: string) => {
         params.append("entity", entity)
-      })
-    }
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach((entity: string) => {
-        params.append("excluded_entity", entity)
       })
     }
     if (params.toString()) {
@@ -396,15 +609,6 @@ export async function getTransactions(
     if (queryParams.entities && queryParams.entities.length > 0) {
       queryParams.entities.forEach((entity: string) => {
         params.append("entity", entity)
-      })
-    }
-
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach((entity: string) => {
-        params.append("excluded_entity", entity)
       })
     }
 
@@ -448,15 +652,6 @@ export async function getHistoric(
     if (queryParams.entities && queryParams.entities.length > 0) {
       queryParams.entities.forEach(entity => {
         params.append("entity", entity)
-      })
-    }
-
-    if (
-      queryParams.excluded_entities &&
-      queryParams.excluded_entities.length > 0
-    ) {
-      queryParams.excluded_entities.forEach(entity => {
-        params.append("excluded_entity", entity)
       })
     }
 
@@ -645,7 +840,7 @@ export async function getForecast(
 
 export async function createCryptoWallet(
   request: CreateCryptoWalletRequest,
-): Promise<void> {
+): Promise<CryptoWalletConnectionResult> {
   const baseUrl = await ensureApiUrlInitialized()
   const response = await fetch(`${baseUrl}/crypto-wallet`, {
     method: "POST",
@@ -658,6 +853,7 @@ export async function createCryptoWallet(
   if (!response.ok) {
     await handleApiError(response)
   }
+  return response.json()
 }
 
 export async function updateCryptoWallet(
@@ -714,16 +910,17 @@ export async function getExternalIntegrations(): Promise<ExternalIntegrations> {
   return response.json()
 }
 
-export async function setupGoogleIntegration(
-  request: GoogleIntegrationCredentials,
+export async function setupIntegration(
+  integrationId: string,
+  payload: Record<string, string>,
 ): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/google`, {
+  const response = await fetch(`${baseUrl}/integrations/${integrationId}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify({ payload }),
   })
 
   if (!response.ok) {
@@ -731,33 +928,10 @@ export async function setupGoogleIntegration(
   }
 }
 
-export async function setupEtherscanIntegration(
-  request: EtherscanIntegrationData,
-): Promise<void> {
+export async function disableIntegration(integrationId: string): Promise<void> {
   const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/etherscan`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-}
-
-export async function setupGoCardlessIntegration(
-  request: GoCardlessIntegrationCredentials,
-): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/gocardless`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
+  const response = await fetch(`${baseUrl}/integrations/${integrationId}`, {
+    method: "DELETE",
   })
 
   if (!response.ok) {
@@ -999,7 +1173,9 @@ export async function fetchExternalEntity(
   )
   const data = await response.json()
   if (!response.ok && !data.code) {
-    throw new Error("Fetch failed")
+    const error = new Error("Fetch failed") as Error & { status?: number }
+    error.status = response.status
+    throw error
   }
   return data
 }
@@ -1036,6 +1212,38 @@ export async function getInstrumentDetails(
   const response = await fetch(
     `${baseUrl}/instruments/details?${params.toString()}`,
   )
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getMoneyEvents(
+  query: MoneyEventQuery,
+): Promise<MoneyEvents> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
+  params.append("from_date", query.from_date)
+  params.append("to_date", query.to_date)
+
+  const response = await fetch(`${baseUrl}/events?${params.toString()}`)
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function calculateSavings(
+  request: SavingsCalculationRequest,
+): Promise<SavingsCalculationResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/calculations/savings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
   if (!response.ok) {
     await handleApiError(response)
   }

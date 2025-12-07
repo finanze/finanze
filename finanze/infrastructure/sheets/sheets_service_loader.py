@@ -1,7 +1,10 @@
+import logging
 from threading import Lock
 
 from application.ports.sheets_initiator import SheetsInitiator
-from domain.external_integration import GoogleIntegrationCredentials
+from domain.external_integration import (
+    ExternalIntegrationPayload,
+)
 from domain.user import User
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -14,8 +17,11 @@ SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 TOKEN_FILENAME = "token.json"
 
 
-def _client_config(credentials: GoogleIntegrationCredentials) -> dict:
-    client_id, client_secret = credentials.client_id, credentials.client_secret
+def _client_config(credentials: ExternalIntegrationPayload) -> dict:
+    client_id, client_secret = (
+        credentials.get("client_id"),
+        credentials.get("client_secret"),
+    )
     if not client_id or not client_secret:
         raise ValueError("Google credentials not found")
 
@@ -35,14 +41,17 @@ class SheetsServiceLoader(SheetsInitiator):
         self._base_path = None
         self._service = None
         self._lock = Lock()
+        self._log = logging.getLogger(__name__)
 
     def disconnect(self):
+        self._log.debug("Disconnecting loader")
         self._base_path = None
 
     def connect(self, user: User):
+        self._log.debug("Connecting loader")
         self._base_path = user.path
 
-    def setup(self, credentials: GoogleIntegrationCredentials):
+    def setup(self, credentials: ExternalIntegrationPayload):
         if not self._base_path:
             raise ValueError("Base path not set")
 
@@ -58,7 +67,7 @@ class SheetsServiceLoader(SheetsInitiator):
 
         return creds
 
-    def _load_credentials(self, credentials: GoogleIntegrationCredentials):
+    def _load_credentials(self, credentials: ExternalIntegrationPayload):
         if not self._base_path:
             raise ValueError("Base path not set")
 
@@ -79,7 +88,7 @@ class SheetsServiceLoader(SheetsInitiator):
 
         return creds
 
-    def service(self, credentials: GoogleIntegrationCredentials):
+    def service(self, credentials: ExternalIntegrationPayload):
         with self._lock:
             if not self._service:
                 creds = self._load_credentials(credentials)

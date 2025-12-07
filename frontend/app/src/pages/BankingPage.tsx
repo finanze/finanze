@@ -55,7 +55,8 @@ import {
   Save,
   Trash2,
   X,
-  Building2,
+  Copy,
+  Check,
 } from "lucide-react"
 import {
   ProductType,
@@ -758,16 +759,6 @@ export default function BankingPage() {
   const totalLoanDebt = loansSummary.totalDebt
   const totalMonthlyPayments = loansSummary.totalMonthlyPayments
 
-  const hasFilteredData =
-    accountsSummary.count > 0 ||
-    cardsSummary.count > 0 ||
-    loansSummary.count > 0
-
-  const hasFilteredRealPositions =
-    filteredAccounts.length > 0 ||
-    filteredCards.length > 0 ||
-    filteredLoans.length > 0
-
   if (isLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -990,20 +981,6 @@ export default function BankingPage() {
           onEnterGlobalEditMode={enterGlobalEditMode}
         />
       </ManualPositionsManager>
-
-      {!hasFilteredData && !hasFilteredRealPositions && (
-        <motion.div variants={fadeListItem}>
-          <Card className="p-12 text-center">
-            <div className="mb-4 text-muted-foreground">
-              <Building2 className="mx-auto h-12 w-12" />
-            </div>
-            <h3 className="text-lg font-semibold">{t.banking.noData}</h3>
-            <p className="text-muted-foreground">
-              {t.banking.noDataDescription}
-            </p>
-          </Card>
-        </motion.div>
-      )}
     </motion.div>
   )
 }
@@ -1068,6 +1045,32 @@ function BankAccountsSection({
     setSavingState,
     handleExternalSaveSuccess,
   } = useManualPositions()
+
+  const [copiedIban, setCopiedIban] = useState<string | null>(null)
+
+  const handleCopyIban = useCallback(async (iban: string) => {
+    try {
+      await navigator.clipboard.writeText(iban)
+      setCopiedIban(iban)
+
+      setTimeout(() => {
+        setCopiedIban(null)
+      }, 2000)
+    } catch (error) {
+      console.error("Failed to copy IBAN:", error)
+      const textArea = document.createElement("textarea")
+      textArea.value = iban
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+
+      setCopiedIban(iban)
+      setTimeout(() => {
+        setCopiedIban(null)
+      }, 2000)
+    }
+  }, [])
 
   const accountController = useMemo<ManualSectionController>(
     () => ({
@@ -1320,23 +1323,14 @@ function BankAccountsSection({
       </div>
 
       {summary.count === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+        <Card className="flex flex-col items-center gap-4 p-10 text-center">
+          <div className="text-blue-500 dark:text-blue-400">
+            <Wallet className="mx-auto h-12 w-12" />
+          </div>
           <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
           <p className="text-sm text-muted-foreground">
             {manualEmptyDescription}
           </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              onEnterGlobalEditMode()
-              beginCreate(
-                defaultEntityId ? { entityId: defaultEntityId } : undefined,
-              )
-            }}
-            disabled={!canCreate}
-          >
-            {manualTranslate(`${assetPath}.add`)}
-          </Button>
         </Card>
       ) : (
         <TooltipProvider delayDuration={120}>
@@ -1407,8 +1401,31 @@ function BankAccountsSection({
                         </h3>
                       )}
                       {position.iban && (
-                        <div className="font-mono text-sm text-muted-foreground">
-                          {formatIban(position.iban, showAccountNumbers)}
+                        <div className="flex items-center gap-2 group">
+                          <div className="font-mono text-sm text-muted-foreground">
+                            {formatIban(position.iban, showAccountNumbers)}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 ${
+                              copiedIban === position.iban
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            }`}
+                            onClick={() => handleCopyIban(position.iban!)}
+                            title={
+                              copiedIban === position.iban
+                                ? t.common.copied
+                                : t.common.copy
+                            }
+                          >
+                            {copiedIban === position.iban ? (
+                              <Check className="h-3 w-3" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </Button>
                         </div>
                       )}
                       <div className="space-y-1">
@@ -1811,25 +1828,14 @@ function BankCardsSection({
       </div>
 
       {summary.count === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+        <Card className="flex flex-col items-center gap-4 p-10 text-center">
+          <div className="text-orange-500 dark:text-orange-400">
+            <CreditCard className="mx-auto h-12 w-12" />
+          </div>
           <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
           <p className="text-sm text-muted-foreground">
             {manualEmptyDescription}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={() => {
-              onEnterGlobalEditMode()
-              beginCreate(
-                defaultEntityId ? { entityId: defaultEntityId } : undefined,
-              )
-            }}
-            disabled={!canCreate}
-          >
-            {manualTranslate(`${assetPath}.add`)}
-          </Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 items-center">
@@ -2307,25 +2313,14 @@ function BankLoansSection({
       </div>
 
       {summary.count === 0 ? (
-        <Card className="flex flex-col items-center gap-2 p-10 text-center">
+        <Card className="flex flex-col items-center gap-4 p-10 text-center">
+          <div className="text-red-500 dark:text-red-400">
+            <TrendingDown className="mx-auto h-12 w-12" />
+          </div>
           <h3 className="text-lg font-semibold">{manualEmptyTitle}</h3>
           <p className="text-sm text-muted-foreground">
             {manualEmptyDescription}
           </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={() => {
-              onEnterGlobalEditMode()
-              beginCreate(
-                defaultEntityId ? { entityId: defaultEntityId } : undefined,
-              )
-            }}
-            disabled={!canCreate}
-          >
-            {manualTranslate(`${assetPath}.add`)}
-          </Button>
         </Card>
       ) : (
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">

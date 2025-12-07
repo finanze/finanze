@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
@@ -7,6 +8,7 @@ from dateutil.tz import tzlocal
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
+    ContributionTargetSubtype,
     ContributionTargetType,
     PeriodicContribution,
 )
@@ -22,11 +24,14 @@ from domain.global_position import (
     Card,
     Cards,
     CardType,
+    EquityType,
     FundDetail,
     FundInvestments,
     FundType,
     GlobalPosition,
     ProductType,
+    StockDetail,
+    StockInvestments,
 )
 from domain.native_entities import ING
 from domain.transactions import FundTx, StockTx, Transactions, TxType
@@ -126,6 +131,14 @@ def _map_movement_to_stock_tx(
     except Exception:
         price_val = Dezimal(0)
 
+    # equity type from stockType (A => STOCK, E => ETF)
+    raw_equity_type = mv.get("stockType")
+    equity_type = None
+    if raw_equity_type == "A":
+        equity_type = EquityType.STOCK
+    elif raw_equity_type == "E":
+        equity_type = EquityType.ETF
+
     return StockTx(
         id=uuid4(),
         ref=str(ref),
@@ -147,6 +160,7 @@ def _map_movement_to_stock_tx(
         product_type=ProductType.STOCK_ETF,
         source=DataSource.REAL,
         linked_tx=None,
+        equity_type=equity_type,
     )
 
 
@@ -350,6 +364,8 @@ class INGFetcher(FinancialEntityFetcher):
         self._fund_isin_cache: dict[str, str] = {}
         self._fund_product_codes_loaded: bool = False
 
+        self._log = logging.getLogger(__name__)
+
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         return self._client.complete_login(
             login_params.credentials, login_params.options, login_params.session
@@ -365,7 +381,13 @@ class INGFetcher(FinancialEntityFetcher):
         _mark_brokerage_account(products, legacy_by_number, accounts_by_number)
         cards = _build_cards(products, legacy_by_number, accounts_by_number)
 
-        funds = self._build_funds(products, legacy_by_number)
+        try:
+            funds = self._build_funds(products, legacy_by_number)
+        except Exception:
+            self._log.exception("Error building broker portfolio", exc_info=True)
+            funds = []
+
+        stocks = self._build_broker_portfolio(products)
 
         product_positions = {}
         if accounts:
@@ -376,6 +398,9 @@ class INGFetcher(FinancialEntityFetcher):
 
         if funds:
             product_positions[ProductType.FUND] = FundInvestments(funds)
+
+        if stocks:
+            product_positions[ProductType.STOCK_ETF] = StockInvestments(stocks)
 
         return GlobalPosition(
             id=uuid4(),
@@ -446,6 +471,7 @@ class INGFetcher(FinancialEntityFetcher):
                         target=isin,
                         target_name=fund_name,
                         target_type=ContributionTargetType.FUND,
+                        target_subtype=ContributionTargetSubtype.MUTUAL_FUND,
                         amount=amount,
                         currency=currency,
                         since=since,
@@ -697,3 +723,52 @@ class INGFetcher(FinancialEntityFetcher):
             funds.append(fund)
 
         return funds
+
+    def _build_broker_portfolio(self, products: list[dict]) -> list[StockDetail]:
+        broker = next((p for p in products if p.get("type") == "BROKER"), None)
+        if not broker:
+            return []
+        broker_id = _get_identifier(broker, "LOCAL_UUID")
+        if not broker_id:
+            return []
+        try:
+            portfolio = self._client.get_broker_portfolio(broker_id) or {}
+        except Exception:
+            return []
+        positions = portfolio.get("portfolioPosition") or []
+        result: list[StockDetail] = []
+        for pos in positions:
+            try:
+                isin = pos.get("isin")
+                if not isin:
+                    continue
+                shares = Dezimal(pos.get("shares") or 0)
+                avg_price = Dezimal(pos.get("averagePrice") or 0)
+                market_value = Dezimal(pos.get("valuation") or 0)
+                currency = pos.get("currency")
+                name = (pos.get("companyDescription") or "").strip() or isin
+                value_type = pos.get("valueType")
+                equity_type = EquityType.ETF if value_type == "E" else EquityType.STOCK
+                initial_investment = shares * avg_price
+                average_buy_price = avg_price if shares > 0 else Dezimal(0)
+                result.append(
+                    StockDetail(
+                        id=uuid4(),
+                        name=name,
+                        ticker="",
+                        isin=isin,
+                        market="",
+                        shares=round(shares, 4),
+                        initial_investment=round(initial_investment, 4),
+                        average_buy_price=round(average_buy_price, 4),
+                        market_value=round(market_value, 4),
+                        currency=currency,
+                        type=equity_type,
+                    )
+                )
+            except Exception as e:
+                self._log.warning(
+                    f"Error processing broker portfolio position: {pos}", exc_info=e
+                )
+                continue
+        return result

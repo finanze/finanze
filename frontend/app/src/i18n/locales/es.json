@@ -17,8 +17,8 @@
     "fetchErrorEntity": "Error al obtener datos de {entity}",
     "loginError": "Error de inicio de sesión",
     "loginErrorEntity": "Error de inicio de sesión en {entity}",
-    "virtualScrapeSuccess": "Datos introducidos manualmente importados con éxito",
-    "virtualScrapeError": "Error al importar datos introducidos manualmente",
+    "importSuccess": "Datos introducidos manualmente importados con éxito",
+    "importError": "Error al importar datos introducidos manualmente",
     "exportSuccess": "Datos exportados a Google Sheets",
     "exportError": "Error al exportar datos",
     "logout": "Cerrar Sesión",
@@ -75,6 +75,7 @@
     "disconnectSuccess": "Entidad desconectada con éxito",
     "disconnectError": "Error al desconectar entidad",
     "warning": "Advertencia",
+    "help": "Ayuda",
     "never": "Nunca",
     "noDataAvailable": "No hay datos disponibles",
     "retry": "Reintentar",
@@ -90,7 +91,8 @@
     "pinAsset": "Fijar activo",
     "unpinAsset": "Quitar activo",
     "continueInBackground": "Continuar en segundo plano",
-    "connectingToServer": "Conectando al servidor"
+    "connectingToServer": "Conectando a",
+    "startingServer": "Iniciando servidor"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -102,7 +104,21 @@
     "downloadAssets": "Opciones de descarga",
     "releaseNotes": "Notas de la versión",
     "skipThisVersion": "Omitir versión",
-    "releasePageLink": "Visitar página de versión"
+    "releasePageLink": "Visitar página de versión",
+    "autoUpdate": {
+      "title": "Actualización automática",
+      "description": "Descarga e instala la actualización sin salir de la app.",
+      "download": "Descargar actualización",
+      "downloading": "Descargando actualización…",
+      "install": "Reiniciar e instalar",
+      "ready": "Actualización descargada. Reinicia para completar la instalación.",
+      "progress": "{percent}% • {downloaded} / {total}",
+      "progressFallback": "{percent}% descargado"
+    },
+    "manualDownloads": {
+      "show": "Mostrar descargas manuales",
+      "hide": "Ocultar descargas manuales"
+    }
   },
   "about": {
     "title": "Acerca de {appName}",
@@ -139,6 +155,8 @@
     "investment": "Inversión",
     "interest": "Interés",
     "annually": "anual",
+    "lateInterest": "demora",
+    "lateInterestInfo": "Esta inversión ha superado su fecha de vencimiento y está generando intereses a la tasa de demora.",
     "expected": "Esperado",
     "expectedAtMaturity": "Esperado al vencimiento",
     "profit": "Beneficio",
@@ -158,6 +176,14 @@
     "numberOfAssets": "Número de activos",
     "asset": "activo",
     "assets": "activos",
+    "cryptoView": {
+      "belongsTo": "Pertenece a",
+      "viewModeLabel": "Vista",
+      "viewModes": {
+        "wallets": "Por billetera",
+        "network": "Por red"
+      }
+    },
     "weightedAverageInterest": "Interés ponderado",
     "weightedAverageProfitability": "Rent. ponderada",
     "states": {
@@ -273,7 +299,9 @@
     "codeDelayTip": "Info: A veces el código 2FA puede tardar un poco en llegar",
     "cancelConfirmationTitle": "¿Cancelar verificación?",
     "cancelLoginDescription": "¿Quieres salir del proceso de inicio de sesión?",
-    "cancelFetchDescription": "¿Quieres salir del proceso de actualización?"
+    "cancelFetchDescription": "¿Quieres salir del proceso de actualización?",
+    "pendingRequests": "Otra entidad necesita código",
+    "switchToEntity": "{entity}"
   },
   "errors": {
     "INVALID_CODE": "Código inválido",
@@ -291,7 +319,9 @@
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
     "COOLDOWN_WITH_WAIT": "Espera {time} antes de intentarlo nuevamente con {entity}.",
-    "DISABLED": "Extracción de datos virtuales deshabilitada en configuración."
+    "DISABLED": "Importación de datos deshabilitada en configuración.",
+    "UNSUPPORTED_FILE_FORMAT": "El tipo de archivo seleccionado no es compatible. Sube un CSV, TSV o XLSX.",
+    "INVALID_TEMPLATE": "La plantilla seleccionada no es válida para esta importación. Elige otra."
   },
   "entities": {
     "title": "Integraciones",
@@ -308,11 +338,9 @@
     "goToSettings": "Ir a Configuración",
     "userEntered": "Datos importados",
     "importData": "Importar",
-    "runVirtual": "Importar Datos Manuales",
+    "runImport": "Importar Datos Manuales",
     "confirmUserEntered": "Importar Datos Manuales",
     "confirmUserEnteredDescription": "Esto importará datos desde tus hojas de Google configuradas.",
-    "confirmVirtual": "¿Estás seguro de que quieres ejecutar una extracción virtual?",
-    "confirmVirtualDescription": "Esto generará datos de prueba en tu base de datos.",
     "available": "Entidades Disponibles",
     "setupUserEntered": "Configurar Datos Manuales",
     "userEnteredDescription": "Importa datos desde tus hojas de Google configuradas para seguimiento manual.",
@@ -322,7 +350,7 @@
     "disconnect": "Desconectar",
     "confirmDisconnect": "Confirmar desconexión",
     "confirmDisconnectMessage": "¿Está seguro de que desea desconectar {entity}? Necesitará iniciar sesión nuevamente para acceder a sus datos, y una vez desconectada no se tendrán en cuenta.",
-    "refreshEntity": "Actualizar datos de entidades",
+    "refreshEntity": "Actualizar datos",
     "financialInstitutions": "Instituciones Financieras",
     "cryptoWallets": "Billeteras Crypto",
     "commodities": "Materias Primas",
@@ -345,7 +373,8 @@
     "continueLink": "Continuar enlace",
     "relink": "Re-enlazar",
     "confirmRelink": "Confirmar Re-enlace",
-    "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}, ¿quieres continuar?"
+    "confirmRelinkMessage": "Re-enlazar reiniciará la conexión de {entity}, ¿quieres continuar?",
+    "sessionExpiredHint": "Sesión expirada. Inicia sesión de nuevo para habilitar las actualizaciones automáticas."
   },
   "features": {
     "POSITION": "Posiciones",
@@ -360,26 +389,78 @@
     "deepScrapeDescription": "Forzar la extracción de datos ya existentes (puede llevar tiempo, puedes ser bloqueado y no es recomentable)",
     "advancedOptions": "Opciones avanzadas",
     "availableFeatures": "Características Disponibles",
+    "supportedProducts": "Productos Soportados",
     "transactionsLoadingNotice": "La primera vez que importas transacciones o al forzar una recarga completa puede tardar varios minutos según la cantidad de datos.",
     "jumpToPin": "¿Ya tienes el código 2FA? Ir al PIN"
   },
   "settings": {
     "title": "Configuración",
     "general": "General",
-    "etherscanIntegration": "Etherscan",
-    "etherscanIntegrationDescription": "Ingresa tu clave API de Etherscan para poder obtener más variedad de datos de tus criptomonedas",
-    "etherscanApiKey": "Clave API",
-    "etherscanApiKeyPlaceholder": "Ingresa tu clave API de Etherscan",
-    "etherscanApiInfoPrefix": "Para obtener tu clave API, visita ",
-    "etherscanApiInfoLinkText": "etherscan.com",
-    "etherscanApiInfoSuffix": " y sigue las instrucciones.",
     "googleSheetsWebDisabled": "Usa la app de escritorio",
     "generalDescription": "Configura los ajustes generales de la aplicación",
+    "application": "Aplicación",
+    "applicationDescription": "Ajusta las preferencias locales de este dispositivo",
+    "applicationDisclaimerDescription": "Estos ajustes se guardan solo en esta ventana, si solo usas la aplicación de escritorio no te preocupes.",
+    "applicationLanguageTitle": "Idioma",
+    "applicationLanguageDescription": "Elige el idioma de la interfaz. También usado para dar formato a fechas, números y monedas.",
+    "applicationLanguageOptions": {
+      "en-US": "Inglés",
+      "es-ES": "Español"
+    },
     "defaultCurrency": "Moneda principal",
     "defaultCommodityWeightUnit": "Unidad de peso materias primas",
+    "assets": {
+      "title": "Activos",
+      "description": "Ajustes específicos del funcionamiento de los activos",
+      "crypto": {
+        "title": "Cripto",
+        "description": "Configuración relacionada con criptomonedas",
+        "stablecoinsLabel": "Stablecoins",
+        "stablecoinsDescription": "Estos son los símbolos de los tokens que queremos marcar como stablecoins (usados en la proyección y otros cálculos)",
+        "addStablecoin": "Añadir",
+        "addStablecoinPlaceholder": "USDT",
+        "emptyState": "Todavía no hay stablecoins configuradas.",
+        "duplicateSymbol": "Ese símbolo ya está en la lista.",
+        "invalidSymbol": "Introduce un símbolo válido (letras, números, punto o guion).",
+        "editStablecoin": "Editar stablecoin",
+        "removeStablecoin": "Eliminar stablecoin",
+        "confirmEdit": "Guardar cambios",
+        "cancelEdit": "Cancelar edición",
+        "hideUnknownTokensLabel": "Ocultar tokens desconocidos",
+        "hideUnknownTokensDescription": "Excluye los tokens sin datos de referencia de las vistas y cálculos"
+      }
+    },
+    "dataSettings": {
+      "title": "Datos",
+      "description": "Configura la actualización y sincronización de datos",
+      "autoRefresh": {
+        "title": "Auto-actualización",
+        "description": "Actualiza automáticamente los datos de tus entidades conectadas",
+        "enableLabel": "Habilitar auto-actualización",
+        "enableDescription": "Obtener automáticamente datos actualizados de entidades que lo soporten",
+        "maxOutdatedLabel": "Tiempo máximo sin actualizar",
+        "maxOutdatedDescription": "Actualizar entidades que no se hayan actualizado en este tiempo",
+        "maxOutdatedOptions": {
+          "THREE_HOURS": "3h",
+          "SIX_HOURS": "6h",
+          "TWELVE_HOURS": "12h",
+          "DAY": "1d",
+          "TWO_DAYS": "2d",
+          "WEEK": "1w"
+        },
+        "entitiesLabel": "Seleccionar entidades",
+        "entitiesDescription": "Si no se selecciona ninguna, se actualizarán todas las posibles",
+        "entitiesPlaceholder": "Seleccionar entidades...",
+        "allEntities": "Todas las compatibles",
+        "selectedCount": "{count} seleccionadas",
+        "noEntitiesAvailable": "No hay entidades compatibles disponibles",
+        "pinWarning": "PIN requerido",
+        "pinWarningTooltip": "Las entidades que requieren PIN no se actualizarán si su sesión ha caducado"
+      }
+    },
     "integrations": "Integraciones",
     "sheetsIntegration": "Google Sheets",
-    "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets",
+    "sheetsIntegrationDescription": "Configura tus credenciales de la API de Google Sheets para poder importar y exportar datos",
     "clientId": "ID de Cliente",
     "clientIdPlaceholder": "Introduce tu ID de Cliente OAuth2 de Google",
     "clientSecret": "Secreto de cliente",
@@ -394,11 +475,11 @@
     "transactions": "Transacciones",
     "historic": "Datos Históricos",
     "scrape": "Importación",
-    "virtual": "Datos virtuales",
-    "virtualDescription": "Configura los ajustes para la importación de datos virtuales",
+    "import": "Importar datos",
+    "importDescription": "Configura los ajustes para la importación de datos",
     "enabled": "Habilitado",
     "disabled": "Deshabilitado",
-    "save": "Guardar Configuración",
+    "save": "Guardar",
     "saveSuccess": "Configuración guardada con éxito",
     "saveError": "Error al guardar la configuración",
     "fetchError": "Error al obtener la configuración",
@@ -411,16 +492,18 @@
     "dataPlaceholder": "Ingresa tipo(s) de datos",
     "selectDataTypes": "Seleccionar tipos de datos...",
     "dateFormat": "Formato de Fecha",
-    "dateFormatPlaceholder": "%d/%m/%Y",
+    "dateFormatPlaceholder": "%Y-%m-%d",
     "datetimeFormat": "Formato de Fecha y Hora",
-    "datetimeFormatPlaceholder": "%d/%m/%Y %H:%M:%S",
+    "datetimeFormatPlaceholder": "%Y-%m-%dT%H:%M:%S",
     "filters": "Filtros",
     "optional": "Opcional",
+    "extraSettings": "Opciones avanzadas",
+    "exportCurrentDate": "Exportar fecha actual",
     "noItems": "No hay elementos configurados",
     "noFilters": "No hay filtros configurados",
     "addFilter": "Añadir Filtro",
     "field": "Campo",
-    "valuesPlaceholder": "Valores (separados por coma para múltiples)",
+    "valuesPlaceholder": "Valores (separados por coma)",
     "configuration": "Configuración",
     "requiredField": "Este campo es obligatorio",
     "saving": "Guardando...",
@@ -435,22 +518,100 @@
       "spreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global cuando la exportación está habilitada",
       "rangeRequired": "El rango es obligatorio. ",
       "dataRequired": "Los datos son obligatorios. ",
-      "virtualSpreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global Virtual",
+      "importSpreadsheetIdRequired": "El ID de la Hoja de Cálculo es obligatorio en la Configuración Global de Importación",
       "clientIdRequired": "El ID de Cliente es necesario al configurar la integración con Google Sheets",
       "clientSecretRequired": "El Secreto de Cliente es necesario al configurar la integración con Google Sheets"
     },
-    "goCardlessIntegration": "GoCardless",
-    "goCardlessIntegrationDescription": "Introduce tus credenciales de GoCardless para conectar cuentas bancarias",
-    "goCardlessSecretId": "Secret ID",
-    "goCardlessSecretIdPlaceholder": "Introduce tu Secret ID de GoCardless",
-    "goCardlessSecretKey": "Secret Key",
-    "goCardlessSecretKeyPlaceholder": "Introduce tu Secret Key de GoCardless",
-    "goCardlessInfoPrefix": "Regístrate en ",
-    "goCardlessInfoLinkText": "bankaccountdata.gocardless.com",
-    "goCardlessInfoMiddle": ", luego ve a ",
-    "goCardlessInfoUserSecrets": "Desarrolladores > User secrets",
-    "goCardlessInfoSuffix": " y crea uno nuevo para obtener las credenciales.",
-    "goCardlessHelpButton": "¿Cómo obtengo estas credenciales?"
+    "integrationHintButton": "Ver instrucciones",
+    "integration": {
+      "GOOGLE_SHEETS": {
+        "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
+      },
+      "ETHERSCAN": {
+        "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (recomendado solo si falla la obtención estándar, o si la API es de pago)",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Generar una clave API de Etherscan",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Visita "
+            },
+            {
+              "type": "link",
+              "label": "etherscan.io docs",
+              "url": "https://docs.etherscan.io/getting-an-api-key"
+            },
+            {
+              "type": "text",
+              "value": " para crear una nueva clave API y pegarla aquí."
+            }
+          ]
+        }
+      },
+      "ETHPLORER": {
+        "description": "Configura Ethplorer para aumentar la cuota en la obtención de datos de redes de ETH y BSC.",
+        "help": "Cómo obtener la clave API",
+        "hint": {
+          "title": "Obtener una clave API de Ethplorer",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Crea una cuenta gratuita en "
+            },
+            {
+              "type": "link",
+              "label": "ethplorer.io",
+              "url": "https://ethplorer.io/wallet/#"
+            },
+            {
+              "type": "text",
+              "value": " luego genera una nueva clave desde "
+            },
+            {
+              "type": "link",
+              "label": "el panel de la API",
+              "url": "https://ethplorer.io/wallet/#screen=api"
+            }
+          ]
+        }
+      },
+      "GOCARDLESS": {
+        "description": "Configura la integración de GoCardless para conectar cuentas bancarias de cualquier banco no soportado nativamente.",
+        "help": "Cómo generar las credenciales",
+        "hint": {
+          "title": "Crear credenciales de GoCardless",
+          "parts": [
+            {
+              "type": "text",
+              "value": "Regístrate en "
+            },
+            {
+              "type": "link",
+              "label": "bankaccountdata.gocardless.com",
+              "url": "https://bankaccountdata.gocardless.com"
+            },
+            {
+              "type": "text",
+              "value": ", luego genera los secretos en "
+            },
+            {
+              "type": "link",
+              "label": "Developers > User secrets",
+              "url": "https://bankaccountdata.gocardless.com/user-secrets/"
+            },
+            {
+              "type": "text",
+              "value": " y crea uno nuevo para obtener las credenciales. Lamentablemente, GoCardless ya no permite crear estas credenciales, por lo que solo te servirá si ya tenías una cuenta."
+            }
+          ]
+        }
+      }
+    },
+    "disableIntegration": "Desactivar integración",
+    "integrationEnabledSuccess": "Integración {integration} habilitada correctamente",
+    "integrationDisabledSuccess": "Integración {integration} desactivada correctamente",
+    "integrationRequiredMessage": "Activa la integración de Google Sheets en Integraciones para configurar estos ajustes."
   },
   "dashboard": {
     "title": "Panel Principal",
@@ -488,11 +649,11 @@
       "stocksEtfs": "Acciones / ETFs"
     },
     "noDataTitle": "Aún no tienes datos",
-    "noDataSubtitle": "Conecta tus entidades financieras en la sección de integraciones para ver tu panel.",
-    "noDataButton": "Actualizar Datos",
-    "connectEntitiesButton": "Conectar Entidades",
-    "totalValue": "Valor Total",
-    "shareOfTotal": "Cuota del Total",
+    "noDataSubtitle": "Conecta tus entidades financieras en la sección de integraciones para el resumen, también puedes añadir manualmente o importar tus datos!",
+    "noDataButton": "Actualizar datos",
+    "connectEntitiesButton": "Conectar entidades",
+    "totalValue": "Valor total",
+    "shareOfTotal": "Cuota del total",
     "ofPortfolioShareShort": "del total",
     "stake": "Peso",
     "stakeInFunds": "Peso en Fondos",
@@ -529,22 +690,354 @@
     "notShowing": "Oculto en modo proyección",
     "upcomingAt": "Próximos para {date}",
     "close": "Cerrar",
+    "calculating": "Calculando proyección...",
     "pendingPaymentsLegendLabel": "Pagos pendientes proyectados",
     "pendingPaymentsLegend": "Pagos de efectivo pendientes proyectados de {amount} (salidas futuras no contadas aún en activos totales)",
     "negativeCashWarningTitle": "Proyección inviable",
     "negativeCashWarning": "El efectivo proyectado sería {amount} (negativo). Las aportaciones automáticas, gastos o pagos de deuda superan el efectivo futuro disponible."
   },
   "export": {
-    "moreOptionsNote": "En el futuro se añadirá compatibilidad con otros formatos y destinos de exportación.",
-    "title": "Exportar",
+    "title": "Exportar e Importar",
+    "intro": "Coordina cómo fluye la información entre Finanze y tus hojas.",
     "description": "Exporta tus datos financieros a Google Sheets.",
+    "googleSheetsTitle": "Google Sheets",
+    "googleSheetsExportDialogTitle": "Exportación a Google Sheets",
+    "googleSheetsImportDialogTitle": "Importación desde Google Sheets",
     "spreadsheetId": "ID de Hoja de Cálculo",
-    "configuredSections": "Secciones Configuradas",
+    "configuredSections": "Datos Configurados",
     "disabledMessage": "La exportación a Google Sheets está actualmente deshabilitada. Puedes habilitarla en la configuración.",
     "sheetNotFound": "La hoja {sheetName} no existe",
     "options": "Opciones de exportación",
     "excludeManual": "Excluir datos manuales",
-    "excludeManualDescription": "No incluir datos importados o introducidos manualmente"
+    "excludeManualDescription": "No incluir datos importados o introducidos manualmente",
+    "noSectionsConfigured": "Sin secciones configuradas",
+    "badges": {
+      "configured": "Configurado",
+      "notConfigured": "Sin configurar"
+    },
+    "integrationRequiredMessage": "Conecta Google Sheets para importar o exportar posiciones de tus entidades desde varias hojas con configuraciones totalmente personalizables.",
+    "importTitle": "Importar datos manuales",
+    "importDescription": "Importa los datos manuales más recientes desde tu hoja configurada.",
+    "importDisabledDescription": "La importación manual está deshabilitada. Actívala en la configuración para actualizar tus datos.",
+    "importButton": "Importar datos manuales",
+    "import": {
+      "entityLabel": "Entidad destino",
+      "entityPlaceholder": "Seleccionar o crear entidad",
+      "entityInfo": "La entidad donde se almacenarán los datos importados en caso de que no se proporcione en la columna en los datos. Si no existe, se creará una nueva.",
+      "entityRequired": "Selecciona una entidad para continuar.",
+      "entityCreateOption": "Crear nueva entidad..."
+    },
+    "file": {
+      "cardTitle": "Exportación de archivos",
+      "cardDescription": "Descarga un archivo con los tus datos elegidos.",
+      "singleRunBadge": "Solo archivo",
+      "formatsLabel": "Formatos disponibles:",
+      "exportButton": "Exportar...",
+      "dialogTitle": "Exportar datos a archivo",
+      "dialogDescription": "Elige qué incluir en esta exportación y selecciona el formato.",
+      "featureLabel": "Funcionalidad",
+      "featurePlaceholder": "Selecciona qué quieres exportar",
+      "productsLabel": "Productos",
+      "productsHint": "Selecciona al menos un producto.",
+      "productsPlaceholder": "Limitar exportación a productos",
+      "productsInfo": "Esta funcionalidad no es específica por producto. Se incluirán todos los datos relacionados.",
+      "templateLabel": "Plantilla",
+      "templatePlaceholder": "Usar todas las columnas disponibles",
+      "templateFeatureHint": "Selecciona primero una funcionalidad para ver sus plantillas.",
+      "templateInfo": "Las plantillas te ayudan a limitar las columnas exportadas.",
+      "formatLabel": "Formato",
+      "formatHint": "Selecciona el formato del archivo.",
+      "numberFormatLabel": "Formato numérico",
+      "numberFormatHint": "Elige cómo se separan los miles y los decimales.",
+      "numberFormats": {
+        "ENGLISH": "1,000.00",
+        "EUROPEAN": "1.000,00"
+      },
+      "datetimeHint": "Si los dejas vacíos, se usarán formatos ISO por defecto (p. ej. %Y-%m-%d y %Y-%m-%dT%H:%M:%S).",
+      "exportAction": "Exportar archivo",
+      "formats": {
+        "CSV": "CSV",
+        "TSV": "TSV",
+        "XLSX": "Excel"
+      },
+      "errors": {
+        "featureRequired": "Selecciona una funcionalidad para continuar."
+      },
+      "toast": {
+        "success": "Exportación iniciada. La descarga comenzará en segundos.",
+        "error": "No pudimos exportar el archivo. Inténtalo nuevamente."
+      }
+    },
+    "fileImport": {
+      "cardTitle": "Importación de archivos",
+      "cardDescription": "Sube un archivo CSV, TSV o Excel y aplícale una de tus plantillas.",
+      "singleRunBadge": "Carga manual",
+      "formatsLabel": "Formatos soportados:",
+      "importButton": "Importar...",
+      "dialogTitle": "Importar datos desde archivo",
+      "dialogDescription": "Sube un archivo, elige su plantilla y procesaremos la información al instante.",
+      "additiveDisclaimer": "Los datos importados se agregan a tus registros existentes. Nada previamente guardado se elimina.",
+      "featureLabel": "Funcionalidad",
+      "productsLabel": "Producto",
+      "productsHint": "Selecciona el tipo de producto representado en el archivo.",
+      "productsPlaceholder": "Selecciona un producto",
+      "productsInfo": "Esta funcionalidad no depende de un producto específico.",
+      "templateLabel": "Plantilla",
+      "templatePlaceholder": "Selecciona una plantilla",
+      "templateFeatureHint": "Selecciona primero una funcionalidad para ver sus plantillas.",
+      "templateInfo": "Las plantillas definen cómo interpretamos cada columna.",
+      "fileLabel": "Archivo",
+      "fileButton": "Elegir archivo",
+      "fileButtonChange": "Cambiar archivo",
+      "filePlaceholder": "Aún no seleccionaste un archivo.",
+      "fileHint": "Formatos aceptados: CSV, TSV o XLSX.",
+      "fileHintSelected": "Listo para importar. Cambia el archivo si lo necesitas.",
+      "numberFormatLabel": "Formato numérico",
+      "numberFormatHint": "Usa los mismos separadores que aparecen en tu archivo.",
+      "numberFormats": {
+        "ENGLISH": "1,000.00",
+        "EUROPEAN": "1.000,00"
+      },
+      "datetimeHint": "Usa los mismos formatos de fecha y fecha-hora que están en tu archivo. Ambos son obligatorios.",
+      "importAction": "Previsualizar importación",
+      "errors": {
+        "featureRequired": "Selecciona una funcionalidad para continuar.",
+        "productRequired": "Selecciona un producto para continuar.",
+        "fileRequired": "Selecciona un archivo para importar.",
+        "dateFormatRequired": "Ingresa el formato de fecha usado en el archivo.",
+        "datetimeFormatRequired": "Ingresa el formato de fecha y hora usado en el archivo."
+      },
+      "toast": {
+        "success": "Archivo importado correctamente. Actualizando tus datos...",
+        "error": "No pudimos importar el archivo. Inténtalo nuevamente.",
+        "empty": "Procesamos el archivo pero no detectamos filas nuevas para importar."
+      },
+      "preview": {
+        "title": "Revisa la importación simulada",
+        "description": "Procesamos tu archivo sin guardar cambios. Confirma solo si ves todo correcto.",
+        "empty": "No se detectaron posiciones ni transacciones en este archivo.",
+        "positionsTitle": "Posiciones",
+        "positionsSubtitle": "Agrupadas por entidad y tipo de producto.",
+        "entityTotal": "{count} registros",
+        "productTotal": "{count} filas",
+        "transactionsTitle": "Transacciones",
+        "transactionsSubtitle": "Agrupadas por tipo de producto.",
+        "transactionTotal": "{count} transacciones",
+        "showProductDetails": "Ver detalles",
+        "hideProductDetails": "Ocultar detalles",
+        "sampleEntriesLabel": "Ejemplos",
+        "moreEntries": "+{count} más",
+        "unnamedEntry": "Elemento sin nombre",
+        "cancel": "Volver al archivo",
+        "confirm": "Importar datos"
+      }
+    },
+    "googleSheetsImportDisclaimer": "Las hojas actúan como una fuente de datos simulada. Su contenido se recrea completamente en cada importación y no modifica datos reales ni ingresados manualmente.",
+    "tabs": {
+      "export": "Exportar",
+      "import": "Importar"
+    },
+    "templates": {
+      "cardTitle": {
+        "EXPORT": "Plantillas de exportación",
+        "IMPORT": "Plantillas de importación"
+      },
+      "cardDescription": {
+        "EXPORT": "Crea plantillas para exportar tus datos de manera consistente y rápida.",
+        "IMPORT": "Crea plantillas para traer datos externos de manera rápida y sencilla."
+      },
+      "cardEmpty": "Todavía no tienes plantillas.",
+      "cardCountLabel": "{count} plantillas",
+      "cardNotConfigured": "No configurado",
+      "manageButton": "Manange",
+      "dialogTitle": "Administrador de plantillas",
+      "dialogSubtitle": "Crea plantillas reutilizables para procesar tus datos.",
+      "listTitle": "Tus plantillas",
+      "listSubtitle": "Selecciona una plantilla para revisar sus campos.",
+      "emptyState": "Aún no creaste plantillas para este tipo.",
+      "selectTemplate": "Selecciona una plantilla para ver su configuración.",
+      "templateFor": "Plantilla para",
+      "featureLabel": "Feature",
+      "productsLabel": "Productos",
+      "allProducts": "Disponible para todos los productos.",
+      "fieldsLabel": "Campos",
+      "sourceField": "Campo de origen",
+      "typeLabel": "Tipo",
+      "selectFeaturePlaceholder": "Elige un feature para ver los campos disponibles.",
+      "selectProductsPlaceholder": "Selecciona al menos un producto para continuar.",
+      "noFieldsPlaceholder": "No hay campos disponibles para la combinación seleccionada.",
+      "fieldsHint": "{count} campos seleccionados.",
+      "fieldStates": {
+        "included": "Incluido",
+        "excluded": "Excluido"
+      },
+      "customNameLabel": "Etiqueta personalizada",
+      "fieldHumanLabel": "Campo",
+      "finalColumnLabel": "Etiqueta",
+      "columnNameUnset": "Sin personalizar",
+      "fieldKeyLabel": "Campo origen",
+      "editTitle": "Editar plantilla",
+      "newTitle": "Nueva plantilla",
+      "nameLabel": "Nombre",
+      "namePlaceholder": "Ej. Resumen de posiciones",
+      "featureStep": "Seleccionar feature",
+      "productsStep": "Limitar por productos",
+      "productsStepSingle": "Limitar por productos (uno)",
+      "productsStepMultiple": "Limitar por productos (múltiples)",
+      "productsHint": "Déjalo vacío para incluir todos los productos.",
+      "noProducts": "Este feature no depende de productos.",
+      "fieldsStep": "Campos y orden",
+      "newTemplateButton": "Nueva plantilla",
+      "deleteTitle": "Eliminar plantilla",
+      "deleteMessage": "¿Seguro que quieres eliminar {name}? Esta acción no se puede deshacer.",
+      "templateSelectLabel": "Plantilla",
+      "templateSelectPlaceholder": "Usar todos los datos disponibles",
+      "templateSelectInfo": "Las plantillas controlan qué columnas se procesan. Sin seleccionar una, se usarán todos los campos disponibles.",
+      "templateSelectNoOptions": "Aún no hay plantillas para este feature.",
+      "templateSelectRequired": "Selecciona una plantilla para continuar.",
+      "templateCreateOption": "Crear plantilla...",
+      "types": {
+        "EXPORT": "exportación",
+        "IMPORT": "importación"
+      },
+      "fieldTypes": {
+        "TEXT": "Texto",
+        "CURRENCY": "Moneda",
+        "ENUM": "Valores",
+        "INTEGER": "Entero",
+        "DECIMAL": "Decimal",
+        "BOOLEAN": "Booleano",
+        "DATE": "Fecha",
+        "DATETIME": "Fecha y hora"
+      },
+      "requiredFieldBadge": "Obligatorio",
+      "orGroupFieldBadge": "Uno del grupo",
+      "orGroupBadgeHint": "Campos alternativos: {group}",
+      "orGroupBadgeExplanation": "Debes mantener al menos uno de estos campos seleccionado.",
+      "orGroupBlockedToggle": "No puedes excluir. Mantén uno: {group}",
+      "defaultValueBadge": "Valor predet.",
+      "defaultValueHint": "Valor predeterminado si se omite",
+      "defaultValueExplanation": "Si no proporcionas este campo en tus datos de importación, se usará este valor predeterminado:",
+      "defaultValueFormLabel": "Valor predeterminado",
+      "defaultValuePlaceholder": "Ingresa un valor predeterminado",
+      "defaultValueNoneOption": "Sin valor predeterminado",
+      "defaultValueBooleanTrue": "Verdadero",
+      "defaultValueBooleanFalse": "Falso",
+      "defaultValueInfo": "Este valor completa la columna cuando falta en los datos importados.",
+      "defaultValueInfoTrigger": "Información sobre el valor predeterminado",
+      "dragHandleLabel": "Arrastrar para reordenar",
+      "defaultValueErrors": {
+        "text": "Ingresa un valor válido.",
+        "enum": "Elige uno de los valores permitidos.",
+        "boolean": "Selecciona verdadero o falso.",
+        "integer": "Usa un número entero (ej. 10).",
+        "decimal": "Usa un número válido (ej. 10,5).",
+        "currency": "Ingresa un código de moneda válido (ej. USD)."
+      },
+      "fieldLabels": {
+        "active": "Activo",
+        "alias": "Alias",
+        "amount": "Monto",
+        "asset_type": "Tipo de activo",
+        "average_balance": "Saldo promedio",
+        "average_buy_price": "Precio promedio de compra",
+        "business_type": "Tipo de negocio",
+        "creation": "Fecha de creación",
+        "current_installment": "Cuota actual",
+        "currency": "Moneda",
+        "effective_maturity": "Vencimiento efectivo",
+        "ending": "Terminación",
+        "entity": "Entidad",
+        "euribor_rate": "Tasa Euríbor",
+        "expected_interests": "Intereses esperados",
+        "extended_interest_rate": "Tasa de interés extendida",
+        "extended_maturity": "Vencimiento extendido",
+        "fees": "Comisiones",
+        "fixed_years": "Años fijos",
+        "frequency": "Frecuencia",
+        "info_sheet_url": "URL de ficha",
+        "initial_investment": "Inversión inicial",
+        "interest": "Interés",
+        "interest_rate": "Tasa de interés",
+        "interest_type": "Tipo de interés",
+        "interests": "Intereses",
+        "invested": "Invertido",
+        "isin": "ISIN",
+        "last_invest_date": "Última fecha de inversión",
+        "last_tx_date": "Última fecha de transacción",
+        "late_interest_rate": "Tasa de interés de demora",
+        "limit": "Límite",
+        "loan_amount": "Monto del préstamo",
+        "market": "Mercado",
+        "market_value": "Valor de mercado",
+        "maturity": "Vencimiento",
+        "name": "Nombre",
+        "net_amount": "Monto neto",
+        "net_return": "Retorno neto",
+        "next_date": "Próxima fecha",
+        "next_payment_date": "Próxima fecha de pago",
+        "order_date": "Fecha de orden",
+        "pending_amount": "Pendiente",
+        "pending_transfers": "Transferencias pendientes",
+        "portfolio": "Cartera",
+        "price": "Precio",
+        "principal_outstanding": "Capital pendiente",
+        "principal_paid": "Capital pagado",
+        "product_type": "Tipo de producto",
+        "profitability": "Rentabilidad",
+        "gross_interest_rate": "Tasa de interés bruta",
+        "reference": "Referencia",
+        "repaid": "Reembolsado",
+        "retained": "Retenido",
+        "retentions": "Retenciones",
+        "returned": "Devuelto",
+        "shares": "Acciones",
+        "since": "Desde",
+        "start": "Fecha de inicio",
+        "state": "Estado",
+        "subtype": "Subtipo",
+        "target": "Destino",
+        "target_name": "Nombre del destino",
+        "target_subtype": "Subtipo del destino",
+        "target_type": "Tipo de destino",
+        "ticker": "Ticker",
+        "total": "Total",
+        "type": "Tipo",
+        "until": "Hasta",
+        "unpaid": "Impagado",
+        "used": "Usado",
+        "date": "Fecha y Hora",
+        "ref": "Referencia",
+        "avg_balance": "Balance promedio",
+        "equity_type": "Tipo de equity",
+        "fund_type": "Tipo de fondo",
+        "portfolio_name": "Portfolio",
+        "iban": "IBAN",
+        "symbol": "Símbolo",
+        "currency_amount": "Cantidad",
+        "contract_address": "Dirección del contrato"
+      },
+      "enumValuesTitle": "Valores",
+      "errors": {
+        "nameRequired": "El nombre es obligatorio.",
+        "featureRequired": "Selecciona un feature.",
+        "productsRequired": "Selecciona al menos un producto.",
+        "fieldsRequired": "Selecciona al menos un campo.",
+        "fieldsOrGroupRequired": "Selecciona al menos un campo del grupo: {group}",
+        "defaultValueInvalid": "Corrige los valores predeterminados inválidos antes de guardar.",
+        "submitFailed": "No pudimos guardar la plantilla. Intenta nuevamente.",
+        "deleteFailed": "No pudimos eliminar la plantilla. Intenta nuevamente."
+      },
+      "toast": {
+        "loadError": "No se pudieron cargar las plantillas.",
+        "fieldsError": "No se pudieron cargar los campos disponibles.",
+        "saveError": "No se pudo guardar la plantilla.",
+        "deleteError": "No se pudo eliminar la plantilla.",
+        "createSuccess": "Plantilla creada.",
+        "updateSuccess": "Plantilla actualizada.",
+        "deleteSuccess": "Plantilla eliminada."
+      }
+    }
   },
   "transactions": {
     "title": "Transacciones",
@@ -580,9 +1073,12 @@
     "interests": "Intereses",
     "avgBalance": "Saldo Promedio",
     "interestRate": "Tasa de Interés",
+    "grossAmount": "Importe Bruto",
     "portfolioName": "Nombre de Cartera",
     "iban": "IBAN",
     "currency": "Moneda",
+    "symbol": "Símbolo",
+    "currencyAmount": "Cantidad",
     "addManualTransaction": "Transacción",
     "previous": "Anterior",
     "next": "Siguiente",
@@ -630,6 +1126,12 @@
       "description": "Mostrando transacciones para {project}.",
       "descriptionGeneric": "Filtro histórico activo.",
       "clear": "Quitar filtro histórico"
+    },
+    "calendar": {
+      "today": "Hoy",
+      "more": "más",
+      "listView": "Lista",
+      "calendarView": "Calendario"
     }
   },
   "time": {
@@ -645,7 +1147,20 @@
     "monthAgo": "hace 1 mes",
     "monthsAgo": "hace {count} meses",
     "yearAgo": "hace 1 año",
-    "yearsAgo": "hace {count} años"
+    "yearsAgo": "hace {count} años",
+    "justNowAbbr": "ahora",
+    "minuteAgoAbbr": "hace 1 min",
+    "minutesAgoAbbr": "hace {count} min",
+    "hourAgoAbbr": "hace 1 h",
+    "hoursAgoAbbr": "hace {count} h",
+    "dayAgoAbbr": "hace 1 día",
+    "daysAgoAbbr": "hace {count} días",
+    "weekAgoAbbr": "hace 1 sem",
+    "weeksAgoAbbr": "hace {count} sem",
+    "monthAgoAbbr": "hace 1 mes",
+    "monthsAgoAbbr": "hace {count} meses",
+    "yearAgoAbbr": "hace 1 año",
+    "yearsAgoAbbr": "hace {count} años"
   },
   "enums": {
     "dataSource": {
@@ -726,6 +1241,13 @@
       "STOCK": "Acción",
       "ETF": "ETF"
     },
+    "contributionTargetSubtype": {
+      "STOCK": "Acción",
+      "ETF": "ETF",
+      "MUTUAL_FUND": "Fondo de inversión",
+      "PENSION_FUND": "Fondo de pensiones",
+      "PRIVATE_EQUITY": "Capital privado"
+    },
     "kpis": {
       "assetTypeSplit": "Distribución por tipo"
     },
@@ -745,25 +1267,42 @@
     }
   },
   "walletForm": {
-    "title": "Agregar billetera de {{entityName}}",
+    "title": "Agregar billetera a {entityName}",
     "fields": {
-      "name": "Nombre",
-      "address": "Dirección"
+      "name": "Nombre de la billetera",
+      "address": "Dirección",
+      "addresses": "Direcciones",
+      "addressNumber": "Dirección {number}"
     },
     "placeholders": {
-      "name": "ej. Mi Billetera Bitcoin",
-      "address": "Introduce la dirección de la billetera"
+      "name": "Ingresa el nombre de la billetera",
+      "address": "Ingresa la dirección de la billetera"
     },
-    "submit": "Agregar",
+    "actions": {
+      "addAddress": "Agregar dirección",
+      "removeAddress": "Eliminar"
+    },
     "errors": {
-      "nameRequired": "El nombre de la billetera es obligatorio",
-      "addressRequired": "La dirección de la billetera es obligatoria",
-      "addressTooShort": "La dirección de la billetera parece demasiado corta",
-      "generic": "Error al agregar billetera",
-      "ADDRESS_ALREADY_EXISTS": "Esta dirección de billetera ya está conectada",
-      "ADDRESS_NOT_FOUND": "Dirección de billetera no encontrada",
-      "TOO_MANY_REQUESTS": "Demasiadas solicitudes. Por favor espera un momento antes de intentar de nuevo"
-    }
+      "nameRequired": "El nombre de la billetera es obligatorio.",
+      "addressRequired": "La dirección es obligatoria.",
+      "addressTooShort": "La dirección debe tener al menos 10 caracteres.",
+      "addressDuplicate": "Dirección duplicada. Elimínala o edítala antes de continuar.",
+      "maxAddresses": "Puedes agregar hasta 10 direcciones por billetera.",
+      "allFailed": "No pudimos agregar ninguna de las direcciones. Revisa los errores abajo.",
+      "generic": "No se pudo agregar la billetera. Inténtalo nuevamente."
+    },
+    "addressErrors": {
+      "ADDRESS_ALREADY_EXISTS": "Esta dirección ya está conectada.",
+      "ADDRESS_NOT_FOUND": "No pudimos encontrar esta dirección. Revísala e inténtalo de nuevo.",
+      "TOO_MANY_REQUESTS": "Demasiados intentos. Espera un momento e inténtalo otra vez."
+    },
+    "toasts": {
+      "allSuccess": "Billetera agregada correctamente.",
+      "partialSuccessSingle": "1 dirección agregada correctamente.",
+      "partialSuccessMultiple": "{count} direcciones agregadas correctamente.",
+      "allFailed": "No se agregó ninguna dirección."
+    },
+    "submit": "Agregar billetera"
   },
   "walletManagement": {
     "title": "Gestionar billeteras",
@@ -779,7 +1318,11 @@
     "walletNamePlaceholder": "Ingrese el nombre de la billetera",
     "wallets": "billeteras",
     "wallet": "billetera",
-    "manage": "Gestionar"
+    "manage": "Gestionar",
+    "filterByWallet": "Filtrar por billetera",
+    "walletFilterPlaceholder": "Selecciona billeteras",
+    "clearFilters": "Limpiar filtros",
+    "viewAllTokens": "Ver todos los tokens"
   },
   "commodityManagement": {
     "title": "Materias Primas",
@@ -809,49 +1352,19 @@
   "importErrors": {
     "title": "Advertencias de Importación",
     "description": "Tus datos fueron importados exitosamente, pero algunas filas fueron omitidas debido a errores. Por favor revisa y corrige los siguientes problemas:",
+    "previewDescription": "Aún no pudimos incluir estas filas en la vista previa. Corrige los siguientes puntos antes de importar de verdad:",
     "sheetNotFound": "Hoja no encontrada",
     "missingField": "Campo faltante",
     "validationError": "Error de validación",
+    "unexpectedColumn": "Columna inesperada",
     "unknownError": "Error desconocido",
     "sheetNotFoundMessage": "La hoja {entry} no fue encontrada",
     "missingFieldMessage": "Campos requeridos faltantes en {entry}:",
     "validationErrorMessage": "Errores de validación en {entry}:",
+    "unexpectedColumnMessage": "Ignoradas columnas en {entry}:",
     "validationErrorRow": "Fila: {row}",
     "fieldError": "Campo {field}: valor inválido {value}",
     "unknownErrorMessage": "Error desconocido en {entry}"
-  },
-  "crypto": {
-    "BTC": "Bitcoin",
-    "ETH": "Ethereum",
-    "USDT": "Tether",
-    "USDC": "USD Coin",
-    "BNB": "Binance Coin",
-    "XRP": "Ripple",
-    "ADA": "Cardano",
-    "SOL": "Solana",
-    "DOGE": "Dogecoin",
-    "DOT": "Polkadot",
-    "AVAX": "Avalanche",
-    "MATIC": "Polygon",
-    "LTC": "Litecoin",
-    "LINK": "Chainlink",
-    "UNI": "Uniswap",
-    "ATOM": "Cosmos",
-    "ALGO": "Algorand",
-    "XLM": "Stellar",
-    "VET": "VeChain",
-    "TRX": "TRON",
-    "FIL": "Filecoin",
-    "THETA": "Theta Network",
-    "ICP": "Internet Computer",
-    "NEAR": "NEAR Protocol",
-    "FTM": "Fantom",
-    "HBAR": "Hedera",
-    "AAVE": "Aave",
-    "SAND": "The Sandbox",
-    "MANA": "Decentraland",
-    "CRO": "Cronos",
-    "KCS": "KuCoin Token"
   },
   "countries": {
     "AT": "Austria",
@@ -890,8 +1403,8 @@
   "banking": {
     "title": "Banca",
     "subtitle": "Gestiona tus cuentas, tarjetas y préstamos",
-    "showNumbers": "Mostrar números",
-    "hideNumbers": "Ocultar números",
+    "showNumbers": "Mostrar detalles",
+    "hideNumbers": "Ocultar detalles",
     "totalBalance": "Saldo total",
     "totalCardUsed": "Uso total de tarjetas",
     "totalDebt": "Deuda pendiente total",
@@ -1008,6 +1521,10 @@
     "inDays": "En {days} días",
     "monthlyRecurringEarnings": "Ingresos recurrentes mensuales",
     "monthlyRecurringExpenses": "Gastos recurrentes mensuales",
+    "savableAmount": "Cantidad ahorrable",
+    "monthlyInvestedAmount": "Inversión mensual",
+    "savingsRate": "Tasa de ahorro",
+    "investedRate": "Tasa invertida",
     "ofEarnings": "de los ingresos",
     "expensesOverrunTitle": "Exceso de presupuesto",
     "expensesOverrunMessage": "Los gastos superan los ingresos en un {percentage}% este mes.",
@@ -1041,6 +1558,7 @@
     "noContributions": "No hay aportaciones configuradas",
     "monthlyAverage": "Prom. mensual",
     "targetType": "Tipo de Destino",
+    "targetSubtype": "Subtipo de destino",
     "target": "Destino",
     "alias": "Alias",
     "noAutoContributionsTitle": "Sin aportaciones automáticas",
@@ -1389,8 +1907,9 @@
         "fields": {
           "amount": "Importe",
           "interestRate": "Tipo de interés (%)",
+          "lateInterestRate": "Interés de demora (%)",
           "profitability": "Rentabilidad (%)",
-          "lastInvestDate": "Fecha de última inversión",
+          "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "type": "Tipo",
           "state": "Estado"
@@ -1414,8 +1933,9 @@
           "amount": "Importe",
           "pendingAmount": "Importe pendiente",
           "interestRate": "Tipo de interés (%)",
+          "extendedInterestRate": "Tipo de interés extendido (%)",
           "profitability": "Rentabilidad (%)",
-          "lastInvestDate": "Fecha de última inversión",
+          "start": "Fecha de inicio",
           "maturity": "Vencimiento",
           "extendedMaturity": "Vencimiento extendido",
           "type": "Tipo",
@@ -1427,6 +1947,98 @@
         "saveSuccess": "Posiciones manuales guardadas correctamente.",
         "saveError": "No pudimos guardar las posiciones manuales. Inténtalo de nuevo."
       }
+    }
+  },
+  "calculations": {
+    "title": "Cálculos",
+    "savings": {
+      "title": "Calculadora de Ahorro",
+      "description": "Calcula y compara aportaciones periódicas en distintos escenarios, con proyecciones de jubilación opcionales.",
+      "baseAmount": "Cantidad inicial",
+      "baseAmountPlaceholder": "Saldo inicial de ahorro",
+      "years": "Años de inversión",
+      "yearsPlaceholder": "Número de años",
+      "periodicity": "Frecuencia de aportación",
+      "periodicities": {
+        "MONTHLY": "Mensual",
+        "QUARTERLY": "Trimestral",
+        "YEARLY": "Anual"
+      },
+      "scenarios": "Escenarios",
+      "addScenario": "Añadir escenario",
+      "removeScenario": "Eliminar escenario",
+      "scenarioName": "Escenario {number}",
+      "annualReturn": "Rentabilidad anual (%)",
+      "annualReturnPlaceholder": "Rentabilidad esperada",
+      "contribution": "Aportación periódica",
+      "contributionPlaceholder": "Cantidad por periodo",
+      "targetAmount": "Cantidad objetivo",
+      "targetAmountPlaceholder": "Saldo final deseado",
+      "retirement": "Jubilación",
+      "enableRetirement": "Calcular fase de jubilación",
+      "withdrawalAmount": "Retirada por periodo",
+      "withdrawalAmountPlaceholder": "Cantidad a retirar",
+      "withdrawalYears": "Años de retirada",
+      "withdrawalYearsPlaceholder": "Años de jubilación",
+      "calculate": "Calcular",
+      "results": "Resultados",
+      "noResults": "Configura y calcula para ver resultados",
+      "finalBalance": "Saldo final",
+      "totalContributions": "Aportaciones totales",
+      "totalRevaluation": "Ganancias totales",
+      "periodicContribution": "Aportación periódica",
+      "yearsToTarget": "Años hasta objetivo",
+      "retirementPhase": "Fase de Jubilación",
+      "retirementDuration": "Duración",
+      "totalWithdrawn": "Total retirado",
+      "withdrawalPerPeriod": "Retirada por periodo",
+      "yearsLabel": "{years} años",
+      "monthsLabel": "{months} meses",
+      "simulation": "Simulación",
+      "period": "Periodo",
+      "periodLabels": {
+        "year": "Año {year}",
+        "month": "Mes {period}",
+        "quarter": "Trimestre {period}"
+      },
+      "balance": "Saldo",
+      "contributed": "Aportado",
+      "gains": "Ganancias",
+      "withdrawal": "Retirada",
+      "remaining": "Restante",
+      "chart": {
+        "capital": "Capital",
+        "gains": "Ganancias",
+        "withdrawal": "Retirada",
+        "balance": "Saldo"
+      },
+      "errors": {
+        "calculationFailed": "El cálculo falló. Por favor, revisa los datos.",
+        "atLeastOneScenario": "Añade al menos un escenario.",
+        "invalidYears": "Introduce años de inversión válidos.",
+        "invalidContributionOrTarget": "Introduce una aportación periódica o una cantidad objetivo por escenario.",
+        "invalidRetirement": "Introduce la cantidad de retirada o los años de retirada para la jubilación.",
+        "invalidAnnualReturn": "Introduce un porcentaje de rentabilidad anual válido."
+      },
+      "mode": {
+        "label": "Modo de cálculo",
+        "contribution": "Aportación",
+        "target": "Objetivo",
+        "years": "Años",
+        "retirement": "Jubilación",
+        "contributionDesc": "Calcular crecimiento basado en una aportación periódica fija",
+        "targetDesc": "Calcular aportación necesaria para alcanzar un objetivo",
+        "yearsDesc": "Calcular años necesarios para alcanzar un objetivo con aportación fija",
+        "retirementDesc": "Calcular aportación necesaria para ingresos de jubilación deseados"
+      },
+      "summary": {
+        "title": "Resumen",
+        "scenario": "Escenario",
+        "compare": "Comparar escenarios"
+      },
+      "yearlyView": "Vista anual",
+      "periodView": "Vista por periodo",
+      "retirementModeInfo": "La aportación se calculará según los objetivos de jubilación"
     }
   },
   "datePicker": {
@@ -1472,7 +2084,7 @@
     "purchase": {
       "price": "Precio de compraventa",
       "expenses": "Gastos de compra",
-      "addExpense": "Añadir gasto",
+      "addExpense": "Añadir",
       "totalCost": "Coste total",
       "purchaseConceptDescription": "Concepto de gasto de compraventa",
       "suggestedConcepts": "Conceptos sugeridos:",
@@ -1501,7 +2113,7 @@
     },
     "loans": {
       "associatedLoans": "Préstamos asociados",
-      "addLoan": "Añadir préstamo",
+      "addLoan": "Añadir",
       "loanType": "Tipo de préstamo",
       "loanAmount": "Cantidad del préstamo",
       "interestRate": "Tipo de interés",
@@ -1540,11 +2152,11 @@
       "utilities": "Suministros",
       "rent": "Alquiler",
       "addCost": "Añadir coste",
-      "addUtility": "Añadir suministro",
-      "addRent": "Añadir alquiler",
-      "addExpense": "Añadir gasto",
-      "addSupply": "Añadir suministro",
-      "addRental": "Añadir alquiler",
+      "addUtility": "Añadir",
+      "addRent": "Añadir",
+      "addExpense": "Añadir",
+      "addSupply": "Añadir",
+      "addRental": "Añadir",
       "maximumAmount": "Importe máximo",
       "taxDeductible": "Deducible",
       "frequency": "Periodicidad",
@@ -1644,7 +2256,7 @@
     },
     "buttons": {
       "suggest": "Sugerir",
-      "calculateInterests": "Calcular datos"
+      "calculateInterests": "Calcular"
     },
     "emptyStates": {
       "noCostsRegistered": "No se han registrado costes",
@@ -1711,7 +2323,7 @@
     },
     "amortizations": {
       "title": "Amortizaciones",
-      "add": "Añadir amortización",
+      "add": "Añadir",
       "concept": "Concepto",
       "base": "Base",
       "percentage": "Porcentaje",
@@ -1822,5 +2434,36 @@
       "travel": "Viajes",
       "weather": "Clima"
     }
+  },
+  "advancedSettings": {
+    "title": "Configuración avanzada",
+    "subtitle": "Ajusta la configuración técnica de la aplicación como la ubicación de los datos, el registro del backend, el servidor...",
+    "serverUrl": "URL del servidor remoto",
+    "serverUrlDesc": "Opcional: apunta a un backend remoto para desactivar el backend local.",
+    "serverUrlPlaceholder": "http://192.168.1.10:7592",
+    "probeButton": "Probar",
+    "probeSuccess": "Servidor disponible.",
+    "probeSuccessVersionMismatch": "Servidor disponible pero la versión difiere.",
+    "localVersion": "Local",
+    "remoteVersion": "Remota",
+    "probeError": "No se pudo contactar el servidor.",
+    "probeMissingUrl": "Ingresa una URL de servidor para probar.",
+    "serverUrlInvalid": "La URL del servidor debe comenzar con http:// o https://.",
+    "remoteServerNotice": "Usando un servidor remoto. El directorio de datos y el nivel de log de terceros son gestionados por el servidor. La configuración de logs aplica solo a esta aplicación.",
+    "dataDir": "Directorio de datos",
+    "dataDirPlaceholder": "Ubicación por defecto",
+    "logDir": "Directorio de logs",
+    "logDirPlaceholder": "Ubicación por defecto",
+    "logLevel": "Nivel de log en consola",
+    "logFileLevel": "Nivel de log en archivo",
+    "inheritLogLevel": "Igual que el nivel de log",
+    "otherSection": "Otras opciones",
+    "thirdPartyLogLevel": "Nivel de log de terceros",
+    "restartWarning": "La aplicación se reiniciará al guardar estos ajustes.",
+    "resetToDefaults": "Restablecer",
+    "resetConfirmTitle": "Restablecer configuración",
+    "resetConfirmMessage": "¿Estás seguro de que quieres restablecer la configuración avanzada a sus valores por defecto?",
+    "resetConfirmWarning": "La aplicación se reiniciará después de restablecer.",
+    "availableAfterLoading": "Disponible después de cargar"
   }
 }

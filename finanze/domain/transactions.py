@@ -63,11 +63,11 @@ class AccountTx(BaseTx):
 
 @dataclass
 class StockTx(BaseInvestmentTx):
-    net_amount: Optional[Dezimal]
-    isin: Optional[str]
     shares: Dezimal
     price: Dezimal
     fees: Dezimal
+    net_amount: Optional[Dezimal] = None
+    isin: Optional[str] = None
     ticker: Optional[str] = None
     market: Optional[str] = None
     retentions: Optional[Dezimal] = None
@@ -77,12 +77,24 @@ class StockTx(BaseInvestmentTx):
 
 
 @dataclass
+class CryptoCurrencyTx(BaseInvestmentTx):
+    currency_amount: Dezimal
+    symbol: str
+    price: Dezimal
+    fees: Dezimal
+    contract_address: Optional[str] = None
+    net_amount: Optional[Dezimal] = None
+    retentions: Optional[Dezimal] = None
+    order_date: Optional[datetime] = None
+
+
+@dataclass
 class FundTx(BaseInvestmentTx):
-    net_amount: Optional[Dezimal]
-    isin: str
     shares: Dezimal
     price: Dezimal
     fees: Dezimal
+    net_amount: Optional[Dezimal] = None
+    isin: Optional[str] = None
     market: Optional[str] = None
     retentions: Optional[Dezimal] = None
     order_date: Optional[datetime] = None
@@ -91,30 +103,30 @@ class FundTx(BaseInvestmentTx):
 
 @dataclass
 class FundPortfolioTx(BaseInvestmentTx):
-    fees: Dezimal
     portfolio_name: str
-    iban: Optional[str]
+    iban: Optional[str] = None
+    fees: Dezimal = Dezimal(0)
 
 
 @dataclass
 class FactoringTx(BaseInvestmentTx):
-    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
+    net_amount: Optional[Dezimal] = None
 
 
 @dataclass
 class RealEstateCFTx(BaseInvestmentTx):
-    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
+    net_amount: Optional[Dezimal] = None
 
 
 @dataclass
 class DepositTx(BaseInvestmentTx):
-    net_amount: Optional[Dezimal]
     fees: Dezimal
     retentions: Dezimal
+    net_amount: Optional[Dezimal] = None
 
 
 @dataclass

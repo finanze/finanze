@@ -164,8 +164,11 @@ export interface FactoringDetail {
   amount: number
   currency: string
   interest_rate: number
+  late_interest_rate: number
   profitability: number
   gross_interest_rate: number
+  gross_late_interest_rate?: number | null
+  start: string
   last_invest_date: string
   maturity: string
   type: string
@@ -181,12 +184,14 @@ export interface RealEstateCFDetail {
   currency: string
   interest_rate: number
   profitability: number
+  start: string
   last_invest_date: string
   maturity: string
   type: string
   business_type: string
   state: string
   extended_maturity?: string | null
+  extended_interest_rate?: number | null
   source: DataSource
 }
 
@@ -247,33 +252,39 @@ export interface Crowdlending {
   entries: any[]
 }
 
-export interface CryptoCurrencyToken {
+export enum CryptoCurrencyType {
+  NATIVE = "NATIVE",
+  TOKEN = "TOKEN",
+}
+
+export interface CryptoAsset {
   id: string
-  token_id: string
   name: string
   symbol: string
-  token: string
+  icon_urls?: string[] | null
+  external_ids?: Record<string, string> | null
+}
+
+export interface CryptoCurrencyPosition {
+  id: string
+  name: string
+  symbol: string
   amount: number
-  initial_investment?: number | null
-  average_buy_price?: number | null
+  type: CryptoCurrencyType
+  crypto_asset?: CryptoAsset | null
+  contract_address?: string | null
   market_value?: number | null
   currency?: string | null
-  type?: string | null
+  initial_investment?: number | null
+  average_buy_price?: number | null
+  investment_currency?: string | null
 }
 
 export interface CryptoCurrencyWallet {
-  id: string
-  wallet_connection_id: string
-  address: string
-  name: string
-  symbol: string
-  crypto: string
-  amount: number
-  initial_investment?: number | null
-  average_buy_price?: number | null
-  market_value?: number | null
-  currency?: string | null
-  tokens?: CryptoCurrencyToken[] | null
+  id?: string | null
+  address?: string | null
+  name?: string | null
+  assets?: CryptoCurrencyPosition[] | null
 }
 
 export interface CryptoCurrencies {
@@ -298,9 +309,6 @@ export const COMMODITY_SYMBOLS = {
   [CommodityType.PLATINUM]: "XPT",
   [CommodityType.PALLADIUM]: "XPD",
 }
-
-// Stablecoin symbols (tokens or main crypto symbols) excluded from forecast appreciation
-export const STABLECOIN_TOKENS: Set<string> = new Set(["USDC", "USDT"])
 
 export const WEIGHT_CONVERSIONS: Record<
   WeightUnit,
@@ -369,10 +377,8 @@ export interface EntitiesPosition {
   positions: Record<string, GlobalPosition>
 }
 
-// Position query request
 export interface PositionQueryRequest {
-  entities?: string[] // Add entities filter
-  excluded_entities?: string[]
+  entities?: string[]
 }
 
 export interface UpdatePositionRequest {

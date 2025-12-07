@@ -8,7 +8,6 @@ def transactions(get_transactions_uc):
     page = int(request.args.get("page", 1))
     limit = int(request.args.get("limit", 10))
     entities = request.args.getlist("entity")
-    excluded_entities = request.args.getlist("excluded_entity")
     product_types = request.args.getlist("product_type")
     from_date = request.args.get("from_date")
     to_date = request.args.get("to_date")
@@ -23,12 +22,11 @@ def transactions(get_transactions_uc):
     query = TransactionQueryRequest(
         page=page,
         limit=limit,
-        entities=[e for e in entities] or None,
-        excluded_entities=[ee for ee in excluded_entities] or None,
-        product_types=[pt for pt in product_types] or None,
+        entities=list(entities) or None,
+        product_types=list(product_types) or None,
         from_date=from_date,
         to_date=to_date,
-        types=[tx_type for tx_type in tx_types] or None,
+        types=list(tx_types) or None,
         historic_entry_id=historic_entry_id,
     )
 

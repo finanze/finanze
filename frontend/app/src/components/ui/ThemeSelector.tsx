@@ -64,3 +64,4 @@ export function ThemeSelector() {
 }
 
 export { LoginQuickSettings } from "./LoginQuickSettings"
+export type { VersionMismatchInfo } from "./LoginQuickSettings"

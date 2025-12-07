@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.entity import Feature
-from domain.virtual_fetch import VirtualDataImport, VirtualDataSource
+from domain.virtual_data import VirtualDataImport, VirtualDataSource
 from infrastructure.repository.db.client import DBClient
 
 
