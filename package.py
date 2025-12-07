@@ -72,7 +72,7 @@ if args.target in ["frontend", "full"]:
         }:
             continue
 
-        file_ext = ["dmg", "zip", "exe", "AppImage", "tar.xz", "deb"]
+        file_ext = ["dmg", "zip", "exe", "AppImage", "tar.xz", "deb", "blockmap"]
         if any(name.endswith(ext) for ext in file_ext) or (
             name.startswith("latest") and name.endswith(".yml")
         ):

@@ -163,11 +163,33 @@ jobs:
         run: |
           echo "${{ steps.dev_version.outputs.dev_version }}" > DEV_VERSION
 
-      - name: Upload Artifact
+      - name: Upload macOS artifact
+        if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v4
         with:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
-          path: dist/*
+          path: dist/*.dmg
+          if-no-files-found: warn
+          include-hidden-files: false
+
+      - name: Upload Ubuntu artifact
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
+          path: dist/*.AppImage
+          if-no-files-found: warn
+          include-hidden-files: false
+
+      - name: Upload Windows artifact
+        if: ${{ matrix.os == 'windows-latest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
+          path: dist/*.exe
+          if-no-files-found: warn
+          include-hidden-files: false
+
 
   build-docker:
 
