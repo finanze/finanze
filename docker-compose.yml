@@ -23,6 +23,7 @@ services:
     command: |
       --port 7592
       --data-dir /.storage
+      --log-dir /.storage/logs
       --log-level DEBUG
 
 #  Optional, only if you want to use Selenium with marcosav/finanze:latest-selenium (for Mintos)

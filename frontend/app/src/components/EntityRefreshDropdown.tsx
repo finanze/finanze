@@ -94,7 +94,7 @@ export function EntityRefreshDropdown() {
     if (!entity || refreshCooldown) return
 
     setRefreshCooldown(true)
-    setTimeout(() => setRefreshCooldown(false), 1500)
+    setTimeout(() => setRefreshCooldown(false), 700)
 
     try {
       setFetchingEntityState(prev => ({
@@ -122,7 +122,7 @@ export function EntityRefreshDropdown() {
     if (cryptoEntities.length === 0 || refreshCooldown) return
 
     setRefreshCooldown(true)
-    setTimeout(() => setRefreshCooldown(false), 1000)
+    setTimeout(() => setRefreshCooldown(false), 700)
 
     try {
       // Add all connected crypto entities to fetchingEntityIds
@@ -346,7 +346,7 @@ export function EntityRefreshDropdown() {
                             <button
                               onClick={e => handleRefreshEntity(entity, e)}
                               disabled={refreshCooldown}
-                              className={`p-1.5 rounded-full transition-all duration-300 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                              className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
                               aria-label={`Refresh ${entity.name}`}
                             >
                               <RefreshCw className="h-4 w-4" />
@@ -427,7 +427,7 @@ export function EntityRefreshDropdown() {
                           <button
                             onClick={handleRefreshCrypto}
                             disabled={refreshCooldown}
-                            className={`p-1.5 rounded-full transition-all duration-300 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                            className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
                             aria-label={`Refresh ${t.common.crypto}`}
                           >
                             <RefreshCw className="h-4 w-4" />

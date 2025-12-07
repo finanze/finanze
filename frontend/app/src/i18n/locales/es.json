@@ -299,7 +299,9 @@
     "codeDelayTip": "Info: A veces el código 2FA puede tardar un poco en llegar",
     "cancelConfirmationTitle": "¿Cancelar verificación?",
     "cancelLoginDescription": "¿Quieres salir del proceso de inicio de sesión?",
-    "cancelFetchDescription": "¿Quieres salir del proceso de actualización?"
+    "cancelFetchDescription": "¿Quieres salir del proceso de actualización?",
+    "pendingRequests": "Otra entidad necesita código",
+    "switchToEntity": "{entity}"
   },
   "errors": {
     "INVALID_CODE": "Código inválido",

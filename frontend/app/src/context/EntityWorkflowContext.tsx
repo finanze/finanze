@@ -55,6 +55,15 @@ export interface FetchingEntityState {
   fetchingEntityIds: string[]
 }
 
+export interface PendingScrapeParams {
+  entity: Entity
+  features: Feature[]
+  options: FetchOptions
+  processId: string | null
+  pinLength: number
+  currentAction: "scrape" | "login"
+}
+
 interface EntityWorkflowContextValue {
   selectedEntity: Entity | null
   selectEntity: (entity: Entity) => void
@@ -93,6 +102,11 @@ interface EntityWorkflowContextValue {
   setOnScrapeCompleted: (
     callback: ((entityId: string) => Promise<void>) | null,
   ) => void
+  getPendingScrapeParams: (entityId: string) => PendingScrapeParams | undefined
+  clearPendingScrapeParams: (entityId: string) => void
+  pendingPinEntityIds: () => string[]
+  switchActivePinEntity: (entityId: string) => void
+  getPendingPinEntities: () => { id: string; name: string }[]
 }
 
 const EntityWorkflowContext = createContext<
@@ -122,6 +136,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const [processId, setProcessId] = useState<string | null>(null)
   const [pinRequired, setPinRequired] = useState(false)
   const [pinLength, setPinLength] = useState(4)
+  const [activePinEntityId, setActivePinEntityId] = useState<string | null>(
+    null,
+  )
   const [selectedFeatures, setSelectedFeatures] = useState<Feature[]>([])
   const [fetchOptions, setFetchOptions] = useState<FetchOptions>(
     DEFAULT_FETCH_OPTIONS,
@@ -152,6 +169,38 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     options: DEFAULT_FETCH_OPTIONS,
   })
 
+  const pendingScrapeParamsRef = useRef<Map<string, PendingScrapeParams>>(
+    new Map(),
+  )
+
+  const activatePendingEntry = useCallback(
+    (pending: PendingScrapeParams | undefined) => {
+      if (!pending) return false
+      setActivePinEntityId(pending.entity.id)
+      setSelectedEntity(pending.entity)
+      setSelectedFeatures(pending.features)
+      setFetchOptions(current => ({
+        ...current,
+        deep: pending.options.deep ?? DEFAULT_FETCH_OPTIONS.deep,
+        avoidNewLogin: pending.options.avoidNewLogin,
+      }))
+      setProcessId(pending.processId)
+      setPinLength(pending.pinLength)
+      setCurrentAction(pending.currentAction)
+      setPinRequired(true)
+      setPinError(false)
+      return true
+    },
+    [],
+  )
+
+  const activateNextPending = useCallback(() => {
+    const iterator = pendingScrapeParamsRef.current.values()
+    const next = iterator.next()
+    if (next.done) return false
+    return activatePendingEntry(next.value)
+  }, [activatePendingEntry])
+
   const onScrapeCompletedRef = useRef<
     ((entityId: string) => Promise<void>) | null
   >(null)
@@ -159,6 +208,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const resetState = useCallback((options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
     setPinRequired(false)
+    setActivePinEntityId(null)
 
     if (!preserveSelectedFeatures) {
       setSelectedFeatures([])
@@ -174,6 +224,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       features: [],
       options: DEFAULT_FETCH_OPTIONS,
     }
+    pendingScrapeParamsRef.current.clear()
   }, [])
 
   const selectEntity = useCallback(
@@ -439,12 +490,27 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             return
           }
           if (entity) {
-            setSelectedEntity(entity)
+            const processIdValue = response.details?.processId || null
+            const pinLen = entity.pin?.positions || 4
+            const pendingPayload: PendingScrapeParams = {
+              entity,
+              features,
+              options: {
+                deep: options.deep,
+                avoidNewLogin: options.avoidNewLogin,
+              },
+              processId: processIdValue,
+              pinLength: pinLen,
+              currentAction: "scrape",
+            }
+
+            const hadPendingBefore = pendingScrapeParamsRef.current.size > 0
+            pendingScrapeParamsRef.current.set(entity.id, pendingPayload)
+
+            if (!hadPendingBefore) {
+              activatePendingEntry(pendingPayload)
+            }
           }
-          setPinRequired(true)
-          setProcessId(response.details?.processId || null)
-          setPinLength(entity?.pin?.positions || 4)
-          setCurrentAction("scrape")
         } else if (response.code === FetchResultCode.MANUAL_LOGIN) {
           if (silent) {
             if (entity) {
@@ -503,8 +569,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           )
           notify(warningMessage, "warning")
 
+          let advancedToNext = false
+
           if (entity) {
             updateEntityLastFetch(entity.id, features)
+            pendingScrapeParamsRef.current.delete(entity.id)
+            if (activePinEntityId === entity.id) {
+              setActivePinEntityId(null)
+            }
+          }
+
+          if (pendingScrapeParamsRef.current.size > 0) {
+            advancedToNext = activateNextPending()
           }
 
           if (silent && entity) {
@@ -523,16 +599,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
 
           if (!silent) {
-            setSelectedEntity(currentSelected => {
-              if (!currentSelected || currentSelected.id === entity?.id) {
-                resetState()
-                setView("entities")
-              }
-              return currentSelected
-            })
+            if (!advancedToNext) {
+              setSelectedEntity(currentSelected => {
+                if (!currentSelected || currentSelected.id === entity?.id) {
+                  resetState()
+                  setView("entities")
+                }
+                return currentSelected
+              })
+            }
           }
         } else if (response.code === FetchResultCode.COMPLETED) {
           let successMessage: string
+          let advancedToNext = false
           if (entity) {
             successMessage = t.common.fetchSuccessEntity.replace(
               "{entity}",
@@ -540,6 +619,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             )
             recordAutoRefreshSuccess(entity.id)
             updateEntityLastFetch(entity.id, features)
+            pendingScrapeParamsRef.current.delete(entity.id)
+            if (activePinEntityId === entity.id) {
+              setActivePinEntityId(null)
+            }
+            if (pendingScrapeParamsRef.current.size > 0) {
+              advancedToNext = activateNextPending()
+            }
           } else {
             successMessage = `${t.common.fetchSuccess}: ${t.common.crypto}`
           }
@@ -557,13 +643,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
 
           if (!silent) {
-            setSelectedEntity(currentSelected => {
-              if (!currentSelected || currentSelected.id === entity?.id) {
-                resetState()
-                setView("entities")
-              }
-              return currentSelected
-            })
+            if (!advancedToNext) {
+              setSelectedEntity(currentSelected => {
+                if (!currentSelected || currentSelected.id === entity?.id) {
+                  resetState()
+                  setView("entities")
+                }
+                return currentSelected
+              })
+            }
           }
         } else if (response.code === FetchResultCode.INVALID_CODE) {
           if (silent) {
@@ -662,12 +750,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       navigate,
       processId,
       setSelectedEntity,
+      setSelectedFeatures,
+      setFetchOptions,
       resetState,
       setView,
       showToast,
       startExternalLogin,
       t,
       updateEntityStatus,
+      activatePendingEntry,
+      activateNextPending,
+      activePinEntityId,
+      pinRequired,
+      fetchingEntityState,
     ],
   )
 
@@ -880,6 +975,27 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         fetchingEntityState,
         setFetchingEntityState,
         setOnScrapeCompleted,
+        getPendingScrapeParams: (entityId: string) =>
+          pendingScrapeParamsRef.current.get(entityId),
+        clearPendingScrapeParams: (entityId: string) => {
+          pendingScrapeParamsRef.current.delete(entityId)
+        },
+        pendingPinEntityIds: () =>
+          Array.from(pendingScrapeParamsRef.current.keys()).filter(
+            id => id !== activePinEntityId,
+          ),
+        switchActivePinEntity: (entityId: string) => {
+          const pending = pendingScrapeParamsRef.current.get(entityId)
+          if (!pending) return
+          activatePendingEntry(pending)
+        },
+        getPendingPinEntities: () =>
+          Array.from(pendingScrapeParamsRef.current.entries())
+            .filter(([id]) => id !== activePinEntityId)
+            .map(([, pending]) => ({
+              id: pending.entity.id,
+              name: pending.entity.name,
+            })),
       }}
     >
       {children}

@@ -23,7 +23,7 @@
   ],
   "mac": {
     "category": "public.app-category.finance",
-    "icon": "./dist/finanze.icns",
+    "icon": "./dist/finanze-macos.icns",
     "target": ["dmg", "zip"]
   },
   "win": {
@@ -33,6 +33,6 @@
   "linux": {
     "target": "AppImage",
     "category": "Finance",
-    "icon": "./public/finanze.png"
+    "icon": "./dist/finanze.png"
   }
 }

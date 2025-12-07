@@ -301,7 +301,9 @@
     "codeDelayTip": "Info: Sometimes the 2FA code can take a bit to arrive",
     "cancelConfirmationTitle": "Cancel verification?",
     "cancelLoginDescription": "Do you want to leave the login process?",
-    "cancelFetchDescription": "Do you want to leave the fetch process?"
+    "cancelFetchDescription": "Do you want to leave the fetch process?",
+    "pendingRequests": "Other entities need a code",
+    "switchToEntity": "{entity}"
   },
   "errors": {
     "INVALID_CODE": "Invalid code provided",

@@ -2,7 +2,7 @@
 <h1 align="center">Finanze</h1>
 
 <p align="center">
-An private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
+A private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
 platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
 </p>
 
