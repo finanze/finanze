@@ -3,10 +3,18 @@ name: Build Dev
 on:
   push:
     branches: [ "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+    types: [ labeled, synchronize ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
 
   build-app:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     strategy:
       matrix:
@@ -153,9 +161,24 @@ jobs:
         env:
           FINANZE_DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        shell: bash
         run: |
           echo "Using dev version for artifact naming only: $FINANZE_DEV_VERSION"
-          python3 package.py --target full
+          
+          # Determine OS and arch parameters
+          OS_PARAM=""
+          
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            OS_PARAM="--os mac --arch arm64"
+          elif [[ "${{ matrix.os }}" == "macos-15-intel" ]]; then
+            OS_PARAM="--os mac --arch x64"
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            OS_PARAM="--os linux"
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            OS_PARAM="--os win"
+          fi
+          
+          python3 package.py --target full $OS_PARAM
 
       - name: Write Dev Version File
         if: ${{ steps.dev_version.outputs.dev_version != '' }}
@@ -192,6 +215,7 @@ jobs:
 
 
   build-docker:
+    if: ${{ github.event_name == 'push' }}
 
     runs-on: ubuntu-latest
 

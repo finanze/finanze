@@ -71,6 +71,7 @@ const appConfig: AppConfig = {
       : process.platform === "win32"
         ? OS.WINDOWS
         : OS.LINUX,
+  arch: process.arch,
   isDev: isDev,
   ports: {
     backend: 7592,
@@ -84,7 +85,7 @@ const appConfig: AppConfig = {
   },
 }
 
-setupAutoUpdater(appConfig, OS)
+setupAutoUpdater(appConfig)
 
 const platformInfo: PlatformInfo = {
   type: appConfig.os,

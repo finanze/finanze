@@ -28,6 +28,7 @@ export interface AboutAppInfo {
 export interface AppConfig {
   readonly isDev: boolean
   readonly os: OS
+  readonly arch: string
   readonly ports: {
     backend: number
   }
