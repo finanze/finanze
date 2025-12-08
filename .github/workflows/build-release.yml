@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       matrix:
-        os: [ macos-latest, macos-13, windows-latest, ubuntu-latest ]
+        os: [ macos-latest, macos-15-intel, windows-latest, ubuntu-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -94,8 +94,22 @@ jobs:
       - name: Package
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        shell: bash
         run: |
-          python3 package.py --target full
+          # Determine OS and arch parameters
+          OS_PARAM=""
+          
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            OS_PARAM="--os mac --arch arm64"
+          elif [[ "${{ matrix.os }}" == "macos-15-intel" ]]; then
+            OS_PARAM="--os mac --arch x64"
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            OS_PARAM="--os linux"
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            OS_PARAM="--os win"
+          fi
+          
+          python3 package.py --target full $OS_PARAM
 
       - name: Upload Release Assets
         env:

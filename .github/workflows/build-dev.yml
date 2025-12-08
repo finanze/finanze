@@ -3,10 +3,14 @@ name: Build Dev
 on:
   push:
     branches: [ "develop" ]
+  pull_request:
+    branches: [ "main", "develop" ]
+    types: [ labeled, synchronize ]
 
 jobs:
 
   build-app:
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') }}
 
     strategy:
       matrix:
@@ -15,6 +19,17 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Check build label on synchronize
+        if: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels) }}'
+          if echo "$LABELS" | grep -q '"name": "build"'; then
+            echo "Build label found, proceeding..."
+          else
+            echo "Build label not found, skipping..."
+            exit 1
+          fi
+
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
@@ -153,9 +168,24 @@ jobs:
         env:
           FINANZE_DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        shell: bash
         run: |
           echo "Using dev version for artifact naming only: $FINANZE_DEV_VERSION"
-          python3 package.py --target full
+          
+          # Determine OS and arch parameters
+          OS_PARAM=""
+          
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            OS_PARAM="--os mac --arch arm64"
+          elif [[ "${{ matrix.os }}" == "macos-15-intel" ]]; then
+            OS_PARAM="--os mac --arch x64"
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            OS_PARAM="--os linux"
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            OS_PARAM="--os win"
+          fi
+          
+          python3 package.py --target full $OS_PARAM
 
       - name: Write Dev Version File
         if: ${{ steps.dev_version.outputs.dev_version != '' }}
@@ -192,6 +222,7 @@ jobs:
 
 
   build-docker:
+    if: ${{ github.event_name == 'push' }}
 
     runs-on: ubuntu-latest
 

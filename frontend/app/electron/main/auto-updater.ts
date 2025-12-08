@@ -3,7 +3,7 @@ import ElectronUpdater, {
   type ProgressInfo,
   type UpdateInfo,
 } from "electron-updater"
-import type { AppConfig, OS } from "../types"
+import { AppConfig, OS } from "../types"
 
 const { autoUpdater } = ElectronUpdater
 
@@ -17,6 +17,7 @@ const AUTO_UPDATE_CHANNELS = {
 } as const
 
 let supportsNativeAutoUpdate = false
+let autoUpdateChannel: string | undefined
 
 function serializeError(error: unknown) {
   if (error instanceof Error) {
@@ -46,8 +47,16 @@ function sendToAllWindows(channel: string, ...args: unknown[]) {
   })
 }
 
-export function setupAutoUpdater(appConfig: AppConfig, os: typeof OS): void {
-  supportsNativeAutoUpdate = !appConfig.isDev && appConfig.os !== os.MAC
+export function setupAutoUpdater(appConfig: AppConfig): void {
+  supportsNativeAutoUpdate = !appConfig.isDev && appConfig.os !== OS.MAC
+
+  let defaultChannel = "latest"
+  if (appConfig.os === OS.MAC && appConfig.arch !== "arm64") {
+    defaultChannel = `latest-${process.arch}`
+  }
+
+  autoUpdateChannel = process.env.AUTO_UPDATE_CHANNEL || defaultChannel
+  autoUpdater.channel = autoUpdateChannel
 
   const customFeedUrl = process.env.AUTO_UPDATE_FEED_URL
   if (customFeedUrl && supportsNativeAutoUpdate) {

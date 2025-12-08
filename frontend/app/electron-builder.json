@@ -1,6 +1,7 @@
 {
-  "appId": "org.finanze.app",
+  "appId": "me.finanze",
   "productName": "Finanze",
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "asar": true,
   "files": ["dist-electron/**/*", "dist/**/*"],
   "directories": {
@@ -24,7 +25,16 @@
   "mac": {
     "category": "public.app-category.finance",
     "icon": "./dist/finanze-macos.icns",
-    "target": ["dmg", "zip"]
+    "target": ["zip", "dmg"],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "finanze",
+        "repo": "finanze",
+        "releaseType": "release",
+        "channel": "latest-${arch}"
+      }
+    ]
   },
   "win": {
     "target": "nsis",
