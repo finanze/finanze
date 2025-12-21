@@ -7,6 +7,10 @@
   "directories": {
     "output": "release"
   },
+  "protocols": {
+    "name": "Finanze",
+    "schemes": ["finanze"]
+  },
   "publish": [
     {
       "provider": "github",

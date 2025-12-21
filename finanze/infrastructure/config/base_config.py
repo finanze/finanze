@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from domain.commodity import WeightUnit
 from domain.settings import (
     CURRENT_VERSION,
@@ -39,6 +41,7 @@ DEFAULT_STABLECOINS = [
 ]
 
 BASE_CONFIG = Settings(
+    lastUpdate=datetime.now().astimezone().isoformat(),
     version=CURRENT_VERSION,
     general=GeneralConfig(
         defaultCurrency="EUR", defaultCommodityWeightUnit=WeightUnit.GRAM.value

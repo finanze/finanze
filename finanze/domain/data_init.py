@@ -1,7 +1,9 @@
+from dataclasses import field
 from typing import Any, Optional
 
-from domain.user import User
 from pydantic.dataclasses import dataclass
+
+from domain.user import User
 
 
 class AlreadyUnlockedError(Exception):
@@ -37,4 +39,4 @@ class DatasourceInitContext:
 class DatasourceInitParams:
     user: User
     password: str
-    context: DatasourceInitContext
+    context: DatasourceInitContext = field(default_factory=DatasourceInitContext)

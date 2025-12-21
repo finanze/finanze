@@ -106,6 +106,9 @@ from infrastructure.repository.db.versions.v0.v07.v070_8_crypto_initial_investme
 from infrastructure.repository.db.versions.v0.v07.v070_9_clear_sego_txs import (
     V0709ClearSegoTXs,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_0_sys_config import (
+    V0800SysConfig,
+)
 
 versions = [
     V0Genesis(),
@@ -152,4 +155,5 @@ versions = [
     V0707CryptoTxColumn(),
     V0708CryptoInitialInvestments(),
     V0709ClearSegoTXs(),
+    V0800SysConfig(),
 ]

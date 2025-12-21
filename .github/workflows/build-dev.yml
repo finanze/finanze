@@ -161,6 +161,8 @@ jobs:
         env:
           FINANZE_DEV_VERSION: ${{ steps.dev_version.outputs.dev_version }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         shell: bash
         run: |
           echo "Using dev version for artifact naming only: $FINANZE_DEV_VERSION"
@@ -215,7 +217,7 @@ jobs:
 
 
   build-docker:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     runs-on: ubuntu-latest
 
@@ -254,6 +256,18 @@ jobs:
           DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
           echo "Computed dev version for docker: $DEV_VERSION (base: $BASE_NO_V)"
           echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Determine Docker Tag
+        id: docker_tag
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            DOCKER_TAG="pr${{ github.event.pull_request.number }}"
+          else
+            DOCKER_TAG="dev"
+          fi
+          echo "docker_tag=$DOCKER_TAG" >> "$GITHUB_OUTPUT"
+          echo "Using Docker tag: $DOCKER_TAG"
 
       - name: Hack bumpversion config with dev version
         if: ${{ steps.dev_version.outputs.dev_version != '' }}
@@ -305,9 +319,10 @@ jobs:
           default_branch: develop
           workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
-          tags: dev
+          buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          tags: ${{ steps.docker_tag.outputs.docker_tag }}
 
-      - name: Publish dev-selenium image
+      - name: Publish selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
           name: marcosav/finanze
@@ -316,9 +331,9 @@ jobs:
           default_branch: develop
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=true
-          tags: dev-selenium
+          tags: ${{ steps.docker_tag.outputs.docker_tag }}-selenium
 
-      - name: Publish dev-no-selenium image
+      - name: Publish no-selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
           name: marcosav/finanze
@@ -327,4 +342,4 @@ jobs:
           default_branch: develop
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=false
-          tags: dev-no-selenium
+          tags: ${{ steps.docker_tag.outputs.docker_tag }},${{ steps.docker_tag.outputs.docker_tag }}-no-selenium

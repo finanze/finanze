@@ -1,0 +1,332 @@
+import { useState } from "react"
+import { motion } from "framer-motion"
+import { HardDrive, LogOut, Mail, User } from "lucide-react"
+import { Button } from "@/components/ui/Button"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/Card"
+import { Input } from "@/components/ui/Input"
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { Badge } from "@/components/ui/Badge"
+import { useI18n } from "@/i18n"
+import { useCloud } from "@/context/CloudContext"
+import { BackupMode, CloudRole } from "@/types"
+import { cn } from "@/lib/utils"
+
+const GoogleIcon = () => (
+  <svg className="h-5 w-5" viewBox="0 0 24 24">
+    <path
+      fill="currentColor"
+      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+    />
+    <path
+      fill="currentColor"
+      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+    />
+    <path
+      fill="currentColor"
+      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+    />
+    <path
+      fill="currentColor"
+      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+    />
+  </svg>
+)
+
+export function CloudTab() {
+  const { t } = useI18n()
+  const {
+    user,
+    role,
+    permissions,
+    backupMode,
+    setBackupMode,
+    isLoading,
+    isInitialized,
+    oauthError,
+    clearOAuthError,
+    signInWithGoogle,
+    signInWithEmail,
+    signOut,
+  } = useCloud()
+
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState<string | null>(null)
+
+  const isElectron = Boolean(window.ipcAPI)
+  const isSignedIn = !!user
+  const canSeeBackup = permissions.includes("backup.info")
+
+  const setMode = (mode: BackupMode) => {
+    setBackupMode(mode)
+  }
+
+  const backupModeSelector = (
+    <div
+      className="inline-flex w-fit items-center rounded-full border border-border bg-muted/30 p-0.5"
+      role="tablist"
+      aria-label={t.settings.backup.enableLabel}
+    >
+      <button
+        type="button"
+        role="tab"
+        aria-selected={backupMode === BackupMode.OFF}
+        onClick={() => setMode(BackupMode.OFF)}
+        disabled={isLoading}
+        className={cn(
+          "h-7 rounded-full px-2 text-xs font-medium transition-colors",
+          backupMode === BackupMode.OFF
+            ? "bg-foreground text-background"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {t.settings.backup.modes[BackupMode.OFF]}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={backupMode === BackupMode.AUTO}
+        onClick={() => setMode(BackupMode.AUTO)}
+        disabled={isLoading}
+        className={cn(
+          "h-7 rounded-full px-2 text-xs font-medium transition-colors",
+          backupMode === BackupMode.AUTO
+            ? "bg-foreground text-background"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {t.settings.backup.modes[BackupMode.AUTO]}
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={backupMode === BackupMode.MANUAL}
+        onClick={() => setMode(BackupMode.MANUAL)}
+        disabled={isLoading}
+        className={cn(
+          "h-7 rounded-full px-2 text-xs font-medium transition-colors",
+          backupMode === BackupMode.MANUAL
+            ? "bg-foreground text-background"
+            : "text-muted-foreground hover:text-foreground",
+        )}
+      >
+        {t.settings.backup.modes[BackupMode.MANUAL]}
+      </button>
+    </div>
+  )
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    clearOAuthError()
+    try {
+      await signInWithEmail(email, password)
+      setEmail("")
+      setPassword("")
+    } catch (err: unknown) {
+      console.error("Cloud sign-in error:", err)
+      const maybeCode =
+        typeof err === "object" && err && "code" in err
+          ? (err as { code?: unknown }).code
+          : undefined
+
+      const maybeMessage =
+        typeof err === "object" && err && "message" in err
+          ? (err as { message?: unknown }).message
+          : undefined
+
+      const code = typeof maybeCode === "string" ? maybeCode : null
+      const message = typeof maybeMessage === "string" ? maybeMessage : null
+
+      if (
+        code === "invalid_credentials" ||
+        message === "Invalid login credentials"
+      ) {
+        setError(t.settings.cloud.loginErrorInvalidCredentials)
+        return
+      }
+
+      setError(t.settings.cloud.loginError)
+    }
+  }
+
+  if (!isInitialized) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoadingSpinner size="lg" />
+      </div>
+    )
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="space-y-4"
+    >
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <User className="h-5 w-5 text-primary" />
+            <CardTitle>{t.settings.cloud.accountTitle}</CardTitle>
+          </div>
+          <CardDescription>{t.settings.cloud.description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isSignedIn ? (
+            <div className="space-y-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border/50 bg-muted/20 p-4 dark:bg-muted/10">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">
+                    {t.settings.cloud.signedInAs}
+                  </p>
+                  <p className="font-medium">{user.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {role === CloudRole.PLUS && (
+                    <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
+                      {t.settings.cloud.roles[role]}
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={signOut}
+                    disabled={isLoading}
+                    aria-label={t.settings.cloud.logout}
+                  >
+                    {isLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : (
+                      <LogOut className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6 mx-auto max-w-md">
+              <form onSubmit={handleEmailAuth} className="space-y-4">
+                <Input
+                  type="email"
+                  placeholder={t.settings.cloud.emailPlaceholder}
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+                <Input
+                  type="password"
+                  placeholder={t.settings.cloud.passwordPlaceholder}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  minLength={6}
+                />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.settings.cloud.loggingIn}
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="mr-2 h-4 w-4" />
+                      {t.settings.cloud.signInWithEmail}
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border/50" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">
+                    {t.settings.cloud.orContinueWith}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={signInWithGoogle}
+                  disabled={isLoading || !isElectron}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.settings.cloud.loggingIn}
+                    </>
+                  ) : (
+                    <>
+                      <GoogleIcon />
+                      <span className="ml-2">
+                        {t.settings.cloud.signInWithGoogle}
+                      </span>
+                    </>
+                  )}
+                </Button>
+                {!isElectron && (
+                  <span className="text-xs text-muted-foreground">
+                    {t.settings.cloud.googleDesktopOnly}
+                  </span>
+                )}
+                {oauthError && (
+                  <p className="text-sm text-destructive">{oauthError}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {isSignedIn && canSeeBackup && (
+        <Card>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto]">
+            <div>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <HardDrive className="h-5 w-5 text-primary" />
+                  <CardTitle>{t.settings.backup.enableLabel}</CardTitle>
+                </div>
+                <CardDescription>
+                  {t.settings.backup.enableDescription}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="sm:hidden">{backupModeSelector}</div>
+                <p className="text-sm text-muted-foreground">
+                  {t.settings.backup.modeDescriptions[backupMode]}
+                </p>
+              </CardContent>
+            </div>
+
+            <div className="hidden sm:flex items-center px-6">
+              {backupModeSelector}
+            </div>
+          </div>
+        </Card>
+      )}
+    </motion.div>
+  )
+}

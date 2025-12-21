@@ -45,6 +45,15 @@ import {
   MoneyEventQuery,
   SavingsCalculationRequest,
   SavingsCalculationResult,
+  CloudAuthRequest,
+  CloudAuthResponse,
+  CloudAuthData,
+  FullBackupsInfo,
+  BackupSyncResult,
+  UploadBackupRequest,
+  ImportBackupRequest,
+  BackupSettings,
+  GetBackupsInfoRequest,
 } from "@/types"
 import {
   EntityContributions,
@@ -145,6 +154,11 @@ export const getApiServerInfo = async (): Promise<ApiServerInfo> => {
     isCustomServer,
     serverDisplay: customServerUrl,
   }
+}
+
+export const getApiBaseUrl = async (): Promise<string> => {
+  const apiUrl = await ensureApiUrlInitialized()
+  return apiUrl.replace(/\/api\/v1$/, "")
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
@@ -1248,4 +1262,123 @@ export async function calculateSavings(
     await handleApiError(response)
   }
   return response.json()
+}
+
+export async function cloudAuth(
+  request: CloudAuthRequest,
+): Promise<CloudAuthResponse> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/cloud/auth`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function getCloudAuthToken(): Promise<CloudAuthData | null> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/cloud/auth`, {
+    method: "GET",
+  })
+
+  if (response.status === 204 || response.status === 404) {
+    return null
+  }
+
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  const data = await response.json().catch(() => null)
+  if (!data) {
+    return null
+  }
+
+  return data as CloudAuthData
+}
+
+export async function getBackupsInfo(
+  request?: GetBackupsInfoRequest,
+): Promise<FullBackupsInfo> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const url = new URL(`${baseUrl}/cloud/backup`)
+  if (request?.only_local) {
+    url.searchParams.set("only_local", "true")
+  }
+  const response = await fetch(url.toString(), {
+    method: "GET",
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function uploadBackup(
+  request: UploadBackupRequest,
+): Promise<BackupSyncResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/cloud/backup/upload`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  return response.json()
+}
+
+export async function importBackup(
+  request: ImportBackupRequest,
+): Promise<BackupSyncResult> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/cloud/backup/import`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+
+  return response.json()
+}
+
+export async function getBackupSettings(): Promise<BackupSettings> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/cloud/backup/settings`, {
+    method: "GET",
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+export async function updateBackupSettings(
+  settings: BackupSettings,
+): Promise<void> {
+  const baseUrl = await ensureApiUrlInitialized()
+  const response = await fetch(`${baseUrl}/cloud/backup/settings`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(settings),
+  })
+  if (!response.ok) {
+    await handleApiError(response)
+  }
 }

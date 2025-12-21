@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/ThemeSelector"
 import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { getApiServerInfo, checkStatus } from "@/services/api"
+import { setFeatureFlags } from "@/context/featureFlagsStore"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -91,6 +92,7 @@ export default function LoginPage() {
         }
 
         const statusResponse = await checkStatus()
+        setFeatureFlags(statusResponse.features)
         const remoteVersion = statusResponse.server?.version
         const localVersion = __APP_VERSION__
 

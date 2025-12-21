@@ -59,8 +59,10 @@ if args.target in ["frontend", "full"]:
     logger.info("Starting frontend packaging...")
     front_dir = cwd / "frontend" / "app"
 
+    env = os.environ.copy()
+
     os.chdir(front_dir)
-    pinstall_front = subprocess.call("pnpm install", shell=True)
+    pinstall_front = subprocess.call("pnpm install", shell=True, env=env)
     if pinstall_front != 0:
         logger.error("Frontend installation failed")
         sys.exit(1)
@@ -73,7 +75,12 @@ if args.target in ["frontend", "full"]:
             pnpm_dist_cmd += f":{args.arch}"
 
     logger.info(f"Running: {pnpm_dist_cmd}")
-    package_front = subprocess.call(pnpm_dist_cmd, shell=True)
+    if "VITE_SUPABASE_URL" in env:
+        logger.info("VITE_SUPABASE_URL is set")
+    if "VITE_SUPABASE_PUBLISHABLE_KEY" in env:
+        logger.info("VITE_SUPABASE_PUBLISHABLE_KEY is set")
+
+    package_front = subprocess.call(pnpm_dist_cmd, shell=True, env=env)
     if package_front != 0:
         logger.error("Frontend packaging failed")
         sys.exit(1)

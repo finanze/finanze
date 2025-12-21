@@ -94,6 +94,8 @@ jobs:
       - name: Package
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         shell: bash
         run: |
           # Determine OS and arch parameters
@@ -144,6 +146,7 @@ jobs:
           default_branch: main
           workdir: frontend
           platforms: linux/amd64,linux/arm64/v8
+          buildargs: VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }},VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           tags: |
             ${{ env.RELEASE_TAG }},latest
 
@@ -169,4 +172,4 @@ jobs:
           platforms: linux/amd64,linux/arm64/v8
           buildargs: SELENIUM_SUPPORT=false
           tags: |
-            ${{ env.RELEASE_TAG }}-no-selenium,latest-no-selenium
+            ${{ env.RELEASE_TAG }}-no-selenium,${{ env.RELEASE_TAG }},latest-no-selenium,latest

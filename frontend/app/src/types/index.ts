@@ -127,14 +127,115 @@ export interface ChangePasswordRequest {
   newPassword: string
 }
 
+export interface User {
+  id: string
+  username: string
+  path: string
+}
+
+export enum FFStatus {
+  ON = "ON",
+  OFF = "OFF",
+}
+
+export type FFValue = FFStatus | string
+
+export type FeatureFlags = Record<string, FFValue>
+
+export enum CloudRole {
+  NONE = "NONE",
+  PLUS = "PLUS",
+}
+
+export interface CloudAuthToken {
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_at: number
+}
+
+export interface CloudAuthData {
+  role: CloudRole
+  permissions: string[]
+  email: string
+  token: CloudAuthToken
+}
+
+export interface CloudAuthRequest {
+  token: CloudAuthToken | null
+}
+
+export interface CloudAuthResponse {
+  role: CloudRole
+  permissions: string[]
+}
+
+export enum BackupFileType {
+  DATA = "DATA",
+  CONFIG = "CONFIG",
+}
+
+export enum BackupMode {
+  OFF = "OFF",
+  AUTO = "AUTO",
+  MANUAL = "MANUAL",
+}
+
+export enum SyncStatus {
+  SYNC = "SYNC",
+  PENDING = "PENDING",
+  CONFLICT = "CONFLICT",
+  OUTDATED = "OUTDATED",
+  MISSING = "MISSING",
+}
+
+export interface BackupInfo {
+  id: string
+  protocol: number
+  date: string
+  type: BackupFileType
+  size: number
+}
+
+export interface FullBackupInfo {
+  local: BackupInfo | null
+  remote: BackupInfo | null
+  status: SyncStatus
+  has_local_changes: boolean
+  last_update: string
+}
+
+export interface FullBackupsInfo {
+  pieces: Record<BackupFileType, FullBackupInfo>
+}
+
+export interface BackupSyncResult {
+  pieces: Record<BackupFileType, FullBackupInfo>
+}
+
+export interface UploadBackupRequest {
+  types: BackupFileType[]
+  force?: boolean
+}
+
+export interface ImportBackupRequest {
+  types: BackupFileType[]
+  force?: boolean
+}
+
+export interface BackupSettings {
+  mode: BackupMode
+}
+
 export interface StatusResponse {
   status: "LOCKED" | "UNLOCKED"
-  lastLogged?: string
-  user?: string
+  lastLogged?: string | null
+  user?: User | null
   server: {
     version: string
     options: BackendOptions
   }
+  features: FeatureFlags
 }
 
 export interface LoginRequest {
@@ -465,6 +566,24 @@ declare global {
       ) => () => void
       onUpdateError: (
         callback: (error: AutoUpdateErrorInfo) => void,
+      ) => () => void
+      onOAuthCallback: (
+        callback: (tokens: {
+          access_token: string
+          refresh_token: string
+        }) => void,
+      ) => () => void
+
+      onOAuthCallbackError: (
+        callback: (payload: {
+          error: string
+          error_description: string | null
+          error_code: string | null
+        }) => void,
+      ) => () => void
+
+      onOAuthCallbackCode: (
+        callback: (payload: { code: string }) => void,
       ) => () => void
     }
   }
@@ -1133,4 +1252,7 @@ export interface SavingsScenarioResult {
 
 export interface SavingsCalculationResult {
   scenarios: SavingsScenarioResult[]
+}
+export interface GetBackupsInfoRequest {
+  only_local?: boolean
 }

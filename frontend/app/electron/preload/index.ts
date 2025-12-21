@@ -97,4 +97,42 @@ contextBridge.exposeInMainWorld("ipcAPI", {
 
     return () => ipcRenderer.removeAllListeners("completed-external-login")
   },
+
+  onOAuthCallback: (
+    callback: (tokens: { access_token: string; refresh_token: string }) => void,
+  ) => {
+    ipcRenderer.removeAllListeners("oauth-callback")
+
+    ipcRenderer.on("oauth-callback", (_, tokens) => {
+      callback(tokens)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback")
+  },
+
+  onOAuthCallbackError: (
+    callback: (payload: {
+      error: string
+      error_description: string | null
+      error_code: string | null
+    }) => void,
+  ) => {
+    ipcRenderer.removeAllListeners("oauth-callback-error")
+
+    ipcRenderer.on("oauth-callback-error", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback-error")
+  },
+
+  onOAuthCallbackCode: (callback: (payload: { code: string }) => void) => {
+    ipcRenderer.removeAllListeners("oauth-callback-code")
+
+    ipcRenderer.on("oauth-callback-code", (_, payload) => {
+      callback(payload)
+    })
+
+    return () => ipcRenderer.removeAllListeners("oauth-callback-code")
+  },
 } as const)

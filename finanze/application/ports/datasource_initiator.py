@@ -1,6 +1,8 @@
 import abc
+from typing import Optional
 
 from domain.data_init import DatasourceInitParams
+from domain.user import User
 
 
 class DatasourceInitiator(metaclass=abc.ABCMeta):
@@ -18,4 +20,12 @@ class DatasourceInitiator(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def change_password(self, params: DatasourceInitParams, new_password: str):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_hashed_password(self) -> Optional[str]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_user(self) -> Optional[User]:
         raise NotImplementedError
