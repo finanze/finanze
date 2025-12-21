@@ -178,9 +178,12 @@ class DBManager(DatasourceInitiator, Backupable):
 
             self._client.wal_checkpoint()
 
+            # Convert path to use forward slashes for cross-platform compatibility
+            tmp_path_str = tmp_path.as_posix()
+
             with self._client.tx(skip_last_update=True) as cursor:
                 cursor.execute_script(f"""
-                ATTACH DATABASE '{tmp_path}' AS backup_db KEY '';
+                ATTACH DATABASE '{tmp_path_str}' AS backup_db KEY '';
                 SELECT sqlcipher_export('backup_db');
                 DETACH DATABASE backup_db;
                 """)
@@ -210,9 +213,13 @@ class DBManager(DatasourceInitiator, Backupable):
 
             connection = self._base_connect(tmp_bkg_db_path)
             temp_client = DBClient(connection)
+
+            # Convert path to use forward slashes for cross-platform compatibility
+            db_path_str = db_path.as_posix()
+
             with temp_client.tx(skip_last_update=True) as cursor:
                 cursor.execute_script(f"""
-                ATTACH DATABASE '{db_path}' AS new_db KEY '{passwd}';
+                ATTACH DATABASE '{db_path_str}' AS new_db KEY '{passwd}';
                 SELECT sqlcipher_export('new_db');
                 DETACH DATABASE new_db;
                 """)
