@@ -117,8 +117,13 @@ class DBManager(DatasourceInitiator, Backupable):
         return connection
 
     @staticmethod
+    def _sanitize_password(password: str) -> str:
+        """Sanitize password for use in SQL statements by escaping single quotes."""
+        return password.replace(r"'", r"''")
+
+    @staticmethod
     def _unlock_and_setup(connection: UnderlyingConnection, password: str):
-        sanitized_pass = password.replace(r"'", r"''")
+        sanitized_pass = DBManager._sanitize_password(password)
         connection.execute(f"PRAGMA key='{sanitized_pass}';")
 
         connection.execute("SELECT count(*) FROM sqlite_master WHERE type='table';")
@@ -147,7 +152,7 @@ class DBManager(DatasourceInitiator, Backupable):
         if not self._unlocked:
             raise Exception("Database must be unlocked before changing password")
 
-        sanitized_pass = new_password.replace(r"'", r"''")
+        sanitized_pass = self._sanitize_password(new_password)
         connection.execute(f"PRAGMA rekey='{sanitized_pass}';")
 
         self._log.info("Database password changed successfully")
@@ -178,9 +183,12 @@ class DBManager(DatasourceInitiator, Backupable):
 
             self._client.wal_checkpoint()
 
+            # Convert path to use forward slashes for cross-platform compatibility
+            tmp_path_str = tmp_path.as_posix()
+
             with self._client.tx(skip_last_update=True) as cursor:
                 cursor.execute_script(f"""
-                ATTACH DATABASE '{tmp_path}' AS backup_db KEY '';
+                ATTACH DATABASE '{tmp_path_str}' AS backup_db KEY '';
                 SELECT sqlcipher_export('backup_db');
                 DETACH DATABASE backup_db;
                 """)
@@ -210,9 +218,15 @@ class DBManager(DatasourceInitiator, Backupable):
 
             connection = self._base_connect(tmp_bkg_db_path)
             temp_client = DBClient(connection)
+
+            # Convert path to use forward slashes for cross-platform compatibility
+            db_path_str = db_path.as_posix()
+            # Sanitize password to prevent SQL injection
+            sanitized_passwd = self._sanitize_password(passwd)
+
             with temp_client.tx(skip_last_update=True) as cursor:
                 cursor.execute_script(f"""
-                ATTACH DATABASE '{db_path}' AS new_db KEY '{passwd}';
+                ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
                 SELECT sqlcipher_export('new_db');
                 DETACH DATABASE new_db;
                 """)
