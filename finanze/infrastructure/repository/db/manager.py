@@ -216,10 +216,12 @@ class DBManager(DatasourceInitiator, Backupable):
 
             # Convert path to use forward slashes for cross-platform compatibility
             db_path_str = db_path.as_posix()
+            # Sanitize password to prevent SQL injection
+            sanitized_passwd = passwd.replace(r"'", r"''")
 
             with temp_client.tx(skip_last_update=True) as cursor:
                 cursor.execute_script(f"""
-                ATTACH DATABASE '{db_path_str}' AS new_db KEY '{passwd}';
+                ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
                 SELECT sqlcipher_export('new_db');
                 DETACH DATABASE new_db;
                 """)
