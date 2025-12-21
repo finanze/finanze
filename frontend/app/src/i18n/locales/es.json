@@ -510,7 +510,7 @@
       "enableLabel": "Copia de seguridad",
       "enableDescription": "Elige cómo se ejecutan las copias",
       "modes": {
-        "OFF": "Desactivado",
+        "OFF": "No",
         "AUTO": "Auto",
         "MANUAL": "Manual"
       },
@@ -531,7 +531,7 @@
         "SYNC": "Sincronizado",
         "PENDING": "Pendiente",
         "CONFLICT": "Conflicto",
-        "OUTDATED": "Desactualizado",
+        "OUTDATED": "Desfasada",
         "MISSING": "Sin copia"
       },
       "upload": "Hacer copia",
