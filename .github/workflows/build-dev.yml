@@ -313,7 +313,7 @@ jobs:
       - name: Publish dev frontend image
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
-          name: marcosav/finanze-frontend
+          name: finanze/finanze-frontend
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           default_branch: develop
@@ -325,7 +325,7 @@ jobs:
       - name: Publish selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
-          name: marcosav/finanze
+          name: finanze/finanze
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           default_branch: develop
@@ -336,7 +336,7 @@ jobs:
       - name: Publish no-selenium image
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
-          name: marcosav/finanze
+          name: finanze/finanze
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           default_branch: develop

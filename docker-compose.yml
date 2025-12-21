@@ -2,14 +2,14 @@ services:
   finanze-server:
     restart: unless-stopped
     # build: .                                        # Use the Dockerfile in the current directory
-    # image: marcosav/finanze:latest-selenium
-    image: marcosav/finanze:latest-no-selenium
+    # image: finanze/finanze:latest-selenium
+    image: finanze/finanze:latest
     ports:
       - '7592:7592'
     # environment:
       # USERNAME: myusername                          # Optional, provided via API when logging in, or use .env, this will automatically log in
       # PASSWORD: myVerySecretPasswordToEncryptDB     # Optional, provided via API when logging in, or use .env, this will automatically log in
-      # Selenium related envs, only if you want to use Selenium with marcosav/finanze:latest-selenium
+      # Selenium related envs, only if you want to use Selenium with finanze/finanze:latest-selenium
       # WIRE_ADDRESS: 0.0.0.0
       # WIRE_PORT: 8088
       # WIRE_PROXY_SERVER_ADDRESS: finanze-server
@@ -26,7 +26,7 @@ services:
       --log-dir /.storage/logs
       --log-level DEBUG
 
-#  Optional, only if you want to use Selenium with marcosav/finanze:latest-selenium (for Mintos)
+#  Optional, only if you want to use Selenium with finanze/finanze:latest-selenium (for Mintos)
 #  selenium:
 #    image: selenium/standalone-firefox:latest
 #    restart: unless-stopped
@@ -38,7 +38,7 @@ services:
   finanze-front:
     restart: unless-stopped
     # build: frontend                                 # Use the Dockerfile in the current directory
-    image: marcosav/finanze-frontend:latest
+    image: finanze/finanze-frontend:latest
     ports:
       - "8080:80"
     environment:

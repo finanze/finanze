@@ -181,9 +181,9 @@ The first one is required for Mintos, as it contains Selenium and reCAPTCHA reso
 dependencies (like ffmpeg).
 In case you don't use Mintos, latest-no-selenium is highly recommended.
 
-Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
+Both are available at Docker Hub [finanze/finanze](https://hub.docker.com/r/finanze/finanze).
 
-Frontend is available at [marcosav/finanze-frontend](https://hub.docker.com/r/marcosav/finanze-frontend).
+Frontend is available at [finanze/finanze-frontend](https://hub.docker.com/r/finanze/finanze-frontend).
 
 Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
