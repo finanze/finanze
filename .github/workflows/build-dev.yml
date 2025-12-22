@@ -115,7 +115,11 @@ jobs:
             COUNT=$(git rev-list HEAD --count)
           fi
           SHORT_SHA=$(git rev-parse --short HEAD)
-          DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            DEV_VERSION="${BASE_NO_V}-pr${{ github.event.pull_request.number }}-${SHORT_SHA}"
+          else
+            DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
+          fi
           echo "Computed dev version: $DEV_VERSION (base: $BASE_NO_V)"
           echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
 
@@ -253,7 +257,11 @@ jobs:
             COUNT=$(git rev-list HEAD --count)
           fi
             SHORT_SHA=$(git rev-parse --short HEAD)
-          DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            DEV_VERSION="${BASE_NO_V}-pr${{ github.event.pull_request.number }}-${SHORT_SHA}"
+          else
+            DEV_VERSION="${BASE_NO_V}-dev${COUNT}-${SHORT_SHA}"
+          fi
           echo "Computed dev version for docker: $DEV_VERSION (base: $BASE_NO_V)"
           echo "dev_version=$DEV_VERSION" >> "$GITHUB_OUTPUT"
 
