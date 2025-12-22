@@ -90,7 +90,7 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             return BackupsInfo(pieces={})
 
         cloud_data = self._load_cloud_data()
-        backup_data = cloud_data.get("backup", {}).get("backups", {})
+        backup_data = (cloud_data.get("backup") or {}).get("backups", {})
 
         backup_infos = {}
         for type_key, entry in backup_data.items():
@@ -109,8 +109,8 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
     def insert(self, entries: list[BackupInfo]):
         self._check_connected()
         cloud_data = self._load_cloud_data()
-        backup_section = cloud_data.get("backup", {})
-        backups_data = backup_section.get("backups", {})
+        backup_section = cloud_data.get("backup") or {}
+        backups_data = backup_section.get("backups") or {}
 
         for entry in entries:
             backups_data[entry.type.value] = {
@@ -152,7 +152,7 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
         if not self._cloud_file or not Path(self._cloud_file).exists():
             return None
         cloud_data = self._load_cloud_data()
-        token_dict = cloud_data.get("auth", {}).get("token")
+        token_dict = (cloud_data.get("auth") or {}).get("token")
         if not token_dict:
             return None
         return CloudAuthToken(
@@ -229,8 +229,8 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
     def get_backup_settings(self) -> BackupSettings:
         self._check_connected()
         cloud_data = self._load_cloud_data()
-        backup_section = cloud_data.get("backup", {})
-        settings_data = backup_section.get("settings", {})
+        backup_section = cloud_data.get("backup") or {}
+        settings_data = backup_section.get("settings") or {}
 
         mode_str = settings_data.get("mode", "MANUAL")
         try:
@@ -244,7 +244,7 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
     def save_backup_settings(self, settings: BackupSettings):
         self._check_connected()
         cloud_data = self._load_cloud_data()
-        backup_section = cloud_data.get("backup", {})
+        backup_section = cloud_data.get("backup") or {}
 
         backup_section["settings"] = {"mode": settings.mode.value}
 

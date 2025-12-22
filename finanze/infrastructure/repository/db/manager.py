@@ -118,7 +118,6 @@ class DBManager(DatasourceInitiator, Backupable):
 
     @staticmethod
     def _sanitize_password(password: str) -> str:
-        """Sanitize password for use in SQL statements by escaping single quotes."""
         return password.replace(r"'", r"''")
 
     @staticmethod
@@ -174,17 +173,18 @@ class DBManager(DatasourceInitiator, Backupable):
             raise MigrationError from e
 
     def export(self) -> bytes:
-        with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-            tmp_path = Path(tmp.name)
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp_path = Path(tmp.name)
+        tmp.close()
 
+        try:
             with self._client.tx():
                 # Update last update timestamp before exporting
                 pass
 
             self._client.wal_checkpoint()
 
-            # Convert path to use forward slashes for cross-platform compatibility
-            tmp_path_str = tmp_path.as_posix()
+            tmp_path_str = str(tmp_path.absolute())
 
             with self._client.tx(skip_last_update=True) as cursor:
                 cursor.execute_script(f"""
@@ -197,6 +197,12 @@ class DBManager(DatasourceInitiator, Backupable):
                 data = f.read()
 
             return data
+        finally:
+            try:
+                if tmp_path.exists():
+                    tmp_path.unlink()
+            except (OSError, NameError):
+                pass
 
     def import_data(self, data: bytes):
         self._client.wal_checkpoint()
@@ -219,9 +225,7 @@ class DBManager(DatasourceInitiator, Backupable):
             connection = self._base_connect(tmp_bkg_db_path)
             temp_client = DBClient(connection)
 
-            # Convert path to use forward slashes for cross-platform compatibility
-            db_path_str = db_path.as_posix()
-            # Sanitize password to prevent SQL injection
+            db_path_str = str(db_path.absolute())
             sanitized_passwd = self._sanitize_password(passwd)
 
             with temp_client.tx(skip_last_update=True) as cursor:

@@ -522,7 +522,7 @@
       "data": "Datos",
       "config": "Config",
       "lastBackup": "Fecha de última copia",
-      "pendingBackup": "Copia pendiente",
+      "pendingBackup": "Pendiente",
       "tooManyRequests": "Demasiadas solicitudes. Espera un momento antes de reintentar.",
       "cooldownActive": "Espera un momento antes de intentar de nuevo.",
       "conflictRetry": "Conflicto detectado. Elige local o remoto.",

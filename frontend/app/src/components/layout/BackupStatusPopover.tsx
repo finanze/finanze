@@ -733,7 +733,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
 
     switch (overallStatus) {
       case SyncStatus.PENDING:
-        return "bg-lime-500"
+        return "bg-foreground"
       case SyncStatus.CONFLICT:
         return "bg-red-500"
       case SyncStatus.OUTDATED:
@@ -783,7 +783,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
           {dotColor && (
             <span
               className={cn(
-                "absolute top-1 right-1 h-2 w-2 rounded-full",
+                "absolute top-1 right-1 h-1.5 w-1.5 rounded-full",
                 dotColor,
               )}
             />

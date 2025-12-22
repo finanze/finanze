@@ -131,7 +131,7 @@ class UploadBackupImpl(UploadBackup):
         has_local_changes = (
             local_backup is None or local_last_update > local_backup.date
         )
-        if not has_local_changes and not force:
+        if remote_backup and not has_local_changes and not force:
             self._log.debug(
                 "Skipping upload of %s backup piece: no local changes since last backup",
                 bkg_type,

@@ -523,7 +523,7 @@
       "data": "Data",
       "config": "Config",
       "lastBackup": "Last Backup Date",
-      "pendingBackup": "Pending backup",
+      "pendingBackup": "Pending",
       "tooManyRequests": "Too many requests. Please wait a bit before retrying.",
       "cooldownActive": "Please wait a moment before trying again.",
       "conflictRetry": "Sync conflict detected. Choose local or remote.",
