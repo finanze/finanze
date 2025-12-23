@@ -92,7 +92,9 @@
     "unpinAsset": "Quitar activo",
     "continueInBackground": "Continuar en segundo plano",
     "connectingToServer": "Conectando a",
-    "startingServer": "Iniciando servidor"
+    "startingServer": "Iniciando servidor",
+    "officialWebpage": "finanze.me",
+    "officialWebpageUrl": "https://finanze.me"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -473,6 +475,10 @@
       "emailPlaceholder": "Correo electrónico",
       "passwordPlaceholder": "Contraseña",
       "orContinueWith": "o continuar con",
+      "legalNoticePrefix": "Al iniciar sesión, aceptas los",
+      "termsOfService": "Términos del servicio",
+      "legalNoticeAnd": "y la",
+      "privacyPolicy": "Política de privacidad",
       "noAccount": "¿No tienes cuenta? Regístrate",
       "alreadyHaveAccount": "¿Ya tienes cuenta? Inicia sesión",
       "signedInAs": "Sesión iniciada como",

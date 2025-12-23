@@ -1,8 +1,8 @@
-<p align="center"><img src="frontend/app/public/finanze.png" alt="Finanze Logo" width="220px"></p>
-<h1 align="center">Finanze</h1>
+<p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze Logo" width="220px"></p>
+<h1 align="center">Finanze: private & self-hosted portfolio manager</h1>
 
 <p align="center">
-A private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
+<a href="https://finanze.me">Finanze</a> is a private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
 platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
 </p>
 

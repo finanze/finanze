@@ -94,7 +94,9 @@
     "unpinAsset": "Unpin asset",
     "continueInBackground": "Continue in background",
     "connectingToServer": "Connecting to",
-    "startingServer": "Starting server"
+    "startingServer": "Starting server",
+    "officialWebpage": "finanze.me",
+    "officialWebpageUrl": "https://finanze.me"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -474,6 +476,10 @@
       "emailPlaceholder": "Email address",
       "passwordPlaceholder": "Password",
       "orContinueWith": "or continue with",
+      "legalNoticePrefix": "By signing in, you agree to the",
+      "termsOfService": "Terms of Service",
+      "legalNoticeAnd": "and",
+      "privacyPolicy": "Privacy Policy",
       "noAccount": "Don't have an account? Sign up",
       "alreadyHaveAccount": "Already have an account? Sign in",
       "signedInAs": "Signed in as",

@@ -965,6 +965,13 @@ export default function SettingsPage() {
             >
               {user?.id}
             </button>
+            <button
+              type="button"
+              onClick={() => window.open(t.common.officialWebpageUrl, "_blank")}
+              className="text-[0.5rem] text-primary hover:underline"
+            >
+              {t.common.officialWebpage}
+            </button>
             <p className="text-[0.5rem] text-gray-500 dark:text-gray-400">
               v{__APP_VERSION__} by marcosav
             </p>

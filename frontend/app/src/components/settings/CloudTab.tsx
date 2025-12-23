@@ -63,6 +63,17 @@ export function CloudTab() {
   const isSignedIn = !!user
   const canSeeBackup = permissions.includes("backup.info")
 
+  const TERMS_URL = "https://finanze.me/terms"
+  const PRIVACY_URL = "https://finanze.me/privacy"
+
+  const openExternalUrl = (url: string) => {
+    try {
+      window.open(url, "_blank")
+    } catch {
+      // ignore
+    }
+  }
+
   const setMode = (mode: BackupMode) => {
     setBackupMode(mode)
   }
@@ -295,6 +306,36 @@ export function CloudTab() {
                   <p className="text-sm text-destructive">{oauthError}</p>
                 )}
               </div>
+
+              <p className="text-xs leading-tight text-muted-foreground text-center">
+                {t.settings.cloud.legalNoticePrefix}{" "}
+                <a
+                  href={TERMS_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline underline-offset-2 hover:text-foreground"
+                  onClick={e => {
+                    e.preventDefault()
+                    openExternalUrl(TERMS_URL)
+                  }}
+                >
+                  {t.settings.cloud.termsOfService}
+                </a>{" "}
+                {t.settings.cloud.legalNoticeAnd}{" "}
+                <a
+                  href={PRIVACY_URL}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline underline-offset-2 hover:text-foreground"
+                  onClick={e => {
+                    e.preventDefault()
+                    openExternalUrl(PRIVACY_URL)
+                  }}
+                >
+                  {t.settings.cloud.privacyPolicy}
+                </a>
+                .
+              </p>
             </div>
           )}
         </CardContent>
