@@ -7,6 +7,7 @@ import {
   useRef,
   type ReactNode,
 } from "react"
+import { useNavigate } from "react-router-dom"
 import { BackupMode, CloudRole, FFStatus } from "@/types"
 import {
   cloudAuth,
@@ -20,6 +21,7 @@ import {
   CloudSession,
   CloudUser,
   SupabaseAuthProvider,
+  type EmailPasswordSignUpResult,
 } from "@/services/cloud"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
@@ -33,10 +35,18 @@ interface CloudContextType {
   setBackupMode: (mode: BackupMode) => void
   isLoading: boolean
   isInitialized: boolean
+  isPasswordRecoveryActive: boolean
+  clearPasswordRecovery: () => void
   oauthError: string | null
   clearOAuthError: () => void
   signInWithGoogle: () => Promise<void>
   signInWithEmail: (email: string, password: string) => Promise<void>
+  signUpWithEmail: (
+    email: string,
+    password: string,
+  ) => Promise<EmailPasswordSignUpResult>
+  requestPasswordReset: (email: string) => Promise<void>
+  updatePassword: (password: string) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -48,6 +58,7 @@ const createAuthProvider = (): CloudAuthProvider => {
 
 export function CloudProvider({ children }: { children: ReactNode }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const { isAuthenticated } = useAuth()
   const { featureFlags } = useAppContext()
 
@@ -60,6 +71,8 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [oauthError, setOauthError] = useState<string | null>(null)
+  const [isPasswordRecoveryActive, setIsPasswordRecoveryActive] =
+    useState(false)
   const authProviderRef = useRef<CloudAuthProvider | null>(null)
   const lastSyncedTokenSignatureRef = useRef<string | null>(null)
   const lastBackupSettingsUserIdRef = useRef<string | null>(null)
@@ -314,26 +327,160 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   }, [getProvider, isAuthenticated, isCloudEnabled])
 
   useEffect(() => {
-    if (!window.ipcAPI?.onOAuthCallback) {
+    if (!window.ipcAPI?.onOAuthCallbackUrl) {
       return
     }
 
-    const unsubscribe = window.ipcAPI.onOAuthCallback(async tokens => {
+    const unsubscribe = window.ipcAPI.onOAuthCallbackUrl(async payload => {
       try {
         const provider = getProvider()
-        await provider.setSession(tokens.access_token, tokens.refresh_token)
+
+        const urlObj = new URL(payload.url)
+        const errorFromSearch = urlObj.searchParams.get("error")
+        const errorCodeFromSearch = urlObj.searchParams.get("error_code")
+        if (errorFromSearch) {
+          const errorCode = errorCodeFromSearch ?? errorFromSearch ?? "unknown"
+          const translatedError =
+            t.settings.cloud.oauthErrors[
+              errorCode as keyof typeof t.settings.cloud.oauthErrors
+            ] ?? t.settings.cloud.oauthErrors.unknown
+
+          const message = translatedError.replace("{error}", errorCode)
+          setOauthError(message)
+          navigate("/settings?tab=cloud")
+          return
+        }
+
+        const hash = urlObj.hash.startsWith("#")
+          ? urlObj.hash.substring(1)
+          : urlObj.hash
+        const hashParams = new URLSearchParams(hash)
+
+        const errorFromHash = hashParams.get("error")
+        if (errorFromHash) {
+          const errorCodeFromHash = hashParams.get("error_code")
+          const errorCode = errorCodeFromHash ?? errorFromHash ?? "unknown"
+
+          const translatedError =
+            t.settings.cloud.oauthErrors[
+              errorCode as keyof typeof t.settings.cloud.oauthErrors
+            ] ?? t.settings.cloud.oauthErrors.unknown
+
+          const message = translatedError.replace("{error}", errorCode)
+          setOauthError(message)
+          navigate("/settings?tab=cloud")
+          return
+        }
+
+        const typeFromSearch = urlObj.searchParams.get("type")
+        const typeFromHash = hashParams.get("type")
+        const type = typeFromSearch ?? typeFromHash
+
+        const codeFromSearch = urlObj.searchParams.get("code")
+
+        try {
+          await provider.handleAuthCallbackUrl(payload.url)
+        } catch (error) {
+          // Some Supabase flows may return a PKCE code in the query string.
+          // Prefer delegating to Supabase URL parsing, but fall back to direct
+          // code exchange when needed.
+          if (codeFromSearch) {
+            await provider.exchangeCodeForSession(codeFromSearch)
+          } else {
+            throw error
+          }
+        }
+
+        if (type === "recovery") {
+          setIsPasswordRecoveryActive(true)
+          navigate("/settings?tab=cloud")
+          return
+        }
+
+        if (type === "signup" || type === "magiclink") {
+          navigate("/settings?tab=cloud")
+          return
+        }
+
+        // Some flows (notably magiclink and PKCE-based verify redirects)
+        // may not preserve `type` in the final finanze:// callback.
+        // If a session was established, route the user to the Cloud tab.
+        const session = await provider.getSession()
+        if (session) {
+          navigate("/settings?tab=cloud")
+          return
+        }
+
+        // Even if the link is invalid/expired, Supabase sometimes redirects
+        // back without a session. Still route to Cloud so the user can see
+        // the current state/error.
+        if (
+          urlObj.protocol === "finanze:" &&
+          urlObj.hostname === "auth" &&
+          urlObj.pathname === "/callback"
+        ) {
+          navigate("/settings?tab=cloud")
+        }
       } catch (error) {
         console.error("Failed to set session from OAuth callback:", error)
+
+        if (
+          error instanceof Error &&
+          /code verifier|pkce/i.test(error.message)
+        ) {
+          setOauthError(t.settings.cloud.oauthErrors.invalid_request)
+          navigate("/settings?tab=cloud")
+        }
       }
     })
 
     return () => {
       unsubscribe?.()
     }
-  }, [getProvider])
+  }, [getProvider, navigate])
 
   useEffect(() => {
-    if (!window.ipcAPI?.onOAuthCallbackCode) {
+    try {
+      const provider = getProvider()
+      const unsubscribe = provider.onAuthEvent(event => {
+        if (event === "PASSWORD_RECOVERY") {
+          setIsPasswordRecoveryActive(true)
+          navigate("/settings?tab=cloud")
+        }
+      })
+
+      return () => {
+        unsubscribe?.()
+      }
+    } catch {
+      return
+    }
+  }, [getProvider, navigate])
+
+  const clearPasswordRecovery = useCallback(() => {
+    setIsPasswordRecoveryActive(false)
+  }, [])
+
+  const updatePassword = useCallback(
+    async (password: string) => {
+      setIsLoading(true)
+      try {
+        const provider = getProvider()
+        await provider.updatePassword(password)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [getProvider],
+  )
+
+  useEffect(() => {
+    // Avoid handling the same callback through multiple IPC channels.
+    // When the raw URL channel is available, it is the source of truth.
+    if (
+      window.ipcAPI?.onOAuthCallbackUrl ||
+      !window.ipcAPI?.onOAuthCallbackCode
+    ) {
       return
     }
 
@@ -353,7 +500,12 @@ export function CloudProvider({ children }: { children: ReactNode }) {
   }, [getProvider, t.settings.cloud.loginError])
 
   useEffect(() => {
-    if (!window.ipcAPI?.onOAuthCallbackError) {
+    // Avoid handling the same callback through multiple IPC channels.
+    // When the raw URL channel is available, it is the source of truth.
+    if (
+      window.ipcAPI?.onOAuthCallbackUrl ||
+      !window.ipcAPI?.onOAuthCallbackError
+    ) {
       return
     }
 
@@ -369,12 +521,13 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       const message = translatedError.replace("{error}", errorCode)
 
       setOauthError(message)
+      navigate("/settings?tab=cloud")
     })
 
     return () => {
       unsubscribe?.()
     }
-  }, [t.settings.cloud.oauthErrors])
+  }, [navigate, t.settings.cloud.oauthErrors])
 
   const signInWithGoogle = useCallback(async () => {
     setOauthError(null)
@@ -395,6 +548,44 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       try {
         const provider = getProvider()
         await provider.signInWithEmail(email, password)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [getProvider],
+  )
+
+  const signUpWithEmail = useCallback(
+    async (email: string, password: string) => {
+      setIsLoading(true)
+      try {
+        const provider = getProvider()
+        const isElectron = typeof window !== "undefined" && !!window.ipcAPI
+        const emailRedirectTo = isElectron
+          ? "finanze://auth/callback?type=signup"
+          : undefined
+        return await provider.signUpWithEmail(email, password, {
+          emailRedirectTo,
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [getProvider],
+  )
+
+  const requestPasswordReset = useCallback(
+    async (email: string) => {
+      setIsLoading(true)
+      try {
+        const provider = getProvider()
+        const isElectron = typeof window !== "undefined" && !!window.ipcAPI
+        const emailRedirectTo = isElectron
+          ? "finanze://auth/callback?type=recovery"
+          : undefined
+        await provider.requestPasswordReset(email, {
+          emailRedirectTo,
+        })
       } finally {
         setIsLoading(false)
       }
@@ -458,10 +649,15 @@ export function CloudProvider({ children }: { children: ReactNode }) {
         setBackupMode,
         isLoading,
         isInitialized,
+        isPasswordRecoveryActive,
+        clearPasswordRecovery,
         oauthError,
         clearOAuthError,
         signInWithGoogle,
         signInWithEmail,
+        signUpWithEmail,
+        requestPasswordReset,
+        updatePassword,
         signOut,
       }}
     >

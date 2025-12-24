@@ -3,5 +3,6 @@ export type {
   CloudSession,
   CloudAuthProvider,
   AuthStateChangeCallback,
+  EmailPasswordSignUpResult,
 } from "./types"
 export { SupabaseAuthProvider } from "./supabaseProvider"

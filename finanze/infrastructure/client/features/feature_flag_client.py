@@ -26,7 +26,7 @@ class FeatureFlagClient(FeatureFlagPort):
 
         try:
             self._log.info(f"Fetching feature flags from {self._feature_flag_url}")
-            with urlopen(self._feature_flag_url, timeout=5) as response:
+            with urlopen(self._feature_flag_url, timeout=4) as response:
                 data = json.loads(response.read().decode("utf-8"))
                 return self._evaluate_features(data)
         except URLError as e:
@@ -65,6 +65,9 @@ class FeatureFlagClient(FeatureFlagPort):
 
     def _evaluate_target(self, target: dict[str, Any]) -> bool:
         target_type = target.get("type")
+
+        if target_type == "ALL":
+            return True
 
         if target_type == "ID":
             return self._evaluate_id_target(target)

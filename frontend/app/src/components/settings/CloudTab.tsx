@@ -52,12 +52,30 @@ export function CloudTab() {
     clearOAuthError,
     signInWithGoogle,
     signInWithEmail,
+    signUpWithEmail,
+    requestPasswordReset,
+    isPasswordRecoveryActive,
+    clearPasswordRecovery,
+    updatePassword,
     signOut,
   } = useCloud()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<React.ReactNode | null>(null)
+  const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmNewPassword, setConfirmNewPassword] = useState("")
+  const [activeAction, setActiveAction] = useState<
+    | null
+    | "emailSignIn"
+    | "emailSignUp"
+    | "googleSignIn"
+    | "passwordResetRequest"
+    | "passwordUpdate"
+    | "signOut"
+  >(null)
 
   const isElectron = Boolean(window.ipcAPI)
   const isSignedIn = !!user
@@ -135,13 +153,48 @@ export function CloudTab() {
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccess(null)
     clearOAuthError()
+
+    setActiveAction(authMode === "signIn" ? "emailSignIn" : "emailSignUp")
     try {
-      await signInWithEmail(email, password)
-      setEmail("")
+      if (authMode === "signIn") {
+        await signInWithEmail(email, password)
+        setEmail("")
+        setPassword("")
+        return
+      }
+
+      const result = await signUpWithEmail(email, password)
       setPassword("")
+
+      if (result.status === "EMAIL_ALREADY_REGISTERED") {
+        setError(t.settings.cloud.signUpErrors.email_exists)
+        return
+      }
+
+      if (result.status === "PENDING_EMAIL_CONFIRMATION") {
+        const template = t.settings.cloud.signUpSuccessCheckEmail
+        const parts = template.split("{email}")
+        setSuccess(
+          <>
+            {parts[0]}
+            <strong className="font-semibold">{result.email}</strong>
+            {parts.slice(1).join("{email}")}
+          </>,
+        )
+      } else {
+        setEmail("")
+        setSuccess(t.settings.cloud.signUpSuccess)
+      }
     } catch (err: unknown) {
       console.error("Cloud sign-in error:", err)
+
+      const maybeStatus =
+        typeof err === "object" && err && "status" in err
+          ? (err as { status?: unknown }).status
+          : undefined
+
       const maybeCode =
         typeof err === "object" && err && "code" in err
           ? (err as { code?: unknown }).code
@@ -154,6 +207,23 @@ export function CloudTab() {
 
       const code = typeof maybeCode === "string" ? maybeCode : null
       const message = typeof maybeMessage === "string" ? maybeMessage : null
+      const status = typeof maybeStatus === "number" ? maybeStatus : null
+
+      if (status === 429) {
+        setError(t.settings.cloud.tooManyRequests)
+        return
+      }
+
+      if (authMode === "signUp") {
+        const fallbackCode = code ?? "unknown"
+        const translatedError =
+          t.settings.cloud.signUpErrors[
+            fallbackCode as keyof typeof t.settings.cloud.signUpErrors
+          ] ?? t.settings.cloud.signUpErrors.unknown
+
+        setError(translatedError.replace("{error}", fallbackCode))
+        return
+      }
 
       if (
         code === "invalid_credentials" ||
@@ -163,7 +233,115 @@ export function CloudTab() {
         return
       }
 
+      if (
+        code === "email_not_confirmed" ||
+        message?.toLowerCase().includes("not confirmed")
+      ) {
+        setError(t.settings.cloud.loginErrorEmailNotConfirmed)
+        return
+      }
+
       setError(t.settings.cloud.loginError)
+    } finally {
+      setActiveAction(null)
+    }
+  }
+
+  const handleForgotPassword = async () => {
+    setError(null)
+    setSuccess(null)
+    clearOAuthError()
+
+    const normalizedEmail = email.trim()
+    if (!normalizedEmail) {
+      setError(t.settings.cloud.passwordResetEmailRequired)
+      return
+    }
+
+    setActiveAction("passwordResetRequest")
+    try {
+      await requestPasswordReset(normalizedEmail)
+      const template = t.settings.cloud.passwordResetEmailSent
+      const parts = template.split("{email}")
+      setSuccess(
+        <>
+          {parts[0]}
+          <strong className="font-semibold">{normalizedEmail}</strong>
+          {parts.slice(1).join("{email}")}
+        </>,
+      )
+    } catch (err: unknown) {
+      console.error("Password reset request error:", err)
+
+      const maybeStatus =
+        typeof err === "object" && err && "status" in err
+          ? (err as { status?: unknown }).status
+          : undefined
+
+      const status = typeof maybeStatus === "number" ? maybeStatus : null
+      if (status === 429) {
+        setError(t.settings.cloud.tooManyRequests)
+        return
+      }
+
+      setError(t.settings.cloud.passwordResetError)
+    } finally {
+      setActiveAction(null)
+    }
+  }
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setSuccess(null)
+    clearOAuthError()
+
+    if (!newPassword || !confirmNewPassword) {
+      setError(t.settings.cloud.passwordUpdateError)
+      return
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError(t.settings.cloud.passwordMismatch)
+      return
+    }
+
+    setActiveAction("passwordUpdate")
+    try {
+      await updatePassword(newPassword)
+      setNewPassword("")
+      setConfirmNewPassword("")
+      setSuccess(t.settings.cloud.passwordUpdateSuccess)
+      clearPasswordRecovery()
+    } catch (err: unknown) {
+      console.error("Password update error:", err)
+
+      const maybeStatus =
+        typeof err === "object" && err && "status" in err
+          ? (err as { status?: unknown }).status
+          : undefined
+
+      const maybeCode =
+        typeof err === "object" && err && "code" in err
+          ? (err as { code?: unknown }).code
+          : undefined
+
+      const status = typeof maybeStatus === "number" ? maybeStatus : null
+      const code = typeof maybeCode === "string" ? maybeCode : null
+
+      if (status === 429) {
+        setError(t.settings.cloud.tooManyRequests)
+        return
+      }
+
+      if (code === "weak_password") {
+        setError(t.settings.cloud.signUpErrors.weak_password)
+        return
+      }
+
+      setError(t.settings.cloud.passwordUpdateError)
+    } finally {
+      setActiveAction(null)
     }
   }
 
@@ -191,7 +369,80 @@ export function CloudTab() {
           <CardDescription>{t.settings.cloud.description}</CardDescription>
         </CardHeader>
         <CardContent>
-          {isSignedIn ? (
+          {isPasswordRecoveryActive ? (
+            <div className="space-y-4 mx-auto max-w-md">
+              <div className="space-y-1 text-center">
+                <p className="text-base font-medium">
+                  {t.settings.cloud.passwordResetTitle}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {t.settings.cloud.passwordResetDescription}
+                </p>
+              </div>
+
+              <form onSubmit={handleUpdatePassword} className="space-y-4">
+                <Input
+                  type="password"
+                  placeholder={t.settings.cloud.newPasswordPlaceholder}
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  minLength={6}
+                />
+                <Input
+                  type="password"
+                  placeholder={t.settings.cloud.confirmNewPasswordPlaceholder}
+                  value={confirmNewPassword}
+                  onChange={e => setConfirmNewPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                  minLength={6}
+                />
+
+                {success && (
+                  <p className="text-sm text-primary text-center">{success}</p>
+                )}
+                {error && (
+                  <p className="text-sm text-destructive text-center">
+                    {error}
+                  </p>
+                )}
+
+                <Button
+                  type="submit"
+                  disabled={isLoading}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.common.saving}
+                    </>
+                  ) : (
+                    t.settings.cloud.updatePassword
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isLoading}
+                  className="w-full"
+                  onClick={() => {
+                    setError(null)
+                    setSuccess(null)
+                    setNewPassword("")
+                    setConfirmNewPassword("")
+                    clearPasswordRecovery()
+                  }}
+                >
+                  {t.settings.cloud.cancelPasswordReset}
+                </Button>
+              </form>
+            </div>
+          ) : isSignedIn ? (
             <div className="space-y-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border/50 bg-muted/20 p-4 dark:bg-muted/10">
                 <div className="space-y-1">
@@ -209,11 +460,21 @@ export function CloudTab() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={signOut}
+                    onClick={async () => {
+                      setError(null)
+                      setSuccess(null)
+                      clearOAuthError()
+                      setActiveAction("signOut")
+                      try {
+                        await signOut()
+                      } finally {
+                        setActiveAction(null)
+                      }
+                    }}
                     disabled={isLoading}
                     aria-label={t.settings.cloud.logout}
                   >
-                    {isLoading ? (
+                    {isLoading && activeAction === "signOut" ? (
                       <LoadingSpinner size="sm" />
                     ) : (
                       <LogOut className="h-4 w-4" />
@@ -242,25 +503,74 @@ export function CloudTab() {
                   disabled={isLoading}
                   minLength={6}
                 />
-                {error && <p className="text-sm text-destructive">{error}</p>}
+                {success && (
+                  <p className="text-sm text-primary text-center">{success}</p>
+                )}
+                {error && (
+                  <p className="text-sm text-destructive text-center">
+                    {error}
+                  </p>
+                )}
                 <Button
                   type="submit"
                   disabled={isLoading}
                   className="w-full"
                   size="lg"
                 >
-                  {isLoading ? (
+                  {isLoading &&
+                  (activeAction === "emailSignIn" ||
+                    activeAction === "emailSignUp") ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
-                      {t.settings.cloud.loggingIn}
+                      {authMode === "signIn"
+                        ? t.settings.cloud.loggingIn
+                        : t.settings.cloud.signingUp}
                     </>
                   ) : (
                     <>
                       <Mail className="mr-2 h-4 w-4" />
-                      {t.settings.cloud.signInWithEmail}
+                      {authMode === "signIn"
+                        ? t.settings.cloud.signInWithEmail
+                        : t.settings.cloud.signUp}
                     </>
                   )}
                 </Button>
+
+                {authMode === "signIn" && (
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    className="w-full text-xs text-muted-foreground"
+                    onClick={handleForgotPassword}
+                  >
+                    {isLoading && activeAction === "passwordResetRequest" ? (
+                      <span className="inline-flex items-center justify-center">
+                        <LoadingSpinner size="sm" className="mr-2" />
+                        {t.settings.cloud.sendingPasswordResetEmail}
+                      </span>
+                    ) : (
+                      t.settings.cloud.forgotPassword
+                    )}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  className="w-full text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  onClick={() => {
+                    setError(null)
+                    setSuccess(null)
+                    clearOAuthError()
+                    setAuthMode(prev =>
+                      prev === "signIn" ? "signUp" : "signIn",
+                    )
+                  }}
+                >
+                  {authMode === "signIn"
+                    ? t.settings.cloud.noAccount
+                    : t.settings.cloud.alreadyHaveAccount}
+                </button>
               </form>
 
               <div className="relative">
@@ -278,12 +588,22 @@ export function CloudTab() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={signInWithGoogle}
+                  onClick={async () => {
+                    setError(null)
+                    setSuccess(null)
+                    clearOAuthError()
+                    setActiveAction("googleSignIn")
+                    try {
+                      await signInWithGoogle()
+                    } finally {
+                      setActiveAction(null)
+                    }
+                  }}
                   disabled={isLoading || !isElectron}
                   className="w-full"
                   size="lg"
                 >
-                  {isLoading ? (
+                  {isLoading && activeAction === "googleSignIn" ? (
                     <>
                       <LoadingSpinner size="sm" className="mr-2" />
                       {t.settings.cloud.loggingIn}

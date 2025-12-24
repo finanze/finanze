@@ -571,6 +571,7 @@ declare global {
         callback: (tokens: {
           access_token: string
           refresh_token: string
+          type?: string
         }) => void,
       ) => () => void
 
@@ -584,6 +585,10 @@ declare global {
 
       onOAuthCallbackCode: (
         callback: (payload: { code: string }) => void,
+      ) => () => void
+
+      onOAuthCallbackUrl: (
+        callback: (payload: { url: string }) => void,
       ) => () => void
     }
   }

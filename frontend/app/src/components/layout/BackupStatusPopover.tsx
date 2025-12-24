@@ -527,6 +527,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
 
     try {
       autoSyncInFlightRef.current = true
+      setIsSyncing(true)
       const info = normalizeBackupsInfo(await getBackupsInfo())
       registerNetworkSuccess()
       setBackups(info)
@@ -603,6 +604,7 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
         }),
       )
     } finally {
+      setIsSyncing(false)
       autoSyncInFlightRef.current = false
     }
   }, [
@@ -746,6 +748,10 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
   const dotColor = getDotColor()
 
   const getStatusIcon = () => {
+    if (isSyncing) {
+      return <RefreshCw size={18} strokeWidth={2.5} className="animate-spin" />
+    }
+
     if (!backupEnabled) {
       return <CloudOff size={18} strokeWidth={2.5} />
     }
@@ -777,7 +783,9 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
           variant="ghost"
           size={collapsed ? "icon" : "sm"}
           className={cn("relative", collapsed ? "w-full" : "flex-1")}
-          aria-label={t.settings.backup.title}
+          aria-label={
+            isSyncing ? t.settings.backup.syncing : t.settings.backup.title
+          }
         >
           {getStatusIcon()}
           {dotColor && (

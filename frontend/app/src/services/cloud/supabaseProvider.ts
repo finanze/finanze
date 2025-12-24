@@ -7,6 +7,8 @@ import type {
   CloudAuthProvider,
   CloudSession,
   AuthStateChangeCallback,
+  EmailPasswordSignUpResult,
+  CloudAuthEvent,
 } from "./types"
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
@@ -30,8 +32,14 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
         // session first. Otherwise, Supabase may eagerly refresh an expired
         // local-storage session, causing extra requests and token churn.
         autoRefreshToken: false,
-        persistSession: true,
+        // The backend is the source of truth for the session - it provides the
+        // token on init and shares it with other clients. Persisting locally
+        // causes "refresh_token_already_used" errors when the backend or another
+        // client has already consumed the refresh token.
+        persistSession: false,
         detectSessionInUrl: true,
+        // Use PKCE flow for OAuth (Google) and for email links that return a
+        // PKCE code, relying on the verifier stored by auth-js.
         flowType: "pkce",
       },
     })
@@ -42,6 +50,30 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
       throw new Error("SupabaseAuthProvider not initialized")
     }
     return this.client
+  }
+
+  async handleAuthCallbackUrl(url: string): Promise<void> {
+    const urlObj = new URL(url)
+
+    const hash = urlObj.hash.startsWith("#")
+      ? urlObj.hash.substring(1)
+      : urlObj.hash
+    const hashParams = new URLSearchParams(hash)
+    const accessToken = hashParams.get("access_token")
+    const refreshToken = hashParams.get("refresh_token")
+
+    if (accessToken && refreshToken) {
+      await this.setSession(accessToken, refreshToken)
+      return
+    }
+
+    const code = urlObj.searchParams.get("code")
+    if (code) {
+      await this.exchangeCodeForSession(code)
+      return
+    }
+
+    // No session material in the URL (could be a non-auth deeplink).
   }
 
   async signInWithGoogle(callbackUrl: string): Promise<void> {
@@ -76,6 +108,57 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
     }
   }
 
+  async signUpWithEmail(
+    email: string,
+    password: string,
+    options?: { emailRedirectTo?: string },
+  ): Promise<EmailPasswordSignUpResult> {
+    const { data, error } = await this.getClient().auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: options?.emailRedirectTo,
+      },
+    })
+
+    if (error) {
+      throw error
+    }
+
+    // Supabase may return a user object but with an empty `identities` array
+    // when the email is already registered (no new identity created).
+    if (data.user?.identities && data.user.identities.length === 0) {
+      return { status: "EMAIL_ALREADY_REGISTERED" }
+    }
+
+    if (!data.session) {
+      return { status: "PENDING_EMAIL_CONFIRMATION", email }
+    }
+
+    return { status: "SIGNED_IN" }
+  }
+
+  async requestPasswordReset(
+    email: string,
+    options?: { emailRedirectTo?: string },
+  ): Promise<void> {
+    const { error } = await this.getClient().auth.resetPasswordForEmail(email, {
+      redirectTo: options?.emailRedirectTo,
+    })
+    if (error) {
+      throw error
+    }
+  }
+
+  async updatePassword(password: string): Promise<void> {
+    const { error } = await this.getClient().auth.updateUser({
+      password,
+    })
+    if (error) {
+      throw error
+    }
+  }
+
   async signOut(): Promise<void> {
     const { error } = await this.getClient().auth.signOut()
     if (error) {
@@ -84,6 +167,8 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
   }
 
   async clearLocalSession(): Promise<void> {
+    // With persistSession: false, there's no local session to clear.
+    // We still stop auto-refresh and call internal methods as a safeguard.
     const authAny = this.getClient().auth as unknown as {
       _removeSession?: () => Promise<void>
       stopAutoRefresh?: () => void
@@ -93,19 +178,6 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
 
     if (authAny._removeSession) {
       await authAny._removeSession()
-      return
-    }
-
-    if (typeof window !== "undefined") {
-      try {
-        const hostname = new URL(SUPABASE_URL).hostname
-        const projectRef = hostname.split(".")[0]
-        const key = `sb-${projectRef}-auth-token`
-        window.localStorage?.removeItem(key)
-        window.sessionStorage?.removeItem(key)
-      } catch {
-        // ignore
-      }
     }
   }
 
@@ -184,6 +256,18 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
         })
       },
     )
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }
+
+  onAuthEvent(callback: (event: CloudAuthEvent) => void): () => void {
+    const {
+      data: { subscription },
+    } = this.getClient().auth.onAuthStateChange((event: AuthChangeEvent) => {
+      callback(event as unknown as CloudAuthEvent)
+    })
 
     return () => {
       subscription.unsubscribe()

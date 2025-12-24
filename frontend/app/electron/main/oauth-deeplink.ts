@@ -5,6 +5,7 @@ export const OAUTH_PROTOCOL_NAME = "finanze"
 type OAuthTokens = {
   access_token: string
   refresh_token: string
+  type?: string
 }
 
 type OAuthError = {
@@ -49,6 +50,7 @@ function parseOAuthTokens(url: string): OAuthTokens | null {
     )
     const accessToken = hashParams.get("access_token")
     const refreshToken = hashParams.get("refresh_token")
+    const type = hashParams.get("type") ?? undefined
 
     if (!accessToken || !refreshToken) {
       console.warn(
@@ -61,7 +63,7 @@ function parseOAuthTokens(url: string): OAuthTokens | null {
     }
 
     console.debug("[OAuth] Successfully parsed OAuth tokens")
-    return { access_token: accessToken, refresh_token: refreshToken }
+    return { access_token: accessToken, refresh_token: refreshToken, type }
   } catch (error) {
     console.error("[OAuth] Failed to parse OAuth URL:", error)
     return null
@@ -129,6 +131,12 @@ export function setupOAuthDeepLinking(options: {
 
   const handleUrl = (url: string) => {
     console.debug("[OAuth] Handling OAuth URL callback")
+
+    // Always forward the full URL to the renderer so Supabase can parse it.
+    // This avoids mixing flows (oauth, recovery, signup confirmation) and keeps
+    // parsing logic in one place.
+    console.debug("[OAuth] Sending oauth-callback-url IPC message to renderer")
+    sendToAllWindows("oauth-callback-url", { url })
 
     const oauthError = parseOAuthError(url)
     if (oauthError) {
