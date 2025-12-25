@@ -14,6 +14,7 @@ import {
   formatNumber,
   formatPercentage,
 } from "@/lib/formatters"
+import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
   calculateCryptoAssetValue,
@@ -837,12 +838,9 @@ export default function CryptoInvestmentPage() {
 
       const performCopy = async () => {
         try {
-          if (navigator?.clipboard?.writeText) {
-            await navigator.clipboard.writeText(address)
-          }
-        } catch (error) {
-          console.warn("Failed to copy wallet address", error)
-        } finally {
+          const ok = await copyToClipboard(address)
+          if (!ok) return
+
           setCopiedAddress(address)
           if (copyTimeoutRef.current) {
             clearTimeout(copyTimeoutRef.current)
@@ -850,6 +848,8 @@ export default function CryptoInvestmentPage() {
           copyTimeoutRef.current = setTimeout(() => {
             setCopiedAddress(prev => (prev === address ? null : prev))
           }, 1500)
+        } catch (error) {
+          console.warn("Failed to copy wallet address", error)
         }
       }
 

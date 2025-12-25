@@ -33,7 +33,8 @@ import {
   recordAutoRefreshFailure,
   getAutoRefreshCandidates,
 } from "@/services/autoRefreshService"
-import { AutoRefreshMode } from "@/types"
+import { AutoRefreshMode, BackupMode } from "@/types"
+import { useCloud } from "@/context/CloudContext"
 
 export interface FetchOptions {
   deep?: boolean
@@ -130,6 +131,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     entities,
     entitiesLoaded,
   } = useAppContext()
+  const { backupMode } = useCloud()
 
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
@@ -893,8 +895,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     )
       return
 
-    autoRefreshExecutedRef.current = true
-
     const candidates = getAutoRefreshCandidates(
       entities,
       autoRefreshSettings.max_outdated,
@@ -903,15 +903,39 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
     if (candidates.length === 0) return
 
-    const AUTO_REFRESH_DELAY_MS = 3000
+    // If backup mode is AUTO, wait for sync to complete before fetching entities
+    if (backupMode === BackupMode.AUTO) {
+      const handleSyncComplete = () => {
+        setTimeout(() => {
+          autoRefreshExecutedRef.current = true
+          candidates.forEach(({ entity, features }) => {
+            scrape(entity, features, { silent: true, avoidNewLogin: true })
+          })
+        }, 3000)
+      }
+
+      window.addEventListener("backup-auto-sync-complete", handleSyncComplete, {
+        once: true,
+      })
+
+      return () => {
+        window.removeEventListener(
+          "backup-auto-sync-complete",
+          handleSyncComplete,
+        )
+      }
+    }
+
+    // Non-AUTO mode: use normal delay
     const timeoutId = setTimeout(() => {
+      autoRefreshExecutedRef.current = true
       candidates.forEach(({ entity, features }) => {
         scrape(entity, features, { silent: true, avoidNewLogin: true })
       })
-    }, AUTO_REFRESH_DELAY_MS)
+    }, 3000)
 
     return () => clearTimeout(timeoutId)
-  }, [entitiesLoaded, entities, settings, scrape])
+  }, [entitiesLoaded, entities, settings, scrape, backupMode])
 
   const disconnectEntityHandler = useCallback(
     async (entityId: string) => {

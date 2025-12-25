@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import List
 
 from dateutil.tz import tzlocal
+
 from domain.data_init import DatasourceInitContext, MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
 
@@ -58,7 +59,7 @@ class DatabaseUpgrader:
         """
         Creates the migrations table if it doesn't exist.
         """
-        with self._db_client.tx() as cursor:
+        with self._db_client.tx(skip_last_update=True) as cursor:
             cursor.execute("""
                            CREATE TABLE IF NOT EXISTS migrations
                            (
@@ -128,7 +129,7 @@ class DatabaseUpgrader:
         versions_to_apply = range(current + 1, target + 1)
 
         for version in versions_to_apply:
-            with self._db_client.tx() as cursor:
+            with self._db_client.tx(skip_last_update=True) as cursor:
                 migration = self._versions[version]
 
                 self._log.info(f"Applying migration: {migration.name}")
@@ -145,3 +146,7 @@ class DatabaseUpgrader:
                     "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
                     (version, applied_at, migration.name),
                 )
+
+        with self._db_client.tx():
+            # Update last update date after successful migration
+            pass

@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { formatCurrency } from "@/lib/formatters"
+import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
   calculateCryptoAssetValue,
@@ -332,29 +333,11 @@ export function ManageWalletsView({
   const handleCopyAddress = useCallback((address: string) => {
     if (!address) return
 
-    const fallbackCopy = (text: string) => {
-      const textArea = document.createElement("textarea")
-      textArea.value = text
-      textArea.setAttribute("readonly", "")
-      textArea.style.position = "absolute"
-      textArea.style.left = "-9999px"
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand("copy")
-      document.body.removeChild(textArea)
-    }
-
     const performCopy = async () => {
       try {
-        if (navigator?.clipboard?.writeText) {
-          await navigator.clipboard.writeText(address)
-        } else {
-          fallbackCopy(address)
-        }
-      } catch (error) {
-        console.warn("Failed to copy wallet address", error)
-        fallbackCopy(address)
-      } finally {
+        const ok = await copyToClipboard(address)
+        if (!ok) return
+
         setCopiedAddress(address)
         if (copyTimeoutRef.current) {
           clearTimeout(copyTimeoutRef.current)
@@ -362,6 +345,8 @@ export function ManageWalletsView({
         copyTimeoutRef.current = setTimeout(() => {
           setCopiedAddress(prev => (prev === address ? null : prev))
         }, 1500)
+      } catch (error) {
+        console.warn("Failed to copy wallet address", error)
       }
     }
 

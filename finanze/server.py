@@ -1,6 +1,9 @@
 import argparse
 import logging
+import os
 from pathlib import Path
+
+from waitress import serve
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
@@ -40,6 +43,9 @@ from application.use_cases.get_available_entities import GetAvailableEntitiesImp
 from application.use_cases.get_available_external_entities import (
     GetAvailableExternalEntitiesImpl,
 )
+from application.use_cases.get_backup_settings import GetBackupSettingsImpl
+from application.use_cases.get_backups import GetBackupsImpl
+from application.use_cases.get_cloud_auth import GetCloudAuthImpl
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
@@ -55,10 +61,13 @@ from application.use_cases.get_status import GetStatusImpl
 from application.use_cases.get_template_fields import GetTemplateFieldsImpl
 from application.use_cases.get_templates import GetTemplatesImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
+from application.use_cases.handle_cloud_auth import HandleCloudAuthImpl
+from application.use_cases.import_backup import ImportBackupImpl
 from application.use_cases.import_file import ImportFileImpl
 from application.use_cases.import_sheets import ImportSheetsImpl
 from application.use_cases.list_real_estate import ListRealEstateImpl
 from application.use_cases.register_user import RegisterUserImpl
+from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
@@ -71,12 +80,15 @@ from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_template import UpdateTemplateImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
+from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
+from domain.backup import BackupFileType
 from domain.exception.exceptions import UserNotFound
 from domain.export import FileFormat
 from domain.external_integration import ExternalIntegrationId
 from domain.user_login import LoginRequest
+from infrastructure.client.cloud.backup.backup_client import BackupClient
 from infrastructure.client.crypto.etherscan.etherscan_client import EtherscanClient
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient
 from infrastructure.client.entity.crypto.bitcoin.bitcoin_fetcher import BitcoinFetcher
@@ -121,11 +133,17 @@ from infrastructure.client.instrument.instrument_provider_adapter import (
 from infrastructure.client.rates.crypto.crypto_price_client import CryptoAssetInfoClient
 from infrastructure.client.rates.exchange_rate_client import ExchangeRateClient
 from infrastructure.client.rates.metal.metal_price_client import MetalPriceClient
+from infrastructure.cloud.backup.backup_processor_adapter import (
+    BackupProcessorAdapter,
+)
+from infrastructure.cloud.cloud_data_register import CloudDataRegister
 from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.config.server_details_adapter import ArgparseServerDetailsAdapter
 from infrastructure.controller.config import flask
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
+from infrastructure.client.features.feature_flag_client import FeatureFlagClient
+from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
 )
@@ -183,7 +201,6 @@ from infrastructure.table.xlsx_file_table_adapter import XLSXFileTableAdapter
 from infrastructure.templating.templated_data_generator import TemplatedDataGenerator
 from infrastructure.templating.templated_data_parser import TemplateDataParser
 from infrastructure.user_files.user_data_manager import UserDataManager
-from waitress import serve
 
 
 class FinanzeServer:
@@ -201,6 +218,7 @@ class FinanzeServer:
 
         self.config_loader = ConfigLoader()
         self.sheets_initiator = SheetsServiceLoader()
+        self.cloud_register = CloudDataRegister()
         self.etherscan_client = EtherscanClient()
         self.ethplorer_client = EthplorerClient()
         self.gocardless_client = GoCardlessClient(port=self.args.port)
@@ -305,24 +323,35 @@ class FinanzeServer:
             self.data_manager,
             self.config_loader,
             self.sheets_initiator,
+            self.cloud_register,
         )
         register_user = RegisterUserImpl(
             self.db_manager,
             self.data_manager,
             self.config_loader,
             self.sheets_initiator,
+            self.cloud_register,
         )
         change_user_password = ChangeUserPasswordImpl(
             self.db_manager, self.data_manager
         )
         server_options_port = ArgparseServerDetailsAdapter(self.args)
+        if os.getenv("ENV_FF"):
+            feature_flag_port = EnvFeatureFlagAdapter()
+        else:
+            users = self.data_manager.get_users()
+            feature_flag_port = FeatureFlagClient(users)
         get_status = GetStatusImpl(
             self.db_manager,
             self.data_manager,
             server_options_port,
+            feature_flag_port,
         )
         user_logout = UserLogoutImpl(
-            self.db_manager, self.config_loader, self.sheets_initiator
+            self.db_manager,
+            self.config_loader,
+            self.sheets_initiator,
+            self.cloud_register,
         )
 
         get_available_entities = GetAvailableEntitiesImpl(
@@ -579,6 +608,52 @@ class FinanzeServer:
         get_templates = GetTemplatesImpl(template_repository)
         get_template_fields = GetTemplateFieldsImpl()
 
+        backup_processor = BackupProcessorAdapter()
+        backup_repository = BackupClient()
+
+        backupable_ports = {
+            BackupFileType.DATA: self.db_manager,
+            BackupFileType.CONFIG: self.config_loader,
+        }
+        upload_backup = UploadBackupImpl(
+            data_initiator=self.db_manager,
+            backupable_ports=backupable_ports,
+            backup_processor=backup_processor,
+            backup_repository=backup_repository,
+            backup_local_registry=self.cloud_register,
+            cloud_register=self.cloud_register,
+        )
+        import_backup = ImportBackupImpl(
+            data_initiator=self.db_manager,
+            backupable_ports=backupable_ports,
+            backup_processor=backup_processor,
+            backup_repository=backup_repository,
+            backup_local_registry=self.cloud_register,
+            cloud_register=self.cloud_register,
+        )
+        get_backups = GetBackupsImpl(
+            backupable_ports=backupable_ports,
+            backup_repository=backup_repository,
+            backup_local_registry=self.cloud_register,
+            cloud_register=self.cloud_register,
+        )
+
+        handle_cloud_auth = HandleCloudAuthImpl(
+            cloud_register=self.cloud_register,
+        )
+
+        get_cloud_auth = GetCloudAuthImpl(
+            cloud_register=self.cloud_register,
+        )
+
+        get_backup_settings = GetBackupSettingsImpl(
+            backup_settings_port=self.cloud_register,
+        )
+
+        save_backup_settings = SaveBackupSettingsImpl(
+            backup_settings_port=self.cloud_register,
+        )
+
         self._log.info("Initial component setup completed.")
 
         self._init_user(args, user_login)
@@ -648,6 +723,13 @@ class FinanzeServer:
             delete_template,
             get_templates,
             get_template_fields,
+            upload_backup,
+            import_backup,
+            get_backups,
+            handle_cloud_auth,
+            get_cloud_auth,
+            get_backup_settings,
+            save_backup_settings,
         )
 
         self._log.info("Warming up exchange rates...")

@@ -1,11 +1,14 @@
+import logging
 from contextlib import contextmanager
+from datetime import datetime
 from threading import RLock
 from types import TracebackType
 from typing import Any, Generator, Literal, Optional
 from uuid import uuid4
 
-from domain.data_init import DataEncryptedError
 from typing_extensions import Self
+
+from domain.data_init import DataEncryptedError
 
 UnderlyingCursor = Any
 UnderlyingConnection = Any
@@ -40,6 +43,9 @@ class DBCursor:
     def execute(self, statement: str, *args) -> Self:
         return self._cursor.execute(statement, *args)
 
+    def execute_script(self, script: str) -> Self:
+        return self._cursor.executescript(script)
+
     def fetchone(self) -> Any:
         return self._cursor.fetchone()
 
@@ -58,6 +64,7 @@ class DBClient:
         self._conn = connection
         self.savepoint_stack: list[Optional[str]] = []
         self._lock = RLock()
+        self._log = logging.getLogger(__name__)
 
     def _get_connection(self) -> UnderlyingConnection:
         if self._conn is None:
@@ -65,7 +72,7 @@ class DBClient:
         return self._conn
 
     @contextmanager
-    def tx(self) -> Generator[DBCursor, None, None]:
+    def tx(self, skip_last_update=False) -> Generator[DBCursor, None, None]:
         with self._lock:
             cursor = self._cursor()
             try:
@@ -98,7 +105,9 @@ class DBClient:
                         # Release savepoint (commit nested changes)
                         cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
                     else:
-                        # Commit outermost transaction
+                        # Save last update date and commit outermost transaction
+                        if not skip_last_update:
+                            self._update_last_update_date()
                         self._commit()
             finally:
                 # Cleanup stack and cursor
@@ -114,6 +123,17 @@ class DBClient:
                 yield cursor
             finally:
                 cursor.close()
+
+    def _update_last_update_date(self):
+        timestamp = datetime.now().astimezone().isoformat()
+        cursor = self._cursor()
+        try:
+            cursor.execute(
+                "INSERT OR REPLACE INTO sys_config (key, value) VALUES (?, ?)",
+                ("last_update", timestamp),
+            )
+        finally:
+            cursor.close()
 
     def _commit(self):
         self._get_connection().commit()
@@ -132,6 +152,11 @@ class DBClient:
             return True
         except Exception:
             return False
+
+    def wal_checkpoint(self, mode: str = "PASSIVE") -> None:
+        with self._lock:
+            with self._cursor() as cursor:
+                cursor.execute(f"PRAGMA wal_checkpoint({mode})")
 
     def _cursor(self) -> DBCursor:
         return DBCursor(self._get_connection().cursor())

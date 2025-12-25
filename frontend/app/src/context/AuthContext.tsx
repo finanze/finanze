@@ -12,10 +12,12 @@ import {
   signup as apiSignup,
   changePassword as apiChangePassword,
 } from "@/services/api"
-import { AuthResultCode } from "@/types"
+import { AuthResultCode, type User } from "@/types"
+import { setFeatureFlags } from "@/context/featureFlagsStore"
 
 interface AuthContextType {
   isAuthenticated: boolean
+  user: User | null
   isLoading: boolean
   isInitializing: boolean
   isChangingPassword: boolean
@@ -36,6 +38,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitializing, setIsInitializing] = useState(true)
   const [isChangingPassword, setIsChangingPassword] = useState(false)
@@ -44,15 +47,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     string | null
   >(null)
 
+  const syncStatus = async (): Promise<void> => {
+    const {
+      status,
+      lastLogged: last_logged,
+      features,
+      user: statusUser,
+    } = await checkStatus()
+
+    setFeatureFlags(features)
+    const isUnlocked = status === "UNLOCKED"
+    setIsAuthenticated(isUnlocked)
+    setUser(isUnlocked ? (statusUser ?? null) : null)
+    setLastLoggedUser(last_logged || null)
+  }
+
   useEffect(() => {
     const checkAuth = async () => {
       const retryDelay = 1500
 
       while (true) {
         try {
-          const { status, lastLogged: last_logged } = await checkStatus()
-          setIsAuthenticated(status === "UNLOCKED")
-          setLastLoggedUser(last_logged || null)
+          await syncStatus()
           setIsInitializing(false)
           return
         } catch {
@@ -71,14 +87,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const result = await apiLogin({ username, password })
-      setIsAuthenticated(result.code === AuthResultCode.SUCCESS)
-      if (result.code === AuthResultCode.SUCCESS) {
-        setLastLoggedUser(username)
+      const isSuccess = result.code === AuthResultCode.SUCCESS
+      setIsAuthenticated(isSuccess)
+      if (isSuccess) {
+        try {
+          await syncStatus()
+        } catch {
+          setLastLoggedUser(username)
+          setUser(null)
+        }
       }
       return result
     } catch (error) {
       console.error("Login error:", error)
       setIsAuthenticated(false)
+      setUser(null)
       return {
         code: AuthResultCode.UNEXPECTED_ERROR,
         message: error instanceof Error ? error.message : undefined,
@@ -97,8 +120,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { success } = await apiSignup({ username, password })
       if (success) {
         // Signup automatically logs the user in, so set auth state
-        setIsAuthenticated(true)
-        setLastLoggedUser(username)
+        try {
+          await syncStatus()
+        } catch {
+          setIsAuthenticated(true)
+          setLastLoggedUser(username)
+          setUser(null)
+        }
       }
       return success
     } catch (error) {
@@ -114,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await apiLogout()
       setIsAuthenticated(false)
+      setUser(null)
       // Always preserve lastLoggedUser - it should only be cleared when a new user logs in
       // This ensures that after logout, the login page shows for the last logged user
     } catch (error) {
@@ -169,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider
       value={{
         isAuthenticated,
+        user,
         isLoading,
         isInitializing,
         isChangingPassword,

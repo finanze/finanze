@@ -2,6 +2,12 @@ FROM node:22-alpine AS build
 
 WORKDIR /app
 
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+
+ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
+ENV VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY
+
 RUN npm install -g pnpm
 
 COPY ./app/package.json ./app/pnpm-lock.yaml ./app/pnpm-workspace.yaml ./

@@ -52,7 +52,7 @@ class VirtualImportRepository(VirtualImportRegistry):
                               ON vdi.import_id = lid.import_id
                 """
 
-        with self._db_client.tx() as cursor:
+        with self._db_client.read() as cursor:
             cursor.execute(query, params)
 
             rows = cursor.fetchall()
