@@ -221,6 +221,10 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
         return
       }
 
+      if (autoSyncInFlightRef.current) {
+        return
+      }
+
       if (!onlyLocal) {
         setIsLoading(true)
         setStatusMessage(null)
