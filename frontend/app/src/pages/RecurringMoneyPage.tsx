@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/Switch"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
-import { Card } from "@/components/ui/Card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
   MultiSelect,
   type MultiSelectOption,
@@ -753,7 +753,7 @@ export default function RecurringMoneyPage() {
     }
   }
 
-  const FlowSection = ({
+  const renderFlowSection = ({
     title,
     flows,
     flowType,
@@ -988,7 +988,7 @@ export default function RecurringMoneyPage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6 pb-6 w-full min-w-0"
       variants={fadeListContainer}
       initial={runEntranceAnimation ? "hidden" : false}
       animate="show"
@@ -1097,8 +1097,8 @@ export default function RecurringMoneyPage() {
         </Card>
         {showSavingsCard && (
           <Card className="p-4 md:col-span-2 xl:col-span-1">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between min-w-0">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
                   <PiggyBank className="h-5 w-5 text-emerald-500" />
                   <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -1132,9 +1132,9 @@ export default function RecurringMoneyPage() {
                   </div>
                 </div>
               </div>
-              <div className="space-y-1 sm:text-right">
-                <div className="flex items-center gap-2 sm:justify-end">
-                  <span className="text-sm font-medium text-muted-foreground">
+              <div className="space-y-1 sm:text-right min-w-0">
+                <div className="flex items-center gap-2 sm:justify-end min-w-0">
+                  <span className="text-sm font-medium text-muted-foreground truncate min-w-0">
                     {t.management.monthlyInvestedAmount}
                   </span>
                   <Button
@@ -1467,7 +1467,7 @@ export default function RecurringMoneyPage() {
                     <div
                       key={`legend2-earning-${earning.id}`}
                       className={cn(
-                        "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
+                        "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-0 sm:min-w-[180px] max-w-full overflow-hidden",
                         canFilter
                           ? "cursor-pointer"
                           : "cursor-default opacity-70",
@@ -1477,8 +1477,10 @@ export default function RecurringMoneyPage() {
                       }
                     >
                       <div className={`w-3 h-3 rounded ${earning.color}`}></div>
-                      <span className="font-medium">{earning.category}</span>
-                      <span className="font-mono text-green-600">
+                      <span className="font-medium truncate min-w-0 flex-1">
+                        {earning.category}
+                      </span>
+                      <span className="font-mono text-green-600 shrink-0">
                         {formatCurrency(
                           earning.amount,
                           locale,
@@ -1500,7 +1502,7 @@ export default function RecurringMoneyPage() {
                     <div
                       key={`legend2-expense-${expense.id}`}
                       className={cn(
-                        "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-[180px]",
+                        "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-0 sm:min-w-[180px] max-w-full overflow-hidden",
                         canFilter
                           ? "cursor-pointer"
                           : "cursor-default opacity-70",
@@ -1510,8 +1512,10 @@ export default function RecurringMoneyPage() {
                       }
                     >
                       <div className={`w-3 h-3 rounded ${expense.color}`}></div>
-                      <span className="font-medium">{expense.category}</span>
-                      <span className="font-mono text-red-600">
+                      <span className="font-medium truncate min-w-0 flex-1">
+                        {expense.category}
+                      </span>
+                      <span className="font-mono text-red-600 shrink-0">
                         {formatCurrency(
                           expense.amount,
                           locale,
@@ -1707,24 +1711,24 @@ export default function RecurringMoneyPage() {
       )}
 
       <motion.div variants={fadeListItem} className="pt-4">
-        <FlowSection
-          title={t.management.earnings}
-          flows={sortedFlows.earnings}
-          flowType={FlowType.EARNING}
-          emptyMessage={t.management.noEarnings}
-          addMessage={t.management.addFirstEarning}
-          runEntranceAnimation={runEntranceAnimation}
-        />
+        {renderFlowSection({
+          title: t.management.earnings,
+          flows: sortedFlows.earnings,
+          flowType: FlowType.EARNING,
+          emptyMessage: t.management.noEarnings,
+          addMessage: t.management.addFirstEarning,
+          runEntranceAnimation,
+        })}
       </motion.div>
 
       <motion.div variants={fadeListItem}>
-        <FlowSection
-          title={t.management.expenses}
-          flows={sortedFlows.expenses}
-          flowType={FlowType.EXPENSE}
-          emptyMessage={t.management.noExpenses}
-          addMessage={t.management.addFirstExpense}
-          extraButton={
+        {renderFlowSection({
+          title: t.management.expenses,
+          flows: sortedFlows.expenses,
+          flowType: FlowType.EXPENSE,
+          emptyMessage: t.management.noExpenses,
+          addMessage: t.management.addFirstExpense,
+          extraButton:
             dismissedSuggestions.length > 0 &&
             loanSuggestions.some(suggestion =>
               dismissedSuggestions.includes(suggestion.id),
@@ -1741,199 +1745,238 @@ export default function RecurringMoneyPage() {
                   <Lightbulb size={14} />
                 )}
               </Button>
-            ) : undefined
-          }
-          runEntranceAnimation={runEntranceAnimation}
-        />
+            ) : undefined,
+          runEntranceAnimation,
+        })}
       </motion.div>
 
       {/* Dialog for Add/Edit */}
-      {isDialogOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">
-                {editingFlow ? t.common.edit : t.management.addNew}{" "}
-                {formData.flow_type === FlowType.EARNING
-                  ? t.management.flowType.EARNING
-                  : t.management.flowType.EXPENSE}
-              </h3>
-              {editingFlow?.linked && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <span className="inline-flex text-muted-foreground">
-                      <Link2
-                        size={18}
-                        strokeWidth={2.5}
-                        style={{ transform: "rotate(155deg)" }}
-                      />
-                    </span>
-                  </PopoverTrigger>
-                  <PopoverContent side="left" className="w-72 text-xs">
-                    {(t.management as any).editLinkedWarning.replace(
-                      "{type}",
-                      (editingFlow?.flow_type === FlowType.EARNING
+      <AnimatePresence>
+        {isDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-gray-900/20 dark:bg-black/50 flex items-center justify-center p-4 z-[18000]"
+            onClick={e => {
+              if (e.target === e.currentTarget) setIsDialogOpen(false)
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-md"
+            >
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-4">
+                  <div className="flex items-start gap-2">
+                    <CardTitle className="text-xl">
+                      {editingFlow ? t.common.edit : t.management.addNew}{" "}
+                      {formData.flow_type === FlowType.EARNING
                         ? t.management.flowType.EARNING
-                        : t.management.flowType.EXPENSE
-                      ).toLowerCase(),
+                        : t.management.flowType.EXPENSE}
+                    </CardTitle>
+                    {editingFlow?.linked && (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <span className="inline-flex text-muted-foreground mt-1">
+                            <Link2
+                              size={18}
+                              strokeWidth={2.5}
+                              style={{ transform: "rotate(155deg)" }}
+                            />
+                          </span>
+                        </PopoverTrigger>
+                        <PopoverContent side="left" className="w-72 text-xs">
+                          {(t.management as any).editLinkedWarning.replace(
+                            "{type}",
+                            (editingFlow?.flow_type === FlowType.EARNING
+                              ? t.management.flowType.EARNING
+                              : t.management.flowType.EXPENSE
+                            ).toLowerCase(),
+                          )}
+                        </PopoverContent>
+                      </Popover>
                     )}
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.iconLabel}
-                </label>
-                <IconPicker
-                  value={formData.icon as IconName | undefined}
-                  onValueChange={value =>
-                    setFormData(prev => ({ ...prev, icon: value }))
-                  }
-                  modal
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.name}
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <Input
-                  value={formData.name}
-                  onChange={e =>
-                    setFormData(prev => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder={t.management.namePlaceholder}
-                  className={
-                    validationErrors.includes("name") ? "border-red-500" : ""
-                  }
-                />
-              </div>
+                <CardContent className="space-y-4">
+                  <div className="flex items-end justify-between gap-4">
+                    <div className="min-w-0">
+                      <label className="text-sm font-medium block mb-1">
+                        {t.management.iconLabel}
+                      </label>
+                      <IconPicker
+                        value={formData.icon as IconName | undefined}
+                        onValueChange={value =>
+                          setFormData(prev => ({ ...prev, icon: value }))
+                        }
+                        modal
+                      />
+                    </div>
 
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.amount}
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                    {getCurrencySymbol(formData.currency)}
-                  </span>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={e =>
-                      setFormData(prev => ({
-                        ...prev,
-                        amount: parseFloat(e.target.value),
-                      }))
-                    }
-                    placeholder={t.management.amountPlaceholder}
-                    className={`pl-8 ${validationErrors.includes("amount") ? "border-red-500" : ""}`}
-                  />
-                </div>
-              </div>
+                    <div className="flex items-center gap-2 pb-1 shrink-0">
+                      <label
+                        htmlFor="recurring-enabled"
+                        className="text-sm font-medium"
+                      >
+                        {t.management.enabled}
+                      </label>
+                      <Switch
+                        id="recurring-enabled"
+                        checked={formData.enabled}
+                        onCheckedChange={checked =>
+                          setFormData(prev => ({ ...prev, enabled: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.name}
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <Input
+                      value={formData.name}
+                      onChange={e =>
+                        setFormData(prev => ({ ...prev, name: e.target.value }))
+                      }
+                      placeholder={t.management.namePlaceholder}
+                      className={
+                        validationErrors.includes("name")
+                          ? "border-red-500"
+                          : ""
+                      }
+                    />
+                  </div>
 
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.category}{" "}
-                  <span className="text-gray-400 font-normal">
-                    ({t.management.optional})
-                  </span>
-                </label>
-                <CategorySelector
-                  value={formData.category || ""}
-                  onChange={value =>
-                    setFormData(prev => ({
-                      ...prev,
-                      category: value,
-                    }))
-                  }
-                  placeholder={t.management.categoryPlaceholder}
-                  categories={existingCategories}
-                />
-              </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.amount}
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                        {getCurrencySymbol(formData.currency)}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={e =>
+                          setFormData(prev => ({
+                            ...prev,
+                            amount: parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder={t.management.amountPlaceholder}
+                        className={`pl-8 ${validationErrors.includes("amount") ? "border-red-500" : ""}`}
+                      />
+                    </div>
+                  </div>
 
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.frequencyLabel}
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <select
-                  value={formData.frequency}
-                  onChange={e =>
-                    setFormData(prev => ({
-                      ...prev,
-                      frequency: e.target.value as FlowFrequency,
-                    }))
-                  }
-                  className={`w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 ${validationErrors.includes("frequency") ? "border-red-500" : ""}`}
-                >
-                  {Object.values(FlowFrequency).map(freq => (
-                    <option key={freq} value={freq}>
-                      {getFrequencyLabel(freq)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.category}{" "}
+                      <span className="text-gray-400 font-normal">
+                        ({t.management.optional})
+                      </span>
+                    </label>
+                    <CategorySelector
+                      value={formData.category || ""}
+                      onChange={value =>
+                        setFormData(prev => ({
+                          ...prev,
+                          category: value,
+                        }))
+                      }
+                      placeholder={t.management.categoryPlaceholder}
+                      categories={existingCategories}
+                    />
+                  </div>
 
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.since}
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-                <DatePicker
-                  value={formData.since}
-                  onChange={value =>
-                    setFormData(prev => ({ ...prev, since: value }))
-                  }
-                  className={
-                    validationErrors.includes("since") ? "border-red-500" : ""
-                  }
-                />
-              </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.frequencyLabel}
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <select
+                      value={formData.frequency}
+                      onChange={e =>
+                        setFormData(prev => ({
+                          ...prev,
+                          frequency: e.target.value as FlowFrequency,
+                        }))
+                      }
+                      className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${validationErrors.includes("frequency") ? "border-red-500" : ""}`}
+                    >
+                      {Object.values(FlowFrequency).map(freq => (
+                        <option key={freq} value={freq}>
+                          {getFrequencyLabel(freq)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="text-sm font-medium block mb-1">
-                  {t.management.until}{" "}
-                  <span className="text-gray-400 font-normal">
-                    ({t.management.optional})
-                  </span>
-                </label>
-                <DatePicker
-                  value={formData.until}
-                  onChange={value =>
-                    setFormData(prev => ({ ...prev, until: value }))
-                  }
-                />
-              </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.since}
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <DatePicker
+                      value={formData.since}
+                      onChange={value =>
+                        setFormData(prev => ({ ...prev, since: value }))
+                      }
+                      className={
+                        validationErrors.includes("since")
+                          ? "border-red-500"
+                          : ""
+                      }
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between">
-                <label htmlFor="enabled" className="text-sm font-medium">
-                  {t.management.enabled}
-                </label>
-                <Switch
-                  id="enabled"
-                  checked={formData.enabled}
-                  onCheckedChange={checked =>
-                    setFormData(prev => ({ ...prev, enabled: checked }))
-                  }
-                />
-              </div>
-            </div>
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.until}{" "}
+                      <span className="text-gray-400 font-normal">
+                        ({t.management.optional})
+                      </span>
+                    </label>
+                    <DatePicker
+                      value={formData.until}
+                      onChange={value =>
+                        setFormData(prev => ({ ...prev, until: value }))
+                      }
+                    />
+                  </div>
 
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                {t.common.cancel}
-              </Button>
-              <Button onClick={handleSubmit}>{t.common.save}</Button>
-            </div>
-          </div>
-        </div>
-      )}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      {t.common.cancel}
+                    </Button>
+                    <Button onClick={handleSubmit}>{t.common.save}</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ConfirmationDialog
         isOpen={isDeleteDialogOpen}

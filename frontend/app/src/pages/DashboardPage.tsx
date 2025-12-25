@@ -681,7 +681,22 @@ export default function DashboardPage() {
     if (!forecastMode || !forecastResult) return ongoingProjectsBase
     try {
       const target = new Date(forecastResult.target_date)
-      return ongoingProjectsBase.filter(p => new Date(p.maturity) >= target)
+      return ongoingProjectsBase.filter(p => {
+        const maturity = new Date(p.maturity)
+        const extended = p.extendedMaturity
+          ? new Date(p.extendedMaturity)
+          : null
+        const hasValidExtended = !!extended && !Number.isNaN(extended.getTime())
+        const hasValidMaturity = !Number.isNaN(maturity.getTime())
+        if (!hasValidMaturity && !hasValidExtended) return false
+
+        const effectiveMaturity =
+          hasValidExtended && (!hasValidMaturity || extended! > maturity)
+            ? extended!
+            : maturity
+
+        return effectiveMaturity >= target
+      })
     } catch {
       return ongoingProjectsBase
     }
