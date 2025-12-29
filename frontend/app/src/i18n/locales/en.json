@@ -10,6 +10,7 @@
     "success": "Success",
     "error": "Error",
     "unexpectedError": "Unexpected error occurred",
+    "somethingWentWrong": "Something went wrong",
     "fetchSuccess": "Data successfully fetched",
     "fetchSuccessEntity": "Data successfully fetched from {entity}",
     "loginSuccessEntity": "Successfully logged in to {entity}",
@@ -96,7 +97,9 @@
     "connectingToServer": "Connecting to",
     "startingServer": "Starting server",
     "officialWebpage": "finanze.me",
-    "officialWebpageUrl": "https://finanze.me"
+    "officialWebpageUrl": "https://finanze.me",
+    "optional": "Optional",
+    "clear": "Clear"
   },
   "release": {
     "newVersionAvailable": "New Version Available",
@@ -1979,6 +1982,47 @@
           "ticker": "Enter a ticker or an ISIN.",
           "isin": "Enter a ticker or an ISIN.",
           "investment": "Add at least initial investment or average buy price."
+        }
+      },
+      "crypto": {
+        "title": "Manual crypto",
+        "description": "Track crypto positions managed manually.",
+        "add": "Add",
+        "empty": {
+          "title": "No manual crypto",
+          "description": "Add a manual crypto position to your portfolio."
+        },
+        "form": {
+          "createTitle": "Add manual crypto",
+          "createDescription": "Provide the crypto details to track it manually.",
+          "editTitle": "Edit manual crypto",
+          "editDescription": "Update the selected manual crypto."
+        },
+        "fields": {
+          "symbol": "Symbol",
+          "name": "Name",
+          "amount": "Amount",
+          "contractAddress": "Contract address",
+          "initialInvestment": "Initial investment",
+          "averageBuyPrice": "Average buy price",
+          "investmentCurrency": "Investment currency"
+        },
+        "helpers": {
+          "searchBySymbol": "Search by symbol",
+          "searchByName": "Search by name",
+          "symbolPlaceholder": "e.g. BTC, ETH",
+          "namePlaceholder": "e.g. Bitcoin, Ethereum",
+          "unitPrice": "Unit price",
+          "marketValue": "Market value",
+          "selectPlatform": "Available platforms",
+          "platformHint": "Select a platform to auto-fill the entity.",
+          "searchResults": "Search results",
+          "noResults": "No results found",
+          "clearSelection": "Clear selection",
+          "existing": "Existing"
+        },
+        "validation": {
+          "symbolOrName": "Enter a symbol or name."
         }
       },
       "deposits": {

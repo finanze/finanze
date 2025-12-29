@@ -54,6 +54,8 @@ import {
   ImportBackupRequest,
   BackupSettings,
   GetBackupsInfoRequest,
+  CryptoAssetDetails,
+  AvailableCryptoAssetsResult,
 } from "@/types"
 import {
   EntityContributions,
@@ -1111,6 +1113,80 @@ export async function getImageUrl(imagePath: string): Promise<string> {
   return `${imageBaseUrl}${imagePath}`
 }
 
+export async function getCryptoAssetDetails(
+  providerAssetId: string,
+  provider: string,
+): Promise<CryptoAssetDetails> {
+  const trimmedProviderAssetId = providerAssetId.trim()
+  const trimmedProvider = provider.trim()
+
+  if (!trimmedProviderAssetId) {
+    throw new Error("provider_asset_id is required")
+  }
+
+  if (!trimmedProvider) {
+    throw new Error("provider is required")
+  }
+
+  const baseUrl = await ensureApiUrlInitialized()
+  const url = new URL(
+    `${baseUrl}/assets/crypto/${encodeURIComponent(trimmedProviderAssetId)}`,
+  )
+  url.searchParams.set("provider", trimmedProvider)
+
+  const response = await fetch(url.toString())
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
+interface GetCryptoAssetsQuery {
+  name?: string
+  symbol?: string
+  page?: number
+  limit?: number
+}
+
+export async function getCryptoAssets(
+  query: GetCryptoAssetsQuery,
+): Promise<AvailableCryptoAssetsResult> {
+  const trimmedName = query.name?.trim()
+  const trimmedSymbol = query.symbol?.trim()
+
+  const hasName = Boolean(trimmedName)
+  const hasSymbol = Boolean(trimmedSymbol)
+
+  if (hasName === hasSymbol) {
+    throw new Error("Provide either 'name' or 'symbol', but not both")
+  }
+
+  const baseUrl = await ensureApiUrlInitialized()
+  const url = new URL(`${baseUrl}/assets/crypto`)
+
+  if (hasName && trimmedName) {
+    url.searchParams.set("name", trimmedName)
+  }
+
+  if (hasSymbol && trimmedSymbol) {
+    url.searchParams.set("symbol", trimmedSymbol)
+  }
+
+  if (typeof query.page === "number") {
+    url.searchParams.set("page", query.page.toString())
+  }
+
+  if (typeof query.limit === "number") {
+    url.searchParams.set("limit", query.limit.toString())
+  }
+
+  const response = await fetch(url.toString())
+  if (!response.ok) {
+    await handleApiError(response)
+  }
+  return response.json()
+}
+
 // External entity endpoints
 export async function getExternalEntityCandidates(
   country: string,
@@ -1205,7 +1281,9 @@ export async function getInstruments(
   if (request.name) params.append("name", request.name)
   if (request.ticker) params.append("ticker", request.ticker)
 
-  const response = await fetch(`${baseUrl}/instruments?${params.toString()}`)
+  const response = await fetch(
+    `${baseUrl}/assets/instruments?${params.toString()}`,
+  )
   if (!response.ok) {
     await handleApiError(response)
   }
@@ -1224,7 +1302,7 @@ export async function getInstrumentDetails(
   if (request.ticker) params.append("ticker", request.ticker)
 
   const response = await fetch(
-    `${baseUrl}/instruments/details?${params.toString()}`,
+    `${baseUrl}/assets/instruments/details?${params.toString()}`,
   )
   if (!response.ok) {
     await handleApiError(response)

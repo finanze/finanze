@@ -191,10 +191,18 @@ export const calculateCryptoAssetInitialInvestment = (
   targetCurrency: string,
   exchangeRates: ExchangeRates,
 ): number => {
-  const initialInvestment = asset.initial_investment || 0
-  if (initialInvestment <= 0) {
-    return 0
-  }
+  const directInitialInvestment = asset.initial_investment || 0
+  const averageBuyPrice = asset.average_buy_price || 0
+  const amount = asset.amount || 0
+
+  const initialInvestment =
+    directInitialInvestment > 0
+      ? directInitialInvestment
+      : averageBuyPrice > 0 && amount > 0
+        ? averageBuyPrice * amount
+        : 0
+
+  if (initialInvestment <= 0) return 0
 
   const sourceCurrency =
     asset.investment_currency || asset.currency || targetCurrency

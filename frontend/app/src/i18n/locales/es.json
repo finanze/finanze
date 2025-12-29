@@ -10,6 +10,7 @@
     "success": "Éxito",
     "error": "Error",
     "unexpectedError": "Error inesperado al cargar",
+    "somethingWentWrong": "Algo salió mal",
     "fetchSuccess": "Datos obtenidos con éxito",
     "fetchSuccessEntity": "Datos obtenidos con éxito de {entity}",
     "loginSuccessEntity": "Inicio de sesión exitoso en {entity}",
@@ -94,7 +95,9 @@
     "connectingToServer": "Conectando a",
     "startingServer": "Iniciando servidor",
     "officialWebpage": "finanze.me",
-    "officialWebpageUrl": "https://finanze.me"
+    "officialWebpageUrl": "https://finanze.me",
+    "optional": "Opcional",
+    "clear": "Limpiar"
   },
   "release": {
     "newVersionAvailable": "Nueva versión disponible",
@@ -1991,6 +1994,47 @@
           "ticker": "Introduce un ticker o un ISIN.",
           "isin": "Introduce un ticker o un ISIN.",
           "investment": "Indica al menos inversión inicial o precio medio."
+        }
+      },
+      "crypto": {
+        "title": "Cripto manual",
+        "description": "Sigue posiciones en criptomonedas gestionadas manualmente.",
+        "add": "Añadir",
+        "empty": {
+          "title": "No hay cripto manual",
+          "description": "Añade una posición manual de criptomoneda a tu cartera."
+        },
+        "form": {
+          "createTitle": "Añadir cripto manual",
+          "createDescription": "Introduce los datos de la criptomoneda para seguirla manualmente.",
+          "editTitle": "Editar cripto manual",
+          "editDescription": "Actualiza la criptomoneda manual seleccionada."
+        },
+        "fields": {
+          "symbol": "Símbolo",
+          "name": "Nombre",
+          "amount": "Cantidad",
+          "contractAddress": "Dirección del contrato",
+          "initialInvestment": "Inversión inicial",
+          "averageBuyPrice": "Precio medio de compra",
+          "investmentCurrency": "Moneda de inversión"
+        },
+        "helpers": {
+          "searchBySymbol": "Buscar por símbolo",
+          "searchByName": "Buscar por nombre",
+          "symbolPlaceholder": "ej. BTC, ETH",
+          "namePlaceholder": "ej. Bitcoin, Ethereum",
+          "unitPrice": "Precio unitario",
+          "marketValue": "Valor de mercado",
+          "selectPlatform": "Plataformas disponibles",
+          "platformHint": "Selecciona una plataforma para completar la entidad.",
+          "searchResults": "Resultados de búsqueda",
+          "noResults": "No se encontraron resultados",
+          "clearSelection": "Limpiar selección",
+          "existing": "Existente"
+        },
+        "validation": {
+          "symbolOrName": "Introduce un símbolo o nombre."
         }
       },
       "deposits": {

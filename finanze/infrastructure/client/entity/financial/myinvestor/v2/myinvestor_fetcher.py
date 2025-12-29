@@ -3,9 +3,10 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
@@ -396,6 +397,21 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     if raw_tx_type == "ABONO LIQUIDAC DEPO":
                         related_deposit_data = tx.get("depositSettlementDetails")
                         if not related_deposit_data:
+                            self._log.warning(
+                                f"No associated deposit data found for deposit maturity of tx {ref}, simulating full repayment"
+                            )
+                            deposit_txs.append(
+                                _map_deposit_tx(
+                                    ref,
+                                    TxType.REPAYMENT,
+                                    name,
+                                    amount,
+                                    amount,
+                                    Dezimal(0),
+                                    tx_date,
+                                    currency,
+                                )
+                            )
                             continue
 
                         deposit_amount = Dezimal(related_deposit_data["amount"])

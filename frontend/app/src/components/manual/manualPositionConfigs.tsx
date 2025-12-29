@@ -1,10 +1,12 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ChangeEvent,
 } from "react"
+import { createPortal } from "react-dom"
 import { Label } from "@/components/ui/Label"
 import { Input } from "@/components/ui/Input"
 import { DatePicker } from "@/components/ui/DatePicker"
@@ -33,6 +35,9 @@ import {
   RealEstateCFDetail,
   ProductType,
   EquityType,
+  CryptoCurrencyPosition,
+  CryptoCurrencyType,
+  CryptoAsset,
 } from "@/types/position"
 import {
   DataSource,
@@ -41,6 +46,10 @@ import {
   InstrumentOverview,
   InstrumentType,
   ExchangeRates,
+  CryptoAssetDetails,
+  CryptoAssetPlatform,
+  AvailableCryptoAsset,
+  EntityType,
 } from "@/types"
 import type { LoanCalculationRequest } from "@/types"
 import { calculateLoan } from "@/services/api"
@@ -65,8 +74,14 @@ import {
   Search,
   X,
   AlertTriangle,
+  Coins,
 } from "lucide-react"
-import { getInstrumentDetails, getInstruments } from "@/services/api"
+import {
+  getInstrumentDetails,
+  getInstruments,
+  getCryptoAssets,
+  getCryptoAssetDetails,
+} from "@/services/api"
 import { convertCurrency } from "@/utils/financialDataUtils"
 
 const renderTextInput = <FormState extends ManualPositionFormBase>(
@@ -526,6 +541,28 @@ export interface StockFormState extends ManualPositionFormBase {
   _tracker_candidate: string
   _tracker_status: "auto" | "on" | "off"
   _initial_tracker_key: string
+}
+
+export interface CryptoFormState extends ManualPositionFormBase {
+  name: string
+  symbol: string
+  amount: string
+  average_buy_price: string
+  initial_investment: string
+  investment_currency: string
+  contract_address: string
+  _search_query: string
+  _search_mode: "symbol" | "name"
+  _selected_asset: AvailableCryptoAsset | null
+  _asset_details: CryptoAssetDetails | null
+  _selected_platform: CryptoAssetPlatform | null
+  _provider: string
+  _new_entity_icon_url: string
+  _net_crypto_entity_details: {
+    provider_asset_id: string
+    provider: string
+  } | null
+  _entity_type: EntityType
 }
 
 const convertPriceToCurrency = (
@@ -1748,6 +1785,846 @@ function StockInstrumentSearchField({
         <p className="text-xs text-red-600 dark:text-red-400 mt-1">
           {errors[field]}
         </p>
+      )}
+    </div>
+  )
+}
+
+interface CryptoSearchFieldProps {
+  field: "symbol" | "name"
+  label: string
+  formProps: ManualFormFieldRenderProps<CryptoFormState>
+  onAssetSelected: (details: CryptoAssetDetails, provider: string) => void
+}
+
+function CryptoSearchField({
+  field,
+  label,
+  formProps,
+  onAssetSelected,
+}: CryptoSearchFieldProps) {
+  const { form, updateField, clearError, errors, t } = formProps
+  const [results, setResults] = useState<AvailableCryptoAsset[]>([])
+  const [hasSearched, setHasSearched] = useState(false)
+  const [isSearching, setIsSearching] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null)
+  const [searchPage, setSearchPage] = useState(1)
+  const [searchLimit] = useState(25)
+  const [searchTotal, setSearchTotal] = useState(0)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({})
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const resultsContainerRef = useRef<HTMLDivElement>(null)
+  const activeRequestId = useRef(0)
+
+  const inputValue = (form[field] as string) ?? ""
+  const isLocked = Boolean(form._selected_asset)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const closeDropdown = useCallback(() => {
+    setHasSearched(false)
+    setSearchError(null)
+    setResults([])
+    setSearchPage(1)
+    setSearchTotal(0)
+  }, [])
+
+  useEffect(() => {
+    if ((hasSearched || searchError) && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect()
+      setDropdownStyle({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+  }, [hasSearched, searchError, results])
+
+  useEffect(() => {
+    const isOpen = hasSearched || Boolean(searchError)
+    if (!isOpen) return
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+
+      const isInsideContainer = containerRef.current?.contains(target)
+      const isInsideDropdown = dropdownRef.current?.contains(target)
+
+      if (!isInsideContainer && !isInsideDropdown) {
+        closeDropdown()
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeDropdown()
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("touchstart", handlePointerDown)
+    document.addEventListener("keydown", handleKeyDown)
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("touchstart", handlePointerDown)
+      document.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [hasSearched, searchError, closeDropdown])
+
+  useEffect(() => {
+    setResults([])
+    setHasSearched(false)
+    setSearchError(null)
+    setSearchPage(1)
+    setSearchTotal(0)
+  }, [inputValue])
+
+  const fetchPage = useCallback(
+    async (page: number, mode: "replace" | "append") => {
+      const trimmed = inputValue.trim()
+      if (!trimmed) return
+
+      const requestId = ++activeRequestId.current
+      try {
+        const queryBase =
+          field === "symbol" ? { symbol: trimmed } : { name: trimmed }
+        const response = await getCryptoAssets({
+          ...queryBase,
+          page,
+          limit: searchLimit,
+        })
+        if (requestId !== activeRequestId.current) return
+
+        updateField("_provider" as keyof CryptoFormState, response.provider)
+        setSearchPage(response.page)
+        setSearchTotal(response.total)
+        setHasSearched(true)
+
+        setResults(prev =>
+          mode === "append" ? [...prev, ...response.assets] : response.assets,
+        )
+      } catch (err) {
+        if (requestId !== activeRequestId.current) return
+        console.error("Crypto asset search failed", err)
+        setSearchError(t("common.somethingWentWrong"))
+        setResults([])
+        setHasSearched(true)
+        setSearchTotal(0)
+      }
+    },
+    [field, inputValue, searchLimit, t, updateField],
+  )
+
+  const handleSearch = useCallback(async () => {
+    const trimmed = inputValue.trim()
+    if (!trimmed || isSearching) return
+
+    setIsSearching(true)
+    setSearchError(null)
+    setHasSearched(false)
+
+    activeRequestId.current += 1
+
+    try {
+      await fetchPage(1, "replace")
+    } catch {
+      // handled in fetchPage
+    } finally {
+      setIsSearching(false)
+    }
+  }, [fetchPage, inputValue, isSearching])
+
+  const hasMore = searchTotal > 0 && searchPage * searchLimit < searchTotal
+
+  const handleLoadMore = useCallback(async () => {
+    if (isSearching || isLoadingMore || searchError) return
+    if (!hasMore) return
+
+    setIsLoadingMore(true)
+    try {
+      await fetchPage(searchPage + 1, "append")
+    } finally {
+      setIsLoadingMore(false)
+    }
+  }, [fetchPage, hasMore, isLoadingMore, isSearching, searchError, searchPage])
+
+  const handleScroll = useCallback(() => {
+    const el = resultsContainerRef.current
+    if (!el) return
+
+    const thresholdPx = 24
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceToBottom <= thresholdPx) {
+      void handleLoadMore()
+    }
+  }, [handleLoadMore])
+
+  const handleSelectAsset = useCallback(
+    async (asset: AvailableCryptoAsset) => {
+      const loadingId = `${asset.provider_id}::${asset.symbol}`
+      setDetailsLoadingId(loadingId)
+
+      try {
+        const provider = form._provider || "coingecko"
+        const details = await getCryptoAssetDetails(asset.provider_id, provider)
+        onAssetSelected(details, provider)
+        closeDropdown()
+      } catch (err) {
+        console.error("Failed to get crypto asset details", err)
+        setSearchError(t("common.somethingWentWrong"))
+      } finally {
+        setDetailsLoadingId(null)
+      }
+    },
+    [form._provider, onAssetSelected, closeDropdown, t],
+  )
+
+  const disabled = !inputValue.trim() || isSearching || !!detailsLoadingId
+
+  return (
+    <div ref={containerRef} className="space-y-1.5">
+      <Label htmlFor={field}>{label}</Label>
+      <div className="relative">
+        <Input
+          ref={inputRef}
+          id={field}
+          value={inputValue}
+          disabled={isLocked}
+          onChange={e => {
+            const value =
+              field === "symbol" ? e.target.value.toUpperCase() : e.target.value
+            updateField(field, value)
+            clearError(field)
+          }}
+          onKeyDown={e => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              handleSearch()
+            }
+          }}
+          className="pr-10"
+        />
+        {!isLocked && (
+          <button
+            type="button"
+            className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md p-1 text-muted-foreground transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={handleSearch}
+            disabled={disabled}
+            title={t("common.search")}
+          >
+            {isSearching ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+          </button>
+        )}
+        {(hasSearched || searchError) &&
+          createPortal(
+            <div
+              ref={dropdownRef}
+              className="fixed z-[99999] overflow-hidden rounded-md border border-border bg-popover shadow-lg"
+              style={dropdownStyle}
+            >
+              {searchError ? (
+                <p className="px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                  {searchError}
+                </p>
+              ) : results.length > 0 ? (
+                <div
+                  ref={resultsContainerRef}
+                  className="max-h-60 overflow-y-auto py-1"
+                  onScroll={handleScroll}
+                >
+                  {results.map((asset, index) => {
+                    const key = `${asset.provider_id}::${asset.symbol}::${index}`
+                    const isLoadingDetails =
+                      detailsLoadingId ===
+                      `${asset.provider_id}::${asset.symbol}`
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className="flex w-full flex-col gap-1 px-3 py-2 text-left transition hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                        onClick={() => handleSelectAsset(asset)}
+                        disabled={Boolean(detailsLoadingId)}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-medium">{asset.name}</span>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{asset.symbol.toUpperCase()}</span>
+                            {asset.platforms.length > 0 && (
+                              <span>
+                                • {asset.platforms.length} platform(s)
+                              </span>
+                            )}
+                            {isLoadingDetails && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                  {(isLoadingMore || hasMore) && (
+                    <div className="flex items-center justify-center px-3 py-2 text-xs text-muted-foreground">
+                      {isLoadingMore ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <span>{t("common.loading")}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="px-3 py-2 text-xs text-muted-foreground">
+                  {t("common.noOptionsFound")}
+                </p>
+              )}
+            </div>,
+            document.body,
+          )}
+      </div>
+      {errors[field] && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {errors[field]}
+        </p>
+      )}
+    </div>
+  )
+}
+
+interface CryptoAssetSearchFieldProps {
+  formProps: ManualFormFieldRenderProps<CryptoFormState>
+}
+
+function CryptoAssetSearchField({ formProps }: CryptoAssetSearchFieldProps) {
+  const {
+    form,
+    updateField,
+    clearError,
+    errors,
+    t,
+    locale,
+    defaultCurrency,
+    entityOptions,
+    currencyOptions,
+    mode,
+  } = formProps
+
+  const assetDetails = form._asset_details as CryptoAssetDetails | null
+  const selectedPlatform = form._selected_platform as CryptoAssetPlatform | null
+  const isLocked = Boolean(form._selected_asset)
+  const isEditing = mode === "edit"
+
+  const platformEntitySignatureRef = useRef<string | null>(null)
+  const entitySignature = useMemo(() => {
+    if (form.entity_mode === "new") {
+      return `new:${(form.new_entity_name ?? "").trim().toLowerCase()}`
+    }
+    return `select:${form.entity_id || ""}`
+  }, [form.entity_id, form.entity_mode, form.new_entity_name])
+
+  const investmentCurrencyCode = (
+    form.investment_currency ||
+    defaultCurrency ||
+    ""
+  ).toUpperCase()
+
+  const investmentCurrencySymbol = (() => {
+    if (!investmentCurrencyCode) return ""
+    try {
+      const currencyPart = new Intl.NumberFormat(locale, {
+        style: "currency",
+        currency: investmentCurrencyCode,
+        currencyDisplay: "narrowSymbol",
+      })
+        .formatToParts(0)
+        .find(part => part.type === "currency")
+
+      return currencyPart?.value || investmentCurrencyCode
+    } catch {
+      return investmentCurrencyCode
+    }
+  })()
+
+  const handleSelectPlatform = useCallback(
+    (platform: CryptoAssetPlatform, providerOverride?: string) => {
+      updateField(
+        "_selected_platform" as keyof CryptoFormState,
+        platform as any,
+      )
+      updateField("contract_address", platform.contract_address || "")
+
+      if (platform.related_entity_id) {
+        const existingEntity = entityOptions.find(
+          e => e.id === platform.related_entity_id,
+        )
+        if (existingEntity) {
+          platformEntitySignatureRef.current = `select:${existingEntity.id}`
+          updateField("entity_mode", "select")
+          updateField("entity_id", existingEntity.id)
+          updateField("new_entity_name", "")
+          updateField("_new_entity_icon_url", "")
+          updateField(
+            "_net_crypto_entity_details" as keyof CryptoFormState,
+            null as any,
+          )
+          updateField(
+            "_entity_type" as keyof CryptoFormState,
+            existingEntity.type as any,
+          )
+          return
+        }
+      }
+
+      const normalizedPlatformName = platform.name.trim().toLowerCase()
+      const existingByName = entityOptions.find(
+        e => e.name?.trim().toLowerCase() === normalizedPlatformName,
+      )
+      if (existingByName) {
+        platformEntitySignatureRef.current = `select:${existingByName.id}`
+        updateField("entity_mode", "select")
+        updateField("entity_id", existingByName.id)
+        updateField("new_entity_name", "")
+        updateField("_new_entity_icon_url", "")
+        updateField(
+          "_net_crypto_entity_details" as keyof CryptoFormState,
+          null as any,
+        )
+        updateField(
+          "_entity_type" as keyof CryptoFormState,
+          existingByName.type as any,
+        )
+        return
+      }
+
+      platformEntitySignatureRef.current = `new:${platform.name.trim().toLowerCase()}`
+      updateField("entity_mode", "new")
+      updateField("entity_id", "")
+      updateField("new_entity_name", platform.name)
+      updateField("_new_entity_icon_url", platform.icon_url || "")
+      const provider = providerOverride || form._provider || "coingecko"
+      updateField(
+        "_net_crypto_entity_details" as keyof CryptoFormState,
+        {
+          provider_asset_id: platform.provider_id,
+          provider,
+        } as any,
+      )
+      updateField(
+        "_entity_type" as keyof CryptoFormState,
+        EntityType.CRYPTO_EXCHANGE as any,
+      )
+      clearError("entity_id")
+      clearError("new_entity_name" as keyof CryptoFormState)
+    },
+    [entityOptions, form._provider, updateField, clearError],
+  )
+
+  useEffect(() => {
+    if (!selectedPlatform) {
+      platformEntitySignatureRef.current = null
+      return
+    }
+
+    const expectedSignature = platformEntitySignatureRef.current
+    if (!expectedSignature) {
+      platformEntitySignatureRef.current = entitySignature
+      return
+    }
+
+    if (entitySignature === expectedSignature) {
+      return
+    }
+
+    updateField("_selected_platform" as keyof CryptoFormState, null as any)
+    updateField("contract_address", "")
+    updateField(
+      "_net_crypto_entity_details" as keyof CryptoFormState,
+      null as any,
+    )
+    platformEntitySignatureRef.current = null
+  }, [entitySignature, selectedPlatform, updateField])
+
+  const handleAssetSelected = useCallback(
+    (details: CryptoAssetDetails, provider: string) => {
+      updateField(
+        "_selected_asset" as keyof CryptoFormState,
+        {
+          provider_id: details.provider_id,
+          symbol: details.symbol,
+          name: details.name,
+          platforms: details.platforms,
+        } as any,
+      )
+      updateField("_asset_details" as keyof CryptoFormState, details as any)
+      updateField("_provider" as keyof CryptoFormState, provider)
+      updateField("name", details.name)
+      updateField("symbol", details.symbol.toUpperCase())
+
+      if (details.platforms.length === 1) {
+        const platform = details.platforms[0]
+        const hasEntityAlreadySelected = Boolean(
+          form.entity_id || form.new_entity_name,
+        )
+
+        if (!isEditing && !hasEntityAlreadySelected) {
+          handleSelectPlatform(platform, provider)
+        } else {
+          updateField("contract_address", platform.contract_address || "")
+          updateField(
+            "_selected_platform" as keyof CryptoFormState,
+            platform as any,
+          )
+        }
+      } else {
+        updateField("contract_address", "")
+        updateField("_selected_platform" as keyof CryptoFormState, null as any)
+      }
+
+      clearError("name")
+      clearError("symbol")
+    },
+    [
+      updateField,
+      clearError,
+      form.entity_id,
+      form.new_entity_name,
+      handleSelectPlatform,
+      isEditing,
+    ],
+  )
+
+  const handleClearSelection = useCallback(() => {
+    updateField("_selected_asset" as keyof CryptoFormState, null as any)
+    updateField("_asset_details" as keyof CryptoFormState, null as any)
+    updateField("_selected_platform" as keyof CryptoFormState, null as any)
+    updateField("name", "")
+    updateField("symbol", "")
+    updateField("contract_address", "")
+    updateField("_new_entity_icon_url", "")
+    updateField(
+      "_net_crypto_entity_details" as keyof CryptoFormState,
+      null as any,
+    )
+    platformEntitySignatureRef.current = null
+  }, [updateField])
+
+  const unitPrice = useMemo(() => {
+    if (!assetDetails) return null
+    const targetCurrency = defaultCurrency.toLowerCase()
+    const price =
+      assetDetails.price?.[targetCurrency] ??
+      assetDetails.price?.["usd"] ??
+      assetDetails.price?.["eur"]
+    if (price === undefined || price === null) {
+      const keys = Object.keys(assetDetails.price ?? {})
+      if (keys.length > 0) {
+        return assetDetails.price[keys[0]]
+      }
+      return null
+    }
+    return price
+  }, [assetDetails, defaultCurrency])
+
+  const marketValue = useMemo(() => {
+    if (unitPrice == null || !form.amount) return null
+    const amount = parseNumberInput(form.amount)
+    if (amount === null || amount <= 0) return null
+    return amount * unitPrice
+  }, [unitPrice, form.amount])
+
+  return (
+    <div className="space-y-4">
+      {!isLocked && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CryptoSearchField
+            field="symbol"
+            label={t("management.manualPositions.crypto.fields.symbol")}
+            formProps={formProps}
+            onAssetSelected={handleAssetSelected}
+          />
+          <CryptoSearchField
+            field="name"
+            label={t("management.manualPositions.crypto.fields.name")}
+            formProps={formProps}
+            onAssetSelected={handleAssetSelected}
+          />
+        </div>
+      )}
+
+      {isLocked && assetDetails && (
+        <div className="rounded-lg border bg-muted/50 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              {assetDetails.icon_url && (
+                <img
+                  src={assetDetails.icon_url}
+                  alt={assetDetails.name}
+                  className="h-10 w-10 rounded-full"
+                  onError={e => {
+                    ;(e.target as HTMLImageElement).style.display = "none"
+                  }}
+                />
+              )}
+              <div>
+                <p className="font-semibold">{assetDetails.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {assetDetails.symbol.toUpperCase()}
+                </p>
+              </div>
+            </div>
+            {!isEditing && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleClearSelection}
+                title={t("common.clear")}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {!isEditing && assetDetails.platforms.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                {t("management.manualPositions.crypto.helpers.selectPlatform")}
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {assetDetails.platforms.map((platform, idx) => {
+                  const isSelected =
+                    selectedPlatform?.provider_id === platform.provider_id
+                  const existingEntity = platform.related_entity_id
+                    ? entityOptions.find(
+                        e => e.id === platform.related_entity_id,
+                      )
+                    : null
+                  return (
+                    <button
+                      key={`${platform.provider_id}-${idx}`}
+                      type="button"
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:border-primary/50"
+                      }`}
+                      onClick={() => handleSelectPlatform(platform)}
+                    >
+                      {platform.icon_url && (
+                        <img
+                          src={platform.icon_url}
+                          alt={platform.name}
+                          className="h-4 w-4 rounded-full"
+                          onError={e => {
+                            ;(e.target as HTMLImageElement).style.display =
+                              "none"
+                          }}
+                        />
+                      )}
+                      <span>{platform.name}</span>
+                      {existingEntity && (
+                        <Badge
+                          variant="secondary"
+                          className="text-[0.6rem] px-1"
+                        >
+                          {t(
+                            "management.manualPositions.crypto.helpers.existing",
+                          )}
+                        </Badge>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isLocked && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {renderEntityField(
+            isEditing
+              ? ({ ...formProps, canEditEntity: false } as any)
+              : formProps,
+          )}
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="amount">
+            {t("management.manualPositions.crypto.fields.amount")}
+          </Label>
+          <Input
+            id="amount"
+            type="text"
+            inputMode="decimal"
+            value={form.amount}
+            onChange={e => {
+              updateField("amount", e.target.value)
+              clearError("amount" as keyof CryptoFormState)
+            }}
+          />
+          {errors.amount && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.amount}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="contract_address">
+            {t("management.manualPositions.crypto.fields.contractAddress")}
+            <span className="text-muted-foreground ml-1 text-xs">
+              ({t("common.optional")})
+            </span>
+          </Label>
+          <Input
+            id="contract_address"
+            value={form.contract_address}
+            disabled={isLocked && Boolean(form.contract_address)}
+            onChange={e => {
+              updateField("contract_address", e.target.value)
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="initial_investment">
+            {t("management.manualPositions.crypto.fields.initialInvestment")}
+            <span className="text-muted-foreground ml-1 text-xs">
+              ({t("common.optional")})
+            </span>
+          </Label>
+          <div className="relative">
+            {investmentCurrencySymbol && (
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                {investmentCurrencySymbol}
+              </span>
+            )}
+            <Input
+              id="initial_investment"
+              type="text"
+              inputMode="decimal"
+              className={investmentCurrencySymbol ? "pl-9" : undefined}
+              value={form.initial_investment}
+              onChange={e => {
+                const nextInitial = e.target.value
+                updateField("initial_investment", nextInitial)
+
+                const amount = parseNumberInput(form.amount)
+                const initial = parseNumberInput(nextInitial)
+                if (amount != null && amount > 0) {
+                  updateField(
+                    "average_buy_price",
+                    initial != null ? formatNumberInput(initial / amount) : "",
+                  )
+                }
+                clearError("initial_investment" as keyof CryptoFormState)
+                clearError("investment_currency" as keyof CryptoFormState)
+                clearError("average_buy_price" as keyof CryptoFormState)
+              }}
+            />
+          </div>
+          {errors.initial_investment && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.initial_investment}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="average_buy_price">
+            {t("management.manualPositions.crypto.fields.averageBuyPrice")}
+            <span className="text-muted-foreground ml-1 text-xs">
+              ({t("common.optional")})
+            </span>
+          </Label>
+          <div className="relative">
+            {investmentCurrencySymbol && (
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                {investmentCurrencySymbol}
+              </span>
+            )}
+            <Input
+              id="average_buy_price"
+              type="text"
+              inputMode="decimal"
+              className={investmentCurrencySymbol ? "pl-9" : undefined}
+              value={form.average_buy_price}
+              onChange={e => {
+                const nextAverage = e.target.value
+                updateField("average_buy_price", nextAverage)
+
+                const amount = parseNumberInput(form.amount)
+                const average = parseNumberInput(nextAverage)
+                if (amount != null && amount > 0) {
+                  updateField(
+                    "initial_investment",
+                    average != null ? formatNumberInput(average * amount) : "",
+                  )
+                }
+                clearError("average_buy_price" as keyof CryptoFormState)
+                clearError("investment_currency" as keyof CryptoFormState)
+                clearError("initial_investment" as keyof CryptoFormState)
+              }}
+            />
+          </div>
+          {errors.average_buy_price && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              {errors.average_buy_price}
+            </p>
+          )}
+        </div>
+
+        {renderSelectInput<CryptoFormState>(
+          "investment_currency",
+          t("management.manualPositions.crypto.fields.investmentCurrency"),
+          formProps,
+          currencyOptions.map(value => ({ value, label: value })),
+        )}
+      </div>
+
+      {unitPrice != null && (
+        <div className="rounded-md border bg-muted/30 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">
+                {t("management.manualPositions.crypto.helpers.unitPrice")}:{" "}
+              </span>
+              <span className="font-semibold">
+                {unitPrice.toLocaleString(locale, {
+                  style: "currency",
+                  currency: defaultCurrency,
+                })}
+              </span>
+            </div>
+            {marketValue != null && (
+              <div>
+                <span className="text-muted-foreground">
+                  {t("management.manualPositions.crypto.helpers.marketValue")}
+                  :{" "}
+                </span>
+                <span className="font-semibold text-primary">
+                  {marketValue.toLocaleString(locale, {
+                    style: "currency",
+                    currency: defaultCurrency,
+                  })}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
@@ -4574,6 +5451,362 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       business_type: draft.business_type,
       state: draft.state,
       extended_maturity: draft.extended_maturity ?? null,
+    }),
+  },
+  crypto: {
+    assetKey: "crypto",
+    productType: ProductType.CRYPTO,
+    buildDraftsFromPositions: ({ positionsData, manualEntities }) => {
+      if (!positionsData?.positions) return []
+      const result: ManualPositionDraft<CryptoCurrencyPosition>[] = []
+      manualEntities.forEach(entity => {
+        const entityPosition = positionsData.positions[entity.id]
+        if (!entityPosition) return
+        const product = entityPosition.products[ProductType.CRYPTO] as
+          | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
+          | undefined
+        const wallets = product?.entries ?? []
+        wallets.forEach(wallet => {
+          const assets = wallet.assets ?? []
+          assets.forEach(asset => {
+            if (!isManualSource(asset)) return
+            result.push({
+              ...asset,
+              localId:
+                asset.id || `${entity.id}-crypto-${asset.symbol}-${asset.name}`,
+              originalId: asset.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
+          })
+        })
+      })
+      return result
+    },
+    createEmptyForm: ({ defaultCurrency }) => ({
+      entity_id: "",
+      entity_mode: "select" as const,
+      new_entity_name: "",
+      name: "",
+      symbol: "",
+      amount: "",
+      average_buy_price: "",
+      initial_investment: "",
+      investment_currency: (defaultCurrency ?? "").toUpperCase(),
+      contract_address: "",
+      _search_query: "",
+      _search_mode: "symbol" as const,
+      _selected_asset: null,
+      _asset_details: null,
+      _selected_platform: null,
+      _provider: "",
+      _new_entity_icon_url: "",
+      _net_crypto_entity_details: null,
+      _entity_type: EntityType.CRYPTO_WALLET,
+    }),
+    draftToForm: draft => {
+      const hasCryptoAsset = Boolean(draft.crypto_asset)
+      const cryptoAsset = draft.crypto_asset
+
+      const placeholderEntityId =
+        typeof draft.entityId === "string" && draft.entityId.startsWith("new-")
+          ? draft.entityId
+          : null
+
+      const draftAny = draft as any
+
+      const unitPriceFromDraft = (() => {
+        if (
+          typeof draftAny?._unit_price === "number" &&
+          draftAny._unit_price > 0
+        ) {
+          return draftAny._unit_price as number
+        }
+        const amount = typeof draft.amount === "number" ? draft.amount : null
+        const marketValue =
+          typeof draft.market_value === "number" ? draft.market_value : null
+        if (!amount || amount <= 0 || !marketValue || marketValue <= 0) {
+          return null
+        }
+        return marketValue / amount
+      })()
+
+      const priceKey = (draft.currency ?? "usd").toLowerCase()
+
+      const assetDetails: CryptoAssetDetails | null =
+        hasCryptoAsset && cryptoAsset
+          ? {
+              provider_id: cryptoAsset.id,
+              symbol: cryptoAsset.symbol,
+              name: cryptoAsset.name,
+              icon_url: cryptoAsset.icon_urls?.[0] ?? null,
+              platforms: [],
+              price: unitPriceFromDraft
+                ? { [priceKey]: unitPriceFromDraft }
+                : {},
+              provider:
+                Object.keys(cryptoAsset.external_ids ?? {})[0] ?? "coingecko",
+              type: draft.type ?? CryptoCurrencyType.NATIVE,
+            }
+          : null
+
+      const entityMode: "select" | "new" = placeholderEntityId
+        ? "select"
+        : draft.isNewEntity
+          ? "new"
+          : "select"
+
+      const entityIdValue = placeholderEntityId
+        ? placeholderEntityId
+        : draft.isNewEntity
+          ? ""
+          : (draft.entityId ?? "")
+
+      return {
+        entity_id: entityIdValue,
+        entity_mode: entityMode as any,
+        new_entity_name:
+          entityMode === "new"
+            ? (draft.newEntityName ?? draft.entityName ?? "")
+            : "",
+        name: draft.name ?? "",
+        symbol: draft.symbol ?? "",
+        amount: formatNumberInput(draft.amount ?? 0),
+        average_buy_price:
+          draft.average_buy_price != null
+            ? formatNumberInput(draft.average_buy_price)
+            : "",
+        initial_investment:
+          draft.initial_investment != null
+            ? formatNumberInput(draft.initial_investment)
+            : "",
+        investment_currency: (draft.investment_currency ?? "").toUpperCase(),
+        contract_address: draft.contract_address ?? "",
+        _search_query: "",
+        _search_mode: "symbol" as const,
+        _selected_asset: hasCryptoAsset
+          ? { symbol: cryptoAsset!.symbol, name: cryptoAsset!.name }
+          : null,
+        _asset_details: assetDetails,
+        _selected_platform: null,
+        _provider: "",
+        _new_entity_icon_url:
+          (draftAny._new_entity_icon_url as string | undefined) ?? "",
+        _net_crypto_entity_details:
+          (draftAny._net_crypto_entity_details as
+            | { provider_asset_id: string; provider: string }
+            | null
+            | undefined) ?? null,
+        _entity_type: draft._entity_type ?? EntityType.CRYPTO_WALLET,
+      }
+    },
+    buildEntryFromForm: (form, { previous, defaultCurrency }) => {
+      const amount = parseNumberInput(form.amount)
+      if (amount === null || amount <= 0) return null
+
+      const avgText = form.average_buy_price.trim()
+      const initText = form.initial_investment.trim()
+      const averageBuyPrice = avgText ? parseNumberInput(avgText) : null
+      const initialInvestment = initText ? parseNumberInput(initText) : null
+      const hasInvestmentDetails =
+        averageBuyPrice != null || initialInvestment != null
+      const investmentCurrency = hasInvestmentDetails
+        ? (form.investment_currency ?? "").trim().toUpperCase() || null
+        : null
+
+      const assetDetails = form._asset_details as CryptoAssetDetails | null
+      const previousEntry = previous as
+        | (CryptoCurrencyPosition & { crypto_asset?: CryptoAsset | null })
+        | undefined
+      const cryptoType =
+        assetDetails?.type ??
+        previousEntry?.type ??
+        (assetDetails
+          ? assetDetails.platforms.length > 0
+            ? CryptoCurrencyType.TOKEN
+            : CryptoCurrencyType.NATIVE
+          : CryptoCurrencyType.NATIVE)
+
+      let unitPrice: number | null = null
+      let marketValue: number | null = null
+      let priceCurrency: string | null = null
+      if (assetDetails?.price) {
+        const targetCurrency = (defaultCurrency || "usd").toLowerCase()
+        const price =
+          assetDetails.price[targetCurrency] ??
+          assetDetails.price["usd"] ??
+          assetDetails.price["eur"]
+        if (price != null) {
+          unitPrice = price
+          marketValue = amount * price
+          priceCurrency = targetCurrency.toUpperCase()
+        } else {
+          const keys = Object.keys(assetDetails.price)
+          if (keys.length > 0) {
+            unitPrice = assetDetails.price[keys[0]]
+            marketValue = amount * (unitPrice ?? 0)
+            priceCurrency = keys[0].toUpperCase()
+          }
+        }
+      } else if (previousEntry) {
+        marketValue = previousEntry.market_value ?? null
+        priceCurrency = previousEntry.currency ?? null
+      }
+
+      const cryptoAsset: CryptoAsset | null = assetDetails
+        ? {
+            id: assetDetails.provider_id,
+            name: assetDetails.name,
+            symbol: assetDetails.symbol.toUpperCase(),
+            icon_urls: assetDetails.icon_url ? [assetDetails.icon_url] : null,
+            external_ids: { [assetDetails.provider]: assetDetails.provider_id },
+          }
+        : (previousEntry?.crypto_asset ?? null)
+
+      const entry: CryptoCurrencyPosition & {
+        _new_entity_icon_url?: string
+        _net_crypto_entity_details?: {
+          provider_asset_id: string
+          provider: string
+        } | null
+        _entity_type?: EntityType
+        _unit_price?: number | null
+      } = {
+        id: previous?.id || previous?.originalId || "",
+        name: form.name.trim(),
+        symbol: form.symbol.trim().toUpperCase(),
+        amount,
+        type: cryptoType,
+        crypto_asset: cryptoAsset,
+        contract_address: form.contract_address.trim() || null,
+        market_value: marketValue,
+        currency: priceCurrency,
+        initial_investment: initialInvestment,
+        average_buy_price: averageBuyPrice,
+        investment_currency: investmentCurrency,
+        source: DataSource.MANUAL,
+      }
+
+      if (unitPrice != null) {
+        entry._unit_price = unitPrice
+      }
+
+      if (form._new_entity_icon_url) {
+        entry._new_entity_icon_url = form._new_entity_icon_url
+      }
+
+      if (
+        !entry._new_entity_icon_url &&
+        previousEntry &&
+        (previousEntry as any)._new_entity_icon_url
+      ) {
+        entry._new_entity_icon_url = (previousEntry as any)._new_entity_icon_url
+      }
+
+      if (form._net_crypto_entity_details) {
+        entry._net_crypto_entity_details = form._net_crypto_entity_details
+      }
+
+      if (
+        !entry._net_crypto_entity_details &&
+        previousEntry &&
+        (previousEntry as any)._net_crypto_entity_details
+      ) {
+        entry._net_crypto_entity_details = (
+          previousEntry as any
+        )._net_crypto_entity_details
+      }
+      if (form._entity_type) {
+        entry._entity_type = form._entity_type
+      }
+
+      if (!entry.id) {
+        delete (entry as any).id
+      }
+      return entry
+    },
+    validateForm: (form, { t }) => {
+      const errors: ManualFormErrors<typeof form> = {}
+      if (!form.symbol.trim() && !form.name.trim()) {
+        errors.symbol = t(
+          "management.manualPositions.crypto.validation.symbolOrName",
+        )
+        errors.name = t(
+          "management.manualPositions.crypto.validation.symbolOrName",
+        )
+      }
+      const amount = parseNumberInput(form.amount)
+      if (amount === null || amount <= 0) {
+        errors.amount = numberFieldError(t)
+      }
+
+      const avgText = form.average_buy_price.trim()
+      const initText = form.initial_investment.trim()
+      const avg = avgText ? parseNumberInput(avgText) : null
+      const init = initText ? parseNumberInput(initText) : null
+      if (avgText && avg === null) {
+        errors.average_buy_price = numberFieldError(t)
+      }
+      if (initText && init === null) {
+        errors.initial_investment = numberFieldError(t)
+      }
+      if ((avg !== null || init !== null) && !form.investment_currency.trim()) {
+        errors.investment_currency = requiredField(t)
+      }
+      return errors
+    },
+    renderFormFields: (props: ManualFormFieldRenderProps<CryptoFormState>) => (
+      <CryptoAssetSearchField formProps={props} />
+    ),
+    getDisplayName: draft => draft.name || draft.symbol,
+    renderDraftSummary: (draft, helpers) => (
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <Coins className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-base">
+            {draft.name || draft.symbol}
+          </span>
+          {draft.type === CryptoCurrencyType.TOKEN && (
+            <Badge variant="secondary" className="text-xs">
+              Token
+            </Badge>
+          )}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          {draft.amount?.toLocaleString(helpers.locale)}{" "}
+          {draft.symbol?.toUpperCase()}
+        </div>
+      </div>
+    ),
+    normalizeDraftForCompare: draft => ({
+      entityId: draft.entityId,
+      name: draft.name,
+      symbol: draft.symbol,
+      amount: draft.amount,
+      type: draft.type,
+      contract_address: draft.contract_address ?? null,
+      crypto_asset: draft.crypto_asset
+        ? {
+            id: draft.crypto_asset.id,
+            name: draft.crypto_asset.name,
+            symbol: draft.crypto_asset.symbol,
+          }
+        : null,
+    }),
+    toPayloadEntry: draft => ({
+      id: draft.id || draft.originalId,
+      name: draft.name,
+      symbol: draft.symbol,
+      amount: draft.amount,
+      type: draft.type ?? CryptoCurrencyType.NATIVE,
+      crypto_asset: draft.crypto_asset ?? null,
+      contract_address: draft.contract_address ?? null,
+      market_value: draft.market_value ?? null,
+      currency: draft.currency ?? null,
+      initial_investment: draft.initial_investment ?? null,
+      average_buy_price: draft.average_buy_price ?? null,
+      investment_currency: draft.investment_currency ?? null,
+      source: DataSource.MANUAL,
     }),
   },
 }

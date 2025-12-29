@@ -216,6 +216,7 @@ class TemplateDataParser(TemplateParserPort):
                         natural_id=None,
                         type=EntityType.FINANCIAL_INSTITUTION,
                         origin=EntityOrigin.MANUAL,
+                        icon_url=None,
                     )
                 entity = created_entities[entity]
 
@@ -363,6 +364,7 @@ class TemplateDataParser(TemplateParserPort):
                         natural_id=None,
                         type=EntityType.FINANCIAL_INSTITUTION,
                         origin=EntityOrigin.MANUAL,
+                        icon_url=None,
                     )
 
                 tx_dict["entity"] = created_entities[entity_name]

@@ -12,6 +12,7 @@ from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.position_port import PositionPort
 from dateutil.tz import tzlocal
 from domain.commodity import COMMODITY_SYMBOLS
+from domain.constants import SUPPORTED_CURRENCIES
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
 from domain.global_position import PositionQueryRequest, ProductType
@@ -32,7 +33,6 @@ def _now() -> int:
 
 
 class GetExchangeRatesImpl(GetExchangeRates):
-    SUPPORTED_CURRENCIES = ["EUR", "USD"]
     BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB", "USDT", "USDC"]
     DEFAULT_TIMEOUT = 7
     CACHE_TTL_SECONDS = 300
@@ -89,7 +89,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
         return matrix
 
     def _init_empty_matrix(self):
-        return {c: {} for c in self.SUPPORTED_CURRENCIES}
+        return {c: {} for c in SUPPORTED_CURRENCIES}
 
     def _consume_future(
         self,
@@ -281,12 +281,12 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 addresses[address.lower()] = symbol
         if non_address_symbols:
             price_map = self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
-                non_address_symbols, fiat_isos=self.SUPPORTED_CURRENCIES
+                non_address_symbols, fiat_isos=SUPPORTED_CURRENCIES
             )
 
         if addresses:
             address_prices = self._crypto_asset_info_provider.get_prices_by_addresses(
-                list(addresses.keys()), fiat_isos=self.SUPPORTED_CURRENCIES
+                list(addresses.keys()), fiat_isos=SUPPORTED_CURRENCIES
             )
             for addr, fiat_prices in address_prices.items():
                 contract_address = addr.lower()
@@ -304,7 +304,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
                     base_currency,
                     timeout=timeout,
                 ): ("crypto", (symbol, base_currency))
-                for base_currency in self.SUPPORTED_CURRENCIES
+                for base_currency in SUPPORTED_CURRENCIES
                 for symbol in self.BASE_CRYPTO_SYMBOLS
             }
 
@@ -323,7 +323,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
     def _apply_rates(self, commodity_rates, crypto_rates):
         if self._fiat_matrix is None:
             return
-        for base_currency in self.SUPPORTED_CURRENCIES:
+        for base_currency in SUPPORTED_CURRENCIES:
             self._apply_commodity_rates(base_currency, commodity_rates)
             self._apply_crypto_rates(base_currency, crypto_rates)
 

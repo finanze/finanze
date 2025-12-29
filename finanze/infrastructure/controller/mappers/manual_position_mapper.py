@@ -5,6 +5,8 @@ from typing import Any, Dict
 from uuid import UUID
 
 from dateutil.tz import tzlocal
+
+from domain.crypto import CryptoAsset, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import MissingFieldsError
 from domain.fetch_record import DataSource
@@ -17,6 +19,9 @@ from domain.global_position import (
     Cards,
     CardType,
     Crowdlending,
+    CryptoCurrencies,
+    CryptoCurrencyPosition,
+    CryptoCurrencyWallet,
     Deposit,
     Deposits,
     EquityType,
@@ -370,12 +375,66 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
     return StockInvestments(result)
 
 
+def _map_crypto(entries: list[dict]) -> CryptoCurrencies:
+    entries = entries[0].get("assets", []) if entries else []
+    assets = []
+    for e in entries:
+        for req in ("symbol", "name", "amount", "type", "market_value", "currency"):
+            if req not in e:
+                raise MissingFieldsError([req])
+
+        crypto_asset_data = e.get("crypto_asset")
+        if not crypto_asset_data:
+            raise MissingFieldsError(["crypto_asset"])
+
+        external_ids = crypto_asset_data.get("external_ids", {})
+        if not external_ids or not any(v is not None for v in external_ids.values()):
+            raise MissingFieldsError(
+                ["crypto_asset.external_ids with at least one non-null entry"]
+            )
+
+        crypto_asset = CryptoAsset(
+            name=crypto_asset_data.get("name", ""),
+            symbol=crypto_asset_data.get("symbol"),
+            icon_urls=crypto_asset_data.get("icon_urls"),
+            external_ids=external_ids,
+        )
+
+        init_inv = _dez(e.get("initial_investment"))
+        avg_buy = _dez(e.get("average_buy_price"))
+        inv_currency = e.get("investment_currency")
+
+        position = CryptoCurrencyPosition(
+            id=_uuid(e.get("id")),
+            symbol=e["symbol"],
+            amount=_dez(e["amount"]),
+            type=CryptoCurrencyType(e["type"]),
+            name=e.get("name"),
+            crypto_asset=crypto_asset,
+            market_value=_dez(e["market_value"]),
+            currency=e["currency"],
+            contract_address=e.get("contract_address"),
+            initial_investment=init_inv,
+            average_buy_price=avg_buy,
+            investment_currency=inv_currency,
+            source=DataSource.MANUAL,
+        )
+
+        assets.append(position)
+
+    wallet = CryptoCurrencyWallet(
+        assets=assets,
+    )
+
+    return CryptoCurrencies([wallet])
+
+
 def _map_crowdlending(entries: list[dict]) -> Crowdlending:
     if not entries:
         raise MissingFieldsError(["crowdlending entry"])
     e = entries[0]
     return Crowdlending(
-        id=_uuid(e.get("id")) or UUID(int=0),
+        id=_uuid(e.get("id")),
         total=_dez(e.get("total")),
         weighted_interest_rate=_dez(e.get("weighted_interest_rate")),
         currency=e.get("currency"),
@@ -395,6 +454,7 @@ _MAPPER_DISPATCH = {
     ProductType.LOAN: _map_loans,
     ProductType.STOCK_ETF: _map_stocks,
     ProductType.CROWDLENDING: _map_crowdlending,
+    ProductType.CRYPTO: _map_crypto,
 }
 
 

@@ -33,6 +33,7 @@ def _map_account_row(row) -> AccountTx:
         natural_id=row["entity_natural_id"],
         type=row["entity_type"],
         origin=row["entity_origin"],
+        icon_url=row["icon_url"],
     )
 
     return AccountTx(
@@ -64,6 +65,7 @@ def _map_investment_row(
             natural_id=row["entity_natural_id"],
             type=row["entity_type"],
             origin=row["entity_origin"],
+            icon_url=row["icon_url"],
         )
         if row["entity_id"]
         else fallback_entity
@@ -346,7 +348,8 @@ class TransactionSQLRepository(TransactionPort):
                            e.name       AS entity_name,
                            e.type       as entity_type,
                            e.origin     as entity_origin,
-                           e.natural_id AS entity_natural_id
+                           e.natural_id AS entity_natural_id,
+                           e.icon_url   AS icon_url
                     FROM investment_transactions it
                              JOIN entities e ON it.entity_id = e.id
                     """
@@ -384,7 +387,8 @@ class TransactionSQLRepository(TransactionPort):
                            e.name       AS entity_name,
                            e.natural_id AS entity_natural_id,
                            e.type       as entity_type,
-                           e.origin     as entity_origin
+                           e.origin     as entity_origin,
+                           e.icon_url   AS icon_url
                     FROM account_transactions at
                              JOIN entities e ON at.entity_id = e.id
                     """
@@ -418,7 +422,8 @@ class TransactionSQLRepository(TransactionPort):
                        e.id         AS entity_id,
                        e.type       as entity_type,
                        e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
+                       e.natural_id AS entity_natural_id,
+                       e.icon_url   AS icon_url
                 FROM investment_transactions it
                          JOIN entities e ON it.entity_id = e.id
                 WHERE it.entity_id = ?
@@ -436,7 +441,8 @@ class TransactionSQLRepository(TransactionPort):
                        e.name       AS entity_name,
                        e.natural_id AS entity_natural_id,
                        e.type       AS entity_type,
-                       e.origin     AS entity_origin
+                       e.origin     AS entity_origin,
+                       e.icon_url   AS icon_url
                 FROM account_transactions at
                          JOIN entities e ON at.entity_id = e.id
                 WHERE at.entity_id = ?
@@ -478,7 +484,8 @@ class TransactionSQLRepository(TransactionPort):
                        e.id         AS entity_id,
                        e.type       as entity_type,
                        e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
+                       e.natural_id AS entity_natural_id,
+                       e.icon_url   AS icon_url
                 FROM investment_transactions it
                          JOIN entities e ON it.entity_id = e.id
                 WHERE it.entity_id = ? AND it.source = ?
@@ -494,7 +501,8 @@ class TransactionSQLRepository(TransactionPort):
                        e.name       AS entity_name,
                        e.natural_id AS entity_natural_id,
                        e.type       AS entity_type,
-                       e.origin     AS entity_origin
+                       e.origin     AS entity_origin,
+                       e.icon_url   AS icon_url
                 FROM account_transactions at
                          JOIN entities e ON at.entity_id = e.id
                 WHERE at.entity_id = ? AND at.source = ?
@@ -528,7 +536,8 @@ class TransactionSQLRepository(TransactionPort):
                           e.name       AS entity_name,
                           e.type       as entity_type,
                           e.origin     as entity_origin,
-                          e.natural_id as entity_natural_id
+                          e.natural_id as entity_natural_id,
+                          e.icon_url   AS icon_url
                    FROM (SELECT id,
                                 ref,
                                 name,
@@ -674,7 +683,8 @@ class TransactionSQLRepository(TransactionPort):
                        e.name       AS entity_name,
                        e.type       AS entity_type,
                        e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
+                       e.natural_id AS entity_natural_id,
+                       e.icon_url   AS icon_url
                 FROM investment_transactions it
                          JOIN entities e ON it.entity_id = e.id
                 WHERE it.id = ?
@@ -692,7 +702,8 @@ class TransactionSQLRepository(TransactionPort):
                        e.name       AS entity_name,
                        e.type       AS entity_type,
                        e.origin     AS entity_origin,
-                       e.natural_id AS entity_natural_id
+                       e.natural_id AS entity_natural_id,
+                       e.icon_url   AS icon_url
                 FROM account_transactions at
                          JOIN entities e ON at.entity_id = e.id
                 WHERE at.id = ?

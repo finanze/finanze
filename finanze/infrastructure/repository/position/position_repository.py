@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from application.ports.position_port import PositionPort
 from domain.commodity import CommodityType, WeightUnit
+from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -21,7 +22,6 @@ from domain.global_position import (
     Crowdlending,
     CryptoCurrencies,
     CryptoCurrencyPosition,
-    CryptoCurrencyType,
     CryptoCurrencyWallet,
     Deposit,
     Deposits,
@@ -137,7 +137,8 @@ def _save_accounts(cursor, position: GlobalPosition, accounts: Accounts):
 def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlending):
     cursor.execute(
         """
-        INSERT INTO crowdlending_positions (id, global_position_id, total, weighted_interest_rate, currency, distribution)
+        INSERT INTO crowdlending_positions (id, global_position_id, total, weighted_interest_rate, currency,
+                                            distribution)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
@@ -158,7 +159,7 @@ def _save_commodities(cursor, position: GlobalPosition, commodities: Commodities
         cursor.execute(
             """
             INSERT INTO commodity_positions (id, global_position_id, name, type, amount, unit,
-                                           market_value, currency, initial_investment, average_buy_price)
+                                             market_value, currency, initial_investment, average_buy_price)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -188,7 +189,7 @@ def _save_crypto_currencies(
             cursor.execute(
                 """
                 INSERT INTO crypto_currency_positions (id, global_position_id, wallet_id, name, symbol, type, amount,
-                                                              market_value, currency, contract_address, crypto_asset_id)
+                                                       market_value, currency, contract_address, crypto_asset_id)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -211,7 +212,7 @@ def _save_crypto_currencies(
             )
 
             initial_investment = crypto_position.initial_investment
-            avg_buy_price = crypto_position.market_value
+            avg_buy_price = crypto_position.average_buy_price
             investment_currency = crypto_position.investment_currency
             if (
                 initial_investment is not None
@@ -221,7 +222,7 @@ def _save_crypto_currencies(
                 cursor.execute(
                     """
                     INSERT INTO crypto_currency_initial_investments (id, crypto_currency_position, currency,
-                                                                    initial_investment, average_buy_price)
+                                                                     initial_investment, average_buy_price)
                     VALUES (?, ?, ?, ?, ?)
                     """,
                     (
@@ -263,8 +264,8 @@ def _save_real_estate_cf(
         cursor.execute(
             """
             INSERT INTO real_estate_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
-                                                 interest_rate, profitability, last_invest_date, start, maturity, type,
-                                                 business_type, state, extended_maturity, extended_interest_rate)
+                                                  interest_rate, profitability, last_invest_date, start, maturity, type,
+                                                  business_type, state, extended_maturity, extended_interest_rate)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -329,7 +330,8 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPort
     for portfolio in portfolios.entries:
         cursor.execute(
             """
-            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value, account_id)
+            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value,
+                                         account_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
@@ -520,7 +522,8 @@ class PositionSQLRepository(PositionPort):
                          e.name       AS entity_name,
                          e.natural_id AS entity_natural_id,
                          e.type       as entity_type,
-                         e.origin     as entity_origin
+                         e.origin     as entity_origin,
+                         e.icon_url   as icon_url
                   FROM global_positions gp
                            JOIN latest_positions lp
                                 ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
@@ -562,6 +565,7 @@ class PositionSQLRepository(PositionPort):
                     natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
                     origin=row["entity_origin"],
+                    icon_url=row["icon_url"],
                 )
                 pos_id = UUID(row["id"])
                 source = DataSource(row["source"])
@@ -587,6 +591,7 @@ class PositionSQLRepository(PositionPort):
                     natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
                     origin=row["entity_origin"],
+                    icon_url=row["icon_url"],
                 )
             entity = entities[ent_id]
 
@@ -630,7 +635,8 @@ class PositionSQLRepository(PositionPort):
                          e.id         AS entity_id,
                          e.natural_id AS entity_natural_id,
                          e.type       AS entity_type,
-                         e.origin     AS entity_origin
+                         e.origin     AS entity_origin,
+                         e.icon_url   AS icon_url
                   FROM global_positions gp
                            JOIN last_imported_position_ids lp
                                 ON gp.id = lp.global_position_id
@@ -659,10 +665,10 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                           SELECT *
-                           FROM account_positions
-                           WHERE global_position_id = ?
-                           """,
+                SELECT *
+                FROM account_positions
+                WHERE global_position_id = ?
+                """,
                 (str(global_position.id),),
             )
 
@@ -1043,12 +1049,12 @@ class PositionSQLRepository(PositionPort):
                 """
                 SELECT p.*,
                        a.*,
-                       a.name as asset_name,
+                       a.name     as asset_name,
                        c.address,
-                       c.name AS wallet_name,
-                        i.initial_investment,
-                        i.average_buy_price,
-                        i.currency as investment_currency
+                       c.name     AS wallet_name,
+                       i.initial_investment,
+                       i.average_buy_price,
+                       i.currency as investment_currency
                 FROM crypto_currency_positions p
                          LEFT JOIN crypto_currency_initial_investments i ON p.id = i.crypto_currency_position
                          LEFT JOIN crypto_assets a ON p.crypto_asset_id = a.id
@@ -1073,7 +1079,7 @@ class PositionSQLRepository(PositionPort):
                     else:
                         wallet = wallets[wallet_id]
                 else:
-                    wallet = CryptoCurrencyWallet(assets=[])
+                    wallet = wallets.get(None, CryptoCurrencyWallet(assets=[]))
                     wallets[None] = wallet
 
                 crypto_asset = (
@@ -1106,6 +1112,7 @@ class PositionSQLRepository(PositionPort):
                     investment_currency=row["investment_currency"]
                     if row["investment_currency"]
                     else None,
+                    source=global_position.source,
                 )
                 wallet.assets.append(crypto_pos)
 
@@ -1233,8 +1240,15 @@ class PositionSQLRepository(PositionPort):
         with self._db_client.read() as cursor:
             cursor.execute(
                 """
-                SELECT gp.*, e.id AS entity_id, e.name AS entity_name, e.natural_id AS entity_natural_id, e.type AS entity_type, e.origin AS entity_origin
-                FROM global_positions gp JOIN entities e ON gp.entity_id = e.id
+                SELECT gp.*,
+                       e.id         AS entity_id,
+                       e.name       AS entity_name,
+                       e.natural_id AS entity_natural_id,
+                       e.type       AS entity_type,
+                       e.origin     AS entity_origin,
+                       e.icon_url   AS icon_url
+                FROM global_positions gp
+                         JOIN entities e ON gp.entity_id = e.id
                 WHERE gp.id = ?
                 """,
                 (str(position_id),),
@@ -1248,6 +1262,7 @@ class PositionSQLRepository(PositionPort):
                 natural_id=row["entity_natural_id"],
                 type=row["entity_type"],
                 origin=row["entity_origin"],
+                icon_url=row["icon_url"],
             )
 
             pos_id = UUID(row["id"])
@@ -1273,7 +1288,7 @@ class PositionSQLRepository(PositionPort):
                 """
                 SELECT s.*, gp.source
                 FROM stock_positions s
-                JOIN global_positions gp ON gp.id = s.global_position_id
+                         JOIN global_positions gp ON gp.id = s.global_position_id
                 WHERE s.id = ?
                 """,
                 (str(entry_id),),
@@ -1304,7 +1319,7 @@ class PositionSQLRepository(PositionPort):
                 """
                 SELECT f.*, gp.source
                 FROM fund_positions f
-                JOIN global_positions gp ON gp.id = f.global_position_id
+                         JOIN global_positions gp ON gp.id = f.global_position_id
                 WHERE f.id = ?
                 """,
                 (str(entry_id),),

@@ -71,6 +71,8 @@ from application.use_cases.save_backup_settings import SaveBackupSettingsImpl
 from application.use_cases.save_commodities import SaveCommoditiesImpl
 from application.use_cases.save_pending_flows import SavePendingFlowsImpl
 from application.use_cases.save_periodic_flow import SavePeriodicFlowImpl
+from application.use_cases.search_crypto_assets import SearchCryptoAssetsImpl
+from application.use_cases.get_crypto_asset_details import GetCryptoAssetDetailsImpl
 from application.use_cases.update_contributions import UpdateContributionsImpl
 from application.use_cases.update_crypto_wallet import UpdateCryptoWalletConnectionImpl
 from application.use_cases.update_manual_transaction import UpdateManualTransactionImpl
@@ -302,7 +304,9 @@ class FinanzeServer:
         exchange_rate_storage = ExchangeRateFileStorage(self.args.data_dir)
 
         exchange_rate_client = ExchangeRateClient()
-        crypto_asset_info_client = CryptoAssetInfoClient()
+        crypto_asset_info_client = CryptoAssetInfoClient(
+            app_dir=str(self.args.data_dir)
+        )
         metal_price_client = MetalPriceClient()
         instrument_provider = InstrumentProviderAdapter()
 
@@ -471,7 +475,6 @@ class FinanzeServer:
             external_entity_repository,
             self.external_entity_fetchers,
             external_integration_repository,
-            file_storage_repository,
         )
         complete_external_entity_connection = CompleteExternalEntityConnectionImpl(
             external_entity_repository,
@@ -520,6 +523,10 @@ class FinanzeServer:
 
         get_instruments = GetInstrumentsImpl(instrument_provider)
         get_instrument_info = GetInstrumentInfoImpl(instrument_provider)
+        search_crypto_assets = SearchCryptoAssetsImpl(crypto_asset_info_client)
+        get_crypto_asset_details = GetCryptoAssetDetailsImpl(
+            crypto_asset_info_client, entity_repository
+        )
 
         save_periodic_flow = SavePeriodicFlowImpl(periodic_flow_repository)
         update_periodic_flow = UpdatePeriodicFlowImpl(periodic_flow_repository)
@@ -577,6 +584,8 @@ class FinanzeServer:
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
             virtual_import_registry=virtual_import_registry,
+            crypto_asset_registry_port=crypto_asset_repository,
+            crypto_asset_info_provider=crypto_asset_info_client,
             transaction_handler_port=transaction_handler,
         )
         add_manual_transaction = AddManualTransactionImpl(
@@ -718,6 +727,8 @@ class FinanzeServer:
             get_instruments,
             get_instrument_info,
             update_tracked_quotes,
+            search_crypto_assets,
+            get_crypto_asset_details,
             create_template,
             update_template,
             delete_template,

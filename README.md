@@ -232,24 +232,26 @@ important ones are::
 There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
 this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
 
-Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
+*Deprecated* - Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
 Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
 This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
 
 Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
 can get the needed environment names.
 
-## Credits
+## Attributions & Credits
 
--   Selenium reCAPTCHA resolution is based
-    on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
-    project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
-    for
-    it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
-    with headless mode.
+-   Powered by [CoinGecko](https://www.coingecko.com/).
+-   Powered by [CryptoCompare](https://www.cryptocompare.com/).
 -   Trade Republic client is based on project [pytr-org/pytr](https://github.com/pytr-org/pytr), although it has been
     heavily
     modified to allow resumable sessions, some extra data, fetch non-repeatable transactions and other minor changes, this
     library has been vital for this
     project.
 -   SQLCipher pre-built dependency [rotki/pysqlcipher3](https://github.com/rotki)
+-   Selenium reCAPTCHA resolution is based
+    on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
+    project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
+    for
+    it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
+    with headless mode.

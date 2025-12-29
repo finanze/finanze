@@ -33,6 +33,7 @@ class Entity:
     natural_id: Optional[str]
     type: EntityType
     origin: EntityOrigin
+    icon_url: Optional[str]
 
     def __str__(self):
         return self.name

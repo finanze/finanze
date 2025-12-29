@@ -49,10 +49,13 @@ export function EntitySelector({
       for (const entity of compatibleEntities) {
         try {
           if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
-            const src = await getImageUrl(
-              `/static/entities/logos/${entity.id}.png`,
-            )
-            images[entity.id] = src
+            if (entity.icon_url) {
+              images[entity.id] = entity.icon_url
+            } else {
+              images[entity.id] = await getImageUrl(
+                `/static/entities/logos/${entity.id}.png`,
+              )
+            }
           } else {
             images[entity.id] = `entities/${entity.id}.png`
           }

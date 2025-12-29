@@ -20,6 +20,7 @@ from dateutil.tz import tzlocal
 from domain import native_entities
 from domain.crypto import (
     CryptoFetchRequest,
+    CryptoCurrencyType,
 )
 from domain.dezimal import Dezimal
 from domain.entity import Entity, EntityType, Feature
@@ -42,7 +43,6 @@ from domain.fetch_result import (
 from domain.global_position import (
     CryptoCurrencies,
     CryptoCurrencyPosition,
-    CryptoCurrencyType,
     CryptoCurrencyWallet,
     GlobalPosition,
     ProductType,
