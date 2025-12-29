@@ -4,7 +4,16 @@ from uuid import UUID
 
 from pydantic.dataclasses import dataclass
 
-from domain.external_integration import EnabledExternalIntegrations
+from domain.dezimal import Dezimal
+from domain.external_integration import (
+    EnabledExternalIntegrations,
+    ExternalIntegrationId,
+)
+
+
+class CryptoCurrencyType(str, Enum):
+    NATIVE = "NATIVE"
+    TOKEN = "TOKEN"
 
 
 @dataclass
@@ -54,3 +63,62 @@ class CryptoWalletConnectionResult:
 class UpdateCryptoWalletConnection:
     id: UUID
     name: str
+
+
+@dataclass
+class CryptoPlatform:
+    provider_id: str
+    name: str
+    icon_url: Optional[str]
+
+
+@dataclass
+class CryptoAssetPlatform:
+    provider_id: str
+    name: str
+    contract_address: Optional[str]
+    icon_url: Optional[str]
+    related_entity_id: Optional[UUID]
+
+
+@dataclass
+class AvailableCryptoAsset:
+    name: str
+    symbol: str
+    platforms: list[CryptoAssetPlatform]
+    provider: ExternalIntegrationId
+    provider_id: str
+
+
+@dataclass
+class AvailableCryptoAssets:
+    assets: list[AvailableCryptoAsset]
+
+
+@dataclass
+class AvailableCryptoAssetsRequest:
+    symbol: Optional[str]
+    name: Optional[str]
+    page: int = 1
+    limit: int = 50
+
+
+@dataclass
+class AvailableCryptoAssetsResult:
+    provider: ExternalIntegrationId
+    assets: list[AvailableCryptoAsset]
+    page: int
+    limit: int
+    total: int
+
+
+@dataclass
+class CryptoAssetDetails:
+    name: str
+    symbol: str
+    platforms: list[CryptoAssetPlatform]
+    provider: ExternalIntegrationId
+    provider_id: str
+    price: dict[str, Dezimal]
+    type: CryptoCurrencyType
+    icon_url: Optional[str]

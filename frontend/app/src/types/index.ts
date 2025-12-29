@@ -6,6 +6,7 @@ import {
   EntitiesPosition,
   ProductType,
   GlobalPosition,
+  CryptoCurrencyType,
 } from "./position"
 import {
   ContributionTargetType,
@@ -59,6 +60,7 @@ export interface Entity {
   type: EntityType
   origin: EntityOrigin
   natural_id: string
+  icon_url?: string | null
   status?: EntityStatus
   features: Feature[]
   credentials_template?: Record<string, string>
@@ -1001,6 +1003,41 @@ export interface InstrumentInfo {
 
 export interface InstrumentsResponse {
   entries: InstrumentInfo[]
+}
+
+export interface CryptoAssetPlatform {
+  provider_id: string
+  name: string
+  contract_address: string
+  icon_url?: string | null
+  related_entity_id?: string | null
+}
+
+export interface CryptoAssetDetails {
+  name: string
+  symbol: string
+  platforms: CryptoAssetPlatform[]
+  provider: string
+  provider_id: string
+  price: Record<string, number>
+  icon_url?: string | null
+  type: CryptoCurrencyType
+}
+
+export interface AvailableCryptoAsset {
+  name: string
+  symbol: string
+  platforms: CryptoAssetPlatform[]
+  provider: string
+  provider_id: string
+}
+
+export interface AvailableCryptoAssetsResult {
+  provider: string
+  assets: AvailableCryptoAsset[]
+  page: number
+  limit: number
+  total: number
 }
 
 // Template system

@@ -278,6 +278,11 @@ export function EntityCard({
     let cancelled = false
     const load = async () => {
       if (entity.origin === EntityOrigin.EXTERNALLY_PROVIDED) {
+        if (entity.icon_url) {
+          if (!cancelled) setImageSrc(entity.icon_url)
+          return
+        }
+
         try {
           const src = await getImageUrl(
             `/static/entities/logos/${entity.id}.png`,
@@ -294,7 +299,7 @@ export function EntityCard({
     return () => {
       cancelled = true
     }
-  }, [entity.id, entity.origin])
+  }, [entity.id, entity.origin, entity.icon_url])
 
   return (
     <>

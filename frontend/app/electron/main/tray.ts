@@ -1,4 +1,4 @@
-import { app, Menu, Tray } from "electron"
+import { app, Menu, nativeImage, Tray } from "electron"
 import { join } from "node:path"
 
 interface TrayConfig {
@@ -10,7 +10,22 @@ interface TrayConfig {
 let tray: Tray | null = null
 
 export function createTray(config: TrayConfig): Tray {
-  tray = new Tray(join(config.publicPath, "tray.png"))
+  const isMac = process.platform === "darwin"
+  const defaultIconPath = join(config.publicPath, "tray.png")
+  const macTemplateIconPath = join(config.publicPath, "trayTemplate.png")
+
+  const resolvedIconPath = isMac ? macTemplateIconPath : defaultIconPath
+  let trayImage = nativeImage.createFromPath(resolvedIconPath)
+
+  if (trayImage.isEmpty() && isMac) {
+    trayImage = nativeImage.createFromPath(defaultIconPath)
+  }
+
+  if (isMac) {
+    trayImage.setTemplateImage(true)
+  }
+
+  tray = new Tray(trayImage.isEmpty() ? defaultIconPath : trayImage)
 
   const contextMenu = Menu.buildFromTemplate([
     {

@@ -5,12 +5,11 @@ from uuid import uuid4
 import requests
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
 from cachetools import TTLCache, cached
-from domain.crypto import CryptoFetchRequest
+from domain.crypto import CryptoFetchRequest, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
 from domain.global_position import (
     CryptoCurrencyPosition,
-    CryptoCurrencyType,
     CryptoCurrencyWallet,
 )
 from infrastructure.client.http.backoff import http_get_with_backoff

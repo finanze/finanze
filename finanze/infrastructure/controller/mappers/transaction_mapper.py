@@ -156,6 +156,7 @@ def map_manual_transaction(body: dict, tx_id: Optional[UUID] = None) -> BaseTx:
         natural_id=None,
         type=EntityType.FINANCIAL_INSTITUTION,
         origin=EntityOrigin.MANUAL,
+        icon_url=None,
     )
 
     base_kwargs = {

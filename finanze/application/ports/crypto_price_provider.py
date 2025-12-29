@@ -1,7 +1,15 @@
 import abc
+from typing import Optional
 
-from domain.crypto import CryptoAsset
+from domain.crypto import (
+    AvailableCryptoAsset,
+    CryptoAsset,
+    CryptoAssetDetails,
+    CryptoPlatform,
+)
 from domain.dezimal import Dezimal
+from domain.entity import Entity
+from domain.external_integration import ExternalIntegrationId
 
 
 class CryptoAssetInfoProvider(metaclass=abc.ABCMeta):
@@ -29,4 +37,29 @@ class CryptoAssetInfoProvider(metaclass=abc.ABCMeta):
     def get_multiple_overview_by_addresses(
         self, addresses: list[str]
     ) -> dict[str, CryptoAsset]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def asset_lookup(
+        self, symbol: str | None = None, name: str | None = None
+    ) -> list[AvailableCryptoAsset]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_asset_platforms(self) -> dict[str, CryptoPlatform]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_asset_details(
+        self,
+        provider_id: str,
+        currencies: list[str],
+        provider: ExternalIntegrationId = ExternalIntegrationId.COINGECKO,
+    ) -> CryptoAssetDetails:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_native_entity_by_platform(
+        self, provider_id: str, provider: ExternalIntegrationId
+    ) -> Optional[Entity]:
         raise NotImplementedError

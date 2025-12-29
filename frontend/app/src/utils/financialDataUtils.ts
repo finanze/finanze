@@ -191,10 +191,18 @@ export const calculateCryptoAssetInitialInvestment = (
   targetCurrency: string,
   exchangeRates: ExchangeRates,
 ): number => {
-  const initialInvestment = asset.initial_investment || 0
-  if (initialInvestment <= 0) {
-    return 0
-  }
+  const directInitialInvestment = asset.initial_investment || 0
+  const averageBuyPrice = asset.average_buy_price || 0
+  const amount = asset.amount || 0
+
+  const initialInvestment =
+    directInitialInvestment > 0
+      ? directInitialInvestment
+      : averageBuyPrice > 0 && amount > 0
+        ? averageBuyPrice * amount
+        : 0
+
+  if (initialInvestment <= 0) return 0
 
   const sourceCurrency =
     asset.investment_currency || asset.currency || targetCurrency
@@ -1637,6 +1645,34 @@ export const getOngoingProjects = (
 
   const projects: OngoingProject[] = []
 
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const msPerDay = 1000 * 60 * 60 * 24
+
+  const parseDate = (value?: string | null) => {
+    if (!value) return null
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return null
+    date.setHours(0, 0, 0, 0)
+    return date
+  }
+
+  const getSignedDaysForSort = (project: OngoingProject) => {
+    const baseDate = parseDate(project.maturity)
+    if (!baseDate) return Number.MAX_SAFE_INTEGER
+
+    const diffFromToday = (target: Date) =>
+      Math.ceil((target.getTime() - today.getTime()) / msPerDay)
+
+    let diffDays = diffFromToday(baseDate)
+    if (diffDays <= 0 && project.extendedMaturity) {
+      const extendedDate = parseDate(project.extendedMaturity)
+      if (extendedDate) diffDays = diffFromToday(extendedDate)
+    }
+
+    return diffDays
+  }
+
   Object.values(positionsData.positions).forEach(entityPosition => {
     const depositsProduct = entityPosition.products[ProductType.DEPOSIT]
     if (
@@ -1729,9 +1765,7 @@ export const getOngoingProjects = (
   })
 
   return projects
-    .sort(
-      (a, b) => new Date(a.maturity).getTime() - new Date(b.maturity).getTime(),
-    )
+    .sort((a, b) => getSignedDaysForSort(a) - getSignedDaysForSort(b))
     .slice(0, 12)
 }
 

@@ -40,6 +40,7 @@ MY_INVESTOR = NativeFinancialEntity(
         "user": CredentialType.ID,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 UNICAJA = NativeFinancialEntity(
@@ -57,6 +58,7 @@ UNICAJA = NativeFinancialEntity(
         "password": CredentialType.PASSWORD,
         "abck": CredentialType.INTERNAL,
     },
+    icon_url=None,
 )
 
 TRADE_REPUBLIC = NativeFinancialEntity(
@@ -79,6 +81,7 @@ TRADE_REPUBLIC = NativeFinancialEntity(
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
     },
+    icon_url=None,
 )
 
 URBANITAE = NativeFinancialEntity(
@@ -95,6 +98,7 @@ URBANITAE = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 WECITY = NativeFinancialEntity(
@@ -112,6 +116,7 @@ WECITY = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 SEGO = NativeFinancialEntity(
@@ -129,6 +134,7 @@ SEGO = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 MINTOS = NativeFinancialEntity(
@@ -146,6 +152,7 @@ MINTOS = NativeFinancialEntity(
         "password": CredentialType.PASSWORD,
         "cookie": CredentialType.INTERNAL_TEMP,
     },
+    icon_url=None,
 )
 
 F24 = NativeFinancialEntity(
@@ -162,6 +169,7 @@ F24 = NativeFinancialEntity(
         "user": CredentialType.EMAIL,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 INDEXA_CAPITAL = NativeFinancialEntity(
@@ -175,6 +183,7 @@ INDEXA_CAPITAL = NativeFinancialEntity(
     setup_login_type=EntitySetupLoginType.AUTOMATED,
     session_category=EntitySessionCategory.UNDEFINED,
     credentials_template={"token": CredentialType.API_TOKEN},
+    icon_url=None,
 )
 
 ING = NativeFinancialEntity(
@@ -199,6 +208,7 @@ ING = NativeFinancialEntity(
         "apiAuth": CredentialType.INTERNAL_TEMP,
         "apiExtendedSessionCtx": CredentialType.INTERNAL_TEMP,
     },
+    icon_url=None,
 )
 
 CAJAMAR = NativeFinancialEntity(
@@ -215,6 +225,7 @@ CAJAMAR = NativeFinancialEntity(
         "user": CredentialType.USER,
         "password": CredentialType.PASSWORD,
     },
+    icon_url=None,
 )
 
 
@@ -232,6 +243,7 @@ def _create_crypto_entity(
         origin=EntityOrigin.NATIVE,
         features=features,
         required_external_integrations=required_external_integrations,
+        icon_url=None,
     )
 
 
@@ -250,6 +262,7 @@ COMMODITIES = Entity(
     natural_id=None,
     type=EntityType.COMMODITY,
     origin=EntityOrigin.INTERNAL,
+    icon_url=None,
 )
 
 NATIVE_ENTITIES = [

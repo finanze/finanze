@@ -35,6 +35,7 @@ from domain.use_cases.get_backup_settings import GetBackupSettings
 from domain.use_cases.get_backups import GetBackups
 from domain.use_cases.get_cloud_auth import GetCloudAuth
 from domain.use_cases.get_contributions import GetContributions
+from domain.use_cases.get_crypto_asset_details import GetCryptoAssetDetails
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
@@ -59,6 +60,7 @@ from domain.use_cases.save_backup_settings import SaveBackupSettings
 from domain.use_cases.save_commodities import SaveCommodities
 from domain.use_cases.save_pending_flows import SavePendingFlows
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
+from domain.use_cases.search_crypto_assets import SearchCryptoAssets
 from domain.use_cases.update_contributions import UpdateContributions
 from domain.use_cases.update_crypto_wallet import UpdateCryptoWalletConnection
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
@@ -118,6 +120,9 @@ from infrastructure.controller.routes.forecast import forecast
 from infrastructure.controller.routes.get_available_external_entities import (
     get_available_external_entities,
 )
+from infrastructure.controller.routes.get_crypto_asset_details import (
+    get_crypto_asset_details,
+)
 from infrastructure.controller.routes.get_available_sources import get_available_sources
 from infrastructure.controller.routes.get_backup_settings import get_backup_settings
 from infrastructure.controller.routes.get_backups import get_backups
@@ -164,6 +169,7 @@ from infrastructure.controller.routes.update_template import update_template
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
 from infrastructure.controller.routes.upload_backup import upload_backup
 from infrastructure.controller.routes.user_login import user_login
+from infrastructure.controller.routes.search_crypto_assets import search_crypto_assets
 
 
 def register_routes(
@@ -223,6 +229,8 @@ def register_routes(
     get_instruments_uc: GetInstruments,
     get_instrument_info_uc: GetInstrumentInfo,
     update_tracked_quotes_uc: UpdateTrackedQuotes,
+    search_crypto_assets_uc: SearchCryptoAssets,
+    get_crypto_asset_details_uc: GetCryptoAssetDetails,
     create_template_uc: CreateTemplate,
     update_template_uc: UpdateTemplate,
     delete_template_uc: DeleteTemplate,
@@ -450,13 +458,21 @@ def register_routes(
     def get_historic_route():
         return get_historic(get_historic_uc)
 
-    @app.route("/api/v1/instruments", methods=["GET"])
+    @app.route("/api/v1/assets/instruments", methods=["GET"])
     def instruments_route():
         return instruments(get_instruments_uc)
 
-    @app.route("/api/v1/instruments/details", methods=["GET"])
+    @app.route("/api/v1/assets/instruments/details", methods=["GET"])
     def instrument_details_route():
         return instrument_details(get_instrument_info_uc)
+
+    @app.route("/api/v1/assets/crypto", methods=["GET"])
+    def crypto_assets_route():
+        return search_crypto_assets(search_crypto_assets_uc)
+
+    @app.route("/api/v1/assets/crypto/<asset_id>", methods=["GET"])
+    def crypto_asset_details_route(asset_id: str):
+        return get_crypto_asset_details(get_crypto_asset_details_uc, asset_id)
 
     @app.route("/api/v1/data/manual/positions/update-quotes", methods=["POST"])
     async def update_tracked_quotes_route():

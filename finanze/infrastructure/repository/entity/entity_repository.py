@@ -13,6 +13,7 @@ def _map_entity(row) -> Entity:
         natural_id=row["natural_id"],
         type=row["type"],
         origin=row["origin"],
+        icon_url=row["icon_url"],
     )
 
 
@@ -24,8 +25,8 @@ class EntitySQLRepository(EntityPort):
         with self._db_client.tx() as cursor:
             cursor.execute(
                 """
-                INSERT INTO entities (id, name, natural_id, type, origin)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO entities (id, name, natural_id, type, origin, icon_url)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(entity.id),
@@ -33,6 +34,7 @@ class EntitySQLRepository(EntityPort):
                     entity.natural_id,
                     entity.type,
                     entity.origin,
+                    entity.icon_url,
                 ),
             )
 
@@ -44,7 +46,8 @@ class EntitySQLRepository(EntityPort):
                 SET name       = ?,
                     natural_id = ?,
                     type       = ?,
-                    origin     = ?
+                    origin     = ?,
+                    icon_url   = ?
                 WHERE id = ?
                 """,
                 (
@@ -52,6 +55,7 @@ class EntitySQLRepository(EntityPort):
                     entity.natural_id,
                     entity.type,
                     entity.origin,
+                    entity.icon_url,
                     str(entity.id),
                 ),
             )

@@ -1,11 +1,10 @@
 import logging
 from uuid import uuid4
 
-from domain.crypto import CryptoFetchRequest
+from domain.crypto import CryptoFetchRequest, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.global_position import (
     CryptoCurrencyPosition,
-    CryptoCurrencyType,
     CryptoCurrencyWallet,
 )
 from infrastructure.client.crypto.ethplorer.ethplorer_client import EthplorerClient

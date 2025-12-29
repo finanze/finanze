@@ -35,6 +35,7 @@ class LastFetchesRepository(LastFetchesPort):
                           e.natural_id as entity_natural_id,
                           e.type       as entity_type,
                           e.origin     as entity_origin,
+                          e.icon_url   AS icon_url,
                           lf.feature,
                           lf.date
                    FROM last_fetches lf
@@ -52,6 +53,7 @@ class LastFetchesRepository(LastFetchesPort):
                     natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
                     origin=row["entity_origin"],
+                    icon_url=row["icon_url"],
                 ): FetchRecord(
                     entity_id=UUID(row["entity_id"]),
                     feature=Feature(row["feature"]),

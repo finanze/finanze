@@ -28,6 +28,7 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         natural_id=row["entity_natural_id"],
         type=row["entity_type"],
         origin=row["entity_origin"],
+        icon_url=row["icon_url"],
     )
 
     common = {
@@ -181,6 +182,7 @@ class HistoricSQLRepository(HistoricPort):
                           e.natural_id AS entity_natural_id,
                           e.type       as entity_type,
                           e.origin     as entity_origin,
+                          e.icon_url   AS icon_url
                         h_txs.historic_entry_id
                 FROM investment_historic_txs h_txs
                 JOIN investment_transactions t ON h_txs.tx_id = t.id
@@ -227,7 +229,8 @@ class HistoricSQLRepository(HistoricPort):
                               e.name       AS entity_name,
                               e.natural_id AS entity_natural_id,
                               e.type       as entity_type,
-                              e.origin     as entity_origin
+                              e.origin     as entity_origin,
+                              e.icon_url   AS icon_url
                        FROM investment_historic h
                                 JOIN entities e ON h.entity_id = e.id
                        """

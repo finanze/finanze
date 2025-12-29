@@ -278,6 +278,7 @@ export interface CryptoCurrencyPosition {
   initial_investment?: number | null
   average_buy_price?: number | null
   investment_currency?: string | null
+  source: DataSource
 }
 
 export interface CryptoCurrencyWallet {
@@ -384,5 +385,10 @@ export interface PositionQueryRequest {
 export interface UpdatePositionRequest {
   entity_id?: string | null
   new_entity_name?: string | null
+  new_entity_icon_url?: string | null
+  net_crypto_entity_details?: {
+    provider_asset_id: string
+    provider: string
+  } | null
   products: PartialProductPositions
 }

@@ -1,66 +1,70 @@
 import { useState, useEffect, useMemo } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { useI18n } from "@/i18n"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/Button"
+import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { Input } from "@/components/ui/Input"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Switch } from "@/components/ui/Switch"
+import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { CategorySelector } from "@/components/ui/CategorySelector"
 import { Badge } from "@/components/ui/Badge"
-import { Card } from "@/components/ui/Card"
-import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import {
   MultiSelect,
   type MultiSelectOption,
 } from "@/components/ui/MultiSelect"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import {
-  Plus,
-  Trash2,
-  Save,
-  BanknoteArrowUp,
-  BanknoteArrowDown,
-  Edit,
-  Tag,
-  Calendar,
   ArrowLeft,
+  BanknoteArrowDown,
+  BanknoteArrowUp,
+  Calendar,
   CalendarDays,
+  Edit,
+  Plus,
+  Tag,
+  Trash2,
+  X,
 } from "lucide-react"
 import { getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
-import {
-  FlowType,
-  PendingFlow,
-  SavePendingFlowsRequest,
-  CreatePendingFlowRequest,
-} from "@/types"
+import { FlowType, PendingFlow, CreatePendingFlowRequest } from "@/types"
 import { savePendingFlows } from "@/services/api"
+
+type PendingFlowFormState = CreatePendingFlowRequest & { icon?: IconName }
 
 export default function PendingMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings, exchangeRates } = useAppContext()
-  const { pendingFlows, refreshFlows } = useFinancialData()
+  const { pendingFlows, refreshPendingFlows } = useFinancialData()
   const navigate = useNavigate()
-  const [unsavedChanges, setUnsavedChanges] = useState(false)
+  const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [existingCategories, setExistingCategories] = useState<string[]>([])
-  const [validationErrors, setValidationErrors] = useState<
-    Record<string, string[]>
-  >({})
-  const [hasTriedSave, setHasTriedSave] = useState(false)
-  const [editingFlowId, setEditingFlowId] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
-  const [localPendingFlows, setLocalPendingFlows] = useState<PendingFlow[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [editingFlow, setEditingFlow] = useState<PendingFlow | null>(null)
+  const [deletingFlow, setDeletingFlow] = useState<PendingFlow | null>(null)
+  const [formData, setFormData] = useState<PendingFlowFormState>({
+    name: "",
+    amount: 0,
+    flow_type: FlowType.EARNING,
+    category: "",
+    enabled: true,
+    date: "",
+    currency: defaultCurrency,
+  })
 
   useEffect(() => {
-    setLocalPendingFlows(pendingFlows)
-    // Extract categories
     const categories = pendingFlows
       .map(flow => flow.category)
       .filter((category): category is string => Boolean(category))
@@ -76,172 +80,164 @@ export default function PendingMoneyPage() {
     return () => clearTimeout(timer)
   }, [])
 
-  // Sort flows based on selected criteria (do not sort while editing to avoid jumping UI)
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      currency: prev.currency || defaultCurrency,
+    }))
+  }, [defaultCurrency])
+
   const sortedFlows = useMemo(() => {
-    const flows = [...localPendingFlows].filter(f =>
+    const flows = pendingFlows.filter(flow =>
       categoryFilter.length
-        ? f.category
-          ? categoryFilter.includes(f.category)
+        ? flow.category
+          ? categoryFilter.includes(flow.category)
           : false
         : true,
     )
-    // While a flow is being edited, keep the original order for better UX
-    if (editingFlowId) return flows
-    if (sortBy === "amount") {
-      return flows.sort((a, b) => {
-        // Deprioritize disabled flows
-        if (a.enabled !== b.enabled) {
-          return a.enabled ? -1 : 1
-        }
-        const amountA = a.amount
-        const amountB = b.amount
-        return amountB - amountA // Descending order
-      })
-    } else {
-      return flows.sort((a, b) => {
-        // Deprioritize disabled flows
-        if (a.enabled !== b.enabled) {
-          return a.enabled ? -1 : 1
-        }
-        if (!a.date && !b.date) return 0
-        if (!a.date) return 1
-        if (!b.date) return -1
-        return new Date(a.date).getTime() - new Date(b.date).getTime()
-      })
-    }
-  }, [localPendingFlows, sortBy, categoryFilter])
 
-  // Component for controlled input that doesn't update state on every keystroke
-  const DebouncedInput = ({
-    value,
-    onChange,
-    onBlur,
-    ...props
-  }: {
-    value: string
-    onChange: (value: string) => void
-    onBlur?: () => void
-  } & Omit<React.ComponentProps<typeof Input>, "onChange" | "onBlur">) => {
-    const [localValue, setLocalValue] = useState(value)
-
-    useEffect(() => {
-      setLocalValue(value)
-    }, [value])
-
-    const handleBlur = () => {
-      if (localValue !== value) {
-        onChange(localValue)
+    const sorted = [...flows].sort((a, b) => {
+      if (a.enabled !== b.enabled) {
+        return a.enabled ? -1 : 1
       }
-      onBlur?.()
+      if (sortBy === "amount") {
+        return b.amount - a.amount
+      }
+      if (!a.date && !b.date) return 0
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return new Date(a.date).getTime() - new Date(b.date).getTime()
+    })
+
+    return {
+      earnings: sorted.filter(flow => flow.flow_type === FlowType.EARNING),
+      expenses: sorted.filter(flow => flow.flow_type === FlowType.EXPENSE),
     }
+  }, [pendingFlows, sortBy, categoryFilter])
 
-    return (
-      <Input
-        {...props}
-        value={localValue}
-        onChange={e => setLocalValue(e.target.value)}
-        onBlur={handleBlur}
-      />
-    )
-  }
-
-  const addNewFlow = (flowType: FlowType) => {
-    const newFlow: CreatePendingFlowRequest = {
+  const resetForm = () => {
+    setFormData({
       name: "",
       amount: 0,
-      flow_type: flowType,
+      flow_type: FlowType.EARNING,
       category: "",
       enabled: true,
-      date: "", // Leave empty initially since it's optional
-      currency: settings?.general?.defaultCurrency,
-    }
-    // Use a more stable ID for temporary flows
-    const tempId = `temp-${flowType}-${localPendingFlows.length}-${Date.now()}`
-    setLocalPendingFlows(prev => [{ ...newFlow, id: tempId }, ...prev])
-    setUnsavedChanges(true)
-    // Automatically set the new flow in edit mode
-    setEditingFlowId(tempId)
-  }
-
-  const updateFlow = (
-    index: number,
-    field: keyof CreatePendingFlowRequest,
-    value: string,
-  ) => {
-    setLocalPendingFlows(prev => {
-      const newFlows = [...prev]
-      const currentFlow = newFlows[index]
-      if (field === "enabled") {
-        newFlows[index] = { ...currentFlow, [field]: value === "true" }
-      } else {
-        newFlows[index] = { ...currentFlow, [field]: value }
-      }
-      return newFlows
+      date: "",
+      currency: defaultCurrency,
     })
-    setUnsavedChanges(true)
+    setEditingFlow(null)
+    setValidationErrors([])
   }
 
-  const removeFlow = (index: number) => {
-    setLocalPendingFlows(prev => prev.filter((_, i) => i !== index))
-    setUnsavedChanges(true)
-  }
+  const toRequestFlow = (
+    flow:
+      | PendingFlow
+      | (PendingFlowFormState & {
+          icon?: IconName
+        }),
+  ) => ({
+    name: flow.name,
+    amount: Number(flow.amount),
+    flow_type: flow.flow_type,
+    category: flow.category,
+    enabled: flow.enabled,
+    date: flow.date,
+    currency: flow.currency || defaultCurrency,
+    icon: (flow as any).icon,
+  })
 
-  const handleSave = async () => {
-    setHasTriedSave(true)
-
-    // Validate all flows
-    const errors: Record<string, string[]> = {}
-    localPendingFlows.forEach((flow, index) => {
-      const flowErrors: string[] = []
-      if (!flow.name.trim()) flowErrors.push("name")
-      if (!flow.amount) flowErrors.push("amount")
-
-      if (flowErrors.length > 0) {
-        errors[`flow-${index}`] = flowErrors
-      }
-    })
+  const handleSubmit = async () => {
+    const errors: string[] = []
+    if (!formData.name.trim()) errors.push("name")
+    if (!formData.amount) errors.push("amount")
 
     setValidationErrors(errors)
 
-    if (Object.keys(errors).length > 0) {
+    if (errors.length > 0) {
       return
     }
 
+    const sanitizedFormData: PendingFlowFormState = {
+      ...formData,
+      amount: Number(formData.amount),
+      currency: formData.currency || defaultCurrency,
+    }
+
+    const flowsPayload = editingFlow
+      ? pendingFlows.map(flow =>
+          flow.id === editingFlow.id
+            ? toRequestFlow({
+                ...flow,
+                ...sanitizedFormData,
+                icon: sanitizedFormData.icon,
+              })
+            : toRequestFlow(flow),
+        )
+      : [
+          ...pendingFlows.map(flow => toRequestFlow(flow)),
+          toRequestFlow(sanitizedFormData),
+        ]
+
     try {
-      const flowsToSave = localPendingFlows.map(flow => ({
-        name: flow.name,
-        amount: flow.amount,
-        flow_type: flow.flow_type,
-        category: flow.category,
-        enabled: flow.enabled,
-        date: flow.date,
-        currency: flow.currency,
-        icon: (flow as any).icon,
-      }))
-
-      const request: SavePendingFlowsRequest = {
-        flows: flowsToSave,
-      }
-
-      await savePendingFlows(request)
+      await savePendingFlows({ flows: flowsPayload })
       showToast(t.management.saveSuccess, "success")
-      setUnsavedChanges(false)
-      setHasTriedSave(false)
-      setValidationErrors({})
-      // Refresh flows from context
-      await refreshFlows()
+      setIsDialogOpen(false)
+      resetForm()
+      await refreshPendingFlows()
     } catch (error) {
-      console.error("Error saving pending flows:", error)
+      console.error("Error saving pending flow:", error)
       showToast(t.management.saveError, "error")
     }
   }
 
-  const earnings = sortedFlows.filter(
-    flow => flow.flow_type === FlowType.EARNING,
-  )
-  const expenses = sortedFlows.filter(
-    flow => flow.flow_type === FlowType.EXPENSE,
-  )
+  const handleDelete = async () => {
+    if (!deletingFlow) return
+
+    const flowsPayload = pendingFlows
+      .filter(flow => flow.id !== deletingFlow.id)
+      .map(flow => toRequestFlow(flow))
+
+    try {
+      await savePendingFlows({ flows: flowsPayload })
+      showToast(t.management.deleteSuccess, "success")
+      setIsDeleteDialogOpen(false)
+      setDeletingFlow(null)
+      await refreshPendingFlows()
+    } catch (error) {
+      console.error("Error deleting pending flow:", error)
+      showToast(t.management.deleteError, "error")
+    }
+  }
+
+  const openCreateDialog = (flowType: FlowType) => {
+    resetForm()
+    setFormData(prev => ({ ...prev, flow_type: flowType }))
+    setIsDialogOpen(true)
+  }
+
+  const openEditDialog = (flow: PendingFlow) => {
+    setEditingFlow(flow)
+    setValidationErrors([])
+    setFormData({
+      name: flow.name,
+      amount: flow.amount,
+      flow_type: flow.flow_type,
+      category: flow.category || "",
+      enabled: flow.enabled,
+      date: flow.date || "",
+      currency: flow.currency || defaultCurrency,
+      icon: (flow as any).icon,
+    })
+    setIsDialogOpen(true)
+  }
+
+  const openDeleteDialog = (flow: PendingFlow) => {
+    setDeletingFlow(flow)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const earnings = sortedFlows.earnings
+  const expenses = sortedFlows.expenses
 
   const toggleCategoryFilter = (category: string) => {
     setCategoryFilter(prev =>
@@ -256,21 +252,8 @@ export default function PendingMoneyPage() {
     [existingCategories],
   )
 
-  // Calculate totals for KPIs (excluding disabled flows)
-  const defaultCurrency = settings?.general?.defaultCurrency
-
-  // Helper to exclude unsaved temporary flows (do not count towards KPIs/charts)
-  const isTempFlow = (flow: PendingFlow) =>
-    typeof flow.id === "string" && flow.id.startsWith("temp-")
-
-  const kpiEarningsSource = useMemo(
-    () => earnings.filter(f => !isTempFlow(f)),
-    [earnings],
-  )
-  const kpiExpensesSource = useMemo(
-    () => expenses.filter(f => !isTempFlow(f)),
-    [expenses],
-  )
+  const kpiEarningsSource = useMemo(() => earnings, [earnings])
+  const kpiExpensesSource = useMemo(() => expenses, [expenses])
 
   const totalPendingEarnings = kpiEarningsSource
     .filter(flow => flow.enabled)
@@ -453,25 +436,19 @@ export default function PendingMoneyPage() {
     return { urgencyLevel: "normal" as const, timeText: "", show: false }
   }
 
-  const FlowSection = ({
+  const renderFlowSection = ({
     title,
     flows,
     flowType,
     emptyMessage,
     addMessage,
-    runEntranceAnimation,
   }: {
     title: string
     flows: PendingFlow[]
     flowType: FlowType
     emptyMessage: string
     addMessage: string
-    runEntranceAnimation: boolean
   }) => {
-    const sectionFlows = flows.map(flow => {
-      const sectionIndex = localPendingFlows.findIndex(f => f === flow)
-      return { flow, index: sectionIndex }
-    })
     const initialVariant = runEntranceAnimation ? "hidden" : false
 
     return (
@@ -491,7 +468,7 @@ export default function PendingMoneyPage() {
             <h2 className="text-xl font-semibold">{title}</h2>
           </div>
           <Button
-            onClick={() => addNewFlow(flowType)}
+            onClick={() => openCreateDialog(flowType)}
             size="sm"
             className="flex items-center gap-2 bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 text-white dark:text-black"
           >
@@ -499,7 +476,7 @@ export default function PendingMoneyPage() {
           </Button>
         </div>
 
-        {sectionFlows.length === 0 ? (
+        {flows.length === 0 ? (
           <motion.div
             variants={fadeListItem}
             initial={initialVariant}
@@ -523,7 +500,7 @@ export default function PendingMoneyPage() {
             animate="show"
             className="space-y-2"
           >
-            {sectionFlows.map(({ flow, index }) => (
+            {flows.map(flow => (
               <motion.div
                 key={flow.id}
                 variants={fadeListItem}
@@ -533,225 +510,96 @@ export default function PendingMoneyPage() {
                   !flow.enabled
                     ? "opacity-50 bg-gray-50 dark:bg-black"
                     : "bg-card shadow-sm"
-                } ${editingFlowId === flow.id ? "flex flex-col gap-4 opacity-95" : "flex items-start justify-between gap-4"} p-4 border rounded-lg`}
+                } flex items-start justify-between gap-4 p-4 border rounded-lg`}
               >
-                {editingFlowId === flow.id ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 block mb-1">
-                          {t.management.iconLabel}
-                        </label>
-                        <IconPicker
-                          value={(flow as any).icon as IconName | undefined}
-                          onValueChange={value =>
-                            updateFlow(index, "icon" as any, value as any)
-                          }
-                          modal
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                    <div className="flex items-center gap-2">
+                      {(flow as any).icon && (
+                        <Icon
+                          name={(flow as any).icon as IconName}
+                          className="w-5 h-5"
                         />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 block mb-1">
-                          {t.management.name}
-                        </label>
-                        <DebouncedInput
-                          id={`name-${flow.id}`}
-                          value={flow.name}
-                          onChange={value => updateFlow(index, "name", value)}
-                          placeholder={t.management.namePlaceholder}
-                          className={`h-9 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("name") ? "border-red-500" : ""}`}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 block mb-1">
-                          {t.management.amount}
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                            {getCurrencySymbol(flow.currency)}
-                          </span>
-                          <DebouncedInput
-                            id={`amount-${flow.id}`}
-                            type="number"
-                            step="0.01"
-                            value={flow.amount.toString()}
-                            onChange={value =>
-                              updateFlow(index, "amount", value)
-                            }
-                            placeholder={t.management.amountPlaceholder}
-                            className={`h-9 pl-6 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("amount") ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 block mb-1">
-                          {t.management.category}
-                        </label>
-                        <CategorySelector
-                          id={`category-${flow.id}`}
-                          value={flow.category || ""}
-                          onChange={value =>
-                            updateFlow(index, "category", value)
-                          }
-                          placeholder={t.management.categoryPlaceholder}
-                          className="h-9"
-                          categories={existingCategories}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 block mb-1">
-                          {t.management.date}
-                        </label>
-                        <DatePicker
-                          value={flow.date || ""}
-                          onChange={value => updateFlow(index, "date", value)}
-                          className={`h-9 ${hasTriedSave && validationErrors[`flow-${index}`]?.includes("date") ? "border-red-500" : ""}`}
-                        />
-                      </div>
-
-                      <div
-                        className={`flex flex-col items-center justify-center gap-1 ${!flow.enabled ? "opacity-100" : ""}`}
-                      >
-                        <label className="text-xs font-medium text-gray-500">
-                          {t.management.enabled}
-                        </label>
-                        <Switch
-                          checked={flow.enabled}
-                          onCheckedChange={checked =>
-                            updateFlow(index, "enabled", checked.toString())
-                          }
-                        />
-                      </div>
+                      )}
+                      <h3 className="font-medium">{flow.name}</h3>
                     </div>
-
-                    <div className="flex items-center justify-end gap-1 mt-2 border-t pt-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const flowErrors: string[] = []
-                          if (!flow.name.trim()) flowErrors.push("name")
-                          if (!flow.amount) flowErrors.push("amount")
-
-                          if (flowErrors.length > 0) {
-                            setHasTriedSave(true)
-                            setValidationErrors({
-                              [`flow-${index}`]: flowErrors,
-                            })
-                            return
-                          }
-                          setEditingFlowId(null)
-                          setValidationErrors({})
-                        }}
-                        className="text-blue-600 hover:text-blue-700 h-8 px-3"
+                    {flow.category && (
+                      <Badge
+                        variant="secondary"
+                        onClick={() => toggleCategoryFilter(flow.category!)}
+                        className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
                       >
-                        Done
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFlow(index)}
-                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                        <div className="flex items-center gap-2">
-                          {(flow as any).icon && (
-                            <Icon
-                              name={(flow as any).icon as IconName}
-                              className="w-5 h-5"
-                            />
-                          )}
-                          <h3 className="font-medium">{flow.name}</h3>
-                        </div>
-                        {flow.category && (
+                        <Tag size={12} />
+                        {flow.category}
+                      </Badge>
+                    )}
+                    {(() => {
+                      const urgencyInfo = getDateUrgencyInfo(flow.date)
+                      if (urgencyInfo?.show) {
+                        return (
                           <Badge
-                            variant="secondary"
-                            onClick={() => toggleCategoryFilter(flow.category!)}
-                            className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
+                            variant={
+                              urgencyInfo.urgencyLevel === "urgent"
+                                ? "destructive"
+                                : urgencyInfo.urgencyLevel === "soon"
+                                  ? "default"
+                                  : "outline"
+                            }
+                            className={`flex items-center gap-1 ${
+                              urgencyInfo.urgencyLevel === "urgent"
+                                ? "bg-red-500 text-white hover:bg-red-600"
+                                : urgencyInfo.urgencyLevel === "soon"
+                                  ? "bg-orange-500 text-white hover:bg-orange-600"
+                                  : "bg-blue-500 text-white hover:bg-blue-600"
+                            }`}
                           >
-                            <Tag size={12} />
-                            {flow.category}
+                            <CalendarDays size={12} />
+                            {urgencyInfo.timeText}
                           </Badge>
-                        )}
-                        {(() => {
-                          const urgencyInfo = getDateUrgencyInfo(flow.date)
-                          if (urgencyInfo?.show) {
-                            return (
-                              <Badge
-                                variant={
-                                  urgencyInfo.urgencyLevel === "urgent"
-                                    ? "destructive"
-                                    : urgencyInfo.urgencyLevel === "soon"
-                                      ? "default"
-                                      : "outline"
-                                }
-                                className={`flex items-center gap-1 ${
-                                  urgencyInfo.urgencyLevel === "urgent"
-                                    ? "bg-red-500 text-white hover:bg-red-600"
-                                    : urgencyInfo.urgencyLevel === "soon"
-                                      ? "bg-orange-500 text-white hover:bg-orange-600"
-                                      : "bg-blue-500 text-white hover:bg-blue-600"
-                                }`}
-                              >
-                                <CalendarDays size={12} />
-                                {urgencyInfo.timeText}
-                              </Badge>
-                            )
-                          } else if (flow.date) {
-                            return (
-                              <Badge
-                                variant="outline"
-                                className="flex items-center gap-1"
-                              >
-                                <Calendar size={12} />
-                                {formatDate(flow.date || "", locale)}
-                              </Badge>
-                            )
-                          }
-                        })()}
-                        {!flow.enabled && (
-                          <span className="text-sm text-gray-500">
-                            {t.management.disabled}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-semibold">
-                          {formatCurrency(flow.amount, locale, flow.currency)}
-                        </span>
-                      </div>
-                    </div>
+                        )
+                      } else if (flow.date) {
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="flex items-center gap-1"
+                          >
+                            <Calendar size={12} />
+                            {formatDate(flow.date || "", locale)}
+                          </Badge>
+                        )
+                      }
+                    })()}
+                    {!flow.enabled && (
+                      <span className="text-sm text-gray-500">
+                        {t.management.disabled}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-semibold">
+                      {formatCurrency(flow.amount, locale, flow.currency)}
+                    </span>
+                  </div>
+                </div>
 
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setEditingFlowId(flow.id)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Edit size={16} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeFlow(index)}
-                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </>
-                )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openEditDialog(flow)}
+                    className="h-8 w-8 p-0"
+                  >
+                    <Edit size={16} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openDeleteDialog(flow)}
+                    className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                  >
+                    <Trash2 size={16} />
+                  </Button>
+                </div>
               </motion.div>
             ))}
           </motion.div>
@@ -786,27 +634,6 @@ export default function PendingMoneyPage() {
             <PinAssetButton assetId="management-pending" />
           </div>
         </div>
-
-        {unsavedChanges && (
-          <motion.div
-            variants={fadeListItem}
-            initial={runEntranceAnimation ? "hidden" : false}
-            animate="show"
-            className="flex flex-col xs:flex-row items-start xs:items-center gap-2 xs:gap-4"
-          >
-            <span className="text-sm text-orange-600">
-              {t.management.unsavedChanges}
-            </span>
-            <Button
-              onClick={handleSave}
-              className="flex items-center gap-2"
-              size="sm"
-            >
-              <Save size={16} />
-              {t.common.save}
-            </Button>
-          </motion.div>
-        )}
       </motion.div>
 
       {/* KPI Cards */}
@@ -1053,22 +880,206 @@ export default function PendingMoneyPage() {
         </div>
       </motion.div>
 
-      <FlowSection
-        title={t.management.pendingEarnings}
-        flows={earnings}
-        flowType={FlowType.EARNING}
-        emptyMessage={t.management.noPendingEarnings}
-        addMessage={t.management.addFirstPendingEarning}
-        runEntranceAnimation={runEntranceAnimation}
-      />
+      {renderFlowSection({
+        title: t.management.pendingEarnings,
+        flows: earnings,
+        flowType: FlowType.EARNING,
+        emptyMessage: t.management.noPendingEarnings,
+        addMessage: t.management.addFirstPendingEarning,
+      })}
 
-      <FlowSection
-        title={t.management.pendingExpenses}
-        flows={expenses}
-        flowType={FlowType.EXPENSE}
-        emptyMessage={t.management.noPendingExpenses}
-        addMessage={t.management.addFirstPendingExpense}
-        runEntranceAnimation={runEntranceAnimation}
+      {renderFlowSection({
+        title: t.management.pendingExpenses,
+        flows: expenses,
+        flowType: FlowType.EXPENSE,
+        emptyMessage: t.management.noPendingExpenses,
+        addMessage: t.management.addFirstPendingExpense,
+      })}
+
+      <AnimatePresence>
+        {isDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-gray-900/20 dark:bg-black/50 flex items-center justify-center p-4 z-[18000]"
+            onClick={e => {
+              if (e.target === e.currentTarget) setIsDialogOpen(false)
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-md"
+            >
+              <Card>
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-4">
+                  <CardTitle className="text-xl">
+                    {editingFlow ? t.common.edit : t.management.addNew}{" "}
+                    {formData.flow_type === FlowType.EARNING
+                      ? t.management.flowType.EARNING
+                      : t.management.flowType.EXPENSE}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setIsDialogOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  <div className="flex items-end justify-between gap-4">
+                    <div className="min-w-0">
+                      <label className="text-sm font-medium block mb-1">
+                        {t.management.iconLabel}
+                      </label>
+                      <IconPicker
+                        value={formData.icon}
+                        onValueChange={value =>
+                          setFormData(prev => ({ ...prev, icon: value }))
+                        }
+                        modal
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 pb-1 shrink-0">
+                      <label
+                        htmlFor="pending-enabled"
+                        className="text-sm font-medium"
+                      >
+                        {t.management.enabled}
+                      </label>
+                      <Switch
+                        id="pending-enabled"
+                        checked={formData.enabled}
+                        onCheckedChange={checked =>
+                          setFormData(prev => ({ ...prev, enabled: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.name}
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <Input
+                      value={formData.name}
+                      onChange={e =>
+                        setFormData(prev => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
+                      placeholder={t.management.namePlaceholder}
+                      className={
+                        validationErrors.includes("name")
+                          ? "border-red-500"
+                          : ""
+                      }
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.amount}
+                      <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                        {getCurrencySymbol(formData.currency)}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={formData.amount}
+                        onChange={e =>
+                          setFormData(prev => ({
+                            ...prev,
+                            amount: parseFloat(e.target.value),
+                          }))
+                        }
+                        placeholder={t.management.amountPlaceholder}
+                        className={`pl-8 ${validationErrors.includes("amount") ? "border-red-500" : ""}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.category}
+                      <span className="text-gray-400 font-normal">
+                        ({t.management.optional})
+                      </span>
+                    </label>
+                    <CategorySelector
+                      value={formData.category || ""}
+                      onChange={value =>
+                        setFormData(prev => ({
+                          ...prev,
+                          category: value,
+                        }))
+                      }
+                      placeholder={t.management.categoryPlaceholder}
+                      categories={existingCategories}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium block mb-1">
+                      {t.management.date}
+                      <span className="text-gray-400 font-normal">
+                        ({t.management.optional})
+                      </span>
+                    </label>
+                    <DatePicker
+                      value={formData.date}
+                      onChange={value =>
+                        setFormData(prev => ({ ...prev, date: value }))
+                      }
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      {t.common.cancel}
+                    </Button>
+                    <Button onClick={handleSubmit}>{t.common.save}</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <ConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        title={t.management.deleteConfirmTitle.replace(
+          "{type}",
+          deletingFlow?.flow_type === FlowType.EARNING
+            ? t.management.flowType.EARNING.toLowerCase()
+            : t.management.flowType.EXPENSE.toLowerCase(),
+        )}
+        message={t.management.deleteConfirm.replace(
+          "{type}",
+          deletingFlow?.flow_type === FlowType.EARNING
+            ? t.management.flowType.EARNING.toLowerCase()
+            : t.management.flowType.EXPENSE.toLowerCase(),
+        )}
+        confirmText={t.common.delete}
+        cancelText={t.common.cancel}
+        onConfirm={handleDelete}
+        onCancel={() => setIsDeleteDialogOpen(false)}
       />
     </motion.div>
   )

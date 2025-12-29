@@ -1,15 +1,21 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Optional, Set
 from uuid import uuid4
 
+from dateutil.tz import tzlocal
+
 from application.mixins.atomic_use_case import AtomicUCMixin
+from application.ports.crypto_asset_port import CryptoAssetRegistryPort
+from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_port import EntityPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from dateutil.tz import tzlocal
+from domain.constants import SUPPORTED_CURRENCIES
+from domain.crypto import CryptoAsset
 from domain.entity import Entity, EntityOrigin, EntityType, Feature
 from domain.exception.exceptions import (
     EntityNameAlreadyExists,
@@ -28,6 +34,7 @@ from domain.global_position import (
     ProductType,
     StockInvestments,
     UpdatePositionRequest,
+    CryptoCurrencies,
 )
 from domain.use_cases.update_position import UpdatePosition
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
@@ -40,6 +47,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         position_port: PositionPort,
         manual_position_data_port: ManualPositionDataPort,
         virtual_import_registry: VirtualImportRegistry,
+        crypto_asset_registry_port: CryptoAssetRegistryPort,
+        crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
@@ -47,6 +56,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._position_port = position_port
         self._manual_position_data_port = manual_position_data_port
         self._virtual_import_registry = virtual_import_registry
+        self._crypto_asset_registry_port = crypto_asset_registry_port
+        self._crypto_asset_info_provider = crypto_asset_info_provider
+
+        self._log = logging.getLogger(__name__)
 
     @staticmethod
     def _build_base_position(
@@ -355,8 +368,14 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
     def _ensure_unique(container) -> None:
         if not (container and hasattr(container, "entries")):
             return
+        container_entries = container.entries
+        if isinstance(container, CryptoCurrencies):
+            if container_entries and hasattr(container_entries[0], "assets"):
+                container_entries = container_entries[0].assets
+            else:
+                container_entries = []
         seen = set()
-        for e in container.entries:
+        for e in container_entries:
             if hasattr(e, "id"):
                 i = getattr(e, "id", None)
                 if i is None:
@@ -419,7 +438,13 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 continue
             if not (container and hasattr(container, "entries")):
                 continue
-            for entry in container.entries:
+            container_entries = container.entries
+            if isinstance(container, CryptoCurrencies):
+                if container_entries and hasattr(container_entries[0], "assets"):
+                    container_entries = container_entries[0].assets
+                else:
+                    container_entries = []
+            for entry in container_entries:
                 if hasattr(entry, "id"):
                     entry.id = uuid4()
 
@@ -448,12 +473,58 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         for product_type, container in request.products.items():
             if not (container and hasattr(container, "entries")):
                 continue
-            for entry in container.entries:
-                entries.append(
-                    self._map_manual_position_data(entry, position, product_type)
+            container_entries = container.entries
+            if isinstance(container, CryptoCurrencies):
+                if container_entries and hasattr(container_entries[0], "assets"):
+                    container_entries = container_entries[0].assets
+                else:
+                    container_entries = []
+            for entry in container_entries:
+                manual_pos_data = self._map_manual_position_data(
+                    entry, position, product_type
                 )
+                if manual_pos_data:
+                    entries.append(manual_pos_data)
 
         return entries
+
+    def _process_crypto_assets_in_position(self, position: GlobalPosition):
+        crypto_container = position.products.get(ProductType.CRYPTO)
+        if not (crypto_container and hasattr(crypto_container, "entries")):
+            return
+        for crypto_wallet in crypto_container.entries:
+            if not hasattr(crypto_wallet, "assets"):
+                continue
+            for asset in crypto_wallet.assets:
+                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                    asset.symbol
+                )
+                if asset_details is None:
+                    (provider, provider_id) = next(
+                        iter(asset.crypto_asset.external_ids.items()), (None, None)
+                    )
+                    if provider is None or provider_id is None:
+                        self._log.warning(
+                            f"Cannot fetch crypto asset details for asset with symbol {asset.symbol} due to missing external IDs."
+                        )
+                        continue
+                    asset_extended_details = (
+                        self._crypto_asset_info_provider.get_asset_details(
+                            provider_id=provider_id,
+                            currencies=SUPPORTED_CURRENCIES,
+                            provider=provider,
+                        )
+                    )
+                    asset_details = CryptoAsset(
+                        id=uuid4(),
+                        name=asset_extended_details.name,
+                        symbol=asset_extended_details.symbol,
+                        icon_urls=[asset_extended_details.icon_url],
+                        external_ids=asset.crypto_asset.external_ids,
+                    )
+                    self._crypto_asset_registry_port.save(asset_details)
+
+                asset.crypto_asset = asset_details
 
     async def execute(self, request: UpdatePositionRequest):
         if request.entity_id:
@@ -469,12 +540,25 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             if existing:
                 raise EntityNameAlreadyExists(name)
 
+            natural_id = None
+            entity_icon_url = None
+            entity_type = EntityType.FINANCIAL_INSTITUTION
+            is_crypto = ProductType.CRYPTO in request.products
+            if is_crypto and request.net_crypto_entity_details:
+                entity_type = EntityType.CRYPTO_WALLET
+                entity_icon_url = request.new_entity_icon_url
+                integration_prefix = (
+                    request.net_crypto_entity_details.provider.value.lower()
+                )
+                natural_id = f"{integration_prefix}:{request.net_crypto_entity_details.provider_asset_id.lower()}"
+
             entity = Entity(
                 id=uuid4(),
                 name=name,
-                natural_id=None,
-                type=EntityType.FINANCIAL_INSTITUTION,
+                natural_id=natural_id,
+                type=entity_type,
                 origin=EntityOrigin.MANUAL,
+                icon_url=entity_icon_url,
             )
             self._entity_port.insert(entity)
         else:
@@ -513,6 +597,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         manual_data_entries = self._create_manual_position_data_entries(
             base_position, request
         )
+
+        self._process_crypto_assets_in_position(base_position)
 
         today = now.date()
         is_same_day = (

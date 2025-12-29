@@ -5,15 +5,17 @@ from typing import List, Optional, Union
 from uuid import UUID
 
 from dateutil.tz import tzlocal
+from pydantic.dataclasses import dataclass
+
 from domain.base import BaseData
 from domain.commodity import CommodityRegister
-from domain.crypto import CryptoAsset
+from domain.crypto import CryptoAsset, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.exception.exceptions import MissingFieldsError
+from domain.external_integration import ExternalIntegrationId
 from domain.fetch_record import DataSource
 from domain.profitability import annualized_profitability
-from pydantic.dataclasses import dataclass
 
 
 @dataclass
@@ -298,14 +300,9 @@ class Deposit(BaseData):
             self.expected_interests = round(self.amount * prof, 2)
 
 
-class CryptoCurrencyType(str, Enum):
-    NATIVE = "NATIVE"
-    TOKEN = "TOKEN"
-
-
 @dataclass
 class CryptoCurrencyPosition(BaseData):
-    id: UUID
+    id: Optional[UUID]
     symbol: str
     amount: Dezimal
     type: CryptoCurrencyType
@@ -319,6 +316,21 @@ class CryptoCurrencyPosition(BaseData):
     investment_currency: Optional[str] = None
     wallet_address: Optional[str] = None
     wallet_name: Optional[str] = None
+    source: DataSource = DataSource.REAL
+
+    def __post_init__(self):
+        ii = self.initial_investment
+        abp = self.average_buy_price
+        amount = self.amount
+
+        if ii is not None or abp is not None:
+            if not self.investment_currency:
+                raise MissingFieldsError(["investment_currency"])
+
+        if ii is None and abp is not None and amount and amount != 0:
+            self.initial_investment = abp * amount
+        elif abp is None and ii is not None and amount and amount != 0:
+            self.average_buy_price = ii / amount
 
 
 @dataclass
@@ -430,7 +442,6 @@ ProductPosition = Union[
     Commodities,
 ]
 
-
 ProductPositions = dict[ProductType, ProductPosition]
 
 
@@ -466,10 +477,18 @@ class PositionQueryRequest:
 
 
 @dataclass
+class CryptoEntityDetails:
+    provider_asset_id: str
+    provider: ExternalIntegrationId
+
+
+@dataclass
 class UpdatePositionRequest:
     products: ProductPositions
     entity_id: Optional[UUID] = None
     new_entity_name: Optional[str] = None
+    new_entity_icon_url: Optional[str] = None
+    net_crypto_entity_details: Optional[CryptoEntityDetails] = None
 
 
 @dataclass

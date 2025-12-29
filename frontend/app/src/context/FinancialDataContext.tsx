@@ -38,6 +38,7 @@ interface FinancialDataContextType {
   refreshData: () => Promise<void>
   refreshEntity: (entityId: string) => Promise<void>
   refreshFlows: () => Promise<void>
+  refreshPendingFlows: () => Promise<void>
   realEstateList: RealEstate[]
   refreshRealEstate: () => Promise<void>
   cachedLastTransactions: TransactionsResult | null
@@ -114,6 +115,16 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setPendingFlows(pendingFlowsData)
     } catch (err) {
       console.error("Error refreshing flows:", err)
+      setError("Failed to refresh flows. Please try again.")
+    }
+  }, [])
+
+  const refreshPendingFlows = useCallback(async () => {
+    try {
+      const pendingFlowsData = await getAllPendingFlows()
+      setPendingFlows(pendingFlowsData)
+    } catch (err) {
+      console.error("Error refreshing pending flows:", err)
       setError("Failed to refresh flows. Please try again.")
     }
   }, [])
@@ -263,6 +274,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         refreshData: fetchFinancialData,
         refreshEntity,
         refreshFlows,
+        refreshPendingFlows,
         realEstateList,
         refreshRealEstate,
         cachedLastTransactions,

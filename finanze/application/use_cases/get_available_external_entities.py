@@ -6,6 +6,7 @@ from application.ports.external_entity_fetcher import (
 )
 from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.external_integration_port import ExternalIntegrationPort
+from domain.entity import EntityOrigin
 from domain.external_entity import (
     ExternalEntityCandidates,
     ExternalEntityCandidatesQuery,
@@ -56,9 +57,9 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
         filtered_candidates = []
         for candidate in all_candidates:
             entity_by_natural_id = setup_entities_by_natural_ids.get(candidate.bic)
-            if (
-                not entity_by_natural_id
-                or entity_by_natural_id.id not in setup_external_entities_entity_ids
+            if not entity_by_natural_id or (
+                entity_by_natural_id.id not in setup_external_entities_entity_ids
+                and entity_by_natural_id.origin != EntityOrigin.NATIVE
             ):
                 filtered_candidates.append(candidate)
 

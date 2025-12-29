@@ -1,9 +1,18 @@
 import logging
+from typing import Optional
+
+from cachetools import TTLCache, cached
 
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
-from cachetools import TTLCache, cached
-from domain.crypto import CryptoAsset
+from domain.crypto import (
+    AvailableCryptoAsset,
+    CryptoAsset,
+    CryptoAssetDetails,
+    CryptoPlatform,
+)
 from domain.dezimal import Dezimal
+from domain.entity import Entity
+from domain.external_integration import ExternalIntegrationId
 from infrastructure.client.rates.crypto.coingecko_client import CoinGeckoClient
 from infrastructure.client.rates.crypto.cryptocompare_client import CryptoCompareClient
 from infrastructure.client.rates.crypto.p2s_client import P2SClient
@@ -12,9 +21,9 @@ from infrastructure.client.rates.crypto.p2s_client import P2SClient
 class CryptoAssetInfoClient(CryptoAssetInfoProvider):
     PRICE_CACHE_TTL = 20 * 60
 
-    def __init__(self):
+    def __init__(self, app_dir: str):
         self._p2s_client = P2SClient()
-        self._coingecko_client = CoinGeckoClient()
+        self._coingecko_client = CoinGeckoClient(app_dir=app_dir)
         self._cc_client = CryptoCompareClient()
 
         self._log = logging.getLogger(__name__)
@@ -106,3 +115,43 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
             )
             result[raw] = asset
         return result
+
+    def asset_lookup(
+        self, symbol: str | None = None, name: str | None = None
+    ) -> list[AvailableCryptoAsset]:
+        return self._coingecko_client.asset_lookup(symbol=symbol, name=name)
+
+    def get_asset_platforms(self) -> dict[str, CryptoPlatform]:
+        return self._coingecko_client.get_asset_platforms()
+
+    @cached(
+        cache=TTLCache(maxsize=100, ttl=3600),
+        key=lambda _,
+        provider_id,
+        currencies,
+        provider=ExternalIntegrationId.COINGECKO: f"{provider_id}_{'_'.join(sorted(currencies))}",
+    )
+    def get_asset_details(
+        self,
+        provider_id: str,
+        currencies: list[str],
+        provider: ExternalIntegrationId = ExternalIntegrationId.COINGECKO,
+    ) -> CryptoAssetDetails:
+        if provider == ExternalIntegrationId.COINGECKO:
+            return self._coingecko_client.get_asset_details(
+                provider_id=provider_id, currencies=currencies
+            )
+        raise NotImplementedError(
+            f"Asset details not implemented for provider {provider}"
+        )
+
+    def get_native_entity_by_platform(
+        self, provider_id: str, provider: ExternalIntegrationId
+    ) -> Optional[Entity]:
+        if provider == ExternalIntegrationId.COINGECKO:
+            return self._coingecko_client.get_native_entity_by_platform(
+                provider_id, provider
+            )
+        raise NotImplementedError(
+            f"Native entity lookup not implemented for provider {provider}"
+        )

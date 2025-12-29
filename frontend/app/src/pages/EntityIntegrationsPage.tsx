@@ -12,22 +12,9 @@ import { useI18n } from "@/i18n"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useState, useEffect } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
+import { useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { Badge } from "@/components/ui/Badge"
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/Popover"
-import {
-  ExternalLink,
-  Landmark,
-  Wallet,
-  Settings,
-  Check,
-  AlertCircle,
-} from "lucide-react"
+import { ExternalLink, Landmark, Wallet, Check } from "lucide-react"
 import {
   EntityOrigin,
   EntitySetupLoginType,
@@ -70,7 +57,6 @@ export default function EntityIntegrationsPage() {
   } = useEntityWorkflow()
 
   const { t } = useI18n()
-  const navigate = useNavigate()
   const [showAddWallet, setShowAddWallet] = useState(false)
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
@@ -281,9 +267,6 @@ export default function EntityIntegrationsPage() {
     integ =>
       integ.type === ExternalIntegrationType.ENTITY_PROVIDER &&
       integ.status === ExternalIntegrationStatus.ON,
-  )
-  const providerIntegrations = externalIntegrations.filter(
-    integ => integ.type === ExternalIntegrationType.ENTITY_PROVIDER,
   )
 
   const openAddExternalEntity = () => {
@@ -607,116 +590,68 @@ export default function EntityIntegrationsPage() {
                     variants={fadeListContainer}
                   >
                     {/* Add External Entity Card */}
-                    <motion.div variants={fadeListItem}>
-                      <Card
-                        className={`transition-all hover:shadow-md border-l-4 border-l-gray-300 ${hasProviderIntegration ? "opacity-100 cursor-pointer hover:shadow-lg" : "opacity-80"}`}
-                        onClick={
-                          hasProviderIntegration
-                            ? openAddExternalEntity
-                            : undefined
-                        }
-                      >
-                        <CardHeader className="pb-0 p-4">
-                          <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="flex items-center min-w-0">
-                              <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
-                                <div className="absolute inset-0">
-                                  <img
-                                    src="icons/santander.png"
-                                    alt=""
-                                    className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(-50%,-10%) rotate(-10deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                  <img
-                                    src="icons/sabadell.png"
-                                    alt=""
-                                    className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(0,-45%) rotate(6deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                  <img
-                                    src="icons/n26.png"
-                                    alt=""
-                                    className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(-55%,10%) rotate(9deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                  <img
-                                    src="icons/vivid.png"
-                                    alt=""
-                                    className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
-                                    style={{
-                                      transform:
-                                        "translate(0%,-45%) rotate(-7deg)",
-                                    }}
-                                    draggable={false}
-                                  />
-                                </div>
-                              </div>
-                              <span className="truncate">
-                                {t.entities.moreFinancialInstitutionsCard}
-                              </span>
-                            </div>
-                            {!hasProviderIntegration ? (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Badge
-                                    variant="outline"
-                                    className="hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-300 cursor-pointer transition-colors"
-                                  >
-                                    {t.entities.requiresProviderIntegration}
-                                  </Badge>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80">
-                                  <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                      <AlertCircle className="h-9 w-9 text-red-500" />
-                                      <h4 className="font-medium text-sm">
-                                        {t.entities.requiresProviderIntegration}
-                                      </h4>
-                                    </div>
-                                    {providerIntegrations.length > 0 && (
-                                      <div className="space-y-1 ml-11 mt-1">
-                                        {providerIntegrations.map(integ => (
-                                          <div
-                                            key={integ.id}
-                                            className="text-sm text-gray-600 dark:text-gray-300"
-                                          >
-                                            • {integ.name}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    <Button
-                                      size="sm"
-                                      className="w-full mt-4"
-                                      onClick={() =>
-                                        navigate(
-                                          "/settings?tab=integrations&focus=gocardless",
-                                        )
-                                      }
-                                    >
-                                      <Settings className="mr-2 h-3 w-3" />
-                                      {t.entities.goToSettings}
-                                    </Button>
+                    {hasProviderIntegration && (
+                      <motion.div variants={fadeListItem}>
+                        <Card
+                          className="transition-all hover:shadow-md border-l-4 border-l-gray-300 opacity-100 cursor-pointer hover:shadow-lg"
+                          onClick={openAddExternalEntity}
+                        >
+                          <CardHeader className="pb-0 p-4">
+                            <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
+                              <div className="flex items-center min-w-0">
+                                <div className="w-12 h-12 mr-3 flex-shrink-0 relative">
+                                  <div className="absolute inset-0">
+                                    <img
+                                      src="icons/santander.png"
+                                      alt=""
+                                      className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                      style={{
+                                        transform:
+                                          "translate(-50%,-10%) rotate(-10deg)",
+                                      }}
+                                      draggable={false}
+                                    />
+                                    <img
+                                      src="icons/sabadell.png"
+                                      alt=""
+                                      className="absolute left-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                      style={{
+                                        transform:
+                                          "translate(0,-45%) rotate(6deg)",
+                                      }}
+                                      draggable={false}
+                                    />
+                                    <img
+                                      src="icons/n26.png"
+                                      alt=""
+                                      className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-6 object-contain rounded"
+                                      style={{
+                                        transform:
+                                          "translate(-55%,10%) rotate(9deg)",
+                                      }}
+                                      draggable={false}
+                                    />
+                                    <img
+                                      src="icons/vivid.png"
+                                      alt=""
+                                      className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 object-contain rounded"
+                                      style={{
+                                        transform:
+                                          "translate(0%,-45%) rotate(-7deg)",
+                                      }}
+                                      draggable={false}
+                                    />
                                   </div>
-                                </PopoverContent>
-                              </Popover>
-                            ) : null}
-                          </CardTitle>
-                        </CardHeader>
-                      </Card>
-                    </motion.div>
+                                </div>
+                                <span className="truncate">
+                                  {t.entities.moreFinancialInstitutionsCard}
+                                </span>
+                              </div>
+                            </CardTitle>
+                          </CardHeader>
+                        </Card>
+                      </motion.div>
+                    )}
                     {unconnectedFinancialEntities.map(entity => (
                       <motion.div key={entity.id} variants={fadeListItem}>
                         <EntityCard

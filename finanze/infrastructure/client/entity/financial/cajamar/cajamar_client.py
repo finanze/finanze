@@ -1,11 +1,12 @@
 import logging
 import secrets
-import time
 from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
+import time
 from dateutil.tz import tzlocal
+
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
 
 PREFIX = "110003"
@@ -32,7 +33,7 @@ def _calculate_c_digit(base: str) -> str:
     return str(c_digit)
 
 
-def _get_device_id() -> str:
+def _generate_device_id() -> str:
     timestamp = str(int(time.time() * 1000))
     rand_val = secrets.randbelow(RANDOM_MAX)
     random3 = f"{rand_val:03d}"
@@ -58,7 +59,11 @@ class CajamarClient:
         self._log = logging.getLogger(__name__)
 
     def login(
-        self, username: str, password: str, session: Optional[EntitySession]
+        self,
+        username: str,
+        password: str,
+        session: Optional[EntitySession],
+        retry: bool = False,
     ) -> EntityLoginResult:
         refresh_token_expiration = (
             datetime.fromisoformat(session.payload.get("refresh_token_expiration"))
@@ -75,7 +80,8 @@ class CajamarClient:
         refresh_token = session.payload.get("refresh_token") if session else None
 
         if should_enroll:
-            self._device_id = _get_device_id()
+            if not self._device_id:
+                self._device_id = _generate_device_id()
             self._headers["deviceid"] = self._device_id
 
             auth_response = self._enrollment(username, password)
@@ -133,10 +139,24 @@ class CajamarClient:
                         message="Tokens not found in refresh response",
                     )
             else:
+                if not retry:
+                    old_refresh_token_exp = datetime.now(tzlocal()) - timedelta(
+                        seconds=1
+                    )
+                    self._headers.pop("Authorization", None)
+                    session.payload = {
+                        "device_id": self._device_id,
+                        "refresh_token_expiration": old_refresh_token_exp.isoformat(),
+                    }
+                    self._log.info(
+                        "Reenrolling in Cajamar due to invalid refresh token"
+                    )
+                    return self.login(username, password, session, retry=True)
+
                 self._log.error(f"Got body {refresh_response.text}")
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {refresh_response.status_code} while refreshing token",
+                    message=f"Got unexpected response code {refresh_response.status_code} while refreshing token after reauthentication",
                 )
 
             login_response = self._login(password)

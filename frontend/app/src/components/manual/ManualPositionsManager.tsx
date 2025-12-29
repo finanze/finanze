@@ -45,10 +45,14 @@ const createEmptyFeatureRecord = (): Record<Feature, string> => ({
   HISTORIC: "",
 })
 
-const createPlaceholderEntity = (id: string, name: string): Entity => ({
+const createPlaceholderEntity = (
+  id: string,
+  name: string,
+  type: EntityType = EntityType.FINANCIAL_INSTITUTION,
+): Entity => ({
   id,
   name,
-  type: EntityType.FINANCIAL_INSTITUTION,
+  type,
   origin: EntityOrigin.MANUAL,
   natural_id: id,
   features: ["POSITION"],
@@ -233,9 +237,35 @@ export function ManualPositionsManager({
 
   const assetPath = `management.manualPositions.${asset}`
 
+  const allowedEntityTypes = useMemo(() => {
+    switch (asset) {
+      case "bankAccounts":
+      case "bankCards":
+      case "bankLoans":
+        return new Set<EntityType>([
+          EntityType.FINANCIAL_INSTITUTION,
+          EntityType.CRYPTO_EXCHANGE,
+        ])
+      case "crypto":
+        return new Set<EntityType>([
+          EntityType.FINANCIAL_INSTITUTION,
+          EntityType.CRYPTO_WALLET,
+          EntityType.CRYPTO_EXCHANGE,
+        ])
+      case "fundPortfolios":
+      case "funds":
+      case "stocks":
+      case "factoring":
+      case "realEstateCf":
+      case "deposits":
+      default:
+        return new Set<EntityType>([EntityType.FINANCIAL_INSTITUTION])
+    }
+  }, [asset])
+
   const manualEntities = useMemo(() => {
-    const baseEntities = (entities ?? []).filter(
-      entity => entity.type === EntityType.FINANCIAL_INSTITUTION,
+    const baseEntities = (entities ?? []).filter(entity =>
+      allowedEntityTypes.has(entity.type),
     )
     const existingIds = new Set(baseEntities.map(entity => entity.id))
     const result: Entity[] = [...baseEntities]
@@ -263,12 +293,19 @@ export function ManualPositionsManager({
         }
 
         existingIds.add(entityId)
-        result.push(createPlaceholderEntity(entityId, placeholderName))
+        const resolvedType =
+          (draft as any)._entity_type ?? EntityType.FINANCIAL_INSTITUTION
+        if (!allowedEntityTypes.has(resolvedType)) {
+          return
+        }
+        result.push(
+          createPlaceholderEntity(entityId, placeholderName, resolvedType),
+        )
       })
     })
 
     return result
-  }, [entities, manualDraftEntitySignature])
+  }, [entities, manualDraftEntitySignature, allowedEntityTypes])
 
   const linkedAccountOptions = useCallback(
     (entityId?: string | null) => {
@@ -819,7 +856,12 @@ export function ManualPositionsManager({
 
         const duplicateDraft = drafts.some(draft => {
           if (!draft.isNewEntity) return false
-          if (activeDraft && draft.localId === activeDraft.localId) return false
+          if (activeDraft) {
+            if (draft.localId === activeDraft.localId) return false
+            if (draft.entityId && draft.entityId === activeDraft.entityId) {
+              return false
+            }
+          }
           const candidate = (draft.newEntityName ?? draft.entityName ?? "")
             .trim()
             .toLowerCase()
@@ -844,7 +886,10 @@ export function ManualPositionsManager({
     setFormErrors({})
 
     const previous = activeDraft ?? undefined
-    const entry = config.buildEntryFromForm(formState, { previous })
+    const entry = config.buildEntryFromForm(formState, {
+      previous,
+      defaultCurrency,
+    })
     if (!entry) {
       showToast(
         translate("management.manualPositions.shared.genericError"),
@@ -895,8 +940,13 @@ export function ManualPositionsManager({
       delete (entry as { id?: string }).id
     }
 
+    const entryAny = entry as any
     const draft: ManualPositionDraft<any> = {
-      ...entry,
+      ...entryAny,
+      source:
+        (entryAny?.source as DataSource | undefined | null) ??
+        (previous as any)?.source ??
+        DataSource.MANUAL,
       localId: previous?.localId ?? generateLocalId(),
       originalId: isNewEntity
         ? undefined
@@ -1217,7 +1267,7 @@ export function ManualPositionsManager({
 
   const isManualDraft = useCallback((draft: ManualPositionDraft<any>) => {
     const source = (draft as { source?: DataSource | null }).source
-    return source === DataSource.MANUAL
+    return (source ?? DataSource.MANUAL) === DataSource.MANUAL
   }, [])
 
   const buildSavePayloadByEntity =
@@ -1264,16 +1314,35 @@ export function ManualPositionsManager({
               .find((value): value is string => Boolean(value)) ?? null)
           : null
 
+        let newEntityIconUrl: string | null = null
+        let netCryptoEntityDetails: {
+          provider_asset_id: string
+          provider: string
+        } | null = null
+        if (asset === "crypto" && isNewEntityGroup) {
+          const cryptoDraft = manualEntries.find(
+            draft =>
+              draft._new_entity_icon_url || draft._net_crypto_entity_details,
+          )
+          if (cryptoDraft) {
+            newEntityIconUrl = cryptoDraft._new_entity_icon_url || null
+            netCryptoEntityDetails =
+              cryptoDraft._net_crypto_entity_details || null
+          }
+        }
+
         result.set(entityId, {
           productType: config.productType,
           entries,
           isNewEntity: isNewEntityGroup,
           newEntityName: resolvedNewEntityName,
+          newEntityIconUrl,
+          netCryptoEntityDetails,
         })
       })
 
       return result
-    }, [drafts, initialDrafts, config, isManualDraft])
+    }, [asset, drafts, initialDrafts, config, isManualDraft])
 
   const saveManualUpdates = useCallback(
     async (payload: UpdatePositionRequest) => {
@@ -1286,8 +1355,7 @@ export function ManualPositionsManager({
   )
 
   const handleSaveChanges = useCallback(async () => {
-    if (!hasLocalChanges || isSaving) {
-      setIsEditMode(false)
+    if (isSaving) {
       return
     }
 
@@ -1305,7 +1373,17 @@ export function ManualPositionsManager({
       let missingNewEntityName = false
 
       payloadsByEntity.forEach(
-        ({ productType, entries, isNewEntity, newEntityName }, entityId) => {
+        (
+          {
+            productType,
+            entries,
+            isNewEntity,
+            newEntityName,
+            newEntityIconUrl,
+            netCryptoEntityDetails,
+          },
+          entityId,
+        ) => {
           const payloadEntries = entries.map(({ payload, draft }) => {
             const entry = { ...payload }
             if (!draft.originalId) {
@@ -1328,11 +1406,28 @@ export function ManualPositionsManager({
           const treatAsNewEntity =
             Boolean(isNewEntity) || isPlaceholderEntity || newDrafts.length > 0
 
+          const productPayload =
+            productType === ProductType.CRYPTO
+              ? {
+                  entries:
+                    payloadEntries.length > 0
+                      ? [
+                          {
+                            id: null,
+                            address: null,
+                            name: null,
+                            assets: payloadEntries,
+                          },
+                        ]
+                      : [],
+                }
+              : {
+                  entries: payloadEntries,
+                }
+
           const requestPayload: UpdatePositionRequest = {
             products: {
-              [productType]: {
-                entries: payloadEntries,
-              },
+              [productType]: productPayload as any,
             },
           }
 
@@ -1357,6 +1452,12 @@ export function ManualPositionsManager({
             }
 
             requestPayload.new_entity_name = trimmedName
+            if (newEntityIconUrl) {
+              requestPayload.new_entity_icon_url = newEntityIconUrl
+            }
+            if (netCryptoEntityDetails) {
+              requestPayload.net_crypto_entity_details = netCryptoEntityDetails
+            }
             if ("entity_id" in requestPayload) {
               delete requestPayload.entity_id
             }
@@ -1403,7 +1504,6 @@ export function ManualPositionsManager({
     }
   }, [
     buildSavePayloadByEntity,
-    hasLocalChanges,
     isSaving,
     saveManualUpdates,
     fetchEntities,
@@ -1756,7 +1856,7 @@ export function ManualPositionsManager({
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="w-full max-w-3xl"
             >
-              <Card className="max-h-[90vh] overflow-hidden flex flex-col">
+              <Card className="max-h-[90vh] flex flex-col">
                 <CardHeader className="space-y-2">
                   <CardTitle>
                     {formMode === "create"

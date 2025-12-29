@@ -1,8 +1,9 @@
 import logging
 from asyncio import Lock
 from datetime import datetime
-from typing import Optional
 from uuid import uuid4
+
+from dateutil.tz import tzlocal
 
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_fetcher import (
@@ -10,8 +11,6 @@ from application.ports.external_entity_fetcher import (
 )
 from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.external_integration_port import ExternalIntegrationPort
-from application.ports.file_storage_port import FileStoragePort
-from dateutil.tz import tzlocal
 from domain.entity import Entity, EntityOrigin
 from domain.exception.exceptions import (
     EntityNotFound,
@@ -43,13 +42,11 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
         external_entity_port: ExternalEntityPort,
         external_entity_fetchers: dict[ExternalIntegrationId, ExternalEntityFetcher],
         external_integration_port: ExternalIntegrationPort,
-        file_storage_port: FileStoragePort,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
         self._external_entity_fetchers = external_entity_fetchers
         self._external_integration_port = external_integration_port
-        self._file_storage_port = file_storage_port
 
         self._lock = Lock()
 
@@ -138,9 +135,9 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     natural_id=natural_id,
                     type=institution_details.type,
                     origin=EntityOrigin.EXTERNALLY_PROVIDED,
+                    icon_url=institution_details.icon,
                 )
                 self._entity_port.insert(entity)
-                self._save_icon(institution_details.icon, str(entity_id))
 
             if not external_entity:
                 external_entity = ExternalEntity(
@@ -190,18 +187,6 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     raise
 
             return response
-
-    def _save_icon(self, icon_url: str, entity_id: str) -> Optional[str]:
-        extension = icon_url.split(".")[-1].split("?")[0]
-        if extension.lower() not in ["png", "jpg", "jpeg", "svg", "webp"]:
-            self._log.warning(
-                f"Unsupported file extension '{extension}' for icon URL: {icon_url}"
-            )
-            return None
-
-        return self._file_storage_port.save_from_url(
-            icon_url, "entities/logos", filename=f"{entity_id}.{extension}"
-        )
 
     def _setup_provider(self, external_integration_id: ExternalIntegrationId):
         provider = self._external_entity_fetchers[external_integration_id]

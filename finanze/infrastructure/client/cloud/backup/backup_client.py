@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 import requests
+from cachetools import cached, TTLCache
 
 from application.ports.backup_repository import BackupRepository
 from domain.backup import (
@@ -187,6 +188,7 @@ class BackupClient(BackupRepository):
             self._log.error(f"Unexpected error downloading backup: {e}")
             raise
 
+    @cached(cache=TTLCache(maxsize=1, ttl=1), key=lambda self, request: "info")
     def get_info(self, request: BackupInfoParams) -> BackupsInfo:
         """Get information about available backups in the cloud."""
         try:

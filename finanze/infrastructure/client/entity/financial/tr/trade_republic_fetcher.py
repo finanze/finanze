@@ -23,7 +23,6 @@ from domain.global_position import (
     AssetType,
     CryptoCurrencies,
     CryptoCurrencyPosition,
-    CryptoCurrencyType,
     CryptoCurrencyWallet,
     EquityType,
     FundDetail,
@@ -34,6 +33,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.crypto import CryptoCurrencyType
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import (
     AccountTx,

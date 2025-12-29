@@ -1,8 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from application.ports.auto_contributions_port import AutoContributionsPort
 from dateutil.tz import tzlocal
+
+from application.ports.auto_contributions_port import AutoContributionsPort
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
@@ -33,7 +34,8 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             for contrib in data.periodic:
                 cursor.execute(
                     """
-                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, target_subtype, alias, target_name, amount, currency,
+                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, target_subtype, alias,
+                                                        target_name, amount, currency,
                                                         since, until, frequency, active, is_real, source, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
@@ -68,6 +70,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                          e.natural_id as entity_natural_id,
                          e.type       as entity_type,
                          e.origin     as entity_origin,
+                         e.icon_url   as icon_url,
                          pc.id        as pc_id,
                          pc.*
                   FROM periodic_contributions pc
@@ -107,6 +110,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                     natural_id=row["entity_natural_id"],
                     type=row["entity_type"],
                     origin=row["entity_origin"],
+                    icon_url=row["icon_url"],
                 )
                 if entity not in entities:
                     entities[entity] = []
