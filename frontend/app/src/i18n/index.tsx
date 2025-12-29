@@ -6,16 +6,14 @@ import {
   useState,
 } from "react"
 import enTranslations from "./locales/en.json"
-import esTranslations from "./locales/es.json"
+import esTranslationsRaw from "./locales/es.json"
 
 export type Locale = "en-US" | "es-ES"
-export type Translations =
-  | (typeof enTranslations & { about: (typeof enTranslations)["about"] })
-  | (typeof esTranslations & { about: (typeof enTranslations)["about"] })
+export type Translations = typeof enTranslations
 
 const translations: Record<Locale, Translations> = {
   "en-US": enTranslations,
-  "es-ES": esTranslations,
+  "es-ES": esTranslationsRaw as unknown as Translations,
 }
 
 interface I18nContextType {

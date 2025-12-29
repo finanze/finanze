@@ -1,8 +1,8 @@
-<p align="center"><img src="frontend/app/public/finanze.png" alt="Finanze Logo" width="220px"></p>
-<h1 align="center">Finanze</h1>
+<p align="center"><img src="frontend/app/public/finanze-app.png" alt="Finanze Logo" width="220px"></p>
+<h1 align="center">Finanze: private & self-hosted portfolio manager</h1>
 
 <p align="center">
-A private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
+<a href="https://finanze.me">Finanze</a> is a private, self-hosted portfolio manager that allows to aggregate financial data from various banking and investment
 platforms. It supports multiple sources, asset types (real estate, crypto, funds, stocks...) and features, providing a unified interface to gather and process financial information.
 </p>
 
@@ -181,9 +181,9 @@ The first one is required for Mintos, as it contains Selenium and reCAPTCHA reso
 dependencies (like ffmpeg).
 In case you don't use Mintos, latest-no-selenium is highly recommended.
 
-Both are available at Docker Hub [marcosav/finanze](https://hub.docker.com/r/marcosav/finanze).
+Both are available at Docker Hub [finanze/finanze](https://hub.docker.com/r/finanze/finanze).
 
-Frontend is available at [marcosav/finanze-frontend](https://hub.docker.com/r/marcosav/finanze-frontend).
+Frontend is available at [finanze/finanze-frontend](https://hub.docker.com/r/finanze/finanze-frontend).
 
 Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 

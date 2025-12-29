@@ -1,7 +1,19 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, TypeAlias
 
 from pydantic.dataclasses import dataclass
+
+from domain.user import User
+
+
+class FFStatus(str, Enum):
+    ON = "ON"
+    OFF = "OFF"
+
+
+FFValue = FFStatus | str
+
+FeatureFlags: TypeAlias = dict[str, FFValue]
 
 
 class LoginStatusCode(str, Enum):
@@ -38,5 +50,6 @@ class BackendDetails:
 class GlobalStatus:
     status: LoginStatusCode
     server: BackendDetails
-    user: Optional[str] = None
+    features: FeatureFlags
+    user: Optional[User] = None
     last_logged: Optional[str] = None

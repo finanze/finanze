@@ -46,6 +46,7 @@ import {
   getAboutInfo,
 } from "./about-window"
 import { createTray } from "./tray"
+import { setupOAuthDeepLinking } from "./oauth-deeplink"
 
 const packageMetadata = packageJson as {
   author?: string | { name?: string }
@@ -119,6 +120,13 @@ backendController.on("status-changed", status => {
 })
 
 if (appConfig.os === OS.WINDOWS) app.setAppUserModelId(app.getName())
+
+console.debug("[Main] Setting up OAuth deep linking")
+setupOAuthDeepLinking({
+  app,
+  getMainWindow: () => mainWindow,
+  sendToAllWindows,
+})
 
 if (!app.requestSingleInstanceLock()) {
   console.warn("Failed to acquire single instance lock")
@@ -215,8 +223,6 @@ async function showOrCreateMainWindow(): Promise<void> {
     mainWindow.show()
   }
 }
-
-// Helper function to send events to all windows
 function sendToAllWindows(channel: string, ...args: any[]) {
   BrowserWindow.getAllWindows().forEach(window => {
     if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
@@ -420,23 +426,11 @@ app.whenReady().then(async () => {
   checkForUpdatesOnStartup()
 
   app.on("activate", async () => {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (mainWindow === null) {
       await createWindow()
     }
   })
 })
-
-app.on("second-instance", () => {
-  if (mainWindow) {
-    // Focus on the main window if the user tried to open another
-    if (mainWindow.isMinimized()) mainWindow.restore()
-    mainWindow.focus()
-  }
-})
-
-// Quit when all windows are closed, except on macOS
 app.on("window-all-closed", () => {
   mainWindow = null
   closeAboutWindow()
@@ -444,8 +438,6 @@ app.on("window-all-closed", () => {
     app.quit()
   }
 })
-
-// Clean up the Python process when the app is quitting
 app.on("will-quit", e => {
   e.preventDefault()
   quit()
@@ -473,7 +465,7 @@ async function quit() {
     try {
       if (appConfig.os !== OS.WINDOWS) app.quit()
     } catch {
-      // Ignore errors from retrying
+      void 0
     }
   }
 }

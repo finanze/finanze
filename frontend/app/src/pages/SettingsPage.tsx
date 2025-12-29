@@ -27,14 +27,18 @@ import {
   Check,
   AlertTriangle,
   Database,
+  Cloud,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
+import { useAuth } from "@/context/AuthContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { WeightUnit } from "@/types/position"
-import { AutoRefreshMaxOutdatedTime, AutoRefreshMode } from "@/types"
+import { AutoRefreshMaxOutdatedTime, AutoRefreshMode, FFStatus } from "@/types"
 import { AdvancedSettingsForm } from "@/components/ui/AdvancedSettingsForm"
 import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
 import { EntitySelector } from "@/components/settings/EntitySelector"
+import { CloudTab } from "@/components/settings/CloudTab"
+import { copyToClipboard } from "@/lib/clipboard"
 
 const cleanObject = (obj: any): any => {
   if (obj === null || obj === undefined) {
@@ -90,15 +94,22 @@ export default function SettingsPage() {
     saveSettings,
     isLoadingSettings,
     fetchExternalIntegrations,
+    featureFlags,
   } = useAppContext()
+  const { user } = useAuth()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
   )
-  const showRefreshButton = activeTab !== "application"
+
+  const isCloudEnabled = featureFlags.CLOUD === FFStatus.ON
+  const showRefreshButton = activeTab !== "application" && activeTab !== "cloud"
   const showSaveButton =
-    activeTab !== "application" && activeTab !== "integrations"
+    activeTab !== "application" &&
+    activeTab !== "integrations" &&
+    activeTab !== "cloud"
+
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({
@@ -485,13 +496,24 @@ export default function SettingsPage() {
         className="w-full"
       >
         <div className="flex justify-center w-full">
-          <TabsList className="grid w-full max-w-[800px] h-auto min-h-[3rem] grid-cols-3 sm:grid-cols-3 md:grid-cols-3">
+          <TabsList
+            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] ${isCloudEnabled ? "grid-cols-4" : "grid-cols-3"}`}
+          >
             <TabsTrigger
               value="general"
               className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
             >
               {t.settings.general}
             </TabsTrigger>
+            {isCloudEnabled && (
+              <TabsTrigger
+                value="cloud"
+                className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center gap-1"
+              >
+                <Cloud className="h-4 w-4" />
+                {t.settings.cloud.tabTitle}
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="application"
               className="text-xs sm:text-sm px-1 sm:px-2 py-2 whitespace-normal text-center leading-tight min-h-[2.5rem] flex items-center justify-center"
@@ -930,8 +952,27 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </motion.div>
-          <div className="flex justify-end">
-            <p className="text-[0.6rem] text-gray-500 dark:text-gray-400">
+          <div className="flex justify-between items-center">
+            <button
+              type="button"
+              className="text-[0.4rem] text-gray-500 dark:text-gray-400 text-left font-mono enabled:cursor-pointer"
+              disabled={!user?.id}
+              onClick={() => {
+                if (user?.id) {
+                  copyToClipboard(user.id)
+                }
+              }}
+            >
+              {user?.id}
+            </button>
+            <button
+              type="button"
+              onClick={() => window.open(t.common.officialWebpageUrl, "_blank")}
+              className="text-[0.5rem] text-primary hover:underline"
+            >
+              {t.common.officialWebpage}
+            </button>
+            <p className="text-[0.5rem] text-gray-500 dark:text-gray-400">
               v{__APP_VERSION__} by marcosav
             </p>
           </div>
@@ -1023,6 +1064,12 @@ export default function SettingsPage() {
             </div>
           </motion.div>
         </TabsContent>
+
+        {isCloudEnabled && (
+          <TabsContent value="cloud" className="space-y-4 mt-4">
+            <CloudTab />
+          </TabsContent>
+        )}
 
         <TabsContent value="integrations" className="space-y-4 mt-4">
           <IntegrationsTab />

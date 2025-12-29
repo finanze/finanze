@@ -16,6 +16,7 @@ import {
   type PlatformInfo,
   type ExchangeRates,
   type ExternalIntegration,
+  type FeatureFlags,
   type DataConfig,
   type AutoRefresh,
 } from "@/types"
@@ -30,6 +31,10 @@ import {
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { WeightUnit } from "@/types/position"
+import {
+  getFeatureFlags,
+  subscribeFeatureFlags,
+} from "@/context/featureFlagsStore"
 
 export interface AppSettings {
   export?: {
@@ -64,6 +69,7 @@ interface AppContextType {
   entities: Entity[]
   entitiesLoaded: boolean
   isLoadingEntities: boolean
+  featureFlags: FeatureFlags
   toast: {
     message: string
     type: "success" | "error" | "warning" | null
@@ -197,6 +203,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [entities, setEntities] = useState<Entity[]>([])
   const [entitiesLoaded, setEntitiesLoaded] = useState(false)
   const [isLoadingEntities, setIsLoadingEntities] = useState(false)
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>(() =>
+    getFeatureFlags(),
+  )
   const [toast, setToast] = useState<{
     message: string
     type: "success" | "error" | "warning" | null
@@ -221,6 +230,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const { t } = useI18n()
   const { isAuthenticated } = useAuth()
+
+  useEffect(() => {
+    return subscribeFeatureFlags(setFeatureFlags)
+  }, [])
 
   const initialFetchDone = useRef(false)
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -466,6 +479,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         entities,
         entitiesLoaded,
         isLoadingEntities,
+        featureFlags,
         toast,
         settings,
         isLoadingSettings,

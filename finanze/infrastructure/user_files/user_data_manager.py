@@ -48,14 +48,14 @@ class UserDataManager(DataManager):
             ):
                 self._profiles_data = data
             else:
-                self._log.warn(
+                self._log.warning(
                     f"Warning: '{self._profiles_json_path}' is malformed. Initializing with default data."
                 )
                 self._profiles_data = default_data
                 self._save_profiles()
 
         except (FileNotFoundError, json.JSONDecodeError, IOError) as e:
-            self._log.warn(
+            self._log.warning(
                 f"Warning: Could not read/parse '{self._profiles_json_path}': {e}. Initializing with default data."
             )
             self._profiles_data = default_data
@@ -70,7 +70,6 @@ class UserDataManager(DataManager):
             self._log.error(
                 f"Error: Could not save profiles to '{self._profiles_json_path}': {e}"
             )
-            pass
 
     def _profile_to_user(self, profile_data: Dict[str, Any]) -> User:
         user_id = uuid.UUID(profile_data["id"])

@@ -7,19 +7,20 @@ import { AppProvider } from "@/context/AppContext"
 import { I18nProvider } from "@/i18n"
 import { ThemeProvider } from "@/context/ThemeContext"
 import { AuthProvider } from "@/context/AuthContext"
+import { CloudProvider } from "@/context/CloudContext"
 
 createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <HashRouter>
-      <ThemeProvider>
-        <I18nProvider>
-          <AuthProvider>
-            <AppProvider>
+  <HashRouter>
+    <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+          <AppProvider>
+            <CloudProvider>
               <App />
-            </AppProvider>
-          </AuthProvider>
-        </I18nProvider>
-      </ThemeProvider>
-    </HashRouter>
-  </React.StrictMode>,
+            </CloudProvider>
+          </AppProvider>
+        </AuthProvider>
+      </I18nProvider>
+    </ThemeProvider>
+  </HashRouter>,
 )

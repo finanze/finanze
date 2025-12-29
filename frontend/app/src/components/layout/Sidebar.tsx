@@ -4,6 +4,7 @@ import { useTheme } from "@/context/ThemeContext"
 import { useAuth } from "@/context/AuthContext"
 import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
+import { useCloud } from "@/context/CloudContext"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -36,13 +37,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
-import { PlatformType } from "@/types"
+import { PlatformType, CloudRole } from "@/types"
 import { ProductType } from "@/types/position"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import {
   usePinnedShortcuts,
   type PinnedShortcutId,
 } from "@/context/PinnedShortcutsContext"
+import { BackupStatusPopover } from "@/components/layout/BackupStatusPopover"
 
 export function Sidebar() {
   const { t } = useI18n()
@@ -51,6 +53,7 @@ export function Sidebar() {
   const { platform } = useAppContext()
   const { positionsData, realEstateList } = useFinancialData()
   const { pinnedShortcuts } = usePinnedShortcuts()
+  const { role, permissions } = useCloud()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -315,7 +318,19 @@ export function Sidebar() {
     <div className={containerClass}>
       <div className={sidebarClass}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
-          {!collapsed && <h1 className="text-xl font-bold">Finanze</h1>}
+          {!collapsed && (
+            <div className="flex items-center gap-2">
+              <h1
+                className={cn(
+                  "text-xl font-bold",
+                  role === CloudRole.PLUS &&
+                    "bg-gradient-to-r from-amber-500 to-orange-500 bg-clip-text text-transparent",
+                )}
+              >
+                Finanze
+              </h1>
+            </div>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -601,6 +616,9 @@ export function Sidebar() {
                 >
                   <Settings size={18} strokeWidth={2.5} />
                 </Button>
+                {permissions.includes("backup.info") && (
+                  <BackupStatusPopover collapsed={collapsed} />
+                )}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
@@ -696,6 +714,9 @@ export function Sidebar() {
               >
                 <Settings size={18} strokeWidth={2.5} />
               </Button>
+              {permissions.includes("backup.info") && (
+                <BackupStatusPopover collapsed={collapsed} />
+              )}
               <Popover>
                 <PopoverTrigger asChild>
                   <Button

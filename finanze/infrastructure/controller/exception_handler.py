@@ -1,6 +1,9 @@
+from flask import jsonify
+
 from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
     AddressNotFound,
+    BackupConflict,
     EntityNotFound,
     ExecutionConflict,
     ExternalIntegrationRequired,
@@ -9,11 +12,14 @@ from domain.exception.exceptions import (
     IntegrationSetupErrorCode,
     InvalidProvidedCredentials,
     InvalidTemplateDefaultValue,
+    InvalidToken,
     TemplateNotFound,
     TooManyRequests,
     TransactionNotFound,
+    UnauthorizedToken,
+    NoUserLogged,
+    PermissionDenied,
 )
-from flask import jsonify
 
 
 def handle_unexpected_error(e):
@@ -36,7 +42,7 @@ def handle_invalid_credentials(e):
     return jsonify({"code": "INVALID_CREDENTIALS", "message": str(e)}), 400
 
 
-def handle_data_encrypted(e):
+def handle_user_not_logged(e):
     return jsonify({"code": "NOT_LOGGED"}), 401
 
 
@@ -84,11 +90,30 @@ def handle_invalid_template_default_value(e):
     return jsonify({"code": "INVALID_TEMPLATE_DEFAULT_VALUE", "message": str(e)}), 400
 
 
+def handle_unauthorized_token(e):
+    return jsonify(
+        {"code": "UNAUTHORIZED_TOKEN", "message": "Token is invalid or expired"}
+    ), 401
+
+
+def handle_invalid_token(e):
+    return jsonify({"code": "INVALID_TOKEN", "message": str(e)}), 400
+
+
+def handle_backup_conflict(e):
+    return jsonify({"code": "BACKUP_CONFLICT", "message": str(e)}), 409
+
+
+def handle_permission_denied(e):
+    return jsonify({"code": "PERMISSION_DENIED", "message": str(e)}), 403
+
+
 def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
-    app.register_error_handler(DataEncryptedError, handle_data_encrypted)
+    app.register_error_handler(DataEncryptedError, handle_user_not_logged)
+    app.register_error_handler(NoUserLogged, handle_user_not_logged)
     app.register_error_handler(ExecutionConflict, handle_execution_conflict)
     app.register_error_handler(TooManyRequests, handle_too_many_requests)
     app.register_error_handler(AddressNotFound, handle_address_not_found)
@@ -99,5 +124,10 @@ def register_exception_handlers(app):
     app.register_error_handler(
         InvalidTemplateDefaultValue, handle_invalid_template_default_value
     )
+    app.register_error_handler(UnauthorizedToken, handle_unauthorized_token)
+    app.register_error_handler(InvalidToken, handle_invalid_token)
+    app.register_error_handler(BackupConflict, handle_backup_conflict)
+    app.register_error_handler(PermissionDenied, handle_permission_denied)
+
     app.register_error_handler(500, handle_unexpected_error)
     app.register_error_handler(401, handle_invalid_authentication)

@@ -23,6 +23,7 @@ curl_cffi==0.13.0
 appdirs==1.4.4
 zstandard==0.23.0
 cryptography==44.0.3
+PyJWT==2.10.1
 Brotli==1.1.0
 attrs==25.3.0
 h2==4.3.0
