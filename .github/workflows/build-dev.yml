@@ -42,7 +42,7 @@ jobs:
         if: ${{ !startsWith(matrix.os, 'macos-') }}
         uses: actions/setup-python@v5
         with:
-          python-version: 3.11.9
+          python-version: 3.14.2
 
       - name: Setup python (macOS)
         if: ${{ startsWith(matrix.os, 'macos-') }}
@@ -58,11 +58,11 @@ jobs:
           eval "$(pyenv init -)"      # Sets up shims and other integrations
           eval "$(pyenv virtualenv-init -)" # Defines 'pyenv activate' and other venv functions
 
-          pyenv install --skip-existing 3.11.9
+          pyenv install --skip-existing 3.14.2
           
           # Create virtualenv if it doesn't exist
           if ! pyenv virtualenvs --bare | grep -q "^finanze$"; then
-            pyenv virtualenv 3.11.9 finanze
+            pyenv virtualenv 3.14.2 finanze
           else
             echo "Virtualenv 'finanze' already exists."
           fi

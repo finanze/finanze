@@ -1,7 +1,10 @@
 services:
   finanze-server:
     restart: unless-stopped
-    # build: .                                        # Use the Dockerfile in the current directory
+    # build:
+    #  context: .
+    #  args:
+    #    SELENIUM_SUPPORT: "false"
     # image: finanze/finanze:latest-selenium
     image: finanze/finanze:latest
     ports:
@@ -10,9 +13,6 @@ services:
       # USERNAME: myusername                          # Optional, provided via API when logging in, or use .env, this will automatically log in
       # PASSWORD: myVerySecretPasswordToEncryptDB     # Optional, provided via API when logging in, or use .env, this will automatically log in
       # Selenium related envs, only if you want to use Selenium with finanze/finanze:latest-selenium
-      # WIRE_ADDRESS: 0.0.0.0
-      # WIRE_PORT: 8088
-      # WIRE_PROXY_SERVER_ADDRESS: finanze-server
       # WEBDRIVER_ADDRESS: http://selenium:4444
     # env_file:
     #   - .env                                         # Load environment variables from .env file in case you want to provide USERNAME and PASSWORD this way

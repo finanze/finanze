@@ -2,8 +2,9 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from application.ports.historic_port import HistoricPort
 from dateutil.tz import tzlocal
+
+from application.ports.historic_port import HistoricPort
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.global_position import ProductType
@@ -139,28 +140,28 @@ class HistoricSQLRepository(HistoricPort):
 
                 cursor.execute(
                     """
-                               INSERT INTO investment_historic (id, name, invested, repaid, returned, currency,
-                                                                last_invest_date,
-                                                                last_tx_date, effective_maturity, net_return, fees,
-                                                                retentions, interests, state, entity_id, product_type,
-                                                                interest_rate, gross_interest_rate, maturity,
-                                                                extended_maturity, type, business_type, created_at)
-                               VALUES (:id, :name, :invested, :repaid, :returned, :currency, :last_invest_date,
-                                       :last_tx_date, :effective_maturity, :net_return, :fees,
-                                       :retentions, :interests, :state, :entity_id, :product_type,
-                                       :interest_rate, :gross_interest_rate, :maturity,
-                                       :extended_maturity, :type, :business_type, :created_at)
-                               """,
+                    INSERT INTO investment_historic (id, name, invested, repaid, returned, currency,
+                                                     last_invest_date,
+                                                     last_tx_date, effective_maturity, net_return, fees,
+                                                     retentions, interests, state, entity_id, product_type,
+                                                     interest_rate, gross_interest_rate, maturity,
+                                                     extended_maturity, type, business_type, created_at)
+                    VALUES (:id, :name, :invested, :repaid, :returned, :currency, :last_invest_date,
+                            :last_tx_date, :effective_maturity, :net_return, :fees,
+                            :retentions, :interests, :state, :entity_id, :product_type,
+                            :interest_rate, :gross_interest_rate, :maturity,
+                            :extended_maturity, :type, :business_type, :created_at)
+                    """,
                     base_data,
                 )
 
                 for tx in entry.related_txs:
                     cursor.execute(
                         """
-                                   INSERT INTO investment_historic_txs
-                                       (tx_id, historic_entry_id)
-                                   VALUES (?, ?)
-                                   """,
+                        INSERT INTO investment_historic_txs
+                            (tx_id, historic_entry_id)
+                        VALUES (?, ?)
+                        """,
                         (str(tx.id), str(entry.id)),
                     )
 
@@ -178,11 +179,11 @@ class HistoricSQLRepository(HistoricPort):
                 f"""
                 SELECT t.*,
                         e.id         AS entity_id,
-                          e.name       AS entity_name,
-                          e.natural_id AS entity_natural_id,
-                          e.type       as entity_type,
-                          e.origin     as entity_origin,
-                          e.icon_url   AS icon_url
+                        e.name       AS entity_name,
+                        e.natural_id AS entity_natural_id,
+                        e.type       as entity_type,
+                        e.origin     as entity_origin,
+                        e.icon_url   AS icon_url,
                         h_txs.historic_entry_id
                 FROM investment_historic_txs h_txs
                 JOIN investment_transactions t ON h_txs.tx_id = t.id

@@ -8,8 +8,8 @@ from sqlite3 import Connection
 from threading import Lock
 from typing import Optional
 
-from pysqlcipher3 import dbapi2 as sqlcipher
-from pysqlcipher3._sqlite3 import DatabaseError
+from sqlcipher3 import dbapi2 as sqlcipher
+from sqlcipher3._sqlite3 import DatabaseError
 
 from application.ports.datasource_backup_port import Backupable
 from application.ports.datasource_initiator import DatasourceInitiator

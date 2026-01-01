@@ -117,7 +117,7 @@ class RecaptchaSolver:
             #     raise Exception("Failed to solve CAPTCHA")
 
         except Exception as e:
-            self._log.error(f"An error occurred while solving audio CAPTCHA: {e}")
+            self._log.exception(f"An error occurred while solving audio CAPTCHA: {e}")
             self._driver.switch_to.default_content()  # Ensure we switch back in case of error
             raise
 

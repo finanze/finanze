@@ -1,5 +1,5 @@
 # Stage 1: Builder
-FROM python:3.11.12-slim AS builder
+FROM python:3.14.2-slim AS builder
 
 # Install build-time dependencies (curl for rust)
 RUN apt-get update && \
@@ -25,7 +25,7 @@ RUN if [ "$SELENIUM_SUPPORT" = "true" ]; then \
     fi
 
 # Stage 2: Final Runtime Image
-FROM python:3.11.12-slim
+FROM python:3.14.2-slim
 
 ARG SELENIUM_SUPPORT=true
 

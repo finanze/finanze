@@ -191,7 +191,7 @@ Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
 ### Setup
 
-This project requires `Python 3.11`.
+This project requires `Python 3.14`.
 
 1. Clone the repository:
 
@@ -248,7 +248,7 @@ can get the needed environment names.
     modified to allow resumable sessions, some extra data, fetch non-repeatable transactions and other minor changes, this
     library has been vital for this
     project.
--   SQLCipher pre-built dependency [rotki/pysqlcipher3](https://github.com/rotki)
+-   SQLCipher pre-built dependency [laggykiller/sqlcipher3](https://github.com/laggykiller/sqlcipher3)
 -   Selenium reCAPTCHA resolution is based
     on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
     project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
