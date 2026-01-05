@@ -6,6 +6,7 @@ from uuid import UUID
 from application.ports.sessions_port import SessionsPort
 from domain.entity_login import EntitySession
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.sessions.queries import SessionsQueries
 
 
 class SessionsRepository(SessionsPort):
@@ -15,7 +16,7 @@ class SessionsRepository(SessionsPort):
     def get(self, entity_id: UUID) -> Optional[EntitySession]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT created_at, expiration, payload FROM entity_sessions WHERE entity_id = ?",
+                SessionsQueries.GET,
                 (str(entity_id),),
             )
             row = cursor.fetchone()
@@ -33,10 +34,7 @@ class SessionsRepository(SessionsPort):
     def save(self, entity_id: UUID, session: EntitySession):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                INSERT INTO entity_sessions (entity_id, created_at, expiration, payload)
-                VALUES (?, ?, ?, ?)
-                """,
+                SessionsQueries.INSERT,
                 (
                     str(entity_id),
                     session.creation.isoformat(),
@@ -48,5 +46,6 @@ class SessionsRepository(SessionsPort):
     def delete(self, entity_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM entity_sessions WHERE entity_id = ?", (str(entity_id),)
+                SessionsQueries.DELETE,
+                (str(entity_id),),
             )

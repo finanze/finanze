@@ -52,6 +52,10 @@ from infrastructure.repository.crypto.crypto_asset_repository import (
     map_crypto_asset_row,
 )
 from infrastructure.repository.db.client import DBClient, DBCursor
+from infrastructure.repository.position.queries import (
+    PositionQueries,
+    PositionWriteQueries,
+)
 
 _AND = " AND "
 
@@ -59,13 +63,7 @@ _AND = " AND "
 def _save_loans(cursor, position: GlobalPosition, loans: Loans):
     for loan in loans.entries:
         cursor.execute(
-            """
-            INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
-                                        interest_rate, interest_type, loan_amount, next_payment_date,
-                                        principal_outstanding, principal_paid, euribor_rate, fixed_years,
-                                        creation, maturity, unpaid)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_LOAN_POSITION,
             (
                 str(loan.id),
                 str(position.id),
@@ -91,11 +89,7 @@ def _save_loans(cursor, position: GlobalPosition, loans: Loans):
 def _save_cards(cursor, position: GlobalPosition, cards: Cards):
     for card in cards.entries:
         cursor.execute(
-            """
-            INSERT INTO card_positions (id, global_position_id, type, name, currency,
-                                        ending, card_limit, used, active, related_account)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_CARD_POSITION,
             (
                 str(card.id),
                 str(position.id),
@@ -114,11 +108,7 @@ def _save_cards(cursor, position: GlobalPosition, cards: Cards):
 def _save_accounts(cursor, position: GlobalPosition, accounts: Accounts):
     for account in accounts.entries:
         cursor.execute(
-            """
-            INSERT INTO account_positions (id, global_position_id, type, currency, name, iban, total,
-                                           interest, retained, pending_transfers)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_ACCOUNT_POSITION,
             (
                 str(account.id),
                 str(position.id),
@@ -136,11 +126,7 @@ def _save_accounts(cursor, position: GlobalPosition, accounts: Accounts):
 
 def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlending):
     cursor.execute(
-        """
-        INSERT INTO crowdlending_positions (id, global_position_id, total, weighted_interest_rate, currency,
-                                            distribution)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """,
+        PositionWriteQueries.INSERT_CROWDLENDING_POSITION,
         (
             str(crowdlending.id),
             str(position.id),
@@ -157,11 +143,7 @@ def _save_crowdlending(cursor, position: GlobalPosition, crowdlending: Crowdlend
 def _save_commodities(cursor, position: GlobalPosition, commodities: Commodities):
     for commodity in commodities.entries:
         cursor.execute(
-            """
-            INSERT INTO commodity_positions (id, global_position_id, name, type, amount, unit,
-                                             market_value, currency, initial_investment, average_buy_price)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_COMMODITY_POSITION,
             (
                 str(commodity.id),
                 str(position.id),
@@ -187,11 +169,7 @@ def _save_crypto_currencies(
     for wallet_entry in cryptocurrencies.entries:
         for crypto_position in wallet_entry.assets:
             cursor.execute(
-                """
-                INSERT INTO crypto_currency_positions (id, global_position_id, wallet_id, name, symbol, type, amount,
-                                                       market_value, currency, contract_address, crypto_asset_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                PositionWriteQueries.INSERT_CRYPTO_CURRENCY_POSITION,
                 (
                     str(crypto_position.id),
                     str(position.id),
@@ -220,11 +198,7 @@ def _save_crypto_currencies(
                 and investment_currency is not None
             ):
                 cursor.execute(
-                    """
-                    INSERT INTO crypto_currency_initial_investments (id, crypto_currency_position, currency,
-                                                                     initial_investment, average_buy_price)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
+                    PositionWriteQueries.INSERT_CRYPTO_CURRENCY_INITIAL_INVESTMENT,
                     (
                         str(uuid4()),
                         str(crypto_position.id),
@@ -238,11 +212,7 @@ def _save_crypto_currencies(
 def _save_deposits(cursor, position: GlobalPosition, deposits: Deposits):
     for detail in deposits.entries:
         cursor.execute(
-            """
-            INSERT INTO deposit_positions (id, global_position_id, name, amount, currency,
-                                           expected_interests, interest_rate, creation, maturity)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_DEPOSIT_POSITION,
             (
                 str(detail.id),
                 str(position.id),
@@ -262,12 +232,7 @@ def _save_real_estate_cf(
 ):
     for detail in real_estate.entries:
         cursor.execute(
-            """
-            INSERT INTO real_estate_cf_positions (id, global_position_id, name, amount, pending_amount, currency,
-                                                  interest_rate, profitability, last_invest_date, start, maturity, type,
-                                                  business_type, state, extended_maturity, extended_interest_rate)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_REAL_ESTATE_CF_POSITION,
             (
                 str(detail.id),
                 str(position.id),
@@ -296,12 +261,7 @@ def _save_real_estate_cf(
 def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvestments):
     for detail in factoring.entries:
         cursor.execute(
-            """
-            INSERT INTO factoring_positions (id, global_position_id, name, amount, currency,
-                                             interest_rate, profitability, gross_interest_rate, late_interest_rate,
-                                             gross_late_interest_rate, last_invest_date, start, maturity, type, state)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_FACTORING_POSITION,
             (
                 str(detail.id),
                 str(position.id),
@@ -329,11 +289,7 @@ def _save_factoring(cursor, position: GlobalPosition, factoring: FactoringInvest
 def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPortfolios):
     for portfolio in portfolios.entries:
         cursor.execute(
-            """
-            INSERT INTO fund_portfolios (id, global_position_id, name, currency, initial_investment, market_value,
-                                         account_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_FUND_PORTFOLIO,
             (
                 str(portfolio.id),
                 str(position.id),
@@ -351,12 +307,7 @@ def _save_fund_portfolios(cursor, position: GlobalPosition, portfolios: FundPort
 def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
     for detail in funds.entries:
         cursor.execute(
-            """
-            INSERT INTO fund_positions (id, global_position_id, name, isin, market,
-                                        shares, initial_investment, average_buy_price,
-                                        market_value, type, asset_type, currency, portfolio_id, info_sheet_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_FUND_POSITION,
             (
                 str(detail.id),
                 str(position.id),
@@ -379,12 +330,7 @@ def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
 def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestments):
     for detail in stocks.entries:
         cursor.execute(
-            """
-            INSERT INTO stock_positions (id, global_position_id, name, ticker, isin, market,
-                                         shares, initial_investment, average_buy_price,
-                                         market_value, currency, type, subtype, info_sheet_url)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            PositionWriteQueries.INSERT_STOCK_POSITION,
             (
                 str(detail.id),
                 str(position.id),
@@ -467,7 +413,7 @@ class PositionSQLRepository(PositionPort):
     def save(self, position: GlobalPosition):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "INSERT INTO global_positions (id, date, entity_id, source) VALUES (?, ?, ?, ?)",
+                PositionQueries.INSERT_GLOBAL_POSITION,
                 (
                     str(position.id),
                     position.date.isoformat(),
@@ -512,25 +458,7 @@ class PositionSQLRepository(PositionPort):
         self, query: Optional[PositionQueryRequest]
     ) -> dict[Entity, GlobalPosition]:
         with self._db_client.read() as cursor:
-            sql = """
-                  WITH latest_positions AS (SELECT entity_id, MAX(date) as latest_date
-                                            FROM global_positions
-                                            WHERE source = 'REAL'
-                                            GROUP BY entity_id)
-                  SELECT gp.*,
-                         e.id         AS entity_id,
-                         e.name       AS entity_name,
-                         e.natural_id AS entity_natural_id,
-                         e.type       as entity_type,
-                         e.origin     as entity_origin,
-                         e.icon_url   as icon_url
-                  FROM global_positions gp
-                           JOIN latest_positions lp
-                                ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
-                           JOIN entities e ON gp.entity_id = e.id
-                  WHERE gp.source = 'REAL'
-                  """
-
+            sql = PositionQueries.REAL_GROUPED_BY_ENTITY_BASE.value
             params = []
             conditions = []
             if query and query.entities:
@@ -617,31 +545,7 @@ class PositionSQLRepository(PositionPort):
         self, query: Optional[PositionQueryRequest]
     ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
         with self._db_client.read() as cursor:
-            sql = """
-                  WITH latest_import_details AS (SELECT vdi.import_id
-                                                 FROM virtual_data_imports vdi
-                                                          JOIN (SELECT source, MAX(date) AS max_date
-                                                                FROM virtual_data_imports
-                                                                GROUP BY source) mx
-                                                               ON mx.source = vdi.source AND mx.max_date = vdi.date
-                                                 GROUP BY vdi.source),
-                       last_imported_position_ids AS (SELECT vdi.global_position_id
-                                                      FROM virtual_data_imports vdi
-                                                               JOIN latest_import_details lid
-                                                                    ON vdi.import_id = lid.import_id
-                                                      WHERE vdi.global_position_id IS NOT NULL)
-                  SELECT gp.*,
-                         e.name       AS entity_name,
-                         e.id         AS entity_id,
-                         e.natural_id AS entity_natural_id,
-                         e.type       AS entity_type,
-                         e.origin     AS entity_origin,
-                         e.icon_url   AS icon_url
-                  FROM global_positions gp
-                           JOIN last_imported_position_ids lp
-                                ON gp.id = lp.global_position_id
-                           JOIN entities e ON gp.entity_id = e.id
-                  """
+            sql = PositionQueries.NON_REAL_GROUPED_BY_ENTITY_BASE.value
 
             params = []
             conditions = []
@@ -649,8 +553,6 @@ class PositionSQLRepository(PositionPort):
                 placeholders = ", ".join("?" for _ in query.entities)
                 conditions.append(f"gp.entity_id IN ({placeholders})")
                 params.extend([str(e) for e in query.entities])
-            # We don't handle excluded_entities, as we use it to exclude dangling real data, but we are fetching
-            # only non-real data here
 
             if conditions:
                 sql += " WHERE " + " AND ".join(conditions)
@@ -664,11 +566,7 @@ class PositionSQLRepository(PositionPort):
     def _get_accounts(self, global_position: GlobalPosition) -> Optional[Accounts]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT *
-                FROM account_positions
-                WHERE global_position_id = ?
-                """,
+                PositionQueries.GET_ACCOUNTS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -698,7 +596,7 @@ class PositionSQLRepository(PositionPort):
     def _get_cards(self, global_position: GlobalPosition) -> Optional[Cards]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM card_positions WHERE global_position_id = ?",
+                PositionQueries.GET_CARDS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -726,7 +624,7 @@ class PositionSQLRepository(PositionPort):
     def _get_loans(self, global_position: GlobalPosition) -> Optional[Loans]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM loan_positions WHERE global_position_id = ?",
+                PositionQueries.GET_LOANS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -773,7 +671,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[StockInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM stock_positions s LEFT JOIN manual_position_data mpd ON mpd.entry_id = s.id WHERE s.global_position_id = ?",
+                PositionQueries.GET_STOCKS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -808,12 +706,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[FundPortfolios]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT fp.*, ap.id AS account_id, ap.total, ap.name as account_name, ap.iban
-                FROM fund_portfolios fp
-                         LEFT JOIN account_positions ap ON fp.account_id = ap.id
-                WHERE fp.global_position_id = ?
-                """,
+                PositionQueries.GET_FUND_PORTFOLIOS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -853,19 +746,7 @@ class PositionSQLRepository(PositionPort):
     def _get_funds(self, global_position: GlobalPosition) -> Optional[FundInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT f.*,
-                       mpd.*,
-                       p.id                 AS portfolio_id,
-                       p.name               AS portfolio_name,
-                       p.currency           AS portfolio_currency,
-                       p.initial_investment AS portfolio_investment,
-                       p.market_value       AS portfolio_value
-                FROM fund_positions f
-                         LEFT JOIN fund_portfolios p ON p.id = f.portfolio_id
-                         LEFT JOIN manual_position_data mpd ON mpd.entry_id = f.id
-                WHERE f.global_position_id = ?
-                """,
+                PositionQueries.GET_FUNDS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -917,7 +798,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[FactoringInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM factoring_positions WHERE global_position_id = ?",
+                PositionQueries.GET_FACTORING_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -955,7 +836,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[RealEstateCFInvestments]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM real_estate_cf_positions WHERE global_position_id = ?",
+                PositionQueries.GET_REAL_ESTATE_CF_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -994,7 +875,7 @@ class PositionSQLRepository(PositionPort):
     def _get_deposits(self, global_position: GlobalPosition) -> Optional[Deposits]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM deposit_positions WHERE global_position_id = ?",
+                PositionQueries.GET_DEPOSITS_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -1023,7 +904,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[Crowdlending]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM crowdlending_positions WHERE global_position_id = ?",
+                PositionQueries.GET_CROWDLENDING_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
             row = cursor.fetchone()
@@ -1046,23 +927,10 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[CryptoCurrencies]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT p.*,
-                       a.*,
-                       a.name     as asset_name,
-                       c.address,
-                       c.name     AS wallet_name,
-                       i.initial_investment,
-                       i.average_buy_price,
-                       i.currency as investment_currency
-                FROM crypto_currency_positions p
-                         LEFT JOIN crypto_currency_initial_investments i ON p.id = i.crypto_currency_position
-                         LEFT JOIN crypto_assets a ON p.crypto_asset_id = a.id
-                         LEFT JOIN crypto_wallet_connections c ON p.wallet_id = c.id
-                WHERE global_position_id = ?
-                """,
+                PositionQueries.GET_CRYPTO_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
+
             wallets = {}
             for row in cursor:
                 raw_wallet_id = row["wallet_id"]
@@ -1125,7 +993,7 @@ class PositionSQLRepository(PositionPort):
     ) -> Optional[Commodities]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM commodity_positions WHERE global_position_id = ?",
+                PositionQueries.GET_COMMODITIES_BY_GLOBAL_POSITION_ID,
                 (str(global_position.id),),
             )
 
@@ -1218,7 +1086,7 @@ class PositionSQLRepository(PositionPort):
     def _get_entity_id_from_global(self, global_position_id: UUID) -> int:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT entity_id FROM global_positions WHERE id = ?",
+                PositionQueries.GET_ENTITY_ID_FROM_GLOBAL_POSITION_ID,
                 (str(global_position_id),),
             )
             return cursor.fetchone()[0]
@@ -1226,31 +1094,14 @@ class PositionSQLRepository(PositionPort):
     def delete_position_for_date(self, entity_id: UUID, date: date, source: DataSource):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                DELETE
-                FROM global_positions
-                WHERE entity_id = ?
-                  AND DATE(date) = ?
-                  AND source = ?
-                """,
+                PositionQueries.DELETE_POSITION_FOR_DATE,
                 (str(entity_id), date.isoformat(), source.value),
             )
 
     def get_by_id(self, position_id: UUID) -> Optional[GlobalPosition]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT gp.*,
-                       e.id         AS entity_id,
-                       e.name       AS entity_name,
-                       e.natural_id AS entity_natural_id,
-                       e.type       AS entity_type,
-                       e.origin     AS entity_origin,
-                       e.icon_url   AS icon_url
-                FROM global_positions gp
-                         JOIN entities e ON gp.entity_id = e.id
-                WHERE gp.id = ?
-                """,
+                PositionQueries.GET_GLOBAL_POSITION_BY_ID,
                 (str(position_id),),
             )
             row = cursor.fetchone()
@@ -1279,18 +1130,14 @@ class PositionSQLRepository(PositionPort):
     def delete_by_id(self, position_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM global_positions WHERE id = ?", (str(position_id),)
+                PositionQueries.DELETE_GLOBAL_POSITION_BY_ID,
+                (str(position_id),),
             )
 
     def get_stock_detail(self, entry_id: UUID) -> Optional[StockDetail]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT s.*, gp.source
-                FROM stock_positions s
-                         JOIN global_positions gp ON gp.id = s.global_position_id
-                WHERE s.id = ?
-                """,
+                PositionQueries.GET_STOCK_DETAIL,
                 (str(entry_id),),
             )
             row = cursor.fetchone()
@@ -1316,12 +1163,7 @@ class PositionSQLRepository(PositionPort):
     def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT f.*, gp.source
-                FROM fund_positions f
-                         JOIN global_positions gp ON gp.id = f.global_position_id
-                WHERE f.id = ?
-                """,
+                PositionQueries.GET_FUND_DETAIL,
                 (str(entry_id),),
             )
             row = cursor.fetchone()
@@ -1348,13 +1190,10 @@ class PositionSQLRepository(PositionPort):
         self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
     ):
         if product_type == ProductType.STOCK_ETF:
-            table = "stock_positions"
+            sql = PositionQueries.UPDATE_STOCK_MARKET_VALUE
         elif product_type == ProductType.FUND:
-            table = "fund_positions"
+            sql = PositionQueries.UPDATE_FUND_MARKET_VALUE
         else:
             return
         with self._db_client.tx() as cursor:
-            cursor.execute(
-                f"UPDATE {table} SET market_value = ? WHERE id = ?",
-                (str(market_value), str(entry_id)),
-            )
+            cursor.execute(sql, (str(market_value), str(entry_id)))

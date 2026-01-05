@@ -17,6 +17,7 @@ from domain.historic import (
 )
 from domain.transactions import BaseInvestmentTx
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.historic.queries import HistoricQueries
 from infrastructure.repository.transaction.transaction_repository import (
     _map_investment_row,
 )
@@ -139,29 +140,13 @@ class HistoricSQLRepository(HistoricPort):
                     )
 
                 cursor.execute(
-                    """
-                    INSERT INTO investment_historic (id, name, invested, repaid, returned, currency,
-                                                     last_invest_date,
-                                                     last_tx_date, effective_maturity, net_return, fees,
-                                                     retentions, interests, state, entity_id, product_type,
-                                                     interest_rate, gross_interest_rate, maturity,
-                                                     extended_maturity, type, business_type, created_at)
-                    VALUES (:id, :name, :invested, :repaid, :returned, :currency, :last_invest_date,
-                            :last_tx_date, :effective_maturity, :net_return, :fees,
-                            :retentions, :interests, :state, :entity_id, :product_type,
-                            :interest_rate, :gross_interest_rate, :maturity,
-                            :extended_maturity, :type, :business_type, :created_at)
-                    """,
+                    HistoricQueries.INSERT_HISTORIC_ENTRY,
                     base_data,
                 )
 
                 for tx in entry.related_txs:
                     cursor.execute(
-                        """
-                        INSERT INTO investment_historic_txs
-                            (tx_id, historic_entry_id)
-                        VALUES (?, ?)
-                        """,
+                        HistoricQueries.INSERT_HISTORIC_TX,
                         (str(tx.id), str(entry.id)),
                     )
 
@@ -175,21 +160,11 @@ class HistoricSQLRepository(HistoricPort):
 
         if fetch_related_txs:
             entry_ids = [str(entry["id"]) for entry in entries]
+            placeholders = ",".join(["?"] * len(entry_ids))
             cursor.execute(
-                f"""
-                SELECT t.*,
-                        e.id         AS entity_id,
-                        e.name       AS entity_name,
-                        e.natural_id AS entity_natural_id,
-                        e.type       as entity_type,
-                        e.origin     as entity_origin,
-                        e.icon_url   AS icon_url,
-                        h_txs.historic_entry_id
-                FROM investment_historic_txs h_txs
-                JOIN investment_transactions t ON h_txs.tx_id = t.id
-                JOIN entities e ON t.entity_id = e.id
-                WHERE h_txs.historic_entry_id IN ({",".join(["?"] * len(entry_ids))})
-            """,
+                HistoricQueries.SELECT_RELATED_TXS_BASE.value.format(
+                    placeholders=placeholders
+                ),
                 entry_ids,
             )
 
@@ -216,25 +191,13 @@ class HistoricSQLRepository(HistoricPort):
 
     def delete_by_entity(self, entity_id: UUID):
         with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM investment_historic WHERE entity_id = ?", (str(entity_id),)
-            )
+            cursor.execute(HistoricQueries.DELETE_BY_ENTITY, (str(entity_id),))
 
     def get_by_filters(
         self, query: HistoricQueryRequest, fetch_related_txs: bool = False
     ) -> Historic:
         with self._db_client.read() as cursor:
-            base_sql = """
-                       SELECT h.*,
-                              e.id         AS entity_id,
-                              e.name       AS entity_name,
-                              e.natural_id AS entity_natural_id,
-                              e.type       as entity_type,
-                              e.origin     as entity_origin,
-                              e.icon_url   AS icon_url
-                       FROM investment_historic h
-                                JOIN entities e ON h.entity_id = e.id
-                       """
+            base_sql = HistoricQueries.GET_BY_FILTERS_BASE.value
             conditions = []
             params: List[str] = []
 

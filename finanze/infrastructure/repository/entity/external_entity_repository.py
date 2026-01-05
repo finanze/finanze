@@ -12,6 +12,7 @@ from domain.external_entity import (
 )
 from domain.external_integration import ExternalIntegrationId
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.entity.queries import ExternalEntityQueries
 
 
 def _map_row(row) -> ExternalEntity:
@@ -33,18 +34,7 @@ class ExternalEntityRepository(ExternalEntityPort):
     def upsert(self, ee: ExternalEntity):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                INSERT INTO external_entities
-                    (id, entity_id, status, provider, date, provider_instance_id, payload)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT
-                    (id)
-                DO UPDATE SET
-                    status = excluded.status,
-                    provider_instance_id = excluded.provider_instance_id,
-                    date = excluded.date,
-                    payload = excluded.payload
-                """,
+                ExternalEntityQueries.UPSERT,
                 (
                     str(ee.id),
                     str(ee.entity_id),
@@ -59,18 +49,14 @@ class ExternalEntityRepository(ExternalEntityPort):
     def update_status(self, ee_id: UUID, status: ExternalEntityStatus):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                UPDATE external_entities
-                SET status = ?
-                WHERE id = ?
-                """,
+                ExternalEntityQueries.UPDATE_STATUS,
                 (status.value, str(ee_id)),
             )
 
     def get_by_id(self, ee_id: UUID) -> Optional[ExternalEntity]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM external_entities WHERE id = ?",
+                ExternalEntityQueries.GET_BY_ID,
                 (str(ee_id),),
             )
             row = cursor.fetchone()
@@ -79,7 +65,7 @@ class ExternalEntityRepository(ExternalEntityPort):
     def get_by_entity_id(self, entity_id: UUID) -> Optional[ExternalEntity]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM external_entities WHERE entity_id = ?",
+                ExternalEntityQueries.GET_BY_ENTITY_ID,
                 (str(entity_id),),
             )
             row = cursor.fetchone()
@@ -88,12 +74,12 @@ class ExternalEntityRepository(ExternalEntityPort):
     def delete_by_id(self, ee_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM external_entities WHERE id = ?",
+                ExternalEntityQueries.DELETE_BY_ID,
                 (str(ee_id),),
             )
 
     def get_all(self) -> list[ExternalEntity]:
         with self._db_client.read() as cursor:
-            cursor.execute("SELECT * FROM external_entities")
+            cursor.execute(ExternalEntityQueries.GET_ALL)
             rows = cursor.fetchall()
             return [_map_row(row) for row in rows]

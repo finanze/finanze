@@ -10,6 +10,9 @@ from domain.external_integration import (
     ExternalIntegrationType,
 )
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.external_integration.queries import (
+    ExternalIntegrationQueries,
+)
 
 
 class ExternalIntegrationRepository(ExternalIntegrationPort):
@@ -19,12 +22,7 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
     def deactivate(self, integration: ExternalIntegrationId):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                UPDATE external_integrations
-                SET status  = ?,
-                    payload = NULL
-                WHERE id = ?
-                """,
+                ExternalIntegrationQueries.DEACTIVATE,
                 (ExternalIntegrationStatus.OFF.value, integration.value),
             )
 
@@ -33,12 +31,7 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
     ):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                UPDATE external_integrations
-                SET status  = ?,
-                    payload = ?
-                WHERE id = ?
-                """,
+                ExternalIntegrationQueries.ACTIVATE,
                 (
                     ExternalIntegrationStatus.ON.value,
                     json.dumps(payload),
@@ -51,7 +44,7 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
     ) -> Optional[ExternalIntegrationPayload]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT payload FROM external_integrations WHERE id = ? AND status = ? AND payload IS NOT NULL",
+                ExternalIntegrationQueries.GET_PAYLOAD,
                 (integration.value, ExternalIntegrationStatus.ON.value),
             )
 
@@ -70,13 +63,7 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
     ) -> dict[ExternalIntegrationId, ExternalIntegrationPayload]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                """
-                SELECT id, payload
-                FROM external_integrations
-                WHERE type = ?
-                  AND status = ?
-                  AND payload IS NOT NULL
-                """,
+                ExternalIntegrationQueries.GET_PAYLOADS_BY_TYPE,
                 (integration_type.value, ExternalIntegrationStatus.ON.value),
             )
 
@@ -91,12 +78,7 @@ class ExternalIntegrationRepository(ExternalIntegrationPort):
 
     def get_all(self) -> list[ExternalIntegration]:
         with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT id, name, type, status
-                FROM external_integrations
-                """
-            )
+            cursor.execute(ExternalIntegrationQueries.GET_ALL)
             rows = cursor.fetchall()
             return [
                 ExternalIntegration(

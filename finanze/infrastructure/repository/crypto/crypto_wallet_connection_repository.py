@@ -5,6 +5,7 @@ from uuid import UUID
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
 from dateutil.tz import tzlocal
 from domain.crypto import CryptoWalletConnection
+from infrastructure.repository.crypto.queries import CryptoWalletConnectionQueries
 from infrastructure.repository.db.client import DBClient
 
 
@@ -15,7 +16,7 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
     def get_by_entity_id(self, entity_id: UUID) -> List[CryptoWalletConnection]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM crypto_wallet_connections WHERE entity_id = ?",
+                CryptoWalletConnectionQueries.GET_BY_ENTITY_ID,
                 (str(entity_id),),
             )
             return [
@@ -33,7 +34,7 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
     ) -> Optional[CryptoWalletConnection]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM crypto_wallet_connections WHERE entity_id = ? AND address = ?",
+                CryptoWalletConnectionQueries.GET_BY_ENTITY_AND_ADDRESS,
                 (
                     str(entity_id),
                     address,
@@ -52,17 +53,14 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
 
     def get_connected_entities(self) -> set[UUID]:
         with self._db_client.read() as cursor:
-            cursor.execute("SELECT DISTINCT(entity_id) FROM crypto_wallet_connections")
+            cursor.execute(CryptoWalletConnectionQueries.GET_CONNECTED_ENTITIES)
             rows = cursor.fetchall()
             return {UUID(row["entity_id"]) for row in rows}
 
     def insert(self, connection: CryptoWalletConnection):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                INSERT INTO crypto_wallet_connections (id, entity_id, address, name, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
+                CryptoWalletConnectionQueries.INSERT,
                 (
                     str(connection.id),
                     str(connection.entity_id),
@@ -75,17 +73,13 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
     def rename(self, wallet_connection_id: UUID, name: str):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                UPDATE crypto_wallet_connections
-                SET name = ?
-                WHERE id = ?
-                """,
+                CryptoWalletConnectionQueries.RENAME,
                 (name, str(wallet_connection_id)),
             )
 
     def delete(self, wallet_connection_id: UUID):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM crypto_wallet_connections WHERE id = ?",
+                CryptoWalletConnectionQueries.DELETE,
                 (str(wallet_connection_id),),
             )

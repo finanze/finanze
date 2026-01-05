@@ -3,6 +3,7 @@ from uuid import UUID
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from domain.global_position import ManualEntryData, ManualPositionData, ProductType
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.position.queries import ManualPositionDataQueries
 
 
 class ManualPositionDataSQLRepository(ManualPositionDataPort):
@@ -17,10 +18,7 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
             for entry in valid_entries:
                 track_ticker = bool(entry.data and entry.data.tracker_key)
                 cursor.execute(
-                    """
-                    INSERT INTO manual_position_data (entry_id, global_position_id, product_type, track_ticker, tracker_key)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
+                    ManualPositionDataQueries.INSERT,
                     (
                         str(entry.entry_id),
                         str(entry.global_position_id),
@@ -33,13 +31,7 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
     def get_trackable(self) -> list[ManualPositionData]:
         result: list[ManualPositionData] = []
         with self._db_client.read() as cursor:
-            cursor.execute(
-                """
-                SELECT entry_id, global_position_id, product_type, tracker_key
-                FROM manual_position_data
-                WHERE track_ticker = 1 AND tracker_key IS NOT NULL
-                """
-            )
+            cursor.execute(ManualPositionDataQueries.GET_TRACKABLE)
             rows = cursor.fetchall()
             for row in rows:
                 result.append(
@@ -57,6 +49,6 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
     ):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM manual_position_data WHERE global_position_id = ? AND product_type = ?",
+                ManualPositionDataQueries.DELETE_BY_POSITION_ID_AND_TYPE,
                 (str(global_position_id), product_type.value),
             )

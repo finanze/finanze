@@ -4,6 +4,7 @@ from application.ports.pending_flow_port import PendingFlowPort
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowType, PendingFlow
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.earnings_expenses.queries import PendingFlowsQueries
 
 
 class PendingFlowRepository(PendingFlowPort):
@@ -17,10 +18,7 @@ class PendingFlowRepository(PendingFlowPort):
                     flow.id = uuid4()
 
                 cursor.execute(
-                    """
-                    INSERT INTO pending_flows (id, name, amount, currency, flow_type, category, enabled, date, icon)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                    PendingFlowsQueries.INSERT,
                     (
                         str(flow.id),
                         flow.name,
@@ -36,11 +34,11 @@ class PendingFlowRepository(PendingFlowPort):
 
     def delete_all(self):
         with self._db_client.tx() as cursor:
-            cursor.execute("DELETE FROM pending_flows")
+            cursor.execute(PendingFlowsQueries.DELETE_ALL)
 
     def get_all(self) -> list[PendingFlow]:
         with self._db_client.read() as cursor:
-            cursor.execute("SELECT * FROM pending_flows")
+            cursor.execute(PendingFlowsQueries.GET_ALL)
             return [
                 PendingFlow(
                     id=UUID(row["id"]),

@@ -26,6 +26,7 @@ from domain.real_estate import (
     ValuationInfo,
 )
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.real_estate.queries import RealEstateQueries
 
 
 def _serialize_purchase_expense(expense: PurchaseExpense) -> dict:
@@ -199,11 +200,7 @@ def _build_flow(flow_row) -> RealEstateFlow:
 
 def _build_real_estate(row, cursor) -> RealEstate:
     cursor.execute(
-        """
-        SELECT *
-        FROM real_estate_flows ref JOIN periodic_flows pf ON ref.periodic_flow_id = pf.id
-        WHERE ref.real_estate_id = ?
-        """,
+        RealEstateQueries.SELECT_FLOWS_BY_REAL_ESTATE_ID,
         (row["id"],),
     )
     flow_rows = cursor.fetchall()
@@ -252,11 +249,7 @@ def _build_real_estate(row, cursor) -> RealEstate:
 
 def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None:
     cursor.execute(
-        """
-        INSERT INTO real_estate_flows (
-            real_estate_id, periodic_flow_id, flow_subtype, description, payload
-        ) VALUES (?, ?, ?, ?, ?)
-        """,
+        RealEstateQueries.INSERT_FLOW,
         (
             str(real_estate_id),
             str(flow.periodic_flow_id),
@@ -277,13 +270,7 @@ class RealEstateRepository(RealEstatePort):
 
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                INSERT INTO real_estate (
-                    id, name, photo_url, is_residence, is_rented, bathrooms, bedrooms,
-                    address, cadastral_reference, purchase_date, purchase_price, currency,
-                    purchase_expenses, estimated_market_value, annual_appreciation, valuations, rental_data, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
+                RealEstateQueries.INSERT_REAL_ESTATE,
                 (
                     str(real_estate.id),
                     real_estate.basic_info.name,
@@ -326,14 +313,7 @@ class RealEstateRepository(RealEstatePort):
     def update(self, real_estate: RealEstate) -> None:
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                UPDATE real_estate SET
-                    name = ?, photo_url = ?, is_residence = ?, is_rented = ?, bathrooms = ?, bedrooms = ?,
-                    address = ?, cadastral_reference = ?, purchase_date = ?, purchase_price = ?, currency = ?,
-                    purchase_expenses = ?, estimated_market_value = ?, annual_appreciation = ?, valuations = ?, rental_data = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
+                RealEstateQueries.UPDATE_REAL_ESTATE,
                 (
                     real_estate.basic_info.name,
                     real_estate.basic_info.photo_url,
@@ -371,7 +351,7 @@ class RealEstateRepository(RealEstatePort):
             )
 
             cursor.execute(
-                "DELETE FROM real_estate_flows WHERE real_estate_id = ?",
+                RealEstateQueries.DELETE_FLOWS_BY_REAL_ESTATE_ID,
                 (str(real_estate.id),),
             )
             for flow in real_estate.flows:
@@ -380,13 +360,15 @@ class RealEstateRepository(RealEstatePort):
     def delete(self, real_estate_id: UUID) -> None:
         with self._db_client.tx() as cursor:
             cursor.execute(
-                "DELETE FROM real_estate WHERE id = ?", (str(real_estate_id),)
+                RealEstateQueries.DELETE_BY_ID,
+                (str(real_estate_id),),
             )
 
     def get_by_id(self, real_estate_id: UUID) -> Optional[RealEstate]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM real_estate WHERE id = ?", (str(real_estate_id),)
+                RealEstateQueries.GET_BY_ID,
+                (str(real_estate_id),),
             )
             row = cursor.fetchone()
             if not row:
@@ -395,6 +377,6 @@ class RealEstateRepository(RealEstatePort):
 
     def get_all(self) -> list[RealEstate]:
         with self._db_client.read() as cursor:
-            cursor.execute("SELECT * FROM real_estate ORDER BY name")
+            cursor.execute(RealEstateQueries.GET_ALL)
             rows = cursor.fetchall()
             return [_build_real_estate(row, cursor) for row in rows]

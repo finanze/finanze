@@ -4,6 +4,7 @@ from uuid import UUID
 
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from domain.crypto import CryptoAsset
+from infrastructure.repository.crypto.queries import CryptoAssetQueries
 from infrastructure.repository.db.client import DBClient
 
 
@@ -37,7 +38,7 @@ class CryptoAssetRegistryRepository(CryptoAssetRegistryPort):
     def get_by_symbol(self, symbol: str) -> Optional[CryptoAsset]:
         with self._db_client.read() as cursor:
             cursor.execute(
-                "SELECT * FROM crypto_assets WHERE symbol = ? LIMIT 1",
+                CryptoAssetQueries.GET_BY_SYMBOL,
                 (symbol,),
             )
             row = cursor.fetchone()
@@ -54,10 +55,7 @@ class CryptoAssetRegistryRepository(CryptoAssetRegistryPort):
 
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                INSERT INTO crypto_assets (id, name, symbol, icon_urls, external_ids)
-                VALUES (?, ?, ?, ?, ?)
-                """,
+                CryptoAssetQueries.INSERT,
                 (
                     str(asset.id),
                     asset.name,

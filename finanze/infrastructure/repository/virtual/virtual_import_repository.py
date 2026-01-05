@@ -6,6 +6,7 @@ from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.entity import Feature
 from domain.virtual_data import VirtualDataImport, VirtualDataSource
 from infrastructure.repository.db.client import DBClient
+from infrastructure.repository.virtual.queries import VirtualImportQueries
 
 
 class VirtualImportRepository(VirtualImportRegistry):
@@ -16,10 +17,7 @@ class VirtualImportRepository(VirtualImportRegistry):
         with self._db_client.tx() as cursor:
             for e in entries:
                 cursor.execute(
-                    """
-                    INSERT INTO virtual_data_imports (id, import_id, global_position_id, source, date, feature, entity_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
+                    VirtualImportQueries.INSERT,
                     (
                         str(uuid4()),
                         str(e.import_id),
@@ -34,23 +32,15 @@ class VirtualImportRepository(VirtualImportRegistry):
     def get_last_import_records(
         self, source: Optional[VirtualDataSource] = None
     ) -> list[VirtualDataImport]:
-        params = []
+        params: list[str] = []
         where = ""
         if source:
             where = " WHERE source = ? "
             params.append(source)
 
-        query = f"""
-                WITH latest_import_details AS (SELECT import_id
-                                               FROM virtual_data_imports
-                                               {where}
-                                               ORDER BY date DESC
-                                               LIMIT 1)
-                SELECT vdi.*
-                FROM virtual_data_imports vdi
-                         JOIN latest_import_details lid
-                              ON vdi.import_id = lid.import_id
-                """
+        query = VirtualImportQueries.GET_LAST_IMPORT_RECORDS_BASE.value.format(
+            where=where
+        )
 
         with self._db_client.read() as cursor:
             cursor.execute(query, params)
@@ -73,12 +63,7 @@ class VirtualImportRepository(VirtualImportRegistry):
     def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                DELETE
-                FROM virtual_data_imports
-                WHERE import_id = ?
-                  AND feature = ?
-                """,
+                VirtualImportQueries.DELETE_BY_IMPORT_AND_FEATURE,
                 (str(import_id), feature),
             )
 
@@ -87,9 +72,6 @@ class VirtualImportRepository(VirtualImportRegistry):
     ):
         with self._db_client.tx() as cursor:
             cursor.execute(
-                """
-                DELETE FROM virtual_data_imports
-                WHERE import_id = ? AND feature = ? AND entity_id = ?
-                """,
+                VirtualImportQueries.DELETE_BY_IMPORT_FEATURE_AND_ENTITY,
                 (str(import_id), feature, str(entity_id)),
             )

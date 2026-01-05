@@ -15,6 +15,9 @@ from domain.auto_contributions import (
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
+from infrastructure.repository.auto_contributions.queries import (
+    AutoContributionsQueries,
+)
 from infrastructure.repository.db.client import DBClient
 
 
@@ -24,21 +27,14 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
     def save(self, entity_id: UUID, data: AutoContributions, source: DataSource):
         with self._db_client.tx() as cursor:
-            # Delete existing contributions for this entity
             cursor.execute(
-                "DELETE FROM periodic_contributions WHERE entity_id = ? AND source = ?",
+                AutoContributionsQueries.DELETE_BY_ENTITY_AND_SOURCE,
                 (str(entity_id), source.value),
             )
 
-            # Insert new contributions
             for contrib in data.periodic:
                 cursor.execute(
-                    """
-                    INSERT INTO periodic_contributions (id, entity_id, target, target_type, target_subtype, alias,
-                                                        target_name, amount, currency,
-                                                        since, until, frequency, active, is_real, source, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
+                    AutoContributionsQueries.INSERT_PERIODIC_CONTRIBUTION,
                     (
                         str(contrib.id),
                         str(entity_id),
@@ -63,21 +59,10 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
         self, query: ContributionQueryRequest
     ) -> dict[Entity, AutoContributions]:
         with self._db_client.read() as cursor:
-            params = []
-            sql = """
-                  SELECT e.id         as entity_id,
-                         e.name       as entity_name,
-                         e.natural_id as entity_natural_id,
-                         e.type       as entity_type,
-                         e.origin     as entity_origin,
-                         e.icon_url   as icon_url,
-                         pc.id        as pc_id,
-                         pc.*
-                  FROM periodic_contributions pc
-                           JOIN entities e ON pc.entity_id = e.id
-                  """
+            params: list[str] = []
+            sql = AutoContributionsQueries.GET_ALL_GROUPED_BY_ENTITY_BASE.value
 
-            conditions = []
+            conditions: list[str] = []
             if query.real is not None:
                 if query.real:
                     conditions.append("pc.source = 'REAL'")
@@ -147,6 +132,4 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
 
     def delete_by_source(self, source: DataSource):
         with self._db_client.tx() as cursor:
-            cursor.execute(
-                "DELETE FROM periodic_contributions WHERE source = ?", (source.value,)
-            )
+            cursor.execute(AutoContributionsQueries.DELETE_BY_SOURCE, (source.value,))
