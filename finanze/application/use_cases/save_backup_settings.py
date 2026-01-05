@@ -7,6 +7,6 @@ class SaveBackupSettingsImpl(SaveBackupSettings):
     def __init__(self, backup_settings_port: BackupSettingsPort):
         self._backup_settings_port = backup_settings_port
 
-    def execute(self, settings: BackupSettings) -> BackupSettings:
-        self._backup_settings_port.save_backup_settings(settings)
+    async def execute(self, settings: BackupSettings) -> BackupSettings:
+        await self._backup_settings_port.save_backup_settings(settings)
         return settings

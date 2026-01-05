@@ -1,13 +1,13 @@
 from uuid import UUID
 
-from flask import request, jsonify
+from quart import request, jsonify
 
 from domain.entity_login import EntityDisconnectRequest
 from domain.use_cases.disconnect_entity import DisconnectEntity
 
 
 async def disconnect_entity(disconnect_entity_uc: DisconnectEntity):
-    body = request.json
+    body = await request.get_json()
     id_str = body.get("id")
     if not id_str:
         return jsonify({"message": "Entity id not provided"}), 400

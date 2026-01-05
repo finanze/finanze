@@ -1,7 +1,5 @@
-from dataclasses import field
+from dataclasses import dataclass
 from typing import Any, Optional
-
-from pydantic.dataclasses import dataclass
 
 from domain.user import User
 
@@ -39,4 +37,12 @@ class DatasourceInitContext:
 class DatasourceInitParams:
     user: User
     password: str
-    context: DatasourceInitContext = field(default_factory=DatasourceInitContext)
+    context: DatasourceInitContext
+
+    @staticmethod
+    def build(
+        user: User, password: str, context: Optional[DatasourceInitContext] = None
+    ) -> "DatasourceInitParams":
+        if context is None:
+            context = DatasourceInitContext(config=None)
+        return DatasourceInitParams(user=user, password=password, context=context)

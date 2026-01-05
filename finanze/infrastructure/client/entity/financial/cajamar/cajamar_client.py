@@ -2,12 +2,12 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
-
-import requests
 import time
 from dateutil.tz import tzlocal
 
 from domain.entity_login import EntityLoginResult, EntitySession, LoginResultCode
+from infrastructure.client.http.http_session import get_http_session
+from infrastructure.client.http.http_response import HttpResponse
 
 PREFIX = "110003"
 BASE_PREFIX = "0003"
@@ -57,8 +57,9 @@ class CajamarClient:
         self._device_id = None
         self._session_expiration = None
         self._log = logging.getLogger(__name__)
+        self._session = get_http_session()
 
-    def login(
+    async def login(
         self,
         username: str,
         password: str,
@@ -84,18 +85,18 @@ class CajamarClient:
                 self._device_id = _generate_device_id()
             self._headers["deviceid"] = self._device_id
 
-            auth_response = self._enrollment(username, password)
-            body = auth_response.json()
-            if auth_response.status_code == 403:
+            auth_response = await self._enrollment(username, password)
+            body = await auth_response.json()
+            if auth_response.status == 403:
                 if body and "code" in body:
                     code = body.get("code", "")
                     if code == "E1002":
                         return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
-                self._log.error(f"Got body {auth_response.text}")
+                self._log.error(f"Got body {await auth_response.text()}")
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected body in response code {auth_response.status_code} while enrolling",
+                    message=f"Got unexpected body in response code {auth_response.status} while enrolling",
                 )
 
             elif auth_response.ok:
@@ -106,25 +107,25 @@ class CajamarClient:
                         self._calculate_refresh_token_expiration()
                     )
                 else:
-                    self._log.error(f"Got body {auth_response.text}")
+                    self._log.error(f"Got body {await auth_response.text()}")
                     return EntityLoginResult(
                         LoginResultCode.UNEXPECTED_ERROR,
                         message="Tokens not found in response",
                     )
             else:
-                self._log.error(f"Got body {auth_response.text}")
+                self._log.error(f"Got body {await auth_response.text()}")
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {auth_response.status_code} while enrolling",
+                    message=f"Got unexpected response code {auth_response.status} while enrolling",
                 )
 
         self._set_auth_header(access_token)
 
-        login_response = self._login(password)
-        if login_response.status_code == 401:
-            refresh_response = self._refresh_token(refresh_token)
+        login_response = await self._login(password)
+        if login_response.status == 401:
+            refresh_response = await self._refresh_token(refresh_token)
             if refresh_response.ok:
-                body = refresh_response.json()
+                body = await refresh_response.json()
                 if "accessToken" in body or "refreshToken" in body:
                     access_token = body["accessToken"]
                     refresh_token = body["refreshToken"]
@@ -133,7 +134,7 @@ class CajamarClient:
                     )
                     self._set_auth_header(access_token)
                 else:
-                    self._log.error(f"Got body {refresh_response.text}")
+                    self._log.error(f"Got body {await refresh_response.text()}")
                     return EntityLoginResult(
                         LoginResultCode.UNEXPECTED_ERROR,
                         message="Tokens not found in refresh response",
@@ -151,33 +152,33 @@ class CajamarClient:
                     self._log.info(
                         "Reenrolling in Cajamar due to invalid refresh token"
                     )
-                    return self.login(username, password, session, retry=True)
+                    return await self.login(username, password, session, retry=True)
 
-                self._log.error(f"Got body {refresh_response.text}")
+                self._log.error(f"Got body {await refresh_response.text()}")
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {refresh_response.status_code} while refreshing token after reauthentication",
+                    message=f"Got unexpected response code {refresh_response.status} while refreshing token after reauthentication",
                 )
 
-            login_response = self._login(password)
-            if login_response.status_code == 401:
-                body = login_response.json()
+            login_response = await self._login(password)
+            if login_response.status == 401:
+                body = await login_response.json()
                 if body and "code" in body:
                     code = body.get("code", "")
                     if code == "SYS060":
                         return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
-                self._log.error(f"Got body {login_response.text}")
+                self._log.error(f"Got body {await login_response.text()}")
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected body in response code {login_response.status_code} while logging in after refresh",
+                    message=f"Got unexpected body in response code {login_response.status} while logging in after refresh",
                 )
 
         if not login_response.ok:
-            self._log.error(f"Got body {login_response.text}")
+            self._log.error(f"Got body {await login_response.text()}")
             return EntityLoginResult(
                 LoginResultCode.UNEXPECTED_ERROR,
-                message=f"Got unexpected response code {login_response.status_code} while logging in",
+                message=f"Got unexpected response code {login_response.status} while logging in",
             )
 
         payload = {
@@ -205,7 +206,7 @@ class CajamarClient:
     def _set_auth_header(self, access_token: str):
         self._headers["Authorization"] = f"Bearer {access_token}"
 
-    def _execute_request(
+    async def _execute_request(
         self,
         path: str,
         method: str,
@@ -213,9 +214,9 @@ class CajamarClient:
         params: dict,
         headers: dict = None,
         raw: bool = False,
-    ) -> dict | str | requests.Response:
+    ) -> dict | HttpResponse:
         headers = headers or self._headers
-        response = requests.request(
+        response = await self._session.request(
             method, self.BASE_URL + path, json=body, params=params, headers=headers
         )
 
@@ -223,25 +224,26 @@ class CajamarClient:
             return response
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body: " + response.text)
+        body_text = await response.text()
+        self._log.error("Error Response Body: " + body_text)
         response.raise_for_status()
         return {}
 
-    def _post_request(
+    async def _post_request(
         self,
         path: str,
-        body: object = None,
+        body: Optional[dict] = None,
         params=None,
         headers: dict = None,
         raw=False,
-    ) -> dict | requests.Response:
-        return self._execute_request(
+    ) -> dict | HttpResponse:
+        return await self._execute_request(
             path, "POST", body=body, headers=headers, raw=raw, params=params
         )
 
-    def _enrollment(self, username: str, password: str):
+    async def _enrollment(self, username: str, password: str):
         data = {
             "appName": "WEFFERENT",
             "appVersion": self.APP_VERSION,
@@ -258,9 +260,9 @@ class CajamarClient:
             "user": username,
         }
 
-        return self._post_request("/enrollment", body=data, raw=True)
+        return await self._post_request("/enrollment", body=data, raw=True)
 
-    def _login(self, password: str):
+    async def _login(self, password: str):
         data = {
             "appVersion": "1.134.17",
             "deviceName": "LG G2",
@@ -273,57 +275,61 @@ class CajamarClient:
             "screenWidth": 1080,
         }
 
-        return self._post_request("/login", body=data, raw=True)
+        return await self._post_request("/login", body=data, raw=True)
 
-    def _refresh_token(self, refresh_token: str):
+    async def _refresh_token(self, refresh_token: str):
         headers = self._headers.copy()
         headers["Authorization"] = f"Bearer {refresh_token}"
-        return self._post_request("/refreshToken", headers=headers, raw=True)
+        return await self._post_request("/refreshToken", headers=headers, raw=True)
 
-    def get_user(self):
-        return self._post_request(self.API_VERSION + "/wall/userid")
+    async def get_user(self):
+        return await self._post_request(self.API_VERSION + "/wall/userid")
 
-    def get_position(self):
-        return self._post_request(self.API_VERSION + "/position")
+    async def get_position(self):
+        return await self._post_request(self.API_VERSION + "/position")
 
-    def get_account_details(self, account_id: str):
-        return self._post_request(self.API_VERSION + "/account/" + account_id)
+    async def get_account_details(self, account_id: str):
+        return await self._post_request(self.API_VERSION + "/account/" + account_id)
 
-    def get_account_txs(self, account_id: str, page_num: int = 1, page_size: int = 16):
+    async def get_account_txs(
+        self, account_id: str, page_num: int = 1, page_size: int = 16
+    ):
         params = {"pageNumber": page_num, "pageSize": page_size}
-        return self._post_request(
+        return await self._post_request(
             self.API_VERSION + f"/account/{account_id}/transactions",
             params=params,
         )
 
-    def get_account_direct_debits(self, account_id: str):
-        return self._post_request(
+    async def get_account_direct_debits(self, account_id: str):
+        return await self._post_request(
             self.API_VERSION + f"/account/{account_id}/directDebits"
         )
 
-    def get_card(self, card_id: str):
-        return self._post_request(self.API_VERSION + f"/card/{card_id}")
+    async def get_card(self, card_id: str):
+        return await self._post_request(self.API_VERSION + f"/card/{card_id}")
 
-    def get_card_txs(self, card_id: str, page_num: int = 1, page_size: int = 16):
+    async def get_card_txs(self, card_id: str, page_num: int = 1, page_size: int = 16):
         params = {"pageNumber": page_num, "pageSize": page_size}
-        return self._post_request(
+        return await self._post_request(
             self.API_VERSION + f"/card/{card_id}/transactions", params=params
         )
 
-    def get_loan(self, loan_account_id: str):
+    async def get_loan(self, loan_account_id: str):
         params = {"arorigin": "C"}
-        return self._post_request(
+        return await self._post_request(
             self.API_VERSION + f"/account/{loan_account_id}/loan", params=params
         )
 
-    def get_loan_statements(
+    async def get_loan_statements(
         self, loan_account_id: str, page_num: int = 1, page_size: int = 16
     ):
         params = {"pageNumber": page_num, "pageSize": page_size}
-        return self._post_request(
+        return await self._post_request(
             self.API_VERSION + f"/account/{loan_account_id}/statements",
             params=params,
         )
 
-    def get_company_capital_contributions(self):
-        return self._post_request(self.API_VERSION + "/companyCapital/contributions")
+    async def get_company_capital_contributions(self):
+        return await self._post_request(
+            self.API_VERSION + "/companyCapital/contributions"
+        )

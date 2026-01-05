@@ -2,10 +2,13 @@ import logging
 from datetime import date
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
+import httpx
+from aiocache import cached, Cache
 from dateutil.relativedelta import relativedelta
 from domain.entity_login import EntityLoginResult, LoginOptions, LoginResultCode
+
+from infrastructure.client.http.http_session import get_http_session
+from infrastructure.client.http.http_response import HttpResponse
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -18,16 +21,17 @@ class MyInvestorAPIV2Client:
     def __init__(self):
         self._headers = {}
         self._log = logging.getLogger(__name__)
+        self._session = get_http_session()
 
-    def _execute_request(
+    async def _execute_request(
         self,
         path: str,
         method: str,
-        body: dict,
+        body: dict | None,
         raw: bool = False,
         base_url: str = BASE_URL,
-    ) -> dict | requests.Response:
-        response = requests.request(
+    ) -> dict | HttpResponse:
+        response = await self._session.request(
             method, base_url + path, json=body, headers=self._headers
         )
 
@@ -35,30 +39,31 @@ class MyInvestorAPIV2Client:
             return response
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body:" + response.text)
+        body_text = await response.text()
+        self._log.error("Error Response Body:" + body_text)
         response.raise_for_status()
         return {}
 
-    def _get_request(self, path: str, base_url: str = BASE_URL) -> requests.Response:
+    async def _get_request(self, path: str, base_url: str = BASE_URL) -> dict:
         try:
-            return self._base_get_request(path, base_url)
-        except requests.HTTPError as e:
+            return await self._base_get_request(path, base_url)
+        except httpx.HTTPStatusError as e:
             self._log.exception(f"GET request to {path} failed: {e}")
-            return self._base_get_request(path, base_url)
+            return await self._base_get_request(path, base_url)
 
-    def _base_get_request(self, path: str, base_url: str) -> requests.Response:
-        return self._execute_request(path, "GET", body=None, base_url=base_url)
+    async def _base_get_request(self, path: str, base_url: str) -> dict:
+        return await self._execute_request(path, "GET", body=None, base_url=base_url)
 
-    def _post_request(
+    async def _post_request(
         self, path: str, body: dict, raw: bool = False, base_url: str = BASE_URL
-    ) -> dict | requests.Response:
-        return self._execute_request(
+    ) -> dict | HttpResponse:
+        return await self._execute_request(
             path, "POST", body=body, raw=raw, base_url=base_url
         )
 
-    def login(
+    async def login(
         self,
         username: str,
         password: str,
@@ -80,10 +85,7 @@ class MyInvestorAPIV2Client:
             "accessType": "USERNAME",
             "password": password,
             "deviceId": "c768ee05-6abf-48aa-a7f2-dbc601da265f",
-            "platform": None,
-            "otpId": None,
-            "code": None,
-            "signatureRequestId": None,
+            "platform": "BROWSER",
         }
 
         if code and process_id:
@@ -95,7 +97,7 @@ class MyInvestorAPIV2Client:
             request["signatureRequestId"] = signature_request_id
             request["code"] = code
 
-            response = self._post_request(
+            response = await self._post_request(
                 "/login/api/v1/auth/token",
                 body=request,
                 raw=True,
@@ -104,7 +106,7 @@ class MyInvestorAPIV2Client:
 
             if response.ok:
                 try:
-                    token = response.json()["payload"]["data"]["accessToken"]
+                    token = (await response.json())["payload"]["data"]["accessToken"]
                 except KeyError:
                     return EntityLoginResult(
                         LoginResultCode.UNEXPECTED_ERROR,
@@ -115,16 +117,16 @@ class MyInvestorAPIV2Client:
 
                 return EntityLoginResult(LoginResultCode.CREATED)
 
-            elif response.status_code == 400:
+            elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
             else:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {response.status_code}",
+                    message=f"Got unexpected response code {response.status}",
                 )
 
         elif not process_id and not code:
-            response = self._post_request(
+            response = await self._post_request(
                 "/login/api/v1/auth/token",
                 body=request,
                 raw=True,
@@ -132,12 +134,12 @@ class MyInvestorAPIV2Client:
             )
 
             if response.ok:
-                if response.status_code == 202:
+                if response.status == 202:
                     if login_options.avoid_new_login:
                         return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
                     try:
-                        data = response.json()["payload"]["data"]
+                        data = (await response.json())["payload"]["data"]
                         otp_id = data["otpId"]
                         signature_request_id = data["signatureRequestId"]
                         process_id = f"{otp_id}|{signature_request_id}"
@@ -152,7 +154,9 @@ class MyInvestorAPIV2Client:
 
                 else:
                     try:
-                        token = response.json()["payload"]["data"]["accessToken"]
+                        token = (await response.json())["payload"]["data"][
+                            "accessToken"
+                        ]
                     except KeyError:
                         return EntityLoginResult(
                             LoginResultCode.UNEXPECTED_ERROR,
@@ -163,42 +167,43 @@ class MyInvestorAPIV2Client:
 
                     return EntityLoginResult(LoginResultCode.CREATED)
 
-            elif response.status_code == 400:
+            elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
             else:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Got unexpected response code {response.status_code}",
+                    message=f"Got unexpected response code {response.status}",
                 )
 
         else:
             raise ValueError("Invalid params")
 
-    def check_maintenance(self):
-        return requests.get("https://cms.myinvestor.es/api/maintenances").json()["data"]
+    async def check_maintenance(self):
+        resp = await self._session.get("https://cms.myinvestor.es/api/maintenances")
+        return (await resp.json())["data"]
 
-    def get_user(self):
-        return self._get_request("/cperf-server/api/v3/customers/self")["payload"][
-            "data"
-        ]
+    async def get_user(self):
+        return (await self._get_request("/cperf-server/api/v3/customers/self"))[
+            "payload"
+        ]["data"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_cash_accounts(self):
-        return self._get_request("/cperf-server/api/v2/cash-accounts/self")["payload"][
-            "data"
-        ]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_cash_accounts(self):
+        return (await self._get_request("/cperf-server/api/v2/cash-accounts/self"))[
+            "payload"
+        ]["data"]
 
-    def get_account_remuneration(self, account_id: str, version: int = 2):
+    async def get_account_remuneration(self, account_id: str, version: int = 2):
         base_path = (
             "/cperf-server/api/v2/cash-accounts"
             if version == 2
             else "/account/api/v3/account"
         )
-        return self._get_request(f"{base_path}/{account_id}/remuneration")["payload"][
-            "data"
-        ]
+        return (await self._get_request(f"{base_path}/{account_id}/remuneration"))[
+            "payload"
+        ]["data"]
 
-    def get_account_movements(
+    async def get_account_movements(
         self,
         account_id: str,
         from_date: Optional[date] = None,
@@ -209,8 +214,8 @@ class MyInvestorAPIV2Client:
         flow_type: Optional[str] = None,
         version: int = 2,
     ):
-        to_date = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
-        from_date = date.strftime(
+        to_date_str = date.strftime(to_date or date.today(), GET_DATE_FORMAT)
+        from_date_str = date.strftime(
             from_date or (date.today() - relativedelta(months=1)), GET_DATE_FORMAT
         )
 
@@ -219,7 +224,8 @@ class MyInvestorAPIV2Client:
             if version == 2
             else "/account/api/v3/account"
         )
-        path = f"{base_path}/{account_id}/flows?dateFrom={from_date}&dateTo={to_date}"
+
+        path = f"{base_path}/{account_id}/flows?dateFrom={from_date_str}&dateTo={to_date_str}"
 
         if concept:
             path += f"&concept={concept}"
@@ -233,30 +239,36 @@ class MyInvestorAPIV2Client:
         if flow_type:
             path += f"&flowType={flow_type}"  # IN, OUT
 
-        return self._get_request(path)["payload"]["data"]
+        return (await self._get_request(path))["payload"]["data"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_security_accounts(self):
-        return self._get_request("/cperf-server/api/v2/securities-accounts/self-basic")[
-            "payload"
-        ]["data"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_security_accounts(self):
+        return (
+            await self._get_request(
+                "/cperf-server/api/v2/securities-accounts/self-basic"
+            )
+        )["payload"]["data"]
 
-    def get_cards(self, account_id=None):
+    async def get_cards(self, account_id=None):
         params = f"?accountId={account_id}" if account_id else ""
-        return self._get_request(f"/ms-cards/api/v1/cards{params}")["payload"]["data"]
-
-    def get_card_totals(self, card_id):
-        return self._get_request(f"/ms-cards/api/v1/cards/{card_id}/totals")["payload"][
+        return (await self._get_request(f"/ms-cards/api/v1/cards{params}"))["payload"][
             "data"
         ]
 
-    @cached(cache=TTLCache(maxsize=10, ttl=30))
-    def get_security_account_details(self, security_account_id: str):
-        return self._get_request(
-            f"/cperf-server/api/v2/securities-accounts/{security_account_id}"
+    async def get_card_totals(self, card_id):
+        return (await self._get_request(f"/ms-cards/api/v1/cards/{card_id}/totals"))[
+            "payload"
+        ]["data"]
+
+    @cached(cache=Cache.MEMORY, ttl=30)
+    async def get_security_account_details(self, security_account_id: str):
+        return (
+            await self._get_request(
+                f"/cperf-server/api/v2/securities-accounts/{security_account_id}"
+            )
         )["payload"]["data"]
 
-    def get_stock_orders(
+    async def get_stock_orders(
         self,
         securities_account_id: str,
         from_date: Optional[date] = None,
@@ -281,14 +293,14 @@ class MyInvestorAPIV2Client:
         if isin:
             path += f"&isin={isin}"
 
-        return self._get_request(path)["payload"]["data"]
+        return (await self._get_request(path))["payload"]["data"]
 
-    def get_stock_order_details(self, order_id: str):
-        return self._get_request(f"/ms-broker/v2/stock-orders/{order_id}")["payload"][
-            "data"
-        ]
+    async def get_stock_order_details(self, order_id: str):
+        return (await self._get_request(f"/ms-broker/v2/stock-orders/{order_id}"))[
+            "payload"
+        ]["data"]
 
-    def get_fund_orders(
+    async def get_fund_orders(
         self,
         securities_account_id: str,
         from_date: Optional[date] = None,
@@ -321,61 +333,71 @@ class MyInvestorAPIV2Client:
         if isin:
             path += f"&isin={isin}"
 
-        return self._get_request(path)["payload"]["data"]
+        return (await self._get_request(path))["payload"]["data"]
 
-    @cached(cache=TTLCache(maxsize=1000, ttl=60))
-    def get_fund_order_details(self, securities_account_id: str, order_id: str):
-        return self._get_request(
-            f"/cperf-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
+    @cached(cache=Cache.MEMORY, ttl=60)
+    async def get_fund_order_details(self, securities_account_id: str, order_id: str):
+        return (
+            await self._get_request(
+                f"/cperf-server/api/v2/securities-accounts/{securities_account_id}/orders/{order_id}"
+            )
         )["payload"]["data"]
 
-    def get_auto_contributions(self):
-        return self._get_request("/cperf-server/api/v2/automatic-contributions/self")[
+    async def get_auto_contributions(self):
+        return (
+            await self._get_request("/cperf-server/api/v2/automatic-contributions/self")
+        )["payload"]["data"]
+
+    async def get_deposits(self):
+        return (await self._get_request("/cperf-server/api/v2/deposits/self"))[
             "payload"
         ]["data"]
 
-    def get_deposits(self):
-        return self._get_request("/cperf-server/api/v2/deposits/self")["payload"][
-            "data"
-        ]
-
-    @cached(cache=TTLCache(maxsize=50, ttl=21600))
-    def is_portfolio_pledged(self, security_account_id: str):
-        return self._get_request(
-            f"/ms-lending/api/v2/pledged/guarantees/portfolios/{security_account_id}/status"
+    @cached(cache=Cache.MEMORY, ttl=21600)
+    async def is_portfolio_pledged(self, security_account_id: str):
+        return (
+            await self._get_request(
+                f"/ms-lending/api/v2/pledged/guarantees/portfolios/{security_account_id}/status"
+            )
         )["payload"]["data"]["isPledged"]
 
-    @cached(cache=TTLCache(maxsize=50, ttl=21600))
-    def is_fund_pledged(self, security_account_id: str, fund_isin: str):
-        return self._get_request(
-            f"/ms-lending/api/v2/pledged/guarantees/securities-accounts/{security_account_id}/funds/{fund_isin}"
+    @cached(cache=Cache.MEMORY, ttl=21600)
+    async def is_fund_pledged(self, security_account_id: str, fund_isin: str):
+        return (
+            await self._get_request(
+                f"/ms-lending/api/v2/pledged/guarantees/securities-accounts/{security_account_id}/funds/{fund_isin}"
+            )
         )["payload"]["data"]["isPledged"]
 
-    @cached(cache=TTLCache(maxsize=50, ttl=86400))
-    def get_fund_details(self, isin: str):
-        return self._get_request(f"/cperf-server/api/v2/funds/{isin}")["payload"][
-            "data"
-        ]
-
-    @cached(cache=TTLCache(maxsize=50, ttl=21600))
-    def get_fund_added_values(self, security_account_id: str, fund_isin: str):
-        return self._get_request(
-            f"/cperf-server/api/v2/securities-accounts/{security_account_id}/investment-summary/funds/{fund_isin}/added-values"
-        )["payload"]["data"]
-
-    @cached(cache=TTLCache(maxsize=50, ttl=21600))
-    def get_pension_accounts(self):
-        return self._get_request("/cperf-server/api/v2/pension-accounts/self")[
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def get_fund_details(self, isin: str):
+        return (await self._get_request(f"/cperf-server/api/v2/funds/{isin}"))[
             "payload"
         ]["data"]
 
-    @cached(cache=TTLCache(maxsize=50, ttl=21600))
-    def get_pension_account_details(self, pension_account_id: str):
-        return self._get_request(
-            f"/cperf-server/api/v2/pension-accounts/{pension_account_id}"
+    @cached(cache=Cache.MEMORY, ttl=21600)
+    async def get_fund_added_values(self, security_account_id: str, fund_isin: str):
+        return (
+            await self._get_request(
+                f"/cperf-server/api/v2/securities-accounts/{security_account_id}/investment-summary/funds/{fund_isin}/added-values"
+            )
         )["payload"]["data"]
 
-    def get_pension_plan_orders(
+    @cached(cache=Cache.MEMORY, ttl=21600)
+    async def get_pension_accounts(self):
+        return (await self._get_request("/cperf-server/api/v2/pension-accounts/self"))[
+            "payload"
+        ]["data"]
+
+    @cached(cache=Cache.MEMORY, ttl=21600)
+    async def get_pension_account_details(self, pension_account_id: str):
+        return (
+            await self._get_request(
+                f"/cperf-server/api/v2/pension-accounts/{pension_account_id}"
+            )
+        )["payload"]["data"]
+
+    async def get_pension_plan_orders(
         self,
         pension_account_id: str,
         from_date: Optional[date] = None,
@@ -408,16 +430,20 @@ class MyInvestorAPIV2Client:
         if dgs:
             path += f"&dgsCode={dgs}"
 
-        return self._get_request(path)["payload"]["data"]
+        return (await self._get_request(path))["payload"]["data"]
 
-    @cached(cache=TTLCache(maxsize=1000, ttl=60))
-    def get_pension_plan_order_details(self, pension_account_id: str, order_id: str):
-        return self._get_request(
-            f"/cperf-server/api/v2/pension-accounts/{pension_account_id}/orders/{order_id}"
+    @cached(cache=Cache.MEMORY, ttl=60)
+    async def get_pension_plan_order_details(
+        self, pension_account_id: str, order_id: str
+    ):
+        return (
+            await self._get_request(
+                f"/cperf-server/api/v2/pension-accounts/{pension_account_id}/orders/{order_id}"
+            )
         )["payload"]["data"]
 
-    @cached(cache=TTLCache(maxsize=50, ttl=21600))
-    def get_pension_fund_details(self, dgs_code: str):
-        return self._get_request(f"/cperf-server/api/v2/pension-plans/{dgs_code}")[
-            "payload"
-        ]["data"]
+    @cached(cache=Cache.MEMORY, ttl=21600)
+    async def get_pension_fund_details(self, dgs_code: str):
+        return (
+            await self._get_request(f"/cperf-server/api/v2/pension-plans/{dgs_code}")
+        )["payload"]["data"]

@@ -84,10 +84,10 @@ class ImportSheetsImpl(ImportSheets):
         self._log = logging.getLogger(__name__)
 
     async def execute(self) -> ImportResult:
-        config = self._config_port.load()
+        config = await self._config_port.load()
         sheets_import_config = config.importing.sheets
 
-        sheets_credentials = self._external_integration_port.get_payload(
+        sheets_credentials = await self._external_integration_port.get_payload(
             ExternalIntegrationId.GOOGLE_SHEETS
         )
         if not sheets_credentials:
@@ -102,16 +102,19 @@ class ImportSheetsImpl(ImportSheets):
             raise ExecutionConflict()
 
         async with self._lock:
-            existing_entities = self._entity_port.get_all()
+            existing_entities = await self._entity_port.get_all()
             existing_entities_by_name = {
                 entity.name: entity for entity in existing_entities
             }
 
-            position_candidates, position_sheet_errors = self._get_import_candidates(
+            (
+                position_candidates,
+                position_sheet_errors,
+            ) = await self._get_import_candidates(
                 Feature.POSITION, sheets_credentials, sheets_import_config
             )
 
-            import_position_result = self._template_parser.global_positions(
+            import_position_result = await self._template_parser.global_positions(
                 position_candidates, existing_entities_by_name
             )
 
@@ -121,11 +124,11 @@ class ImportSheetsImpl(ImportSheets):
                 virtual_import_entries = []
                 if import_position_result.positions:
                     for entity in import_position_result.created_entities:
-                        self._entity_port.insert(entity)
+                        await self._entity_port.insert(entity)
                         existing_entities_by_name[entity.name] = entity
 
                     for position in import_position_result.positions:
-                        self._position_port.save(position)
+                        await self._position_port.save(position)
                         virtual_import_entries.append(
                             VirtualDataImport(
                                 import_id=import_id,
@@ -137,21 +140,21 @@ class ImportSheetsImpl(ImportSheets):
                             )
                         )
 
-                tx_candidates, tx_sheet_errors = self._get_import_candidates(
+                tx_candidates, tx_sheet_errors = await self._get_import_candidates(
                     Feature.TRANSACTIONS, sheets_credentials, sheets_import_config
                 )
 
-                imported_txs = self._template_parser.transactions(
+                imported_txs = await self._template_parser.transactions(
                     tx_candidates, existing_entities_by_name
                 )
 
-                self._transaction_port.delete_by_source(DataSource.SHEETS)
+                await self._transaction_port.delete_by_source(DataSource.SHEETS)
                 transactions = imported_txs.transactions
                 if transactions:
                     for entity in imported_txs.created_entities:
-                        self._entity_port.insert(entity)
+                        await self._entity_port.insert(entity)
 
-                    self._transaction_port.save(transactions)
+                    await self._transaction_port.save(transactions)
 
                     tx_entities = {
                         tx.entity.id
@@ -181,7 +184,7 @@ class ImportSheetsImpl(ImportSheets):
                         )
                     )
 
-                self._virtual_import_registry.insert(virtual_import_entries)
+                await self._virtual_import_registry.insert(virtual_import_entries)
 
                 errors = (
                     position_sheet_errors
@@ -200,7 +203,7 @@ class ImportSheetsImpl(ImportSheets):
                     errors=errors,
                 )
 
-    def _get_import_candidates(
+    async def _get_import_candidates(
         self,
         feature: Feature,
         sheets_credentials: ExternalIntegrationPayload,
@@ -217,7 +220,7 @@ class ImportSheetsImpl(ImportSheets):
         for config in config_entries:
             sheets_params = _map_sheet_params(config, virtual_fetch_config.globals)
             try:
-                table = self._sheets_port.read(sheets_credentials, sheets_params)
+                table = await self._sheets_port.read(sheets_credentials, sheets_params)
             except SheetNotFound:
                 errors.append(
                     ImportError(
@@ -228,7 +231,7 @@ class ImportSheetsImpl(ImportSheets):
                 self._log.warning(f"Sheet {config.range} not found")
                 continue
 
-            parser_params = self._map_template_params(
+            parser_params = await self._map_template_params(
                 feature,
                 config,
                 virtual_fetch_config.globals,
@@ -244,13 +247,13 @@ class ImportSheetsImpl(ImportSheets):
             )
         return candidates, errors
 
-    def _map_template_params(
+    async def _map_template_params(
         self,
         feature: Feature,
         config: ImportSheetConfig,
         global_config: SheetsGlobalConfig,
     ) -> TemplatedDataParserParams:
-        template = self._template_port.get_by_id(UUID(config.template.id))
+        template = await self._template_port.get_by_id(UUID(config.template.id))
 
         return TemplatedDataParserParams(
             template=template,

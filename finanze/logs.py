@@ -25,15 +25,19 @@ class TZFormatter(logging.Formatter):
 
 
 _THIRD_PARTY_LOGGERS = [
-    "waitress",
-    "waitress.queue",
+    "uvicorn",
     "urllib3",
     "requests",
     "selenium",
+    "aiocache",
+    "aiocache.base",
+    "httpx",
 ]
 
 
 def _apply_third_party_level(level_name: str):
+    logging.getLogger("httpcore").setLevel(logging.CRITICAL)
+
     if level_name == "NONE":
         return
     lvl = logging.getLevelName(level_name)

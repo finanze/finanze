@@ -6,11 +6,11 @@ from domain.exception.exceptions import MissingFieldsError
 from domain.global_position import InterestType
 from domain.loan_calculator import LoanCalculationParams
 from domain.use_cases.calculate_loan import CalculateLoan
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def calculate_loan(calculate_loan_uc: CalculateLoan):
-    body = request.json or {}
+async def calculate_loan(calculate_loan_uc: CalculateLoan):
+    body = await request.get_json() or {}
 
     try:
         # Optional monetary fields
@@ -57,7 +57,7 @@ def calculate_loan(calculate_loan_uc: CalculateLoan):
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
     try:
-        result = calculate_loan_uc.execute(params)
+        result = await calculate_loan_uc.execute(params)
     except MissingFieldsError as e:
         return jsonify({"message": str(e)}), 400
 

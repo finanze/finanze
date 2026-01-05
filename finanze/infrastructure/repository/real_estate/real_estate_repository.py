@@ -168,7 +168,7 @@ def _deserialize_rental_data(data: Optional[str | bytes]) -> Optional[RentalData
     )
 
 
-def _build_flow(flow_row) -> RealEstateFlow:
+async def _build_flow(flow_row) -> RealEstateFlow:
     payload_data = json.loads(flow_row["payload"])
     payload = _deserialize_payload(
         RealEstateFlowSubtype(flow_row["flow_subtype"]), payload_data
@@ -198,13 +198,13 @@ def _build_flow(flow_row) -> RealEstateFlow:
     )
 
 
-def _build_real_estate(row, cursor) -> RealEstate:
-    cursor.execute(
+async def _build_real_estate(row, cursor) -> RealEstate:
+    await cursor.execute(
         RealEstateQueries.SELECT_FLOWS_BY_REAL_ESTATE_ID,
         (row["id"],),
     )
-    flow_rows = cursor.fetchall()
-    flows = [_build_flow(flow_row) for flow_row in flow_rows]
+    flow_rows = await cursor.fetchall()
+    flows = [await _build_flow(flow_row) for flow_row in flow_rows]
 
     return RealEstate(
         id=UUID(row["id"]),
@@ -247,8 +247,8 @@ def _build_real_estate(row, cursor) -> RealEstate:
     )
 
 
-def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None:
-    cursor.execute(
+async def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None:
+    await cursor.execute(
         RealEstateQueries.INSERT_FLOW,
         (
             str(real_estate_id),
@@ -264,12 +264,12 @@ class RealEstateRepository(RealEstatePort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def insert(self, real_estate: RealEstate) -> None:
+    async def insert(self, real_estate: RealEstate) -> None:
         if real_estate.id is None:
             real_estate.id = uuid4()
 
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 RealEstateQueries.INSERT_REAL_ESTATE,
                 (
                     str(real_estate.id),
@@ -308,11 +308,11 @@ class RealEstateRepository(RealEstatePort):
             )
 
             for flow in real_estate.flows:
-                _save_flow(cursor, real_estate.id, flow)
+                await _save_flow(cursor, real_estate.id, flow)
 
-    def update(self, real_estate: RealEstate) -> None:
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def update(self, real_estate: RealEstate) -> None:
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 RealEstateQueries.UPDATE_REAL_ESTATE,
                 (
                     real_estate.basic_info.name,
@@ -350,33 +350,33 @@ class RealEstateRepository(RealEstatePort):
                 ),
             )
 
-            cursor.execute(
+            await cursor.execute(
                 RealEstateQueries.DELETE_FLOWS_BY_REAL_ESTATE_ID,
                 (str(real_estate.id),),
             )
             for flow in real_estate.flows:
-                _save_flow(cursor, real_estate.id, flow)
+                await _save_flow(cursor, real_estate.id, flow)
 
-    def delete(self, real_estate_id: UUID) -> None:
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def delete(self, real_estate_id: UUID) -> None:
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 RealEstateQueries.DELETE_BY_ID,
                 (str(real_estate_id),),
             )
 
-    def get_by_id(self, real_estate_id: UUID) -> Optional[RealEstate]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_by_id(self, real_estate_id: UUID) -> Optional[RealEstate]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 RealEstateQueries.GET_BY_ID,
                 (str(real_estate_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if not row:
                 return None
-            return _build_real_estate(row, cursor)
+            return await _build_real_estate(row, cursor)
 
-    def get_all(self) -> list[RealEstate]:
-        with self._db_client.read() as cursor:
-            cursor.execute(RealEstateQueries.GET_ALL)
-            rows = cursor.fetchall()
-            return [_build_real_estate(row, cursor) for row in rows]
+    async def get_all(self) -> list[RealEstate]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(RealEstateQueries.GET_ALL)
+            rows = await cursor.fetchall()
+            return [await _build_real_estate(row, cursor) for row in rows]

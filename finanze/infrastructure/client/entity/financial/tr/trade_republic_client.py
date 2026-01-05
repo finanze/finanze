@@ -2,26 +2,25 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-import requests
+import httpx
 from aiocache import cached
 from dateutil.tz import tzlocal
+
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
     LoginOptions,
     LoginResultCode,
 )
+from infrastructure.client.entity.financial.tr.api import TradeRepublicApi
+from infrastructure.client.entity.financial.tr.portfolio import Portfolio
 from infrastructure.client.entity.financial.tr.tr_details import TRDetails
 from infrastructure.client.entity.financial.tr.tr_timeline import TRTimeline
-from pytr.api import TradeRepublicApi
-from pytr.portfolio import Portfolio
-from requests import HTTPError
-from requests.cookies import RequestsCookieJar, create_cookie
 
 
-def _json_cookie_jar(jar: RequestsCookieJar) -> list:
-    simple_cookies = []
-    for cookie in jar:
+def _json_cookie_jar(jar: httpx.Cookies) -> list[dict]:
+    simple_cookies: list[dict] = []
+    for cookie in jar.jar:
         expires_timestamp = 0
         if cookie.expires is not None:
             try:
@@ -42,34 +41,26 @@ def _json_cookie_jar(jar: RequestsCookieJar) -> list:
     return simple_cookies
 
 
-def _rebuild_cookie_jar(cookie_list: list) -> RequestsCookieJar:
-    new_jar = RequestsCookieJar()
+def _rebuild_cookie_jar(cookie_list: list[dict]) -> httpx.Cookies:
+    cookies = httpx.Cookies()
 
     for cookie_dict in cookie_list:
         if not all(k in cookie_dict for k in ("name", "value", "domain")):
             continue
 
-        expires_ts = cookie_dict.get("expires")
-        expires_arg = None if expires_ts == 0 else expires_ts
+        name = cookie_dict["name"]
+        value = cookie_dict["value"]
+        domain = cookie_dict["domain"]
+        path = cookie_dict.get("path") or "/"
 
-        args = {
-            "name": cookie_dict["name"],
-            "value": cookie_dict["value"],
-            "domain": cookie_dict["domain"],
-            "path": cookie_dict.get("path", "/"),
-            "secure": cookie_dict.get("secure", False),
-            "expires": expires_arg,
-        }
+        cookies.set(
+            name,
+            value,
+            domain=domain,
+            path=path,
+        )
 
-        try:
-            cookie = create_cookie(**args)
-            cookie.domain_specified = bool(cookie.domain)
-            cookie.path_specified = bool(cookie.path)
-            new_jar.set_cookie(cookie)
-        except Exception:
-            pass
-
-    return new_jar
+    return cookies
 
 
 class TradeRepublicClient:
@@ -77,7 +68,7 @@ class TradeRepublicClient:
         self._tr_api = None
         self._log = logging.getLogger(__name__)
 
-    def login(
+    async def login(
         self,
         phone: str,
         pin: str,
@@ -90,20 +81,19 @@ class TradeRepublicClient:
             phone_no=phone,
             pin=pin,
             locale="en",
-            save_cookies=False,
         )
 
         if session and not login_options.force_new_session:
             self._inject_session(session)
-            if self._resumable_session():
+            if await self._resumable_session():
                 self._log.debug("Resuming session")
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
         if code and process_id:
             self._tr_api._process_id = process_id
             try:
-                self._tr_api.complete_weblogin(code)
-            except HTTPError as e:
+                await self._tr_api.complete_weblogin(code)
+            except httpx.HTTPStatusError as e:
                 if e.response.status_code == 401:
                     return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 elif e.response.status_code == 400:
@@ -125,7 +115,7 @@ class TradeRepublicClient:
         elif not code or not process_id:
             if not login_options.avoid_new_login:
                 try:
-                    countdown = self._initiate_weblogin()
+                    countdown = await self._initiate_weblogin()
                 except ValueError as e:
                     if str(e) == "NUMBER_INVALID":
                         return EntityLoginResult(
@@ -143,21 +133,21 @@ class TradeRepublicClient:
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
-    def _resumable_session(self) -> bool:
+    async def _resumable_session(self) -> bool:
         try:
-            self._tr_api.settings()
-        except requests.exceptions.HTTPError:
+            await self._tr_api.settings()
+        except httpx.HTTPStatusError:
             self._tr_api._weblogin = False
             return False
         else:
             return True
 
-    def _initiate_weblogin(self):
-        r = self._tr_api._websession.post(
+    async def _initiate_weblogin(self):
+        r = await self._tr_api._websession.post(
             f"{self._tr_api._host}/api/v1/auth/web/login",
             json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
         )
-        j = r.json()
+        j = await r.json()
         try:
             if j.get("errorCode") == "TOO_MANY_REQUESTS":
                 return int(j.get("meta", {}).get("nextAttemptInSeconds", 30))
@@ -180,7 +170,9 @@ class TradeRepublicClient:
 
     def _inject_session(self, session: EntitySession):
         cookies = _rebuild_cookie_jar(session.payload["cookies"])
-        self._tr_api._websession.cookies = cookies
+        self._tr_api._websession.clear_cookies()
+        for cookie in cookies.jar:
+            self._tr_api._websession.set_cookie(cookie)
         self._tr_api._weblogin = True
 
     async def close(self):
@@ -196,8 +188,10 @@ class TradeRepublicClient:
     async def get_details(
         self,
         isin: str,
-        types: list = ["stockDetails", "mutualFundDetails", "instrument"],
+        types: Optional[list] = None,
     ):
+        if types is None:
+            types = ["stockDetails", "mutualFundDetails", "instrument"]
         details = TRDetails(self._tr_api, isin)
         await details.fetch(types)
         return details
@@ -215,31 +209,31 @@ class TradeRepublicClient:
         )
         return await dl.fetch()
 
-    def get_user_info(self):
-        return self._tr_api.settings()
+    async def get_user_info(self):
+        return await self._tr_api.settings()
 
-    def get_interest_payouts(self, number_of_payouts: int):
-        r = self._tr_api._web_request(
+    async def get_interest_payouts(self, number_of_payouts: int):
+        r = await self._tr_api._web_request(
             f"/api/v1/banking/consumer/interest/payouts?numberOfPayouts={number_of_payouts}"
         )
         r.raise_for_status()
-        return r.json()
+        return await r.json()
 
-    def get_active_interest_rate(self, account_number: str):
-        r = self._tr_api._web_request(
+    async def get_active_interest_rate(self, account_number: str):
+        r = await self._tr_api._web_request(
             f"/api/v1/banking/consumer/interest/{account_number}/rate"
         )
         r.raise_for_status()
-        return r.json()
+        return await r.json()
 
-    def get_interest_payout_summary(
+    async def get_interest_payout_summary(
         self, decimal_separator: str = ",", grouping_separator: str = "."
     ):
-        r = self._tr_api._web_request(
+        r = await self._tr_api._web_request(
             f"/api/v1/interest/details-screen?decimalSeparator={decimal_separator}&groupingSeparator={grouping_separator}"
         )
         r.raise_for_status()
-        return r.json()
+        return await r.json()
 
     async def get_portfolio_by_type(self, securities_account_num: Optional[str] = None):
         request = {"type": "compactPortfolioByType"}

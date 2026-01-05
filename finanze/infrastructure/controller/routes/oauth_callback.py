@@ -1,7 +1,7 @@
-from flask import Response
+from quart import Response
 
 
-def oauth_callback() -> Response:
+async def oauth_callback() -> Response:
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>

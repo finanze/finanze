@@ -6,17 +6,23 @@ from domain.file_upload import FileUpload
 
 class FileStoragePort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, file: FileUpload, folder: str, keep_name: bool = False) -> str:
+    async def save(
+        self,
+        file: FileUpload,
+        folder: str,
+        keep_name: bool = False,
+        existing_url: Optional[str] = None,
+    ) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def save_from_url(
+    async def save_from_url(
         self, file_url: str, folder: str, filename: Optional[str] = None
     ) -> str:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete(self, file_path: str) -> bool:
+    async def delete(self, file_path: str) -> bool:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -24,5 +30,5 @@ class FileStoragePort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_by_url(self, file_url: str) -> bool:
+    async def delete_by_url(self, file_url: str) -> bool:
         raise NotImplementedError

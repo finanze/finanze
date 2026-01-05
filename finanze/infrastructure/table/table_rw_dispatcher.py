@@ -23,17 +23,17 @@ class TableRWDispatcher(TableRWPort):
     def __init__(self, adapters: dict[FileFormat, TableRWPort]):
         self._adapters = adapters
 
-    def convert(self, rows: list[list[str]], format: FileFormat) -> bytes:
+    async def convert(self, rows: list[list[str]], format: FileFormat) -> bytes:
         adapter = self._adapters.get(format)
         if not adapter:
             raise ValueError(f"No table adapter registered for format {format}")
-        return adapter.convert(rows, format)
+        return await adapter.convert(rows, format)
 
-    def parse(self, upload: FileUpload) -> list[list[str]]:
+    async def parse(self, upload: FileUpload) -> list[list[str]]:
         detected_format = _infer_format(upload)
         adapter = self._adapters.get(detected_format)
         if not adapter:
             raise UnsupportedFileFormat(
                 f"No table adapter registered for format {detected_format}"
             )
-        return adapter.parse(upload)
+        return await adapter.parse(upload)

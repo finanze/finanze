@@ -1,9 +1,9 @@
 from domain.auto_contributions import ContributionQueryRequest
 from domain.use_cases.get_contributions import GetContributions
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def contributions(get_contributions: GetContributions):
+async def contributions(get_contributions: GetContributions):
     entities = request.args.getlist("entity")
     real_param = request.args.get("real")
 
@@ -18,5 +18,5 @@ def contributions(get_contributions: GetContributions):
         entities=list(entities) or None,
         real=real,
     )
-    result = get_contributions.execute(query)
+    result = await get_contributions.execute(query)
     return jsonify(result.contributions), 200

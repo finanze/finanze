@@ -9,9 +9,11 @@ class GetHistoricImpl(GetHistoric):
         self._historic_port = historic_port
         self._entity_port = entity_port
 
-    def execute(self, query: HistoricQueryRequest) -> Historic:
-        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+    async def execute(self, query: HistoricQueryRequest) -> Historic:
+        excluded_entities = [
+            e.id for e in await self._entity_port.get_disabled_entities()
+        ]
 
         query.excluded_entities = excluded_entities
 
-        return self._historic_port.get_by_filters(query, fetch_related_txs=True)
+        return await self._historic_port.get_by_filters(query, fetch_related_txs=True)

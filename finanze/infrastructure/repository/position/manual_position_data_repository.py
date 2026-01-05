@@ -10,14 +10,14 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entries: list[ManualPositionData]):
+    async def save(self, entries: list[ManualPositionData]):
         valid_entries = [e for e in entries if e is not None]
         if not valid_entries:
             return
-        with self._db_client.tx() as cursor:
+        async with self._db_client.tx() as cursor:
             for entry in valid_entries:
                 track_ticker = bool(entry.data and entry.data.tracker_key)
-                cursor.execute(
+                await cursor.execute(
                     ManualPositionDataQueries.INSERT,
                     (
                         str(entry.entry_id),
@@ -28,11 +28,11 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
                     ),
                 )
 
-    def get_trackable(self) -> list[ManualPositionData]:
+    async def get_trackable(self) -> list[ManualPositionData]:
         result: list[ManualPositionData] = []
-        with self._db_client.read() as cursor:
-            cursor.execute(ManualPositionDataQueries.GET_TRACKABLE)
-            rows = cursor.fetchall()
+        async with self._db_client.read() as cursor:
+            await cursor.execute(ManualPositionDataQueries.GET_TRACKABLE)
+            rows = await cursor.fetchall()
             for row in rows:
                 result.append(
                     ManualPositionData(
@@ -44,11 +44,11 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
                 )
         return result
 
-    def delete_by_position_id_and_type(
+    async def delete_by_position_id_and_type(
         self, global_position_id: UUID, product_type: ProductType
     ):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 ManualPositionDataQueries.DELETE_BY_POSITION_ID_AND_TYPE,
                 (str(global_position_id), product_type.value),
             )

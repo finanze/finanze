@@ -6,5 +6,5 @@ from domain.cloud_auth import CloudAuthData
 
 class GetCloudAuth(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self) -> Optional[CloudAuthData]:
+    async def execute(self) -> Optional[CloudAuthData]:
         raise NotImplementedError

@@ -73,7 +73,7 @@ from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
 from domain.use_cases.upload_backup import UploadBackup
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
-from infrastructure.controller.config import FlaskApp
+from infrastructure.controller.config import QuartApp
 from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
@@ -172,8 +172,8 @@ from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.search_crypto_assets import search_crypto_assets
 
 
-def register_routes(
-    app: FlaskApp,
+async def register_routes(
+    app: QuartApp,
     user_login_uc: UserLogin,
     register_user_uc: RegisterUser,
     change_user_password_uc: ChangeUserPassword,
@@ -245,36 +245,36 @@ def register_routes(
     save_backup_settings_uc: SaveBackupSettings,
 ):
     @app.route("/api/v1/login", methods=["POST"])
-    def user_login_route():
-        return user_login(user_login_uc)
+    async def user_login_route():
+        return await user_login(user_login_uc)
 
     @app.route("/api/v1/signup", methods=["POST"])
-    def register_user_route():
-        return register_user(register_user_uc)
+    async def register_user_route():
+        return await register_user(register_user_uc)
 
     @app.route("/api/v1/change-password", methods=["POST"])
-    def change_user_password_route():
-        return change_user_password(change_user_password_uc)
+    async def change_user_password_route():
+        return await change_user_password(change_user_password_uc)
 
     @app.route("/api/v1/status", methods=["GET"])
-    def get_status_route():
-        return status(get_status_uc)
+    async def get_status_route():
+        return await status(get_status_uc)
 
     @app.route("/api/v1/logout", methods=["POST"])
-    def logout_route():
-        return logout(user_logout_uc)
+    async def logout_route():
+        return await logout(user_logout_uc)
 
     @app.route("/api/v1/settings", methods=["GET"])
-    def settings_route():
-        return get_settings(get_settings_uc)
+    async def settings_route():
+        return await get_settings(get_settings_uc)
 
     @app.route("/api/v1/settings", methods=["POST"])
-    def update_settings_route():
-        return update_settings(update_settings_uc)
+    async def update_settings_route():
+        return await update_settings(update_settings_uc)
 
     @app.route("/api/v1/entities", methods=["GET"])
-    def get_available_source_route():
-        return get_available_sources(get_available_entities_uc)
+    async def get_available_source_route():
+        return await get_available_sources(get_available_entities_uc)
 
     @app.route("/api/v1/entities/login", methods=["POST"])
     async def add_entity_login_route():
@@ -335,84 +335,84 @@ def register_routes(
         return await export_file(export_file_uc)
 
     @app.route("/api/v1/positions", methods=["GET"])
-    def positions_route():
-        return positions(get_position_uc)
+    async def positions_route():
+        return await positions(get_position_uc)
 
     @app.route("/api/v1/contributions", methods=["GET"])
-    def contributions_route():
-        return contributions(get_contributions_uc)
+    async def contributions_route():
+        return await contributions(get_contributions_uc)
 
     @app.route("/api/v1/transactions", methods=["GET"])
-    def transactions_route():
-        return transactions(get_transactions_uc)
+    async def transactions_route():
+        return await transactions(get_transactions_uc)
 
     @app.route("/api/v1/exchange-rates", methods=["GET"])
-    def exchange_rates_route():
-        return exchange_rates(get_exchange_rates_uc)
+    async def exchange_rates_route():
+        return await exchange_rates(get_exchange_rates_uc)
 
     @app.route("/api/v1/events", methods=["GET"])
-    def get_money_events_route():
-        return get_money_events(get_money_events_uc)
+    async def get_money_events_route():
+        return await get_money_events(get_money_events_uc)
 
     @app.route("/api/v1/crypto-wallet", methods=["POST"])
-    def connect_crypto_wallet_route():
-        return connect_crypto_wallet(connect_crypto_wallet_uc)
+    async def connect_crypto_wallet_route():
+        return await connect_crypto_wallet(connect_crypto_wallet_uc)
 
     @app.route("/api/v1/crypto-wallet", methods=["PUT"])
-    def update_crypto_wallet_route():
-        return update_crypto_wallet(update_crypto_wallet_uc)
+    async def update_crypto_wallet_route():
+        return await update_crypto_wallet(update_crypto_wallet_uc)
 
     @app.route("/api/v1/crypto-wallet/<wallet_connection_id>", methods=["DELETE"])
-    def delete_crypto_wallet_route(wallet_connection_id: str):
-        return delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
+    async def delete_crypto_wallet_route(wallet_connection_id: str):
+        return await delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
 
     @app.route("/api/v1/commodities", methods=["POST"])
     async def save_commodities_route():
         return await save_commodities(save_commodities_uc)
 
     @app.route("/api/v1/integrations", methods=["GET"])
-    def get_external_integrations_route():
-        return get_external_integrations(get_external_integrations_uc)
+    async def get_external_integrations_route():
+        return await get_external_integrations(get_external_integrations_uc)
 
     @app.route("/api/v1/integrations/<integration_id>", methods=["POST"])
-    def connect_external_integration_route(integration_id: str):
-        return connect_external_integration(
+    async def connect_external_integration_route(integration_id: str):
+        return await connect_external_integration(
             connect_external_integrations_uc, integration_id
         )
 
     @app.route("/api/v1/integrations/<integration_id>", methods=["DELETE"])
-    def disconnect_external_integration_route(integration_id: str):
-        return disconnect_external_integration(
+    async def disconnect_external_integration_route(integration_id: str):
+        return await disconnect_external_integration(
             disconnect_external_integrations_uc, integration_id
         )
 
     @app.route("/api/v1/flows/periodic", methods=["POST"])
-    def save_periodic_flow_route():
-        return save_periodic_flow(save_periodic_flow_uc)
+    async def save_periodic_flow_route():
+        return await save_periodic_flow(save_periodic_flow_uc)
 
     @app.route("/api/v1/flows/periodic", methods=["PUT"])
-    def update_periodic_flow_route():
-        return update_periodic_flow(update_periodic_flow_uc)
+    async def update_periodic_flow_route():
+        return await update_periodic_flow(update_periodic_flow_uc)
 
     @app.route("/api/v1/flows/periodic/<flow_id>", methods=["DELETE"])
-    def delete_periodic_flow_route(flow_id: str):
-        return delete_periodic_flow(delete_periodic_flow_uc, flow_id)
+    async def delete_periodic_flow_route(flow_id: str):
+        return await delete_periodic_flow(delete_periodic_flow_uc, flow_id)
 
     @app.route("/api/v1/flows/periodic", methods=["GET"])
-    def get_periodic_flows_route():
-        return get_periodic_flows(get_periodic_flows_uc)
+    async def get_periodic_flows_route():
+        return await get_periodic_flows(get_periodic_flows_uc)
 
     @app.route("/api/v1/flows/pending", methods=["POST"])
     async def save_pending_flows_route():
         return await save_pending_flows(save_pending_flows_uc)
 
     @app.route("/api/v1/flows/pending", methods=["GET"])
-    def get_pending_flows_route():
-        return get_pending_flows(get_pending_flows_uc)
+    async def get_pending_flows_route():
+        return await get_pending_flows(get_pending_flows_uc)
 
     @app.route("/api/v1/real-estate", methods=["GET"])
-    def list_real_estate_route():
-        return list_real_estate(list_real_estate_uc)
+    async def list_real_estate_route():
+        return await list_real_estate(list_real_estate_uc)
 
     @app.route("/api/v1/real-estate", methods=["POST"])
     async def create_real_estate_route():
@@ -427,12 +427,12 @@ def register_routes(
         return await delete_real_estate(delete_real_estate_uc, real_estate_id)
 
     @app.route("/api/v1/calculation/loan", methods=["POST"])
-    def calculate_loan_route():
-        return calculate_loan(calculate_loan_uc)
+    async def calculate_loan_route():
+        return await calculate_loan(calculate_loan_uc)
 
     @app.route("/api/v1/forecast", methods=["POST"])
-    def forecast_route():
-        return forecast(forecast_uc)
+    async def forecast_route():
+        return await forecast(forecast_uc)
 
     @app.route("/api/v1/data/manual/contributions", methods=["POST"])
     async def update_contributions_route():
@@ -455,81 +455,81 @@ def register_routes(
         return await delete_manual_transaction(delete_manual_transaction_uc, tx_id)
 
     @app.route("/api/v1/historic", methods=["GET"])
-    def get_historic_route():
-        return get_historic(get_historic_uc)
+    async def get_historic_route():
+        return await get_historic(get_historic_uc)
 
     @app.route("/api/v1/assets/instruments", methods=["GET"])
-    def instruments_route():
-        return instruments(get_instruments_uc)
+    async def instruments_route():
+        return await instruments(get_instruments_uc)
 
     @app.route("/api/v1/assets/instruments/details", methods=["GET"])
-    def instrument_details_route():
-        return instrument_details(get_instrument_info_uc)
+    async def instrument_details_route():
+        return await instrument_details(get_instrument_info_uc)
 
     @app.route("/api/v1/assets/crypto", methods=["GET"])
-    def crypto_assets_route():
-        return search_crypto_assets(search_crypto_assets_uc)
+    async def crypto_assets_route():
+        return await search_crypto_assets(search_crypto_assets_uc)
 
     @app.route("/api/v1/assets/crypto/<asset_id>", methods=["GET"])
-    def crypto_asset_details_route(asset_id: str):
-        return get_crypto_asset_details(get_crypto_asset_details_uc, asset_id)
+    async def crypto_asset_details_route(asset_id: str):
+        return await get_crypto_asset_details(get_crypto_asset_details_uc, asset_id)
 
     @app.route("/api/v1/data/manual/positions/update-quotes", methods=["POST"])
     async def update_tracked_quotes_route():
         return await update_tracked_quotes(update_tracked_quotes_uc)
 
     @app.route("/api/v1/templates", methods=["GET"])
-    def get_templates_route():
-        return get_templates(get_templates_uc)
+    async def get_templates_route():
+        return await get_templates(get_templates_uc)
 
     @app.route("/api/v1/templates", methods=["POST"])
-    def create_template_route():
-        return create_template(create_template_uc)
+    async def create_template_route():
+        return await create_template(create_template_uc)
 
     @app.route("/api/v1/templates", methods=["PUT"])
-    def update_template_route():
-        return update_template(update_template_uc)
+    async def update_template_route():
+        return await update_template(update_template_uc)
 
     @app.route("/api/v1/templates/<template_id>", methods=["DELETE"])
-    def delete_template_route(template_id: str):
-        return delete_template(delete_template_uc, template_id)
+    async def delete_template_route(template_id: str):
+        return await delete_template(delete_template_uc, template_id)
 
     @app.route("/api/v1/templates/fields", methods=["GET"])
-    def get_template_fields_route():
-        return get_template_fields(get_template_fields_uc)
+    async def get_template_fields_route():
+        return await get_template_fields(get_template_fields_uc)
 
     @app.route("/api/v1/calculations/savings", methods=["POST"])
-    def calculate_savings_route():
-        return calculate_savings(calculate_savings_uc)
+    async def calculate_savings_route():
+        return await calculate_savings(calculate_savings_uc)
 
     @app.route("/api/v1/cloud/backup/upload", methods=["POST"])
-    def upload_backup_route():
-        return upload_backup(upload_backup_uc)
+    async def upload_backup_route():
+        return await upload_backup(upload_backup_uc)
 
     @app.route("/api/v1/cloud/backup/import", methods=["POST"])
-    def import_backup_route():
-        return import_backup(import_backup_uc)
+    async def import_backup_route():
+        return await import_backup(import_backup_uc)
 
     @app.route("/api/v1/cloud/backup", methods=["GET"])
-    def get_backups_route():
-        return get_backups(get_backups_uc)
+    async def get_backups_route():
+        return await get_backups(get_backups_uc)
 
     @app.route("/api/v1/cloud/auth", methods=["POST"])
-    def handle_cloud_auth_route():
-        return handle_cloud_auth(handle_cloud_auth_uc)
+    async def handle_cloud_auth_route():
+        return await handle_cloud_auth(handle_cloud_auth_uc)
 
     @app.route("/api/v1/cloud/auth", methods=["GET"])
-    def get_cloud_auth_route():
-        return get_cloud_auth(get_cloud_auth_uc)
+    async def get_cloud_auth_route():
+        return await get_cloud_auth(get_cloud_auth_uc)
 
     @app.route("/api/v1/cloud/backup/settings", methods=["GET"])
-    def get_backup_settings_route():
-        return get_backup_settings(get_backup_settings_uc)
+    async def get_backup_settings_route():
+        return await get_backup_settings(get_backup_settings_uc)
 
     @app.route("/api/v1/cloud/backup/settings", methods=["POST"])
-    def save_backup_settings_route():
-        return save_backup_settings(save_backup_settings_uc)
+    async def save_backup_settings_route():
+        return await save_backup_settings(save_backup_settings_uc)
 
     @app.route("/oauth/callback", methods=["GET"])
-    def oauth_callback_route():
-        return oauth_callback()
+    async def oauth_callback_route():
+        return await oauth_callback()

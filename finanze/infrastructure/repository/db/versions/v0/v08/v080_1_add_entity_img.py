@@ -13,5 +13,5 @@ class V0801AddEntityImage(DBVersionMigration):
     def name(self):
         return "v0.8.0:1_add_entity_icon_url"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(SQL)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(SQL)

@@ -15,13 +15,13 @@ class GetCryptoAssetDetailsImpl(GetCryptoAssetDetails):
         self._provider = crypto_asset_info_provider
         self._entity_port = entity_port
 
-    def execute(
+    async def execute(
         self, provider_id: str, provider: ExternalIntegrationId
     ) -> CryptoAssetDetails:
         if provider != ExternalIntegrationId.COINGECKO:
             raise ValueError(f"Unsupported provider: {provider}")
 
-        details = self._provider.get_asset_details(
+        details = await self._provider.get_asset_details(
             provider_id=provider_id,
             currencies=SUPPORTED_CURRENCIES,
         )
@@ -37,13 +37,13 @@ class GetCryptoAssetDetailsImpl(GetCryptoAssetDetails):
             details.platforms.append(fake_platform)
 
         for platform in details.platforms:
-            entity = self._provider.get_native_entity_by_platform(
+            entity = await self._provider.get_native_entity_by_platform(
                 platform.provider_id, provider
             )
 
             if entity is None:
                 natural_id = f"{provider.value.lower()}:{platform.provider_id}"
-                entity = self._entity_port.get_by_natural_id(natural_id)
+                entity = await self._entity_port.get_by_natural_id(natural_id)
 
             if entity:
                 platform.related_entity_id = entity.id

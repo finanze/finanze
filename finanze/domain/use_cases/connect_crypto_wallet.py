@@ -10,5 +10,7 @@ from domain.crypto import (
 
 class ConnectCryptoWallet(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self, data: ConnectCryptoWalletRequest) -> CryptoWalletConnectionResult:
+    async def execute(
+        self, data: ConnectCryptoWalletRequest
+    ) -> CryptoWalletConnectionResult:
         raise NotImplementedError

@@ -14,5 +14,5 @@ class V0302(DBVersionMigration):
     def name(self):
         return "v0.3.0:2_re_rename_historic"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(DML)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(DML)

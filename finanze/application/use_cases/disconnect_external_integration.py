@@ -16,10 +16,10 @@ class DisconnectExternalIntegrationImpl(DisconnectExternalIntegration):
         self._external_integration_port = external_integration_port
         self._log = logging.getLogger(__name__)
 
-    def execute(self, request: DisconnectedExternalIntegrationRequest):
+    async def execute(self, request: DisconnectedExternalIntegrationRequest):
         try:
             _ = ExternalIntegrationId(request.integration_id)
         except ValueError:
             raise IntegrationNotFound()
 
-        self._external_integration_port.deactivate(request.integration_id)
+        await self._external_integration_port.deactivate(request.integration_id)

@@ -4,12 +4,16 @@ import logging
 from datetime import date, datetime
 from typing import Optional
 
-import pyaes
-import requests
-from cachetools import cached, TTLCache
+import httpx
+
+from aiocache import cached, Cache
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 from dateutil.relativedelta import relativedelta
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
+from infrastructure.client.http.http_session import get_http_session
+from infrastructure.client.http.http_response import HttpResponse
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
@@ -38,34 +42,40 @@ class UrbanitaeAPIClient:
         self._headers = {}
         self._user_info = None
         self._log = logging.getLogger(__name__)
+        self._session = get_http_session()
 
-    def _execute_request(
-        self, path: str, method: str, body: dict, raw: bool = False
-    ) -> dict | requests.Response:
-        response = requests.request(
-            method, self.BASE_URL + path, json=body, headers=self._headers
-        )
+    async def _execute_request(
+        self, path: str, method: str, body: dict | None, raw: bool = False
+    ) -> dict | HttpResponse:
+        try:
+            response = await self._session.request(
+                method, self.BASE_URL + path, json=body, headers=self._headers
+            )
+        except httpx.RequestError as exc:
+            self._log.error(f"Request error: {exc}")
+            raise
 
         if raw:
             return response
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body:" + response.text)
+        body_text = await response.text()
+        self._log.error("Error Response Body:" + body_text)
         response.raise_for_status()
         return {}
 
-    def _get_request(self, path: str) -> requests.Response:
-        return self._execute_request(path, "GET", body=None)
+    async def _get_request(self, path: str) -> dict:
+        return await self._execute_request(path, "GET", body=None)
 
-    def _post_request(
+    async def _post_request(
         self, path: str, body: dict, raw: bool = False
-    ) -> dict | requests.Response:
-        return self._execute_request(path, "POST", body=body, raw=raw)
+    ) -> dict | HttpResponse:
+        return await self._execute_request(path, "POST", body=body, raw=raw)
 
-    def login(self, username: str, password: str) -> EntityLoginResult:
-        self._headers = dict()
+    async def login(self, username: str, password: str) -> EntityLoginResult:
+        self._headers = {}
         self._headers["Content-Type"] = "application/json"
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -73,10 +83,10 @@ class UrbanitaeAPIClient:
         )
 
         request = {"username": username, "password": self._encrypt_password(password)}
-        response = self._post_request("/session", body=request, raw=True)
+        response = await self._post_request("/session", body=request, raw=True)
 
         if response.ok:
-            response_body = response.json()
+            response_body = await response.json()
             if "token" not in response_body:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
@@ -88,13 +98,13 @@ class UrbanitaeAPIClient:
 
             return EntityLoginResult(LoginResultCode.CREATED)
 
-        elif response.status_code == 401:
+        elif response.status == 401:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         else:
             return EntityLoginResult(
                 LoginResultCode.UNEXPECTED_ERROR,
-                message=f"Got unexpected response code {response.status_code}",
+                message=f"Got unexpected response code {response.status}",
             )
 
     def _encrypt_password(self, password: str) -> str:
@@ -102,17 +112,18 @@ class UrbanitaeAPIClient:
         iv = _generate_iv(datetime.now())
         password_bytes = password.encode("utf-8")
         padded_data = _pkcs7_pad(password_bytes, 16)
-        aes = pyaes.AESModeOfOperationCBC(key, iv=iv)
-        encrypted_data = aes.encrypt(padded_data)
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+        encryptor = cipher.encryptor()
+        encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
         return base64.b64encode(encrypted_data).decode("utf-8")
 
-    def get_user(self):
+    async def get_user(self):
         return self._user_info
 
-    def get_wallet(self):
-        return self._get_request("/investor/wallet")
+    async def get_wallet(self):
+        return await self._get_request("/investor/wallet")
 
-    def get_transactions(
+    async def get_transactions(
         self,
         page: int = 0,
         limit: int = 1000,
@@ -149,19 +160,23 @@ class UrbanitaeAPIClient:
         # 	OPERATOR
         # 	P2P
         # 	UNKNOWN
-        return self._get_request(f"/investor/wallet/transactions{params}")["content"]
+        return (await self._get_request(f"/investor/wallet/transactions{params}"))[
+            "content"
+        ]
 
-    def get_investments(
+    async def get_investments(
         self, page: int = 0, limit: int = 1000, project_phases: list[str] = None
     ):
         params = f"?page={page}&size={limit}&sortField=INVEST_DATE&sortDirection=DESC"
         if project_phases:
             params += "&projectPhases=" + ",".join(project_phases)
-        return self._get_request(f"/investor/summary{params}")["content"]
+        return (await self._get_request(f"/investor/summary{params}"))["content"]
 
-    @cached(cache=TTLCache(maxsize=50, ttl=600))
-    def get_project_detail(self, project_id: str):
-        return self._get_request(f"/projects/{project_id}")
+    @cached(cache=Cache.MEMORY, ttl=600)
+    async def get_project_detail(self, project_id: str):
+        return await self._get_request(f"/projects/{project_id}")
 
-    def get_project_timeline(self, project_id: str):
-        return self._get_request(f"/communications/timeline/project//{project_id}")
+    async def get_project_timeline(self, project_id: str):
+        return await self._get_request(
+            f"/communications/timeline/project//{project_id}"
+        )

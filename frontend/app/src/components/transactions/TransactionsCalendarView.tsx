@@ -928,7 +928,7 @@ function DayDetailModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+      className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50"
       onClick={e => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -993,7 +993,7 @@ function DayDetailModal({
                 <div key={tx.id} className="p-3 rounded-lg bg-muted/50">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center justify-between gap-2 pr-1.5">
                         <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-gray-100 truncate">
                           {tx.name}
                         </p>

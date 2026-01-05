@@ -7,21 +7,21 @@ from domain.earnings_expenses import PeriodicFlow
 
 class PeriodicFlowPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, flow: PeriodicFlow) -> PeriodicFlow:
+    async def save(self, flow: PeriodicFlow) -> PeriodicFlow:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def update(self, flow: PeriodicFlow):
+    async def update(self, flow: PeriodicFlow):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete(self, flow_id: UUID):
+    async def delete(self, flow_id: UUID):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_all(self) -> list[PeriodicFlow]:
+    async def get_all(self) -> list[PeriodicFlow]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
+    async def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
         raise NotImplementedError

@@ -6,11 +6,11 @@ from domain.entity_login import EntitySession
 
 
 class SessionsPort(metaclass=abc.ABCMeta):
-    def get(self, entity_id: UUID) -> Optional[EntitySession]:
+    async def get(self, entity_id: UUID) -> Optional[EntitySession]:
         raise NotImplementedError
 
-    def save(self, entity_id: UUID, session: EntitySession):
+    async def save(self, entity_id: UUID, session: EntitySession):
         raise NotImplementedError
 
-    def delete(self, entity_id: UUID):
+    async def delete(self, entity_id: UUID):
         raise NotImplementedError

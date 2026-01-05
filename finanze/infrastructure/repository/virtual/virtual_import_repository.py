@@ -13,10 +13,10 @@ class VirtualImportRepository(VirtualImportRegistry):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def insert(self, entries: list[VirtualDataImport]):
-        with self._db_client.tx() as cursor:
+    async def insert(self, entries: list[VirtualDataImport]):
+        async with self._db_client.tx() as cursor:
             for e in entries:
-                cursor.execute(
+                await cursor.execute(
                     VirtualImportQueries.INSERT,
                     (
                         str(uuid4()),
@@ -29,7 +29,7 @@ class VirtualImportRepository(VirtualImportRegistry):
                     ),
                 )
 
-    def get_last_import_records(
+    async def get_last_import_records(
         self, source: Optional[VirtualDataSource] = None
     ) -> list[VirtualDataImport]:
         params: list[str] = []
@@ -42,10 +42,10 @@ class VirtualImportRepository(VirtualImportRegistry):
             where=where
         )
 
-        with self._db_client.read() as cursor:
-            cursor.execute(query, params)
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, params)
 
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
             return [
                 VirtualDataImport(
                     import_id=UUID(row["import_id"]),
@@ -60,18 +60,18 @@ class VirtualImportRepository(VirtualImportRegistry):
                 for row in rows
             ]
 
-    def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def delete_by_import_and_feature(self, import_id: UUID, feature: Feature):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 VirtualImportQueries.DELETE_BY_IMPORT_AND_FEATURE,
                 (str(import_id), feature),
             )
 
-    def delete_by_import_feature_and_entity(
+    async def delete_by_import_feature_and_entity(
         self, import_id: UUID, feature: Feature, entity_id: UUID
     ):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 VirtualImportQueries.DELETE_BY_IMPORT_FEATURE_AND_ENTITY,
                 (str(import_id), feature, str(entity_id)),
             )

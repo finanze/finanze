@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+from dateutil.tz import tzlocal, UTC
+
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
@@ -14,7 +16,6 @@ from application.ports.sheets_port import SheetsPort
 from application.ports.template_port import TemplatePort
 from application.ports.template_processor_port import TemplateProcessorPort
 from application.ports.transaction_port import TransactionPort
-from dateutil.tz import tzlocal
 from domain.auto_contributions import ContributionQueryRequest
 from domain.entity import Entity, Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
@@ -32,12 +33,11 @@ from domain.settings import (
 )
 from domain.template import ProcessorDataFilter
 from domain.use_cases.export_sheets import ExportSheets
-from pytz import utc
 
 
 def _format_datetime(value, params: TemplatedDataProcessorParams):
     datetime_format = params.datetime_format
-    value = value.replace(tzinfo=utc).astimezone(tzlocal())
+    value = value.replace(tzinfo=UTC).astimezone(tzlocal())
     if not datetime_format:
         return value.isoformat()
     return value.strftime(datetime_format)
@@ -113,10 +113,10 @@ class ExportSheetsImpl(ExportSheets):
         self._lock = Lock()
 
     async def execute(self):
-        config = self._config_port.load()
+        config = await self._config_port.load()
         sheets_export_config = config.export.sheets
 
-        sheet_credentials = self._external_integration_port.get_payload(
+        sheet_credentials = await self._external_integration_port.get_payload(
             ExternalIntegrationId.GOOGLE_SHEETS
         )
 
@@ -140,12 +140,14 @@ class ExportSheetsImpl(ExportSheets):
 
         async with self._lock:
             disabled_entities = [
-                e.id for e in self._entity_port.get_disabled_entities()
+                e.id for e in await self._entity_port.get_disabled_entities()
             ]
-            global_position_by_entity = self._position_port.get_last_grouped_by_entity(
-                PositionQueryRequest(excluded_entities=disabled_entities)
+            global_position_by_entity = (
+                await self._position_port.get_last_grouped_by_entity(
+                    PositionQueryRequest(excluded_entities=disabled_entities)
+                )
             )
-            self.update(
+            await self.update(
                 Feature.POSITION,
                 list(global_position_by_entity.values()),
                 config_globals,
@@ -153,10 +155,10 @@ class ExportSheetsImpl(ExportSheets):
                 sheet_credentials,
             )
 
-            auto_contributions = self._auto_contr_port.get_all_grouped_by_entity(
+            auto_contributions = await self._auto_contr_port.get_all_grouped_by_entity(
                 ContributionQueryRequest(excluded_entities=disabled_entities)
             )
-            self.update(
+            await self.update(
                 Feature.AUTO_CONTRIBUTIONS,
                 list(auto_contributions.values()),
                 config_globals,
@@ -164,10 +166,10 @@ class ExportSheetsImpl(ExportSheets):
                 sheet_credentials,
             )
 
-            transactions = self._transaction_port.get_all(
+            transactions = await self._transaction_port.get_all(
                 excluded_entities=disabled_entities
             )
-            self.update(
+            await self.update(
                 Feature.TRANSACTIONS,
                 transactions.account + transactions.investment,
                 config_globals,
@@ -175,10 +177,10 @@ class ExportSheetsImpl(ExportSheets):
                 sheet_credentials,
             )
 
-            historic = self._historic_port.get_by_filters(
+            historic = await self._historic_port.get_by_filters(
                 HistoricQueryRequest(excluded_entities=disabled_entities)
             )
-            self.update(
+            await self.update(
                 Feature.HISTORIC,
                 historic.entries,
                 config_globals,
@@ -186,7 +188,7 @@ class ExportSheetsImpl(ExportSheets):
                 sheet_credentials,
             )
 
-    def update(
+    async def update(
         self,
         feature: Feature,
         data: list,
@@ -200,21 +202,23 @@ class ExportSheetsImpl(ExportSheets):
                 products = [ProductType(field) for field in config.data]
 
             sheets_params = _map_sheet_params(config, global_config)
-            params = self._map_template_params(feature, config, global_config, products)
+            params = await self._map_template_params(
+                feature, config, global_config, products
+            )
 
             table = []
             if config.lastUpdate:
                 table = [_map_top_row(params)]
 
             table.extend(
-                self._template_processor.process(
+                await self._template_processor.process(
                     data,
                     params,
                 )
             )
-            self._sheets_port.update(table, credentials, sheets_params)
+            await self._sheets_port.update(table, credentials, sheets_params)
 
-    def _map_template_params(
+    async def _map_template_params(
         self,
         feature: Feature,
         config: ExportSheetConfig,
@@ -223,7 +227,7 @@ class ExportSheetsImpl(ExportSheets):
     ) -> TemplatedDataProcessorParams:
         template = None
         if config.template:
-            template = self._template_port.get_by_id(UUID(config.template.id))
+            template = await self._template_port.get_by_id(UUID(config.template.id))
 
         filters = [
             ProcessorDataFilter(

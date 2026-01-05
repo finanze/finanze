@@ -1,8 +1,10 @@
+import platform
 from argparse import Namespace
 from pathlib import Path
 from typing import Optional
 
 from application.ports.server_details_port import ServerDetailsPort
+from domain.platform import OS
 from domain.status import BackendDetails, BackendLogLevel, BackendOptions
 
 
@@ -17,13 +19,29 @@ def _resolve_version() -> str:
     return "0.0.0"
 
 
-class ArgparseServerDetailsAdapter(ServerDetailsPort):
+def _detect_os() -> OS | None:
+    system = platform.system().upper()
+
+    if system == "DARWIN":
+        return OS.MACOS
+    elif system == "WINDOWS":
+        return OS.WINDOWS
+    elif system == "LINUX":
+        return OS.LINUX
+
+    return None
+
+
+class ServerDetailsAdapter(ServerDetailsPort):
     def __init__(self, args: Namespace):
+        self._os = _detect_os()
         self._args = args
 
-    def get_backend_details(self) -> BackendDetails:
+    async def get_backend_details(self) -> BackendDetails:
         options = self._build_options()
-        return BackendDetails(version=_resolve_version(), options=options)
+        return BackendDetails(
+            version=_resolve_version(), options=options, platform_type=self._os
+        )
 
     def _build_options(self) -> BackendOptions:
         data_dir = getattr(self._args, "data_dir", None)
@@ -40,6 +58,9 @@ class ArgparseServerDetailsAdapter(ServerDetailsPort):
                 getattr(self._args, "third_party_log_level", None)
             ),
         )
+
+    def get_os(self) -> OS:
+        return self._os
 
     @staticmethod
     def _to_log_level(level_name: Optional[str]) -> Optional[BackendLogLevel]:

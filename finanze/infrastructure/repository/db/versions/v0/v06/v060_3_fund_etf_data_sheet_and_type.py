@@ -22,7 +22,7 @@ class V0603FundETFFields(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.6.0:3_fund_etf_data_sheet_and_type"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

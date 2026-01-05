@@ -1306,7 +1306,7 @@ export default function AutoContributionsPage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6"
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -1319,15 +1319,19 @@ export default function AutoContributionsPage() {
           <Button
             variant="ghost"
             size="sm"
+            className="p-1 h-8 w-8"
             onClick={() => navigate("/management")}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">
               {t.management.autoContributions}
             </h1>
-            <PinAssetButton assetId="management-auto-contributions" />
+            <PinAssetButton
+              assetId="management-auto-contributions"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

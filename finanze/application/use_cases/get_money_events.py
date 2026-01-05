@@ -56,23 +56,23 @@ class GetMoneyEventsImpl(GetMoneyEvents):
         self._entity_port = entity_port
         self._position_port = position_port
 
-    def execute(self, query: MoneyEventQuery) -> MoneyEvents:
+    async def execute(self, query: MoneyEventQuery) -> MoneyEvents:
         disabled_entities = [
-            entity.id for entity in self._entity_port.get_disabled_entities()
+            entity.id for entity in await self._entity_port.get_disabled_entities()
         ]
         contribution_query = ContributionQueryRequest(
             excluded_entities=disabled_entities or None,
         )
-        contributions = self._get_contributions.execute(contribution_query)
-        periodic_flows = self._get_periodic_flows.execute()
-        pending_flows = self._get_pending_flows.execute()
+        contributions = await self._get_contributions.execute(contribution_query)
+        periodic_flows = await self._get_periodic_flows.execute()
+        pending_flows = await self._get_pending_flows.execute()
 
         contribution_events = self._build_contribution_events(
             contributions.contributions.values(), query
         )
         periodic_flow_events = self._build_periodic_flow_events(periodic_flows, query)
         pending_flow_events = self._build_pending_flow_events(pending_flows, query)
-        maturity_events = self._build_maturity_events(query, disabled_entities)
+        maturity_events = await self._build_maturity_events(query, disabled_entities)
 
         events = (
             contribution_events
@@ -164,7 +164,7 @@ class GetMoneyEventsImpl(GetMoneyEvents):
         except ValueError:
             return None
 
-    def _build_maturity_events(
+    async def _build_maturity_events(
         self, query: MoneyEventQuery, excluded_entities: list[UUID]
     ) -> list[MoneyEvent]:
         position_query = PositionQueryRequest(
@@ -175,7 +175,7 @@ class GetMoneyEventsImpl(GetMoneyEvents):
                 ProductType.DEPOSIT,
             ],
         )
-        positions = self._position_port.get_last_grouped_by_entity(position_query)
+        positions = await self._position_port.get_last_grouped_by_entity(position_query)
         today = date.today()
         events: list[MoneyEvent] = []
         for position in positions.values():

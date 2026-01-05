@@ -2,7 +2,7 @@ from datetime import datetime
 
 from dateutil.tz import tzlocal
 from domain.use_cases.add_manual_transaction import AddManualTransaction
-from flask import jsonify, request
+from quart import jsonify, request
 from infrastructure.controller.mappers.transaction_mapper import (
     map_manual_transaction,
 )
@@ -16,7 +16,7 @@ def _parse_datetime(value: str) -> datetime:
 
 
 async def add_manual_transaction(add_manual_transaction_uc: AddManualTransaction):
-    body = request.json
+    body = await request.get_json()
 
     try:
         tx = map_manual_transaction(body)

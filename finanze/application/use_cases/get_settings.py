@@ -7,5 +7,5 @@ class GetSettingsImpl(GetSettings):
     def __init__(self, config_port: ConfigPort):
         self._config_port = config_port
 
-    def execute(self) -> Settings:
-        return self._config_port.load()
+    async def execute(self) -> Settings:
+        return await self._config_port.load()

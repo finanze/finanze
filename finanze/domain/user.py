@@ -1,11 +1,10 @@
 import base64
 import hashlib
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import UUID
-
-from pydantic.dataclasses import dataclass
 
 
 @dataclass

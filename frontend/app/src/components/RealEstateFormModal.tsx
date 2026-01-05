@@ -623,7 +623,10 @@ export function RealEstateFormModal({
           },
         })
         if (property.basic_info.photo_url) {
-          getImageUrl(property.basic_info.photo_url)
+          getImageUrl(
+            property.basic_info.photo_url,
+            property.updated_at || Date.now(),
+          )
             .then(fullUrl => {
               setPhotoPreview(fullUrl)
             })
@@ -1200,33 +1203,27 @@ export function RealEstateFormModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[50] p-2"
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
           <motion.div
-            className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[95vh] relative z-[60] shadow-xl flex flex-col"
+            className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[95vh] relative z-[80] shadow-xl flex flex-col"
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4 rounded-t-lg">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold">
                   {property
                     ? t.realEstate.editProperty
                     : t.realEstate.addProperty}
                 </h2>
-                <Button variant="ghost" size="sm" onClick={handleClose}>
-                  <X size={20} />
-                </Button>
               </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
               <Card className="p-4">
                 <button
                   type="button"
@@ -4294,7 +4291,7 @@ export function RealEstateFormModal({
               />
             </div>
 
-            <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-6 rounded-b-lg">
+            <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-2 rounded-b-lg">
               <div className="flex justify-end gap-3">
                 <Button variant="outline" onClick={handleClose}>
                   {t.common.cancel}

@@ -13,5 +13,5 @@ class V0700ContribTargetSubtype(DBVersionMigration):
     def name(self):
         return "v0.7.0:0_add_contrib_target_subtype"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(SQL)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(SQL)

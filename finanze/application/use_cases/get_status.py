@@ -22,17 +22,17 @@ class GetStatusImpl(GetStatus):
         self._feature_flag_port = feature_flag_port
         self._log = logging.getLogger(__name__)
 
-    def execute(self) -> GlobalStatus:
+    async def execute(self) -> GlobalStatus:
         status = (
             LoginStatusCode.UNLOCKED
             if self._source_initiator.unlocked
             else LoginStatusCode.LOCKED
         )
 
-        server_details = self._server_details_port.get_backend_details()
+        server_details = await self._server_details_port.get_backend_details()
         features = self._feature_flag_port.get_all()
 
-        last_logged = self._data_manager.get_last_user()
+        last_logged = await self._data_manager.get_last_user()
         current_user = self._source_initiator.get_user()
         return GlobalStatus(
             status=status,

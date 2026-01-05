@@ -54,24 +54,25 @@ class UnicajaFetcher(FinancialEntityFetcher):
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
         abck = self._abck or credentials.get("abck")
-        return self._client.login(username, password, abck)
+        return await self._client.login(username, password, abck)
 
     async def global_position(self) -> GlobalPosition:
-        accounts_response = self._client.list_accounts()
+        accounts_response = await self._client.list_accounts()
 
         accounts = [
-            self._map_account(account_data_raw)
+            await self._map_account(account_data_raw)
             for account_data_raw in accounts_response["cuentas"]
         ]
 
-        card_list = self._client.get_cards()["tarjetas"]
+        card_list = (await self._client.get_cards())["tarjetas"]
 
         cards = [
-            self._map_base_card(card_data_raw, accounts) for card_data_raw in card_list
+            await self._map_base_card(card_data_raw, accounts)
+            for card_data_raw in card_list
         ]
 
-        raw_loans = self._client.get_loans()["prestamos"]
-        loans = [self._get_loan(loan_data_raw) for loan_data_raw in raw_loans]
+        raw_loans = (await self._client.get_loans())["prestamos"]
+        loans = [await self._get_loan(loan_data_raw) for loan_data_raw in raw_loans]
         loans = [loan for loan in loans if loan is not None]
 
         products = {
@@ -86,7 +87,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
             products=products,
         )
 
-    def _map_account(self, account_data_raw):
+    async def _map_account(self, account_data_raw):
         account_alias = account_data_raw["alias"]
         account_desc = account_data_raw["descripcion"]
         name = account_alias if account_alias else account_desc
@@ -101,7 +102,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
             account_balance + account_allowed_overdraft - account_available, 2
         )
         last_week_date = date.today() - relativedelta(weeks=1)
-        account_pending_transfers_raw = self._client.get_transfers_historic(
+        account_pending_transfers_raw = await self._client.get_transfers_historic(
             from_date=last_week_date
         )
         account_pending_transfer_amount = Dezimal(0)
@@ -124,7 +125,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
         )
         return account_data
 
-    def _map_base_card(self, card_data_raw, accounts: list[Account]):
+    async def _map_base_card(self, card_data_raw, accounts: list[Account]):
         related_account = next(
             (
                 account
@@ -152,7 +153,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
         currency = card_data_raw["limite"]["moneda"]
 
         if card_type == CardType.DEBIT:
-            debit_card_details_raw = self._client.get_card(
+            debit_card_details_raw = await self._client.get_card(
                 card_data_raw["ppp"], card_data_raw["codtipotarjeta"]
             )
             deferred_debit_amount = Dezimal(
@@ -181,7 +182,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
             related_account=related_account,
         )
 
-    def _get_loan(self, loan_entry):
+    async def _get_loan(self, loan_entry):
         active = loan_entry["estado"] == "ACTIVO"
         if not active:
             return None
@@ -194,7 +195,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
 
         loan_type = LoanType.MORTGAGE if is_mortgage else LoanType.STANDARD
 
-        loan_response = self._client.get_loan(ppp=ppp)
+        loan_response = await self._client.get_loan(ppp=ppp)
         if loan_response:
             loan_response = loan_response["detallePrestamo"]
 
@@ -226,7 +227,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
 
     async def auto_contributions(self) -> AutoContributions:
         try:
-            fund_accounts = self._client.list_fund_accounts()
+            fund_accounts = await self._client.list_fund_accounts()
             first_account = (
                 fund_accounts["cuentasFondos"][0]
                 if "cuentasFondos" in fund_accounts and fund_accounts["cuentasFondos"]
@@ -238,7 +239,7 @@ class UnicajaFetcher(FinancialEntityFetcher):
 
             account_code = first_account["cuenta"]
 
-            periodic_subs = self._client.get_periodic_subscriptions(account_code)
+            periodic_subs = await self._client.get_periodic_subscriptions(account_code)
         except Exception as e:
             self._log.error(
                 f"Error fetching periodic subscriptions, maybe there aren't: {e}"

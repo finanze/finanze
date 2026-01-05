@@ -56,8 +56,8 @@ class GetPeriodicFlowsImpl(GetPeriodicFlows):
     def __init__(self, periodic_flow_port: PeriodicFlowPort):
         self._periodic_flow_port = periodic_flow_port
 
-    def execute(self) -> list[PeriodicFlow]:
-        flows = self._periodic_flow_port.get_all()
+    async def execute(self) -> list[PeriodicFlow]:
+        flows = await self._periodic_flow_port.get_all()
         filled_flows = [
             PeriodicFlow(
                 id=flow.id,

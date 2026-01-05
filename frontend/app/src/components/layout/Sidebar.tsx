@@ -2,7 +2,6 @@ import { useNavigate, useLocation } from "react-router-dom"
 import { useI18n } from "@/i18n"
 import { useTheme } from "@/context/ThemeContext"
 import { useAuth } from "@/context/AuthContext"
-import { useAppContext } from "@/context/AppContext"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useCloud } from "@/context/CloudContext"
 import { cn } from "@/lib/utils"
@@ -45,12 +44,12 @@ import {
   type PinnedShortcutId,
 } from "@/context/PinnedShortcutsContext"
 import { BackupStatusPopover } from "@/components/layout/BackupStatusPopover"
+import { getPlatformType, isNativeMobile } from "@/lib/platform"
 
 export function Sidebar() {
   const { t } = useI18n()
   const { theme, setThemeMode } = useTheme()
   const { logout, startPasswordChange } = useAuth()
-  const { platform } = useAppContext()
   const { positionsData, realEstateList } = useFinancialData()
   const { pinnedShortcuts } = usePinnedShortcuts()
   const { role, permissions } = useCloud()
@@ -261,6 +260,8 @@ export function Sidebar() {
     { path: "/export", label: t.export.title, icon: <FileUp size={20} /> },
   ]
 
+  const platform = getPlatformType()
+
   const toggleSidebar = () => {
     setCollapsed(!collapsed)
   }
@@ -305,6 +306,7 @@ export function Sidebar() {
   const baseSidebarClass = cn(
     "h-screen min-h-0 flex flex-col bg-gray-100 dark:bg-black border-r border-gray-200 dark:border-gray-800 overflow-hidden",
     platform === PlatformType.MAC ? "pt-4" : "",
+    isNativeMobile() && "pt-[max(12px,var(--safe-area-inset-top,0px))]",
   )
 
   const sidebarClass = overlayVisible
@@ -478,7 +480,7 @@ export function Sidebar() {
                           r =>
                             !pinnedShortcuts.includes(
                               r.key as PinnedShortcutId,
-                            ),
+                            ) && r.hasData,
                         )
                         .map(route => (
                           <li key={route.path}>

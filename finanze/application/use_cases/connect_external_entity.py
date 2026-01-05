@@ -73,30 +73,34 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
         migrate_existing_manual_entity = False
         if request.external_entity_id:
             external_entity_id = request.external_entity_id
-            external_entity = self._external_entity_port.get_by_id(external_entity_id)
+            external_entity = await self._external_entity_port.get_by_id(
+                external_entity_id
+            )
             if not external_entity:
                 raise EntityNotFound(external_entity_id)
 
-            entity = self._entity_port.get_by_id(external_entity.entity_id)
+            entity = await self._entity_port.get_by_id(external_entity.entity_id)
             provider_id = external_entity.provider
-            provider = self._setup_provider(provider_id)
+            provider = await self._setup_provider(provider_id)
 
         else:
-            provider = self._setup_provider(self.DEFAULT_PROVIDER)
+            provider = await self._setup_provider(self.DEFAULT_PROVIDER)
 
             institution_details = await provider.get_entity(request.institution_id)
             if not institution_details:
                 raise ProviderInstitutionNotFound()
 
             natural_id = institution_details.bic or institution_details.id
-            entity = self._entity_port.get_by_natural_id(natural_id)
+            entity = await self._entity_port.get_by_natural_id(natural_id)
             if entity:
                 if entity.origin == EntityOrigin.NATIVE:
                     raise ValueError(
                         "Cannot create existing entity as externally provided"
                     )
 
-                external_entity = self._external_entity_port.get_by_entity_id(entity.id)
+                external_entity = await self._external_entity_port.get_by_entity_id(
+                    entity.id
+                )
                 if (
                     external_entity
                     and external_entity.status == ExternalEntityStatus.LINKED
@@ -106,7 +110,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                         ExternalEntitySetupResponseCode.ALREADY_LINKED
                     )
             else:
-                existing_entity_by_name = self._entity_port.get_by_name(
+                existing_entity_by_name = await self._entity_port.get_by_name(
                     institution_details.name
                 )
                 if (
@@ -137,7 +141,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     origin=EntityOrigin.EXTERNALLY_PROVIDED,
                     icon_url=institution_details.icon,
                 )
-                self._entity_port.insert(entity)
+                await self._entity_port.insert(entity)
 
             if not external_entity:
                 external_entity = ExternalEntity(
@@ -159,7 +163,7 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                 response = await provider.create_or_link(fetch_request)
             except ExternalEntityLinkError as e:
                 if e.orphan_external_entity and external_entity:
-                    self._external_entity_port.delete_by_id(external_entity.id)
+                    await self._external_entity_port.delete_by_id(external_entity.id)
                 raise
 
             if response.code == ExternalEntitySetupResponseCode.CONTINUE_WITH_LINK:
@@ -169,10 +173,10 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
                     external_entity.provider_instance_id = response.provider_instance_id
                     external_entity.payload = response.payload
 
-                    self._external_entity_port.upsert(external_entity)
+                    await self._external_entity_port.upsert(external_entity)
 
                     if migrate_existing_manual_entity:
-                        self._entity_port.update(existing_entity_by_name)
+                        await self._entity_port.update(existing_entity_by_name)
 
                     response.id = external_entity.id
 
@@ -188,10 +192,12 @@ class ConnectExternalEntityImpl(ConnectExternalEntity):
 
             return response
 
-    def _setup_provider(self, external_integration_id: ExternalIntegrationId):
+    async def _setup_provider(self, external_integration_id: ExternalIntegrationId):
         provider = self._external_entity_fetchers[external_integration_id]
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.ENTITY_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.ENTITY_PROVIDER
+            )
         )
-        provider.setup(enabled_integrations)
+        await provider.setup(enabled_integrations)
         return provider

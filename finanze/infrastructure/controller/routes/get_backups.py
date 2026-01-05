@@ -1,4 +1,4 @@
-from flask import jsonify, request
+from quart import jsonify, request
 
 from domain.backup import BackupsInfoRequest
 from domain.use_cases.get_backups import GetBackups
@@ -16,14 +16,14 @@ def _serialize_backup_info(backup_info):
     }
 
 
-def get_backups(get_backups_uc: GetBackups):
+async def get_backups(get_backups_uc: GetBackups):
     params = request.args or {}
     only_local = params.get("only_local")
     if only_local is not None:
         only_local = str(only_local).lower() == "true"
     else:
         only_local = False
-    result = get_backups_uc.execute(BackupsInfoRequest(only_local=only_local))
+    result = await get_backups_uc.execute(BackupsInfoRequest(only_local=only_local))
 
     response = {
         "pieces": {

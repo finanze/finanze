@@ -1,5 +1,6 @@
 import logging
 from uuid import uuid4
+from typing import Any
 
 from domain.crypto import CryptoFetchRequest, CryptoCurrencyType
 from domain.dezimal import Dezimal
@@ -30,10 +31,10 @@ class EtherscanFetcher:
 
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
         amount = (
             Dezimal(
-                self._fetch(
+                await self._fetch(
                     module="account",
                     action="balance",
                     address=request.address,
@@ -52,7 +53,7 @@ class EtherscanFetcher:
             )
         ]
 
-        token_txs = self._fetch(
+        token_txs = await self._fetch(
             module="account",
             action="tokentx",
             address=request.address,
@@ -73,7 +74,7 @@ class EtherscanFetcher:
             scale = Dezimal(f"1e-{decimals}")
             amount = (
                 Dezimal(
-                    self._fetch(
+                    await self._fetch(
                         module="account",
                         action="tokenbalance",
                         address=request.address,
@@ -98,11 +99,13 @@ class EtherscanFetcher:
             assets=assets + list(tokens.values()),
         )
 
-    def _fetch(self, integrations: EnabledExternalIntegrations, *args, **kwargs) -> any:
+    async def _fetch(
+        self, integrations: EnabledExternalIntegrations, *args, **kwargs
+    ) -> Any:
         if ExternalIntegrationId.ETHERSCAN not in integrations:
             raise ExternalIntegrationRequired([ExternalIntegrationId.ETHERSCAN])
 
-        return self.etherscan_client.fetch(
+        return await self.etherscan_client.fetch(
             chain_id=self.chain_id,
             credentials=integrations[ExternalIntegrationId.ETHERSCAN],
             *args,

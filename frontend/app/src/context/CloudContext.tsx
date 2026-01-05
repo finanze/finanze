@@ -12,7 +12,7 @@ import { BackupMode, CloudRole, FFStatus } from "@/types"
 import {
   cloudAuth,
   getCloudAuthToken,
-  getApiBaseUrl,
+  getApiServerInfo,
   getBackupSettings,
   updateBackupSettings,
 } from "@/services/api"
@@ -26,6 +26,9 @@ import {
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
 import { useAppContext } from "@/context/AppContext"
+import { isNativeMobile, isElectron } from "@/lib/platform"
+import { signInWithGoogleMobile } from "@/lib/mobile/socialLogin"
+import { resetBackupStatusCache } from "@/hooks/useBackupStatus"
 
 interface CloudContextType {
   user: CloudUser | null
@@ -198,11 +201,29 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     [syncWithBackend],
   )
 
+  const refreshSessionIfNeeded = useCallback(async (): Promise<void> => {
+    try {
+      const provider = getProvider()
+      const session = await provider.getSession()
+      if (session) {
+        const now = Math.floor(Date.now() / 1000)
+        const expiresAt = session.expiresAt
+        const timeUntilExpiry = expiresAt - now
+        const shouldRefresh = timeUntilExpiry < 300
+
+        if (shouldRefresh) {
+          await provider.refreshSession()
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh session:", error)
+    }
+  }, [getProvider])
+
   const handleAuthStateChange = useCallback(
     async (session: CloudSession | null) => {
       if (session) {
         setUser(session.user)
-        // Enable auto-refresh when we have a session
         try {
           await getProvider().setAutoRefreshEnabled(true)
         } catch (error) {
@@ -218,7 +239,6 @@ export function CloudProvider({ children }: { children: ReactNode }) {
         setBackupModeState(BackupMode.OFF)
         lastSyncedTokenSignatureRef.current = null
         lastBackupSettingsUserIdRef.current = null
-        // Disable auto-refresh when signed out
         try {
           await getProvider().setAutoRefreshEnabled(false)
         } catch (error) {
@@ -236,6 +256,43 @@ export function CloudProvider({ children }: { children: ReactNode }) {
 
   // Keep ref updated synchronously - not in an effect
   handleAuthStateChangeRef.current = handleAuthStateChange
+
+  // Refresh session when app becomes visible after being hidden
+  useEffect(() => {
+    if (!isAuthenticated || !isCloudEnabled || !user) {
+      return
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshSessionIfNeeded()
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+    }
+  }, [isAuthenticated, isCloudEnabled, user, refreshSessionIfNeeded])
+
+  // Periodic session refresh check (every 5 minutes)
+  useEffect(() => {
+    if (!isAuthenticated || !isCloudEnabled || !user) {
+      return
+    }
+
+    const intervalId = setInterval(
+      () => {
+        void refreshSessionIfNeeded()
+      },
+      5 * 60 * 1000,
+    )
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [isAuthenticated, isCloudEnabled, user, refreshSessionIfNeeded])
 
   // When cloud feature is disabled, mark as initialized immediately
   useEffect(() => {
@@ -534,13 +591,55 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const provider = getProvider()
-      const baseUrl = await getApiBaseUrl()
-      const callbackUrl = `${baseUrl}/oauth/callback`
+
+      if (isNativeMobile()) {
+        const result = await signInWithGoogleMobile()
+        if (!result.success) {
+          throw new Error(result.error || "Google sign-in failed")
+        }
+        if (!result.idToken) {
+          throw new Error("No ID token received from Google")
+        }
+        await provider.signInWithIdToken(
+          "google",
+          result.idToken,
+          result.rawNonce,
+        )
+        return
+      }
+
+      if (!isElectron()) {
+        throw new Error("Google sign-in is only available on desktop or mobile")
+      }
+
+      const serverInfo = await getApiServerInfo()
+      const callbackUrl = `${serverInfo.baseUrl}/oauth/callback`
       await provider.signInWithGoogle(callbackUrl)
+    } catch (error) {
+      console.error("Google sign-in error:", error)
+
+      let errorCode = "unknown"
+      if (
+        typeof error === "object" &&
+        error &&
+        "code" in error &&
+        typeof (error as { code?: unknown }).code === "string"
+      ) {
+        errorCode = (error as { code: string }).code
+      }
+
+      const translatedError =
+        t.settings.cloud.oauthErrors[
+          errorCode as keyof typeof t.settings.cloud.oauthErrors
+        ] ?? t.settings.cloud.oauthErrors.unknown
+
+      const message = translatedError.replace("{error}", errorCode)
+
+      setOauthError(message)
     } finally {
       setIsLoading(false)
     }
-  }, [getProvider])
+  }, [getProvider, t.settings.cloud.oauthErrors])
 
   const signInWithEmail = useCallback(
     async (email: string, password: string) => {
@@ -599,6 +698,7 @@ export function CloudProvider({ children }: { children: ReactNode }) {
       const provider = getProvider()
       await provider.signOut()
       await clearBackendCloudSession()
+      resetBackupStatusCache()
       setUser(null)
       setRole(null)
       setPermissions([])

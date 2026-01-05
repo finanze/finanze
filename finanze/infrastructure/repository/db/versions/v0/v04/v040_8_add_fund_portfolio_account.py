@@ -14,7 +14,7 @@ class V0408FundPortfolioAccount(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.4.0:8_add_fund_portfolio_account"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

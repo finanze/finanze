@@ -1,9 +1,9 @@
 from domain.use_cases.get_pending_flows import GetPendingFlows
-from flask import jsonify
+from quart import jsonify
 
 
-def get_pending_flows(get_pending_flows_uc: GetPendingFlows):
-    flows = get_pending_flows_uc.execute()
+async def get_pending_flows(get_pending_flows_uc: GetPendingFlows):
+    flows = await get_pending_flows_uc.execute()
     return jsonify(
         [
             {

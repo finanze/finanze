@@ -988,7 +988,7 @@ export default function RecurringMoneyPage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6 w-full min-w-0"
+      className="space-y-6 w-full min-w-0"
       variants={fadeListContainer}
       initial={runEntranceAnimation ? "hidden" : false}
       animate="show"
@@ -1002,13 +1002,17 @@ export default function RecurringMoneyPage() {
         <Button
           variant="ghost"
           size="sm"
+          className="p-1 h-8 w-8"
           onClick={() => navigate("/management")}
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={20} />
         </Button>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">{t.management.recurringMoney}</h1>
-          <PinAssetButton assetId="management-recurring" />
+          <PinAssetButton
+            assetId="management-recurring"
+            className="hidden md:inline-flex"
+          />
         </div>
       </motion.div>
 
