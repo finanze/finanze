@@ -1,0 +1,8 @@
+{
+  "semi": false,
+  "singleQuote": false,
+  "arrowParens": "avoid",
+  "tabWidth": 2,
+  "useTabs": false,
+  "endOfLine": "lf"
+}
