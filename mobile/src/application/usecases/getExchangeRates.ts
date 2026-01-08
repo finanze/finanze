@@ -105,16 +105,26 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
     "USDT",
     "USDC",
   ]
-  static readonly DEFAULT_TIMEOUT = 7
+  static readonly DEFAULT_TIMEOUT = 4
   static readonly CACHE_TTL_SECONDS = 300
   static readonly STORAGE_REFRESH_SECONDS = 6 * 60 * 60
+  static readonly POSITION_CRYPTO_TTL_SECONDS = 300
 
   private fiatMatrix: ExchangeRates | null = null
   private lastBaseRefreshTs = 0
+  private lastPositionCryptoRefreshTs = 0
   private secondLoad = false
 
   private lock = new AsyncLock()
   private initPromise: Promise<void> | null = null
+
+  private snapshotMatrix(matrix: ExchangeRates): ExchangeRates {
+    const out: ExchangeRates = {}
+    for (const [base, quotes] of Object.entries(matrix ?? {})) {
+      out[base] = { ...(quotes ?? {}) }
+    }
+    return out
+  }
 
   constructor(
     private exchangeRatesProvider: ExchangeRateProvider,
@@ -161,6 +171,15 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
     )
   }
 
+  private needsPositionCryptoRefresh(): boolean {
+    // Always try to refresh position-based crypto rates.
+    // The actual fetch is cheap when there are no positions, and we need
+    // to pick up newly imported positions after data import.
+    // The position crypto fetch is best-effort and uses its own internal
+    // caching in the crypto provider.
+    return true
+  }
+
   private normalizeMatrix(matrix: ExchangeRates): ExchangeRates {
     for (const [base, quotes] of Object.entries(matrix)) {
       if (!quotes || typeof quotes !== "object") continue
@@ -190,15 +209,43 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
   }
 
   private async getExchangeRates(initialLoad: boolean): Promise<ExchangeRates> {
+    console.info(
+      "Refreshing exchange rates " + (initialLoad ? "(initial load)" : ""),
+    )
+
     if (this.initPromise) {
       await this.initPromise
       this.initPromise = null
     }
 
-    const timeout = initialLoad ? 5 : GetExchangeRatesImpl.DEFAULT_TIMEOUT
+    // Second load (after import) needs more time to fetch position-based crypto rates
+    // as this involves fetching the CoinGecko coin list and building the address index.
+    const timeout = initialLoad
+      ? 7
+      : this.secondLoad
+        ? 15
+        : GetExchangeRatesImpl.DEFAULT_TIMEOUT
 
     const refreshBase = this.needsBaseRefresh()
-    if (!refreshBase && !this.secondLoad && this.fiatMatrix && !initialLoad) {
+    const refreshPositionCrypto = this.needsPositionCryptoRefresh()
+    console.debug("[GetExchangeRates] refresh decision", {
+      initialLoad,
+      timeout,
+      refreshBase,
+      refreshPositionCrypto,
+      hasFiatMatrix: this.fiatMatrix != null,
+    })
+
+    // Even when fiat rates are cached, we may still need to refresh crypto
+    // rates derived from the user's imported positions.
+    if (
+      !refreshBase &&
+      !refreshPositionCrypto &&
+      !this.secondLoad &&
+      this.fiatMatrix &&
+      !initialLoad
+    ) {
+      console.info("Using cached exchange rates.")
       return this.fiatMatrix
     }
 
@@ -257,6 +304,8 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
     const pending = new Map<number, Promise<TaskResult>>()
     for (const t of tasks) pending.set(t.id, t.promise)
 
+    let gotPositionCryptoBatch = false
+
     while (pending.size) {
       const remainingGlobal = deadline - Date.now()
       if (remainingGlobal <= 0) {
@@ -284,6 +333,13 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
       }
 
       pending.delete(settled.id)
+
+      if (settled.kind === "crypto_batch") {
+        if (settled.ok) {
+          gotPositionCryptoBatch = true
+        }
+      }
+
       refreshedBase = this.consumeTaskResult(
         settled,
         commodityRates,
@@ -306,7 +362,18 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
     }
 
     this.applyRates(commodityRates, cryptoRates)
-    await this.saveRatesToStorage({ force: this.secondLoad })
+
+    // Only mark position crypto as refreshed if we actually had position assets
+    // and successfully fetched them. This ensures we retry on the next call if
+    // the DB wasn't ready or fetch failed.
+    if (gotPositionCryptoBatch) {
+      this.lastPositionCryptoRefreshTs = nowSeconds()
+    }
+
+    // Force save when we got new position-based crypto rates, so address-keyed
+    // rates are persisted and available on subsequent app launches.
+    const forceSave = this.secondLoad || gotPositionCryptoBatch
+    await this.saveRatesToStorage({ force: forceSave })
 
     if (this.secondLoad) {
       this.secondLoad = false
@@ -314,7 +381,9 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
       this.secondLoad = true
     }
 
-    return this.fiatMatrix
+    // Important: return a fresh object so React state updates.
+    // `this.fiatMatrix` is mutated in-place across refreshes.
+    return this.snapshotMatrix(this.fiatMatrix)
   }
 
   private wrapTask(
@@ -421,7 +490,15 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
       }
     }
 
-    const assetKeys = await this.getPositionCryptoAssets()
+    let assetKeys: CryptoAssetKey[] = []
+    try {
+      assetKeys = await this.getPositionCryptoAssets()
+    } catch (e) {
+      // On a fresh install the local DB may not be initialized yet.
+      // Exchange-rate refresh must still proceed for fiat/commodities.
+      assetKeys = []
+    }
+
     if (assetKeys.length) {
       const id = getNextId()
       out.push({
@@ -429,7 +506,7 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
         promise: this.wrapTask(
           id,
           "crypto_batch",
-          null,
+          { assetCount: assetKeys.length },
           this.getCryptoPriceMap(assetKeys),
         ),
       })
@@ -440,8 +517,14 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
 
   private async getPositionCryptoAssets(): Promise<CryptoAssetKey[]> {
     const query: PositionQueryRequest = { products: [ProductType.CRYPTO] }
-    const cryptoEntityPositions =
-      await this.positionPort.getLastGroupedByEntity(query)
+    let cryptoEntityPositions: any
+    try {
+      cryptoEntityPositions =
+        await this.positionPort.getLastGroupedByEntity(query)
+    } catch (e) {
+      // Keep exchange-rate refresh independent from DB lifecycle.
+      return []
+    }
 
     const out: CryptoAssetKey[] = []
 
@@ -485,13 +568,14 @@ export class GetExchangeRatesImpl implements GetExchangeRates {
     const addresses = new Set<string>()
 
     for (const a of assetKeys) {
-      // Always add symbol for symbol-based lookup as fallback
-      if (a.symbol) {
-        nonAddressSymbols.add(a.symbol.toUpperCase())
-      }
-      // If there's a contract address, also try address-based lookup
       if (a.contractAddress) {
+        // Prefer address-based lookup for tokens with contract addresses
+        // to avoid symbol collisions across chains (e.g., different tokens
+        // with the same symbol on different networks).
         addresses.add(a.contractAddress.toLowerCase())
+      } else if (a.symbol) {
+        // Only use symbol-based lookup when no contract address is available.
+        nonAddressSymbols.add(a.symbol.toUpperCase())
       }
     }
 

@@ -118,15 +118,35 @@ export class ExchangeRateClient implements ExchangeRateProvider {
   }
 
   private async loadRateMatrix(timeout: number): Promise<void> {
-    for (const currency of AVAILABLE_CURRENCIES) {
-      const result = await this.fetchRates(currency, timeout)
+    // IMPORTANT: fetch in parallel so the whole matrix load stays within the
+    // expected timeout window (the use case also has a global timeout).
+    const results = await Promise.all(
+      AVAILABLE_CURRENCIES.map(async currency => {
+        const result = await this.fetchRates(currency, timeout)
+        return { currency, result }
+      }),
+    )
+
+    let newestDate: Date | null = null
+
+    for (const { currency, result } of results) {
       const dateStr = result?.date
       if (typeof dateStr === "string") {
-        this.updateDate = new Date(dateStr)
+        const d = new Date(dateStr)
+        if (Number.isFinite(d.getTime())) {
+          if (!newestDate || d.getTime() > newestDate.getTime()) {
+            newestDate = d
+          }
+        }
       }
+
       const lower = currency.toLowerCase()
       const rawRates = result?.[lower] ?? {}
       this.rates[currency] = parseRates(rawRates)
+    }
+
+    if (newestDate) {
+      this.updateDate = newestDate
     }
   }
 }

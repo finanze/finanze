@@ -5,7 +5,6 @@ import {
   Text,
   StyleSheet,
   TextInputProps as RNTextInputProps,
-  TouchableOpacity,
 } from "react-native"
 import { useTheme } from "../../context/ThemeContext"
 import { getThemeColors, typography, borderRadius, spacing } from "../../theme"
@@ -87,13 +86,14 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     borderWidth: 1,
     borderRadius: borderRadius.xl,
     minHeight: 52,
   },
   input: {
     flex: 1,
+    alignSelf: "stretch",
     paddingHorizontal: spacing.lg,
     paddingVertical: 0,
     ...typography.body,
@@ -108,9 +108,11 @@ const styles = StyleSheet.create({
     paddingRight: spacing.sm,
   },
   iconLeft: {
+    justifyContent: "center",
     paddingLeft: spacing.md,
   },
   iconRight: {
+    justifyContent: "center",
     paddingRight: spacing.md,
   },
   error: {

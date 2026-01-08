@@ -4,10 +4,10 @@
     "slug": "finanze",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "scheme": "finanze",
+    "platforms": ["ios", "android"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "me.finanze",
@@ -20,7 +20,7 @@
       "package": "me.finanze",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundImage": "./assets/adaptive-icon-bg.png"
       },
       "edgeToEdgeEnabled": true
     },
@@ -49,6 +49,7 @@
           "useSQLCipher": true
         }
       ],
+      "./plugins/finanze-crypto/withFinanzeCrypto",
       "expo-secure-store",
       [
         "@react-native-google-signin/google-signin",
@@ -62,11 +63,13 @@
     },
     "extra": {
       "router": {
-        "origin": false
+        "origin": false,
+        "root": "./src/presentation/app"
       },
       "eas": {
-        "projectId": "finanze"
+        "projectId": "6743075a-fb21-445a-a434-7370a6c8c914"
       }
-    }
+    },
+    "owner": "finanze"
   }
 }

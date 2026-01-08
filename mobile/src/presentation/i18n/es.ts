@@ -58,6 +58,10 @@ export const es: Translations = {
     decryptingDescription: "Por favor espera y no cierres la app",
     importSuccess: "¡Datos importados correctamente!",
     importError: "Error al importar la copia de seguridad",
+    backupTooOld:
+      "Esta copia se creó con una versión antigua de la app de escritorio. Actualiza la app de escritorio y haz una copia de nuevo.",
+    backupTooNew:
+      "Esta copia se creó con una versión más reciente. Actualiza la app móvil e inténtalo de nuevo.",
     wrongPassword: "Contraseña incorrecta. Por favor, inténtalo de nuevo.",
     dataPassword: "Contraseña de la copia",
     dataPasswordPlaceholder: "Introduce la contraseña de tu copia",

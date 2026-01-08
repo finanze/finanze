@@ -148,6 +148,7 @@ export function createApplicationContainer(): ApplicationContainer {
   const clearLocalData: ClearLocalData = new ClearLocalDataImpl(
     dm,
     backupLocalRegistry,
+    configStorage,
   )
 
   const initializeAuth: InitializeAuth = new InitializeAuthImpl(authPort)

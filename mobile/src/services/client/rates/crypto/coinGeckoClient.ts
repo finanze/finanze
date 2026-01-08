@@ -1,4 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { Buffer } from "buffer"
+import { gzip, ungzip } from "pako"
 
 import {
   AvailableCryptoAsset,
@@ -27,7 +29,15 @@ type PersistedCache = {
   platforms?: CachedSection<any[]>
 }
 
-const CACHE_KEY = "finanze.coingecko.cache.v1"
+type CompressedSection = {
+  last_updated: string
+  compression: "gzip-base64"
+  result: string
+}
+
+const COINS_CACHE_KEY = "finanze.coingecko.coins.v1"
+const PLATFORMS_CACHE_KEY = "finanze.coingecko.platforms.v1"
+const MAX_COINS_CACHE_BASE64_LEN = 900_000
 
 export class CoinGeckoClient {
   static readonly BASE_URL = "https://api.coingecko.com/api/v3"
@@ -693,68 +703,66 @@ export class CoinGeckoClient {
 
   private async loadPersistedCache(): Promise<void> {
     try {
-      const raw = await AsyncStorage.getItem(CACHE_KEY)
-      if (!raw) return
-      if (!raw.trim()) return
-
-      const parsed = JSON.parse(raw) as PersistedCache
-
-      const coins = parsed?.coins
-      if (
-        coins?.result &&
-        Array.isArray(coins.result) &&
-        typeof coins.last_updated === "string"
-      ) {
-        const d = new Date(coins.last_updated)
-        if (Number.isFinite(d.getTime())) {
-          this.coinListCache = coins.result
-          this.coinListLastUpdated = d
-        }
-      }
-
-      const platforms = parsed?.platforms
-      if (
-        platforms?.result &&
-        Array.isArray(platforms.result) &&
-        typeof platforms.last_updated === "string"
-      ) {
-        const d = new Date(platforms.last_updated)
-        if (Number.isFinite(d.getTime())) {
-          this.platformsCache = platforms.result
-          this.platformsLastUpdated = d
+      const raw = await AsyncStorage.getItem(PLATFORMS_CACHE_KEY)
+      if (raw && raw.trim()) {
+        const parsed = JSON.parse(raw) as CachedSection<any[]>
+        if (
+          parsed?.result &&
+          Array.isArray(parsed.result) &&
+          typeof parsed.last_updated === "string"
+        ) {
+          const d = new Date(parsed.last_updated)
+          if (Number.isFinite(d.getTime())) {
+            this.platformsCache = parsed.result
+            this.platformsLastUpdated = d
+          }
         }
       }
     } catch (e) {
-      console.warn("Failed to load CoinGecko cache:", e)
+      console.warn("Failed to load CoinGecko platforms cache:", e)
     }
-  }
 
-  private async readPersistedCache(): Promise<PersistedCache> {
     try {
-      const raw = await AsyncStorage.getItem(CACHE_KEY)
-      if (!raw || !raw.trim()) return {}
-      const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === "object"
-        ? (parsed as PersistedCache)
-        : {}
-    } catch {
-      return {}
+      const raw = await AsyncStorage.getItem(COINS_CACHE_KEY)
+      if (raw && raw.trim()) {
+        const parsed = JSON.parse(raw) as CompressedSection
+        if (
+          typeof parsed?.last_updated === "string" &&
+          parsed?.compression === "gzip-base64" &&
+          typeof parsed?.result === "string" &&
+          parsed.result
+        ) {
+          const d = new Date(parsed.last_updated)
+          if (Number.isFinite(d.getTime())) {
+            const bytes = Buffer.from(parsed.result, "base64")
+            const json = ungzip(bytes, { to: "string" }) as string
+            const list = JSON.parse(json)
+            if (Array.isArray(list)) {
+              this.coinListCache = list
+              this.coinListLastUpdated = d
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load CoinGecko coins cache:", e)
     }
   }
 
   private async saveCoinListCache(coinList: any[]): Promise<void> {
     try {
       const now = new Date().toISOString()
-      const existing = await this.readPersistedCache()
-      const updated: PersistedCache = {
-        ...existing,
-        coins: {
+      const json = JSON.stringify(coinList)
+      const compressed = gzip(json)
+      const base64 = Buffer.from(compressed).toString("base64")
+      if (base64.length <= MAX_COINS_CACHE_BASE64_LEN) {
+        const payload: CompressedSection = {
           last_updated: now,
-          result: coinList,
-        },
+          compression: "gzip-base64",
+          result: base64,
+        }
+        await AsyncStorage.setItem(COINS_CACHE_KEY, JSON.stringify(payload))
       }
-
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(updated, null, 2))
 
       this.coinListCache = coinList
       this.coinListLastUpdated = new Date(now)
@@ -766,16 +774,11 @@ export class CoinGeckoClient {
   private async savePlatformsCache(platforms: any[]): Promise<void> {
     try {
       const now = new Date().toISOString()
-      const existing = await this.readPersistedCache()
-      const updated: PersistedCache = {
-        ...existing,
-        platforms: {
-          last_updated: now,
-          result: platforms,
-        },
+      const payload: CachedSection<any[]> = {
+        last_updated: now,
+        result: platforms,
       }
-
-      await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(updated, null, 2))
+      await AsyncStorage.setItem(PLATFORMS_CACHE_KEY, JSON.stringify(payload))
 
       this.platformsCache = platforms
       this.platformsLastUpdated = new Date(now)

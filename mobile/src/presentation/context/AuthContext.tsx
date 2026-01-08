@@ -7,7 +7,7 @@ import React, {
   ReactNode,
 } from "react"
 import { CloudUser, CloudSession } from "@/domain"
-import { useApplicationContainer } from "@/presentation/context"
+import { useApplicationContainer } from "@/presentation/context/ApplicationContainerContext"
 
 interface AuthContextType {
   user: CloudUser | null

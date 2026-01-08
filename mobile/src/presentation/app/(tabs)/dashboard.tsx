@@ -13,8 +13,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Settings2 } from "lucide-react-native"
+import Animated, { FadeIn, FadeOut, Layout } from "react-native-reanimated"
 import { useFinancial } from "@/presentation/context"
 import { useTheme } from "@/presentation/context"
+import { useLayoutMenuScroll } from "@/presentation/context"
 import { useI18n } from "@/presentation/i18n"
 import {
   NetWorthCard,
@@ -24,6 +26,7 @@ import {
 } from "@/presentation/components/dashboard"
 import { ToggleSwitch } from "@/presentation/components/ui"
 import { getThemeColors, spacing } from "@/presentation/theme"
+import { useFloatingTabBarContentInset } from "@/presentation/components/navigation/useFloatingTabBarInset"
 import {
   filterRealEstateByOptions,
   getAssetDistribution,
@@ -39,6 +42,8 @@ export default function Dashboard() {
   const { resolvedTheme } = useTheme()
   const colors = getThemeColors(resolvedTheme)
   const { t } = useI18n()
+  const { onScroll } = useLayoutMenuScroll()
+  const bottomInset = useFloatingTabBarContentInset()
 
   const {
     positions,
@@ -211,8 +216,11 @@ export default function Dashboard() {
       edges={["top"]}
     >
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomInset }]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: bottomInset }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         <View style={styles.topGapRow}>
           <TouchableOpacity
@@ -225,7 +233,10 @@ export default function Dashboard() {
         </View>
 
         {optionsOpen ? (
-          <View
+          <Animated.View
+            entering={FadeIn.duration(180)}
+            exiting={FadeOut.duration(180)}
+            layout={Layout.duration(180)}
             style={[
               styles.optionsPanel,
               {
@@ -293,7 +304,7 @@ export default function Dashboard() {
                 disabled={!dashboardOptions.includeRealEstate}
               />
             </View>
-          </View>
+          </Animated.View>
         ) : null}
 
         {!hasData ? (
@@ -348,10 +359,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topGapRow: {
-    height: spacing.xxxl + spacing.xs,
+    height: spacing.xxl,
     alignItems: "flex-end",
     justifyContent: "flex-start",
-    paddingTop: spacing.md,
   },
   topGapButton: {
     padding: 8,

@@ -1,7 +1,9 @@
 import * as SQLite from "expo-sqlite"
 
-import crypto from "react-native-quick-crypto"
 import * as FileSystem from "expo-file-system/legacy"
+import { Buffer } from "buffer"
+import { sha3_256 } from "@noble/hashes/sha3.js"
+import { bytesToHex } from "@noble/hashes/utils.js"
 
 import { DatabaseClient, DatabaseConfig, QueryResult } from "./types"
 import {
@@ -9,17 +11,21 @@ import {
   DatasourceAdminPort,
   DatasourceInitiator,
 } from "@/application/ports"
+import {
+  UnsupportedDatabaseVersion,
+  UnsupportedDatabaseDirection,
+} from "@/domain/exceptions"
 
 const DB_NAME = "finanze.db"
+
+const SUPPORTED_DB_VERSION = { min: 45, max: 45 }
 
 /**
  * Hash password with SHA3-256 (matches Python's hashlib.sha3_256().hexdigest())
  */
 function hashPassword(password: string): string {
   const passwordBuffer = Buffer.from(password, "utf-8")
-  const hash = crypto.createHash("sha3-256")
-  hash.update(passwordBuffer)
-  return hash.digest("hex") as unknown as string
+  return bytesToHex(sha3_256(passwordBuffer))
 }
 
 export class DataManager
@@ -66,8 +72,8 @@ export class DataManager
     )
 
     try {
-      await this.configureOpenDatabase(this.db)
-      await this.db.getFirstAsync("SELECT 1")
+      await this.configureOpenDatabase(this.db!)
+      await this.db!.getFirstAsync("SELECT 1")
     } catch (error) {
       await this.close()
       throw new Error(`Failed to initialize database: ${error}`)
@@ -128,6 +134,25 @@ export class DataManager
     const sourceDb = await SQLite.deserializeDatabaseAsync(data)
     const destDatabasePath = this.getDatabasePath()
 
+    const sourceVersion = await this.getDatabaseVersion(sourceDb)
+    if (sourceVersion === null || sourceVersion < SUPPORTED_DB_VERSION.min) {
+      await sourceDb.closeAsync()
+      throw new UnsupportedDatabaseVersion({
+        direction: UnsupportedDatabaseDirection.OLD,
+        foundVersion: sourceVersion,
+        supported: SUPPORTED_DB_VERSION,
+      })
+    }
+
+    if (sourceVersion > SUPPORTED_DB_VERSION.max) {
+      await sourceDb.closeAsync()
+      throw new UnsupportedDatabaseVersion({
+        direction: UnsupportedDatabaseDirection.NEW,
+        foundVersion: sourceVersion,
+        supported: SUPPORTED_DB_VERSION,
+      })
+    }
+
     try {
       await this.close()
       try {
@@ -174,6 +199,7 @@ export class DataManager
         { useNewConnection: true },
         this.config.location,
       )
+
       await this.configureOpenDatabase(reopenedDb)
       this.db = reopenedDb
     } catch (error) {
@@ -182,7 +208,7 @@ export class DataManager
       await sourceDb.closeAsync()
 
       if (this.encryptionKey) {
-        await this.initialize(this.encryptionKey)
+        await this.initialize(this.encryptionKey!)
       }
     }
   }
@@ -241,7 +267,7 @@ export class DataManager
       const parsed = new Date(row.value)
       return Number.isFinite(parsed.getTime()) ? parsed : new Date(0)
     } catch (error) {
-      console.trace("Local last update: error", error)
+      console.warn("Local last update: error", error)
       return null
     }
   }
@@ -277,6 +303,19 @@ export class DataManager
       return Boolean(info.exists)
     } catch {
       return false
+    }
+  }
+
+  private async getDatabaseVersion(
+    database: SQLite.SQLiteDatabase,
+  ): Promise<number | null> {
+    try {
+      const row = await database.getFirstAsync<{ version: number }>(
+        "SELECT MAX(version) AS version FROM migrations",
+      )
+      return row?.version ?? null
+    } catch {
+      return null
     }
   }
 }

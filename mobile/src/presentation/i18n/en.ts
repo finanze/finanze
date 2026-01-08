@@ -56,6 +56,10 @@ export const en = {
     decryptingDescription: "Please wait and don't close the app",
     importSuccess: "Data imported successfully!",
     importError: "Failed to import backup",
+    backupTooOld:
+      "This backup was created with an older desktop app. Please update the desktop app and make a new backup.",
+    backupTooNew:
+      "This backup was created with a newer version. Please update the mobile app and try again.",
     wrongPassword: "Incorrect password. Please try again.",
     dataPassword: "Password",
     dataPasswordPlaceholder: "Enter your data password",

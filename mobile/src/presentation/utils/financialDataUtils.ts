@@ -5,8 +5,6 @@ import {
   parseDezimalValue,
   ExchangeRates,
   WeightUnit,
-} from "@/domain"
-import {
   EntitiesPosition,
   ProductType,
   Crowdlending,

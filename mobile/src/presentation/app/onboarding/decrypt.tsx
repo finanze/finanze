@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context"
 import { router, type Href } from "expo-router"
 import { useAuth } from "@/presentation/context"
+import { useExchangeRates } from "@/presentation/context"
 import { useFinancial } from "@/presentation/context"
 import { useTheme } from "@/presentation/context"
 import { useI18n } from "@/presentation/i18n"
@@ -28,6 +29,7 @@ export default function DecryptScreen() {
   const { t } = useI18n()
   const { session, signOut } = useAuth()
   const { loadData, isLoading: isDataLoading } = useFinancial()
+  const { refresh: refreshExchangeRates } = useExchangeRates()
   const container = useApplicationContainer()
 
   const [password, setPassword] = useState("")
@@ -96,12 +98,32 @@ export default function DecryptScreen() {
       // Load financial data after decrypt/import.
       await loadData()
 
+      // Re-run exchange rates after data import so position-based crypto
+      // assets can be discovered and priced. This is intentionally best-effort
+      // and non-blocking for navigation.
+      void refreshExchangeRates()
+
       router.replace("/(tabs)/dashboard" as Href)
     } catch (err: any) {
       console.error("Import error:", err)
 
       if (err?.name === "PermissionDenied") {
         setError(t.errors.serverError)
+        return
+      }
+
+      if (err?.name === "UnsupportedDatabaseVersion") {
+        if (err?.direction === "OLD") {
+          setError(t.onboarding.backupTooOld)
+          return
+        }
+
+        if (err?.direction === "NEW") {
+          setError(t.onboarding.backupTooNew)
+          return
+        }
+
+        setError(t.onboarding.importError)
         return
       }
 

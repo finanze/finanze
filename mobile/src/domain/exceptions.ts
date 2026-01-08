@@ -39,3 +39,32 @@ export class PermissionDenied extends DomainError {
     this.name = "PermissionDenied"
   }
 }
+
+export enum UnsupportedDatabaseDirection {
+  OLD = "OLD",
+  NEW = "NEW",
+}
+
+export class UnsupportedDatabaseVersion extends DomainError {
+  public readonly direction: UnsupportedDatabaseDirection
+  public readonly foundVersion: number | null
+  public readonly supported: { min: number; max: number }
+
+  constructor(params: {
+    direction: UnsupportedDatabaseDirection
+    foundVersion: number | null
+    supported: { min: number; max: number }
+    message?: string
+  }) {
+    const defaultMessage =
+      params.direction === UnsupportedDatabaseDirection.OLD
+        ? "Database version is too old"
+        : "Database version is too new"
+
+    super(params.message ?? defaultMessage)
+    this.name = "UnsupportedDatabaseVersion"
+    this.direction = params.direction
+    this.foundVersion = params.foundVersion
+    this.supported = params.supported
+  }
+}

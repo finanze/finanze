@@ -24,7 +24,7 @@ import {
   DatasourceInitiator,
 } from "../ports"
 
-const BACKUP_OPERATION_COOLDOWN_MINUTES = 5
+const BACKUP_OPERATION_COOLDOWN_MINUTES = 20
 
 export class ImportBackupImpl implements ImportBackup {
   constructor(
@@ -47,7 +47,14 @@ export class ImportBackupImpl implements ImportBackup {
       throw new PermissionDenied(CloudPermission.BACKUP_IMPORT)
     }
 
-    await this.checkCooldown()
+    try {
+      await this.checkCooldown()
+    } catch (e) {
+      if (e instanceof TooManyRequests) {
+        return { pieces: {} }
+      }
+      throw e
+    }
 
     const backupPassword = await this.datasourceInitiator.getHashedPassword()
     const bkgPass = backupPassword ?? request.password

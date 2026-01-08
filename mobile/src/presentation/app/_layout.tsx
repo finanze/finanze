@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar"
 import {
   ApplicationContainerProvider,
   AuthProvider,
+  ExchangeRatesProvider,
   FinancialProvider,
   PrivacyProvider,
   ThemeProvider,
@@ -38,11 +39,13 @@ export default function RootLayout() {
       <I18nProvider>
         <PrivacyProvider>
           <ApplicationContainerProvider>
-            <AuthProvider>
-              <FinancialProvider>
-                <RootStack />
-              </FinancialProvider>
-            </AuthProvider>
+            <ExchangeRatesProvider>
+              <AuthProvider>
+                <FinancialProvider>
+                  <RootStack />
+                </FinancialProvider>
+              </AuthProvider>
+            </ExchangeRatesProvider>
           </ApplicationContainerProvider>
         </PrivacyProvider>
       </I18nProvider>

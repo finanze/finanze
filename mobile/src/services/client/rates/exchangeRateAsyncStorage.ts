@@ -15,12 +15,6 @@ export class AsyncStorageExchangeRateStorage implements ExchangeRateStorage {
   private lastSaved: string | null = null
   private ratesCache: ExchangeRates = {}
 
-  constructor() {
-    // Mirror backend: load eagerly in constructor.
-    // AsyncStorage is async, so we keep a best-effort init.
-    void this.load()
-  }
-
   async get(): Promise<ExchangeRates> {
     // Ensure we loaded at least once (best-effort); if not, return current cache.
     if (this.lastSaved === null && Object.keys(this.ratesCache).length === 0) {
@@ -51,7 +45,12 @@ export class AsyncStorageExchangeRateStorage implements ExchangeRateStorage {
     }
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload, null, 2))
+      const encoded = JSON.stringify(payload)
+      await AsyncStorage.setItem(STORAGE_KEY, encoded)
+
+      // Best-effort verification readback (debug only).
+      const verify = await AsyncStorage.getItem(STORAGE_KEY)
+
       this.lastSaved = nowIso
       this.ratesCache = exchangeRates
     } catch (e) {
@@ -69,6 +68,7 @@ export class AsyncStorageExchangeRateStorage implements ExchangeRateStorage {
   private async load(): Promise<void> {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY)
+
       if (!raw) return
       if (!raw.trim()) return
 

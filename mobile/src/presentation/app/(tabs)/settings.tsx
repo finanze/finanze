@@ -12,6 +12,7 @@ import { router, type Href } from "expo-router"
 import { useAuth } from "@/presentation/context"
 import { useFinancial } from "@/presentation/context"
 import { usePrivacy } from "@/presentation/context"
+import { useLayoutMenuScroll } from "@/presentation/context"
 import { useTheme, type ThemeMode } from "@/presentation/context/ThemeContext"
 import { useI18n } from "@/presentation/i18n"
 import { Button, ToggleSwitch } from "@/presentation/components/ui"
@@ -20,6 +21,7 @@ import { formatDateTime } from "@/presentation/utils/financialDataUtils"
 import { Sun, Moon, Smartphone } from "lucide-react-native"
 import { useApplicationContainer } from "@/presentation/context"
 import Constants from "expo-constants"
+import { useFloatingTabBarContentInset } from "@/presentation/components/navigation/useFloatingTabBarInset"
 
 const THEME_OPTIONS: {
   value: ThemeMode
@@ -37,6 +39,8 @@ export default function SettingsScreen() {
   const { hideAmounts, setHideAmounts } = usePrivacy()
   const { user, signOut, isLoading } = useAuth()
   const { targetCurrency, clearData } = useFinancial()
+  const { onScroll } = useLayoutMenuScroll()
+  const bottomInset = useFloatingTabBarContentInset()
 
   const appVersion =
     typeof Constants.expoConfig?.version === "string" &&
@@ -100,14 +104,12 @@ export default function SettingsScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={["top", "bottom"]}
     >
-      <View style={styles.modalHandleContainer}>
-        <View
-          style={[styles.modalHandle, { backgroundColor: colors.textMuted }]}
-        />
-      </View>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: bottomInset }]}
         showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: bottomInset }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         {/* Account */}
         <View style={styles.section}>

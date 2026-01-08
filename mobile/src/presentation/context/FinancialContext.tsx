@@ -3,16 +3,16 @@ import React, {
   useContext,
   useState,
   useCallback,
-  useRef,
+  useEffect,
   ReactNode,
 } from "react"
-import { useApplicationContainer } from "@/presentation/context"
+import { useApplicationContainer } from "@/presentation/context/ApplicationContainerContext"
+import { useExchangeRates } from "@/presentation/context/ExchangeRatesContext"
 import {
   EntitiesPosition,
   BaseTx,
   RealEstate,
   PendingFlow,
-  Dezimal,
   ExchangeRates,
 } from "@/domain"
 
@@ -40,26 +40,17 @@ interface FinancialProviderProps {
   children: ReactNode
 }
 
-const DEFAULT_EXCHANGE_RATES: ExchangeRates = {
-  EUR: { EUR: Dezimal.fromString("1"), USD: Dezimal.fromString("1") },
-  USD: { USD: Dezimal.fromString("1"), EUR: Dezimal.fromString("1") },
-}
-
 export function FinancialProvider({ children }: FinancialProviderProps) {
   const container = useApplicationContainer()
+  const { exchangeRates } = useExchangeRates()
 
   const [positions, setPositions] = useState<EntitiesPosition | null>(null)
   const [recentTransactions, setRecentTransactions] = useState<BaseTx[]>([])
   const [realEstateList, setRealEstateList] = useState<RealEstate[]>([])
   const [pendingFlows, setPendingFlows] = useState<PendingFlow[]>([])
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(
-    DEFAULT_EXCHANGE_RATES,
-  )
   const [targetCurrency, setTargetCurrency] = useState("EUR")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const exchangeRatesInitialLoad = useRef(true)
 
   const loadData = useCallback(async () => {
     try {
@@ -75,25 +66,16 @@ export function FinancialProvider({ children }: FinancialProviderProps) {
       }
 
       const [
-        exchangeRatesData,
         positionsData,
         recentTransactionsData,
         realEstateData,
         pendingFlowsData,
       ] = await Promise.all([
-        container.getExchangeRates.execute(exchangeRatesInitialLoad.current),
         container.getPosition.execute({}),
         container.getTransactions.execute({ limit: 10 }),
         container.listRealEstate.execute(),
         container.getPendingFlows.execute(),
       ])
-
-      exchangeRatesInitialLoad.current = false
-      setExchangeRates(prev => {
-        return exchangeRatesData && Object.keys(exchangeRatesData).length
-          ? exchangeRatesData
-          : prev
-      })
 
       setPositions(positionsData)
       setRecentTransactions(recentTransactionsData.transactions)
@@ -106,6 +88,25 @@ export function FinancialProvider({ children }: FinancialProviderProps) {
       setIsLoading(false)
     }
   }, [container])
+
+  // Auto-load data on mount if the database is already initialized (e.g., after hot reload).
+  // This prevents the "No data available" screen from appearing after React state resets.
+  useEffect(() => {
+    if (positions !== null) return // Already have data
+
+    const tryAutoLoad = async () => {
+      try {
+        const exists = await container.checkDatasourceExists.execute()
+        if (exists) {
+          await loadData()
+        }
+      } catch {
+        // Database not ready, ignore - user will need to decrypt
+      }
+    }
+
+    void tryAutoLoad()
+  }, [container, loadData, positions])
 
   const clearData = useCallback(() => {
     setPositions(null)
