@@ -7,7 +7,10 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "scheme": "finanze",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "me.finanze",
@@ -56,7 +59,8 @@
         {
           "iosUrlScheme": "com.googleusercontent.apps.532000862898-q5btj9hpsjs3t87lfrtk6s9b14mjba1p"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

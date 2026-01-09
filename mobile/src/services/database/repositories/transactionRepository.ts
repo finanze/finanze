@@ -272,6 +272,18 @@ export class TransactionRepository implements TransactionPort {
       params.push(query.toDate)
     }
 
+    if (query.productTypes && query.productTypes.length > 0) {
+      const placeholders = query.productTypes.map(() => "?").join(", ")
+      whereConditions.push(`tx.product_type IN (${placeholders})`)
+      params.push(...query.productTypes)
+    }
+
+    if (query.types && query.types.length > 0) {
+      const placeholders = query.types.map(() => "?").join(", ")
+      whereConditions.push(`tx.type IN (${placeholders})`)
+      params.push(...query.types)
+    }
+
     const whereClause =
       whereConditions.length > 0 ? `WHERE ${whereConditions.join(" AND ")}` : ""
 
