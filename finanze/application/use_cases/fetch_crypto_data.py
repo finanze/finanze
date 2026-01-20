@@ -89,7 +89,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         entity_id = fetch_request.entity_id
 
         connected_entities = (
-            self._crypto_wallet_connection_port.get_connected_entities()
+            await self._crypto_wallet_connection_port.get_connected_entities()
         )
 
         if entity_id:
@@ -107,13 +107,15 @@ class FetchCryptoDataImpl(FetchCryptoData):
             ]
 
         for entity in entities:
-            last_fetch = self._last_fetches_port.get_by_entity_id(entity.id)
+            last_fetch = await self._last_fetches_port.get_by_entity_id(entity.id)
             result = handle_cooldown(last_fetch, CRYPTO_POSITION_UPDATE_COOLDOWN)
             if result:
                 return result
 
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.CRYPTO_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.CRYPTO_PROVIDER
+            )
         )
 
         fetched_data = []
@@ -157,8 +159,8 @@ class FetchCryptoDataImpl(FetchCryptoData):
         options: FetchOptions,
         integrations: EnabledExternalIntegrations,
     ) -> FetchedData:
-        existing_connections = self._crypto_wallet_connection_port.get_by_entity_id(
-            entity.id
+        existing_connections = (
+            await self._crypto_wallet_connection_port.get_by_entity_id(entity.id)
         )
 
         fetch_requests = []
@@ -173,10 +175,10 @@ class FetchCryptoDataImpl(FetchCryptoData):
 
         candidate_wallets = []
         try:
-            candidate_wallets = specific_fetcher.fetch_multiple(fetch_requests)
+            candidate_wallets = await specific_fetcher.fetch_multiple(fetch_requests)
         except NotImplementedError:
             for fetch_request in fetch_requests:
-                wallet = specific_fetcher.fetch(fetch_request)
+                wallet = await specific_fetcher.fetch(fetch_request)
                 candidate_wallets.append(wallet)
 
         wallets_by_id = {wallet.id: wallet for wallet in candidate_wallets}
@@ -194,11 +196,11 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 elif asset.type == CryptoCurrencyType.NATIVE:
                     native_symbols.add(asset.symbol)
 
-        price_map = self._get_price_map(contract_addresses, native_symbols)
+        price_map = await self._get_price_map(contract_addresses, native_symbols)
 
         wallets = []
         for w in candidate_wallets:
-            wallet = self._process_wallet_data(w, price_map)
+            wallet = await self._process_wallet_data(w, price_map)
             wallets.append(wallet)
 
         products = {ProductType.CRYPTO: CryptoCurrencies(wallets)}
@@ -210,15 +212,15 @@ class FetchCryptoDataImpl(FetchCryptoData):
         )
 
         async with self._transaction_handler_port.start():
-            self._position_port.save(position)
+            await self._position_port.save(position)
 
-            self._update_last_fetch(entity.id, [Feature.POSITION])
+            await self._update_last_fetch(entity.id, [Feature.POSITION])
 
             return FetchedData(
                 position=position,
             )
 
-    def _process_wallet_data(
+    async def _process_wallet_data(
         self, wallet: CryptoCurrencyWallet, price_map: dict[str, Dezimal]
     ) -> CryptoCurrencyWallet:
         assets = []
@@ -228,18 +230,20 @@ class FetchCryptoDataImpl(FetchCryptoData):
                 market_value = self._get_market_value(price_map, asset)
                 asset_dict["market_value"] = market_value
                 asset_dict["currency"] = TARGET_FIAT
-                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                asset_details = await self._crypto_asset_registry_port.get_by_symbol(
                     asset.symbol
                 )
                 asset_info = asset_details
                 if (market_value is not None and asset.amount > 0) and not asset_info:
-                    candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
-                        asset.symbol
+                    candidate_assets = (
+                        await self._crypto_asset_info_provider.get_by_symbol(
+                            asset.symbol
+                        )
                     )
                     if candidate_assets:
                         asset_info = candidate_assets[0]
                         asset_info.id = uuid4()
-                        self._crypto_asset_registry_port.save(asset_info)
+                        await self._crypto_asset_registry_port.save(asset_info)
 
                 if asset_info and market_value is None:
                     asset_info = None
@@ -258,7 +262,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         wallet_dict["assets"] = assets
         return CryptoCurrencyWallet(**wallet_dict)
 
-    def _get_price_map(
+    async def _get_price_map(
         self,
         contract_addresses: set[str],
         native_symbols: set[str],
@@ -266,7 +270,7 @@ class FetchCryptoDataImpl(FetchCryptoData):
         price_map: dict[str, Dezimal] = {}
         if native_symbols:
             symbol_prices = (
-                self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
+                await self._crypto_asset_info_provider.get_multiple_prices_by_symbol(
                     list(native_symbols), fiat_isos=[TARGET_FIAT]
                 )
             )
@@ -277,8 +281,10 @@ class FetchCryptoDataImpl(FetchCryptoData):
                     price_map[upper] = fiat_prices[TARGET_FIAT]
 
         if contract_addresses:
-            address_prices = self._crypto_asset_info_provider.get_prices_by_addresses(
-                list(contract_addresses), fiat_isos=[TARGET_FIAT]
+            address_prices = (
+                await self._crypto_asset_info_provider.get_prices_by_addresses(
+                    list(contract_addresses), fiat_isos=[TARGET_FIAT]
+                )
             )
             for addr, fiat_prices in address_prices.items():
                 fiat_price = fiat_prices.get(TARGET_FIAT)
@@ -303,9 +309,9 @@ class FetchCryptoDataImpl(FetchCryptoData):
             return None
         return round(crypto_currency.amount * price, 2)
 
-    def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
+    async def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())
         records = []
         for feature in features:
             records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
-        self._last_fetches_port.save(records)
+        await self._last_fetches_port.save(records)

@@ -3,19 +3,19 @@
   "version": "0.7.0",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
   "main": "dist-electron/main/index.js",
-  "packageManager": "pnpm@10.11.1",
+  "packageManager": "pnpm@10.28.0",
   "keywords": [],
   "author": "marcosav",
   "private": true,
-  "debug": {
-    "env": {
-      "VITE_DEV_SERVER_URL": "http://127.0.0.1:7777/"
-    }
-  },
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:mobile": "pnpm run build:python && vite --host --mode mobile",
     "build": "tsc && vite build",
+    "build:python": "node scripts/bundle-python.js",
+    "build:mobile": "pnpm run build && pnpm run build:python",
+    "install:pyodide": "node scripts/sync-python-wheels.mjs && node scripts/sync-pyodide.mjs",
+    "clean": "node scripts/clean-offline.mjs",
     "preview": "vite preview",
     "dist": "vite build && pnpm exec electron-builder",
     "dist:win": "vite build && pnpm exec electron-builder --win",
@@ -26,13 +26,23 @@
     "format": "prettier --write .",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
-    "lint-staged": "lint-staged --no-stash"
+    "lint-staged": "lint-staged --no-stash",
+    "cap:sync": "pnpm build:mobile && pnpm exec cap sync",
+    "cap:ios": "pnpm build:mobile && pnpm exec cap sync ios && pnpm exec cap open ios",
+    "cap:android": "pnpm build:mobile && pnpm exec cap sync android && pnpm exec cap open android"
   },
   "lint-staged": {
     "*": "eslint .",
     "*.*": "prettier --check ."
   },
   "dependencies": {
+    "@capacitor-community/sqlite": "7.0.2-dev.5a79381.1766041651",
+    "@capacitor/android": "^8.0.1",
+    "@capacitor/cli": "^8.0.1",
+    "@capacitor/core": "^8.0.1",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/ios": "^8.0.1",
+    "@capacitor/preferences": "^8.0.0",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
@@ -48,6 +58,7 @@
     "framer-motion": "^12.23.25",
     "fuse.js": "^7.1.0",
     "lucide-react": "^0.554.0",
+    "pyodide": "^0.29.1",
     "react-day-picker": "^9.11.3",
     "react-markdown": "^10.1.0",
     "recharts": "^2.15.4",
@@ -74,6 +85,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
     "globals": "^16.5.0",
+    "jeep-sqlite": "^2.8.0",
     "lint-staged": "^16.2.7",
     "postcss": "^8.5.6",
     "prettier": "^3.7.4",
@@ -87,5 +99,10 @@
     "vite": "^7.2.6",
     "vite-plugin-electron": "^0.29.0",
     "vitest": "^4.0.15"
+  },
+  "pnpm": {
+    "overrides": {
+      "sql.js": "1.11.0"
+    }
   }
 }

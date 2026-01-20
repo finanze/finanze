@@ -25,17 +25,19 @@ class DeleteExternalEntityImpl(DeleteExternalEntity):
         self._log = logging.getLogger(__name__)
 
     async def execute(self, request: DeleteExternalEntityRequest):
-        external_entity = self._external_entity_port.get_by_id(
+        external_entity = await self._external_entity_port.get_by_id(
             request.external_entity_id
         )
         if not external_entity:
             raise ExternalEntityNotFound()
 
         provider = self._external_entity_fetchers.get(external_entity.provider)
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.ENTITY_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.ENTITY_PROVIDER
+            )
         )
-        provider.setup(enabled_integrations)
+        await provider.setup(enabled_integrations)
 
         try:
             await provider.unlink(external_entity.provider_instance_id)
@@ -43,4 +45,4 @@ class DeleteExternalEntityImpl(DeleteExternalEntity):
             self._log.warning(
                 f"External entity {external_entity.id} not found at provider during unlinking."
             )
-        self._external_entity_port.delete_by_id(external_entity.id)
+        await self._external_entity_port.delete_by_id(external_entity.id)

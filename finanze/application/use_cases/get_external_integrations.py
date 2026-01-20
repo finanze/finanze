@@ -10,8 +10,8 @@ class GetExternalIntegrationsImpl(GetExternalIntegrations):
     def __init__(self, external_integration_port: ExternalIntegrationPort):
         self._external_integration_port = external_integration_port
 
-    def execute(self) -> AvailableExternalIntegrations:
-        integrations = self._external_integration_port.get_all()
+    async def execute(self) -> AvailableExternalIntegrations:
+        integrations = await self._external_integration_port.get_all()
 
         for integration in integrations:
             integration.payload_schema = EXTERNAL_INTEGRATION_PAYLOAD_SCHEMAS[

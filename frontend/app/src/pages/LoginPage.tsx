@@ -264,6 +264,7 @@ export default function LoginPage() {
                       placeholder={t.login.usernamePlaceholder}
                       required={!isChangingPassword}
                       autoFocus={isSignupMode || !lastLoggedUser}
+                      autoCapitalize="off"
                       className={cn(error ? "border-red-500 pr-10" : "")}
                     />
                     {error && (

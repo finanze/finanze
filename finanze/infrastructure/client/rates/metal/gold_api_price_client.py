@@ -1,11 +1,11 @@
 import logging
 from typing import Optional
 
-import requests
+import httpx
 from domain.commodity import COMMODITY_SYMBOLS, CommodityType, WeightUnit
 from domain.dezimal import Dezimal
 from domain.exchange_rate import CommodityExchangeRate
-from requests import Timeout
+from infrastructure.client.http.http_session import get_http_session
 
 
 class GoldApiPriceClient:
@@ -20,24 +20,25 @@ class GoldApiPriceClient:
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
+        self._session = get_http_session()
 
-    def get_price(
+    async def get_price(
         self, commodity: CommodityType, timeout: int | None = None
     ) -> Optional[CommodityExchangeRate]:
         if commodity not in self.SUPPORTED_COMMODITIES:
             raise ValueError(f"Unsupported commodity type: {commodity}")
 
-        return self._fetch_price(
+        return await self._fetch_price(
             COMMODITY_SYMBOLS.get(commodity).upper(), timeout or self.TIMEOUT
         )
 
-    def _fetch_price(
+    async def _fetch_price(
         self, symbol: str, timeout: int
     ) -> Optional[CommodityExchangeRate]:
         url = f"{self.BASE_URL}/{symbol}"
         try:
-            data = self._fetch(url, timeout)
-        except Timeout as e:
+            data = await self._fetch(url, timeout)
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(f"Timeout fetching price for {symbol}: {e}")
             return None
 
@@ -47,11 +48,12 @@ class GoldApiPriceClient:
             price=Dezimal(str(data["price"])),
         )
 
-    def _fetch(self, url: str, timeout: int) -> dict:
-        response = requests.get(url, timeout=timeout)
+    async def _fetch(self, url: str, request_timeout: int) -> dict:
+        response = await self._session.get(url, timeout=request_timeout)
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body:" + response.text)
+        body = await response.text()
+        self._log.error("Error Response Body:" + body)
         response.raise_for_status()
         return {}

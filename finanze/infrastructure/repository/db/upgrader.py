@@ -29,7 +29,7 @@ class DBVersionMigration(ABC):
         pass
 
     @abstractmethod
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         """
         Perform the database upgrade for this migration.
         """
@@ -53,14 +53,12 @@ class DatabaseUpgrader:
 
         self._log = logging.getLogger(__name__)
 
-        self._ensure_migrations_table()
-
-    def _ensure_migrations_table(self):
+    async def _ensure_migrations_table(self):
         """
         Creates the migrations table if it doesn't exist.
         """
-        with self._db_client.tx(skip_last_update=True) as cursor:
-            cursor.execute("""
+        async with self._db_client.tx(skip_last_update=True) as cursor:
+            await cursor.execute("""
                            CREATE TABLE IF NOT EXISTS migrations
                            (
                                version    INTEGER PRIMARY KEY,
@@ -69,22 +67,28 @@ class DatabaseUpgrader:
                            )
                            """)
 
-    def _get_current_version(self) -> int:
+    async def _get_current_version(self) -> int:
         """
         Returns the highest version number from the migrations table.
         """
-        with self._db_client.read() as cursor:
-            cursor.execute("SELECT MAX(version) FROM migrations")
-            result = cursor.fetchone()
+        # Ensure table exists first, just in case, though __init__ calls it?
+        # No, __init__ shouldn't call async methods.
+        # We need a proper async init or call it in upgrade.
+
+        async with self._db_client.read() as cursor:
+            await cursor.execute("SELECT MAX(version) FROM migrations")
+            result = await cursor.fetchone()
             return result[0] if result[0] is not None else -1
 
-    def _validate_migrations(self):
+    async def _validate_migrations(self):
         """
         Validates that all applied migrations match the current names.
         """
-        with self._db_client.read() as cursor:
-            cursor.execute("SELECT version, name FROM migrations ORDER BY version")
-            applied_migrations = cursor.fetchall()
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                "SELECT version, name FROM migrations ORDER BY version"
+            )
+            applied_migrations = await cursor.fetchall()
 
             for version, applied_name in applied_migrations:
                 if version >= len(self._versions):
@@ -99,12 +103,15 @@ class DatabaseUpgrader:
                         f"Applied: {applied_name}, Current: {current_migration.name}"
                     )
 
-    def upgrade(self, target_version=None):
+    async def upgrade(self, target_version=None):
         """
         Upgrades the database to the specified target version.
         If target_version is None, upgrades to the latest version.
         """
-        current = self._get_current_version()
+        # Call ensure table here since __init__ cannot be async easily
+        await self._ensure_migrations_table()
+
+        current = await self._get_current_version()
         if target_version is None:
             target = len(self._versions) - 1
         else:
@@ -124,29 +131,29 @@ class DatabaseUpgrader:
                 f"Database version {current} is ahead of current one {target}, did you downgrade?"
             )
 
-        self._validate_migrations()
+        await self._validate_migrations()
 
         versions_to_apply = range(current + 1, target + 1)
 
         for version in versions_to_apply:
-            with self._db_client.tx(skip_last_update=True) as cursor:
+            async with self._db_client.tx(skip_last_update=True) as cursor:
                 migration = self._versions[version]
 
                 self._log.info(f"Applying migration: {migration.name}")
                 try:
-                    migration.upgrade(cursor, self._context)
+                    await migration.upgrade(cursor, self._context)
                 except Exception as e:
                     raise MigrationError(
                         f"There was an error while executing migration {migration.name}: {str(e)}"
                     ) from e
 
-                applied_at = datetime.now(tzlocal())
+                applied_at = datetime.now(tzlocal()).isoformat()
 
-                cursor.execute(
+                await cursor.execute(
                     "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",
                     (version, applied_at, migration.name),
                 )
 
-        with self._db_client.tx():
+        async with self._db_client.tx():
             # Update last update date after successful migration
             pass

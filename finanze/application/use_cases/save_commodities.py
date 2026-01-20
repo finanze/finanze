@@ -51,13 +51,13 @@ class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
 
         async with self._lock:
             now = datetime.now(tzlocal())
-            self._position_port.delete_position_for_date(
+            await self._position_port.delete_position_for_date(
                 COMMODITIES.id, now.date(), source=DataSource.REAL
             )
 
-            fiat_matrix = self._exchange_rates_provider.get_matrix()
+            fiat_matrix = await self._exchange_rates_provider.get_matrix()
             commodity_entries = [
-                self._map_commodity(entry, fiat_matrix)
+                await self._map_commodity(entry, fiat_matrix)
                 for entry in commodity_position.registers
             ]
             products = {ProductType.COMMODITY: Commodities(commodity_entries)}
@@ -67,8 +67,8 @@ class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
                 products=products,
             )
 
-            self._position_port.save(position)
-            self._last_fetches_port.save(
+            await self._position_port.save(position)
+            await self._last_fetches_port.save(
                 [
                     FetchRecord(
                         entity_id=COMMODITIES.id, date=now, feature=Feature.POSITION
@@ -76,7 +76,7 @@ class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
                 ]
             )
 
-    def _map_commodity(
+    async def _map_commodity(
         self, commodity_register: CommodityRegister, fiat_matrix
     ) -> Commodity:
         commodity_register_dict = asdict(commodity_register)
@@ -97,7 +97,9 @@ class SaveCommoditiesImpl(AtomicUCMixin, SaveCommodities):
             )
             commodity_register_dict["average_buy_price"] = round(avg_buy_price, 4)
 
-        exchange_rate = self._metal_price_provider.get_price(commodity_register.type)
+        exchange_rate = await self._metal_price_provider.get_price(
+            commodity_register.type
+        )
         if exchange_rate is None:
             commodity_register_dict["market_value"] = initial_investment or Dezimal("0")
             return Commodity(**commodity_register_dict, id=uuid4())

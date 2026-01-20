@@ -5,5 +5,5 @@ from domain.available_sources import AvailableSources
 
 class GetAvailableEntities(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self) -> AvailableSources:
+    async def execute(self) -> AvailableSources:
         raise NotImplementedError

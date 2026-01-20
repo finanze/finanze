@@ -35,6 +35,7 @@ import {
   getFeatureFlags,
   subscribeFeatureFlags,
 } from "@/context/featureFlagsStore"
+import { getPlatformType } from "@/lib/platform"
 
 export interface AppSettings {
   export?: {
@@ -212,7 +213,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
-  const [platform, setPlatform] = useState<PlatformType | null>(null)
+  const [platform, setPlatform] = useState<PlatformType | null>(() =>
+    getPlatformType(),
+  )
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false)
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
@@ -250,10 +253,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           setPlatform(platformInfo.type)
         } catch (error) {
           console.error("Failed to get platform info:", error)
-          setPlatform(PlatformType.WEB)
+          setPlatform(getPlatformType())
         }
       } else {
-        setPlatform(PlatformType.WEB)
+        setPlatform(getPlatformType())
       }
     }
 

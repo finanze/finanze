@@ -23,7 +23,7 @@ class DeleteRealEstateImpl(AtomicUCMixin, DeleteRealEstate):
         self._file_storage_port = file_storage_port
 
     async def execute(self, delete_request: DeleteRealEstateRequest):
-        real_estate = self._real_estate_repository.get_by_id(delete_request.id)
+        real_estate = await self._real_estate_repository.get_by_id(delete_request.id)
         if real_estate is None:
             raise RealEstateNotFound(
                 f"Real estate with ID {delete_request.id} does not exist."
@@ -32,9 +32,9 @@ class DeleteRealEstateImpl(AtomicUCMixin, DeleteRealEstate):
         if delete_request.remove_related_flows:
             for flow in real_estate.flows:
                 if flow.periodic_flow_id:
-                    self._periodic_flow_port.delete(flow.periodic_flow_id)
+                    await self._periodic_flow_port.delete(flow.periodic_flow_id)
 
-        self._real_estate_repository.delete(delete_request.id)
+        await self._real_estate_repository.delete(delete_request.id)
 
         old_photo_url = real_estate.basic_info.photo_url
         if old_photo_url:

@@ -13,13 +13,13 @@ class SessionsRepository(SessionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get(self, entity_id: UUID) -> Optional[EntitySession]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get(self, entity_id: UUID) -> Optional[EntitySession]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 SessionsQueries.GET,
                 (str(entity_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row:
                 created_at = datetime.fromisoformat(row["created_at"])
                 expiration = (
@@ -31,9 +31,9 @@ class SessionsRepository(SessionsPort):
                 return EntitySession(created_at, expiration, payload)
             return None
 
-    def save(self, entity_id: UUID, session: EntitySession):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def save(self, entity_id: UUID, session: EntitySession):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 SessionsQueries.INSERT,
                 (
                     str(entity_id),
@@ -43,9 +43,9 @@ class SessionsRepository(SessionsPort):
                 ),
             )
 
-    def delete(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def delete(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 SessionsQueries.DELETE,
                 (str(entity_id),),
             )

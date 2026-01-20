@@ -1,4 +1,3 @@
 selenium==4.39.0
-aiohttp==3.13.2
 pydub==0.25.1
 SpeechRecognition==3.14.5

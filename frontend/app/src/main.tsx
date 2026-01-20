@@ -8,6 +8,11 @@ import { I18nProvider } from "@/i18n"
 import { ThemeProvider } from "@/context/ThemeContext"
 import { AuthProvider } from "@/context/AuthContext"
 import { CloudProvider } from "@/context/CloudContext"
+import { initializeCapacitorPlatform } from "@/lib/capacitor"
+import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
+
+await initializeCapacitorPlatform()
+initDevPlatformOverride()
 
 createRoot(document.getElementById("root")!).render(
   <HashRouter>

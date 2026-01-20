@@ -266,7 +266,8 @@ export function EntityCard({
   const canConnect =
     isDisconnected &&
     !missingIntegrations &&
-    entity.origin !== EntityOrigin.EXTERNALLY_PROVIDED
+    entity.origin !== EntityOrigin.EXTERNALLY_PROVIDED &&
+    entity.fetchable
   const isExternallyProvided =
     entity.origin === EntityOrigin.EXTERNALLY_PROVIDED
   const isLinkingExternal = linkingExternalEntityId === entity.id
@@ -379,187 +380,248 @@ export function EntityCard({
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className={isDisconnected ? "pt-0" : ""}>
-          {/* Show connected wallets info for crypto entities */}
-          {isCryptoWallet && effectiveStatus === EntityStatus.CONNECTED && (
-            <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm">
-                  <Wallet className="h-3 w-3 text-gray-500 dark:text-gray-400" />
-                  <span className="text-gray-600 dark:text-gray-300 font-medium">
-                    {entity.connected?.length === 1
-                      ? `${entity.connected.length} wallet`
-                      : `${entity.connected?.length} wallets`}
-                  </span>
-                </div>
-                {entity.connected && entity.connected.length > 0 && (
-                  <div className="flex gap-1 flex-wrap">
-                    {entity.connected.slice(0, 3).map((wallet, index) => (
-                      <Badge
-                        key={index}
-                        variant="secondary"
-                        className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                      >
-                        {`•••${wallet.address.slice(-6)}`}
-                      </Badge>
-                    ))}
-                    {entity.connected.length > 3 && (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                      >
-                        +{entity.connected.length - 3}
-                      </Badge>
+        {entity.fetchable && (
+          <>
+            <CardContent className={isDisconnected ? "pt-0" : ""}>
+              {/* Show connected wallets info for crypto entities */}
+              {isCryptoWallet && effectiveStatus === EntityStatus.CONNECTED && (
+                <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Wallet className="h-3 w-3 text-gray-500 dark:text-gray-400" />
+                      <span className="text-gray-600 dark:text-gray-300 font-medium">
+                        {entity.connected?.length === 1
+                          ? `${entity.connected.length} wallet`
+                          : `${entity.connected?.length} wallets`}
+                      </span>
+                    </div>
+                    {entity.connected && entity.connected.length > 0 && (
+                      <div className="flex gap-1 flex-wrap">
+                        {entity.connected.slice(0, 3).map((wallet, index) => (
+                          <Badge
+                            key={index}
+                            variant="secondary"
+                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                          >
+                            {`•••${wallet.address.slice(-6)}`}
+                          </Badge>
+                        ))}
+                        {entity.connected.length > 3 && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                          >
+                            +{entity.connected.length - 3}
+                          </Badge>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+                </div>
+              )}
 
-          {/* Requires login - internal entities */}
-          {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
-            !isExternallyProvided && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                disabled={entityFetching}
-                onClick={onSelect}
-              >
-                {entityFetching ? (
-                  <>
-                    <LoadingSpinner size="sm" />
-                    <span className="ml-2">{t.common.loading}</span>
-                  </>
-                ) : (
-                  <>
-                    <KeyRound className="mr-2 h-4 w-4" />
-                    {getButtonText()}
-                  </>
-                )}
-              </Button>
-            )}
-
-          {/* Requires login - externally provided entities (inline actions) */}
-          {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
-            isExternallyProvided && (
-              <div className="flex gap-2 flex-wrap justify-center w-full mt-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                  disabled={isLinkingExternal}
-                  onClick={() =>
-                    onExternalContinue && onExternalContinue(entity)
-                  }
-                >
-                  {isLinkingExternal ? (
-                    <>
-                      <LoadingSpinner size="sm" />
-                      <span className="ml-2">{t.common.loading}</span>
-                    </>
-                  ) : (
-                    <>
-                      <KeyRound className="mr-2 h-4 w-4" />
-                      {t.entities.continueLink}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                  disabled={isLinkingExternal}
-                  onClick={() => setShowExternalConfirmation(true)}
-                >
-                  <Unplug className="h-4 w-4 flex-shrink-0" strokeWidth={2.5} />
-                </Button>
-              </div>
-            )}
-
-          {/* Show loading fetch button for connected entities when fetching */}
-          {effectiveStatus === EntityStatus.CONNECTED &&
-            !missingIntegrations &&
-            entityFetching && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                disabled={true}
-              >
-                <LoadingSpinner size="sm" />
-                <span className="ml-2">{t.common.fetching}</span>
-              </Button>
-            )}
-
-          {/* Connected - externally provided entities */}
-          {effectiveStatus === EntityStatus.CONNECTED &&
-            !entityFetching &&
-            isExternallyProvided && (
-              <div className="flex gap-2 flex-wrap justify-center w-full mt-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                  onClick={() => setShowRelinkConfirmation(true)}
-                  disabled={entityFetching}
-                >
-                  <KeyRound className="mr-1 h-4 w-4 flex-shrink-0" />
-                  {t.entities.relink}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                  disabled={entityFetching}
-                  onClick={onSelect}
-                >
-                  {entityFetching ? (
-                    <>
-                      <LoadingSpinner size="sm" />
-                      <span className="ml-2 flex-shrink-0">
-                        {t.common.fetching}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
-                      {t.entities.fetchData}
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                  onClick={() => setShowExternalConfirmation(true)}
-                  disabled={entityFetching}
-                >
-                  <Unplug className="h-4 w-4 flex-shrink-0" strokeWidth={2.5} />
-                </Button>
-              </div>
-            )}
-
-          {/* Connected - internal entities */}
-          {effectiveStatus === EntityStatus.CONNECTED &&
-            !entityFetching &&
-            !isExternallyProvided && (
-              <div className="flex flex-col gap-2 mt-4 items-center w-full">
-                {/* Financial institution buttons */}
-                {isFinancialInstitution && (
-                  <div className="flex gap-2 flex-wrap justify-center w-full">
-                    {!missingIntegrations && (
+              {/* Requires login - internal entities */}
+              {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
+                !isExternallyProvided && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                    disabled={entityFetching}
+                    onClick={onSelect}
+                  >
+                    {entityFetching ? (
                       <>
+                        <LoadingSpinner size="sm" />
+                        <span className="ml-2">{t.common.loading}</span>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        {getButtonText()}
+                      </>
+                    )}
+                  </Button>
+                )}
+
+              {/* Requires login - externally provided entities (inline actions) */}
+              {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
+                isExternallyProvided && (
+                  <div className="flex gap-2 flex-wrap justify-center w-full mt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                      disabled={isLinkingExternal}
+                      onClick={() =>
+                        onExternalContinue && onExternalContinue(entity)
+                      }
+                    >
+                      {isLinkingExternal ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          <span className="ml-2">{t.common.loading}</span>
+                        </>
+                      ) : (
+                        <>
+                          <KeyRound className="mr-2 h-4 w-4" />
+                          {t.entities.continueLink}
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      disabled={isLinkingExternal}
+                      onClick={() => setShowExternalConfirmation(true)}
+                    >
+                      <Unplug
+                        className="h-4 w-4 flex-shrink-0"
+                        strokeWidth={2.5}
+                      />
+                    </Button>
+                  </div>
+                )}
+
+              {/* Show loading fetch button for connected entities when fetching */}
+              {effectiveStatus === EntityStatus.CONNECTED &&
+                !missingIntegrations &&
+                entityFetching && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full mt-4 h-9 text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                    disabled={true}
+                  >
+                    <LoadingSpinner size="sm" />
+                    <span className="ml-2">{t.common.fetching}</span>
+                  </Button>
+                )}
+
+              {/* Connected - externally provided entities */}
+              {effectiveStatus === EntityStatus.CONNECTED &&
+                !entityFetching &&
+                isExternallyProvided && (
+                  <div className="flex gap-2 flex-wrap justify-center w-full mt-4">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                      onClick={() => setShowRelinkConfirmation(true)}
+                      disabled={entityFetching}
+                    >
+                      <KeyRound className="mr-1 h-4 w-4 flex-shrink-0" />
+                      {t.entities.relink}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                      disabled={entityFetching}
+                      onClick={onSelect}
+                    >
+                      {entityFetching ? (
+                        <>
+                          <LoadingSpinner size="sm" />
+                          <span className="ml-2 flex-shrink-0">
+                            {t.common.fetching}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
+                          {t.entities.fetchData}
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      onClick={() => setShowExternalConfirmation(true)}
+                      disabled={entityFetching}
+                    >
+                      <Unplug
+                        className="h-4 w-4 flex-shrink-0"
+                        strokeWidth={2.5}
+                      />
+                    </Button>
+                  </div>
+                )}
+
+              {/* Connected - internal entities */}
+              {effectiveStatus === EntityStatus.CONNECTED &&
+                !entityFetching &&
+                !isExternallyProvided && (
+                  <div className="flex flex-col gap-2 mt-4 items-center w-full">
+                    {/* Financial institution buttons */}
+                    {isFinancialInstitution && (
+                      <div className="flex gap-2 flex-wrap justify-center w-full">
+                        {!missingIntegrations && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                              onClick={onRelogin}
+                              disabled={entityFetching}
+                            >
+                              <KeyRound className="mr-1 h-4 w-4 flex-shrink-0" />
+                              {t.entities.relogin}
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                              disabled={entityFetching}
+                              onClick={onSelect}
+                            >
+                              {entityFetching ? (
+                                <>
+                                  <LoadingSpinner size="sm" />
+                                  <span className="ml-2 flex-shrink-0">
+                                    {t.common.fetching}
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
+                                  {getButtonText()}
+                                </>
+                              )}
+                            </Button>
+                          </>
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                          onClick={handleDisconnect}
+                          disabled={entityFetching}
+                        >
+                          <Unplug
+                            className="h-4 w-4 flex-shrink-0"
+                            strokeWidth={2.5}
+                          />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Crypto wallet buttons */}
+                    {!missingIntegrations && isCryptoWallet && (
+                      <div className="flex gap-2 flex-wrap justify-center w-full">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                          onClick={onRelogin}
-                          disabled={entityFetching}
+                          onClick={onManage}
+                          disabled={entityFetching || !onManage}
                         >
-                          <KeyRound className="mr-1 h-4 w-4 flex-shrink-0" />
-                          {t.entities.relogin}
+                          <Wallet className="mr-1 h-4 w-4 flex-shrink-0" />
+                          {t.entities.manage}
                         </Button>
 
                         <Button
@@ -583,64 +645,13 @@ export function EntityCard({
                             </>
                           )}
                         </Button>
-                      </>
+                      </div>
                     )}
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                      onClick={handleDisconnect}
-                      disabled={entityFetching}
-                    >
-                      <Unplug
-                        className="h-4 w-4 flex-shrink-0"
-                        strokeWidth={2.5}
-                      />
-                    </Button>
                   </div>
                 )}
-
-                {/* Crypto wallet buttons */}
-                {!missingIntegrations && isCryptoWallet && (
-                  <div className="flex gap-2 flex-wrap justify-center w-full">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-                      onClick={onManage}
-                      disabled={entityFetching || !onManage}
-                    >
-                      <Wallet className="mr-1 h-4 w-4 flex-shrink-0" />
-                      {t.entities.manage}
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
-                      disabled={entityFetching}
-                      onClick={onSelect}
-                    >
-                      {entityFetching ? (
-                        <>
-                          <LoadingSpinner size="sm" />
-                          <span className="ml-2 flex-shrink-0">
-                            {t.common.fetching}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
-                          {getButtonText()}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-        </CardContent>
+            </CardContent>
+          </>
+        )}
       </Card>
 
       <ConfirmationDialog

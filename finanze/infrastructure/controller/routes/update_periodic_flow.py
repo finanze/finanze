@@ -4,11 +4,11 @@ from uuid import UUID
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
 from domain.use_cases.update_periodic_flow import UpdatePeriodicFlow
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
-    body = request.json
+async def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
+    body = await request.get_json()
 
     try:
         since_date = body["since"]
@@ -36,5 +36,5 @@ def update_periodic_flow(update_periodic_flow_uc: UpdatePeriodicFlow):
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
-    update_periodic_flow_uc.execute(flow)
+    await update_periodic_flow_uc.execute(flow)
     return "", 204

@@ -1,0 +1,16 @@
+
+# Packages installed from the local Pyodide package index (/pyodide)
+# Keep these pinned for reproducible minimal sync.
+requests==2.32.4
+httpx==0.28.1
+python-dateutil==2.9.0.post0
+cachetools==5.5.2
+pytz==2025.2
+pydantic==2.10.6
+brotli==1.1.0
+zstandard==0.23.0
+cryptography==46.0.1
+strictyaml==1.7.3
+
+# Pyodide special package (not a PyPI requirement)
+ssl

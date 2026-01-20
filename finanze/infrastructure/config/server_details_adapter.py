@@ -21,7 +21,7 @@ class ArgparseServerDetailsAdapter(ServerDetailsPort):
     def __init__(self, args: Namespace):
         self._args = args
 
-    def get_backend_details(self) -> BackendDetails:
+    async def get_backend_details(self) -> BackendDetails:
         options = self._build_options()
         return BackendDetails(version=_resolve_version(), options=options)
 

@@ -26,18 +26,18 @@ class CreateRealEstateImpl(AtomicUCMixin, CreateRealEstate):
         real_estate = request.real_estate
         for re_flow in real_estate.flows:
             if re_flow.periodic_flow_id is None and re_flow.periodic_flow is not None:
-                re_flow.periodic_flow_id = self._periodic_flow_port.save(
-                    re_flow.periodic_flow
+                re_flow.periodic_flow_id = (
+                    await self._periodic_flow_port.save(re_flow.periodic_flow)
                 ).id
             elif re_flow.periodic_flow is not None:
-                existing_pending_flow = self._periodic_flow_port.get_by_id(
+                existing_pending_flow = await self._periodic_flow_port.get_by_id(
                     re_flow.periodic_flow.id
                 )
                 if existing_pending_flow is None:
                     raise FlowNotFound(
                         f"Periodic flow with ID {re_flow.periodic_flow.id} does not exist."
                     )
-                self._periodic_flow_port.update(re_flow.periodic_flow)
+                await self._periodic_flow_port.update(re_flow.periodic_flow)
 
         if request.photo and request.photo.filename:
             try:
@@ -48,7 +48,7 @@ class CreateRealEstateImpl(AtomicUCMixin, CreateRealEstate):
                 raise ValueError(f"Error uploading image: {str(e)}")
 
         try:
-            self._real_estate_port.insert(real_estate)
+            await self._real_estate_port.insert(real_estate)
         except:
             if request.photo and request.photo.filename:
                 self._file_storage_port.delete_by_url(real_estate.basic_info.photo_url)

@@ -53,14 +53,16 @@ class GetPositionImpl(GetPosition):
         self._position_port = position_port
         self._entity_port = entity_port
 
-    def execute(self, query: PositionQueryRequest) -> EntitiesPosition:
-        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+    async def execute(self, query: PositionQueryRequest) -> EntitiesPosition:
+        excluded_entities = [
+            e.id for e in await self._entity_port.get_disabled_entities()
+        ]
 
         query = PositionQueryRequest(
             entities=query.entities, excluded_entities=excluded_entities
         )
-        global_position_by_entity = self._position_port.get_last_grouped_by_entity(
-            query
+        global_position_by_entity = (
+            await self._position_port.get_last_grouped_by_entity(query)
         )
 
         global_position_by_entity = {

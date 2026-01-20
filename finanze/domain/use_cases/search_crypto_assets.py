@@ -5,7 +5,7 @@ from domain.crypto import AvailableCryptoAssetsRequest, AvailableCryptoAssetsRes
 
 class SearchCryptoAssets(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(
+    async def execute(
         self, request: AvailableCryptoAssetsRequest
     ) -> AvailableCryptoAssetsResult:
         raise NotImplementedError

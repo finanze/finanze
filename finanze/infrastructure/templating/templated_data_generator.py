@@ -119,7 +119,7 @@ def _update_products_as_filter(params: TemplatedDataProcessorParams):
 
 
 class TemplatedDataGenerator(TemplateProcessorPort):
-    def process(
+    async def process(
         self, data: list, params: TemplatedDataProcessorParams
     ) -> list[list[str]]:
         if not params.template:

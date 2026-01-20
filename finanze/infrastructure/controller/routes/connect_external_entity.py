@@ -3,11 +3,11 @@ from uuid import UUID
 from domain.exception.exceptions import ProviderInstitutionNotFound
 from domain.external_entity import ConnectExternalEntityRequest
 from domain.use_cases.connect_external_entity import ConnectExternalEntity
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def connect_external_entity(connect_external_entity_uc: ConnectExternalEntity):
-    body = request.json
+    body = await request.get_json()
     redirect_host = request.headers.get("Host")
     accept_language = request.headers.get("Accept-Language") or None
     institution_id = body.get("institution_id")

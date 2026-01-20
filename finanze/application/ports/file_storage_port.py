@@ -10,7 +10,7 @@ class FileStoragePort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def save_from_url(
+    async def save_from_url(
         self, file_url: str, folder: str, filename: Optional[str] = None
     ) -> str:
         raise NotImplementedError

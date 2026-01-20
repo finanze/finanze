@@ -51,7 +51,7 @@ class CloudPermission(str, Enum):
     BACKUP_ERASE = "backup.erase"
 
     def check(self, auth: CloudAuthData) -> None:
-        if auth.permissions is None:
+        if not auth or not auth.permissions:
             raise NoUserLogged()
         permissions = auth.permissions or []
         if self.value not in permissions:

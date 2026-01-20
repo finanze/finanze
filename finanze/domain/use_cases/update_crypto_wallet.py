@@ -7,5 +7,5 @@ from domain.crypto import (
 
 class UpdateCryptoWalletConnection(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self, data: UpdateCryptoWalletConnectionRequest):
+    async def execute(self, data: UpdateCryptoWalletConnectionRequest):
         raise NotImplementedError

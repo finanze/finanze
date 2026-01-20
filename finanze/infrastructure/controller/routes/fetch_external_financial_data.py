@@ -2,7 +2,7 @@ from uuid import UUID
 
 from domain.external_entity import ExternalFetchRequest
 from domain.use_cases.fetch_external_financial_data import FetchExternalFinancialData
-from flask import jsonify
+from quart import jsonify
 
 
 async def fetch_external_financial_data(

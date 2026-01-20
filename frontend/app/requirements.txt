@@ -1,0 +1,9 @@
+
+# Wheels bundled under /python/wheels (downloaded via scripts/sync-python-wheels.mjs)
+websockets==15.0.1
+requests-toolbelt==1.0.0
+tzlocal==5.3.1
+aiocache==0.12.3
+PyJWT==2.10.1
+openpyxl==3.1.2
+et-xmlfile==2.0.0

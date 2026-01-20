@@ -1,4 +1,4 @@
-from flask import request, jsonify
+from quart import request, jsonify
 
 from domain.backup import ImportBackupRequest
 from domain.exception.exceptions import InvalidBackupCredentials
@@ -17,8 +17,8 @@ def _serialize_backup_info(backup_info):
     }
 
 
-def import_backup(import_backup_uc: ImportBackup):
-    body = request.json or {}
+async def import_backup(import_backup_uc: ImportBackup):
+    body = await request.get_json() or {}
     password = body.get("password")
     types = body.get("types")
     force = body.get("force", False)
@@ -28,7 +28,7 @@ def import_backup(import_backup_uc: ImportBackup):
     import_req = ImportBackupRequest(password=password, types=types, force=force)
 
     try:
-        result = import_backup_uc.execute(import_req)
+        result = await import_backup_uc.execute(import_req)
     except InvalidBackupCredentials as e:
         return {"message": str(e) or "INVALID_CREDENTIALS"}, 401
 

@@ -1,20 +1,20 @@
 import logging
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
+from aiocache import cached, Cache
 from domain.instrument import (
     InstrumentDataRequest,
     InstrumentOverview,
     InstrumentType,
 )
+from infrastructure.client.http.http_session import get_http_session
 
 
 class TradingViewClient:
     SEARCH_URL = "https://symbol-search.tradingview.com/symbol_search/v3/"
 
     def __init__(self):
-        self._session = requests.Session()
+        self._session = get_http_session()
         self._session.headers.update(
             {
                 "Origin": "https://es.tradingview.com",
@@ -24,7 +24,7 @@ class TradingViewClient:
         )
         self._log = logging.getLogger(__name__)
 
-    def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+    async def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         if request.type != InstrumentType.STOCK:
             return []
 
@@ -33,7 +33,7 @@ class TradingViewClient:
             return []
 
         results: list[InstrumentOverview] = []
-        for item in self._search_raw(query):
+        for item in await self._search_raw(query):
             overview = self._process_raw_item(item, request)
             if overview:
                 results.append(overview)
@@ -71,35 +71,30 @@ class TradingViewClient:
             type=InstrumentType.STOCK,
         )
 
-    @staticmethod
-    def _infer_type(raw_type: Optional[str]) -> Optional[InstrumentType]:
-        if raw_type == "etf":
-            return InstrumentType.ETF
-        if raw_type in ("fund", "plan"):
-            return InstrumentType.MUTUAL_FUND
-        return None
-
-    @cached(cache=TTLCache(maxsize=200, ttl=86400))
-    def _search_raw(self, query: str) -> list[dict]:
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def _search_raw(self, query: str) -> list[dict]:
         if not query:
             return []
         params = {"text": query, "domain": "production", "search_type": "stocks"}
         try:
-            response = self._session.get(self.SEARCH_URL, params=params, timeout=10)
+            response = await self._session.get(
+                self.SEARCH_URL, params=params, timeout=10
+            )
             if response.ok:
-                data = response.json()
+                data = await response.json()
                 if isinstance(data, dict):
                     symbols = data.get("symbols")
                     if isinstance(symbols, list):
                         return symbols
                     return []
                 return []
+            body = await response.text()
             self._log.error(
                 "TradingView search error status=%s body=%s",
-                response.status_code,
-                response.text,
+                response.status,
+                body,
             )
             response.raise_for_status()
-        except requests.RequestException as e:
+        except Exception as e:
             self._log.exception("TradingView search request failed: %s", e)
         return []

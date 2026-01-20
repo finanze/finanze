@@ -17,39 +17,39 @@ from domain.global_position import (
 
 class PositionPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, position: GlobalPosition):
+    async def save(self, position: GlobalPosition):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_last_grouped_by_entity(
+    async def get_last_grouped_by_entity(
         self, query: Optional[PositionQueryRequest] = None
     ) -> dict[Entity, GlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_position_for_date(
+    async def delete_position_for_date(
         self, entity_id: UUID, date: datetime.date, source: DataSource
     ):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_by_id(self, position_id: UUID) -> Optional[GlobalPosition]:
+    async def get_by_id(self, position_id: UUID) -> Optional[GlobalPosition]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_by_id(self, position_id: UUID):
+    async def delete_by_id(self, position_id: UUID):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_stock_detail(self, entry_id: UUID) -> Optional[StockDetail]:
+    async def get_stock_detail(self, entry_id: UUID) -> Optional[StockDetail]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
+    async def get_fund_detail(self, entry_id: UUID) -> Optional[FundDetail]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def update_market_value(
+    async def update_market_value(
         self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
     ):
         raise NotImplementedError

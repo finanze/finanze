@@ -1,12 +1,12 @@
 import uuid
 from io import BytesIO
+from math import sqrt
 from pathlib import Path
 from typing import Optional
 
-from math import sqrt
-
 from application.ports.file_storage_port import FileStoragePort
 from domain.file_upload import FileUpload
+from infrastructure.client.http.http_session import get_http_session
 
 
 class LocalFileStorage(FileStoragePort):
@@ -23,6 +23,7 @@ class LocalFileStorage(FileStoragePort):
         self.static_url_prefix = static_url_prefix
         self.jpeg_quality = jpeg_quality
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self._http_session = get_http_session()
 
     def _is_image(self, file: FileUpload) -> bool:
         content_type = (file.content_type or "").lower()
@@ -138,29 +139,28 @@ class LocalFileStorage(FileStoragePort):
 
         return f"{folder}/{unique_filename}"
 
-    def save_from_url(
+    async def save_from_url(
         self, file_url: str, folder: str, filename: Optional[str] = None
     ) -> str:
-        import requests
-
-        response = requests.get(file_url, stream=True, timeout=30)
-        if response.status_code != 200:
+        response = await self._http_session.get(file_url, timeout=30)
+        if response.status != 200:
             raise ValueError(f"Failed to fetch file from URL: {file_url}")
 
-        content_type = response.headers.get("Content-Type", "application/octet-stream")
-        content_length = int(response.headers.get("Content-Length", 0) or 0)
+        headers = response.headers
+        content_type = headers.get("Content-Type", "application/octet-stream")
+        content_length = int(headers.get("Content-Length", 0) or 0)
 
         if not filename:
             filename = file_url.split("/")[-1].split("?")[0] or f"file_{uuid.uuid4()}"
 
-        # Buffer the response so it can be processed (and rewound) reliably.
-        data = BytesIO(response.content)
+        content = await response.read()
+        data = BytesIO(content)
         data.seek(0)
 
         file_upload = FileUpload(
             filename=filename,
             content_type=content_type,
-            content_length=content_length or len(response.content),
+            content_length=content_length or len(content),
             data=data,
         )
 

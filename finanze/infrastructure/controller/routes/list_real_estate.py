@@ -6,7 +6,7 @@ from domain.real_estate import (
     SupplyPayload,
 )
 from domain.use_cases.list_real_estate import ListRealEstate
-from flask import jsonify
+from quart import jsonify
 
 
 def _serialize_flow_payload(payload) -> dict:
@@ -128,6 +128,6 @@ def _serialize_real_estate(real_estate: RealEstate) -> dict:
     }
 
 
-def list_real_estate(list_real_estate_uc: ListRealEstate):
-    real_estates = list_real_estate_uc.execute()
+async def list_real_estate(list_real_estate_uc: ListRealEstate):
+    real_estates = await list_real_estate_uc.execute()
     return jsonify([_serialize_real_estate(re) for re in real_estates]), 200

@@ -1,7 +1,7 @@
 from domain.template_fields import TemplateFieldType
 from domain.template_type import TemplateType
 from domain.use_cases.get_templates import GetTemplates
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 def _serialize_field(field):
@@ -17,7 +17,7 @@ def _serialize_field(field):
     return data
 
 
-def get_templates(get_templates_uc: GetTemplates):
+async def get_templates(get_templates_uc: GetTemplates):
     template_type_raw = request.args.get("type")
     if not template_type_raw:
         return jsonify(
@@ -30,7 +30,7 @@ def get_templates(get_templates_uc: GetTemplates):
             {"code": "INVALID_REQUEST", "message": "Invalid template type"}
         ), 400
 
-    templates = get_templates_uc.execute(template_type)
+    templates = await get_templates_uc.execute(template_type)
     return jsonify(
         [
             {

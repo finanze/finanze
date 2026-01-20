@@ -50,20 +50,20 @@ class ImportBackupImpl(ImportBackup):
 
         self._log = logging.getLogger(__name__)
 
-    def execute(self, request: ImportBackupRequest) -> BackupSyncResult:
-        user_auth = self._cloud_register.get_auth()
+    async def execute(self, request: ImportBackupRequest) -> BackupSyncResult:
+        user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_IMPORT.check(user_auth)
 
-        self._check_cooldown()
+        await self._check_cooldown()
 
-        bkg_pass = request.password or self._data_initiator.get_hashed_password()
+        bkg_pass = request.password or await self._data_initiator.get_hashed_password()
         if bkg_pass is None:
             raise InvalidBackupCredentials("NO_PASSWORD_PROVIDED")
 
-        remote_backup_pieces = self._backup_repository.get_info(
-            BackupInfoParams(auth=user_auth)
+        remote_backup_pieces = (
+            await self._backup_repository.get_info(BackupInfoParams(auth=user_auth))
         ).pieces
-        local_backup_registry = self._backup_local_registry.get_info().pieces
+        local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         self._log.debug("Found %d backup pieces", len(remote_backup_pieces))
 
         piece_types_to_import = set()
@@ -80,7 +80,7 @@ class ImportBackupImpl(ImportBackup):
                 continue
 
             local_backup = local_backup_registry.get(piece.type)
-            local_last_update = backupable.get_last_updated()
+            local_last_update = await backupable.get_last_updated()
             has_local_changes = (
                 local_backup is None or local_last_update > local_backup.date
             )
@@ -123,7 +123,7 @@ class ImportBackupImpl(ImportBackup):
 
             piece_types_to_import.add(piece.type)
 
-        pieces = self._backup_repository.download(
+        pieces = await self._backup_repository.download(
             BackupDownloadParams(types=list(piece_types_to_import), auth=user_auth)
         )
 
@@ -135,10 +135,11 @@ class ImportBackupImpl(ImportBackup):
             process_request = BackupProcessRequest(
                 protocol=piece.protocol,
                 password=bkg_pass,
+                type=piece.type,
                 payload=piece.payload,
             )
-            downloaded_data = self._backup_processor.decompile(process_request)
-            backupable.import_data(downloaded_data.payload)
+            downloaded_data = await self._backup_processor.decompile(process_request)
+            await backupable.import_data(downloaded_data.payload)
 
             # Register the imported backup locally so we know we're in sync
             backup_info = BackupInfo(
@@ -146,7 +147,7 @@ class ImportBackupImpl(ImportBackup):
                 protocol=piece.protocol,
                 date=piece.date,
                 type=piece.type,
-                size=len(piece.payload),
+                size=piece.size,
             )
             imported_backup_infos.append(backup_info)
 
@@ -160,12 +161,12 @@ class ImportBackupImpl(ImportBackup):
             )
 
         if imported_backup_infos:
-            self._backup_local_registry.insert(imported_backup_infos)
+            await self._backup_local_registry.insert(imported_backup_infos)
 
         return BackupSyncResult(pieces=affected_pieces)
 
-    def _check_cooldown(self):
-        local_backup_registry = self._backup_local_registry.get_info().pieces
+    async def _check_cooldown(self):
+        local_backup_registry = (await self._backup_local_registry.get_info()).pieces
         if not local_backup_registry:
             return
 

@@ -53,11 +53,11 @@ class UpdateContributionsImpl(UpdateContributions, AtomicUCMixin):
         self._virtual_import_registry = virtual_import_registry
 
     async def execute(self, contributions: list[ManualPeriodicContribution]):
-        self._auto_contributions_port.delete_by_source(DataSource.MANUAL)
+        await self._auto_contributions_port.delete_by_source(DataSource.MANUAL)
 
         contributions_by_entity: dict[UUID, AutoContributions] = {}
         for c in contributions:
-            if self._entity_port.get_by_id(c.entity_id) is None:
+            if await self._entity_port.get_by_id(c.entity_id) is None:
                 raise EntityNotFound(c.entity_id)
 
             mapped_contribution = _map_manual_contribution(c)
@@ -66,14 +66,16 @@ class UpdateContributionsImpl(UpdateContributions, AtomicUCMixin):
             contributions_by_entity[c.entity_id].periodic.append(mapped_contribution)
 
         for entity_id, auto_contributions in contributions_by_entity.items():
-            self._auto_contributions_port.save(
+            await self._auto_contributions_port.save(
                 entity_id, auto_contributions, DataSource.MANUAL
             )
 
         import_id = None
         import_date = datetime.now(tzlocal())
-        last_manual_imports = self._virtual_import_registry.get_last_import_records(
-            source=VirtualDataSource.MANUAL
+        last_manual_imports = (
+            await self._virtual_import_registry.get_last_import_records(
+                source=VirtualDataSource.MANUAL
+            )
         )
         today = datetime.now(tzlocal()).date()
 
@@ -83,7 +85,7 @@ class UpdateContributionsImpl(UpdateContributions, AtomicUCMixin):
         ):
             import_id = last_import_entry.import_id
 
-            self._virtual_import_registry.delete_by_import_and_feature(
+            await self._virtual_import_registry.delete_by_import_and_feature(
                 import_id, Feature.AUTO_CONTRIBUTIONS
             )
 
@@ -103,7 +105,7 @@ class UpdateContributionsImpl(UpdateContributions, AtomicUCMixin):
                             entity_id=entry.entity_id,
                         )
                         new_entries.append(new_entry)
-                self._virtual_import_registry.insert(new_entries)
+                await self._virtual_import_registry.insert(new_entries)
 
         new_contribution_entries = []
         for entity_id in contributions_by_entity.keys():
@@ -117,4 +119,4 @@ class UpdateContributionsImpl(UpdateContributions, AtomicUCMixin):
             )
             new_contribution_entries.append(new_entry)
 
-        self._virtual_import_registry.insert(new_contribution_entries)
+        await self._virtual_import_registry.insert(new_contribution_entries)

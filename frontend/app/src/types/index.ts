@@ -75,6 +75,7 @@ export interface Entity {
   external_entity_id?: string | null
   virtual_features: Record<Feature, string>
   natively_supported_products?: ProductType[] | null
+  fetchable?: boolean
 }
 
 export enum EntitySessionCategory {
@@ -411,6 +412,8 @@ export enum PlatformType {
   MAC = "mac",
   LINUX = "linux",
   WEB = "web",
+  IOS = "ios",
+  ANDROID = "android",
 }
 
 export interface PlatformInfo {
@@ -518,9 +521,9 @@ export interface CryptoWalletConnectionResult {
   failed?: Record<string, string>
 }
 
-// Electron window interface
 declare global {
   interface Window {
+    platform: PlatformInfo
     ipcAPI?: {
       apiUrl: () => Promise<{ url: string; custom: boolean }>
       platform: () => Promise<PlatformInfo>

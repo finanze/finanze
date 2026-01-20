@@ -11,5 +11,5 @@ class DeleteCryptoWalletConnectionImpl(DeleteCryptoWalletConnection):
     ):
         self._crypto_wallet_connections_port = crypto_wallet_connections_port
 
-    def execute(self, wallet_connection_id: UUID):
-        self._crypto_wallet_connections_port.delete(wallet_connection_id)
+    async def execute(self, wallet_connection_id: UUID):
+        await self._crypto_wallet_connections_port.delete(wallet_connection_id)

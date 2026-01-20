@@ -12,13 +12,13 @@ class LastFetchesRepository(LastFetchesPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get_by_entity_id(self, entity_id: UUID) -> list[FetchRecord]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_by_entity_id(self, entity_id: UUID) -> list[FetchRecord]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 LastFetchesQueries.GET_BY_ENTITY_ID,
                 (str(entity_id),),
             )
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
             return [
                 FetchRecord(
                     entity_id=UUID(row["entity_id"]),
@@ -28,13 +28,15 @@ class LastFetchesRepository(LastFetchesPort):
                 for row in rows
             ]
 
-    def get_grouped_by_entity(self, feature: Feature) -> dict[Entity, FetchRecord]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_grouped_by_entity(
+        self, feature: Feature
+    ) -> dict[Entity, FetchRecord]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 LastFetchesQueries.GET_GROUPED_BY_ENTITY,
                 (feature,),
             )
-            rows = cursor.fetchall()
+            rows = await cursor.fetchall()
 
             return {
                 Entity(
@@ -52,10 +54,10 @@ class LastFetchesRepository(LastFetchesPort):
                 for row in rows
             }
 
-    def save(self, fetch_records: list[FetchRecord]):
-        with self._db_client.tx() as cursor:
+    async def save(self, fetch_records: list[FetchRecord]):
+        async with self._db_client.tx() as cursor:
             for fetch_record in fetch_records:
-                cursor.execute(
+                await cursor.execute(
                     LastFetchesQueries.UPSERT,
                     (
                         str(fetch_record.entity_id),

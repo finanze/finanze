@@ -1,9 +1,9 @@
 import logging
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from datetime import datetime
 from threading import RLock
 from types import TracebackType
-from typing import Any, Generator, Literal, Optional
+from typing import Any, AsyncGenerator, Literal, Optional
 from uuid import uuid4
 
 from typing_extensions import Self
@@ -18,16 +18,16 @@ class DBCursor:
     def __init__(self, cursor: UnderlyingCursor) -> None:
         self._cursor = cursor
 
-    def __enter__(self) -> Self:
+    async def __aenter__(self) -> Self:
         return self
 
-    def __exit__(
+    async def __aexit__(
         self,
         exctype: Optional[BaseException],
         value: Optional[BaseException],
         traceback: Optional[TracebackType],
     ) -> Literal[False]:
-        self.close()
+        await self.close()
         return False
 
     def __iter__(self) -> Self:
@@ -40,22 +40,24 @@ class DBCursor:
 
         return result
 
-    def execute(self, statement: str, *args) -> Self:
-        return self._cursor.execute(statement, *args)
+    async def execute(self, statement: str, *args) -> Self:
+        self._cursor.execute(statement, *args)
+        return self
 
-    def execute_script(self, script: str) -> Self:
-        return self._cursor.executescript(script)
+    async def execute_script(self, script: str) -> Self:
+        self._cursor.executescript(script)
+        return self
 
-    def fetchone(self) -> Any:
+    async def fetchone(self) -> Any:
         return self._cursor.fetchone()
 
-    def fetchmany(self, size: Optional[int] = None) -> list[Any]:
+    async def fetchmany(self, size: Optional[int] = None) -> list[Any]:
         return self._cursor.fetchmany(size)
 
-    def fetchall(self) -> list[Any]:
+    async def fetchall(self) -> list[Any]:
         return self._cursor.fetchall()
 
-    def close(self) -> None:
+    async def close(self) -> None:
         self._cursor.close()
 
 
@@ -71,19 +73,19 @@ class DBClient:
             raise DataEncryptedError()
         return self._conn
 
-    @contextmanager
-    def tx(self, skip_last_update=False) -> Generator[DBCursor, None, None]:
+    @asynccontextmanager
+    async def tx(self, skip_last_update=False) -> AsyncGenerator[DBCursor, None]:
         with self._lock:
             cursor = self._cursor()
             try:
                 if not self.savepoint_stack:
                     # Outer transaction
-                    cursor.execute("BEGIN")
+                    await cursor.execute("BEGIN")
                     self.savepoint_stack.append(None)
                 else:
                     # Generate unique savepoint name for nested transaction
                     savepoint_name = f"savepoint_{uuid4().hex}"
-                    cursor.execute(f"SAVEPOINT {savepoint_name}")
+                    await cursor.execute(f"SAVEPOINT {savepoint_name}")
                     self.savepoint_stack.append(savepoint_name)
                 yield cursor
 
@@ -92,8 +94,8 @@ class DBClient:
                     current_sp = self.savepoint_stack[-1]
                     if current_sp is not None:
                         # Rollback to savepoint and release it
-                        cursor.execute(f"ROLLBACK TO SAVEPOINT {current_sp}")
-                        cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
+                        await cursor.execute(f"ROLLBACK TO SAVEPOINT {current_sp}")
+                        await cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
                     else:
                         # Rollback outermost transaction
                         self._rollback()
@@ -103,37 +105,37 @@ class DBClient:
                     current_sp = self.savepoint_stack[-1]
                     if current_sp is not None:
                         # Release savepoint (commit nested changes)
-                        cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
+                        await cursor.execute(f"RELEASE SAVEPOINT {current_sp}")
                     else:
                         # Save last update date and commit outermost transaction
                         if not skip_last_update:
-                            self._update_last_update_date()
+                            await self._update_last_update_date()
                         self._commit()
             finally:
                 # Cleanup stack and cursor
                 if self.savepoint_stack:
                     self.savepoint_stack.pop()
-                cursor.close()
+                await cursor.close()
 
-    @contextmanager
-    def read(self) -> Generator[DBCursor, None, None]:
+    @asynccontextmanager
+    async def read(self) -> AsyncGenerator[DBCursor, None]:
         with self._lock:
             cursor = self._cursor()
             try:
                 yield cursor
             finally:
-                cursor.close()
+                await cursor.close()
 
-    def _update_last_update_date(self):
+    async def _update_last_update_date(self):
         timestamp = datetime.now().astimezone().isoformat()
         cursor = self._cursor()
         try:
-            cursor.execute(
+            await cursor.execute(
                 "INSERT OR REPLACE INTO sys_config (key, value) VALUES (?, ?)",
                 ("last_update", timestamp),
             )
         finally:
-            cursor.close()
+            await cursor.close()
 
     def _commit(self):
         self._get_connection().commit()
@@ -141,22 +143,24 @@ class DBClient:
     def _rollback(self):
         self._get_connection().rollback()
 
-    def close(self):
+    async def close(self):
         with self._lock:
             self._get_connection().close()
             self._conn = None
 
-    def silent_close(self) -> bool:
+    async def silent_close(self) -> bool:
         try:
-            self.close()
+            await self.close()
             return True
         except Exception:
             return False
 
-    def wal_checkpoint(self, mode: str = "PASSIVE") -> None:
+    async def wal_checkpoint(self, mode: str = "PASSIVE") -> None:
         with self._lock:
-            with self._cursor() as cursor:
-                cursor.execute(f"PRAGMA wal_checkpoint({mode})")
+            # We can't use async context manager with synchronous 'with' safely without care,
+            # but here we are inside an async method.
+            async with self.read() as cursor:
+                await cursor.execute(f"PRAGMA wal_checkpoint({mode})")
 
     def _cursor(self) -> DBCursor:
         return DBCursor(self._get_connection().cursor())

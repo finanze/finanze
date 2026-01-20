@@ -2,9 +2,10 @@ import logging
 from urllib.parse import quote
 from uuid import uuid4
 
-import requests
+import httpx
+
+from aiocache import cached, Cache
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from cachetools import TTLCache, cached
 from domain.crypto import CryptoFetchRequest, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
@@ -13,7 +14,7 @@ from domain.global_position import (
     CryptoCurrencyWallet,
 )
 from infrastructure.client.http.backoff import http_get_with_backoff
-from requests import Response
+from infrastructure.client.http.http_response import HttpResponse
 
 
 class BitcoinFetcher(CryptoEntityFetcher):
@@ -28,8 +29,8 @@ class BitcoinFetcher(CryptoEntityFetcher):
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        balance = self._fetch_address(request.address)
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+        balance = await self._fetch_address(request.address)
 
         return CryptoCurrencyWallet(
             id=request.connection_id,
@@ -43,14 +44,14 @@ class BitcoinFetcher(CryptoEntityFetcher):
             ],
         )
 
-    def fetch_multiple(
+    async def fetch_multiple(
         self, requests: list[CryptoFetchRequest]
     ) -> list[CryptoCurrencyWallet]:
         if not requests:
             return []
 
         addresses = [r.address for r in requests]
-        data = self._fetch_multiaddr(addresses)
+        data = await self._fetch_multiaddr(addresses)
 
         balances_map = {}
         for addr_info in data.get("addresses", []):
@@ -80,30 +81,32 @@ class BitcoinFetcher(CryptoEntityFetcher):
 
         return wallets
 
-    def _fetch_multiaddr(self, addresses: list[str]) -> dict:
+    async def _fetch_multiaddr(self, addresses: list[str]) -> dict:
         active = "|".join(addresses)
         active_enc = quote(active, safe="")
         url = f"{self.BASE_URL}/multiaddr?active={active_enc}"
 
-        return self._fetch(url).json()
+        resp = await self._fetch(url)
+        return await resp.json()
 
-    @cached(cache=TTLCache(maxsize=50, ttl=TTL))
-    def _fetch_address(self, address: str) -> Dezimal:
+    @cached(cache=Cache.MEMORY, ttl=TTL)
+    async def _fetch_address(self, address: str) -> Dezimal:
         url = f"{self.BASE_URL}/q/addressbalance/{address}"
-        text = self._fetch(url).text
+        resp = await self._fetch(url)
+        text = await resp.text()
 
         return Dezimal(text) * self.SCALE
 
-    def _fetch(self, url: str) -> Response:
+    async def _fetch(self, url: str) -> HttpResponse:
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 cooldown=self.COOLDOWN,
                 max_retries=self.MAX_RETRIES,
                 backoff_factor=self.BACKOFF_FACTOR,
                 log=self._log,
             )
-        except requests.RequestException as e:
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(
                 f"Request error calling blockchain.info endpoint {url}: {e}"
             )
@@ -112,11 +115,12 @@ class BitcoinFetcher(CryptoEntityFetcher):
         if response.ok:
             return response
 
-        if response.status_code == 404:
+        if response.status == 404:
             raise AddressNotFound()
-        if response.status_code == 429:
+        if response.status == 429:
             raise TooManyRequests()
 
-        self._log.error("Error Response Body:" + response.text)
+        body = await response.text()
+        self._log.error("Error Response Body:" + body)
         response.raise_for_status()
         return response

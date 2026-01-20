@@ -32,8 +32,10 @@ class EthplorerFetcher:
 
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        data = self._ethplorer_client.fetch_address_info(self.base_url, request.address)
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+        data = await self._ethplorer_client.fetch_address_info(
+            self.base_url, request.address
+        )
 
         eth_balance = Dezimal(data["ETH"]["rawBalance"]) * self.scale
 

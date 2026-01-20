@@ -3,8 +3,8 @@ from datetime import datetime
 from typing import Optional
 from uuid import uuid4
 
-import requests
-from cachetools import TTLCache, cached
+import httpx
+from aiocache import cached, Cache
 from dateutil.tz import tzlocal
 
 from domain.entity_login import (
@@ -13,28 +13,31 @@ from domain.entity_login import (
     EntitySession,
     LoginOptions,
 )
+from infrastructure.client.http.http_session import new_http_session
 
 DATETIME_FORMAT = "%d/%m/%Y %H:%M:%S"
 
 
 class WecityAPIClient:
-    BASE_URL = "https://api.wecity.com/"
+    BASE_URL = "https://api.wecity.com"
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
+        self._session = None
 
-    def _get_request(self, path: str) -> dict:
-        response = self._session.request("GET", self.BASE_URL + path)
+    async def _get_request(self, path: str) -> dict:
+        response = await self._session.request("GET", self.BASE_URL + path)
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body: " + response.text)
+        body = await response.text()
+        self._log.error("Error Response Body: " + body)
         response.raise_for_status()
         return {}
 
     def _init_session(self):
-        self._session = requests.Session()
+        self._session = new_http_session()
 
         agent = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -42,7 +45,7 @@ class WecityAPIClient:
         )
         self._session.headers["User-Agent"] = agent
 
-    def login(
+    async def login(
         self,
         username: str,
         password: str,
@@ -56,7 +59,7 @@ class WecityAPIClient:
 
         if session and not login_options.force_new_session and now < session.expiration:
             self._inject_session(session)
-            if self._resumable_session():
+            if await self._resumable_session():
                 self._log.debug("Resuming session")
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
@@ -71,7 +74,7 @@ class WecityAPIClient:
             if len(code) != 6:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
 
-            response = self._session.request(
+            response = await self._session.request(
                 "POST", self.BASE_URL + "/users/login", json=request
             )
 
@@ -81,8 +84,8 @@ class WecityAPIClient:
                     message="Unexpected response status code",
                 )
 
-            response = response.json()
-            response_return = response.get("return", None)
+            response_body = await response.json()
+            response_return = response_body.get("return", None)
             if not response_return:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
@@ -122,11 +125,11 @@ class WecityAPIClient:
                 process_id = str(uuid4())
                 request["browser_id"] = process_id
 
-                response = self._session.request(
+                response = await self._session.request(
                     "POST", self.BASE_URL + "/users/login", json=request
                 )
 
-                if response.status_code == 401:
+                if response.status == 401:
                     return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
                 if not response.ok:
@@ -135,8 +138,8 @@ class WecityAPIClient:
                         message="Unexpected response status code",
                     )
 
-                response = response.json()
-                response_return = response.get("return", None)
+                response_body = await response.json()
+                response_return = response_body.get("return", None)
                 if not response_return:
                     return EntityLoginResult(
                         LoginResultCode.UNEXPECTED_ERROR,
@@ -160,10 +163,10 @@ class WecityAPIClient:
         else:
             raise ValueError("Invalid params")
 
-    def _resumable_session(self) -> bool:
+    async def _resumable_session(self) -> bool:
         try:
-            self._get_request("/customers/me/wallet")
-        except requests.exceptions.HTTPError:
+            await self._get_request("/customers/me/wallet")
+        except httpx.HTTPStatusError:
             return False
         else:
             return True
@@ -171,26 +174,32 @@ class WecityAPIClient:
     def _inject_session(self, session: EntitySession):
         self._session.headers["x-auth-token"] = session.payload["token"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_wallet(self):
-        return self._get_request("/customers/me/wallet")["return"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_wallet(self):
+        return (await self._get_request("/customers/me/wallet"))["return"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_investments(self):
-        return self._get_request("/customers/me/invests-all")["return"]["data"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_investments(self):
+        return (await self._get_request("/customers/me/invests-all"))["return"]["data"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_investment_details(self, investment_id: int):
-        return self._get_request(f"/investments/{investment_id}/general")["return"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_investment_details(self, investment_id: int):
+        return (await self._get_request(f"/investments/{investment_id}/general"))[
+            "return"
+        ]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_investment_diary(self, investment_id: int):
-        return self._get_request(f"/investments/{investment_id}/diary")["return"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_investment_diary(self, investment_id: int):
+        return (await self._get_request(f"/investments/{investment_id}/diary"))[
+            "return"
+        ]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_investment_transactions(self, investment_id: int):
-        return self._get_request(f"/investments/{investment_id}/transactions")["return"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_investment_transactions(self, investment_id: int):
+        return (await self._get_request(f"/investments/{investment_id}/transactions"))[
+            "return"
+        ]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_transactions(self):
-        return self._get_request("/customers/me/transactions")["return"]
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_transactions(self):
+        return (await self._get_request("/customers/me/transactions"))["return"]

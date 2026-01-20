@@ -1,11 +1,12 @@
 import logging
 from datetime import datetime
 
-import requests
+from aiocache import cached
+from aiocache.serializers import PickleSerializer
 from application.ports.exchange_rate_provider import ExchangeRateProvider
-from cachetools import TTLCache, cached
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
+from infrastructure.client.http.http_session import get_http_session
 
 AVAILABLE_CURRENCIES = ["EUR", "USD"]
 
@@ -27,44 +28,50 @@ class ExchangeRateClient(ExchangeRateProvider):
         self._available_currencies = {}
         self._update_date = None
         self._log = logging.getLogger(__name__)
+        self._session = get_http_session()
 
-        self._load_rate_matrix(self.TIMEOUT)
-
-    def get_available_currencies(self, **kwargs) -> dict[str, str]:
+    async def get_available_currencies(self, **kwargs) -> dict[str, str]:
         if not self._available_currencies:
-            timeout = kwargs.get("timeout", self.TIMEOUT)
-            self._available_currencies = self._fetch_available_currencies(timeout)
+            request_timeout = kwargs.get("timeout", self.TIMEOUT)
+            self._available_currencies = await self._fetch_available_currencies(
+                request_timeout
+            )
         return self._available_currencies
 
-    @cached(cache=TTLCache(maxsize=1, ttl=MATRIX_CACHE_TTL))
-    def get_matrix(self, **kwargs) -> ExchangeRates:
+    @cached(
+        ttl=MATRIX_CACHE_TTL,
+        key_builder=lambda f, self, **kwargs: "exchange_rate_matrix",
+        serializer=PickleSerializer(),
+    )
+    async def get_matrix(self, **kwargs) -> ExchangeRates:
         current_date = self._get_current_date()
-        timeout = kwargs.get("timeout", self.TIMEOUT)
+        request_timeout = kwargs.get("timeout", self.TIMEOUT)
         if current_date != self._update_date:
-            self._load_rate_matrix(timeout)
+            await self._load_rate_matrix(request_timeout)
         return self._rates
 
-    def _fetch_available_currencies(self, timeout: int) -> dict:
-        return self._fetch(self.CURRENCIES_URL, timeout)
+    async def _fetch_available_currencies(self, request_timeout: int) -> dict:
+        return await self._fetch(self.CURRENCIES_URL, request_timeout)
 
-    def _fetch_rates(self, currency: str, timeout: int) -> dict:
+    async def _fetch_rates(self, currency: str, request_timeout: int) -> dict:
         url = f"{self.BASE_URL}/currencies/{currency.lower()}.min.json"
-        return self._fetch(url, timeout)
+        return await self._fetch(url, request_timeout)
 
-    def _fetch(self, url: str, timeout: int) -> dict:
-        response = requests.get(url, timeout=timeout)
+    async def _fetch(self, url: str, request_timeout: int) -> dict:
+        response = await self._session.get(url, timeout=request_timeout)
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body:" + response.text)
+        body = await response.text()
+        self._log.error("Error Response Body:" + body)
         response.raise_for_status()
         return {}
 
     def _get_current_date(self) -> str:
         return datetime.now().strftime(self.DATE_FORMAT)
 
-    def _load_rate_matrix(self, timeout: int):
+    async def _load_rate_matrix(self, request_timeout: int):
         for currency in AVAILABLE_CURRENCIES:
-            result = self._fetch_rates(currency, timeout=timeout)
+            result = await self._fetch_rates(currency, request_timeout=request_timeout)
             self._update_date = datetime.strptime(result["date"], self.DATE_FORMAT)
             self._rates[currency] = _parse_rates(result[currency.lower()])

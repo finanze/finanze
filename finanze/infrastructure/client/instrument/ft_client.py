@@ -2,9 +2,9 @@ import logging
 import re
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
+from aiocache import cached, Cache
 from domain.instrument import InstrumentDataRequest, InstrumentOverview, InstrumentType
+from infrastructure.client.http.http_session import get_http_session
 
 _ISIN_REGEX = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 _CURRENCY_REGEX = re.compile(r"^[A-Z]{3}$")
@@ -14,7 +14,7 @@ class FtClient:
     BASE_URL = "https://www.ft.com/search-api/suggestions"
 
     def __init__(self):
-        self._session = requests.Session()
+        self._session = get_http_session()
         self._session.headers.update(
             {
                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:144.0) Gecko/20100101 Firefox/144.0"
@@ -22,12 +22,12 @@ class FtClient:
         )
         self._log = logging.getLogger(__name__)
 
-    def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+    async def search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         query = request.isin or request.ticker or request.name
         if not query:
             return []
 
-        equities = self._search_equities(query)
+        equities = await self._search_equities(query)
         instrument_type = request.type
         results: list[InstrumentOverview] = []
         for eq in equities:
@@ -64,15 +64,15 @@ class FtClient:
 
         return results
 
-    @cached(cache=TTLCache(maxsize=100, ttl=86400))
-    def _search_equities(self, partial: str, count: int = 100) -> list[dict]:
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def _search_equities(self, partial: str, count: int = 100) -> list[dict]:
         if not partial:
             return []
 
         params = {"partial": partial, "only": "equities", "count": str(count)}
-        response = self._session.get(self.BASE_URL, params=params, timeout=10)
+        response = await self._session.get(self.BASE_URL, params=params, timeout=10)
         if response.ok:
-            data = response.json()
+            data = await response.json()
             if (
                 isinstance(data, dict)
                 and "equities" in data
@@ -82,15 +82,14 @@ class FtClient:
 
             return []
 
-        self._log.error(
-            "FT Client error status=%s body=%s", response.status_code, response.text
-        )
+        body = await response.text()
+        self._log.error("FT Client error status=%s body=%s", response.status, body)
         response.raise_for_status()
 
         return []
 
     @staticmethod
-    @cached(cache=TTLCache(maxsize=100, ttl=86400))
+    @cached(cache=Cache.MEMORY, ttl=86400)
     def _parse_symbol(
         symbol: str,
     ) -> Optional[
@@ -116,27 +115,26 @@ class FtClient:
           and return it as market (ticker=TICKER)
         """
         parts = symbol.split(":")
-        # Two-part patterns
         if len(parts) == 2:
             left, right = parts
-            # ISIN:CURRENCY -> mutual fund
             if _ISIN_REGEX.match(left) and _CURRENCY_REGEX.match(right):
                 return left, right, None, InstrumentType.MUTUAL_FUND, None
-
-            # Otherwise assume TICKER:MARKET -> stock
             return None, None, right if right else None, InstrumentType.STOCK, left
 
-        # Three-part patterns: TICKER:MARKET:CURRENCY (or unusual variants)
         if len(parts) == 3:
             left, market, last = parts
             if _CURRENCY_REGEX.match(last):
-                # Standard ETF pattern
                 return None, last, market if market else None, InstrumentType.ETF, left
 
-            inferred_market = last if last else (market if market else None)
-            return None, None, inferred_market, InstrumentType.ETF, left
+            inferred_market = last if last else market
+            return (
+                None,
+                None,
+                inferred_market if inferred_market else None,
+                InstrumentType.ETF,
+                left,
+            )
 
-        # Symbol is just an ISIN
         if _ISIN_REGEX.match(symbol):
             return symbol, None, None, InstrumentType.MUTUAL_FUND, None
 

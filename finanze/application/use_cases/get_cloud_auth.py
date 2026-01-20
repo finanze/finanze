@@ -11,8 +11,8 @@ class GetCloudAuthImpl(GetCloudAuth):
         self._cloud_register = cloud_register
         self._log = logging.getLogger(__name__)
 
-    def execute(self) -> Optional[CloudAuthData]:
-        auth_data = self._cloud_register.get_auth()
+    async def execute(self) -> Optional[CloudAuthData]:
+        auth_data = await self._cloud_register.get_auth()
 
         if auth_data is None:
             self._log.debug("No auth data")

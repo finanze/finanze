@@ -27,24 +27,24 @@ class UserLoginImpl(UserLogin):
         self._cloud_register = cloud_register
         self._log = logging.getLogger(__name__)
 
-    def execute(self, login_request: LoginRequest):
+    async def execute(self, login_request: LoginRequest):
         if self._source_initiator.unlocked:
             raise UserAlreadyLoggedIn()
 
-        user = self._data_manager.get_user(login_request.username)
+        user = await self._data_manager.get_user(login_request.username)
         if not user:
             raise UserNotFound()
 
-        self._config_port.connect(user)
+        await self._config_port.connect(user)
         try:
             self._sheets_initiator.connect(user)
-            self._cloud_register.connect(user)
+            await self._cloud_register.connect(user)
         except:
-            self._config_port.disconnect()
+            await self._config_port.disconnect()
             self._sheets_initiator.disconnect()
             raise
 
-        self._data_manager.set_last_user(user)
+        await self._data_manager.set_last_user(user)
 
         params = DatasourceInitParams(
             user=user,
@@ -52,11 +52,11 @@ class UserLoginImpl(UserLogin):
             context=DatasourceInitContext(config=self._config_port),
         )
         try:
-            self._source_initiator.initialize(params)
+            await self._source_initiator.initialize(params)
         except:
-            self._config_port.disconnect()
+            await self._config_port.disconnect()
             self._sheets_initiator.disconnect()
-            self._cloud_register.disconnect()
+            await self._cloud_register.disconnect()
             raise
 
         self._log.info(

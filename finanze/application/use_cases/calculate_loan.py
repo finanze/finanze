@@ -24,7 +24,7 @@ class CalculateLoanImpl(CalculateLoan):
     - Monthly interests = current outstanding * current monthly rate.
     """
 
-    def execute(self, params: LoanCalculationParams) -> LoanCalculationResult:
+    async def execute(self, params: LoanCalculationParams) -> LoanCalculationResult:
         today = date.today()
 
         self._validate(params)

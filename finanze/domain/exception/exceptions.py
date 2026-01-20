@@ -39,6 +39,10 @@ class UserNotFound(Exception):
     pass
 
 
+class InvalidUserCredentials(Exception):
+    pass
+
+
 class UserAlreadyLoggedIn(Exception):
     pass
 

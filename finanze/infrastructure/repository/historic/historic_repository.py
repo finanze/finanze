@@ -88,8 +88,8 @@ class HistoricSQLRepository(HistoricPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entries: list[BaseHistoricEntry]):
-        with self._db_client.tx() as cursor:
+    async def save(self, entries: list[BaseHistoricEntry]):
+        async with self._db_client.tx() as cursor:
             for entry in entries:
                 base_data = {
                     "id": str(entry.id),
@@ -139,18 +139,18 @@ class HistoricSQLRepository(HistoricPort):
                         }
                     )
 
-                cursor.execute(
+                await cursor.execute(
                     HistoricQueries.INSERT_HISTORIC_ENTRY,
                     base_data,
                 )
 
                 for tx in entry.related_txs:
-                    cursor.execute(
+                    await cursor.execute(
                         HistoricQueries.INSERT_HISTORIC_TX,
                         (str(tx.id), str(entry.id)),
                     )
 
-    def _build_historic_entries(
+    async def _build_historic_entries(
         self, entries, fetch_related_txs: bool, cursor
     ) -> list[BaseHistoricEntry]:
         if not entries:
@@ -161,14 +161,14 @@ class HistoricSQLRepository(HistoricPort):
         if fetch_related_txs:
             entry_ids = [str(entry["id"]) for entry in entries]
             placeholders = ",".join(["?"] * len(entry_ids))
-            cursor.execute(
+            await cursor.execute(
                 HistoricQueries.SELECT_RELATED_TXS_BASE.value.format(
                     placeholders=placeholders
                 ),
                 entry_ids,
             )
 
-            for row in cursor.fetchall():
+            for row in await cursor.fetchall():
                 entry_id = row["historic_entry_id"]
                 tx = _map_transaction_row(
                     row,
@@ -189,14 +189,14 @@ class HistoricSQLRepository(HistoricPort):
 
         return historic_entries
 
-    def delete_by_entity(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(HistoricQueries.DELETE_BY_ENTITY, (str(entity_id),))
+    async def delete_by_entity(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(HistoricQueries.DELETE_BY_ENTITY, (str(entity_id),))
 
-    def get_by_filters(
+    async def get_by_filters(
         self, query: HistoricQueryRequest, fetch_related_txs: bool = False
     ) -> Historic:
-        with self._db_client.read() as cursor:
+        async with self._db_client.read() as cursor:
             base_sql = HistoricQueries.GET_BY_FILTERS_BASE.value
             conditions = []
             params: List[str] = []
@@ -223,12 +223,12 @@ class HistoricSQLRepository(HistoricPort):
             if conditions:
                 final_sql += "\nWHERE " + " AND ".join(conditions)
 
-            cursor.execute(final_sql, params)
-            entries = cursor.fetchall()
+            await cursor.execute(final_sql, params)
+            entries = await cursor.fetchall()
             if not entries:
                 return Historic(entries=[])
 
-            historic_entries = self._build_historic_entries(
+            historic_entries = await self._build_historic_entries(
                 entries, fetch_related_txs, cursor
             )
 

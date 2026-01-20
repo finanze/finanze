@@ -12,7 +12,7 @@ import { BackupMode, CloudRole, FFStatus } from "@/types"
 import {
   cloudAuth,
   getCloudAuthToken,
-  getApiBaseUrl,
+  getApiServerInfo,
   getBackupSettings,
   updateBackupSettings,
 } from "@/services/api"
@@ -534,8 +534,8 @@ export function CloudProvider({ children }: { children: ReactNode }) {
     setIsLoading(true)
     try {
       const provider = getProvider()
-      const baseUrl = await getApiBaseUrl()
-      const callbackUrl = `${baseUrl}/oauth/callback`
+      const serverInfo = await getApiServerInfo()
+      const callbackUrl = `${serverInfo.baseUrl}/oauth/callback`
       await provider.signInWithGoogle(callbackUrl)
     } finally {
       setIsLoading(false)

@@ -41,7 +41,7 @@ class V0600Source(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.6.0:0_add_source_txs_contributions"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

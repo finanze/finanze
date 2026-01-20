@@ -6,8 +6,8 @@ from typing import Optional
 from uuid import UUID
 
 import jwt
-from cachetools import TTLCache, cached, LRUCache
-from cachetools.keys import hashkey
+from aiocache import cached, caches
+from aiocache.serializers import PickleSerializer
 from jwt import DecodeError
 
 from application.ports.backup_local_registry import BackupLocalRegistry
@@ -37,16 +37,15 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
         self._cloud_file = None
         self._log = logging.getLogger(__name__)
 
-    def disconnect(self):
+    async def disconnect(self):
         self._log.debug("Disconnecting cloud data register")
         self._cloud_file = None
-        if (
-            hasattr(self._load_cloud_data, "cache")
-            and hashkey(self) in self._load_cloud_data.cache
-        ):
-            del self._load_cloud_data.cache[hashkey(self)]
 
-    def connect(self, user: User):
+        cache = caches.get("default")
+        if cache:
+            await cache.clear()
+
+    async def connect(self, user: User):
         self._log.debug("Connecting cloud data register")
         self._cloud_file = str(user.path / CLOUD_DATA_FILE)
         self._ensure_cloud_file_exists()
@@ -66,30 +65,32 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             with open(self._cloud_file, "w") as f:
                 json.dump(default_data, f, indent=2)
 
-    @cached(cache=TTLCache(maxsize=1, ttl=30))
-    def _load_cloud_data(self) -> dict:
+    @cached(
+        ttl=30,
+        key_builder=lambda f, self: f"cloud_data:{self._cloud_file}",
+        serializer=PickleSerializer(),
+    )
+    async def _load_cloud_data(self) -> dict:
         self._check_connected()
         with open(self._cloud_file, "r") as f:
             return json.load(f)
 
-    def _save_cloud_data(self, data: dict):
+    async def _save_cloud_data(self, data: dict):
         self._check_connected()
         with open(self._cloud_file, "w") as f:
             json.dump(data, f, indent=2)
 
-        # Update cache after saving
-        key = hashkey(self)
-        if hasattr(self._load_cloud_data, "cache"):
-            self._load_cloud_data.cache[key] = data
-        else:
-            self._load_cloud_data.cache_clear()
+        cache = caches.get("default")
+        if cache:
+            key = f"cloud_data:{self._cloud_file}"
+            await cache.delete(key)
 
-    def get_info(self) -> BackupsInfo:
+    async def get_info(self) -> BackupsInfo:
         self._check_connected()
         if not self._cloud_file or not Path(self._cloud_file).exists():
             return BackupsInfo(pieces={})
 
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         backup_data = (cloud_data.get("backup") or {}).get("backups", {})
 
         backup_infos = {}
@@ -106,9 +107,9 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
 
         return BackupsInfo(pieces=backup_infos)
 
-    def insert(self, entries: list[BackupInfo]):
+    async def insert(self, entries: list[BackupInfo]):
         self._check_connected()
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         backup_section = cloud_data.get("backup") or {}
         backups_data = backup_section.get("backups") or {}
 
@@ -122,15 +123,15 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
 
         backup_section["backups"] = backups_data
         cloud_data["backup"] = backup_section
-        self._save_cloud_data(cloud_data)
+        await self._save_cloud_data(cloud_data)
 
         self._log.debug(
             f"Backup registry updated in cloud data file at {self._cloud_file}"
         )
 
-    def save_auth(self, auth_token: CloudAuthToken):
+    async def save_auth(self, auth_token: CloudAuthToken):
         self._check_connected()
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         token_dict = (
             {
                 "token": {
@@ -144,14 +145,14 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             else None
         )
         cloud_data["auth"] = token_dict
-        self._save_cloud_data(cloud_data)
+        await self._save_cloud_data(cloud_data)
         self._log.debug("Auth token saved")
 
-    def get_auth_token(self) -> Optional[CloudAuthToken]:
+    async def get_auth_token(self) -> Optional[CloudAuthToken]:
         self._check_connected()
         if not self._cloud_file or not Path(self._cloud_file).exists():
             return None
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         token_dict = (cloud_data.get("auth") or {}).get("token")
         if not token_dict:
             return None
@@ -162,11 +163,11 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             expires_at=token_dict.get("expires_at"),
         )
 
-    def get_auth(self) -> Optional[CloudAuthData]:
-        token = self.get_auth_token()
+    async def get_auth(self) -> Optional[CloudAuthData]:
+        token = await self.get_auth_token()
         if token is None:
             return None
-        auth_data = self.decode_token(token.access_token)
+        auth_data = await self.decode_token(token.access_token)
         return CloudAuthData(
             email=auth_data.email,
             role=auth_data.role,
@@ -174,15 +175,19 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             token=token,
         )
 
-    def clear_auth(self):
+    async def clear_auth(self):
         self._check_connected()
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         cloud_data["auth"] = None
-        self._save_cloud_data(cloud_data)
+        await self._save_cloud_data(cloud_data)
         self._log.debug("Auth data cleared")
 
-    @cached(cache=LRUCache(maxsize=2))
-    def decode_token(self, token: str) -> Optional[CloudAuthTokenData]:
+    @cached(
+        ttl=120,
+        key_builder=lambda f, self, token: f"decode_token:{token[:20]}",
+        serializer=PickleSerializer(),
+    )
+    async def decode_token(self, token: str) -> Optional[CloudAuthTokenData]:
         try:
             payload = jwt.decode(
                 token,
@@ -226,9 +231,9 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
             self._log.error(f"Unexpected error decoding token: {e}")
             raise InvalidToken(f"Error decoding token: {str(e)}")
 
-    def get_backup_settings(self) -> BackupSettings:
+    async def get_backup_settings(self) -> BackupSettings:
         self._check_connected()
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         backup_section = cloud_data.get("backup") or {}
         settings_data = backup_section.get("settings") or {}
 
@@ -241,13 +246,13 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
 
         return BackupSettings(mode=mode)
 
-    def save_backup_settings(self, settings: BackupSettings):
+    async def save_backup_settings(self, settings: BackupSettings):
         self._check_connected()
-        cloud_data = self._load_cloud_data()
+        cloud_data = await self._load_cloud_data()
         backup_section = cloud_data.get("backup") or {}
 
         backup_section["settings"] = {"mode": settings.mode.value}
 
         cloud_data["backup"] = backup_section
-        self._save_cloud_data(cloud_data)
+        await self._save_cloud_data(cloud_data)
         self._log.debug(f"Backup settings saved: mode={settings.mode.value}")

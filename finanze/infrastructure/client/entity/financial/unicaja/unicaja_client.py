@@ -3,11 +3,14 @@ import os
 from datetime import date
 from typing import Optional
 
-import pyDes
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from curl_cffi import requests
 from dateutil.relativedelta import relativedelta
+from httpx_curl_cffi import AsyncCurlTransport
+
 from domain.entity_login import EntityLoginResult, LoginResultCode
+from infrastructure.client.http.http_response import HttpResponse
+from infrastructure.client.http.http_session import new_http_session
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
@@ -25,12 +28,22 @@ def _encrypt_password(key: str, password: str) -> str:
         return (iv + tag + ciphertext).hex()
 
     if len(key) == 8:
-        return (
-            pyDes.des(key, mode=pyDes.CBC, IV="00000000", pad="\0")
-            .encrypt(password)
-            .hex()
-            .upper()
+        key_bytes = key.encode("utf-8")
+        iv = b"00000000"
+
+        password_bytes = password.encode("utf-8")
+        padding_length = 8 - (len(password_bytes) % 8)
+        padded_data = password_bytes + (b"\x00" * padding_length)
+
+        cipher = Cipher(
+            algorithms.TripleDES(key_bytes * 3),
+            modes.CBC(iv),
+            backend=default_backend(),
         )
+        encryptor = cipher.encryptor()
+        ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+
+        return ciphertext.hex().upper()
 
     raise ValueError("Unsupported key length for encryption")
 
@@ -41,27 +54,41 @@ class UnicajaClient:
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
+        self._session = None
 
-    def login(self, username: str, password: str, abck: str) -> EntityLoginResult:
+    def _set_abck_cookie(self, abck: str) -> None:
+        jar = self._session.cookies.jar
+        to_delete: list[tuple[str, str]] = []
+        for cookie in jar:
+            if cookie.name == "_abck":
+                to_delete.append((cookie.domain, cookie.path))
+        for domain, path in to_delete:
+            jar.clear(domain=domain, path=path)
+
+        self._session.cookies.set(
+            "_abck", abck, domain="univia.unicajabanco.es", path="/"
+        )
+
+    async def login(self, username: str, password: str, abck: str) -> EntityLoginResult:
         if not abck:
             return EntityLoginResult(
                 code=LoginResultCode.LOGIN_REQUIRED,
                 message="abck is required for automated login, but it was not provided",
             )
 
-        user_agent = "Mozilla/5.0 (Linux; Android 5.1.1; Lenovo PB1-750M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
-        self._session = requests.Session(impersonate="chrome120")
-        self._session.headers["User-Agent"] = user_agent
+        self._session = new_http_session(
+            transport=AsyncCurlTransport(impersonate="firefox135")
+        )
 
-        ck = self._ck()
+        ck = await self._ck()
 
-        self._session.cookies.set("_abck", abck)
+        self._set_abck_cookie(abck)
 
         encoded_password = _encrypt_password(ck, password)
-        auth_response = self.auth(username, encoded_password)
+        auth_response = await self.auth(username, encoded_password)
 
         if auth_response.ok:
-            auth_response_body = auth_response.json()
+            auth_response_body = await auth_response.json()
 
             if "tokenCSRF" not in auth_response_body:
                 return EntityLoginResult(
@@ -74,10 +101,10 @@ class UnicajaClient:
 
             return EntityLoginResult(LoginResultCode.CREATED)
 
-        elif auth_response.status_code == 400:
+        elif auth_response.status == 400:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
-        elif auth_response.status_code == 403:
+        elif auth_response.status == 403:
             return EntityLoginResult(
                 LoginResultCode.LOGIN_REQUIRED, message="abck may not be valid anymore"
             )
@@ -85,10 +112,10 @@ class UnicajaClient:
         else:
             return EntityLoginResult(
                 LoginResultCode.UNEXPECTED_ERROR,
-                message=f"Got unexpected response code {auth_response.status_code}",
+                message=f"Got unexpected response code {auth_response.status}",
             )
 
-    def _execute_request(
+    async def _execute_request(
         self,
         path: str,
         method: str,
@@ -96,8 +123,8 @@ class UnicajaClient:
         params: dict,
         json: bool = True,
         raw: bool = False,
-    ) -> dict | str | requests.Response:
-        response = self._session.request(
+    ) -> dict | str | HttpResponse:
+        response = await self._session.request(
             method, self.BASE_URL + path, data=body, params=params
         )
 
@@ -106,45 +133,47 @@ class UnicajaClient:
 
         if response.ok:
             if json:
-                return response.json()
+                return await response.json()
             else:
-                return response.content.decode("windows-1252")
+                return (await response.read()).decode("windows-1252")
 
-        self._log.error("Error Response Body: " + response.text)
+        self._log.error("Error Response Body: " + await response.text())
         response.raise_for_status()
         return {}
 
-    def _get_request(
+    async def _get_request(
         self, path: str, params: dict = None, json: bool = True
     ) -> dict | str:
-        return self._execute_request(path, "GET", body=None, json=json, params=params)
+        return await self._execute_request(
+            path, "GET", body=None, json=json, params=params
+        )
 
-    def _post_request(
+    async def _post_request(
         self, path: str, body: object, raw=False
-    ) -> dict | requests.Response:
-        return self._execute_request(
+    ) -> dict | HttpResponse:
+        return await self._execute_request(
             path, "POST", body=body, json=True, raw=raw, params=None
         )
 
-    def _ck(self):
-        return self._get_request("/services/rest/openapi/v2/ck")["ck"]
+    async def _ck(self):
+        return (await self._get_request("/services/rest/openapi/v2/ck"))["ck"]
 
-    def auth(self, username: str, encoded_password: str):
+    async def auth(self, username: str, encoded_password: str):
         data = {
             "idioma": "es",
             "usuario": username,
             "password": encoded_password,
             "origen": "bdigital",
         }
-        return self._post_request(self.AUTH_PATH, body=data, raw=True)
+        return await self._post_request(self.AUTH_PATH, body=data, raw=True)
 
-    def get_user(self):
-        return self._get_request("/services/rest/perfilusuario")
+    async def get_user(self):
+        return await self._get_request("/services/rest/perfilusuario")
 
-    def list_accounts(self):
-        return self._get_request("/services/rest/api/productos/listacuentas")
+    async def list_accounts(self):
+        return await self._get_request("/services/rest/api/productos/listacuentas")
 
-    def get_account_movements(self, ppp: str):
+    async def get_account_movements(self, ppp: str):
         # account_movs_request = {"ppp": ppp, "indOperacion": "I"}
         account_movs_request = {
             "ppp": ppp,
@@ -152,59 +181,59 @@ class UnicajaClient:
             "numUltMov": "1097",
             "indOperacion": "P",
         }
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/cuentas/listadoMovimientos", account_movs_request
         )
 
-    def get_account_movement(self, ppp: str, nummov: str):
-        return self._get_request(
+    async def get_account_movement(self, ppp: str, nummov: str):
+        return await self._get_request(
             f"/services/rest/api/cuentas/movimientos/detallemovimiento?ppp={ppp}&nummov={nummov}"
         )
 
-    def get_cards(self):
-        return self._get_request("/services/rest/api/productos/listatarjetas")
+    async def get_cards(self):
+        return await self._get_request("/services/rest/api/productos/listatarjetas")
 
-    def get_card(self, ppp: str, card_type: str):
+    async def get_card(self, ppp: str, card_type: str):
         card_details_request = {"ppp": ppp, "tipotarjeta": card_type}
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/tarjetas/detalleTarjeta", card_details_request
         )
 
-    def get_card_config(self, ppp: str):
+    async def get_card_config(self, ppp: str):
         card_config_request = {"ppp": ppp}
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/tarjetas/configuracionUso/datos", card_config_request
         )
 
-    def get_card_movements(self, ppp: str, from_date: Optional[date] = None):
+    async def get_card_movements(self, ppp: str, from_date: Optional[date] = None):
         from_date = date.strftime(
             from_date or (date.today() - relativedelta(months=1)), REQUEST_DATE_FORMAT
         )
         card_movs_request = {"ppp": ppp, "fechaDesde": from_date, "impDesde": "0"}
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/tarjetas/movimientos/listadoMovimientos/v2",
             card_movs_request,
         )
 
-    def get_loans(self):
-        return self._get_request("/services/rest/api/productos/listaprestamos")
+    async def get_loans(self):
+        return await self._get_request("/services/rest/api/productos/listaprestamos")
 
-    def get_loan(self, ppp: str):
+    async def get_loan(self, ppp: str):
         loan_request = {"ppp": ppp}
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/prestamos/consultaPrestamo", loan_request
         )
 
-    def get_loan_movements(self, ppp: str):
+    async def get_loan_movements(self, ppp: str):
         request = {"ppp": ppp}
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/prestamos/listadoMovimientos", request
         )
 
-    def get_transfers_summary(self):
-        return self._get_request("/services/rest/api/transferencias/resumen")
+    async def get_transfers_summary(self):
+        return await self._get_request("/services/rest/api/transferencias/resumen")
 
-    def get_transfers_historic(
+    async def get_transfers_historic(
         self, from_date: Optional[date] = None, to_date: Optional[date] = None
     ):
         to_date = date.strftime(to_date or date.today(), REQUEST_DATE_FORMAT)
@@ -216,25 +245,31 @@ class UnicajaClient:
             "fechaDesde": from_date,
             "fechaHasta": to_date,
         }
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/transferencias/listaTransferencias", request
         )
 
-    def get_transfer_contacts(self):
-        return self._get_request("/services/rest/api/utilidades/contactos/listado")
+    async def get_transfer_contacts(self):
+        return await self._get_request(
+            "/services/rest/api/utilidades/contactos/listado"
+        )
 
-    def get_currencies(self):
-        return self._get_request("/services/rest/api/listadivisas")
+    async def get_currencies(self):
+        return await self._get_request("/services/rest/api/listadivisas")
 
-    def get_products_summary(self):
-        return self._get_request("/services/rest/api/posicionGlobal/listaProductos")
+    async def get_products_summary(self):
+        return await self._get_request(
+            "/services/rest/api/posicionGlobal/listaProductos"
+        )
 
-    def list_fund_accounts(self):
-        return self._get_request("/services/rest/api/productos/listacuentasfondos")
+    async def list_fund_accounts(self):
+        return await self._get_request(
+            "/services/rest/api/productos/listacuentasfondos"
+        )
 
-    def get_periodic_subscriptions(self, account):
-        self._get_request("/services/rest/api/fondos/consulta?cuenta=" + account)
+    async def get_periodic_subscriptions(self, account):
+        await self._get_request("/services/rest/api/fondos/consulta?cuenta=" + account)
         request = {"opcion": "D"}
-        return self._post_request(
+        return await self._post_request(
             "/services/rest/api/fondos/listaSuscripcionesPeriodicas", request
         )

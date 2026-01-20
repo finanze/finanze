@@ -2,8 +2,9 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
+import httpx
+
+from aiocache import cached, Cache
 from dateutil.tz import tzlocal
 from domain.entity_login import (
     EntityLoginResult,
@@ -12,6 +13,7 @@ from domain.entity_login import (
     LoginResultCode,
 )
 from domain.native_entity import EntityCredentials
+from infrastructure.client.http.http_session import new_http_session
 
 SESSION_LIFETIME = 4 * 60  # 4 minutes
 
@@ -30,7 +32,7 @@ class INGAPIClient:
 
         self._log = logging.getLogger(__name__)
 
-    def _execute_request(
+    async def _execute_request(
         self,
         path: str,
         method: str,
@@ -40,24 +42,27 @@ class INGAPIClient:
     ) -> dict:
         base_url = self.API_BASE_URL if api else self.GENOMA_BASE_URL
         session = self._api_session if api else self._genoma_session
-        response = session.request(method, base_url + path, json=body, params=params)
+        response = await session.request(
+            method, base_url + path, json=body, params=params
+        )
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body:" + response.text)
+        body_text = await response.text()
+        self._log.error("Error Response Body:" + body_text)
         response.raise_for_status()
         return {}
 
-    def _get_request(self, path: str, params: dict = None, api: bool = True) -> dict:
-        return self._execute_request(path, "GET", params=params, api=api)
+    async def _get_request(
+        self, path: str, params: dict = None, api: bool = True
+    ) -> dict:
+        return await self._execute_request(path, "GET", params=params, api=api)
 
-    def _post_request(
-        self, path: str, body: dict, api: bool = True
-    ) -> dict | requests.Response:
-        return self._execute_request(path, "POST", body=body, api=api)
+    async def _post_request(self, path: str, body: dict, api: bool = True) -> dict:
+        return await self._execute_request(path, "POST", body=body, api=api)
 
-    def complete_login(
+    async def complete_login(
         self,
         credentials: EntityCredentials,
         login_options: LoginOptions,
@@ -70,13 +75,13 @@ class INGAPIClient:
 
             return EntityLoginResult(code=LoginResultCode.MANUAL_LOGIN)
 
-        self._genoma_session = requests.Session()
-        self._api_session = requests.Session()
+        self._genoma_session = new_http_session()
+        self._api_session = new_http_session()
 
         now = datetime.now(tzlocal())
         if session and not login_options.force_new_session and now < session.expiration:
             self.inject_session(session.payload)
-            if self._resumable_session():
+            if await self._resumable_session():
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
         if not logging_in:
@@ -84,7 +89,7 @@ class INGAPIClient:
 
         try:
             self.inject_session(credentials)
-            self.get_user()
+            await self.get_user()
 
             self._session_expiration = datetime.now(tzlocal()) + timedelta(
                 seconds=SESSION_LIFETIME
@@ -97,7 +102,7 @@ class INGAPIClient:
 
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-        except requests.HTTPError as e:
+        except httpx.HTTPStatusError as e:
             if e.response.status_code == 403:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
@@ -107,10 +112,10 @@ class INGAPIClient:
     def _alive_session(session: EntitySession) -> bool:
         return session is not None and datetime.now(tzlocal()) < session.expiration
 
-    def _resumable_session(self) -> bool:
+    async def _resumable_session(self) -> bool:
         try:
-            self.get_user()
-        except requests.exceptions.HTTPError:
+            await self.get_user()
+        except httpx.HTTPStatusError:
             return False
         else:
             return True
@@ -127,16 +132,16 @@ class INGAPIClient:
             "apiExtendedSessionCtx"
         ]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_user(self) -> dict:
-        return self._get_request("/client", api=False)
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_user(self) -> dict:
+        return await self._get_request("/client", api=False)
 
-    @cached(cache=TTLCache(maxsize=1, ttl=30))
-    def get_position(self) -> dict:
-        return self._get_request("/position-keeping")
+    @cached(cache=Cache.MEMORY, ttl=30)
+    async def get_position(self) -> dict:
+        return await self._get_request("/position-keeping")
 
-    @cached(cache=TTLCache(maxsize=1, ttl=30))
-    def get_orders(
+    @cached(cache=Cache.MEMORY, ttl=30)
+    async def get_orders(
         self,
         product_id: str,
         type: Optional[str] = "history",
@@ -147,28 +152,32 @@ class INGAPIClient:
         to_date: Optional[date] = None,
     ) -> dict:  # returns {elements[], limit, offset, count, total}
         to_date = to_date or datetime.now().date()
-        return self._get_request(
+        params = {
+            "type": type,  # day orders if not provided
+            "orderStatus": order_status,
+            "offset": offset,
+            "limit": limit,
+        }
+        if from_date:
+            params["fromDate"] = from_date.strftime(DATE_FORMAT)
+        if to_date:
+            params["toDate"] = to_date.strftime(DATE_FORMAT)
+
+        return await self._get_request(
             f"/products/{product_id}/orders",
-            params={
-                "type": type,  # day orders if not provided
-                "orderStatus": order_status,
-                "offset": offset,
-                "limit": limit,
-                "fromDate": from_date.strftime(DATE_FORMAT) if from_date else None,
-                "toDate": to_date.strftime(DATE_FORMAT) if to_date else None,
-            },
+            params=params,
             api=False,
         )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_broker_order(self, market_code: str, order_id: str) -> dict:
-        return self._get_request(
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_broker_order(self, market_code: str, order_id: str) -> dict:
+        return await self._get_request(
             f"/broker/order/history/detail?marketCod={market_code}&orderId={order_id}",
             api=False,
         )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_movements(
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_movements(
         self,
         product_id: str,
         from_date: date,
@@ -177,7 +186,7 @@ class INGAPIClient:
         to_date: Optional[date] = None,
     ) -> dict:
         to_date = to_date or datetime.now().date()
-        return self._get_request(
+        return await self._get_request(
             f"/products/{product_id}/movements",
             params={
                 "offset": offset,
@@ -188,43 +197,45 @@ class INGAPIClient:
             api=False,
         )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_broker_portfolio(self, product_id: str) -> dict:
-        return self._get_request(f"/products/{product_id}/portfolio", api=False)
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_broker_portfolio(self, product_id: str) -> dict:
+        return await self._get_request(f"/products/{product_id}/portfolio", api=False)
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_broker_financial_events(self, product_id: str) -> dict:
-        return self._get_request(f"/products/{product_id}/financialEvents", api=False)
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_broker_financial_events(self, product_id: str) -> dict:
+        return await self._get_request(
+            f"/products/{product_id}/financialEvents", api=False
+        )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=86400))
-    def get_investment_catalog_products(self) -> dict:
-        return self._get_request(
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def get_investment_catalog_products(self) -> dict:
+        return await self._get_request(
             "/investment-product-offering-portfolio/v1/catalog-products?size=1000"
         )
 
-    @cached(cache=TTLCache(maxsize=10, ttl=86400))
-    def get_investment_product_details(self, product_code: str) -> dict:
-        return self._get_request(
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def get_investment_product_details(self, product_code: str) -> dict:
+        return await self._get_request(
             f"/investment-product-offering-portfolio/v1/catalog-products/{product_code}"
         )
 
-    @cached(cache=TTLCache(maxsize=10, ttl=86400))
-    def get_investment_product_details_v2(self, product_code: str) -> dict:
-        return self._get_request(
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def get_investment_product_details_v2(self, product_code: str) -> dict:
+        return await self._get_request(
             f"/investment-product-offering-portfolio/v2/products/{product_code}"
         )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=86400))
-    def get_fund_documents(self, product_subtype: str, product_type: str) -> dict:
-        return self._get_request(
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def get_fund_documents(self, product_subtype: str, product_type: str) -> dict:
+        return await self._get_request(
             f"/investment/doc/{product_type}/legal/{product_subtype}", api=False
         )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=86400))
-    def get_customer_investment_reporting(
+    @cached(cache=Cache.MEMORY, ttl=86400)
+    async def get_customer_investment_reporting(
         self, family: str, start_date: date, end_date: date
     ) -> dict:
-        return self._get_request(
+        return await self._get_request(
             "/customer-investment-reporting/v2/investment-report",
             params={
                 "families": family,

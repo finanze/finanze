@@ -8,8 +8,8 @@ class ListRealEstateImpl(ListRealEstate):
     def __init__(self, real_estate_port: RealEstatePort):
         self._real_estate_port = real_estate_port
 
-    def execute(self) -> list[RealEstate]:
-        entries = self._real_estate_port.get_all()
+    async def execute(self) -> list[RealEstate]:
+        entries = await self._real_estate_port.get_all()
 
         for entry in entries:
             for flow in entry.flows:

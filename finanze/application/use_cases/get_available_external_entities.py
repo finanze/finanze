@@ -42,16 +42,18 @@ class GetAvailableExternalEntitiesImpl(GetAvailableExternalEntities):
     ) -> ExternalEntityCandidates:
         provider = self._external_entity_fetchers[self.DEFAULT_PROVIDER]
 
-        setup_entities = self._entity_port.get_all()
+        setup_entities = await self._entity_port.get_all()
         setup_entities_by_natural_ids = {e.natural_id: e for e in setup_entities}
         setup_external_entities_entity_ids = {
-            ee.entity_id for ee in self._external_entity_port.get_all()
+            ee.entity_id for ee in await self._external_entity_port.get_all()
         }
 
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.ENTITY_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.ENTITY_PROVIDER
+            )
         )
-        provider.setup(enabled_integrations)
+        await provider.setup(enabled_integrations)
 
         all_candidates = await provider.get_entities(country=request.country)
         filtered_candidates = []

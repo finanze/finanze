@@ -7,5 +7,5 @@ from domain.external_integration import (
 
 class ConnectExternalIntegration(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self, request: ConnectedExternalIntegrationRequest):
+    async def execute(self, request: ConnectedExternalIntegrationRequest):
         raise NotImplementedError

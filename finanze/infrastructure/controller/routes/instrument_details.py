@@ -1,9 +1,9 @@
 from domain.instrument import InstrumentDataRequest, InstrumentType
 from domain.use_cases.get_instrument_info import GetInstrumentInfo
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def instrument_details(get_instrument_info_uc: GetInstrumentInfo):
+async def instrument_details(get_instrument_info_uc: GetInstrumentInfo):
     name = request.args.get("name") or None
     isin = request.args.get("isin") or None
     ticker = request.args.get("ticker") or None
@@ -28,7 +28,7 @@ def instrument_details(get_instrument_info_uc: GetInstrumentInfo):
         type=ins_type,
     )
 
-    info = get_instrument_info_uc.execute(data_request)
+    info = await get_instrument_info_uc.execute(data_request)
     if info is None:
         return jsonify({"message": "Instrument not found"}), 404
 

@@ -13,5 +13,5 @@ class V0605TxProductSubtype(DBVersionMigration):
     def name(self):
         return "v0.6.0:5_add_tx_product_subtype"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(SQL)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(SQL)

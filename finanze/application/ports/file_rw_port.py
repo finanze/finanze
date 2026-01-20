@@ -6,9 +6,9 @@ from domain.file_upload import FileUpload
 
 class TableRWPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def convert(self, rows: list[list[str]], format: FileFormat) -> bytes:
+    async def convert(self, rows: list[list[str]], format: FileFormat) -> bytes:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def parse(self, upload: FileUpload) -> list[list[str]]:
+    async def parse(self, upload: FileUpload) -> list[list[str]]:
         raise NotImplementedError

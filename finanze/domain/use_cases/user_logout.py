@@ -3,5 +3,5 @@ import abc
 
 class UserLogout(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self):
+    async def execute(self):
         raise NotImplementedError

@@ -171,7 +171,7 @@ class F24Fetcher(FinancialEntityFetcher):
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        login_result = self._client.login(username, password)
+        login_result = await self._client.login(username, password)
 
         if login_result.code == LoginResultCode.CREATED:
             self._setup_users()
@@ -183,13 +183,13 @@ class F24Fetcher(FinancialEntityFetcher):
         savings_entry = self._users.get("savings")
         if savings_entry:
             savings_account_id = savings_entry.get("id")
-            savings_position = self._client.get_positions(savings_account_id)
+            savings_position = await self._client.get_positions(savings_account_id)
 
         brokerage_position = None
         brokerage_entry = self._users.get("brokerage")
         if brokerage_entry:
             brokerage_account_id = brokerage_entry.get("id")
-            brokerage_position = self._client.get_positions(brokerage_account_id)
+            brokerage_position = await self._client.get_positions(brokerage_account_id)
 
         savings_currency = "EUR"
         savings_balance = None
@@ -204,7 +204,7 @@ class F24Fetcher(FinancialEntityFetcher):
 
         accounts = []
         if savings_currency and savings_position:
-            user_assets = self._client.get_connected_users_assets()
+            user_assets = await self._client.get_connected_users_assets()
             savings_account = None
             if user_assets.get("users"):
                 savings_account = next(
@@ -252,7 +252,7 @@ class F24Fetcher(FinancialEntityFetcher):
         products = {ProductType.ACCOUNT: Accounts(accounts)}
 
         if brokerage_position and brokerage_position["offbalance"]:
-            off_balance_entries = self._client.get_off_balance()
+            off_balance_entries = await self._client.get_off_balance()
 
             deposit_details = _map_deposits(off_balance_entries["accounts"])
 
@@ -262,33 +262,34 @@ class F24Fetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=F24, products=products)
 
-    def _get_positions(self, user_id: str) -> dict:
-        return self._client.get_positions(user_id)
-
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
         savings_account_id = self._users["savings"]["id"]
         tr_systems_id = self._users["savings"]["trader_systems_id"]
-        self._client.switch_user(tr_systems_id)
+        await self._client.switch_user(tr_systems_id)
 
-        raw_trades = self._client.get_trades(savings_account_id).get("trades", [])
+        raw_trades = (await self._client.get_trades(savings_account_id)).get(
+            "trades", []
+        )
         account_txs = _map_account_txs(raw_trades, registered_txs)
 
         brokerage_account_id = self._users["brokerage"]["id"]
         b_systems_id = self._users["brokerage"]["trader_systems_id"]
-        self._client.switch_user(b_systems_id)
+        await self._client.switch_user(b_systems_id)
 
-        raw_trades = self._client.get_trades(brokerage_account_id).get("trades", [])
-        investment_txs = self._map_investment_txs(raw_trades, registered_txs)
+        raw_trades = (await self._client.get_trades(brokerage_account_id)).get(
+            "trades", []
+        )
+        investment_txs = await self._map_investment_txs(raw_trades, registered_txs)
 
-        deposit_txs = self._get_deposit_interest_txs(registered_txs)
+        deposit_txs = await self._get_deposit_interest_txs(registered_txs)
         investment_txs = investment_txs + deposit_txs
 
         return Transactions(investment=investment_txs, account=account_txs)
 
-    def _get_deposit_interest_txs(self, registered_txs) -> list[DepositTx]:
-        raw_order_history = self._client.get_orders_history(
+    async def _get_deposit_interest_txs(self, registered_txs) -> list[DepositTx]:
+        raw_order_history = await self._client.get_orders_history(
             from_date=date.fromisocalendar(2000, 1, 1)
         )
         txs = []
@@ -371,7 +372,7 @@ class F24Fetcher(FinancialEntityFetcher):
 
         return txs
 
-    def _map_investment_txs(self, raw_trades, registered_txs):
+    async def _map_investment_txs(self, raw_trades, registered_txs):
         investment_tx = []
         for trade in raw_trades:
             trade_id = str(trade["trade_id"])
@@ -397,7 +398,7 @@ class F24Fetcher(FinancialEntityFetcher):
 
             ticker = trade["ticker"]
 
-            ticker_info = self._client.find_by_ticker(ticker)
+            ticker_info = await self._client.find_by_ticker(ticker)
             isin = ticker_info.get("isin")
             market = ticker_info.get("mkt")
             name = ticker_info.get("nm", ticker)

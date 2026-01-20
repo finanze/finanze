@@ -1,8 +1,9 @@
 import logging
 from typing import Optional
 
+from aiocache import Cache
+
 from application.ports.metal_price_provider import MetalPriceProvider
-from cachetools import TTLCache
 from domain.commodity import CommodityType
 from domain.exchange_rate import CommodityExchangeRate
 from infrastructure.client.rates.metal.gold_api_price_client import GoldApiPriceClient
@@ -24,36 +25,41 @@ class MetalPriceClient(MetalPriceProvider):
             CommodityType.PALLADIUM: self._gold_api_price_client,
         }
 
-        self._price_cache: TTLCache[CommodityType, CommodityExchangeRate] = TTLCache(
-            maxsize=10, ttl=self.PRICE_CACHE_TTL
-        )
-        self._none_cache: TTLCache[CommodityType, Optional[CommodityExchangeRate]] = (
-            TTLCache(maxsize=10, ttl=self.NONE_PRICE_CACHE_TTL)
-        )
+        self._price_cache = Cache(Cache.MEMORY)
+        self._none_cache = Cache(Cache.MEMORY)
 
         self._log = logging.getLogger(__name__)
 
-    def get_price(
+    def _price_cache_key(self, commodity: CommodityType) -> str:
+        return f"metal_price:{commodity.value}"
+
+    def _none_cache_key(self, commodity: CommodityType) -> str:
+        return f"metal_price_none:{commodity.value}"
+
+    async def get_price(
         self, commodity: CommodityType, **kwargs
     ) -> Optional[CommodityExchangeRate]:
-        if commodity in self._price_cache:
-            return self._price_cache[commodity]
+        price_key = self._price_cache_key(commodity)
+        none_key = self._none_cache_key(commodity)
 
-        if commodity in self._none_cache:
+        cached_price = await self._price_cache.get(price_key)
+        if cached_price is not None:
+            return cached_price
+
+        cached_none = await self._none_cache.get(none_key)
+        if cached_none is not None:
             return None
 
         timeout = kwargs.get("timeout", None)
         client = self.SYMBOL_MAPPINGS[commodity]
-        price = client.get_price(commodity, timeout)
+        price = await client.get_price(commodity, timeout)
 
         if price is None:
             self._log.error(f"Failed to fetch price for {commodity}, skipping.")
-            if commodity in self._price_cache:
-                del self._price_cache[commodity]
-            self._none_cache[commodity] = None
+            await self._price_cache.delete(price_key)
+            await self._none_cache.set(none_key, True, ttl=self.NONE_PRICE_CACHE_TTL)
         else:
-            if commodity in self._none_cache:
-                del self._none_cache[commodity]
-            self._price_cache[commodity] = price
+            await self._none_cache.delete(none_key)
+            await self._price_cache.set(price_key, price, ttl=self.PRICE_CACHE_TTL)
 
         return price

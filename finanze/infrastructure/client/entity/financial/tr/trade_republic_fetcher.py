@@ -158,7 +158,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         process_id, code = None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
-        return self._client.login(
+        return await self._client.login(
             phone,
             pin,
             login_options=login_params.options,
@@ -325,7 +325,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         )
 
     async def global_position(self) -> GlobalPosition:
-        user_info = self._client.get_user_info()
+        user_info = await self._client.get_user_info()
         cash_account = user_info.get("cashAccount")
         iban = None
         if cash_account:
@@ -338,7 +338,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             cash_acc_num = raw_portfolio.cash[0].get("accountNumber")
             active_interest = round(
                 Dezimal(
-                    self._client.get_active_interest_rate(cash_acc_num).get(
+                    (await self._client.get_active_interest_rate(cash_acc_num)).get(
                         "activeInterestRate"
                     )
                 )
@@ -366,7 +366,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             )
 
         investments = []
-        for position in raw_portfolio.portfolio["positions"]:
+        for position in raw_portfolio.portfolio:
             investment = await self._instrument_mapper(position, currency)
             if investment:
                 investments.append(investment)

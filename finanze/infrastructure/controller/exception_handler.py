@@ -1,4 +1,4 @@
-from flask import jsonify
+from quart import jsonify
 
 from domain.data_init import DataEncryptedError
 from domain.exception.exceptions import (
@@ -19,6 +19,7 @@ from domain.exception.exceptions import (
     UnauthorizedToken,
     NoUserLogged,
     PermissionDenied,
+    InvalidUserCredentials,
 )
 
 
@@ -112,6 +113,7 @@ def register_exception_handlers(app):
     app.register_error_handler(EntityNotFound, handle_entity_not_found)
     app.register_error_handler(TransactionNotFound, handle_tx_not_found)
     app.register_error_handler(InvalidProvidedCredentials, handle_invalid_credentials)
+    app.register_error_handler(InvalidUserCredentials, handle_invalid_credentials)
     app.register_error_handler(DataEncryptedError, handle_user_not_logged)
     app.register_error_handler(NoUserLogged, handle_user_not_logged)
     app.register_error_handler(ExecutionConflict, handle_execution_conflict)
