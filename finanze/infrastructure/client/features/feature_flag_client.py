@@ -8,7 +8,6 @@ from application.ports.feature_flag_port import FeatureFlagPort
 from domain.platform import OS
 from domain.status import FeatureFlags, FFValue, FFStatus
 from domain.user import User
-from infrastructure.client.http.http_session import get_http_session
 
 
 def _detect_os() -> OS | None:
@@ -33,7 +32,14 @@ class FeatureFlagClient(FeatureFlagPort):
             os.getenv("FEATURE_FLAG_URL") or "https://features.api.finanze.me"
         )
         self._features = {}
-        self._session = get_http_session()
+        self._session = None
+
+    def _get_session(self):
+        if not self._session:
+            from infrastructure.client.http.http_session import get_http_session
+
+            self._session = get_http_session()
+        return self._session
 
     async def load(self):
         if not self._feature_flag_url:
@@ -42,7 +48,7 @@ class FeatureFlagClient(FeatureFlagPort):
         self._log.info(f"Fetching feature flags from {self._feature_flag_url}")
 
         try:
-            resp = await self._session.get(
+            resp = await self._get_session().get(
                 self._feature_flag_url,
                 timeout=4,
             )

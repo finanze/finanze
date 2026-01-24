@@ -3,10 +3,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from threading import RLock
 from types import TracebackType
-from typing import Any, AsyncGenerator, Literal, Optional
+from typing import Any, AsyncGenerator, Literal, Optional, Self
 from uuid import uuid4
-
-from typing_extensions import Self
 
 from domain.data_init import DataEncryptedError
 

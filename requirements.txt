@@ -1,5 +1,4 @@
 websockets==15.0.1
-requests==2.32.5
 python-dateutil==2.9.0.post0
 google-api-python-client==2.187.0
 google-auth-httplib2==0.3.0
@@ -9,7 +8,6 @@ quart-cors==0.8.0
 uvicorn==0.40.0
 cachetools==6.2.4
 strictyaml==1.7.3
-pytz==2025.2
 pydantic==2.12.5
 requests_toolbelt==1.0.0
 tzlocal==5.3.1
@@ -18,7 +16,6 @@ aiocache==0.12.3
 sqlcipher3-wheels==0.5.6
 httpx-curl-cffi==0.1.5
 appdirs==1.4.4
-zstandard==0.25.0
 cryptography==46.0.3
 PyJWT==2.10.1
 Brotli==1.2.0

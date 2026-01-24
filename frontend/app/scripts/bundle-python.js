@@ -1,5 +1,7 @@
+/* global process */
 import fs from "fs"
 import path from "path"
+import { spawnSync } from "child_process"
 import { fileURLToPath } from "url"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -14,10 +16,7 @@ const PYODIDE_ROOT = path.resolve(DIST_PYODIDE_ROOT, "pyodide")
 const DEST_ROOT = path.resolve(__dirname, "../dist/python")
 const DEST_WHEELS_ROOT = path.resolve(DEST_ROOT, "wheels")
 const DEST_PYODIDE_ROOT = path.resolve(__dirname, "../dist/pyodide")
-const PYODIDE_REQUIREMENTS_PATH = path.resolve(
-  __dirname,
-  "../requirements-pyodide.txt",
-)
+const MINIFY_SCRIPT = path.resolve(__dirname, "./minify-python.py")
 const INCLUDE_DIRS = [
   "infrastructure/controller/routes",
   "infrastructure/controller/mappers",
@@ -33,6 +32,64 @@ const EXCLUDED_FILES = ["server.py", "logs.py", "args.py", "__main__.py"]
 
 const EXCLUDED_EXTENSIONS = [".pyc", ".pyo", ".pyd"]
 const CACHE_DIRS = ["__pycache__", ".pytest_cache", ".git", ".ruff_cache"]
+
+const CORE_PATTERNS = [
+  "finanze/app.py",
+  "finanze/app_core.py",
+  "finanze/mobile_routes.py",
+  "finanze/version.py",
+  "finanze/logs.py",
+  "finanze/quart.py",
+  "init.py",
+  "controller.py",
+  "mobile_requirements.py",
+  "finanze/domain/platform.py",
+  "finanze/domain/status.py",
+  "finanze/domain/user.py",
+  "finanze/domain/data_init.py",
+  "finanze/domain/dezimal.py",
+  "finanze/domain/exception/",
+  "finanze/domain/use_cases/get_status.py",
+  "finanze/application/use_cases/get_status.py",
+  "finanze/application/ports/data_manager.py",
+  "finanze/application/ports/datasource_initiator.py",
+  "finanze/application/ports/feature_flag_port.py",
+  "finanze/application/ports/server_details_port.py",
+  "finanze/application/ports/datasource_backup_port.py",
+  "finanze/infrastructure/controller/router.py",
+  "finanze/infrastructure/controller/handler.py",
+  "finanze/infrastructure/controller/request_wrapper.py",
+  "finanze/infrastructure/controller/routes/get_status.py",
+  "finanze/infrastructure/repository/db/",
+  "finanze/infrastructure/user_files/capacitor_data_manager.py",
+  "finanze/infrastructure/user_files/user_data_manager.py",
+  "finanze/infrastructure/config/capacitor_server_details_adapter.py",
+  "finanze/infrastructure/client/features/",
+  "finanze/infrastructure/file_storage/",
+]
+
+function isCoreFile(relativePath) {
+  const normalized = relativePath.replace(/\\/g, "/")
+  for (const pattern of CORE_PATTERNS) {
+    if (pattern.endsWith("/")) {
+      if (
+        normalized.startsWith(pattern) ||
+        normalized.includes(`/${pattern}`)
+      ) {
+        return true
+      }
+    } else {
+      if (
+        normalized === pattern ||
+        normalized.endsWith(`/${pattern}`) ||
+        normalized.endsWith(pattern)
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
 
 // Ensure destination exists
 if (fs.existsSync(DEST_ROOT)) {
@@ -97,7 +154,8 @@ function isExcludedFile(filePath) {
 }
 
 // Collect files
-const fileList = []
+const coreFileList = []
+const deferredFileList = []
 
 function copyRecursive(source, dest, rootPath, isCustom = false) {
   if (!fs.existsSync(source)) return
@@ -146,7 +204,11 @@ function copyRecursive(source, dest, rootPath, isCustom = false) {
 
     // Add to manifest (path relative to DEST_ROOT)
     const relativeToDest = path.relative(DEST_ROOT, dest)
-    fileList.push(relativeToDest)
+    if (isCoreFile(relativeToDest)) {
+      coreFileList.push(relativeToDest)
+    } else {
+      deferredFileList.push(relativeToDest)
+    }
   }
 }
 
@@ -184,11 +246,24 @@ function copyPyodideAssets(sourceDir, destDir) {
   }
 }
 
-function readPyodideRequirementsList() {
-  if (!fs.existsSync(PYODIDE_REQUIREMENTS_PATH)) return []
+function minifyPythonFiles(destRoot) {
+  if (process.env.FINANZE_PYTHON_MINIFY === "0") return
+
+  const result = spawnSync("python3", [MINIFY_SCRIPT, destRoot], {
+    stdio: "inherit",
+  })
+  if (result.status !== 0) {
+    throw new Error(
+      `Python minification failed (exit code: ${result.status ?? "unknown"}). Install dev requirements (python-minifier) or set FINANZE_PYTHON_MINIFY=0 to skip.`,
+    )
+  }
+}
+
+function readRequirementsFile(filePath) {
+  if (!fs.existsSync(filePath)) return []
 
   const lines = fs
-    .readFileSync(PYODIDE_REQUIREMENTS_PATH, "utf8")
+    .readFileSync(filePath, "utf8")
     .split("\n")
     .map(l => l.trim())
     .filter(l => l.length > 0 && !l.startsWith("#"))
@@ -201,23 +276,65 @@ function generateWheelsManifestPy(destPythonDir, wheelsDir) {
   if (!fs.existsSync(jsonManifestPath)) return
 
   const payload = JSON.parse(fs.readFileSync(jsonManifestPath, "utf8"))
-  const wheels = Array.isArray(payload?.LOCAL_WHEELS)
+  const allWheels = Array.isArray(payload?.LOCAL_WHEELS)
     ? payload.LOCAL_WHEELS
     : []
-  const pyodidePackages = readPyodideRequirementsList()
+
+  const coreWheelsReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-core.txt"),
+  )
+  const deferredWheelsReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-deferred.txt"),
+  )
+  const corePyodideReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-pyodide-core.txt"),
+  )
+  const deferredPyodideReqs = readRequirementsFile(
+    path.resolve(__dirname, "../requirements-pyodide-deferred.txt"),
+  )
+
+  function extractPackageName(req) {
+    return req.split("==")[0].split(">=")[0].split("<=")[0].toLowerCase()
+  }
+
+  function wheelMatchesReqs(wheelFile, reqs) {
+    const reqNames = reqs.map(extractPackageName)
+    const wheelLower = wheelFile.toLowerCase()
+    return reqNames.some(name => wheelLower.startsWith(name.replace(/-/g, "_")))
+  }
+
+  const coreWheels = allWheels.filter(w => wheelMatchesReqs(w, coreWheelsReqs))
+  const deferredWheels = allWheels.filter(w =>
+    wheelMatchesReqs(w, deferredWheelsReqs),
+  )
 
   const lines = []
   lines.push("# Generated by scripts/bundle-python.js. DO NOT EDIT.")
   lines.push("")
-  lines.push("LOCAL_WHEELS = [")
-  for (const f of wheels) {
+
+  lines.push("LOCAL_WHEELS_CORE = [")
+  for (const f of coreWheels) {
     lines.push(`    "/python/wheels/${f}",`)
   }
   lines.push("]")
   lines.push("")
 
-  lines.push("PYODIDE_PACKAGES = [")
-  for (const req of pyodidePackages) {
+  lines.push("LOCAL_WHEELS_DEFERRED = [")
+  for (const f of deferredWheels) {
+    lines.push(`    "/python/wheels/${f}",`)
+  }
+  lines.push("]")
+  lines.push("")
+
+  lines.push("PYODIDE_PACKAGES_CORE = [")
+  for (const req of corePyodideReqs) {
+    lines.push(`    ${JSON.stringify(req)},`)
+  }
+  lines.push("]")
+  lines.push("")
+
+  lines.push("PYODIDE_PACKAGES_DEFERRED = [")
+  for (const req of deferredPyodideReqs) {
     lines.push(`    ${JSON.stringify(req)},`)
   }
   lines.push("]")
@@ -257,14 +374,30 @@ if (fs.existsSync(PYODIDE_ROOT)) {
   copyPyodideAssets(PYODIDE_ROOT, DEST_PYODIDE_ROOT)
 }
 
-const manifest = {
-  files: fileList,
+minifyPythonFiles(DEST_ROOT)
+
+const manifestCore = {
+  files: coreFileList,
+}
+
+const manifestDeferred = {
+  files: deferredFileList,
 }
 
 fs.writeFileSync(
-  path.join(DEST_ROOT, "manifest.json"),
-  JSON.stringify(manifest, null, 2),
+  path.join(DEST_ROOT, "manifest_core.json"),
+  JSON.stringify(manifestCore, null, 2),
 )
 
-console.log(`Bundle complete. ${fileList.length} files copied.`)
-console.log(`Manifest written to ${path.join(DEST_ROOT, "manifest.json")}`)
+fs.writeFileSync(
+  path.join(DEST_ROOT, "manifest_deferred.json"),
+  JSON.stringify(manifestDeferred, null, 2),
+)
+
+const totalFiles = coreFileList.length + deferredFileList.length
+console.log(
+  `Bundle complete. ${totalFiles} files copied (${coreFileList.length} core, ${deferredFileList.length} deferred).`,
+)
+console.log(
+  `Manifests written to ${path.join(DEST_ROOT, "manifest_core.json")} and manifest_deferred.json`,
+)

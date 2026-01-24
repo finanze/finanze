@@ -29,7 +29,7 @@ class ChangeUserPasswordImpl(ChangeUserPassword):
         if not user:
             raise UserNotFound()
 
-        params = DatasourceInitParams(
+        params = DatasourceInitParams.build(
             user=user, password=change_password_request.old_password
         )
         await self._source_initiator.change_password(

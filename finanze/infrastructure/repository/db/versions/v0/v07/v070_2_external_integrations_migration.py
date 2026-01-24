@@ -1,10 +1,13 @@
 import json
+from typing import TYPE_CHECKING
 
-from application.ports.config_port import ConfigPort
 from domain.data_init import DatasourceInitContext
 from infrastructure.repository.db.client import DBCursor
 from infrastructure.repository.db.query_mixin import QueryMixin
 from infrastructure.repository.db.upgrader import DBVersionMigration
+
+if TYPE_CHECKING:
+    from application.ports.config_port import ConfigPort
 
 DDL = """
       ALTER TABLE external_integrations

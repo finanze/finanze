@@ -2,14 +2,18 @@ import { rmSync, statSync, createReadStream } from "node:fs"
 import { spawn } from "node:child_process"
 import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
-import electron from "vite-plugin-electron/simple"
 import { resolve, sep } from "node:path"
+import { createRequire } from "node:module"
 import pkg from "./package.json"
+
+const require = createRequire(import.meta.url)
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, __dirname, "")
   const isMobileDev = mode === "mobile" || process.env.MOBILE_DEV === "1"
-  if (!isMobileDev) {
+  const isMobileBuild = process.env.MOBILE_BUILD === "1"
+  const isMobile = isMobileDev || isMobileBuild
+  if (!isMobile) {
     rmSync("dist-electron", { recursive: true, force: true })
   }
 
@@ -45,7 +49,17 @@ export default defineConfig(({ command, mode }) => {
     ? serverFromUrl((pkg as any)?.debug?.env?.VITE_DEV_SERVER_URL)
     : undefined
 
+  const electronExternals = ["electron"]
+
+  const electronPlugin = !isMobile
+    ? (require("vite-plugin-electron/simple") as { default: any }).default
+    : null
+
   return {
+    define: {
+      __MOBILE_BUILD__: JSON.stringify(isMobileBuild),
+      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    },
     resolve: {
       alias: {
         "@": resolve(__dirname, "./src"),
@@ -53,9 +67,9 @@ export default defineConfig(({ command, mode }) => {
     },
     plugins: [
       react(),
-      ...(!isMobileDev
+      ...(!isMobileDev && electronPlugin
         ? [
-            electron({
+            electronPlugin({
               main: {
                 entry: "electron/main/index.ts",
                 vite: {
@@ -64,9 +78,7 @@ export default defineConfig(({ command, mode }) => {
                     minify: isBuild,
                     outDir: "dist-electron/main",
                     rollupOptions: {
-                      external: Object.keys(
-                        "dependencies" in pkg ? pkg.dependencies : {},
-                      ),
+                      external: electronExternals,
                     },
                   },
                 },
@@ -79,9 +91,7 @@ export default defineConfig(({ command, mode }) => {
                     minify: isBuild,
                     outDir: "dist-electron/preload",
                     rollupOptions: {
-                      external: Object.keys(
-                        "dependencies" in pkg ? pkg.dependencies : {},
-                      ),
+                      external: electronExternals,
                     },
                   },
                 },
@@ -262,8 +272,10 @@ export default defineConfig(({ command, mode }) => {
         },
       },
     ],
-    define: {
-      __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    // Pyodide worker uses code-splitting; Rollup can't emit multi-chunk IIFE/UMD.
+    // Force ES module output for worker bundles.
+    worker: {
+      format: "es",
     },
     build: {
       rollupOptions: {
@@ -271,6 +283,14 @@ export default defineConfig(({ command, mode }) => {
           main: resolve(__dirname, "index.html"),
           about: resolve(__dirname, "about.html"),
         },
+        external: isMobile
+          ? [
+              "electron",
+              "electron-updater",
+              "electron-window-state",
+              "electron-is-dev",
+            ]
+          : ["sql.js", "jeep-sqlite"],
       },
     },
     server: mobileServer || vscodeServer,

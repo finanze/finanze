@@ -7,28 +7,43 @@ import { fileURLToPath } from "url"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const WHEELS_REQUIREMENTS_PATH = path.resolve(__dirname, "../requirements.txt")
+const CORE_REQUIREMENTS_PATH = path.resolve(
+  __dirname,
+  "../requirements-core.txt",
+)
+const DEFERRED_REQUIREMENTS_PATH = path.resolve(
+  __dirname,
+  "../requirements-deferred.txt",
+)
 
 const DIST_PYODIDE_DIR = path.resolve(__dirname, "../dist-pyodide")
 const WHEELS_DIR = path.join(DIST_PYODIDE_DIR, "wheels")
 const WHEELS_JSON_MANIFEST_PATH = path.join(WHEELS_DIR, "manifest.json")
 
-function parseRequirements() {
-  if (!fs.existsSync(WHEELS_REQUIREMENTS_PATH)) {
-    throw new Error(`Cannot find ${WHEELS_REQUIREMENTS_PATH}`)
+function readRequirementsFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return []
   }
 
-  const source = fs.readFileSync(WHEELS_REQUIREMENTS_PATH, "utf8")
-  const reqs = source
+  const source = fs.readFileSync(filePath, "utf8")
+  return source
     .split("\n")
     .map(l => l.trim())
     .filter(l => l.length > 0 && !l.startsWith("#"))
+}
 
-  if (reqs.length === 0) {
-    throw new Error(`No requirements found in ${WHEELS_REQUIREMENTS_PATH}`)
+function parseRequirements() {
+  const coreReqs = readRequirementsFile(CORE_REQUIREMENTS_PATH)
+  const deferredReqs = readRequirementsFile(DEFERRED_REQUIREMENTS_PATH)
+  const allReqs = [...coreReqs, ...deferredReqs]
+
+  if (allReqs.length === 0) {
+    throw new Error(
+      `No requirements found in ${CORE_REQUIREMENTS_PATH} or ${DEFERRED_REQUIREMENTS_PATH}`,
+    )
   }
 
-  return { wheelReqs: reqs }
+  return { wheelReqs: allReqs }
 }
 
 function parseReqSpec(spec) {

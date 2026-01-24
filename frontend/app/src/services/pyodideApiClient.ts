@@ -1,13 +1,8 @@
 import type { ApiServerInfo } from "./api"
 import type { ApiClient, HelperOptions } from "./apiClient"
-import {
-  initPyodide,
-  loadAppModules,
-  callPythonFunction,
-  registerBridgeWithPyodide,
-} from "@/lib/pyodide"
-
+import { callPythonFunction } from "@/lib/pyodide"
 import { appConsole } from "@/lib/capacitor/appConsole"
+import { ensureInitialized, withApiPrefix } from "@/lib/pyodide/init"
 
 function logInfo(message: string, data?: any) {
   appConsole.info(`[PyodideApiClient] ${message}`, data)
@@ -15,45 +10,6 @@ function logInfo(message: string, data?: any) {
 
 function logDebug(message: string, data?: any) {
   appConsole.debug(`[PyodideApiClient] ${message}`, data)
-}
-
-let isInitialized = false
-let initPromise: Promise<void> | null = null
-
-const API_PREFIX = "/api/v1"
-
-function withApiPrefix(path: string): string {
-  if (path.startsWith(API_PREFIX)) {
-    return path
-  }
-  return `${API_PREFIX}${path}`
-}
-
-async function ensureInitialized() {
-  if (isInitialized) return
-  if (initPromise) return initPromise
-
-  initPromise = (async () => {
-    await initPyodide({ installMobileRequirements: true })
-
-    registerBridgeWithPyodide()
-
-    await loadAppModules()
-
-    const platformType = (window as any)?.platform?.type
-    await callPythonFunction(
-      "init",
-      "initialize",
-      typeof platformType === "string" ? platformType : null,
-    )
-
-    isInitialized = true
-  })().catch(e => {
-    appConsole.error("[PyodideApiClient] Initialization failed:", e)
-    throw e
-  })
-
-  return initPromise
 }
 
 export class PyodideApiClient implements ApiClient {
@@ -115,12 +71,13 @@ export class PyodideApiClient implements ApiClient {
     filename: string | null
     contentType: string | null
   }> {
-    await ensureInitialized()
-
     let fullPath = withApiPrefix(path)
     if (fullPath.endsWith("?")) {
       fullPath = fullPath.slice(0, -1)
     }
+
+    const initMethod = body ? "POST" : "GET"
+    await ensureInitialized(initMethod, fullPath)
 
     try {
       const response = await callPythonFunction<{
@@ -209,13 +166,14 @@ export class PyodideApiClient implements ApiClient {
     logInfo(`${method} ${path}`)
     logDebug(`Request body:`, body)
     logDebug(`Request options:`, options)
-    await ensureInitialized()
 
     let fullPath = withApiPrefix(path)
     if (fullPath.endsWith("?")) {
       fullPath = fullPath.slice(0, -1)
     }
     logDebug(`Full API path: ${fullPath}`)
+
+    await ensureInitialized(method, fullPath)
 
     let payload = body
     if (body instanceof FormData) {

@@ -9,14 +9,18 @@ import process from "node:process"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const PYODIDE_VERSION = "0.29.1"
+const PYODIDE_VERSION = "0.29.2"
 const TARBALL_URL = `https://github.com/pyodide/pyodide/releases/download/${PYODIDE_VERSION}/pyodide-${PYODIDE_VERSION}.tar.bz2`
 
 const DIST_PYODIDE_DIR = path.resolve(__dirname, "../dist-pyodide")
 const DEST_DIR = path.join(DIST_PYODIDE_DIR, "pyodide")
-const PYODIDE_REQUIREMENTS_PATH = path.resolve(
+const PYODIDE_REQUIREMENTS_CORE_PATH = path.resolve(
   __dirname,
-  "../requirements-pyodide.txt",
+  "../requirements-pyodide-core.txt",
+)
+const PYODIDE_REQUIREMENTS_DEFERRED_PATH = path.resolve(
+  __dirname,
+  "../requirements-pyodide-deferred.txt",
 )
 
 const SYNC_MODE = (
@@ -24,7 +28,7 @@ const SYNC_MODE = (
 ).toLowerCase()
 const MINIMAL_MODE = SYNC_MODE !== "full"
 
-const ALWAYS_INCLUDE_PACKAGES = ["micropip", "packaging", "pyparsing"]
+const ALWAYS_INCLUDE_PACKAGES = ["micropip"]
 
 const ESSENTIAL_RUNTIME_FILES = [
   "pyodide-lock.json",
@@ -100,17 +104,25 @@ function extractRequirementName(spec) {
 }
 
 function readPyodidePackagesFromRequirementsFile() {
-  if (!fs.existsSync(PYODIDE_REQUIREMENTS_PATH)) {
-    throw new Error(`Cannot find ${PYODIDE_REQUIREMENTS_PATH}.`)
+  const files = [
+    PYODIDE_REQUIREMENTS_CORE_PATH,
+    PYODIDE_REQUIREMENTS_DEFERRED_PATH,
+  ]
+  const allLines = []
+
+  for (const filePath of files) {
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`Cannot find ${filePath}.`)
+    }
+    const lines = fs
+      .readFileSync(filePath, "utf8")
+      .split("\n")
+      .map(l => l.trim())
+      .filter(l => l.length > 0 && !l.startsWith("#"))
+    allLines.push(...lines)
   }
 
-  const lines = fs
-    .readFileSync(PYODIDE_REQUIREMENTS_PATH, "utf8")
-    .split("\n")
-    .map(l => l.trim())
-    .filter(l => l.length > 0 && !l.startsWith("#"))
-
-  return lines.map(extractRequirementName).filter(Boolean)
+  return allLines.map(extractRequirementName).filter(Boolean)
 }
 
 function ensurePythonWheelsSynced() {
@@ -299,7 +311,7 @@ async function main() {
     )
     if (MINIMAL_MODE) {
       console.log(
-        `[Pyodide] Minimal package set derived from ${path.relative(process.cwd(), PYODIDE_REQUIREMENTS_PATH)} (plus ${ALWAYS_INCLUDE_PACKAGES.join(", ")}).`,
+        `[Pyodide] Minimal package set derived from requirements-pyodide-core.txt + requirements-pyodide-deferred.txt (plus ${ALWAYS_INCLUDE_PACKAGES.join(", ")}).`,
       )
       console.log(
         "[Pyodide] To force a full sync, set FINANZE_PYODIDE_SYNC_MODE=full.",

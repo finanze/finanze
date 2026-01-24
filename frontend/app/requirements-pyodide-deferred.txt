@@ -1,0 +1,11 @@
+httpx==0.28.1
+pydantic==2.12.5
+requests==2.32.4
+brotli==1.2.0
+cryptography==46.0.3
+strictyaml==1.7.3
+cachetools==5.5.2
+python-dateutil==2.9.0.post0
+
+# Pyodide special package (not a PyPI requirement)
+ssl

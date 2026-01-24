@@ -238,7 +238,7 @@ class DBManager(DatasourceInitiator, Backupable):
                 """)
             connection.close()
 
-        await self._initialize(DatasourceInitParams(user=user, password=passwd))
+        await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
 
         temp_old_db_path.unlink()
 

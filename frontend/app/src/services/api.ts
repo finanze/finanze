@@ -76,6 +76,7 @@ import {
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
 import { AppSettings } from "@/context/AppContext"
+import { isNativeMobile } from "@/lib/platform"
 
 export interface ApiServerInfo {
   isCustomServer: boolean
@@ -215,6 +216,14 @@ interface CheckStatusOptions {
   baseUrlOverride?: string
 }
 
+function triggerDeferredInitOnNative() {
+  if (!isNativeMobile()) return
+
+  import("@/lib/pyodide/init").then(({ triggerDeferredInit }) => {
+    triggerDeferredInit()
+  })
+}
+
 export async function checkStatus(
   options?: CheckStatusOptions,
 ): Promise<StatusResponse> {
@@ -231,7 +240,11 @@ export async function checkStatus(
     return response.json()
   }
 
-  return getApiClient().get("/status")
+  const result = await getApiClient().get<StatusResponse>("/status")
+
+  triggerDeferredInitOnNative()
+
+  return result
 }
 
 export async function login(

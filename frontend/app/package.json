@@ -58,7 +58,7 @@
     "framer-motion": "^12.23.25",
     "fuse.js": "^7.1.0",
     "lucide-react": "^0.554.0",
-    "pyodide": "^0.29.1",
+    "pyodide": "^0.29.2",
     "react-day-picker": "^9.11.3",
     "react-markdown": "^10.1.0",
     "recharts": "^2.15.4",

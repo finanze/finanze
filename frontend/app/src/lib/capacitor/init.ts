@@ -3,6 +3,26 @@ import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite"
 import { PlatformInfo, PlatformType } from "@/types"
 import "./plugins"
 
+function setupGlobalErrorHandlers(): void {
+  window.addEventListener("error", event => {
+    const err: any = (event as any).error
+    if (err?.stack) {
+      console.error("Global error:", err.stack)
+    } else {
+      console.error("Global error:", event.message)
+    }
+  })
+
+  window.addEventListener("unhandledrejection", event => {
+    const reason: any = (event as any).reason
+    if (reason?.stack) {
+      console.error("Unhandled rejection:", reason.stack)
+    } else {
+      console.error("Unhandled rejection:", reason)
+    }
+  })
+}
+
 async function initSqliteWebDev(platform: PlatformType): Promise<void> {
   if (!import.meta.env.DEV) return
   if (platform !== PlatformType.WEB) return
@@ -22,6 +42,8 @@ async function initSqliteWebDev(platform: PlatformType): Promise<void> {
 }
 
 export async function initializeCapacitorPlatform(): Promise<void> {
+  setupGlobalErrorHandlers()
+
   if (!Capacitor.isNativePlatform()) {
     return
   }

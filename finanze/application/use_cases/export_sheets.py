@@ -3,6 +3,8 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
+from dateutil.tz import tzlocal, UTC
+
 from application.ports.auto_contributions_port import AutoContributionsPort
 from application.ports.config_port import ConfigPort
 from application.ports.entity_port import EntityPort
@@ -14,7 +16,6 @@ from application.ports.sheets_port import SheetsPort
 from application.ports.template_port import TemplatePort
 from application.ports.template_processor_port import TemplateProcessorPort
 from application.ports.transaction_port import TransactionPort
-from dateutil.tz import tzlocal
 from domain.auto_contributions import ContributionQueryRequest
 from domain.entity import Entity, Feature
 from domain.exception.exceptions import ExecutionConflict, ExternalIntegrationRequired
@@ -32,12 +33,11 @@ from domain.settings import (
 )
 from domain.template import ProcessorDataFilter
 from domain.use_cases.export_sheets import ExportSheets
-from pytz import utc
 
 
 def _format_datetime(value, params: TemplatedDataProcessorParams):
     datetime_format = params.datetime_format
-    value = value.replace(tzinfo=utc).astimezone(tzlocal())
+    value = value.replace(tzinfo=UTC).astimezone(tzlocal())
     if not datetime_format:
         return value.isoformat()
     return value.strftime(datetime_format)

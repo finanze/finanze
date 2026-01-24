@@ -3,7 +3,13 @@
   "productName": "Finanze",
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "asar": true,
-  "files": ["dist-electron/**/*", "dist/**/*"],
+  "files": [
+    "dist-electron/**/*",
+    "dist/**/*",
+    "!dist/python/**/*",
+    "!dist/pyodide/**/*",
+    "!node_modules/**/*"
+  ],
   "directories": {
     "output": "release"
   },
@@ -30,6 +36,7 @@
     "category": "public.app-category.finance",
     "icon": "./dist/finanze-macos.icns",
     "target": ["zip", "dmg"],
+    "identity": null,
     "publish": [
       {
         "provider": "github",

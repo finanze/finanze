@@ -1,7 +1,8 @@
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
-from domain.external_integration import ExternalIntegrationId
+if TYPE_CHECKING:
+    from domain.external_integration import ExternalIntegrationId
 
 
 class MissingFieldsError(Exception):

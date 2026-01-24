@@ -3,8 +3,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List
 
-from dateutil.tz import tzlocal
-
 from domain.data_init import DatasourceInitContext, MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
 
@@ -58,23 +56,21 @@ class DatabaseUpgrader:
         Creates the migrations table if it doesn't exist.
         """
         async with self._db_client.tx(skip_last_update=True) as cursor:
-            await cursor.execute("""
+            await cursor.execute(
+                """
                            CREATE TABLE IF NOT EXISTS migrations
                            (
                                version    INTEGER PRIMARY KEY,
                                applied_at TIMESTAMP NOT NULL,
                                name       TEXT      NOT NULL
                            )
-                           """)
+                           """
+            )
 
     async def _get_current_version(self) -> int:
         """
         Returns the highest version number from the migrations table.
         """
-        # Ensure table exists first, just in case, though __init__ calls it?
-        # No, __init__ shouldn't call async methods.
-        # We need a proper async init or call it in upgrade.
-
         async with self._db_client.read() as cursor:
             await cursor.execute("SELECT MAX(version) FROM migrations")
             result = await cursor.fetchone()
@@ -134,6 +130,8 @@ class DatabaseUpgrader:
         await self._validate_migrations()
 
         versions_to_apply = range(current + 1, target + 1)
+
+        from dateutil.tz import tzlocal
 
         for version in versions_to_apply:
             async with self._db_client.tx(skip_last_update=True) as cursor:
