@@ -110,4 +110,10 @@ function triggerDeferredInit(): void {
   ensureDeferredInitialized()
 }
 
-export { API_PREFIX, withApiPrefix, ensureInitialized, triggerDeferredInit }
+export {
+  API_PREFIX,
+  withApiPrefix,
+  ensureInitialized,
+  ensureCoreInitialized,
+  triggerDeferredInit,
+}

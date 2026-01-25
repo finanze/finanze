@@ -33,6 +33,7 @@ import { useAppContext } from "./context/AppContext"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { useState, useEffect } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
+import { hideSplashScreen as hideMobileSplashScreen } from "@/lib/mobile"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
@@ -46,6 +47,13 @@ function App() {
   } = useAutoUpdater({
     checkOnMount: isAuthenticated && !isInitializing,
   })
+
+  // Hide the native/mobile splash screen once the app is ready to render UI.
+  useEffect(() => {
+    if (!isInitializing) {
+      hideMobileSplashScreen()
+    }
+  }, [isInitializing])
 
   // Load skipped versions from localStorage on mount
   useEffect(() => {

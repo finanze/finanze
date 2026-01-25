@@ -101,9 +101,6 @@ export class HttpApiClient implements ApiClient {
     let opts = options
 
     if (bodyOrOptions && !options && !this.isHelperOptions(bodyOrOptions)) {
-      // Assume second arg is body if it doesn't look like options or if options is undefined
-      // Actually, if signature is (path, options) vs (path, body, options)
-      // Overloading implementation:
       body = bodyOrOptions
     } else if (bodyOrOptions && this.isHelperOptions(bodyOrOptions)) {
       opts = bodyOrOptions
@@ -142,8 +139,6 @@ export class HttpApiClient implements ApiClient {
     const response = await fetch(url, options)
 
     if (!response.ok) {
-      // Reuse internal error handling logic if possible, or replicate it
-      // Since we need to throw specific error format
       const data = await response.json().catch(() => ({}))
       const error: any = new Error(data.message || "Download failed")
       error.status = response.status
@@ -159,7 +154,6 @@ export class HttpApiClient implements ApiClient {
       response.headers.get("content-disposition")
     let filename: string | null = null
 
-    // Extract filename logic from api.ts
     if (dispositionHeader) {
       const utfMatch = dispositionHeader.match(/filename\*=UTF-8''([^;]+)/i)
       if (utfMatch?.[1]) {
@@ -188,8 +182,6 @@ export class HttpApiClient implements ApiClient {
 
   async getImageUrl(path: string): Promise<string> {
     const baseUrl = await ensureApiUrlInitialized()
-    // Remove /api/v1 from the end and add the image path if necessary, but baseUrl usually includes /api/v1
-    // api.ts logic: const imageBaseUrl = baseUrl.replace("/api/v1", "")
     const imageBaseUrl = baseUrl.replace("/api/v1", "")
     return `${imageBaseUrl}${path}`
   }
@@ -251,9 +243,6 @@ export class HttpApiClient implements ApiClient {
     }
 
     if (!response.ok) {
-      // Replicating api.ts error structure if possible
-      // api.ts throws the data directly or wrapped
-      // We'll throw an object attached with status
       const error: any = new Error(data.message || "Request failed")
       error.status = response.status
       error.code = data.code

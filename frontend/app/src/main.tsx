@@ -8,31 +8,30 @@ import { I18nProvider } from "@/i18n"
 import { ThemeProvider } from "@/context/ThemeContext"
 import { AuthProvider } from "@/context/AuthContext"
 import { CloudProvider } from "@/context/CloudContext"
-import { initializeCapacitorPlatform } from "@/lib/capacitor"
-import { isNativeMobile } from "@/lib/platform"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
+import * as mobile from "@/lib/mobile"
 
-await initializeCapacitorPlatform()
-initDevPlatformOverride()
+async function bootstrap(): Promise<void> {
+  await mobile.preinit()
 
-if (isNativeMobile()) {
-  import("@/lib/pyodide/init").then(({ ensureInitialized }) => {
-    ensureInitialized("GET", "/api/v1/status")
-  })
+  initDevPlatformOverride()
+  mobile.init()
+
+  createRoot(document.getElementById("root")!).render(
+    <HashRouter>
+      <ThemeProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <AppProvider>
+              <CloudProvider>
+                <App />
+              </CloudProvider>
+            </AppProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </ThemeProvider>
+    </HashRouter>,
+  )
 }
 
-createRoot(document.getElementById("root")!).render(
-  <HashRouter>
-    <ThemeProvider>
-      <I18nProvider>
-        <AuthProvider>
-          <AppProvider>
-            <CloudProvider>
-              <App />
-            </CloudProvider>
-          </AppProvider>
-        </AuthProvider>
-      </I18nProvider>
-    </ThemeProvider>
-  </HashRouter>,
-)
+bootstrap()

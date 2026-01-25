@@ -1,5 +1,5 @@
-import type { ApiServerInfo } from "./api"
-import type { ApiClient, HelperOptions } from "./apiClient"
+import type { ApiServerInfo } from "../../services/api"
+import type { ApiClient, HelperOptions } from "../../services/apiClient"
 import { callPythonFunction } from "@/lib/pyodide"
 import { appConsole } from "@/lib/capacitor/appConsole"
 import { ensureInitialized, withApiPrefix } from "@/lib/pyodide/init"
@@ -208,7 +208,6 @@ export class PyodideApiClient implements ApiClient {
       logDebug(`${path} Response status: ${response.status}`, response.data)
 
       if (response.status >= 400) {
-        // Construct error object similar to what api.ts expects
         const error: any = new Error(response.data?.message || "Request failed")
         error.status = response.status
         error.code = response.data?.code

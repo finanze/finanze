@@ -14,17 +14,14 @@ export function initDevPlatformOverride() {
   }
 
   const normalized = forcedPlatform.toUpperCase()
+  const platformType = Object.values(PlatformType).find(
+    type => type.toUpperCase() === normalized,
+  )
 
-  switch (normalized) {
-    case "ANDROID":
-      window.platform = { type: PlatformType.ANDROID }
-      console.log("[Dev] Forcing platform: ANDROID")
-      break
-    case "IOS":
-      window.platform = { type: PlatformType.IOS }
-      console.log("[Dev] Forcing platform: IOS")
-      break
-    default:
-      console.warn(`[Dev] Unknown VITE_FORCE_PLATFORM value: ${forcedPlatform}`)
+  if (platformType) {
+    window.platform = { type: platformType }
+    console.log(`[Dev] Forcing platform: ${platformType}`)
+  } else {
+    console.warn(`[Dev] Unknown VITE_FORCE_PLATFORM value: ${forcedPlatform}`)
   }
 }

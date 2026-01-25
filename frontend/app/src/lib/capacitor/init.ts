@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core"
-import { CapacitorSQLite, SQLiteConnection } from "@capacitor-community/sqlite"
+import { SplashScreen } from "@capacitor/splash-screen"
 import { PlatformInfo, PlatformType } from "@/types"
 import "./plugins"
 
@@ -21,24 +21,6 @@ function setupGlobalErrorHandlers(): void {
       console.error("Unhandled rejection:", reason)
     }
   })
-}
-
-async function initSqliteWebDev(platform: PlatformType): Promise<void> {
-  if (!import.meta.env.DEV) return
-  if (platform !== PlatformType.WEB) return
-
-  const { defineCustomElements: defineJeepSqliteCustomElements } =
-    await import("jeep-sqlite/loader")
-
-  defineJeepSqliteCustomElements(window)
-
-  if (!document.querySelector("jeep-sqlite")) {
-    const jeepEl = document.createElement("jeep-sqlite")
-    document.body.appendChild(jeepEl)
-  }
-
-  const sqlite = new SQLiteConnection(CapacitorSQLite)
-  await sqlite.initWebStore()
 }
 
 export async function initializeCapacitorPlatform(): Promise<void> {
@@ -68,10 +50,14 @@ export async function initializeCapacitorPlatform(): Promise<void> {
   }
 
   window.platform = info
-
-  await initSqliteWebDev(platformType)
 }
 
 export function isCapacitorNative(): boolean {
   return Capacitor.isNativePlatform()
+}
+
+export function hideSplashScreen() {
+  if (!isCapacitorNative()) return
+
+  SplashScreen.hide()
 }

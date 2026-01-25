@@ -8,6 +8,10 @@ const config: CapacitorConfig = {
     androidScheme: "https",
   },
   plugins: {
+    SplashScreen: {
+      launchAutoHide: false,
+      backgroundColor: "#000000",
+    },
     CapacitorHttp: {
       enabled: true,
     },

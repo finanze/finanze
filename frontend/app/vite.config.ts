@@ -57,7 +57,7 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     define: {
-      __MOBILE_BUILD__: JSON.stringify(isMobileBuild),
+      __MOBILE__: JSON.stringify(isMobile),
       __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
     },
     resolve: {

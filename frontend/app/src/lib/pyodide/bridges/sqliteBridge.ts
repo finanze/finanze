@@ -1,5 +1,4 @@
-import {
-  CapacitorSQLite,
+import type {
   SQLiteConnection,
   SQLiteDBConnection,
 } from "@capacitor-community/sqlite"
@@ -117,7 +116,9 @@ function withTimeout<T>(
 
 async function initSQLite(): Promise<SQLiteConnection> {
   if (!sqliteConnection) {
-    sqliteConnection = new SQLiteConnection(CapacitorSQLite)
+    const { CapacitorSQLite, SQLiteConnection: SQLiteConnectionCtor } =
+      await import("@capacitor-community/sqlite")
+    sqliteConnection = new SQLiteConnectionCtor(CapacitorSQLite)
   }
 
   await maybeInitWebStore(

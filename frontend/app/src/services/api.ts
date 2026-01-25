@@ -76,7 +76,7 @@ import {
 import { handleApiError } from "@/utils/apiErrors"
 import { getApiClient } from "./apiClient"
 import { AppSettings } from "@/context/AppContext"
-import { isNativeMobile } from "@/lib/platform"
+import { triggerDeferredInit } from "@/lib/mobile"
 
 export interface ApiServerInfo {
   isCustomServer: boolean
@@ -85,22 +85,22 @@ export interface ApiServerInfo {
 }
 
 export const getApiServerInfo = async (): Promise<ApiServerInfo> => {
-  return getApiClient().getApiServerInfo()
+  return (await getApiClient()).getApiServerInfo()
 }
 
 export const refreshApiBaseUrl = async (): Promise<void> => {
-  return getApiClient().refreshApiBaseUrl()
+  return (await getApiClient()).refreshApiBaseUrl()
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
-  return getApiClient().get("/entities")
+  return (await getApiClient()).get("/entities")
 }
 
 export async function loginEntity(
   request: LoginRequest,
 ): Promise<LoginResponse> {
   try {
-    return await getApiClient().post("/entities/login", request)
+    return await (await getApiClient()).post("/entities/login", request)
   } catch (error: any) {
     if (error.data && error.data.code) {
       return error.data
@@ -110,27 +110,27 @@ export async function loginEntity(
 }
 
 export async function disconnectEntity(entityId: string): Promise<void> {
-  await getApiClient().delete("/entities/login", { id: entityId })
+  await (await getApiClient()).delete("/entities/login", { id: entityId })
 }
 
 export async function fetchFinancialEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
-  return getApiClient().post("/data/fetch/financial", request)
+  return (await getApiClient()).post("/data/fetch/financial", request)
 }
 
 export async function fetchCryptoEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
-  return getApiClient().post("/data/fetch/crypto", request)
+  return (await getApiClient()).post("/data/fetch/crypto", request)
 }
 
 export async function importFetch(): Promise<ImportResult> {
-  return getApiClient().post("/data/import/sheets")
+  return (await getApiClient()).post("/data/import/sheets")
 }
 
 export async function updateSheets(): Promise<void> {
-  return getApiClient().post("/data/export/sheets")
+  return (await getApiClient()).post("/data/export/sheets")
 }
 
 export interface FileExportResult {
@@ -142,7 +142,7 @@ export interface FileExportResult {
 export async function exportFile(
   request: FileExportRequest,
 ): Promise<FileExportResult> {
-  return getApiClient().download("/data/export/file", request)
+  return (await getApiClient()).download("/data/export/file", request)
 }
 
 export async function importFile(
@@ -173,55 +173,47 @@ export async function importFile(
     path += request.preview ? "?preview=true" : "?preview=false"
   }
 
-  return getApiClient().post(path, formData)
+  return (await getApiClient()).post(path, formData)
 }
 
 // Templates
 export async function getTemplates(type: TemplateType): Promise<Template[]> {
   const params = new URLSearchParams({ type })
-  return getApiClient().get(`/templates?${params.toString()}`)
+  return (await getApiClient()).get(`/templates?${params.toString()}`)
 }
 
 export async function getTemplateFields(): Promise<
   Record<string, TemplateFeatureDefinition[]>
 > {
-  return getApiClient().get("/templates/fields")
+  return (await getApiClient()).get("/templates/fields")
 }
 
 export async function createTemplate(
   payload: TemplateCreatePayload,
 ): Promise<Template | null> {
-  return getApiClient().post("/templates", payload)
+  return (await getApiClient()).post("/templates", payload)
 }
 
 export async function updateTemplate(
   payload: TemplateUpdatePayload,
 ): Promise<Template | null> {
-  return getApiClient().put("/templates", payload)
+  return (await getApiClient()).put("/templates", payload)
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  return getApiClient().delete(`/templates/${id}`)
+  return (await getApiClient()).delete(`/templates/${id}`)
 }
 
 export async function getSettings(): Promise<AppSettings> {
-  return getApiClient().get("/settings")
+  return (await getApiClient()).get("/settings")
 }
 
 export async function saveSettings(settings: any) {
-  return getApiClient().post("/settings", settings)
+  return (await getApiClient()).post("/settings", settings)
 }
 
 interface CheckStatusOptions {
   baseUrlOverride?: string
-}
-
-function triggerDeferredInitOnNative() {
-  if (!isNativeMobile()) return
-
-  import("@/lib/pyodide/init").then(({ triggerDeferredInit }) => {
-    triggerDeferredInit()
-  })
 }
 
 export async function checkStatus(
@@ -240,9 +232,9 @@ export async function checkStatus(
     return response.json()
   }
 
-  const result = await getApiClient().get<StatusResponse>("/status")
+  const result = await (await getApiClient()).get<StatusResponse>("/status")
 
-  triggerDeferredInitOnNative()
+  triggerDeferredInit()
 
   return result
 }
@@ -251,7 +243,7 @@ export async function login(
   authRequest: AuthRequest,
 ): Promise<{ code: AuthResultCode; message?: string }> {
   try {
-    await getApiClient().post("/login", authRequest)
+    await (await getApiClient()).post("/login", authRequest)
     return { code: AuthResultCode.SUCCESS }
   } catch (error: any) {
     console.error("Login error:", error)
@@ -276,11 +268,11 @@ export async function login(
 export const changePassword = async (
   data: ChangePasswordRequest,
 ): Promise<void> => {
-  return getApiClient().post("/change-password", data)
+  return (await getApiClient()).post("/change-password", data)
 }
 
 export async function logout(): Promise<void> {
-  return getApiClient().post("/logout")
+  return (await getApiClient()).post("/logout")
 }
 
 export async function getContributions(
@@ -291,7 +283,7 @@ export async function getContributions(
     queryParams.entities.forEach(entity => params.append("entity", entity))
   }
   const queryString = params.toString() ? `?${params.toString()}` : ""
-  return getApiClient().get(`/contributions${queryString}`)
+  return (await getApiClient()).get(`/contributions${queryString}`)
 }
 
 export async function getPositions(
@@ -302,7 +294,7 @@ export async function getPositions(
     queryParams.entities.forEach(entity => params.append("entity", entity))
   }
   const queryString = params.toString() ? `?${params.toString()}` : ""
-  return getApiClient().get(`/positions${queryString}`)
+  return (await getApiClient()).get(`/positions${queryString}`)
 }
 
 export async function getTransactions(
@@ -336,7 +328,7 @@ export async function getTransactions(
   }
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
-  return getApiClient().get(`/transactions${queryString}`)
+  return (await getApiClient()).get(`/transactions${queryString}`)
 }
 
 export async function getHistoric(
@@ -356,14 +348,14 @@ export async function getHistoric(
   }
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
-  return getApiClient().get(`/historic${queryString}`)
+  return (await getApiClient()).get(`/historic${queryString}`)
 }
 
 export async function signup(
   authRequest: AuthRequest,
 ): Promise<{ success: boolean }> {
   try {
-    await getApiClient().post("/signup", authRequest)
+    await (await getApiClient()).post("/signup", authRequest)
     return { success: true }
   } catch (error: any) {
     console.error("Signup error:", error)
@@ -378,123 +370,125 @@ export async function signup(
 }
 
 export async function getExchangeRates(): Promise<ExchangeRates> {
-  return getApiClient().get("/exchange-rates")
+  return (await getApiClient()).get("/exchange-rates")
 }
 
 export async function saveManualContributions(
   request: ManualContributionsRequest,
 ): Promise<void> {
-  return getApiClient().post("/data/manual/contributions", request)
+  return (await getApiClient()).post("/data/manual/contributions", request)
 }
 
 export async function calculateLoan(
   request: LoanCalculationRequest,
 ): Promise<LoanCalculationResult> {
-  return getApiClient().post("/calculation/loan", request)
+  return (await getApiClient()).post("/calculation/loan", request)
 }
 
 export async function saveManualPositions(
   request: UpdatePositionRequest,
 ): Promise<void> {
-  return getApiClient().post("/data/manual/positions", request)
+  return (await getApiClient()).post("/data/manual/positions", request)
 }
 
 export async function updateQuotesManualPositions(): Promise<void> {
-  return getApiClient().post("/data/manual/positions/update-quotes")
+  return (await getApiClient()).post("/data/manual/positions/update-quotes")
 }
 
 export async function createManualTransaction(
   request: ManualTransactionPayload,
 ): Promise<void> {
-  return getApiClient().post("/data/manual/transactions", request)
+  return (await getApiClient()).post("/data/manual/transactions", request)
 }
 
 export async function updateManualTransaction(
   id: string,
   request: ManualTransactionPayload,
 ): Promise<void> {
-  return getApiClient().put(`/data/manual/transactions/${id}`, request)
+  return (await getApiClient()).put(`/data/manual/transactions/${id}`, request)
 }
 
 export async function deleteManualTransaction(id: string): Promise<void> {
-  return getApiClient().delete(`/data/manual/transactions/${id}`)
+  return (await getApiClient()).delete(`/data/manual/transactions/${id}`)
 }
 
 export async function getForecast(
   request: ForecastRequest,
 ): Promise<ForecastResult> {
-  return getApiClient().post("/forecast", request)
+  return (await getApiClient()).post("/forecast", request)
 }
 
 export async function createCryptoWallet(
   request: CreateCryptoWalletRequest,
 ): Promise<CryptoWalletConnectionResult> {
-  return getApiClient().post("/crypto-wallet", request)
+  return (await getApiClient()).post("/crypto-wallet", request)
 }
 
 export async function updateCryptoWallet(
   request: UpdateCryptoWalletConnectionRequest,
 ): Promise<void> {
-  return getApiClient().put("/crypto-wallet", request)
+  return (await getApiClient()).put("/crypto-wallet", request)
 }
 
 export async function deleteCryptoWallet(id: string): Promise<void> {
-  return getApiClient().delete(`/crypto-wallet/${id}`)
+  return (await getApiClient()).delete(`/crypto-wallet/${id}`)
 }
 
 export async function saveCommodity(
   request: SaveCommodityRequest,
 ): Promise<void> {
-  return getApiClient().post("/commodities", request)
+  return (await getApiClient()).post("/commodities", request)
 }
 
 export async function getExternalIntegrations(): Promise<ExternalIntegrations> {
-  return getApiClient().get("/integrations")
+  return (await getApiClient()).get("/integrations")
 }
 
 export async function setupIntegration(
   integrationId: string,
   payload: Record<string, string>,
 ): Promise<void> {
-  return getApiClient().post(`/integrations/${integrationId}`, { payload })
+  return (await getApiClient()).post(`/integrations/${integrationId}`, {
+    payload,
+  })
 }
 
 export async function disableIntegration(integrationId: string): Promise<void> {
-  return getApiClient().delete(`/integrations/${integrationId}`)
+  return (await getApiClient()).delete(`/integrations/${integrationId}`)
 }
 
 export async function createPeriodicFlow(
   request: CreatePeriodicFlowRequest,
 ): Promise<void> {
-  return getApiClient().post("/flows/periodic", request)
+  return (await getApiClient()).post("/flows/periodic", request)
 }
 
 export async function updatePeriodicFlow(
   request: UpdatePeriodicFlowRequest,
 ): Promise<void> {
-  return getApiClient().put("/flows/periodic", request)
+  return (await getApiClient()).put("/flows/periodic", request)
 }
 
 export async function getAllPeriodicFlows(): Promise<PeriodicFlow[]> {
-  return getApiClient().get("/flows/periodic")
+  return (await getApiClient()).get("/flows/periodic")
 }
 
 export async function deletePeriodicFlow(flowId: string): Promise<void> {
-  return getApiClient().delete(`/flows/periodic/${flowId}`)
+  return (await getApiClient()).delete(`/flows/periodic/${flowId}`)
 }
 
 export async function savePendingFlows(
   request: SavePendingFlowsRequest,
 ): Promise<void> {
-  return getApiClient().post("/flows/pending", request)
+  return (await getApiClient()).post("/flows/pending", request)
 }
 
 export async function getAllPendingFlows(): Promise<PendingFlow[]> {
-  return getApiClient().get("/flows/pending")
+  return (await getApiClient()).get("/flows/pending")
 }
 
 export async function getAllRealEstate(): Promise<RealEstate[]> {
-  return getApiClient().get("/real-estate")
+  return (await getApiClient()).get("/real-estate")
 }
 
 export async function createRealEstate(
@@ -507,7 +501,7 @@ export async function createRealEstate(
     formData.append("photo", request.photo)
   }
 
-  return getApiClient().post("/real-estate", formData)
+  return (await getApiClient()).post("/real-estate", formData)
 }
 
 export async function updateRealEstate(
@@ -520,18 +514,18 @@ export async function updateRealEstate(
     formData.append("photo", request.photo)
   }
 
-  return getApiClient().put("/real-estate", formData)
+  return (await getApiClient()).put("/real-estate", formData)
 }
 
 export async function deleteRealEstate(
   realEstateId: string,
   request: DeleteRealEstateRequest,
 ): Promise<void> {
-  return getApiClient().delete(`/real-estate/${realEstateId}`, request)
+  return (await getApiClient()).delete(`/real-estate/${realEstateId}`, request)
 }
 
 export async function getImageUrl(imagePath: string): Promise<string> {
-  return getApiClient().getImageUrl(imagePath)
+  return (await getApiClient()).getImageUrl(imagePath)
 }
 
 export async function getCryptoAssetDetails(
@@ -552,7 +546,7 @@ export async function getCryptoAssetDetails(
   const params = new URLSearchParams()
   params.set("provider", trimmedProvider)
 
-  return getApiClient().get(
+  return (await getApiClient()).get(
     `/assets/crypto/${encodeURIComponent(trimmedProviderAssetId)}?${params.toString()}`,
   )
 }
@@ -596,7 +590,7 @@ export async function getCryptoAssets(
   }
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
-  return getApiClient().get(`/assets/crypto${queryString}`)
+  return (await getApiClient()).get(`/assets/crypto${queryString}`)
 }
 
 // External entity endpoints
@@ -604,7 +598,7 @@ export async function getExternalEntityCandidates(
   country: string,
 ): Promise<ExternalEntityCandidates> {
   const params = new URLSearchParams({ country })
-  return getApiClient().get(
+  return (await getApiClient()).get(
     `/entities/external/candidates?${params.toString()}`,
   )
 }
@@ -618,7 +612,7 @@ export async function connectExternalEntity(
       (localStorage.getItem("locale") || undefined)) ||
     "en-US"
 
-  return getApiClient().post("/entities/external", request, {
+  return (await getApiClient()).post("/entities/external", request, {
     headers: { "Accept-Language": locale },
   })
 }
@@ -629,19 +623,21 @@ export async function completeExternalEntityConnection(
   const params = new URLSearchParams({
     external_entity_id: externalEntityId,
   })
-  return getApiClient().get(`/entities/external/complete?${params.toString()}`)
+  return (await getApiClient()).get(
+    `/entities/external/complete?${params.toString()}`,
+  )
 }
 
 export async function disconnectExternalEntity(
   externalEntityId: string,
 ): Promise<void> {
-  return getApiClient().delete(`/entities/external/${externalEntityId}`)
+  return (await getApiClient()).delete(`/entities/external/${externalEntityId}`)
 }
 
 export async function fetchExternalEntity(
   externalEntityId: string,
 ): Promise<FetchResponse> {
-  return getApiClient().post(`/data/fetch/external/${externalEntityId}`)
+  return (await getApiClient()).post(`/data/fetch/external/${externalEntityId}`)
 }
 
 export async function getInstruments(
@@ -653,7 +649,7 @@ export async function getInstruments(
   if (request.name) params.append("name", request.name)
   if (request.ticker) params.append("ticker", request.ticker)
 
-  return getApiClient().get(`/assets/instruments?${params.toString()}`)
+  return (await getApiClient()).get(`/assets/instruments?${params.toString()}`)
 }
 
 export async function getInstrumentDetails(
@@ -666,7 +662,9 @@ export async function getInstrumentDetails(
   if (request.name) params.append("name", request.name)
   if (request.ticker) params.append("ticker", request.ticker)
 
-  return getApiClient().get(`/assets/instruments/details?${params.toString()}`)
+  return (await getApiClient()).get(
+    `/assets/instruments/details?${params.toString()}`,
+  )
 }
 
 export async function getMoneyEvents(
@@ -676,24 +674,24 @@ export async function getMoneyEvents(
   params.append("from_date", query.from_date)
   params.append("to_date", query.to_date)
 
-  return getApiClient().get(`/events?${params.toString()}`)
+  return (await getApiClient()).get(`/events?${params.toString()}`)
 }
 
 export async function calculateSavings(
   request: SavingsCalculationRequest,
 ): Promise<SavingsCalculationResult> {
-  return getApiClient().post("/calculations/savings", request)
+  return (await getApiClient()).post("/calculations/savings", request)
 }
 
 export async function cloudAuth(
   request: CloudAuthRequest,
 ): Promise<CloudAuthResponse> {
-  return getApiClient().post("/cloud/auth", request)
+  return (await getApiClient()).post("/cloud/auth", request)
 }
 
 export async function getCloudAuthToken(): Promise<CloudAuthData | null> {
   try {
-    return await getApiClient().get<CloudAuthData>("/cloud/auth")
+    return await (await getApiClient()).get<CloudAuthData>("/cloud/auth")
   } catch (error: any) {
     if (error.status === 404) return null
     throw error
@@ -707,27 +705,27 @@ export async function getBackupsInfo(
   if (request?.only_local) {
     params.set("only_local", "true")
   }
-  return getApiClient().get(`/cloud/backup?${params.toString()}`)
+  return (await getApiClient()).get(`/cloud/backup?${params.toString()}`)
 }
 
 export async function uploadBackup(
   request: UploadBackupRequest,
 ): Promise<BackupSyncResult> {
-  return getApiClient().post("/cloud/backup/upload", request)
+  return (await getApiClient()).post("/cloud/backup/upload", request)
 }
 
 export async function importBackup(
   request: ImportBackupRequest,
 ): Promise<BackupSyncResult> {
-  return getApiClient().post("/cloud/backup/import", request)
+  return (await getApiClient()).post("/cloud/backup/import", request)
 }
 
 export async function getBackupSettings(): Promise<BackupSettings> {
-  return getApiClient().get("/cloud/backup/settings")
+  return (await getApiClient()).get("/cloud/backup/settings")
 }
 
 export async function updateBackupSettings(
   settings: BackupSettings,
 ): Promise<void> {
-  return getApiClient().post("/cloud/backup/settings", settings)
+  return (await getApiClient()).post("/cloud/backup/settings", settings)
 }
