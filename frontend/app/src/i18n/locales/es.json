@@ -297,7 +297,16 @@
     "signup": "Registrarse",
     "login": "Iniciar Sesión",
     "viewErrorDetails": "Ver detalles técnicos",
-    "errorDetailsTitle": "Detalles técnicos"
+    "errorDetailsTitle": "Detalles técnicos",
+    "syncPasswordHint": "Usa la misma contraseña en todos tus dispositivos si tienes la sincronización activada",
+    "enableBiometric": "Activar {type}",
+    "biometricFaceId": "Face ID",
+    "biometricFingerprint": "Huella dactilar",
+    "biometricAuth": "Biometría",
+    "biometricLoginReason": "Desbloquear Finanze",
+    "biometricSaved": "Inicio de sesión biométrico activado",
+    "biometricError": "No se pudo activar el inicio de sesión biométrico",
+    "biometricLoginFailed": "La autenticación biométrica falló"
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
@@ -405,9 +414,17 @@
     "generalDescription": "Configura los ajustes generales de la aplicación",
     "application": "Aplicación",
     "applicationDescription": "Ajusta las preferencias locales de este dispositivo",
-    "applicationDisclaimerDescription": "Estos ajustes se guardan solo en esta ventana, si solo usas la aplicación de escritorio no te preocupes.",
+    "applicationDisclaimerDescription": "Estos ajustes se guardan solo en esta ventana, si usas otro dispositivo u aplicación no se comparten.",
     "applicationLanguageTitle": "Idioma",
     "applicationLanguageDescription": "Elige el idioma de la interfaz. También usado para dar formato a fechas, números y monedas.",
+    "biometricCredentialsTitle": "Inicio biométrico",
+    "biometricCredentialsNotEnabledTitle": "Habilitar inicio biométrico",
+    "biometricCredentialsDescription": "Gestiona el inicio de sesión biométrico.",
+    "biometricCredentialsAction": "Desactivar",
+    "biometricCredentialsCleared": "Credenciales biométricas eliminadas",
+    "biometricCredentialsClearError": "No se pudo deshabilitar el inicio biométrico",
+    "biometricCredentialsNotEnabledHint": "Habilita el inicio biométrico para un acceso más rápido y seguro al iniciar sesión o al cambiar tu contraseña.",
+    "biometricCredentialsActionTitle": "Desactivar inicio biométrico",
     "applicationLanguageOptions": {
       "en-US": "Inglés",
       "es-ES": "Español"

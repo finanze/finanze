@@ -24,6 +24,7 @@ import {
   Coins,
   Edit2,
   X,
+  Unlink,
   Check,
   AlertTriangle,
   Database,
@@ -39,6 +40,13 @@ import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
 import { EntitySelector } from "@/components/settings/EntitySelector"
 import { CloudTab } from "@/components/settings/CloudTab"
 import { copyToClipboard } from "@/lib/clipboard"
+import { isNativeMobile } from "@/lib/platform"
+import {
+  checkBiometricAvailability,
+  deleteCredentials,
+  hasStoredCredentials as checkHasStoredBiometricCredentials,
+} from "@/lib/mobile/biometric"
+import type { BiometricAvailability } from "@/lib/mobile/biometric"
 
 const cleanObject = (obj: any): any => {
   if (obj === null || obj === undefined) {
@@ -102,6 +110,12 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
   )
+  const [biometricAvailability, setBiometricAvailability] =
+    useState<BiometricAvailability | null>(null)
+  const [hasStoredBiometricCredentials, setHasStoredBiometricCredentials] =
+    useState(false)
+  const [isClearingBiometricCredentials, setIsClearingBiometricCredentials] =
+    useState(false)
 
   const isCloudEnabled = featureFlags.CLOUD === FFStatus.ON
   const showRefreshButton = activeTab !== "application" && activeTab !== "cloud"
@@ -358,6 +372,47 @@ export default function SettingsPage() {
   useEffect(() => {
     setSettings(storedSettings)
   }, [storedSettings])
+
+  const refreshBiometricStatus = useCallback(async () => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+
+    const availability = await checkBiometricAvailability()
+    setBiometricAvailability(availability)
+
+    if (availability.isAvailable) {
+      const saved = await checkHasStoredBiometricCredentials()
+      setHasStoredBiometricCredentials(saved)
+    } else {
+      setHasStoredBiometricCredentials(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshBiometricStatus()
+  }, [refreshBiometricStatus])
+
+  const handleClearBiometricCredentials = useCallback(async () => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+    if (!biometricAvailability?.isAvailable) return
+    if (!hasStoredBiometricCredentials) return
+
+    try {
+      setIsClearingBiometricCredentials(true)
+      await deleteCredentials()
+      setHasStoredBiometricCredentials(false)
+      showToast(t.settings.biometricCredentialsCleared, "success")
+    } catch {
+      showToast(t.settings.biometricCredentialsClearError, "error")
+    } finally {
+      setIsClearingBiometricCredentials(false)
+    }
+  }, [
+    biometricAvailability?.isAvailable,
+    hasStoredBiometricCredentials,
+    showToast,
+    t.settings.biometricCredentialsClearError,
+    t.settings.biometricCredentialsCleared,
+  ])
 
   const toggleSection = (section: string) => {
     setExpandedSections({
@@ -1021,6 +1076,59 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {isNativeMobile() && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {t.settings.biometricCredentialsTitle}
+                    </CardTitle>
+                    <CardDescription>
+                      {t.settings.biometricCredentialsDescription}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          {hasStoredBiometricCredentials
+                            ? t.settings.biometricCredentialsActionTitle
+                            : t.settings.biometricCredentialsNotEnabledTitle}
+                        </p>
+                        {!hasStoredBiometricCredentials && (
+                          <p className="text-xs text-muted-foreground">
+                            {t.settings.biometricCredentialsNotEnabledHint}
+                          </p>
+                        )}
+                      </div>
+                      {hasStoredBiometricCredentials && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-auto px-3"
+                          onClick={handleClearBiometricCredentials}
+                          disabled={
+                            isClearingBiometricCredentials ||
+                            !biometricAvailability?.isAvailable
+                          }
+                        >
+                          {isClearingBiometricCredentials ? (
+                            <>
+                              <LoadingSpinner size="sm" className="mr-2" />
+                              {t.common.loading}
+                            </>
+                          ) : (
+                            <>
+                              <Unlink className="mr-2 h-4 w-4" />
+                              {t.settings.biometricCredentialsAction}
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Advanced Settings Section (Desktop only) */}
               {isDesktopApp && (

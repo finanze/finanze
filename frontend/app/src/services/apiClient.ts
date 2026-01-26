@@ -43,9 +43,11 @@ export async function getApiClient(): Promise<ApiClient> {
     if (__MOBILE__ && isNativeMobile()) {
       const module = await import("@/lib/pyodide/apiClient")
       apiClientInstance = new module.PyodideApiClient()
+      console.log("Initialized Pyodide API client")
     } else {
       const module = await import("./httpApiClient")
       apiClientInstance = new module.HttpApiClient()
+      console.log("Initialized HTTP API client")
     }
   }
   return apiClientInstance!

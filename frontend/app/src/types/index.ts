@@ -421,6 +421,9 @@ export interface PlatformInfo {
   arch?: string
   osVersion?: string
   electronVersion?: string
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
+  webViewVersion?: string | null
 }
 
 export type ThemeMode = "light" | "dark" | "system"
@@ -431,10 +434,6 @@ export interface AboutAppInfo {
   author?: string | null
   repository?: string | null
   homepage?: string | null
-  electronVersion?: string | null
-  chromiumVersion?: string | null
-  nodeVersion?: string | null
-  platform: PlatformInfo
 }
 
 export type BackendLogLevel =
@@ -526,7 +525,6 @@ declare global {
     platform: PlatformInfo
     ipcAPI?: {
       apiUrl: () => Promise<{ url: string; custom: boolean }>
-      platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
       getAboutInfo: () => Promise<AboutAppInfo>

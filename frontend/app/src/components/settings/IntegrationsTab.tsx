@@ -28,6 +28,7 @@ import {
   ExternalIntegrationStatus,
   type ExternalIntegration,
 } from "@/types"
+import { getPlatformType } from "@/lib/platform"
 
 type IntegrationHintPart =
   | { type: "text"; value: string }
@@ -71,12 +72,8 @@ const parseIntegrationHintParts = (
 export function IntegrationsTab() {
   const { t } = useI18n()
   const [searchParams] = useSearchParams()
-  const {
-    showToast,
-    externalIntegrations,
-    fetchExternalIntegrations,
-    platform,
-  } = useAppContext()
+  const { showToast, externalIntegrations, fetchExternalIntegrations } =
+    useAppContext()
 
   const [isSetupLoading, setIsSetupLoading] = useState<Record<string, boolean>>(
     {},
@@ -94,6 +91,8 @@ export function IntegrationsTab() {
     Record<string, boolean>
   >({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+
+  const platform = getPlatformType()
 
   const getIntegrationCopy = useCallback(
     (integration: ExternalIntegration) => {

@@ -83,7 +83,11 @@ export async function maybeInitWebStore(
 
   log("[Bridge][sqlite] initWebStore start")
   await ensureSqliteWebDevReady()
-  await withTimeout("initWebStore", initWebStore(), 15_000)
+  try {
+    await withTimeout("initWebStore", initWebStore(), 30_000)
+  } catch {
+    await withTimeout("initWebStore(retry)", initWebStore(), 30_000)
+  }
   markWebStoreInitialized()
   log("[Bridge][sqlite] initWebStore done")
 }
@@ -120,8 +124,16 @@ export async function ensureSqliteWebDevReady(): Promise<void> {
 
   defineJeepSqliteCustomElements(window)
 
-  if (!document.querySelector("jeep-sqlite")) {
-    const jeepEl = document.createElement("jeep-sqlite")
+  await customElements.whenDefined("jeep-sqlite")
+
+  let jeepEl = document.querySelector("jeep-sqlite") as HTMLElement | null
+  if (!jeepEl) {
+    jeepEl = document.createElement("jeep-sqlite")
     document.body.appendChild(jeepEl)
+  }
+
+  const maybeReady = (jeepEl as any).componentOnReady
+  if (typeof maybeReady === "function") {
+    await maybeReady.call(jeepEl)
   }
 }

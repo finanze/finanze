@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { useI18n } from "@/i18n"
 import type { AboutAppInfo } from "@/types"
+import { getPlatformInfo } from "@/lib/platform"
 
 export function AboutWindow() {
   const { t } = useI18n()
@@ -9,6 +10,7 @@ export function AboutWindow() {
   const [isLoading, setIsLoading] = useState(true)
 
   const aboutStrings = t.about
+  const plarformInfo = getPlatformInfo()
 
   useEffect(() => {
     let mounted = true
@@ -52,35 +54,35 @@ export function AboutWindow() {
       { label: aboutStrings.version, value: info.version },
     ]
 
-    if (info.electronVersion) {
+    if (plarformInfo.electronVersion) {
       items.push({
         label: aboutStrings.electronVersion,
-        value: info.electronVersion,
+        value: plarformInfo.electronVersion,
       })
     }
 
-    if (info.chromiumVersion) {
+    if (plarformInfo.chromiumVersion) {
       items.push({
         label: aboutStrings.chromiumVersion,
-        value: info.chromiumVersion,
+        value: plarformInfo.chromiumVersion,
       })
     }
 
-    if (info.nodeVersion) {
-      items.push({ label: aboutStrings.nodeVersion, value: info.nodeVersion })
+    if (plarformInfo.nodeVersion) {
+      items.push({
+        label: aboutStrings.nodeVersion,
+        value: plarformInfo.nodeVersion,
+      })
     }
 
     return items
   }, [info, author, aboutStrings])
 
   const platformItems = useMemo(() => {
-    if (!info?.platform) return []
-
-    const { platform } = info
     const platformNames = aboutStrings.platformNames
     const osName =
-      platformNames?.[platform.type as keyof typeof platformNames] ??
-      platform.type
+      platformNames?.[plarformInfo.type as keyof typeof platformNames] ??
+      plarformInfo.type
 
     return [
       {
@@ -89,11 +91,11 @@ export function AboutWindow() {
       },
       {
         label: aboutStrings.architecture,
-        value: platform.arch ?? t.common.notAvailable,
+        value: plarformInfo.arch ?? t.common.notAvailable,
       },
       {
         label: aboutStrings.osVersion,
-        value: platform.osVersion ?? t.common.notAvailable,
+        value: plarformInfo.osVersion ?? t.common.notAvailable,
       },
     ]
   }, [info, aboutStrings, t.common.notAvailable])

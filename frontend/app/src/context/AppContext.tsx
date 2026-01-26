@@ -9,11 +9,9 @@ import {
 } from "react"
 import {
   EntityStatus,
-  PlatformType,
   AutoRefreshMode,
   AutoRefreshMaxOutdatedTime,
   type Entity,
-  type PlatformInfo,
   type ExchangeRates,
   type ExternalIntegration,
   type FeatureFlags,
@@ -35,7 +33,6 @@ import {
   getFeatureFlags,
   subscribeFeatureFlags,
 } from "@/context/featureFlagsStore"
-import { getPlatformType } from "@/lib/platform"
 
 export interface AppSettings {
   export?: {
@@ -77,7 +74,6 @@ interface AppContextType {
   } | null
   settings: AppSettings
   isLoadingSettings: boolean
-  platform: PlatformType | null
   exchangeRates: ExchangeRates
   exchangeRatesLoading: boolean
   exchangeRatesError: string | null
@@ -213,9 +209,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
-  const [platform, setPlatform] = useState<PlatformType | null>(() =>
-    getPlatformType(),
-  )
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false)
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
@@ -244,24 +237,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
   const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
-
-  useEffect(() => {
-    const getPlatformInfo = async () => {
-      if (window.ipcAPI && window.ipcAPI.platform) {
-        try {
-          const platformInfo: PlatformInfo = await window.ipcAPI.platform()
-          setPlatform(platformInfo.type)
-        } catch (error) {
-          console.error("Failed to get platform info:", error)
-          setPlatform(getPlatformType())
-        }
-      } else {
-        setPlatform(getPlatformType())
-      }
-    }
-
-    getPlatformInfo()
-  }, [])
 
   const showToast = useCallback(
     (message: string, type: "success" | "error" | "warning") => {
@@ -486,7 +461,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast,
         settings,
         isLoadingSettings,
-        platform,
         exchangeRates,
         exchangeRatesLoading,
         exchangeRatesError,

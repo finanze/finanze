@@ -7,16 +7,18 @@ import { motion, AnimatePresence } from "framer-motion"
 import { PlatformType } from "@/types"
 import { useI18n } from "@/i18n"
 import { useLocation } from "react-router-dom"
+import { getPlatformType } from "@/lib/platform"
 
 interface LayoutProps {
   children: React.ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { toast, hideToast, platform } = useAppContext()
+  const { toast, hideToast } = useAppContext()
   const { t } = useI18n()
   const location = useLocation()
   const prevPathnameRef = useRef(location.pathname)
+  const platform = getPlatformType()
   const isRouteChange = prevPathnameRef.current !== location.pathname
   if (isRouteChange) {
     prevPathnameRef.current = location.pathname

@@ -29,7 +29,6 @@ import { PinnedShortcutsProvider } from "./context/PinnedShortcutsContext"
 import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
 import { GlobalEntityModals } from "./components/GlobalEntityModals"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
-import { useAppContext } from "./context/AppContext"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
 import { useState, useEffect } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
@@ -37,7 +36,6 @@ import { hideSplashScreen as hideMobileSplashScreen } from "@/lib/mobile"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
-  const { platform } = useAppContext()
   const [showReleaseModal, setShowReleaseModal] = useState(false)
   const [skippedVersions, setSkippedVersions] = useState<string[]>([])
   const {
@@ -200,7 +198,6 @@ function App() {
               currentVersion={updateInfo.currentVersion}
               latestVersion={updateInfo.latestVersion}
               release={updateInfo.release}
-              platform={platform}
               onSkipVersion={handleSkipVersion}
               autoUpdateSupported={autoUpdateState.isSupported}
               isAutoUpdateDownloading={autoUpdateState.isDownloading}

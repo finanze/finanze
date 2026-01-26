@@ -103,7 +103,7 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
                 return connection
 
             except Exception as e:
-                msg = str(e)
+                msg = self._stringify_error(e)
                 if self._looks_like_decryption_error(msg):
                     raise DecryptionError(
                         "Failed to decrypt database. Incorrect password or corrupted file"
@@ -122,6 +122,33 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
                 finally:
                     self._client.set_connection(None)
                 raise
+
+    @staticmethod
+    def _stringify_error(error: Exception) -> str:
+        parts: list[str] = []
+        try:
+            parts.append(str(error))
+        except Exception:
+            parts.append(repr(error))
+
+        try:
+            args = getattr(error, "args", None)
+            if args:
+                parts.extend([str(a) for a in args if a is not None])
+        except Exception:
+            pass
+
+        js_error = getattr(error, "js_error", None)
+        if js_error is not None:
+            for attr in ("message", "errorMessage", "stack"):
+                try:
+                    val = getattr(js_error, attr, None)
+                    if val:
+                        parts.append(str(val))
+                except Exception:
+                    pass
+
+        return "\n".join([p for p in parts if p])
 
     async def _await_js(
         self,
@@ -288,5 +315,8 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
                 "sqlcipher",
                 "wrong key",
                 "malformed",
+                "hmac check failed",
+                "cannot open the db",
+                "openorcreatedatabase",
             )
         )

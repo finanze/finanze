@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core"
 import { SplashScreen } from "@capacitor/splash-screen"
+import { Device } from "@capacitor/device"
 import { PlatformInfo, PlatformType } from "@/types"
 import "./plugins"
 
@@ -44,9 +45,20 @@ export async function initializeCapacitorPlatform(): Promise<void> {
       platformType = PlatformType.WEB
   }
 
+  let osVersion: string | undefined
+  let webViewVersion: string | null = null
+  try {
+    const deviceInfo = await Device.getInfo()
+    osVersion = deviceInfo.osVersion
+    webViewVersion = deviceInfo.webViewVersion
+  } catch {
+    osVersion = undefined
+  }
+
   const info: PlatformInfo = {
     type: platformType,
-    osVersion: undefined,
+    osVersion,
+    webViewVersion,
   }
 
   window.platform = info

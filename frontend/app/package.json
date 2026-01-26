@@ -40,10 +40,12 @@
     "@capacitor/android": "^8.0.1",
     "@capacitor/cli": "^8.0.1",
     "@capacitor/core": "^8.0.1",
+    "@capacitor/device": "^8.0.0",
     "@capacitor/filesystem": "^8.1.0",
     "@capacitor/ios": "^8.0.1",
     "@capacitor/preferences": "^8.0.0",
     "@capacitor/splash-screen": "^8.0.0",
+    "@capgo/capacitor-native-biometric": "^8.3.1",
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-switch": "^1.2.6",
@@ -104,6 +106,16 @@
   "pnpm": {
     "overrides": {
       "sql.js": "1.11.0"
-    }
+    },
+    "patchedDependencies": {
+      "@capgo/capacitor-native-biometric@8.3.1": "patches/@capgo__capacitor-native-biometric@8.3.1.patch"
+    },
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ],
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller"
+    ]
   }
 }

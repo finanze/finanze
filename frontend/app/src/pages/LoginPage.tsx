@@ -1,6 +1,6 @@
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Card,
   CardContent,
@@ -12,9 +12,18 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
+import { Switch } from "@/components/ui/Switch"
 import { motion } from "framer-motion"
 import { useAuth } from "@/context/AuthContext"
-import { LockKeyhole, AlertCircle, User, KeyRound, Wrench } from "lucide-react"
+import {
+  LockKeyhole,
+  AlertCircle,
+  User,
+  KeyRound,
+  Wrench,
+  ScanFace,
+  Fingerprint,
+} from "lucide-react"
 import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
 import { useAppContext } from "@/context/AppContext"
@@ -31,6 +40,17 @@ import {
 import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { getApiServerInfo, checkStatus } from "@/services/api"
 import { setFeatureFlags } from "@/context/featureFlagsStore"
+import { isNativeMobile } from "@/lib/platform"
+import {
+  authenticateWithBiometric,
+  checkBiometricAvailability,
+  deleteCredentials,
+  getCredentials,
+  hasStoredCredentials as hasStoredBiometricCredentials,
+  saveCredentials,
+  BiometricType,
+} from "@/lib/mobile/biometric"
+import type { BiometricAvailability } from "@/lib/mobile/biometric"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -45,6 +65,11 @@ export default function LoginPage() {
   const [isDesktopApp, setIsDesktopApp] = useState(false)
   const [versionMismatch, setVersionMismatch] =
     useState<VersionMismatchInfo | null>(null)
+  const [biometricAvailability, setBiometricAvailability] =
+    useState<BiometricAvailability | null>(null)
+  const [enableBiometric, setEnableBiometric] = useState(false)
+  const [hasStoredCredentials, setHasStoredCredentials] = useState(false)
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false)
   const {
     login,
     signup,
@@ -56,6 +81,93 @@ export default function LoginPage() {
   } = useAuth()
   const { showToast } = useAppContext()
   const { t } = useI18n()
+
+  const isLoginMode = !isSignupMode && !isChangingPassword
+
+  const biometricTypeForDisplay = biometricAvailability?.biometricType
+
+  const checkBiometricStatus = useCallback(async () => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+
+    const availability = await checkBiometricAvailability()
+    setBiometricAvailability(availability)
+
+    if (availability.isAvailable) {
+      const hasCredentials = await hasStoredBiometricCredentials()
+      setHasStoredCredentials(hasCredentials)
+      if (hasCredentials) {
+        setEnableBiometric(true)
+      }
+    } else {
+      setHasStoredCredentials(false)
+      setEnableBiometric(false)
+    }
+  }, [])
+
+  const handleBiometricLogin = useCallback(async () => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+    if (!hasStoredCredentials) return
+
+    setIsBiometricLoading(true)
+    try {
+      const authenticated = await authenticateWithBiometric(
+        t.login.biometricLoginReason,
+      )
+      if (!authenticated) {
+        showToast(t.login.biometricLoginFailed, "error")
+        return
+      }
+
+      const credentials = await getCredentials()
+      if (!credentials) {
+        showToast(t.login.biometricLoginFailed, "error")
+        return
+      }
+
+      const { code, message } = await login(
+        credentials.username,
+        credentials.password,
+      )
+      if (code !== AuthResultCode.SUCCESS) {
+        if (code === AuthResultCode.INVALID_CREDENTIALS) {
+          await deleteCredentials()
+          setHasStoredCredentials(false)
+        }
+        setError(
+          code === AuthResultCode.INVALID_CREDENTIALS
+            ? t.login.invalidCredentials
+            : code === AuthResultCode.USER_NOT_FOUND
+              ? t.login.userNotFound
+              : t.login.unexpectedErrorContact,
+        )
+        setErrorCode(code)
+        if (message) setErrorDetails(message)
+      }
+    } finally {
+      setIsBiometricLoading(false)
+    }
+  }, [hasStoredCredentials, login, showToast, t])
+
+  useEffect(() => {
+    checkBiometricStatus()
+  }, [checkBiometricStatus])
+
+  useEffect(() => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        checkBiometricStatus()
+      }
+    }
+
+    window.addEventListener("focus", checkBiometricStatus)
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      window.removeEventListener("focus", checkBiometricStatus)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
+  }, [checkBiometricStatus])
 
   useEffect(() => {
     if (isChangingPassword) {
@@ -121,6 +233,32 @@ export default function LoginPage() {
       return
     }
 
+    const saveCredentialsIfEnabled = async () => {
+      if (!__MOBILE__ || !isNativeMobile()) return
+
+      if (enableBiometric && biometricAvailability?.isAvailable) {
+        try {
+          await saveCredentials({ username, password })
+        } catch {
+          // Silently fail; biometric storage is optional
+        }
+      }
+    }
+
+    const deleteStoredCredentialsIfDisabled = async () => {
+      if (!__MOBILE__ || !isNativeMobile()) return
+      if (!biometricAvailability?.isAvailable) return
+      if (enableBiometric) return
+      if (!hasStoredCredentials) return
+
+      try {
+        await deleteCredentials()
+      } catch {
+        // Silently fail; credential deletion is best-effort
+      }
+      setHasStoredCredentials(false)
+    }
+
     try {
       if (isChangingPassword) {
         const result = await changePassword(oldPassword, password)
@@ -130,16 +268,21 @@ export default function LoginPage() {
           setPassword("")
           setRepeatPassword("")
           setError(null)
+          await saveCredentialsIfEnabled()
+          await deleteStoredCredentialsIfDisabled()
         }
       } else if (isSignupMode) {
         const signupResult = await signup(username, password)
         if (!signupResult) {
           setError(t.login.invalidCredentials)
+        } else {
+          await saveCredentialsIfEnabled()
         }
       } else {
         const { code, message } = await login(username, password)
         switch (code) {
           case AuthResultCode.SUCCESS:
+            await saveCredentialsIfEnabled()
             break
           case AuthResultCode.INVALID_CREDENTIALS:
             setError(t.login.invalidCredentials)
@@ -198,7 +341,7 @@ export default function LoginPage() {
 
   const getSubtitle = () => {
     if (isChangingPassword) {
-      return t.login.changePasswordSubtitle
+      return null
     } else if (isSignupMode) {
       return t.login.signupSubtitle
     } else {
@@ -233,17 +376,11 @@ export default function LoginPage() {
               )}
             </div>
             <CardTitle className="text-3xl text-center">{getTitle()}</CardTitle>
-            <CardDescription className="text-center text-base">
-              {getSubtitle()}
-            </CardDescription>
-            {/* Show username in change password mode */}
-            {isChangingPassword &&
-              (pendingPasswordChangeUser || lastLoggedUser) && (
-                <CardDescription className="text-center text-sm text-muted-foreground">
-                  {t.login.usernameLabel}:{" "}
-                  {pendingPasswordChangeUser || lastLoggedUser}
-                </CardDescription>
-              )}
+            {!isChangingPassword && (
+              <CardDescription className="text-center text-base">
+                {getSubtitle()}
+              </CardDescription>
+            )}
           </CardHeader>
           <CardContent>
             <form
@@ -359,6 +496,36 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {isNativeMobile() &&
+                biometricAvailability?.isAvailable &&
+                (!isLoginMode || !hasStoredCredentials) && (
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex items-center gap-2">
+                      {biometricTypeForDisplay === BiometricType.FACE ? (
+                        <ScanFace className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <Fingerprint className="h-5 w-5 text-muted-foreground" />
+                      )}
+                      <Label
+                        htmlFor="enableBiometric"
+                        className="text-sm cursor-pointer"
+                      >
+                        {t.login.enableBiometric.replace(
+                          "{type}",
+                          biometricTypeForDisplay === BiometricType.FACE
+                            ? t.login.biometricFaceId
+                            : t.login.biometricFingerprint,
+                        )}
+                      </Label>
+                    </div>
+                    <Switch
+                      id="enableBiometric"
+                      checked={enableBiometric}
+                      onCheckedChange={setEnableBiometric}
+                    />
+                  </div>
+                )}
+
               {error && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -396,24 +563,67 @@ export default function LoginPage() {
                 </motion.div>
               )}
 
-              <Button
-                type="submit"
-                className="w-full text-lg py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-md"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <LoadingSpinner size="sm" className="mr-2" />
-                    {t.common.loading}
-                  </>
-                ) : isChangingPassword ? (
-                  t.login.changePassword
-                ) : isSignupMode ? (
-                  t.login.signup
-                ) : (
-                  t.common.unlock
-                )}
-              </Button>
+              {isNativeMobile() && hasStoredCredentials && isLoginMode ? (
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="submit"
+                    className="flex-1 text-lg py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-md"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <LoadingSpinner size="sm" className="mr-2" />
+                        {t.common.loading}
+                      </>
+                    ) : (
+                      t.common.unlock
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-12 w-12 p-0 shrink-0"
+                    disabled={isBiometricLoading}
+                    onClick={handleBiometricLogin}
+                    aria-label={t.login.biometricAuth}
+                    title={t.login.biometricAuth}
+                  >
+                    {isBiometricLoading ? (
+                      <LoadingSpinner size="sm" />
+                    ) : biometricTypeForDisplay === BiometricType.FACE ? (
+                      <ScanFace className="h-5 w-5" />
+                    ) : (
+                      <Fingerprint className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  type="submit"
+                  className="w-full text-lg py-6 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-300 shadow-md"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      {t.common.loading}
+                    </>
+                  ) : isChangingPassword ? (
+                    t.login.changePassword
+                  ) : isSignupMode ? (
+                    t.login.signup
+                  ) : (
+                    t.common.unlock
+                  )}
+                </Button>
+              )}
+
+              {(isSignupMode || isChangingPassword) && (
+                <p className="text-xs text-muted-foreground text-center mt-4">
+                  {t.login.syncPasswordHint}
+                </p>
+              )}
             </form>
           </CardContent>
         </Card>

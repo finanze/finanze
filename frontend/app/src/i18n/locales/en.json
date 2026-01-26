@@ -299,7 +299,16 @@
     "signup": "Sign Up",
     "login": "Log In",
     "viewErrorDetails": "View technical details",
-    "errorDetailsTitle": "Technical details"
+    "errorDetailsTitle": "Technical details",
+    "syncPasswordHint": "Use the same password across devices if sync is enabled",
+    "enableBiometric": "Enable {type}",
+    "biometricFaceId": "Face ID",
+    "biometricFingerprint": "Fingerprint",
+    "biometricAuth": "Biometric",
+    "biometricLoginReason": "Unlock Finanze",
+    "biometricSaved": "Biometric login enabled",
+    "biometricError": "Could not enable biometric login",
+    "biometricLoginFailed": "Biometric authentication failed"
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
@@ -406,9 +415,17 @@
     "generalDescription": "Configure general settings",
     "application": "Application",
     "applicationDescription": "Adjust preferences stored locally on this device",
-    "applicationDisclaimerDescription": "These settings are saved only in this browser. If you are only using the desktop app, you don't need to worry.",
+    "applicationDisclaimerDescription": "These settings are saved only in this window instance, if you use another device or application they won't be shared.",
     "applicationLanguageTitle": "Language",
     "applicationLanguageDescription": "Choose the language used across the app, used to format dates, numbers, and currencies too.",
+    "biometricCredentialsActionTitle": "Disable biometric login",
+    "biometricCredentialsNotEnabledTitle": "Enable biometric login",
+    "biometricCredentialsNotEnabledHint": "Enable biometric login for faster and secure from login or when changing your password.",
+    "biometricCredentialsAction": "Disable",
+    "biometricCredentialsTitle": "Biometric login",
+    "biometricCredentialsDescription": "Manage biometric login.",
+    "biometricCredentialsCleared": "Biometric login disabled",
+    "biometricCredentialsClearError": "Failed to disable biometric login",
     "applicationLanguageOptions": {
       "en-US": "English",
       "es-ES": "Spanish"

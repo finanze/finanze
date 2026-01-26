@@ -5,6 +5,7 @@ import { AdvancedSettings } from "@/components/ui/AdvancedSettings"
 import { useTheme } from "@/context/ThemeContext"
 import { getApiServerInfo, type ApiServerInfo } from "@/services/api"
 import { hasConfig } from "@/services/configStorage"
+import { isElectron } from "@/lib/platform"
 
 const getServerDisplayName = (url: string): string => {
   return url.replace(/^https?:\/\//, "")
@@ -14,17 +15,12 @@ export default function SplashScreen() {
   const { t } = useI18n()
   const { theme } = useTheme()
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
-  const [isDesktopApp, setIsDesktopApp] = useState(false)
   const [serverInfo, setServerInfo] = useState<ApiServerInfo | null>(null)
   const [hasStoredConfig, setHasStoredConfig] = useState(false)
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return
-    }
-
-    if (window.ipcAPI) {
-      setIsDesktopApp(true)
     }
 
     setHasStoredConfig(hasConfig())
@@ -66,7 +62,7 @@ export default function SplashScreen() {
       </div>
       <div className="absolute bottom-6 left-6">
         <LoginQuickSettings
-          isDesktop={isDesktopApp}
+          isDesktop={isElectron()}
           onOpenAdvancedSettings={() => setShowAdvancedSettings(true)}
           advancedSettingsDisabled={!hasStoredConfig}
         />

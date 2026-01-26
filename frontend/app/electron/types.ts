@@ -3,6 +3,8 @@ export interface PlatformInfo {
   arch?: string
   osVersion?: string
   electronVersion?: string
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
 }
 
 export type ThemeMode = "light" | "dark" | "system"
@@ -19,10 +21,6 @@ export interface AboutAppInfo {
   author?: string | null
   repository?: string | null
   homepage?: string | null
-  electronVersion?: string | null
-  chromiumVersion?: string | null
-  nodeVersion?: string | null
-  platform: PlatformInfo
 }
 
 export interface AppConfig {

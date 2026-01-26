@@ -137,7 +137,10 @@ async def handle_request(router, method, path, body, headers):
         elif isinstance(e, TransactionNotFound):
             status = 404
             data = {"code": "TX_NOT_FOUND", "message": str(e)}
-        elif isinstance(e, (InvalidProvidedCredentials, InvalidUserCredentials)):
+        elif isinstance(e, InvalidUserCredentials):
+            status = 401
+            data = {"code": "INVALID_CREDENTIALS", "message": str(e)}
+        elif isinstance(e, InvalidProvidedCredentials):
             status = 400
             data = {"code": "INVALID_CREDENTIALS", "message": str(e)}
         elif isinstance(e, (DataEncryptedError, NoUserLogged)):
