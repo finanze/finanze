@@ -23,6 +23,7 @@ import {
   Wrench,
   ScanFace,
   Fingerprint,
+  ArrowLeft,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { cn } from "@/lib/utils"
@@ -78,6 +79,7 @@ export default function LoginPage() {
     lastLoggedUser,
     isChangingPassword,
     pendingPasswordChangeUser,
+    cancelPasswordChange,
   } = useAuth()
   const { showToast } = useAppContext()
   const { t } = useI18n()
@@ -327,6 +329,17 @@ export default function LoginPage() {
     }
   }
 
+  const handleCancelPasswordChange = () => {
+    cancelPasswordChange()
+    setError(null)
+    setErrorCode(null)
+    setErrorDetails(null)
+    setOldPassword("")
+    setPassword("")
+    setRepeatPassword("")
+    setIsSignupMode(false)
+  }
+
   const getTitle = () => {
     if (isChangingPassword) {
       return t.login.changePasswordTitle
@@ -364,8 +377,23 @@ export default function LoginPage() {
         transition={{ duration: 0.5 }}
         className="w-full max-w-md"
       >
-        <Card className={cn("shadow-lg", error ? "border-red-500" : "")}>
+        <Card
+          className={cn("relative shadow-lg", error ? "border-red-500" : "")}
+        >
           <CardHeader className="space-y-1 flex flex-col items-center">
+            {isChangingPassword && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute left-4 top-4"
+                onClick={handleCancelPasswordChange}
+                disabled={isLoading}
+                aria-label={t.common.cancel}
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            )}
             <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4 shadow-md">
               {isChangingPassword ? (
                 <KeyRound className="h-8 w-8 text-primary-foreground" />
@@ -400,7 +428,9 @@ export default function LoginPage() {
                       onChange={e => setUsername(e.target.value)}
                       placeholder={t.login.usernamePlaceholder}
                       required={!isChangingPassword}
-                      autoFocus={isSignupMode || !lastLoggedUser}
+                      autoFocus={
+                        !isNativeMobile() && (isSignupMode || !lastLoggedUser)
+                      }
                       autoCapitalize="off"
                       className={cn(error ? "border-red-500 pr-10" : "")}
                     />
@@ -427,7 +457,7 @@ export default function LoginPage() {
                       onChange={e => setOldPassword(e.target.value)}
                       placeholder={t.login.oldPasswordPlaceholder}
                       required
-                      autoFocus
+                      autoFocus={!isNativeMobile()}
                       className={cn(error ? "border-red-500 pr-10" : "")}
                     />
                     {error && (
@@ -459,7 +489,10 @@ export default function LoginPage() {
                     }
                     required
                     autoFocus={
-                      !isSignupMode && !isChangingPassword && !!lastLoggedUser
+                      !isNativeMobile() &&
+                      !isSignupMode &&
+                      !isChangingPassword &&
+                      !!lastLoggedUser
                     }
                     className={cn(error ? "border-red-500 pr-10" : "")}
                   />
@@ -582,7 +615,6 @@ export default function LoginPage() {
 
                   <Button
                     type="button"
-                    variant="outline"
                     className="h-12 w-12 p-0 shrink-0"
                     disabled={isBiometricLoading}
                     onClick={handleBiometricLogin}

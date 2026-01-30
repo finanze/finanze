@@ -6,7 +6,7 @@ from typing import Optional
 from uuid import UUID
 
 import jwt
-from aiocache import cached, caches
+from aiocache import cached
 from aiocache.serializers import PickleSerializer
 from jwt import DecodeError
 
@@ -41,9 +41,7 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
         self._log.debug("Disconnecting cloud data register")
         self._cloud_file = None
 
-        cache = caches.get("default")
-        if cache:
-            await cache.clear()
+        await self._load_cloud_data.cache.clear()
 
     async def connect(self, user: User):
         self._log.debug("Connecting cloud data register")
@@ -80,10 +78,8 @@ class CloudDataRegister(CloudRegister, BackupLocalRegistry, BackupSettingsPort):
         with open(self._cloud_file, "w") as f:
             json.dump(data, f, indent=2)
 
-        cache = caches.get("default")
-        if cache:
-            key = f"cloud_data:{self._cloud_file}"
-            await cache.delete(key)
+        key = f"cloud_data:{self._cloud_file}"
+        await self._load_cloud_data.cache.delete(key)
 
     async def get_info(self) -> BackupsInfo:
         self._check_connected()

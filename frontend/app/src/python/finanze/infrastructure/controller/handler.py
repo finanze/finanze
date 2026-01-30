@@ -116,12 +116,15 @@ async def handle_request(router, method, path, body, headers):
         if is_dataclass(data):
             data = asdict(data)
 
+        if isinstance(data, (bytes, bytearray)):
+            return {"status": status, "data": data, "headers": headers}
+
         data = _to_jsonable(data)
 
         if data is None or data == "":  # 204
             return {"status": status or 204, "data": None, "headers": headers}
 
-        if "Content-Type" not in headers and not isinstance(data, (bytes, bytearray)):
+        if "Content-Type" not in headers:
             headers["Content-Type"] = "application/json"
 
         return {"status": status, "data": data, "headers": headers}

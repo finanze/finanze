@@ -214,7 +214,7 @@ export default function RealEstatePage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6"
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -225,14 +225,22 @@ export default function RealEstatePage() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1 h-8 w-8"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {t.realEstate.title}
             </h1>
-            <PinAssetButton assetId="real-estate" />
+            <PinAssetButton
+              assetId="real-estate"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
         <Button

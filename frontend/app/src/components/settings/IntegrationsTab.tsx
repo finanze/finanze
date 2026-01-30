@@ -434,6 +434,7 @@ export function IntegrationsTab() {
     const disableLoading = !!isDisableLoading[integration.id]
     const disabledForPlatform =
       integration.id === "GOOGLE_SHEETS" && platform === PlatformType.WEB
+    const isUnavailable = !integration.available
 
     const { title, description, helpLabel, hint } =
       getIntegrationCopy(integration)
@@ -496,14 +497,22 @@ export function IntegrationsTab() {
         key={integration.id}
         className={cn(
           "self-start",
+          isUnavailable ? "opacity-60" : undefined,
           isHighlighted ? "ring-2 ring-yellow-500 animate-pulse" : undefined,
         )}
       >
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <div
-              className="flex flex-1 items-center justify-between cursor-pointer"
-              onClick={() => toggleIntegrationCard(integration.id)}
+              className={cn(
+                "flex flex-1 items-center justify-between",
+                isUnavailable ? "cursor-not-allowed" : "cursor-pointer",
+              )}
+              onClick={() => {
+                if (!isUnavailable) {
+                  toggleIntegrationCard(integration.id)
+                }
+              }}
             >
               <div className="flex items-center gap-3">
                 <img
@@ -513,6 +522,11 @@ export function IntegrationsTab() {
                 />
                 <div>
                   <CardTitle className="text-lg">{title}</CardTitle>
+                  {isUnavailable && (
+                    <p className="text-xs text-muted-foreground">
+                      {t.common.notAvailableOnPlatform}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center space-x-1">
@@ -537,7 +551,7 @@ export function IntegrationsTab() {
             <CardDescription className="pt-2">{description}</CardDescription>
           )}
         </CardHeader>
-        {isExpanded && (
+        {isExpanded && !isUnavailable && (
           <CardContent className="space-y-4">
             {schemaEntries.length > 0 ? (
               schemaEntries.map(([field, label], index) => {
@@ -601,6 +615,7 @@ export function IntegrationsTab() {
                         )
                       }
                       placeholder={String(label)}
+                      disabled={isUnavailable || disabledForPlatform}
                       className={cn(hasError ? "border-red-500" : undefined)}
                     />
                   </div>
@@ -641,7 +656,12 @@ export function IntegrationsTab() {
               <Button
                 size="sm"
                 onClick={() => handleSetupIntegration(integration.id)}
-                disabled={isLoading || !canSubmit || disabledForPlatform}
+                disabled={
+                  isLoading ||
+                  !canSubmit ||
+                  disabledForPlatform ||
+                  isUnavailable
+                }
               >
                 {isLoading ? (
                   <>

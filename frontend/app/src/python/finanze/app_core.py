@@ -63,8 +63,10 @@ class MobileAppCore:
 
         users = await self.data_manager.get_users()
 
-        self.ff_client = FeatureFlagClient(users, self.operative_system)
-        server_details = CapacitorServerDetailsAdapter()
+        server_details = CapacitorServerDetailsAdapter(self.operative_system)
+        self.ff_client = FeatureFlagClient(
+            users=users, operative_system=server_details.get_os()
+        )
         self.status = GetStatusImpl(
             self.db_manager,
             self.data_manager,

@@ -30,6 +30,7 @@ class ExternalIntegration:
     name: str
     type: ExternalIntegrationType
     status: ExternalIntegrationStatus
+    available: bool = True
     payload_schema: dict[str, str] | None = None
 
 

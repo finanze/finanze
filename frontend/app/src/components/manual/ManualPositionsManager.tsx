@@ -1967,7 +1967,7 @@ export function ManualPositionsManager({
                   }
 
                   return (
-                    <CardFooter className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardFooter className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         {asset !== "funds" && asset !== "stocks" ? null : (
                           <Button
@@ -1991,7 +1991,7 @@ export function ManualPositionsManager({
                           </Button>
                         )}
                       </div>
-                      <div className="flex w-full justify-end gap-2 sm:w-auto">
+                      <div className="flex items-center gap-2">
                         <Button variant="outline" onClick={handleCloseForm}>
                           {translate("common.cancel")}
                         </Button>

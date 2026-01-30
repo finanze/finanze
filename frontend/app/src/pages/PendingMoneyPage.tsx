@@ -610,7 +610,7 @@ export default function PendingMoneyPage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6"
       variants={fadeListContainer}
       initial={runEntranceAnimation ? "hidden" : false}
       animate="show"
@@ -625,13 +625,17 @@ export default function PendingMoneyPage() {
           <Button
             variant="ghost"
             size="sm"
+            className="p-1 h-8 w-8"
             onClick={() => navigate("/management")}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{t.management.pendingMoney}</h1>
-            <PinAssetButton assetId="management-pending" />
+            <PinAssetButton
+              assetId="management-pending"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
       </motion.div>

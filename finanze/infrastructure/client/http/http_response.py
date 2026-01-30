@@ -30,7 +30,7 @@ class HttpResponse:
         return self._response.content
 
     async def release(self):
-        self._response.close()
+        await self._response.aclose()
 
     async def aclose(self):
         await self.release()

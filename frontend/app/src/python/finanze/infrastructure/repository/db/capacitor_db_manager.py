@@ -276,7 +276,7 @@ class CapacitorDBManager(DatasourceInitiator, Backupable):
             db_name, passwd, "DECOMPILED_DATA"
         )
         await delete_staging_file("DECOMPILED_DATA")
-        await self._initialize(DatasourceInitParams(user=user, password=passwd))
+        await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
 
     async def get_last_updated(self) -> datetime:
         if not self._unlocked:

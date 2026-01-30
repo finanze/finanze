@@ -46,6 +46,9 @@ import {
   Trash2,
   List,
   CalendarDays,
+  Layers,
+  ArrowLeftRight,
+  Landmark,
 } from "lucide-react"
 import {
   getIconForTxType,
@@ -161,6 +164,7 @@ export default function TransactionsPage() {
     return supportedTypes.map(type => ({
       value: type,
       label: t.enums?.productType?.[type] || type,
+      icon: getIconForProductType(type, "h-4 w-4"),
     }))
   }, [t])
 
@@ -169,6 +173,7 @@ export default function TransactionsPage() {
     return txTypes.map(type => ({
       value: type,
       label: (t.enums as any)?.transactionType?.[type] || type,
+      icon: getIconForTxType(type, "h-4 w-4"),
     }))
   }, [t])
 
@@ -1169,35 +1174,35 @@ export default function TransactionsPage() {
   }, [transactions, locale])
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 shrink-0">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 shrink-0">
           {t.transactions.title}
         </h1>
         <div className="flex items-center gap-1.5 sm:gap-2">
           <div className="flex items-center rounded-md border border-gray-200 dark:border-gray-700 p-0.5 sm:p-1">
             <button
               onClick={() => handleViewModeChange("list")}
-              className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+              className={`flex items-center gap-1 px-2.5 py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                 viewMode === "list"
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                   : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
               }`}
             >
-              <List className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <List className="h-4 w-4" />
               <span className="hidden sm:inline">
                 {t.transactions.calendar.listView}
               </span>
             </button>
             <button
               onClick={() => handleViewModeChange("calendar")}
-              className={`flex items-center gap-1 px-2 sm:px-3 py-1 sm:py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+              className={`flex items-center gap-1 px-2.5 py-2 rounded text-xs sm:text-sm font-medium transition-colors ${
                 viewMode === "calendar"
                   ? "bg-gray-900 text-white dark:bg-white dark:text-gray-900"
                   : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
               }`}
             >
-              <CalendarDays className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <CalendarDays className="h-4 w-4" />
               <span className="hidden sm:inline">
                 {t.transactions.calendar.calendarView}
               </span>
@@ -1206,9 +1211,9 @@ export default function TransactionsPage() {
           <Button
             onClick={handleOpenCreateDialog}
             size="sm"
-            className="flex items-center gap-1.5 px-2 sm:px-3"
+            className="flex items-center gap-1.5 px-3"
           >
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">
               {t.transactions.addManualTransaction}
             </span>
@@ -1218,12 +1223,13 @@ export default function TransactionsPage() {
 
       <Card className="p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <div className="flex-1 min-w-[180px] max-w-[240px]">
+          <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
             <Label
               htmlFor="entities"
-              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
             >
-              {t.transactions.entities}
+              <Landmark className="h-3 w-3" />
+              <span>{t.transactions.entities}</span>
             </Label>
             <MultiSelect
               options={entityOptions}
@@ -1234,12 +1240,13 @@ export default function TransactionsPage() {
             />
           </div>
 
-          <div className="flex-1 min-w-[180px] max-w-[240px]">
+          <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
             <Label
               htmlFor="product-types"
-              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
             >
-              {t.transactions.productTypes}
+              <Layers className="h-3 w-3" />
+              <span>{t.transactions.productTypes}</span>
             </Label>
             <MultiSelect
               options={productTypeOptions}
@@ -1250,12 +1257,13 @@ export default function TransactionsPage() {
             />
           </div>
 
-          <div className="flex-1 min-w-[180px] max-w-[240px]">
+          <div className="w-full sm:flex-1 sm:min-w-[180px] sm:max-w-[240px]">
             <Label
               htmlFor="transaction-types"
-              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400"
+              className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
             >
-              {t.transactions.transactionTypes}
+              <ArrowLeftRight className="h-3 w-3" />
+              <span>{t.transactions.transactionTypes}</span>
             </Label>
             <MultiSelect
               options={transactionTypeOptions}
@@ -1268,7 +1276,7 @@ export default function TransactionsPage() {
 
           {viewMode === "list" && (
             <>
-              <div className="flex-1 min-w-[140px] max-w-[180px]">
+              <div className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[240px]">
                 <Label
                   htmlFor="from-date"
                   className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
@@ -1284,7 +1292,7 @@ export default function TransactionsPage() {
                 />
               </div>
 
-              <div className="flex-1 min-w-[140px] max-w-[180px]">
+              <div className="w-full sm:flex-1 sm:min-w-[200px] sm:max-w-[240px]">
                 <Label
                   htmlFor="to-date"
                   className="text-xs font-medium mb-1 block text-gray-500 dark:text-gray-400 flex items-center gap-1"
@@ -1302,7 +1310,7 @@ export default function TransactionsPage() {
             </>
           )}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <Button
               onClick={handleApplyFilters}
               disabled={loadingTxs}
@@ -1546,7 +1554,7 @@ export default function TransactionsPage() {
                 </div>
 
                 {/* Desktop Pagination */}
-                <div className="flex justify-center items-center mt-6 gap-3 px-6 pb-6">
+                <div className="flex justify-center items-center gap-3 px-6 pb-6">
                   <Button
                     variant="outline"
                     size="sm"
@@ -1604,24 +1612,30 @@ export default function TransactionsPage() {
                   <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 capitalize">
                     {monthGroup.monthLabel}
                   </h3>
-                  <Card className="divide-y divide-gray-100 dark:divide-gray-800 overflow-hidden">
+                  <div className="space-y-1">
                     {monthGroup.days.map(dayGroup => (
-                      <div key={dayGroup.dateKey} className="px-4 py-3">
-                        <div className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-2 capitalize">
-                          {dayGroup.dayLabel}
+                      <div key={dayGroup.dateKey}>
+                        <div className="flex items-center gap-3 py-2">
+                          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 w-16 capitalize">
+                            {dayGroup.dayLabel}
+                          </span>
+                          <div className="flex-1 h-px bg-gray-100 dark:bg-gray-800" />
                         </div>
-                        <div className="space-y-6">
+                        <div className="space-y-1 ml-0">
                           {dayGroup.transactions.map(tx => {
                             const isExpanded = expandedCards.has(tx.id)
                             const hasDetails = hasTransactionDetails(tx)
                             return (
-                              <div key={tx.id}>
-                                <div className="flex justify-between items-start">
-                                  <div className="flex-1 min-w-0 pr-3">
-                                    <div className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                              <div
+                                key={tx.id}
+                                className="group rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-colors"
+                              >
+                                <div className="flex items-center gap-3 py-3 pl-3 pr-1.5">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
                                       {tx.name}
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                    <div className="flex items-center gap-2 mt-1">
                                       <Badge
                                         className={`${getTransactionTypeColor(tx.type)} text-xs inline-flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity`}
                                         onClick={() =>
@@ -1662,9 +1676,9 @@ export default function TransactionsPage() {
                                       />
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="text-right shrink-0">
                                     <div
-                                      className={`font-semibold text-right ${
+                                      className={`font-semibold ${
                                         getTransactionDisplayType(tx.type) ===
                                         "in"
                                           ? "text-green-600 dark:text-green-400"
@@ -1686,28 +1700,26 @@ export default function TransactionsPage() {
                                         tx.currency,
                                       )}
                                     </div>
-                                    {hasDetails && (
-                                      <button
-                                        onClick={() =>
-                                          toggleCardExpansion(tx.id)
-                                        }
-                                        className="p-1 text-gray-400"
-                                      >
-                                        {isExpanded ? (
-                                          <ChevronUp className="h-4 w-4" />
-                                        ) : (
-                                          <ChevronDown className="h-4 w-4" />
-                                        )}
-                                      </button>
-                                    )}
                                   </div>
+                                  {hasDetails && (
+                                    <button
+                                      onClick={() => toggleCardExpansion(tx.id)}
+                                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                                    >
+                                      {isExpanded ? (
+                                        <ChevronUp className="h-4 w-4" />
+                                      ) : (
+                                        <ChevronDown className="h-4 w-4" />
+                                      )}
+                                    </button>
+                                  )}
                                 </div>
                                 {hasDetails && isExpanded && (
-                                  <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-                                    <div className="space-y-2">
+                                  <div className="px-3 pb-3 ml-0">
+                                    <div className="pl-4 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
                                       {renderTransactionDetails(tx)}
                                       {tx.source === DataSource.MANUAL && (
-                                        <div className="flex flex-wrap gap-2 pt-2">
+                                        <div className="flex flex-wrap gap-2 pt-3">
                                           <Button
                                             variant="outline"
                                             size="sm"
@@ -1741,7 +1753,7 @@ export default function TransactionsPage() {
                         </div>
                       </div>
                     ))}
-                  </Card>
+                  </div>
                 </div>
               ))}
 

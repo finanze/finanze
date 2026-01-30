@@ -2,16 +2,14 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useNavigate } from "react-router-dom"
+import { ArrowLeft, Plus, Save, Edit, Trash2, X } from "lucide-react"
 import {
-  ArrowLeft,
-  Plus,
-  Save,
-  Edit,
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-} from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/Card"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
@@ -70,6 +68,10 @@ export default function CommoditiesInvestmentPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingCommodityId, setEditingCommodityId] = useState<string | null>(
+    null,
+  )
+  const [editingDraft, setEditingDraft] = useState<CommodityEntry | null>(null)
   const [hasChanges, setHasChanges] = useState(false)
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, { name?: string; amount?: string }>
@@ -147,11 +149,6 @@ export default function CommoditiesInvestmentPage() {
     return `${converted.toFixed(2)} ${t.enums.weightUnit[displayUnit as WeightUnit]}`
   }
 
-  const toggleExpanded = (id: string) =>
-    setCommodities(prev =>
-      prev.map(c => (c.id === id ? { ...c, isExpanded: !c.isExpanded } : c)),
-    )
-
   const updateCommodity = (id: string, field: keyof Commodity, value: any) => {
     setCommodities(prev =>
       prev.map(c =>
@@ -211,6 +208,55 @@ export default function CommoditiesInvestmentPage() {
     })
     setShowAddForm(false)
     setHasChanges(true)
+  }
+
+  const editingCommodity = useMemo(() => {
+    if (!editingCommodityId) return null
+    return commodities.find(c => c.id === editingCommodityId) || null
+  }, [commodities, editingCommodityId])
+
+  useEffect(() => {
+    if (!editingCommodity) {
+      setEditingDraft(null)
+      return
+    }
+    setEditingDraft({ ...editingCommodity })
+  }, [editingCommodity])
+
+  const updateDraftField = (
+    field: keyof Commodity,
+    value: Commodity[keyof Commodity],
+  ) => {
+    setEditingDraft(prev => (prev ? { ...prev, [field]: value } : prev))
+    setFieldErrors(prev => {
+      if (!editingCommodityId) return prev
+      const copy = { ...prev }
+      const ce = copy[editingCommodityId] ? { ...copy[editingCommodityId] } : {}
+      if (field === "name" && ce.name) delete ce.name
+      if (field === "amount" && ce.amount) delete ce.amount
+      if (Object.keys(ce).length) copy[editingCommodityId] = ce
+      else delete copy[editingCommodityId]
+      return copy
+    })
+  }
+
+  const handleSaveEdit = () => {
+    if (!editingCommodity || !editingDraft) return
+    updateCommodity(editingCommodity.id, "name", editingDraft.name)
+    updateCommodity(editingCommodity.id, "amount", editingDraft.amount)
+    updateCommodity(editingCommodity.id, "unit", editingDraft.unit)
+    updateCommodity(
+      editingCommodity.id,
+      "initial_investment",
+      editingDraft.initial_investment,
+    )
+    updateCommodity(
+      editingCommodity.id,
+      "average_buy_price",
+      editingDraft.average_buy_price,
+    )
+    updateCommodity(editingCommodity.id, "currency", editingDraft.currency)
+    setEditingCommodityId(null)
   }
 
   const saveChanges = async () => {
@@ -449,30 +495,35 @@ export default function CommoditiesInvestmentPage() {
   }
 
   return (
-    <div className="space-y-6 w-full pb-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="space-y-6 w-full">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(-1)}
             className="p-1 h-8 w-8"
+            onClick={() => navigate(-1)}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft size={20} />
           </Button>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="text-2xl font-bold flex items-center gap-2 min-w-0">
             {t.commodityManagement.title}
-            <PinAssetButton assetId="commodities" />
+            <PinAssetButton
+              assetId="commodities"
+              size="icon"
+              className="hidden md:inline-flex"
+            />
           </h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center [@media(min-width:450px)]:justify-end gap-2 w-full [@media(min-width:450px)]:w-auto">
           <Button
             variant="default"
             size="sm"
             onClick={() => setShowAddForm(true)}
             className="flex items-center gap-2"
           >
-            <Plus className="h-4 w-4" /> {t.common.add}
+            <Plus className="h-3.5 w-3.5" />
+            {t.common.add}
           </Button>
           {hasChanges && (
             <Button
@@ -481,7 +532,7 @@ export default function CommoditiesInvestmentPage() {
               disabled={isSaving}
               className="flex items-center gap-2"
             >
-              <Save className="h-4 w-4" />
+              <Save className="h-3.5 w-3.5" />
             </Button>
           )}
         </div>
@@ -579,174 +630,200 @@ export default function CommoditiesInvestmentPage() {
       <AnimatePresence>
         {showAddForm && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
           >
-            <Card className="border-dashed border-2 border-gray-300 dark:border-gray-600">
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  {t.commodityManagement.addEntry}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">{t.commodityManagement.name}</Label>
-                    <Input
-                      id="name"
-                      value={newEntry.name}
-                      onChange={e =>
-                        setNewEntry(p => ({ ...p, name: e.target.value }))
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
+            >
+              <Card className="max-h-[calc(100vh-2rem)] flex flex-col relative">
+                <CardHeader className="pr-12">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CommodityIcon
+                      type={
+                        (newEntry.type || CommodityType.GOLD) as CommodityType
                       }
-                      placeholder={t.commodityManagement.namePlaceholder}
+                      size="sm"
                     />
+                    {t.commodityManagement.addEntry}
+                  </CardTitle>
+                </CardHeader>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowAddForm(false)}
+                  className="absolute top-4 right-4"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardContent className="space-y-4 flex-1 overflow-y-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="name">{t.commodityManagement.name}</Label>
+                      <Input
+                        id="name"
+                        value={newEntry.name}
+                        onChange={e =>
+                          setNewEntry(p => ({ ...p, name: e.target.value }))
+                        }
+                        placeholder={t.commodityManagement.namePlaceholder}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="type">{t.commodityManagement.type}</Label>
+                      <select
+                        id="type"
+                        value={newEntry.type}
+                        onChange={e =>
+                          setNewEntry(p => ({
+                            ...p,
+                            type: e.target.value as CommodityType,
+                          }))
+                        }
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none"
+                      >
+                        {Object.values(CommodityType).map(type => (
+                          <option key={type} value={type}>
+                            {t.enums.commodityType[type]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label htmlFor="amount">
+                        {t.commodityManagement.amount}
+                      </Label>
+                      <Input
+                        id="amount"
+                        type="number"
+                        step="0.0001"
+                        value={newEntry.amount || ""}
+                        onChange={e => {
+                          const value = e.target.value
+                          setNewEntry(p => ({
+                            ...p,
+                            amount: value === "" ? 0 : parseFloat(value) || 0,
+                          }))
+                        }}
+                        onFocus={e => {
+                          if (e.target.value === "0") e.target.select()
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="unit">{t.commodityManagement.unit}</Label>
+                      <select
+                        id="unit"
+                        value={newEntry.unit}
+                        onChange={e =>
+                          setNewEntry(p => ({
+                            ...p,
+                            unit: e.target.value as WeightUnit,
+                          }))
+                        }
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2.5rem]"
+                      >
+                        {Object.values(WeightUnit).map(u => (
+                          <option key={u} value={u}>
+                            {t.enums.weightUnitName[u]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="type">{t.commodityManagement.type}</Label>
-                    <select
-                      id="type"
-                      value={newEntry.type}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          type: e.target.value as CommodityType,
-                        }))
-                      }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none"
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-5">
+                      <Label htmlFor="initial_investment">
+                        {t.commodityManagement.initialInvestment}{" "}
+                        {newEntry.currency &&
+                          `(${getCurrencySymbol(newEntry.currency)})`}
+                      </Label>
+                      <Input
+                        id="initial_investment"
+                        type="number"
+                        step="0.01"
+                        value={newEntry.initial_investment || ""}
+                        onChange={e =>
+                          setNewEntry(p => ({
+                            ...p,
+                            initial_investment:
+                              parseFloat(e.target.value) || null,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-5">
+                      <Label htmlFor="average_buy_price">
+                        {t.commodityManagement.averageBuyPrice}{" "}
+                        {newEntry.currency &&
+                          newEntry.unit &&
+                          `(${getCurrencySymbol(newEntry.currency)}/${t.enums.weightUnit[newEntry.unit]})`}
+                      </Label>
+                      <Input
+                        id="average_buy_price"
+                        type="number"
+                        step="0.01"
+                        value={newEntry.average_buy_price || ""}
+                        onChange={e =>
+                          setNewEntry(p => ({
+                            ...p,
+                            average_buy_price:
+                              parseFloat(e.target.value) || null,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor="currency">
+                        {t.commodityManagement.currency}
+                      </Label>
+                      <select
+                        id="currency"
+                        value={newEntry.currency || ""}
+                        onChange={e =>
+                          setNewEntry(p => ({
+                            ...p,
+                            currency: e.target.value || null,
+                          }))
+                        }
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
+                      >
+                        {supportedCurrencies.map(c => (
+                          <option key={c} value={c}>
+                            {getCurrencySymbol(c)} {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddForm(false)}
                     >
-                      {Object.values(CommodityType).map(type => (
-                        <option key={type} value={type}>
-                          {t.enums.commodityType[type]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <Label htmlFor="amount">
-                      {t.commodityManagement.amount}
-                    </Label>
-                    <Input
-                      id="amount"
-                      type="number"
-                      step="0.0001"
-                      value={newEntry.amount || ""}
-                      onChange={e => {
-                        const value = e.target.value
-                        setNewEntry(p => ({
-                          ...p,
-                          amount: value === "" ? 0 : parseFloat(value) || 0,
-                        }))
-                      }}
-                      onFocus={e => {
-                        if (e.target.value === "0") e.target.select()
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="unit">{t.commodityManagement.unit}</Label>
-                    <select
-                      id="unit"
-                      value={newEntry.unit}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          unit: e.target.value as WeightUnit,
-                        }))
+                      {t.common.cancel}
+                    </Button>
+                    <Button
+                      onClick={addNewEntry}
+                      disabled={
+                        !newEntry.name ||
+                        !newEntry.amount ||
+                        newEntry.amount <= 0
                       }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2.5rem]"
                     >
-                      {Object.values(WeightUnit).map(u => (
-                        <option key={u} value={u}>
-                          {t.enums.weightUnitName[u]}
-                        </option>
-                      ))}
-                    </select>
+                      {t.common.add}
+                    </Button>
                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-5">
-                    <Label htmlFor="initial_investment">
-                      {t.commodityManagement.initialInvestment}{" "}
-                      {newEntry.currency &&
-                        `(${getCurrencySymbol(newEntry.currency)})`}
-                    </Label>
-                    <Input
-                      id="initial_investment"
-                      type="number"
-                      step="0.01"
-                      value={newEntry.initial_investment || ""}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          initial_investment:
-                            parseFloat(e.target.value) || null,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="md:col-span-5">
-                    <Label htmlFor="average_buy_price">
-                      {t.commodityManagement.averageBuyPrice}{" "}
-                      {newEntry.currency &&
-                        newEntry.unit &&
-                        `(${getCurrencySymbol(newEntry.currency)}/${t.enums.weightUnit[newEntry.unit]})`}
-                    </Label>
-                    <Input
-                      id="average_buy_price"
-                      type="number"
-                      step="0.01"
-                      value={newEntry.average_buy_price || ""}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          average_buy_price: parseFloat(e.target.value) || null,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="currency">
-                      {t.commodityManagement.currency}
-                    </Label>
-                    <select
-                      id="currency"
-                      value={newEntry.currency || ""}
-                      onChange={e =>
-                        setNewEntry(p => ({
-                          ...p,
-                          currency: e.target.value || null,
-                        }))
-                      }
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
-                    >
-                      {supportedCurrencies.map(c => (
-                        <option key={c} value={c}>
-                          {getCurrencySymbol(c)} {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowAddForm(false)}
-                  >
-                    {t.common.cancel}
-                  </Button>
-                  <Button
-                    onClick={addNewEntry}
-                    disabled={
-                      !newEntry.name || !newEntry.amount || newEntry.amount <= 0
-                    }
-                  >
-                    {t.common.add}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -814,15 +891,10 @@ export default function CommoditiesInvestmentPage() {
                     return (
                       <Card
                         key={c.id}
-                        className={`transition-all hover:shadow-md ${c.isModified ? "ring-2 ring-blue-500" : ""} ${c.isExpanded ? "h-auto" : "h-fit"}`}
+                        className={`transition-all hover:shadow-md ${c.isModified ? "ring-2 ring-blue-500" : ""}`}
                       >
-                        <CardContent
-                          className={`p-4 ${c.isExpanded ? "h-auto" : "h-fit"}`}
-                        >
-                          <div
-                            className="flex items-center justify-between cursor-pointer"
-                            onClick={() => toggleExpanded(c.id)}
-                          >
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
                               <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
                                 {c.name}
@@ -838,221 +910,26 @@ export default function CommoditiesInvestmentPage() {
                             </div>
                             <div className="flex items-center gap-2">
                               {c.isModified && (
-                                <Edit className="h-4 w-4 text-blue-500" />
+                                <span className="h-2 w-2 rounded-full bg-blue-500" />
                               )}
-                              {c.isExpanded ? (
-                                <ChevronUp className="h-4 w-4 text-gray-400" />
-                              ) : (
-                                <ChevronDown className="h-4 w-4 text-gray-400" />
-                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setEditingCommodityId(c.id)}
+                                className="p-1 h-8 w-8"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => requestDeleteCommodity(c)}
+                                className="p-1 h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-                          <AnimatePresence>
-                            {c.isExpanded && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3"
-                              >
-                                <div className="flex items-end gap-2">
-                                  <div className="flex-1">
-                                    <Label
-                                      htmlFor={`name-${c.id}`}
-                                      className="text-xs"
-                                    >
-                                      {t.commodityManagement.name}
-                                    </Label>
-                                    <Input
-                                      id={`name-${c.id}`}
-                                      value={c.name}
-                                      onChange={e =>
-                                        updateCommodity(
-                                          c.id,
-                                          "name",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className={cn(
-                                        "h-8 text-sm",
-                                        fieldErrors[c.id]?.name &&
-                                          "border-red-500",
-                                      )}
-                                    />
-                                    {fieldErrors[c.id]?.name && (
-                                      <p className="text-red-500 text-xs mt-1">
-                                        {fieldErrors[c.id].name}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={e => {
-                                      e.stopPropagation()
-                                      requestDeleteCommodity(c)
-                                    }}
-                                    className="p-1 h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div>
-                                    <Label
-                                      htmlFor={`amount-${c.id}`}
-                                      className="text-xs"
-                                    >
-                                      {t.commodityManagement.amount}
-                                    </Label>
-                                    <Input
-                                      id={`amount-${c.id}`}
-                                      type="number"
-                                      step="0.0001"
-                                      value={c.amount || ""}
-                                      onChange={e => {
-                                        const v = e.target.value
-                                        updateCommodity(
-                                          c.id,
-                                          "amount",
-                                          v === "" ? 0 : parseFloat(v) || 0,
-                                        )
-                                      }}
-                                      onFocus={e => {
-                                        if (e.target.value === "0")
-                                          e.target.select()
-                                      }}
-                                      className={cn(
-                                        "h-8 text-sm",
-                                        fieldErrors[c.id]?.amount &&
-                                          "border-red-500",
-                                      )}
-                                    />
-                                    {fieldErrors[c.id]?.amount && (
-                                      <p className="text-red-500 text-xs mt-1">
-                                        {fieldErrors[c.id].amount}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div>
-                                    <Label
-                                      htmlFor={`unit-${c.id}`}
-                                      className="text-xs"
-                                    >
-                                      {t.commodityManagement.unit}
-                                    </Label>
-                                    <select
-                                      value={c.unit}
-                                      onChange={e =>
-                                        updateCommodity(
-                                          c.id,
-                                          "unit",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2rem]"
-                                    >
-                                      {Object.values(WeightUnit).map(u => (
-                                        <option key={u} value={u}>
-                                          {t.enums.weightUnitName[u]}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-                                {(c.initial_investment !== null ||
-                                  c.average_buy_price !== null ||
-                                  c.currency) && (
-                                  <div className="space-y-2">
-                                    <div className="grid grid-cols-12 gap-2">
-                                      <div className="col-span-5">
-                                        <Label
-                                          htmlFor={`initial-investment-${c.id}`}
-                                          className="text-xs"
-                                        >
-                                          {
-                                            t.commodityManagement
-                                              .initialInvestment
-                                          }{" "}
-                                          {c.currency &&
-                                            `(${getCurrencySymbol(c.currency)})`}
-                                        </Label>
-                                        <Input
-                                          id={`initial-investment-${c.id}`}
-                                          type="number"
-                                          step="0.01"
-                                          value={c.initial_investment || ""}
-                                          onChange={e =>
-                                            updateCommodity(
-                                              c.id,
-                                              "initial_investment",
-                                              parseFloat(e.target.value) ||
-                                                null,
-                                            )
-                                          }
-                                          className="h-8 text-sm"
-                                        />
-                                      </div>
-                                      <div className="col-span-5">
-                                        <Label
-                                          htmlFor={`average-buy-price-${c.id}`}
-                                          className="text-xs"
-                                        >
-                                          {
-                                            t.commodityManagement
-                                              .averageBuyPrice
-                                          }{" "}
-                                          {c.currency &&
-                                            c.unit &&
-                                            `(${getCurrencySymbol(c.currency)}/${t.enums.weightUnit[c.unit]})`}
-                                        </Label>
-                                        <Input
-                                          id={`average-buy-price-${c.id}`}
-                                          type="number"
-                                          step="0.01"
-                                          value={c.average_buy_price || ""}
-                                          onChange={e =>
-                                            updateCommodity(
-                                              c.id,
-                                              "average_buy_price",
-                                              parseFloat(e.target.value) ||
-                                                null,
-                                            )
-                                          }
-                                          className="h-8 text-sm"
-                                        />
-                                      </div>
-                                      <div className="col-span-2">
-                                        <Label
-                                          htmlFor={`currency-${c.id}`}
-                                          className="text-xs"
-                                        >
-                                          {t.commodityManagement.currency}
-                                        </Label>
-                                        <select
-                                          value={c.currency || ""}
-                                          onChange={e =>
-                                            updateCommodity(
-                                              c.id,
-                                              "currency",
-                                              e.target.value || null,
-                                            )
-                                          }
-                                          className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight min-h-[2rem]"
-                                        >
-                                          {supportedCurrencies.map(cur => (
-                                            <option key={cur} value={cur}>
-                                              {getCurrencySymbol(cur)}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
                           <div className="text-sm text-gray-600 dark:text-gray-400 mt-3">
                             <span className="font-medium text-blue-600 dark:text-blue-400">
                               {percentageOfPortfolio.toFixed(1)}%
@@ -1072,8 +949,203 @@ export default function CommoditiesInvestmentPage() {
           })}
         </motion.div>
       )}
+      <AnimatePresence>
+        {editingCommodity && editingDraft && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-3xl"
+            >
+              <Card className="max-h-[calc(100vh-2rem)] flex flex-col relative">
+                <CardHeader className="pr-12">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <CommodityIcon type={editingCommodity.type} size="sm" />
+                    {editingCommodity.name}
+                  </CardTitle>
+                </CardHeader>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setEditingCommodityId(null)}
+                  className="absolute top-4 right-4"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <CardContent className="space-y-4 flex-1 overflow-y-auto">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor={`name-${editingCommodity.id}`}>
+                        {t.commodityManagement.name}
+                      </Label>
+                      <Input
+                        id={`name-${editingCommodity.id}`}
+                        value={editingDraft.name}
+                        onChange={e => updateDraftField("name", e.target.value)}
+                        className={cn(
+                          fieldErrors[editingCommodity.id]?.name &&
+                            "border-red-500",
+                        )}
+                      />
+                      {fieldErrors[editingCommodity.id]?.name && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {fieldErrors[editingCommodity.id].name}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => requestDeleteCommodity(editingCommodity)}
+                      className="p-1 h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor={`amount-${editingCommodity.id}`}>
+                        {t.commodityManagement.amount}
+                      </Label>
+                      <Input
+                        id={`amount-${editingCommodity.id}`}
+                        type="number"
+                        step="0.0001"
+                        value={editingDraft.amount || ""}
+                        onChange={e => {
+                          const v = e.target.value
+                          updateDraftField(
+                            "amount",
+                            v === "" ? 0 : parseFloat(v) || 0,
+                          )
+                        }}
+                        onFocus={e => {
+                          if (e.target.value === "0") e.target.select()
+                        }}
+                        className={cn(
+                          fieldErrors[editingCommodity.id]?.amount &&
+                            "border-red-500",
+                        )}
+                      />
+                      {fieldErrors[editingCommodity.id]?.amount && (
+                        <p className="text-red-500 text-xs mt-1">
+                          {fieldErrors[editingCommodity.id].amount}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor={`unit-${editingCommodity.id}`}>
+                        {t.commodityManagement.unit}
+                      </Label>
+                      <select
+                        id={`unit-${editingCommodity.id}`}
+                        value={editingDraft.unit}
+                        onChange={e => updateDraftField("unit", e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
+                      >
+                        {Object.values(WeightUnit).map(u => (
+                          <option key={u} value={u}>
+                            {t.enums.weightUnitName[u]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                    <div className="md:col-span-5">
+                      <Label
+                        htmlFor={`initial-investment-${editingCommodity.id}`}
+                      >
+                        {t.commodityManagement.initialInvestment}{" "}
+                        {editingDraft.currency &&
+                          `(${getCurrencySymbol(editingDraft.currency)})`}
+                      </Label>
+                      <Input
+                        id={`initial-investment-${editingCommodity.id}`}
+                        type="number"
+                        step="0.01"
+                        value={editingDraft.initial_investment || ""}
+                        onChange={e =>
+                          updateDraftField(
+                            "initial_investment",
+                            parseFloat(e.target.value) || null,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-5">
+                      <Label
+                        htmlFor={`average-buy-price-${editingCommodity.id}`}
+                      >
+                        {t.commodityManagement.averageBuyPrice}{" "}
+                        {editingDraft.currency &&
+                          editingDraft.unit &&
+                          `(${getCurrencySymbol(editingDraft.currency)}/${t.enums.weightUnit[editingDraft.unit]})`}
+                      </Label>
+                      <Input
+                        id={`average-buy-price-${editingCommodity.id}`}
+                        type="number"
+                        step="0.01"
+                        value={editingDraft.average_buy_price || ""}
+                        onChange={e =>
+                          updateDraftField(
+                            "average_buy_price",
+                            parseFloat(e.target.value) || null,
+                          )
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor={`currency-${editingCommodity.id}`}>
+                        {t.commodityManagement.currency}
+                      </Label>
+                      <select
+                        id={`currency-${editingCommodity.id}`}
+                        value={editingDraft.currency || ""}
+                        onChange={e =>
+                          updateDraftField("currency", e.target.value || null)
+                        }
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 appearance-none leading-tight"
+                      >
+                        {supportedCurrencies.map(cur => (
+                          <option key={cur} value={cur}>
+                            {getCurrencySymbol(cur)} {cur}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex flex-wrap justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditingCommodityId(null)}
+                    className="whitespace-nowrap"
+                  >
+                    {t.common.cancel}
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    className="whitespace-nowrap"
+                  >
+                    {t.common.save}
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {deleteTarget && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-[19000] p-4">
           <Card className="max-w-sm w-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">

@@ -14,7 +14,9 @@ dependencies {
     implementation project(':capacitor-filesystem')
     implementation project(':capacitor-preferences')
     implementation project(':capacitor-splash-screen')
+    implementation project(':capacitor-share')
     implementation project(':capgo-capacitor-native-biometric')
+    implementation project(':capacitor-plugin-safe-area')
 
 }
 

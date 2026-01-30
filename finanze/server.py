@@ -147,7 +147,7 @@ from infrastructure.cloud.backup.backup_processor_adapter import (
 )
 from infrastructure.cloud.cloud_data_register import CloudDataRegister
 from infrastructure.config.config_loader import ConfigLoader
-from infrastructure.config.server_details_adapter import ArgparseServerDetailsAdapter
+from infrastructure.config.server_details_adapter import ServerDetailsAdapter
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
@@ -349,12 +349,14 @@ class FinanzeServer:
             cloud_register,
         )
         change_user_password = ChangeUserPasswordImpl(db_manager, data_manager)
-        server_options_port = ArgparseServerDetailsAdapter(args)
+        server_options_port = ServerDetailsAdapter(args)
         if os.getenv("ENV_FF"):
             feature_flag_port = EnvFeatureFlagAdapter()
         else:
             users = await data_manager.get_users()
-            feature_flag_port = FeatureFlagClient(users)
+            feature_flag_port = FeatureFlagClient(
+                operative_system=server_options_port.get_os(), users=users
+            )
             await feature_flag_port.load()
 
         get_status = GetStatusImpl(
@@ -525,7 +527,7 @@ class FinanzeServer:
             transaction_handler,
         )
         get_external_integrations = GetExternalIntegrationsImpl(
-            external_integration_repository
+            external_integration_repository, external_integrations
         )
         connect_external_integrations = ConnectExternalIntegrationImpl(
             external_integration_repository,

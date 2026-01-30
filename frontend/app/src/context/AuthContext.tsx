@@ -14,6 +14,7 @@ import {
 } from "@/services/api"
 import { AuthResultCode, type User } from "@/types"
 import { setFeatureFlags } from "@/context/featureFlagsStore"
+import { hideSplashScreen } from "@/lib/mobile"
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -32,6 +33,7 @@ interface AuthContextType {
   changePassword: (oldPassword: string, newPassword: string) => Promise<boolean>
   setIsChangingPassword: (isChanging: boolean) => void
   startPasswordChange: () => Promise<void>
+  cancelPasswordChange: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
+      hideSplashScreen()
       const retryDelay = 1500
 
       while (true) {
@@ -194,6 +197,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logout()
   }
 
+  const cancelPasswordChange = (): void => {
+    const userForLogin = pendingPasswordChangeUser || lastLoggedUser
+    setIsChangingPassword(false)
+    setPendingPasswordChangeUser(null)
+    if (userForLogin) {
+      setLastLoggedUser(userForLogin)
+    }
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,6 +222,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         changePassword,
         setIsChangingPassword,
         startPasswordChange,
+        cancelPasswordChange,
       }}
     >
       {children}

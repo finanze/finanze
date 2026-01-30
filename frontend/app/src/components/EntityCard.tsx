@@ -26,6 +26,7 @@ import {
   Wallet,
   RefreshCw,
   AlertCircle,
+  Info,
   Unplug,
 } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -325,7 +326,28 @@ export function EntityCard({
                   }
                 />
               </div>
-              <span className="truncate max-sm:text-center">{entity.name}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate max-sm:text-center">
+                  {entity.name}
+                </span>
+                {!entity.fetchable && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground"
+                        aria-label={t.common.notAvailableOnPlatform}
+                      >
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 text-sm">
+                      {t.common.notAvailableOnPlatform}
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 max-sm:w-full max-sm:justify-center max-sm:flex-wrap">
               <FeaturesBadge
@@ -380,9 +402,9 @@ export function EntityCard({
             </div>
           </CardTitle>
         </CardHeader>
-        {entity.fetchable && (
-          <>
-            <CardContent className={isDisconnected ? "pt-0" : ""}>
+        <CardContent className={isDisconnected ? "pt-0" : ""}>
+          {entity.fetchable ? (
+            <>
               {/* Show connected wallets info for crypto entities */}
               {isCryptoWallet && effectiveStatus === EntityStatus.CONNECTED && (
                 <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
@@ -649,9 +671,9 @@ export function EntityCard({
                     )}
                   </div>
                 )}
-            </CardContent>
-          </>
-        )}
+            </>
+          ) : null}
+        </CardContent>
       </Card>
 
       <ConfirmationDialog

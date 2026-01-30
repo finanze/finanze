@@ -41,7 +41,6 @@ import {
   TrendingDown,
   Copy,
   Check,
-  Plus,
   Wallet,
   Edit3,
   Trash2,
@@ -1261,7 +1260,7 @@ function CryptoInvestmentContent({
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
-      className="space-y-8 pb-6"
+      className="space-y-8"
     >
       {filteredCryptoWallets.map(entityGroup => (
         <motion.section
@@ -1855,7 +1854,7 @@ function CryptoInvestmentContent({
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
-      className="space-y-8 pb-6"
+      className="space-y-8"
     >
       {networkGroups.map(networkGroup => (
         <motion.section
@@ -2062,16 +2061,24 @@ function CryptoInvestmentContent({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1 h-8 w-8"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{t.common.cryptoInvestments}</h1>
-            <PinAssetButton assetId="crypto" />
+            <PinAssetButton
+              assetId="crypto"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <ManualPositionsControls className="self-start sm:self-auto" />
+        <div className="flex flex-wrap items-center justify-center gap-2 self-start sm:self-auto sm:justify-end">
+          <ManualPositionsControls className="justify-center sm:justify-end" />
           <Button
             variant="default"
             size="sm"
@@ -2081,7 +2088,7 @@ function CryptoInvestmentContent({
               navigate("/entities#crypto-enabled")
             }}
           >
-            <Plus className="h-4 w-4 mr-2" /> {t.entities.connect}
+            <Wallet className="h-4 w-4 mr-2" /> {t.entities.connect}
           </Button>
         </div>
       </div>

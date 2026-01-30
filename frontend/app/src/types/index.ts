@@ -236,6 +236,7 @@ export interface StatusResponse {
   user?: User | null
   server: {
     version: string
+    platform_type: PlatformType
     options: BackendOptions
   }
   features: FeatureFlags
@@ -628,6 +629,7 @@ export interface ExternalIntegration {
   name: string
   status: ExternalIntegrationStatus
   type: ExternalIntegrationType
+  available: boolean
   payload_schema?: Record<string, string> | null
 }
 

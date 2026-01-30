@@ -95,13 +95,39 @@ export class PyodideApiClient implements ApiClient {
       }
 
       // Convert response.data to Blob
-      // If python returns bytes, pyodide might convert to Uint8Array
+      // Python bytes through Pyodide can come as:
+      // - Uint8Array (ideal)
+      // - ArrayBuffer
+      // - Object with numeric keys like {0: 110, 1: 97, ...} (common case)
+      // - String
       let blob: Blob
       if (response.data instanceof Uint8Array) {
-        blob = new Blob([response.data as any])
-      } else {
-        // Fallback or string
+        blob = new Blob([response.data as BlobPart])
+      } else if (response.data instanceof ArrayBuffer) {
         blob = new Blob([response.data])
+      } else if (typeof response.data === "string") {
+        blob = new Blob([response.data], { type: "text/plain;charset=utf-8" })
+      } else if (
+        response.data &&
+        typeof response.data === "object" &&
+        "0" in response.data
+      ) {
+        // Pyodide converts Python bytes to an object with numeric keys {0: val, 1: val, ...}
+        // Find the length by checking for the highest numeric key
+        const keys = Object.keys(response.data)
+          .filter(k => /^\d+$/.test(k))
+          .map(Number)
+        const maxIndex = Math.max(...keys)
+        const uint8Array = new Uint8Array(maxIndex + 1)
+        for (let i = 0; i <= maxIndex; i++) {
+          uint8Array[i] = response.data[i] ?? 0
+        }
+        blob = new Blob([uint8Array as BlobPart])
+      } else {
+        // For other objects, stringify them
+        blob = new Blob([JSON.stringify(response.data)], {
+          type: "application/json",
+        })
       }
 
       // Headers are in response.headers

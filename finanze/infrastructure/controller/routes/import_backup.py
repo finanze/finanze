@@ -30,7 +30,7 @@ async def import_backup(import_backup_uc: ImportBackup):
     try:
         result = await import_backup_uc.execute(import_req)
     except InvalidBackupCredentials as e:
-        return {"message": str(e) or "INVALID_CREDENTIALS"}, 401
+        return {"code": str(e) or "INVALID_BACKUP_CREDENTIALS"}, 401
 
     response = {
         "pieces": {

@@ -17,5 +17,11 @@ project(':capacitor-preferences').projectDir = new File('../node_modules/.pnpm/@
 include ':capacitor-splash-screen'
 project(':capacitor-splash-screen').projectDir = new File('../node_modules/.pnpm/@capacitor+splash-screen@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/splash-screen/android')
 
+include ':capacitor-share'
+project(':capacitor-share').projectDir = new File('../node_modules/.pnpm/@capacitor+share@8.0.0_@capacitor+core@8.0.1/node_modules/@capacitor/share/android')
+
 include ':capgo-capacitor-native-biometric'
 project(':capgo-capacitor-native-biometric').projectDir = new File('../node_modules/.pnpm/@capgo+capacitor-native-biometric@8.3.1_patch_hash=e0e5fd867fe6d3a8f15920992d1d71e76a6a_75e23c119fb1c4d30567127fea4d41e3/node_modules/@capgo/capacitor-native-biometric/android')
+
+include ':capacitor-plugin-safe-area'
+project(':capacitor-plugin-safe-area').projectDir = new File('../node_modules/.pnpm/capacitor-plugin-safe-area@5.0.0_@capacitor+core@8.0.1/node_modules/capacitor-plugin-safe-area/android')

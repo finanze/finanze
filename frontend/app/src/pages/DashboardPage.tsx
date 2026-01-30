@@ -12,11 +12,12 @@ import { useAppContext } from "@/context/AppContext"
 import { TxType } from "@/types/transactions"
 import { formatCurrency, formatPercentage, formatDate } from "@/lib/formatters"
 import { useSkipMountAnimation } from "@/lib/animations"
+import { cn } from "@/lib/utils"
 import { AnimatedContainer } from "@/components/ui/AnimatedContainer"
 import { Button } from "@/components/ui/Button"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs"
+import { Tabs, TabsContent } from "@/components/ui/Tabs"
 import { Switch } from "@/components/ui/Switch"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -115,6 +116,9 @@ export default function DashboardPage() {
     null,
   )
   const forecastMode = !!forecastResult
+  const [distributionView, setDistributionView] = useState<
+    "by-asset" | "by-entity"
+  >("by-asset")
 
   const [transactionsLoading, setTransactionsLoading] = useState(false)
   const [transactionsError, setTransactionsError] = useState<string | null>(
@@ -1471,7 +1475,7 @@ export default function DashboardPage() {
 
   const renderUpcomingCard = () => (
     <Card>
-      <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-2">
+      <CardHeader className="flex flex-row items-center justify-between pb-3 gap-2">
         <CardTitle className="text-lg font-bold flex items-center">
           <CalendarDays className="h-5 w-5 mr-2 text-primary" />
           {t.dashboard.upcomingFlows}
@@ -1481,7 +1485,7 @@ export default function DashboardPage() {
             variant="outline"
             size="sm"
             onClick={() => navigate("/management")}
-            className="text-xs px-2 py-1 h-auto min-h-0 self-start sm:self-auto"
+            className="text-xs px-2 py-1 h-auto min-h-0"
           >
             <ArrowRight className="h-3 w-3 mr-1" />
             {t.dashboard.manageFlows}
@@ -1659,7 +1663,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6">
       {forecastLoading ? (
         <div className="flex justify-center items-center h-[70vh]">
           <LoadingSpinner size="lg" />
@@ -1671,20 +1675,20 @@ export default function DashboardPage() {
           transition={{ duration: 0.3 }}
           className="space-y-6"
         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
-            <h1 className="text-3xl font-bold flex-shrink-0">
+          <div className="flex flex-row items-center justify-between gap-3">
+            <h1 className="text-3xl font-bold flex-shrink-0 whitespace-nowrap">
               {t.common.dashboard}
             </h1>
-            <div className="flex flex-wrap gap-2 items-center justify-end">
+            <div className="flex items-center gap-2 justify-end flex-nowrap">
               {/* Forecast active indicator / trigger */}
               <Popover open={forecastOpen} onOpenChange={setForecastOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant={forecastMode ? "default" : "outline"}
-                    className="flex items-center h-9 px-3 text-sm"
+                    className="flex items-center h-9 px-3 text-sm [@media(max-width:450px)]:w-9 [@media(max-width:450px)]:px-0 [@media(max-width:450px)]:justify-center"
                   >
-                    <TrendingUpDown className="h-4 w-4 mr-1 flex-shrink-0" />
-                    <span className="whitespace-nowrap">
+                    <TrendingUpDown className="h-4 w-4 flex-shrink-0 mr-0 [@media(min-width:450px)]:mr-1" />
+                    <span className="hidden [@media(min-width:450px)]:inline whitespace-nowrap">
                       {forecastMode && forecastResult
                         ? formatDate(forecastResult.target_date, locale)
                         : t.forecast.title}
@@ -1709,6 +1713,9 @@ export default function DashboardPage() {
                 </PopoverTrigger>
                 <PopoverContent className="w-80 z-[50]" align="end">
                   <div className="space-y-3">
+                    <h4 className="text-lg font-semibold">
+                      {t.forecast.title}
+                    </h4>
                     <div className="space-y-1">
                       <label className="text-xs font-medium">
                         {t.forecast.targetDate}
@@ -1846,86 +1853,6 @@ export default function DashboardPage() {
                   </div>
                 </PopoverContent>
               </Popover>
-              {/* Dashboard Options */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="flex items-center h-9 px-3"
-                  >
-                    <SlidersHorizontal className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80" align="end">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <HandCoins className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includePendingMoney}
-                      </div>
-                      <Switch
-                        disabled={forecastMode}
-                        checked={
-                          forecastMode ? false : dashboardOptions.includePending
-                        }
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includePending: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm flex items-center gap-2">
-                        <CreditCard className="h-4 w-4 text-muted-foreground" />
-                        {t.dashboard.includeCardExpenses}
-                      </div>
-                      <Switch
-                        checked={dashboardOptions.includeCardExpenses}
-                        onCheckedChange={val =>
-                          setDashboardOptions(prev => ({
-                            ...prev,
-                            includeCardExpenses: Boolean(val),
-                          }))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm flex items-center gap-2">
-                          <Home className="h-4 w-4 text-muted-foreground" />
-                          {t.dashboard.includeRealEstateEquity}
-                        </div>
-                        <Switch
-                          checked={dashboardOptions.includeRealEstate}
-                          onCheckedChange={val =>
-                            setDashboardOptions(prev => ({
-                              ...prev,
-                              includeRealEstate: Boolean(val),
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="flex items-center justify-between pl-6">
-                        <div className="text-sm text-muted-foreground">
-                          {t.dashboard.includeResidences}
-                        </div>
-                        <Switch
-                          checked={dashboardOptions.includeResidences}
-                          onCheckedChange={val =>
-                            setDashboardOptions(prev => ({
-                              ...prev,
-                              includeResidences: Boolean(val),
-                            }))
-                          }
-                          disabled={!dashboardOptions.includeRealEstate}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
               <EntityRefreshDropdown />
             </div>
           </div>
@@ -1956,26 +1883,57 @@ export default function DashboardPage() {
                   className="order-2 lg:order-1 lg:col-span-7"
                 >
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0">
                       <CardTitle className="text-lg font-bold flex items-center">
                         <PieChartIcon className="h-5 w-5 mr-2 text-primary" />
                         {t.dashboard.assetDistribution}
                       </CardTitle>
+                      <div
+                        className="inline-flex items-center rounded-full border border-border bg-muted/30 p-0.5"
+                        role="tablist"
+                        aria-label={t.dashboard.assetDistribution}
+                      >
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={distributionView === "by-asset"}
+                          onClick={() => setDistributionView("by-asset")}
+                          className={cn(
+                            "h-7 rounded-full px-2 text-xs font-medium transition-colors",
+                            distributionView === "by-asset"
+                              ? "bg-foreground text-background"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {t.dashboard.assetDistributionByType}
+                        </button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={distributionView === "by-entity"}
+                          onClick={() => setDistributionView("by-entity")}
+                          className={cn(
+                            "h-7 rounded-full px-2 text-xs font-medium transition-colors",
+                            distributionView === "by-entity"
+                              ? "bg-foreground text-background"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {t.dashboard.assetDistributionByEntity}
+                        </button>
+                      </div>
                     </CardHeader>
                     <CardContent
                       ref={assetDistributionCardRef}
                       className="px-2"
                     >
-                      <Tabs defaultValue="by-asset" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
-                          <TabsTrigger value="by-asset">
-                            {t.dashboard.assetDistributionByType}
-                          </TabsTrigger>
-                          <TabsTrigger value="by-entity">
-                            {t.dashboard.assetDistributionByEntity}
-                          </TabsTrigger>
-                        </TabsList>
-
+                      <Tabs
+                        value={distributionView}
+                        onValueChange={value =>
+                          setDistributionView(value as "by-asset" | "by-entity")
+                        }
+                        className="w-full"
+                      >
                         <TabsContent value="by-asset" className="mt-4">
                           {assetDistribution.length > 0 ? (
                             <div
@@ -2260,11 +2218,93 @@ export default function DashboardPage() {
                   className="order-1 lg:order-2 lg:col-span-5 lg:col-start-8 space-y-6"
                 >
                   <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0">
                       <CardTitle className="text-lg font-bold flex items-center">
                         <Wallet className="h-5 w-5 mr-2 text-primary" />
                         {t.dashboard.netWorth}
                       </CardTitle>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                          >
+                            <SlidersHorizontal className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80" align="end">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm flex items-center gap-2">
+                                <HandCoins className="h-4 w-4 text-muted-foreground" />
+                                {t.dashboard.includePendingMoney}
+                              </div>
+                              <Switch
+                                disabled={forecastMode}
+                                checked={
+                                  forecastMode
+                                    ? false
+                                    : dashboardOptions.includePending
+                                }
+                                onCheckedChange={val =>
+                                  setDashboardOptions(prev => ({
+                                    ...prev,
+                                    includePending: Boolean(val),
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm flex items-center gap-2">
+                                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                                {t.dashboard.includeCardExpenses}
+                              </div>
+                              <Switch
+                                checked={dashboardOptions.includeCardExpenses}
+                                onCheckedChange={val =>
+                                  setDashboardOptions(prev => ({
+                                    ...prev,
+                                    includeCardExpenses: Boolean(val),
+                                  }))
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <div className="text-sm flex items-center gap-2">
+                                  <Home className="h-4 w-4 text-muted-foreground" />
+                                  {t.dashboard.includeRealEstateEquity}
+                                </div>
+                                <Switch
+                                  checked={dashboardOptions.includeRealEstate}
+                                  onCheckedChange={val =>
+                                    setDashboardOptions(prev => ({
+                                      ...prev,
+                                      includeRealEstate: Boolean(val),
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="flex items-center justify-between pl-6">
+                                <div className="text-sm text-muted-foreground">
+                                  {t.dashboard.includeResidences}
+                                </div>
+                                <Switch
+                                  checked={dashboardOptions.includeResidences}
+                                  onCheckedChange={val =>
+                                    setDashboardOptions(prev => ({
+                                      ...prev,
+                                      includeResidences: Boolean(val),
+                                    }))
+                                  }
+                                  disabled={!dashboardOptions.includeRealEstate}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </CardHeader>
                     <CardContent>
                       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-y-1">

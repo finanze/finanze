@@ -104,7 +104,7 @@ async def export_file(export_file_uc: ExportFile):
         BytesIO(result.data),
         mimetype=result.content_type,
         as_attachment=True,
-        download_name=result.filename,
+        attachment_filename=result.filename,
     )
     response.headers["Content-Length"] = str(result.size)
     return response

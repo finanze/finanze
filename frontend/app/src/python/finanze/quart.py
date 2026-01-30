@@ -59,11 +59,11 @@ async def send_file(
     stream,
     mimetype: Optional[str] = None,
     as_attachment: bool = False,
-    download_name: Optional[str] = None,
+    attachment_filename: Optional[str] = None,
 ):
     headers: Dict[str, str] = {}
-    if as_attachment and download_name:
-        headers["Content-Disposition"] = f'attachment; filename="{download_name}"'
+    if as_attachment and attachment_filename:
+        headers["Content-Disposition"] = f'attachment; filename="{attachment_filename}"'
 
     data = stream
     if hasattr(stream, "read"):

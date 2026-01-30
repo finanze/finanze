@@ -449,15 +449,23 @@ function DepositsViewContent({
       <motion.div variants={fadeListItem} className="space-y-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={navigateBack}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-1 h-8 w-8"
+              onClick={navigateBack}
+            >
               <ArrowLeft size={20} />
             </Button>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold">{t.common.deposits}</h1>
-              <PinAssetButton assetId="deposits" />
+              <PinAssetButton
+                assetId="deposits"
+                className="hidden md:inline-flex"
+              />
             </div>
           </div>
-          <ManualPositionsControls className="self-start sm:self-auto" />
+          <ManualPositionsControls className="justify-center sm:justify-end" />
         </div>
         <ManualPositionsUnsavedNotice />
       </motion.div>
@@ -567,7 +575,7 @@ function DepositsViewContent({
               </div>
             </div>
 
-            <div className="space-y-4 pb-6">
+            <div className="space-y-4">
               {sortedDisplayItems.map(item => {
                 const { position, manualDraft, isManual, isDirty } = item
                 if (item.originalId && isEntryDeleted(item.originalId)) {

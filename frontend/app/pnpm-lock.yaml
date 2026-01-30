@@ -39,6 +39,9 @@ importers:
       "@capacitor/preferences":
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
+      "@capacitor/share":
+        specifier: ^8.0.0
+        version: 8.0.0(@capacitor/core@8.0.1)
       "@capacitor/splash-screen":
         specifier: ^8.0.0
         version: 8.0.0(@capacitor/core@8.0.1)
@@ -66,6 +69,9 @@ importers:
       "@tanstack/react-virtual":
         specifier: ^3.13.18
         version: 3.13.18(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      capacitor-plugin-safe-area:
+        specifier: ^5.0.0
+        version: 5.0.0(@capacitor/core@8.0.1)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -429,6 +435,14 @@ packages:
     resolution:
       {
         integrity: sha512-NsE7Srk9Zr0SxiVelHGiAJR7M238eyCD6dI/sDhu3ckKwFrXn8/GRyGr+SZcnGLlQKy948li8Pfcfr0dqxNf1g==,
+      }
+    peerDependencies:
+      "@capacitor/core": ">=8.0.0"
+
+  "@capacitor/share@8.0.0":
+    resolution:
+      {
+        integrity: sha512-VU+xT4LFwr4keIC0UKDqGQVAiNlAHwoTMQg8wVVSxtn/k32VOvvtqFfu63qnXr40WKytZWrxJfVESvRjd761yg==,
       }
     peerDependencies:
       "@capacitor/core": ">=8.0.0"
@@ -2705,6 +2719,14 @@ packages:
       {
         integrity: sha512-4C0lfJ0/YPjJQHagaE9x2Elb69CIqEPZeG0anQt9SIvIoOH4a4uaRl73IavyO+0qZh6MDLH//DrXThEYKHkmYA==,
       }
+
+  capacitor-plugin-safe-area@5.0.0:
+    resolution:
+      {
+        integrity: sha512-Q7+mV7oxGGDB4qPPGXFwS/dexR2/bo/uwkoBRTeR3d/rCzboi3Rnylw18MxSFx/mbQHD9BB7gSDWl+YnncJohQ==,
+      }
+    peerDependencies:
+      "@capacitor/core": ">=8.0.0"
 
   ccount@2.0.1:
     resolution:
@@ -7501,6 +7523,10 @@ snapshots:
     dependencies:
       "@capacitor/core": 8.0.1
 
+  "@capacitor/share@8.0.0(@capacitor/core@8.0.1)":
+    dependencies:
+      "@capacitor/core": 8.0.1
+
   "@capacitor/splash-screen@8.0.0(@capacitor/core@8.0.1)":
     dependencies:
       "@capacitor/core": 8.0.1
@@ -9003,6 +9029,10 @@ snapshots:
   camelcase-css@2.0.1: {}
 
   caniuse-lite@1.0.30001766: {}
+
+  capacitor-plugin-safe-area@5.0.0(@capacitor/core@8.0.1):
+    dependencies:
+      "@capacitor/core": 8.0.1
 
   ccount@2.0.1: {}
 

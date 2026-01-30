@@ -30,9 +30,9 @@ import { ReleaseUpdateModal } from "./components/ReleaseUpdateModal"
 import { GlobalEntityModals } from "./components/GlobalEntityModals"
 import { useReleaseUpdate } from "./hooks/useReleaseUpdate"
 import { EntityWorkflowProvider } from "./context/EntityWorkflowContext"
+import { BackupAlertSync } from "./components/BackupAlertSync"
 import { useState, useEffect } from "react"
 import { useAutoUpdater } from "./hooks/useAutoUpdater"
-import { hideSplashScreen as hideMobileSplashScreen } from "@/lib/mobile"
 
 function App() {
   const { isAuthenticated, isInitializing } = useAuth()
@@ -45,13 +45,6 @@ function App() {
   } = useAutoUpdater({
     checkOnMount: isAuthenticated && !isInitializing,
   })
-
-  // Hide the native/mobile splash screen once the app is ready to render UI.
-  useEffect(() => {
-    if (!isInitializing) {
-      hideMobileSplashScreen()
-    }
-  }, [isInitializing])
 
   // Load skipped versions from localStorage on mount
   useEffect(() => {
@@ -130,6 +123,7 @@ function App() {
     <EntityWorkflowProvider>
       <FinancialDataProvider>
         <PinnedShortcutsProvider>
+          <BackupAlertSync />
           <Layout>
             <Routes>
               <Route path="/" element={<DashboardPage />} />

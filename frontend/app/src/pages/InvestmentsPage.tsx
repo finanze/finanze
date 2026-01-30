@@ -106,6 +106,12 @@ export default function InvestmentsPage() {
     }))
   }, [t.common, t.realEstate, isPinned])
 
+  const sortedRoutes = React.useMemo(() => {
+    return [...investmentRoutes].sort(
+      (a, b) => Number(b.pinned) - Number(a.pinned),
+    )
+  }, [investmentRoutes])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -117,13 +123,13 @@ export default function InvestmentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-bold">
           {t.common.myAssets || t.common.investments}
         </h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {investmentRoutes.map(route => (
+        {sortedRoutes.map(route => (
           <Card
             key={route.path}
             className={`p-6 transition-all cursor-pointer relative group ${
@@ -131,8 +137,20 @@ export default function InvestmentsPage() {
             }`}
             onClick={() => navigate(route.path)}
           >
-            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-              <PinAssetButton assetId={route.assetId} />
+            <div
+              className={`absolute top-3 right-3 transition-opacity ${
+                route.pinned
+                  ? "opacity-100"
+                  : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              }`}
+            >
+              <PinAssetButton
+                assetId={route.assetId}
+                size="icon"
+                className={
+                  route.pinned ? undefined : "text-gray-400 md:text-current"
+                }
+              />
             </div>
             <div className="flex items-center space-x-4 pr-8">
               <div

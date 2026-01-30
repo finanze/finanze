@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-import platform
 from typing import Optional, Any
 
 from application.ports.feature_flag_port import FeatureFlagPort
@@ -10,24 +9,11 @@ from domain.status import FeatureFlags, FFValue, FFStatus
 from domain.user import User
 
 
-def _detect_os() -> OS | None:
-    system = platform.system().upper()
-
-    if system == "DARWIN":
-        return OS.MACOS
-    elif system == "WINDOWS":
-        return OS.WINDOWS
-    elif system == "LINUX":
-        return OS.LINUX
-
-    return None
-
-
 class FeatureFlagClient(FeatureFlagPort):
-    def __init__(self, users: list[User] = None, operative_system: Optional[OS] = None):
+    def __init__(self, operative_system: OS, users: list[User] = None):
         self._log = logging.getLogger(__name__)
         self._users = users
-        self._os = operative_system if operative_system is not None else _detect_os()
+        self._os = operative_system
         self._feature_flag_url = (
             os.getenv("FEATURE_FLAG_URL") or "https://features.api.finanze.me"
         )

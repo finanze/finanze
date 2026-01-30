@@ -459,7 +459,9 @@ class DeferredComponents:
             position_repo, ex_client, metal_client, last_fetches_repo, tx_handler
         )
 
-        self.get_integrations = GetExternalIntegrationsImpl(ext_int_repo)
+        self.get_integrations = GetExternalIntegrationsImpl(
+            ext_int_repo, external_integrations
+        )
         self.conn_integration = ConnectExternalIntegrationImpl(
             ext_int_repo, external_integrations
         )

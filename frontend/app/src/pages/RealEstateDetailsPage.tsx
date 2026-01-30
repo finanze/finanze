@@ -204,12 +204,13 @@ export default function RealEstateDetailsPage() {
   }
 
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 md:gap-4">
         <div className="flex items-start gap-3 flex-1 min-w-0">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
+            className="p-1 h-8 w-8"
             onClick={() => navigate(-1)}
             aria-label={t.common.back}
           >

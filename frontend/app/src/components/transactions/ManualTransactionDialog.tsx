@@ -1027,7 +1027,7 @@ export function ManualTransactionDialog({
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="w-full max-w-3xl"
           >
-            <Card>
+            <Card className="max-h-[calc(100vh-2rem)] flex flex-col">
               <CardHeader className="flex flex-row items-start justify-between gap-4">
                 <div>
                   <CardTitle className="text-xl">
@@ -1045,8 +1045,11 @@ export function ManualTransactionDialog({
                   <X className="h-4 w-4" />
                 </Button>
               </CardHeader>
-              <form onSubmit={handleSubmit}>
-                <CardContent className="space-y-6">
+              <form
+                onSubmit={handleSubmit}
+                className="flex flex-1 flex-col overflow-hidden"
+              >
+                <CardContent className="space-y-6 flex-1 overflow-y-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="transaction-entity">
