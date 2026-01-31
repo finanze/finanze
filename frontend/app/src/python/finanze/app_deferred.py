@@ -561,3 +561,4 @@ class DeferredComponents:
 
         await ex_storage.initialize()
         await crypto_info.initialize()
+        await self.get_ex_rates.execute(initial_load=True)

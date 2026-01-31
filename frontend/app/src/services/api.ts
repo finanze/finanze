@@ -369,8 +369,10 @@ export async function signup(
   }
 }
 
-export async function getExchangeRates(): Promise<ExchangeRates> {
-  return (await getApiClient()).get("/exchange-rates")
+export async function getExchangeRates(
+  cached: boolean,
+): Promise<ExchangeRates> {
+  return (await getApiClient()).get("/exchange-rates?cached=" + cached)
 }
 
 export async function saveManualContributions(

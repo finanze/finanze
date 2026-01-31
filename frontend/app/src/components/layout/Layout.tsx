@@ -55,7 +55,7 @@ function LayoutContent({ children }: LayoutProps) {
 
   return (
     <>
-      <div className="flex h-screen min-h-0 overflow-hidden bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
+      <div className="flex h-screen h-[100svh] min-h-0 overflow-hidden bg-gray-50 dark:bg-black text-gray-900 dark:text-gray-100">
         {!isNarrowView && <Sidebar />}
         <main
           className={cn(

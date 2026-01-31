@@ -681,7 +681,7 @@ class FinanzeServer:
 
         self._log.info("Initial component setup completed.")
 
-        await self._init_user(args, user_login)
+        auto_log = await self._init_user(args, user_login)
 
         self._log.info("Setting up REST API...")
 
@@ -760,20 +760,22 @@ class FinanzeServer:
         )
 
         self._log.info("Warming up exchange rates...")
-        await get_exchange_rates.execute(initial_load=True)
+        await get_exchange_rates.execute(initial_load=not auto_log)
 
         self._log.info("Completed.")
 
-    async def _init_user(self, args, user_login: UserLoginImpl):
+    async def _init_user(self, args, user_login: UserLoginImpl) -> bool:
         if args.logged_username and args.logged_password:
             self._log.info("User provided, logging in...")
             try:
                 await user_login.execute(
                     LoginRequest(args.logged_username, args.logged_password)
                 )
+                return True
             except Exception as e:
                 self._log.error(f"Failed to login user: {e}")
                 raise
+        return False
 
     async def run(self):
         self._log.info(f"Initializing Finanze server on port {self._args.port}...")

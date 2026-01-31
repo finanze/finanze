@@ -5,14 +5,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Awaitable, Callable, TypeVar
 
+from dateutil.tz import tzlocal
+
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.exchange_rate_provider import ExchangeRateProvider
 from application.ports.exchange_rate_storage import ExchangeRateStorage
 from application.ports.metal_price_provider import MetalPriceProvider
 from application.ports.position_port import PositionPort
-from dateutil.tz import tzlocal
 from domain.commodity import COMMODITY_SYMBOLS
 from domain.constants import SUPPORTED_CURRENCIES
+from domain.data_init import DataEncryptedError
 from domain.dezimal import Dezimal
 from domain.exchange_rate import ExchangeRates
 from domain.global_position import PositionQueryRequest, ProductType
@@ -34,7 +36,6 @@ def _now() -> int:
 
 T = TypeVar("T")
 JobResult = TypeVar("JobResult")
-
 
 JobMeta = tuple[str, object]
 JobFactory = Callable[[], Awaitable[object]]
@@ -89,9 +90,9 @@ async def _default_job_scheduler(
 
 class GetExchangeRatesImpl(GetExchangeRates):
     BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB", "USDT", "USDC"]
-    DEFAULT_TIMEOUT = 7
+    DEFAULT_TIMEOUT = 8
     CACHE_TTL_SECONDS = 300
-    STORAGE_REFRESH_SECONDS = 6 * 60 * 60
+    STORAGE_REFRESH_SECONDS = 1 * 60 * 60
 
     def __init__(
         self,
@@ -119,10 +120,16 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         self._lock = asyncio.Lock()
         self._log = logging.getLogger(__name__)
-        self._second_load = False
 
-    async def execute(self, initial_load: bool = False) -> ExchangeRates:
+    async def execute(
+        self, initial_load: bool = False, cached: bool = False
+    ) -> ExchangeRates:
+        if cached:
+            return self._fiat_matrix or {}
+
         async with self._lock:
+            if initial_load:
+                return await self._get_initial_exchange_rates()
             return await self._get_exchange_rates(initial_load)
 
     def _needs_base_refresh(self) -> bool:
@@ -228,21 +235,37 @@ class GetExchangeRatesImpl(GetExchangeRates):
 
         return refreshed_base
 
-    async def _get_exchange_rates(self, initial_load: bool) -> ExchangeRates:
-        timeout = self.DEFAULT_TIMEOUT if not initial_load else 5
+    async def _get_initial_exchange_rates(self) -> ExchangeRates:
+        stored = await self._exchange_rates_storage.get()
+        if not stored:
+            return await self._get_exchange_rates(initial_load=True)
 
-        if self._fiat_matrix is None:
-            stored = await self._exchange_rates_storage.get()
-            if stored:
-                self._fiat_matrix = stored
-                storage_update_date = (
-                    await self._exchange_rates_storage.get_last_saved()
-                )
-                if storage_update_date:
-                    self._last_base_refresh_ts = int(storage_update_date.timestamp())
+        self._fiat_matrix = stored
+        storage_update_date = await self._exchange_rates_storage.get_last_saved()
+        self._last_base_refresh_ts = int(storage_update_date.timestamp())
+
+        if (_now() - self._last_base_refresh_ts) >= self.CACHE_TTL_SECONDS:
+            base_rates = await self._exchange_rates_provider.get_matrix(timeout=2)
+            normalized_base = self._normalize_matrix(base_rates)
+            for base, quotes in normalized_base.items():
+                self._fiat_matrix.setdefault(base, {})
+                for quote, rate in quotes.items():
+                    self._fiat_matrix[base][quote] = rate
+
+        return self._fiat_matrix
+
+    async def _get_exchange_rates(self, initial_load: bool) -> ExchangeRates:
+        timeout = self.DEFAULT_TIMEOUT
+
+        stored = await self._exchange_rates_storage.get()
+        if self._fiat_matrix is None and stored:
+            self._fiat_matrix = stored
+            storage_update_date = await self._exchange_rates_storage.get_last_saved()
+            if storage_update_date:
+                self._last_base_refresh_ts = int(storage_update_date.timestamp())
 
         refresh_base = self._needs_base_refresh()
-        if not refresh_base and not self._second_load:
+        if not refresh_base:
             return self._fiat_matrix
 
         if self._fiat_matrix is None:
@@ -259,7 +282,19 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 jobs.extend(self._schedule_base_matrix(timeout))
                 jobs.extend(self._schedule_commodity_rates(timeout))
 
-            jobs.extend(await self._schedule_crypto_rates(timeout, initial_load))
+            try:
+                jobs.extend(await self._schedule_crypto_rates(timeout, initial_load))
+            except DataEncryptedError:
+                if not initial_load:
+                    self._log.warning(
+                        "Tried to fetch crypto prices while not logged in, we should not be here, retry fetching standard prices..."
+                    )
+                    initial_load = True
+                    jobs.extend(
+                        await self._schedule_crypto_rates(timeout, initial_load)
+                    )
+                else:
+                    raise
 
             outcomes = await self._job_scheduler(jobs, timeout)
             for kind, meta, result, error in outcomes:
@@ -274,7 +309,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
                 )
 
         except Exception as e:
-            self._log.error(f"Unexpected error during parallel fetch: {e}")
+            self._log.exception(f"Unexpected error during parallel fetch: {e}")
 
         if refreshed_base is not None:
             for base, quotes in refreshed_base.items():
@@ -285,15 +320,13 @@ class GetExchangeRatesImpl(GetExchangeRates):
                         if isinstance(rate, Dezimal)
                         else Dezimal(_to_decimal(rate))
                     )
-            self._last_base_refresh_ts = _now()
+            if not initial_load:
+                self._last_base_refresh_ts = _now()
 
         self._apply_rates(commodity_rates, crypto_rates)
-        await self._save_rates_to_storage(force=self._second_load)
-
-        if self._second_load:
-            self._second_load = False
-        elif initial_load:
-            self._second_load = True
+        # Save to storage if not initial load (logged in) or not stored (new)
+        if not initial_load or not stored:
+            await self._save_rates_to_storage()
 
         return self._fiat_matrix
 
@@ -387,6 +420,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
         return price_map
 
     async def _schedule_crypto_rates(self, timeout: int, initial_load: bool):
+        # If initial load, fetch generic prices
         if initial_load:
             tasks = []
             for base_currency in SUPPORTED_CURRENCIES:
@@ -402,6 +436,7 @@ class GetExchangeRatesImpl(GetExchangeRates):
                     tasks.append((_run, ("crypto", (symbol, base_currency))))
             return tasks
 
+        # Otherwise, fetch user position-related crypto prices
         asset_symbol_addresses = (
             await self._get_position_crypto_currency_symbol_address()
         )

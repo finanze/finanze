@@ -74,6 +74,8 @@
   html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 
   * {
@@ -82,7 +84,8 @@
 
   body {
     @apply bg-background text-foreground;
-    overflow-y: hidden;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
 }
 

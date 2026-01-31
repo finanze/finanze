@@ -260,7 +260,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       setExchangeRatesError(null)
-      const rates = await getExchangeRates()
+      const rates = await getExchangeRates(false)
       setExchangeRates(rates)
     } catch (error) {
       console.error("Error fetching exchange rates silently:", error)
@@ -292,19 +292,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setExchangeRatesLoading(true)
       setExchangeRatesError(null)
-      const rates = await getExchangeRates()
+      const rates = await getExchangeRates(true)
       setExchangeRates(rates)
 
       if (!exchangeRatesTimerRef.current) {
         startExchangeRatesTimer()
       }
+
+      fetchExchangeRatesSilently()
     } catch (error) {
       console.error("Error fetching exchange rates:", error)
       setExchangeRatesError(t.common.fetchError)
     } finally {
       setExchangeRatesLoading(false)
     }
-  }, [isAuthenticated, startExchangeRatesTimer, t])
+  }, [isAuthenticated, startExchangeRatesTimer, fetchExchangeRatesSilently, t])
 
   const refreshExchangeRates = useCallback(async () => {
     await fetchExchangeRates()
