@@ -75,6 +75,7 @@ export interface Entity {
   external_entity_id?: string | null
   virtual_features: Record<Feature, string>
   natively_supported_products?: ProductType[] | null
+  fetchable?: boolean
 }
 
 export enum EntitySessionCategory {
@@ -235,6 +236,7 @@ export interface StatusResponse {
   user?: User | null
   server: {
     version: string
+    platform_type: PlatformType
     options: BackendOptions
   }
   features: FeatureFlags
@@ -411,6 +413,8 @@ export enum PlatformType {
   MAC = "mac",
   LINUX = "linux",
   WEB = "web",
+  IOS = "ios",
+  ANDROID = "android",
 }
 
 export interface PlatformInfo {
@@ -418,6 +422,9 @@ export interface PlatformInfo {
   arch?: string
   osVersion?: string
   electronVersion?: string
+  chromiumVersion?: string | null
+  nodeVersion?: string | null
+  webViewVersion?: string | null
 }
 
 export type ThemeMode = "light" | "dark" | "system"
@@ -428,10 +435,6 @@ export interface AboutAppInfo {
   author?: string | null
   repository?: string | null
   homepage?: string | null
-  electronVersion?: string | null
-  chromiumVersion?: string | null
-  nodeVersion?: string | null
-  platform: PlatformInfo
 }
 
 export type BackendLogLevel =
@@ -518,12 +521,11 @@ export interface CryptoWalletConnectionResult {
   failed?: Record<string, string>
 }
 
-// Electron window interface
 declare global {
   interface Window {
+    platform: PlatformInfo
     ipcAPI?: {
       apiUrl: () => Promise<{ url: string; custom: boolean }>
-      platform: () => Promise<PlatformInfo>
       changeThemeMode: (mode: ThemeMode) => void
       showAbout: () => void
       getAboutInfo: () => Promise<AboutAppInfo>
@@ -627,6 +629,7 @@ export interface ExternalIntegration {
   name: string
   status: ExternalIntegrationStatus
   type: ExternalIntegrationType
+  available: boolean
   payload_schema?: Record<string, string> | null
 }
 

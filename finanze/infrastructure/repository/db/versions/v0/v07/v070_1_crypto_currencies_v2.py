@@ -125,14 +125,14 @@ class V0701CryptoCurrenciesV2(DBVersionMigration, QueryMixin):
     def name(self):
         return "v0.7.0:1_crypto_currencies_v2"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL_CREATE)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)
 
         uuids = [str(uuid4()) for _ in range(7)]
-        cursor.execute(SQL_INSERT_CRYPTO_ASSETS, uuids)
+        await cursor.execute(SQL_INSERT_CRYPTO_ASSETS, uuids)
 
         statements = self.parse_block(SQL_REMAINING)
         for statement in statements:
-            cursor.execute(statement)
+            await cursor.execute(statement)

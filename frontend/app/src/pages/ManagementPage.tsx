@@ -10,12 +10,14 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import { usePinnedShortcuts } from "@/context/PinnedShortcutsContext"
 import type { PinnedShortcutId } from "@/context/PinnedShortcutsContext"
 import { EventsCalendarView } from "@/components/EventsCalendarView"
 
 export default function ManagementPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const { isPinned } = usePinnedShortcuts()
 
   type ManagementRoute = {
     path: string
@@ -64,21 +66,39 @@ export default function ManagementPage() {
     ],
   )
 
+  const sortedRoutes = React.useMemo(() => {
+    return managementRoutes
+      .map(route => ({ ...route, pinned: isPinned(route.assetId) }))
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+  }, [managementRoutes, isPinned])
+
   return (
-    <div className="space-y-6 pb-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{t.management.title}</h1>
+        <h1 className="text-3xl font-bold">{t.management.title}</h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {managementRoutes.map(route => (
+        {sortedRoutes.map(route => (
           <Card
             key={route.path}
             className="relative p-6 transition-all cursor-pointer group hover:shadow-lg"
             onClick={() => navigate(route.path)}
           >
-            <div className="absolute top-3 right-3 opacity-0 transition-opacity group-hover:opacity-100">
-              <PinAssetButton assetId={route.assetId} />
+            <div
+              className={`absolute top-3 right-3 transition-opacity ${
+                route.pinned
+                  ? "opacity-100"
+                  : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              }`}
+            >
+              <PinAssetButton
+                assetId={route.assetId}
+                size="icon"
+                className={
+                  route.pinned ? undefined : "text-gray-400 md:text-current"
+                }
+              />
             </div>
             <div className="flex items-center space-x-4">
               <div className={`p-3 rounded-lg ${route.color}`}>

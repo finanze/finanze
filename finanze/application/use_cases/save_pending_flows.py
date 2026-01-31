@@ -16,5 +16,5 @@ class SavePendingFlowsImpl(SavePendingFlows, AtomicUCMixin):
         self._pending_flow_port = pending_flow_port
 
     async def execute(self, flows: list[PendingFlow]):
-        self._pending_flow_port.delete_all()
-        self._pending_flow_port.save(flows)
+        await self._pending_flow_port.delete_all()
+        await self._pending_flow_port.save(flows)

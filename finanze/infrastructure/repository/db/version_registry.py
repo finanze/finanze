@@ -112,6 +112,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_0_sys_config import (
 from infrastructure.repository.db.versions.v0.v08.v080_1_add_entity_img import (
     V0801AddEntityImage,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_2_migrate_applied_at_to_iso import (
+    V0802MigrateAppliedAtToIso,
+)
 
 versions = [
     V0Genesis(),
@@ -160,4 +163,5 @@ versions = [
     V0709ClearSegoTXs(),
     V0800SysConfig(),
     V0801AddEntityImage(),
+    V0802MigrateAppliedAtToIso(),
 ]

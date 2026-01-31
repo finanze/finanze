@@ -3,11 +3,11 @@ from datetime import date
 from domain.earnings_expenses import PendingFlow, FlowType
 from domain.use_cases.save_pending_flows import SavePendingFlows
 from domain.dezimal import Dezimal
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def save_pending_flows(save_pending_flows_uc: SavePendingFlows):
-    body = request.json
+    body = await request.get_json()
 
     flows = []
     try:

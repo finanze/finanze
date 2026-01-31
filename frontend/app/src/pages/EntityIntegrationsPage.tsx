@@ -35,6 +35,7 @@ import {
   disconnectExternalEntity,
 } from "@/services/api"
 import { AVAILABLE_COUNTRIES, getCountryFlag } from "@/constants/countries"
+import { isNativeMobile } from "@/lib/platform"
 
 export default function EntityIntegrationsPage() {
   const {
@@ -460,7 +461,7 @@ export default function EntityIntegrationsPage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6"
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -593,8 +594,16 @@ export default function EntityIntegrationsPage() {
                     {hasProviderIntegration && (
                       <motion.div variants={fadeListItem}>
                         <Card
-                          className="transition-all hover:shadow-md border-l-4 border-l-gray-300 opacity-100 cursor-pointer hover:shadow-lg"
-                          onClick={openAddExternalEntity}
+                          className={`transition-all border-l-4 border-l-gray-300 ${
+                            isNativeMobile()
+                              ? "opacity-60 cursor-not-allowed"
+                              : "opacity-100 cursor-pointer hover:shadow-lg hover:shadow-md"
+                          }`}
+                          onClick={() => {
+                            if (!isNativeMobile()) {
+                              openAddExternalEntity()
+                            }
+                          }}
                         >
                           <CardHeader className="pb-0 p-4">
                             <CardTitle className="flex items-center justify-between gap-2 flex-wrap">
@@ -647,6 +656,11 @@ export default function EntityIntegrationsPage() {
                                   {t.entities.moreFinancialInstitutionsCard}
                                 </span>
                               </div>
+                              {isNativeMobile() && (
+                                <span className="text-xs text-muted-foreground">
+                                  {t.common.notAvailableOnPlatform}
+                                </span>
+                              )}
                             </CardTitle>
                           </CardHeader>
                         </Card>

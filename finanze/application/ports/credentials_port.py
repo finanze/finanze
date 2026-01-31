@@ -7,20 +7,20 @@ from domain.native_entity import EntityCredentials, FinancialEntityCredentialsEn
 
 
 class CredentialsPort(metaclass=abc.ABCMeta):
-    def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
+    async def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
         raise NotImplementedError
 
-    def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
+    async def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
         raise NotImplementedError
 
-    def save(self, entity_id: UUID, credentials: EntityCredentials):
+    async def save(self, entity_id: UUID, credentials: EntityCredentials):
         raise NotImplementedError
 
-    def delete(self, entity_id: UUID):
+    async def delete(self, entity_id: UUID):
         raise NotImplementedError
 
-    def update_last_usage(self, entity_id: UUID):
+    async def update_last_usage(self, entity_id: UUID):
         raise NotImplementedError
 
-    def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
+    async def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
         raise NotImplementedError

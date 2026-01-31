@@ -42,12 +42,12 @@ class SegoFetcher(FinancialEntityFetcher):
         if two_factor:
             code = two_factor.code
 
-        return self._client.login(
+        return await self._client.login(
             username, password, login_params.options, code, login_params.session
         )
 
     async def global_position(self) -> GlobalPosition:
-        raw_wallet = self._client.get_wallet()
+        raw_wallet = await self._client.get_wallet()
         wallet_amount = raw_wallet["importe"]
         account = Account(
             id=uuid4(),
@@ -57,7 +57,8 @@ class SegoFetcher(FinancialEntityFetcher):
         )
 
         raw_sego_investments = (
-            self._client.get_investments() + self._client.get_pending_investments()
+            await self._client.get_investments()
+            + await self._client.get_pending_investments()
         )
         active_sego_investments = [
             investment
@@ -147,13 +148,14 @@ class SegoFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        factoring_txs = self.fetch_factoring_txs(registered_txs)
+        factoring_txs = await self.fetch_factoring_txs(registered_txs)
 
         return Transactions(investment=factoring_txs)
 
-    def fetch_factoring_txs(self, registered_txs: set[str]) -> list[FactoringTx]:
+    async def fetch_factoring_txs(self, registered_txs: set[str]) -> list[FactoringTx]:
         raw_sego_investments = (
-            self._client.get_investments() + self._client.get_pending_investments()
+            await self._client.get_investments()
+            + await self._client.get_pending_investments()
         )
 
         investment_txs = []
@@ -285,7 +287,8 @@ class SegoFetcher(FinancialEntityFetcher):
 
     async def historical_position(self) -> HistoricalPosition:
         raw_sego_investments = (
-            self._client.get_investments() + self._client.get_pending_investments()
+            await self._client.get_investments()
+            + await self._client.get_pending_investments()
         )
 
         factoring_investments = []

@@ -13,9 +13,9 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def get_by_entity_id(self, entity_id: UUID) -> List[CryptoWalletConnection]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_by_entity_id(self, entity_id: UUID) -> List[CryptoWalletConnection]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 CryptoWalletConnectionQueries.GET_BY_ENTITY_ID,
                 (str(entity_id),),
             )
@@ -26,21 +26,21 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
                     address=row["address"],
                     name=row["name"],
                 )
-                for row in cursor.fetchall()
+                for row in await cursor.fetchall()
             ]
 
-    def get_by_entity_and_address(
+    async def get_by_entity_and_address(
         self, entity_id: UUID, address: str
     ) -> Optional[CryptoWalletConnection]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 CryptoWalletConnectionQueries.GET_BY_ENTITY_AND_ADDRESS,
                 (
                     str(entity_id),
                     address,
                 ),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if not row:
                 return None
 
@@ -51,15 +51,15 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
                 name=row["name"],
             )
 
-    def get_connected_entities(self) -> set[UUID]:
-        with self._db_client.read() as cursor:
-            cursor.execute(CryptoWalletConnectionQueries.GET_CONNECTED_ENTITIES)
-            rows = cursor.fetchall()
+    async def get_connected_entities(self) -> set[UUID]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(CryptoWalletConnectionQueries.GET_CONNECTED_ENTITIES)
+            rows = await cursor.fetchall()
             return {UUID(row["entity_id"]) for row in rows}
 
-    def insert(self, connection: CryptoWalletConnection):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def insert(self, connection: CryptoWalletConnection):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 CryptoWalletConnectionQueries.INSERT,
                 (
                     str(connection.id),
@@ -70,16 +70,16 @@ class CryptoWalletConnectionRepository(CryptoWalletConnectionPort):
                 ),
             )
 
-    def rename(self, wallet_connection_id: UUID, name: str):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def rename(self, wallet_connection_id: UUID, name: str):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 CryptoWalletConnectionQueries.RENAME,
                 (name, str(wallet_connection_id)),
             )
 
-    def delete(self, wallet_connection_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def delete(self, wallet_connection_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 CryptoWalletConnectionQueries.DELETE,
                 (str(wallet_connection_id),),
             )

@@ -48,10 +48,10 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        return self._client.login(username, password)
+        return await self._client.login(username, password)
 
     async def global_position(self) -> GlobalPosition:
-        wallet = self._client.get_wallet()
+        wallet = await self._client.get_wallet()
         balance = Dezimal(wallet["balance"])
 
         account = Account(
@@ -61,12 +61,12 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
             type=AccountType.VIRTUAL_WALLET,
         )
 
-        investments_data = self._client.get_investments()
+        investments_data = await self._client.get_investments()
 
         real_estate_cf_inv_details = []
         for inv in investments_data:
             if inv["projectPhase"] in ACTIVE_PHASES:
-                mapped_inv = self._map_investment(inv)
+                mapped_inv = await self._map_investment(inv)
                 if mapped_inv:
                     real_estate_cf_inv_details.append(mapped_inv)
 
@@ -79,9 +79,9 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=URBANITAE, products=products)
 
-    def _map_investment(self, inv) -> RealEstateCFDetail | None:
+    async def _map_investment(self, inv) -> RealEstateCFDetail | None:
         project_id = inv.get("projectId")
-        project_details = self._client.get_project_detail(project_id)
+        project_details = await self._client.get_project_detail(project_id)
         details = project_details.get("details")
         fund_details = project_details.get("fund")
         if not details or not fund_details:
@@ -144,7 +144,7 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
         raw_txs = []
         page = 0
         while True:
-            fetched_txs = self._client.get_transactions(page=page, limit=1000)
+            fetched_txs = await self._client.get_transactions(page=page, limit=1000)
             raw_txs += fetched_txs
 
             if len(fetched_txs) < 1000:
@@ -206,11 +206,11 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
         return Transactions(investment=txs)
 
     async def historical_position(self) -> HistoricalPosition:
-        investments_data = self._client.get_investments()
+        investments_data = await self._client.get_investments()
 
         real_estate_cf_inv_details = []
         for investment in investments_data:
-            mapped_inv = self._map_investment(investment)
+            mapped_inv = await self._map_investment(investment)
             if mapped_inv:
                 real_estate_cf_inv_details.append(mapped_inv)
 

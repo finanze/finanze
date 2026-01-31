@@ -25,15 +25,15 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, entity_id: UUID, data: AutoContributions, source: DataSource):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def save(self, entity_id: UUID, data: AutoContributions, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 AutoContributionsQueries.DELETE_BY_ENTITY_AND_SOURCE,
                 (str(entity_id), source.value),
             )
 
             for contrib in data.periodic:
-                cursor.execute(
+                await cursor.execute(
                     AutoContributionsQueries.INSERT_PERIODIC_CONTRIBUTION,
                     (
                         str(contrib.id),
@@ -55,10 +55,10 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                     ),
                 )
 
-    def get_all_grouped_by_entity(
+    async def get_all_grouped_by_entity(
         self, query: ContributionQueryRequest
     ) -> dict[Entity, AutoContributions]:
-        with self._db_client.read() as cursor:
+        async with self._db_client.read() as cursor:
             params: list[str] = []
             sql = AutoContributionsQueries.GET_ALL_GROUPED_BY_ENTITY_BASE.value
 
@@ -82,10 +82,10 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
             if conditions:
                 sql += " WHERE " + " AND ".join(conditions)
 
-            cursor.execute(sql, tuple(params))
+            await cursor.execute(sql, tuple(params))
 
             entities = {}
-            for row in cursor.fetchall():
+            for row in await cursor.fetchall():
                 if not row["entity_id"] or not row["pc_id"]:
                     continue
 
@@ -130,6 +130,8 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 for entity, contribs in entities.items()
             }
 
-    def delete_by_source(self, source: DataSource):
-        with self._db_client.tx() as cursor:
-            cursor.execute(AutoContributionsQueries.DELETE_BY_SOURCE, (source.value,))
+    async def delete_by_source(self, source: DataSource):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                AutoContributionsQueries.DELETE_BY_SOURCE, (source.value,)
+            )

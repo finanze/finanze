@@ -34,7 +34,7 @@ class GoCardlessClient(ConnectableIntegration):
 
         self.DEFAULT_BASE_REDIRECT_URL = f"{self.DEFAULT_BASE_REDIRECT_URL}:{port}"
 
-    def setup(self, credentials: ExternalIntegrationPayload) -> None:
+    async def setup(self, credentials: ExternalIntegrationPayload) -> None:
         self._credentials = credentials
 
         self._client = NordigenClient(

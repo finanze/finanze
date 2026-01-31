@@ -31,9 +31,9 @@ class ExternalEntityRepository(ExternalEntityPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def upsert(self, ee: ExternalEntity):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def upsert(self, ee: ExternalEntity):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 ExternalEntityQueries.UPSERT,
                 (
                     str(ee.id),
@@ -46,40 +46,40 @@ class ExternalEntityRepository(ExternalEntityPort):
                 ),
             )
 
-    def update_status(self, ee_id: UUID, status: ExternalEntityStatus):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def update_status(self, ee_id: UUID, status: ExternalEntityStatus):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 ExternalEntityQueries.UPDATE_STATUS,
                 (status.value, str(ee_id)),
             )
 
-    def get_by_id(self, ee_id: UUID) -> Optional[ExternalEntity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_by_id(self, ee_id: UUID) -> Optional[ExternalEntity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 ExternalEntityQueries.GET_BY_ID,
                 (str(ee_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             return _map_row(row) if row else None
 
-    def get_by_entity_id(self, entity_id: UUID) -> Optional[ExternalEntity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_by_entity_id(self, entity_id: UUID) -> Optional[ExternalEntity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 ExternalEntityQueries.GET_BY_ENTITY_ID,
                 (str(entity_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             return _map_row(row) if row else None
 
-    def delete_by_id(self, ee_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def delete_by_id(self, ee_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 ExternalEntityQueries.DELETE_BY_ID,
                 (str(ee_id),),
             )
 
-    def get_all(self) -> list[ExternalEntity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(ExternalEntityQueries.GET_ALL)
-            rows = cursor.fetchall()
+    async def get_all(self) -> list[ExternalEntity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(ExternalEntityQueries.GET_ALL)
+            rows = await cursor.fetchall()
             return [_map_row(row) for row in rows]

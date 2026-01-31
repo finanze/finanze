@@ -67,18 +67,18 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         if login_result.code != LoginResultCode.CREATED:
             return login_result
 
-        self._credentials_port.delete(entity.id)
+        await self._credentials_port.delete(entity.id)
 
         credentials_to_store = {
             k: v
             for k, v in credentials.items()
             if entity.credentials_template[k] != CredentialType.INTERNAL_TEMP
         }
-        self._credentials_port.save(entity.id, credentials_to_store)
+        await self._credentials_port.save(entity.id, credentials_to_store)
 
-        self._sessions_port.delete(entity.id)
+        await self._sessions_port.delete(entity.id)
         session = login_result.session
         if session:
-            self._sessions_port.save(entity.id, session)
+            await self._sessions_port.save(entity.id, session)
 
         return EntityLoginResult(LoginResultCode.CREATED)

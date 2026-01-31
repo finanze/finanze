@@ -13,6 +13,7 @@ import {
 import windowStateKeeper from "electron-window-state"
 import isDev from "electron-is-dev"
 import { createMenu } from "./menu"
+import { getElectronOS, getElectronPlatformInfo } from "../shared/platform"
 import {
   ThemeMode,
   AppConfig,
@@ -66,12 +67,7 @@ export const VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST
 
 const appConfig: AppConfig = {
-  os:
-    process.platform === "darwin"
-      ? OS.MAC
-      : process.platform === "win32"
-        ? OS.WINDOWS
-        : OS.LINUX,
+  os: getElectronOS(),
   arch: process.arch,
   isDev: isDev,
   ports: {
@@ -88,12 +84,7 @@ const appConfig: AppConfig = {
 
 setupAutoUpdater(appConfig)
 
-const platformInfo: PlatformInfo = {
-  type: appConfig.os,
-  arch: process.arch,
-  osVersion: process.getSystemVersion(),
-  electronVersion: process.versions.electron,
-}
+const platformInfo: PlatformInfo = getElectronPlatformInfo()
 
 const preload = join(__dirname, "../preload/index.mjs")
 
@@ -350,7 +341,6 @@ app.whenReady().then(async () => {
       custom: false,
     }
   })
-  ipcMain.handle("platform", () => platformInfo)
   ipcMain.on("theme-mode-change", (_, mode: ThemeMode) => {
     nativeTheme.themeSource = mode
     updateTitleBarOverlay(mainWindow)

@@ -1,4 +1,4 @@
-from flask import jsonify, request
+from quart import jsonify, request
 
 from domain.backup import UploadBackupRequest
 from domain.use_cases.upload_backup import UploadBackup
@@ -16,8 +16,8 @@ def _serialize_backup_info(backup_info):
     }
 
 
-def upload_backup(upload_backup_uc: UploadBackup):
-    body = request.json
+async def upload_backup(upload_backup_uc: UploadBackup):
+    body = await request.get_json()
     types = body.get("types")
     if not types:
         return {"message": "Field 'types' is required"}, 400
@@ -25,7 +25,7 @@ def upload_backup(upload_backup_uc: UploadBackup):
     force = body.get("force", False)
 
     upload_request = UploadBackupRequest(types=types, force=force)
-    result = upload_backup_uc.execute(upload_request)
+    result = await upload_backup_uc.execute(upload_request)
 
     response = {
         "pieces": {

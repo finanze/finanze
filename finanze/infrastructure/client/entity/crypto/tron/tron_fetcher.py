@@ -1,9 +1,9 @@
 import logging
 from uuid import uuid4
 
-import requests
+import httpx
+from aiocache import cached, Cache
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from cachetools import TTLCache, cached
 from domain.crypto import CryptoFetchRequest, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
@@ -25,8 +25,8 @@ class TronFetcher(CryptoEntityFetcher):
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        data = self._fetch_account_info(request.address)
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+        data = await self._fetch_account_info(request.address)
 
         if not data or "balance" not in data:
             raise AddressNotFound()
@@ -78,31 +78,30 @@ class TronFetcher(CryptoEntityFetcher):
             )
         return tokens
 
-    @cached(cache=TTLCache(maxsize=50, ttl=TTL))
-    def _fetch_account_info(self, address: str) -> dict:
+    @cached(cache=Cache.MEMORY, ttl=TTL)
+    async def _fetch_account_info(self, address: str) -> dict:
         url = f"{self.BASE_URL}?address={address}"
-        return self._fetch(url)
+        return await self._fetch(url)
 
-    def _fetch(self, url: str) -> dict:
+    async def _fetch(self, url: str) -> dict:
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 cooldown=self.COOLDOWN,
                 max_retries=self.MAX_RETRIES,
                 backoff_factor=self.BACKOFF_FACTOR,
                 log=self._log,
             )
-        except requests.RequestException as e:
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(f"Request error calling Tronscan endpoint {url}: {e}")
             raise
 
         if not response.ok:
-            if response.status_code == 429:
+            if response.status == 429:
                 raise TooManyRequests()
 
-            self._log.error(
-                f"Error fetching from Tronscan: {response.status_code} {response.text}"
-            )
+            body = await response.text()
+            self._log.error(f"Error fetching from Tronscan: {response.status} {body}")
             response.raise_for_status()
 
-        return response.json()
+        return await response.json()

@@ -1,5 +1,7 @@
 from dataclasses import asdict
 
+from quart import jsonify, request
+
 from domain.calculations import (
     SavingsCalculationRequest,
     SavingsPeriodicity,
@@ -9,7 +11,6 @@ from domain.calculations import (
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import CalculationInputError, MissingFieldsError
 from domain.use_cases.calculate_savings import CalculateSavings
-from flask import jsonify, request
 
 
 def _parse_periodicity(value: str) -> SavingsPeriodicity:
@@ -43,8 +44,8 @@ def _parse_retirement(payload: dict | None) -> SavingsRetirementRequest | None:
     )
 
 
-def calculate_savings(calculate_savings_uc: CalculateSavings):
-    body = request.json or {}
+async def calculate_savings(calculate_savings_uc: CalculateSavings):
+    body = await request.get_json() or {}
     try:
         base_amount = (
             Dezimal(body["base_amount"])
@@ -61,7 +62,7 @@ def calculate_savings(calculate_savings_uc: CalculateSavings):
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
     try:
-        result = calculate_savings_uc.execute(
+        result = await calculate_savings_uc.execute(
             SavingsCalculationRequest(
                 base_amount=base_amount,
                 years=years,

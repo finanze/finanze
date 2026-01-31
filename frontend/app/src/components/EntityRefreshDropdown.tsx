@@ -341,20 +341,21 @@ export function EntityRefreshDropdown() {
                               </PopoverContent>
                             </Popover>
                           )}
-                          {fetchingEntityIds.includes(entity.id) ? (
-                            <div className="p-1.5">
-                              <LoadingSpinner size="sm" className="p-1.5" />
-                            </div>
-                          ) : (
-                            <button
-                              onClick={e => handleRefreshEntity(entity, e)}
-                              disabled={refreshCooldown}
-                              className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
-                              aria-label={`Refresh ${entity.name}`}
-                            >
-                              <RefreshCw className="h-4 w-4" />
-                            </button>
-                          )}
+                          {entity.fetchable &&
+                            (fetchingEntityIds.includes(entity.id) ? (
+                              <div className="p-1.5">
+                                <LoadingSpinner size="sm" className="p-1.5" />
+                              </div>
+                            ) : (
+                              <button
+                                onClick={e => handleRefreshEntity(entity, e)}
+                                disabled={refreshCooldown}
+                                className={`p-1.5 rounded-full transition-all duration-200 ${refreshCooldown ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+                                aria-label={`Refresh ${entity.name}`}
+                              >
+                                <RefreshCw className="h-4 w-4" />
+                              </button>
+                            ))}
                         </div>
                       </div>
                     )

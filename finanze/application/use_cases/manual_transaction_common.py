@@ -50,12 +50,14 @@ class ManualTransactionVirtualImportHelper:
 
         return tx
 
-    def refresh(self, entity_id: UUID, has_transactions: bool):
+    async def refresh(self, entity_id: UUID, has_transactions: bool):
         now = datetime.now(tzlocal())
         today = now.date()
         cloned = []
-        last_manual_imports = self._virtual_import_registry.get_last_import_records(
-            source=VirtualDataSource.MANUAL
+        last_manual_imports = (
+            await self._virtual_import_registry.get_last_import_records(
+                source=VirtualDataSource.MANUAL
+            )
         )
         is_same_day = (
             last_manual_imports and last_manual_imports[0].date.date() == today
@@ -64,7 +66,7 @@ class ManualTransactionVirtualImportHelper:
         if is_same_day:
             import_id = last_manual_imports[0].import_id
 
-            self._virtual_import_registry.delete_by_import_feature_and_entity(
+            await self._virtual_import_registry.delete_by_import_feature_and_entity(
                 import_id, Feature.TRANSACTIONS, entity_id
             )
 
@@ -101,4 +103,4 @@ class ManualTransactionVirtualImportHelper:
             )
 
         if cloned:
-            self._virtual_import_registry.insert(cloned)
+            await self._virtual_import_registry.insert(cloned)

@@ -21,9 +21,9 @@ class UserLogoutImpl(UserLogout):
         self._cloud_register = cloud_register
         self._log = logging.getLogger(__name__)
 
-    def execute(self):
-        self._config_port.disconnect()
+    async def execute(self):
+        await self._config_port.disconnect()
         self._sheets_initiator.disconnect()
-        self._cloud_register.disconnect()
-        self._source_initiator.lock()
+        await self._cloud_register.disconnect()
+        await self._source_initiator.lock()
         self._log.info("User logged out successfully")

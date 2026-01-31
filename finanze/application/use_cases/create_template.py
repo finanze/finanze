@@ -10,8 +10,8 @@ class CreateTemplateImpl(CreateTemplate):
     def __init__(self, template_port: TemplatePort):
         self._template_port = template_port
 
-    def execute(self, template: Template):
-        existing = self._template_port.get_by_name_and_type(
+    async def execute(self, template: Template):
+        existing = await self._template_port.get_by_name_and_type(
             template.name, template.type
         )
         if existing is not None:
@@ -20,4 +20,4 @@ class CreateTemplateImpl(CreateTemplate):
         validate_template_default_values(template)
 
         template.id = uuid4()
-        self._template_port.save(template)
+        await self._template_port.save(template)

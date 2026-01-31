@@ -44,12 +44,12 @@ class GoCardlessFetcher(ExternalEntityFetcher):
         self._client = client
         self._log = logging.getLogger(__name__)
 
-    def setup(self, integrations: EnabledExternalIntegrations):
+    async def setup(self, integrations: EnabledExternalIntegrations):
         if not integrations or ExternalIntegrationId.GOCARDLESS not in integrations:
             raise ExternalIntegrationRequired([ExternalIntegrationId.GOCARDLESS])
 
         client_credentials = integrations[ExternalIntegrationId.GOCARDLESS]
-        self._client.setup(client_credentials)
+        await self._client.setup(client_credentials)
 
     async def create_or_link(
         self, request: ExternalEntityLoginRequest

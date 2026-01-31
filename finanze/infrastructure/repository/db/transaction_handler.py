@@ -10,5 +10,5 @@ class TransactionHandler(TransactionHandlerPort):
 
     @asynccontextmanager
     async def start(self):
-        with self._db_client.tx() as _:
+        async with self._db_client.tx() as _:
             yield

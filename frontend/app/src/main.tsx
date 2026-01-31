@@ -8,19 +8,33 @@ import { I18nProvider } from "@/i18n"
 import { ThemeProvider } from "@/context/ThemeContext"
 import { AuthProvider } from "@/context/AuthContext"
 import { CloudProvider } from "@/context/CloudContext"
+import { BackupAlertProvider } from "@/context/BackupAlertContext"
+import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
+import * as mobile from "@/lib/mobile"
 
-createRoot(document.getElementById("root")!).render(
-  <HashRouter>
-    <ThemeProvider>
-      <I18nProvider>
-        <AuthProvider>
-          <AppProvider>
-            <CloudProvider>
-              <App />
-            </CloudProvider>
-          </AppProvider>
-        </AuthProvider>
-      </I18nProvider>
-    </ThemeProvider>
-  </HashRouter>,
-)
+async function bootstrap(): Promise<void> {
+  await mobile.preinit()
+
+  initDevPlatformOverride()
+  mobile.init()
+
+  createRoot(document.getElementById("root")!).render(
+    <HashRouter>
+      <ThemeProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <AppProvider>
+              <CloudProvider>
+                <BackupAlertProvider>
+                  <App />
+                </BackupAlertProvider>
+              </CloudProvider>
+            </AppProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </ThemeProvider>
+    </HashRouter>,
+  )
+}
+
+bootstrap()

@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron"
 import type { ProgressInfo, UpdateInfo } from "electron-updater"
+import { getRendererPlatformInfo } from "../shared/platform"
 import type {
   ThemeMode,
   AboutAppInfo,
@@ -20,11 +21,13 @@ function createIpcListener<T>(channel: string) {
   }
 }
 
+const platformInfo = getRendererPlatformInfo()
+
+contextBridge.exposeInMainWorld("platform", platformInfo)
+
 contextBridge.exposeInMainWorld("ipcAPI", {
   apiUrl: () =>
     ipcRenderer.invoke("api-url") as Promise<{ url: string; custom: boolean }>,
-
-  platform: () => ipcRenderer.invoke("platform"),
 
   changeThemeMode: (mode: ThemeMode) =>
     ipcRenderer.send("theme-mode-change", mode),

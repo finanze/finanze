@@ -5,8 +5,9 @@ from enum import Enum
 from typing import Any, Optional
 from uuid import UUID
 
+from dateutil.tz import tzlocal, UTC
+
 from application.ports.template_processor_port import TemplateProcessorPort
-from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.entity import Entity, Feature
 from domain.export import NumberFormat, TemplatedDataProcessorParams
@@ -20,7 +21,6 @@ from domain.template import (
 )
 from domain.template_fields import ENTITY, PRODUCT_TYPE, TEMPLATE_FIELD_MATRIX
 from domain.template_type import TemplateType
-from pytz import utc
 
 ENTITY_COLUMN = ENTITY.field
 PRODUCT_TYPE_COLUMN = PRODUCT_TYPE.field
@@ -46,7 +46,7 @@ def _format_field_value(value: Any, params: TemplatedDataProcessorParams):
 
     elif isinstance(value, datetime):
         datetime_format = params.datetime_format
-        value = value.replace(tzinfo=utc).astimezone(tzlocal())
+        value = value.replace(tzinfo=UTC).astimezone(tzlocal())
         if not datetime_format:
             return value.isoformat()
         return value.strftime(datetime_format)
@@ -119,7 +119,7 @@ def _update_products_as_filter(params: TemplatedDataProcessorParams):
 
 
 class TemplatedDataGenerator(TemplateProcessorPort):
-    def process(
+    async def process(
         self, data: list, params: TemplatedDataProcessorParams
     ) -> list[list[str]]:
         if not params.template:

@@ -1,9 +1,9 @@
 from domain.instrument import InstrumentDataRequest, InstrumentType
 from domain.use_cases.get_instruments import GetInstruments
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def instruments(get_instruments_uc: GetInstruments):
+async def instruments(get_instruments_uc: GetInstruments):
     name = request.args.get("name") or None
     isin = request.args.get("isin") or None
     ticker = request.args.get("ticker") or None
@@ -28,5 +28,5 @@ def instruments(get_instruments_uc: GetInstruments):
         type=ins_type,
     )
 
-    entries = get_instruments_uc.execute(data_request)
+    entries = await get_instruments_uc.execute(data_request)
     return jsonify({"entries": entries}), 200

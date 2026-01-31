@@ -4,7 +4,7 @@ from domain.entity import Feature
 from domain.entity_login import LoginOptions, TwoFactor
 from domain.fetch_result import FetchOptions, FetchRequest
 from domain.use_cases.fetch_financial_data import FetchFinancialData
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 def _map_features(features: list[str]) -> list[Feature]:
@@ -12,7 +12,7 @@ def _map_features(features: list[str]) -> list[Feature]:
 
 
 async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
-    body = request.json
+    body = await request.get_json()
 
     entity = body.get("entity", None)
     if not entity:

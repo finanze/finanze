@@ -24,13 +24,22 @@ import {
   Coins,
   Edit2,
   X,
+  Unlink,
   Check,
   AlertTriangle,
   Database,
   Cloud,
+  Sun,
+  Moon,
+  SunMoon,
+  User,
+  LogOut,
+  KeyRound,
 } from "lucide-react"
 import { AppSettings, useAppContext } from "@/context/AppContext"
 import { useAuth } from "@/context/AuthContext"
+import { useTheme } from "@/context/ThemeContext"
+import { useBackupAlert } from "@/context/BackupAlertContext"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { WeightUnit } from "@/types/position"
 import { AutoRefreshMaxOutdatedTime, AutoRefreshMode, FFStatus } from "@/types"
@@ -39,6 +48,14 @@ import { IntegrationsTab } from "@/components/settings/IntegrationsTab"
 import { EntitySelector } from "@/components/settings/EntitySelector"
 import { CloudTab } from "@/components/settings/CloudTab"
 import { copyToClipboard } from "@/lib/clipboard"
+import { isNativeMobile } from "@/lib/platform"
+import {
+  checkBiometricAvailability,
+  deleteCredentials,
+  hasStoredCredentials as checkHasStoredBiometricCredentials,
+} from "@/lib/mobile/biometric"
+import type { BiometricAvailability } from "@/lib/mobile/biometric"
+import { cn } from "@/lib/utils"
 
 const cleanObject = (obj: any): any => {
   if (obj === null || obj === undefined) {
@@ -96,12 +113,20 @@ export default function SettingsPage() {
     fetchExternalIntegrations,
     featureFlags,
   } = useAppContext()
-  const { user } = useAuth()
+  const { user, logout, startPasswordChange } = useAuth()
+  const { theme, setThemeMode } = useTheme()
+  const { alertColor } = useBackupAlert()
   const [settings, setSettings] = useState<AppSettings>(storedSettings)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "general",
   )
+  const [biometricAvailability, setBiometricAvailability] =
+    useState<BiometricAvailability | null>(null)
+  const [hasStoredBiometricCredentials, setHasStoredBiometricCredentials] =
+    useState(false)
+  const [isClearingBiometricCredentials, setIsClearingBiometricCredentials] =
+    useState(false)
 
   const isCloudEnabled = featureFlags.CLOUD === FFStatus.ON
   const showRefreshButton = activeTab !== "application" && activeTab !== "cloud"
@@ -359,6 +384,47 @@ export default function SettingsPage() {
     setSettings(storedSettings)
   }, [storedSettings])
 
+  const refreshBiometricStatus = useCallback(async () => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+
+    const availability = await checkBiometricAvailability()
+    setBiometricAvailability(availability)
+
+    if (availability.isAvailable) {
+      const saved = await checkHasStoredBiometricCredentials()
+      setHasStoredBiometricCredentials(saved)
+    } else {
+      setHasStoredBiometricCredentials(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshBiometricStatus()
+  }, [refreshBiometricStatus])
+
+  const handleClearBiometricCredentials = useCallback(async () => {
+    if (!__MOBILE__ || !isNativeMobile()) return
+    if (!biometricAvailability?.isAvailable) return
+    if (!hasStoredBiometricCredentials) return
+
+    try {
+      setIsClearingBiometricCredentials(true)
+      await deleteCredentials()
+      setHasStoredBiometricCredentials(false)
+      showToast(t.settings.biometricCredentialsCleared, "success")
+    } catch {
+      showToast(t.settings.biometricCredentialsClearError, "error")
+    } finally {
+      setIsClearingBiometricCredentials(false)
+    }
+  }, [
+    biometricAvailability?.isAvailable,
+    hasStoredBiometricCredentials,
+    showToast,
+    t.settings.biometricCredentialsClearError,
+    t.settings.biometricCredentialsCleared,
+  ])
+
   const toggleSection = (section: string) => {
     setExpandedSections({
       ...expandedSections,
@@ -451,7 +517,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{t.settings.title}</h1>
         <div className="flex space-x-2">
@@ -497,7 +563,7 @@ export default function SettingsPage() {
       >
         <div className="flex justify-center w-full">
           <TabsList
-            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] ${isCloudEnabled ? "grid-cols-4" : "grid-cols-3"}`}
+            className={`grid w-full max-w-[800px] h-auto min-h-[3rem] ${isCloudEnabled ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2 sm:grid-cols-3"}`}
           >
             <TabsTrigger
               value="general"
@@ -512,6 +578,17 @@ export default function SettingsPage() {
               >
                 <Cloud className="h-4 w-4" />
                 {t.settings.cloud.tabTitle}
+                {alertColor && (
+                  <span
+                    className={`ml-1 inline-block h-1.5 w-1.5 rounded-full ${
+                      alertColor === "dark-red"
+                        ? "bg-red-700"
+                        : alertColor === "red"
+                          ? "bg-red-500"
+                          : "bg-amber-500"
+                    }`}
+                  />
+                )}
               </TabsTrigger>
             )}
             <TabsTrigger
@@ -952,6 +1029,47 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </motion.div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3, delay: 0.15 }}
+          >
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-primary" />
+                  <CardTitle>{t.settings.userTitle}</CardTitle>
+                </div>
+                <CardDescription>{t.settings.userDescription}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-center sm:gap-4">
+                  <Button
+                    variant="outline"
+                    className="justify-start"
+                    onClick={() => startPasswordChange()}
+                  >
+                    <KeyRound className="mr-2 h-4 w-4" />
+                    {t.login.changePassword}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 justify-start"
+                    onClick={async () => {
+                      try {
+                        await logout()
+                      } catch (error) {
+                        console.error("Logout failed:", error)
+                      }
+                    }}
+                  >
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {t.common.logout}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
           <div className="flex justify-between items-center">
             <button
               type="button"
@@ -1021,6 +1139,108 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>{t.settings.themeTitle}</CardTitle>
+                  <CardDescription>
+                    {t.settings.themeDescription}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-1 rounded-lg bg-muted p-1 w-fit">
+                    <button
+                      onClick={() => setThemeMode("light")}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        theme === "light"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Sun className="h-4 w-4" />
+                      {t.common.light}
+                    </button>
+                    <button
+                      onClick={() => setThemeMode("dark")}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        theme === "dark"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Moon className="h-4 w-4" />
+                      {t.common.dark}
+                    </button>
+                    <button
+                      onClick={() => setThemeMode("system")}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                        theme === "system"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <SunMoon className="h-4 w-4" />
+                      {t.common.system}
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {isNativeMobile() && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      {t.settings.biometricCredentialsTitle}
+                    </CardTitle>
+                    <CardDescription>
+                      {t.settings.biometricCredentialsDescription}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium">
+                          {hasStoredBiometricCredentials
+                            ? t.settings.biometricCredentialsActionTitle
+                            : t.settings.biometricCredentialsNotEnabledTitle}
+                        </p>
+                        {!hasStoredBiometricCredentials && (
+                          <p className="text-xs text-muted-foreground">
+                            {t.settings.biometricCredentialsNotEnabledHint}
+                          </p>
+                        )}
+                      </div>
+                      {hasStoredBiometricCredentials && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-auto px-3"
+                          onClick={handleClearBiometricCredentials}
+                          disabled={
+                            isClearingBiometricCredentials ||
+                            !biometricAvailability?.isAvailable
+                          }
+                        >
+                          {isClearingBiometricCredentials ? (
+                            <>
+                              <LoadingSpinner size="sm" className="mr-2" />
+                              {t.common.loading}
+                            </>
+                          ) : (
+                            <>
+                              <Unlink className="mr-2 h-4 w-4" />
+                              {t.settings.biometricCredentialsAction}
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Advanced Settings Section (Desktop only) */}
               {isDesktopApp && (

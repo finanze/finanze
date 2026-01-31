@@ -8,8 +8,8 @@ class GetTemplatesImpl(GetTemplates):
     def __init__(self, template_port: TemplatePort):
         self._template_port = template_port
 
-    def execute(self, template_type: TemplateType) -> list[Template]:
-        templates = self._template_port.get_by_type(template_type)
+    async def execute(self, template_type: TemplateType) -> list[Template]:
+        templates = await self._template_port.get_by_type(template_type)
         for template in templates:
             effective_fields = []
             for field in template.fields:

@@ -63,7 +63,7 @@ class ExportFileImpl(ExportFile):
             raise ExecutionConflict()
 
         async with self._lock:
-            rows = self._build_rows(request)
+            rows = await self._build_rows(request)
             if not rows:
                 raise ExportException("No data available for export")
 
@@ -72,7 +72,7 @@ class ExportFileImpl(ExportFile):
 
             content_type = _content_type_for_format(request.format)
 
-            data = self._table_rw_port.convert(rows, request.format)
+            data = await self._table_rw_port.convert(rows, request.format)
 
             return FileExportResult(
                 filename=filename,
@@ -81,32 +81,36 @@ class ExportFileImpl(ExportFile):
                 size=len(data),
             )
 
-    def _build_rows(self, request: FileExportRequest) -> list[list[str]]:
+    async def _build_rows(self, request: FileExportRequest) -> list[list[str]]:
         feature = request.feature
         products = request.data or []
-        disabled_entities = [e.id for e in self._entity_port.get_disabled_entities()]
-        template = self._resolve_template(request.template)
+        disabled_entities = [
+            e.id for e in await self._entity_port.get_disabled_entities()
+        ]
+        template = await self._resolve_template(request.template)
 
         if feature == Feature.POSITION:
-            return self._build_position_rows(
+            return await self._build_position_rows(
                 products, disabled_entities, template, request
             )
         if feature == Feature.AUTO_CONTRIBUTIONS:
-            return self._build_auto_contribution_rows(
+            return await self._build_auto_contribution_rows(
                 disabled_entities, template, request
             )
         if feature == Feature.TRANSACTIONS:
-            return self._build_transaction_rows(
+            return await self._build_transaction_rows(
                 products, disabled_entities, template, request
             )
         if feature == Feature.HISTORIC:
-            return self._build_historic_rows(
+            return await self._build_historic_rows(
                 products, disabled_entities, template, request
             )
         raise ExportException(f"Unsupported feature: {feature}")
 
-    def _build_position_rows(self, products, disabled_entities, template, request):
-        positions = self._position_port.get_last_grouped_by_entity(
+    async def _build_position_rows(
+        self, products, disabled_entities, template, request
+    ):
+        positions = await self._position_port.get_last_grouped_by_entity(
             PositionQueryRequest(excluded_entities=disabled_entities)
         )
         data = list(positions.values())
@@ -118,10 +122,10 @@ class ExportFileImpl(ExportFile):
             datetime_format=request.datetime_format,
             date_format=request.date_format,
         )
-        return self._template_processor.process(data, params)
+        return await self._template_processor.process(data, params)
 
-    def _build_auto_contribution_rows(self, disabled_entities, template, request):
-        contributions = self._auto_contr_port.get_all_grouped_by_entity(
+    async def _build_auto_contribution_rows(self, disabled_entities, template, request):
+        contributions = await self._auto_contr_port.get_all_grouped_by_entity(
             ContributionQueryRequest(excluded_entities=disabled_entities)
         )
         data = list(contributions.values())
@@ -133,10 +137,12 @@ class ExportFileImpl(ExportFile):
             datetime_format=request.datetime_format,
             date_format=request.date_format,
         )
-        return self._template_processor.process(data, params)
+        return await self._template_processor.process(data, params)
 
-    def _build_transaction_rows(self, products, disabled_entities, template, request):
-        txs = self._transaction_port.get_all(excluded_entities=disabled_entities)
+    async def _build_transaction_rows(
+        self, products, disabled_entities, template, request
+    ):
+        txs = await self._transaction_port.get_all(excluded_entities=disabled_entities)
         data = txs.account + txs.investment
         params = TemplatedDataProcessorParams(
             template=template,
@@ -146,10 +152,12 @@ class ExportFileImpl(ExportFile):
             datetime_format=request.datetime_format,
             date_format=request.date_format,
         )
-        return self._template_processor.process(data, params)
+        return await self._template_processor.process(data, params)
 
-    def _build_historic_rows(self, products, disabled_entities, template, request):
-        historic = self._historic_port.get_by_filters(
+    async def _build_historic_rows(
+        self, products, disabled_entities, template, request
+    ):
+        historic = await self._historic_port.get_by_filters(
             HistoricQueryRequest(
                 excluded_entities=disabled_entities,
                 product_types=products,
@@ -164,12 +172,12 @@ class ExportFileImpl(ExportFile):
             datetime_format=request.datetime_format,
             date_format=request.date_format,
         )
-        return self._template_processor.process(data, params)
+        return await self._template_processor.process(data, params)
 
-    def _resolve_template(self, template_config) -> Optional[object]:
+    async def _resolve_template(self, template_config) -> Optional[object]:
         if not template_config:
             return None
         try:
-            return self._template_port.get_by_id(UUID(template_config.id))
+            return await self._template_port.get_by_id(UUID(template_config.id))
         except Exception as e:
             raise ExportException(f"Invalid template: {e}")

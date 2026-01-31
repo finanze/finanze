@@ -51,7 +51,7 @@ class SheetsServiceLoader(SheetsInitiator):
         self._log.debug("Connecting loader")
         self._base_path = user.path
 
-    def setup(self, credentials: ExternalIntegrationPayload):
+    async def setup(self, credentials: ExternalIntegrationPayload):
         if not self._base_path:
             raise ValueError("Base path not set")
 

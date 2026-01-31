@@ -1,10 +1,10 @@
-from flask import jsonify, request
+from quart import jsonify, request
 
 from domain.crypto import AvailableCryptoAssetsRequest
 from domain.use_cases.search_crypto_assets import SearchCryptoAssets
 
 
-def search_crypto_assets(search_crypto_assets_uc: SearchCryptoAssets):
+async def search_crypto_assets(search_crypto_assets_uc: SearchCryptoAssets):
     symbol = request.args.get("symbol") or None
     name = request.args.get("name") or None
 
@@ -44,5 +44,5 @@ def search_crypto_assets(search_crypto_assets_uc: SearchCryptoAssets):
         limit=limit,
     )
 
-    result = search_crypto_assets_uc.execute(search_request)
+    result = await search_crypto_assets_uc.execute(search_request)
     return jsonify(result), 200

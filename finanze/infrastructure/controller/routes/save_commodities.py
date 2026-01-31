@@ -1,10 +1,10 @@
 from domain.commodity import CommodityRegister, UpdateCommodityPosition
 from domain.use_cases.save_commodities import SaveCommodities
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def save_commodities(save_commodities_uc: SaveCommodities):
-    body = request.json
+    body = await request.get_json()
 
     registers = []
     try:

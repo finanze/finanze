@@ -1,13 +1,13 @@
 from uuid import UUID
 
-from flask import request, jsonify
+from quart import request, jsonify
 
 from domain.entity_login import TwoFactor, EntityLoginRequest
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 
 
 async def add_entity_login(add_entity_credentials: AddEntityCredentials):
-    body = request.json
+    body = await request.get_json()
     entity = body.get("entity", None)
     if not entity:
         return jsonify({"message": "Source entity not provided"}), 400

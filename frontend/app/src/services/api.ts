@@ -74,216 +74,63 @@ import {
   ManualTransactionPayload,
 } from "../types/transactions"
 import { handleApiError } from "@/utils/apiErrors"
-
-import { BASE_URL } from "@/env"
-
-let apiBaseUrl = BASE_URL
-let apiUrlInitialized = false
-let apiUrlInitPromise: Promise<void> | null = null
-let isCustomServer = false
-let customServerUrl: string | null = null
-
-const withApiVersionSegment = (url: string): string => {
-  let normalized = url.trim()
-  if (!normalized) {
-    throw new Error("Invalid base URL")
-  }
-  while (normalized.endsWith("/")) {
-    normalized = normalized.slice(0, -1)
-  }
-  if (!normalized.endsWith("/api/v1")) {
-    normalized = `${normalized}/api/v1`
-  }
-  return normalized
-}
-
-const initializeApiUrl = async (): Promise<void> => {
-  try {
-    if (
-      typeof window !== "undefined" &&
-      window.ipcAPI &&
-      window.ipcAPI.apiUrl
-    ) {
-      const result = await window.ipcAPI.apiUrl()
-      if (result?.url) {
-        apiBaseUrl = result.url
-        isCustomServer = result.custom
-        if (isCustomServer) {
-          customServerUrl = result.url
-        }
-        console.log("API URL initialized from IPC:", apiBaseUrl)
-      }
-    }
-  } catch (error) {
-    console.error("Error initializing API URL:", error)
-  } finally {
-    apiBaseUrl = withApiVersionSegment(apiBaseUrl)
-    apiUrlInitialized = true
-  }
-}
-
-const ensureInitPromise = (): Promise<void> => {
-  if (!apiUrlInitPromise) {
-    apiUrlInitPromise = initializeApiUrl()
-  }
-  return apiUrlInitPromise
-}
-
-const ensureApiUrlInitialized = async (): Promise<string> => {
-  if (!apiUrlInitialized) {
-    await ensureInitPromise()
-  }
-  return apiBaseUrl
-}
-
-export const refreshApiBaseUrl = async (): Promise<void> => {
-  apiBaseUrl = BASE_URL
-  apiUrlInitialized = false
-  apiUrlInitPromise = null
-  isCustomServer = false
-  customServerUrl = null
-  await ensureApiUrlInitialized()
-}
+import { getApiClient } from "./apiClient"
+import { AppSettings } from "@/context/AppContext"
+import { triggerDeferredInit } from "@/lib/mobile"
 
 export interface ApiServerInfo {
   isCustomServer: boolean
   serverDisplay: string | null
+  baseUrl: string
 }
 
 export const getApiServerInfo = async (): Promise<ApiServerInfo> => {
-  await ensureInitPromise()
-  return {
-    isCustomServer,
-    serverDisplay: customServerUrl,
-  }
+  return (await getApiClient()).getApiServerInfo()
 }
 
-export const getApiBaseUrl = async (): Promise<string> => {
-  const apiUrl = await ensureApiUrlInitialized()
-  return apiUrl.replace(/\/api\/v1$/, "")
+export const refreshApiBaseUrl = async (): Promise<void> => {
+  return (await getApiClient()).refreshApiBaseUrl()
 }
 
 export async function getEntities(): Promise<EntitiesResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/entities`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/entities")
 }
 
 export async function loginEntity(
   request: LoginRequest,
 ): Promise<LoginResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/entities/login`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  // Even if the response is not OK, we want to get the error code
-  const data = await response.json()
-
-  if (!response.ok && !data.code) {
-    throw new Error("Login failed")
+  try {
+    return await (await getApiClient()).post("/entities/login", request)
+  } catch (error: any) {
+    if (error.data && error.data.code) {
+      return error.data
+    }
+    throw error
   }
-
-  return data
 }
 
 export async function disconnectEntity(entityId: string): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/entities/login`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ id: entityId }),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  await (await getApiClient()).delete("/entities/login", { id: entityId })
 }
 
 export async function fetchFinancialEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/fetch/financial`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  const data = await response.json()
-
-  if (!response.ok && !data.code) {
-    const error = new Error("Fetch failed") as Error & { status?: number }
-    error.status = response.status
-    throw error
-  }
-
-  return data
+  return (await getApiClient()).post("/data/fetch/financial", request)
 }
 
 export async function fetchCryptoEntity(
   request: FetchRequest,
 ): Promise<FetchResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/fetch/crypto`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  // Even if the response is not OK, we want to get the error code
-  const data = await response.json()
-
-  if (!response.ok && !data.code) {
-    const error = new Error("Fetch failed") as Error & { status?: number }
-    error.status = response.status
-    throw error
-  }
-
-  return data
+  return (await getApiClient()).post("/data/fetch/crypto", request)
 }
 
 export async function importFetch(): Promise<ImportResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/import/sheets`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  })
-
-  // Even if the response is not OK, we want to get the error code
-  const data = await response.json()
-
-  if (!response.ok && !data.code) {
-    throw new Error("Virtual fetch failed")
-  }
-
-  return data
+  return (await getApiClient()).post("/data/import/sheets")
 }
 
 export async function updateSheets(): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/export/sheets`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/data/export/sheets")
 }
 
 export interface FileExportResult {
@@ -295,54 +142,13 @@ export interface FileExportResult {
 export async function exportFile(
   request: FileExportRequest,
 ): Promise<FileExportResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/export/file`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  const blob = await response.blob()
-  const dispositionHeader =
-    response.headers.get("Content-Disposition") ??
-    response.headers.get("content-disposition")
-
-  let filename: string | null = null
-  if (dispositionHeader) {
-    const utfMatch = dispositionHeader.match(/filename\*=UTF-8''([^;]+)/i)
-    if (utfMatch?.[1]) {
-      try {
-        filename = decodeURIComponent(utfMatch[1])
-      } catch {
-        filename = utfMatch[1]
-      }
-      filename = filename.replace(/^"|"$/g, "")
-    } else {
-      const fallbackMatch = dispositionHeader.match(/filename="?([^";]+)"?/i)
-      if (fallbackMatch?.[1]) {
-        filename = fallbackMatch[1]
-      }
-    }
-  }
-
-  return {
-    blob,
-    filename,
-    contentType:
-      response.headers.get("Content-Type") ??
-      response.headers.get("content-type"),
-  }
+  return (await getApiClient()).download("/data/export/file", request)
 }
 
 export async function importFile(
   request: FileImportRequest,
   file: File,
 ): Promise<ImportResult> {
-  const baseUrl = await ensureApiUrlInitialized()
   const formData = new FormData()
   formData.append("file", file)
   formData.append("feature", request.feature)
@@ -362,113 +168,48 @@ export async function importFile(
     formData.append("templateParams", JSON.stringify(request.templateParams))
   }
 
-  const url = new URL(`${baseUrl}/data/import/file`)
+  let path = "/data/import/file"
   if (typeof request.preview === "boolean") {
-    url.searchParams.set("preview", request.preview ? "true" : "false")
+    path += request.preview ? "?preview=true" : "?preview=false"
   }
 
-  const response = await fetch(url.toString(), {
-    method: "POST",
-    body: formData,
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return response.json()
+  return (await getApiClient()).post(path, formData)
 }
 
 // Templates
 export async function getTemplates(type: TemplateType): Promise<Template[]> {
-  const baseUrl = await ensureApiUrlInitialized()
   const params = new URLSearchParams({ type })
-  const response = await fetch(`${baseUrl}/templates?${params.toString()}`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get(`/templates?${params.toString()}`)
 }
 
 export async function getTemplateFields(): Promise<
   Record<string, TemplateFeatureDefinition[]>
 > {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/templates/fields`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/templates/fields")
 }
 
 export async function createTemplate(
   payload: TemplateCreatePayload,
 ): Promise<Template | null> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/templates`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  if (response.status === 204) {
-    return null
-  }
-  return response.json()
+  return (await getApiClient()).post("/templates", payload)
 }
 
 export async function updateTemplate(
   payload: TemplateUpdatePayload,
 ): Promise<Template | null> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/templates`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  if (response.status === 204) {
-    return null
-  }
-  return response.json()
+  return (await getApiClient()).put("/templates", payload)
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/templates/${id}`, {
-    method: "DELETE",
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/templates/${id}`)
 }
 
-export async function getSettings() {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/settings`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+export async function getSettings(): Promise<AppSettings> {
+  return (await getApiClient()).get("/settings")
 }
 
 export async function saveSettings(settings: any) {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/settings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(settings),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/settings", settings)
 }
 
 interface CheckStatusOptions {
@@ -478,166 +219,105 @@ interface CheckStatusOptions {
 export async function checkStatus(
   options?: CheckStatusOptions,
 ): Promise<StatusResponse> {
-  const baseUrl = options?.baseUrlOverride
-    ? withApiVersionSegment(options.baseUrlOverride)
-    : await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/status`)
-  if (!response.ok) {
-    await handleApiError(response)
+  if (options?.baseUrlOverride) {
+    let baseUrl = options.baseUrlOverride.trim()
+    while (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.slice(0, -1)
+    }
+    if (!baseUrl.endsWith("/api/v1")) {
+      baseUrl = `${baseUrl}/api/v1`
+    }
+    const response = await fetch(`${baseUrl}/status`)
+    if (!response.ok) await handleApiError(response)
+    return response.json()
   }
-  return response.json()
+
+  const result = await (await getApiClient()).get<StatusResponse>("/status")
+
+  triggerDeferredInit()
+
+  return result
 }
 
 export async function login(
   authRequest: AuthRequest,
 ): Promise<{ code: AuthResultCode; message?: string }> {
   try {
-    const baseUrl = await ensureApiUrlInitialized()
-    const response = await fetch(`${baseUrl}/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(authRequest),
-    })
-
-    if (response.status === 401) {
+    await (await getApiClient()).post("/login", authRequest)
+    return { code: AuthResultCode.SUCCESS }
+  } catch (error: any) {
+    console.error("Login error:", error)
+    if (error.status === 401) {
       return { code: AuthResultCode.INVALID_CREDENTIALS }
-    } else if (response.status === 404) {
+    } else if (error.status === 404) {
       return { code: AuthResultCode.USER_NOT_FOUND }
-    } else if (response.status === 500 || response.status === 503) {
-      const data = await response.json()
-      return { code: AuthResultCode.UNEXPECTED_ERROR, message: data.message }
-    } else if (response.status === 409) {
+    } else if (error.status === 500 || error.status === 503) {
+      return {
+        code: AuthResultCode.UNEXPECTED_ERROR,
+        message: error.data?.message || error.message,
+      }
+    } else if (error.status === 409) {
       return { code: AuthResultCode.SUCCESS }
     }
 
-    if (!response.ok) {
-      return { code: AuthResultCode.UNEXPECTED_ERROR }
-    }
-
-    return { code: AuthResultCode.SUCCESS }
-  } catch (error) {
-    console.error("Login error:", error)
-    throw error
+    // Default fallback
+    return { code: AuthResultCode.UNEXPECTED_ERROR, message: error.message }
   }
 }
 
 export const changePassword = async (
   data: ChangePasswordRequest,
 ): Promise<void> => {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/change-password`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  })
-
-  if (!response.ok) {
-    const errorData = await response
-      .json()
-      .catch(() => ({ message: "Password change failed" }))
-    const errorMessage =
-      errorData.message || `HTTP error! status: ${response.status}`
-
-    // Create an error with status information for better handling
-    const error = new Error(errorMessage)
-    ;(error as any).status = response.status
-    throw error
-  }
+  return (await getApiClient()).post("/change-password", data)
 }
 
 export async function logout(): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/logout`, {
-    method: "POST",
-  })
-
-  if (!response.ok) {
-    throw new Error("Failed to logout")
-  }
+  return (await getApiClient()).post("/logout")
 }
 
 export async function getContributions(
   queryParams?: ContributionQueryRequest,
 ): Promise<EntityContributions> {
-  const baseUrl = await ensureApiUrlInitialized()
-
-  let queryString = ""
-  if (queryParams) {
-    const params = new URLSearchParams()
-    if (queryParams.entities && queryParams.entities.length > 0) {
-      queryParams.entities.forEach((entity: string) => {
-        params.append("entity", entity)
-      })
-    }
-    if (params.toString()) {
-      queryString = `?${params.toString()}`
-    }
+  const params = new URLSearchParams()
+  if (queryParams?.entities?.length) {
+    queryParams.entities.forEach(entity => params.append("entity", entity))
   }
-
-  const response = await fetch(`${baseUrl}/contributions${queryString}`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/contributions${queryString}`)
 }
 
 export async function getPositions(
   queryParams?: PositionQueryRequest,
 ): Promise<EntitiesPosition> {
-  const baseUrl = await ensureApiUrlInitialized()
-
-  let queryString = ""
-  if (queryParams) {
-    const params = new URLSearchParams()
-    if (queryParams.entities && queryParams.entities.length > 0) {
-      queryParams.entities.forEach((entity: string) => {
-        params.append("entity", entity)
-      })
-    }
-    if (params.toString()) {
-      queryString = `?${params.toString()}`
-    }
+  const params = new URLSearchParams()
+  if (queryParams?.entities?.length) {
+    queryParams.entities.forEach(entity => params.append("entity", entity))
   }
-
-  const response = await fetch(`${baseUrl}/positions${queryString}`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/positions${queryString}`)
 }
 
 export async function getTransactions(
   queryParams?: TransactionQueryRequest,
 ): Promise<TransactionsResult> {
-  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
 
-  let queryString = ""
   if (queryParams) {
-    const params = new URLSearchParams()
-
     if (queryParams.page) params.append("page", queryParams.page.toString())
     if (queryParams.limit) params.append("limit", queryParams.limit.toString())
 
-    if (queryParams.entities && queryParams.entities.length > 0) {
-      queryParams.entities.forEach((entity: string) => {
-        params.append("entity", entity)
-      })
+    if (queryParams.entities?.length) {
+      queryParams.entities.forEach(entity => params.append("entity", entity))
     }
 
-    if (queryParams.product_types && queryParams.product_types.length > 0) {
-      queryParams.product_types.forEach(type => {
-        params.append("product_type", type)
-      })
+    if (queryParams.product_types?.length) {
+      queryParams.product_types.forEach(type =>
+        params.append("product_type", type),
+      )
     }
 
-    if (queryParams.types && queryParams.types.length > 0) {
-      queryParams.types.forEach(type => {
-        params.append("type", type)
-      })
+    if (queryParams.types?.length) {
+      queryParams.types.forEach(type => params.append("type", type))
     }
 
     if (queryParams.from_date) params.append("from_date", queryParams.from_date)
@@ -645,410 +325,177 @@ export async function getTransactions(
     if (queryParams.historic_entry_id) {
       params.append("historic_entry_id", queryParams.historic_entry_id)
     }
-
-    queryString = `?${params.toString()}`
   }
 
-  const response = await fetch(`${baseUrl}/transactions${queryString}`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/transactions${queryString}`)
 }
 
 export async function getHistoric(
   queryParams?: HistoricQueryRequest,
 ): Promise<Historic> {
-  const baseUrl = await ensureApiUrlInitialized()
+  const params = new URLSearchParams()
 
-  let queryString = ""
   if (queryParams) {
-    const params = new URLSearchParams()
-
-    if (queryParams.entities && queryParams.entities.length > 0) {
-      queryParams.entities.forEach(entity => {
-        params.append("entity", entity)
-      })
+    if (queryParams.entities?.length) {
+      queryParams.entities.forEach(entity => params.append("entity", entity))
     }
-
-    if (queryParams.product_types && queryParams.product_types.length > 0) {
-      queryParams.product_types.forEach(type => {
-        params.append("product_type", type)
-      })
-    }
-
-    if (params.toString()) {
-      queryString = `?${params.toString()}`
+    if (queryParams.product_types?.length) {
+      queryParams.product_types.forEach(type =>
+        params.append("product_type", type),
+      )
     }
   }
 
-  const response = await fetch(`${baseUrl}/historic${queryString}`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/historic${queryString}`)
 }
 
 export async function signup(
   authRequest: AuthRequest,
 ): Promise<{ success: boolean }> {
   try {
-    const baseUrl = await ensureApiUrlInitialized()
-    const response = await fetch(`${baseUrl}/signup`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(authRequest),
-    })
-
-    if (response.status === 409) {
+    await (await getApiClient()).post("/signup", authRequest)
+    return { success: true }
+  } catch (error: any) {
+    console.error("Signup error:", error)
+    if (error.status === 409 || error.status === 400) {
       return { success: false }
     }
-
-    if (response.status === 400) {
-      return { success: false }
-    }
-
-    if (response.status === 500) {
+    if (error.status === 500) {
       throw new Error("Server error")
     }
-
-    if (!response.ok) {
-      throw new Error("Signup failed")
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error("Signup error:", error)
-    throw error
+    throw new Error("Signup failed")
   }
 }
 
-export async function getExchangeRates(): Promise<ExchangeRates> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/exchange-rates`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+export async function getExchangeRates(
+  cached: boolean,
+): Promise<ExchangeRates> {
+  return (await getApiClient()).get("/exchange-rates?cached=" + cached)
 }
 
 export async function saveManualContributions(
   request: ManualContributionsRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/manual/contributions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/data/manual/contributions", request)
 }
 
 export async function calculateLoan(
   request: LoanCalculationRequest,
 ): Promise<LoanCalculationResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/calculation/loan`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).post("/calculation/loan", request)
 }
 
 export async function saveManualPositions(
   request: UpdatePositionRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/manual/positions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/data/manual/positions", request)
 }
 
 export async function updateQuotesManualPositions(): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(
-    `${baseUrl}/data/manual/positions/update-quotes`,
-    {
-      method: "POST",
-    },
-  )
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/data/manual/positions/update-quotes")
 }
 
 export async function createManualTransaction(
   request: ManualTransactionPayload,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/manual/transactions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/data/manual/transactions", request)
 }
 
 export async function updateManualTransaction(
   id: string,
   request: ManualTransactionPayload,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/manual/transactions/${id}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).put(`/data/manual/transactions/${id}`, request)
 }
 
 export async function deleteManualTransaction(id: string): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/data/manual/transactions/${id}`, {
-    method: "DELETE",
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/data/manual/transactions/${id}`)
 }
 
 export async function getForecast(
   request: ForecastRequest,
 ): Promise<ForecastResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/forecast`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).post("/forecast", request)
 }
 
 export async function createCryptoWallet(
   request: CreateCryptoWalletRequest,
 ): Promise<CryptoWalletConnectionResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/crypto-wallet`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).post("/crypto-wallet", request)
 }
 
 export async function updateCryptoWallet(
   request: UpdateCryptoWalletConnectionRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/crypto-wallet`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).put("/crypto-wallet", request)
 }
 
 export async function deleteCryptoWallet(id: string): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/crypto-wallet/${id}`, {
-    method: "DELETE",
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/crypto-wallet/${id}`)
 }
 
 export async function saveCommodity(
   request: SaveCommodityRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/commodities`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/commodities", request)
 }
 
 export async function getExternalIntegrations(): Promise<ExternalIntegrations> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/integrations")
 }
 
 export async function setupIntegration(
   integrationId: string,
   payload: Record<string, string>,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/${integrationId}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ payload }),
+  return (await getApiClient()).post(`/integrations/${integrationId}`, {
+    payload,
   })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
 }
 
 export async function disableIntegration(integrationId: string): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/integrations/${integrationId}`, {
-    method: "DELETE",
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/integrations/${integrationId}`)
 }
 
 export async function createPeriodicFlow(
   request: CreatePeriodicFlowRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/flows/periodic`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/flows/periodic", request)
 }
 
 export async function updatePeriodicFlow(
   request: UpdatePeriodicFlowRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/flows/periodic`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).put("/flows/periodic", request)
 }
 
 export async function getAllPeriodicFlows(): Promise<PeriodicFlow[]> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/flows/periodic`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/flows/periodic")
 }
 
 export async function deletePeriodicFlow(flowId: string): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/flows/periodic/${flowId}`, {
-    method: "DELETE",
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/flows/periodic/${flowId}`)
 }
 
 export async function savePendingFlows(
   request: SavePendingFlowsRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/flows/pending`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/flows/pending", request)
 }
 
 export async function getAllPendingFlows(): Promise<PendingFlow[]> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/flows/pending`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/flows/pending")
 }
 
 export async function getAllRealEstate(): Promise<RealEstate[]> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/real-estate`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/real-estate")
 }
 
 export async function createRealEstate(
   request: CreateRealEstateRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-
   const formData = new FormData()
   formData.append("data", JSON.stringify(request.data))
 
@@ -1056,21 +503,12 @@ export async function createRealEstate(
     formData.append("photo", request.photo)
   }
 
-  const response = await fetch(`${baseUrl}/real-estate`, {
-    method: "POST",
-    body: formData,
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/real-estate", formData)
 }
 
 export async function updateRealEstate(
   request: UpdateRealEstateRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-
   const formData = new FormData()
   formData.append("data", JSON.stringify(request.data))
 
@@ -1078,39 +516,18 @@ export async function updateRealEstate(
     formData.append("photo", request.photo)
   }
 
-  const response = await fetch(`${baseUrl}/real-estate`, {
-    method: "PUT",
-    body: formData,
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).put("/real-estate", formData)
 }
 
 export async function deleteRealEstate(
   realEstateId: string,
   request: DeleteRealEstateRequest,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/real-estate/${realEstateId}`, {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/real-estate/${realEstateId}`, request)
 }
 
 export async function getImageUrl(imagePath: string): Promise<string> {
-  const baseUrl = await ensureApiUrlInitialized()
-  // Remove /api/v1 from the end and add the image path
-  const imageBaseUrl = baseUrl.replace("/api/v1", "")
-  return `${imageBaseUrl}${imagePath}`
+  return (await getApiClient()).getImageUrl(imagePath)
 }
 
 export async function getCryptoAssetDetails(
@@ -1128,17 +545,12 @@ export async function getCryptoAssetDetails(
     throw new Error("provider is required")
   }
 
-  const baseUrl = await ensureApiUrlInitialized()
-  const url = new URL(
-    `${baseUrl}/assets/crypto/${encodeURIComponent(trimmedProviderAssetId)}`,
-  )
-  url.searchParams.set("provider", trimmedProvider)
+  const params = new URLSearchParams()
+  params.set("provider", trimmedProvider)
 
-  const response = await fetch(url.toString())
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get(
+    `/assets/crypto/${encodeURIComponent(trimmedProviderAssetId)}?${params.toString()}`,
+  )
 }
 
 interface GetCryptoAssetsQuery {
@@ -1161,139 +573,90 @@ export async function getCryptoAssets(
     throw new Error("Provide either 'name' or 'symbol', but not both")
   }
 
-  const baseUrl = await ensureApiUrlInitialized()
-  const url = new URL(`${baseUrl}/assets/crypto`)
+  const params = new URLSearchParams()
 
   if (hasName && trimmedName) {
-    url.searchParams.set("name", trimmedName)
+    params.set("name", trimmedName)
   }
 
   if (hasSymbol && trimmedSymbol) {
-    url.searchParams.set("symbol", trimmedSymbol)
+    params.set("symbol", trimmedSymbol)
   }
 
   if (typeof query.page === "number") {
-    url.searchParams.set("page", query.page.toString())
+    params.set("page", query.page.toString())
   }
 
   if (typeof query.limit === "number") {
-    url.searchParams.set("limit", query.limit.toString())
+    params.set("limit", query.limit.toString())
   }
 
-  const response = await fetch(url.toString())
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  const queryString = params.toString() ? `?${params.toString()}` : ""
+  return (await getApiClient()).get(`/assets/crypto${queryString}`)
 }
 
 // External entity endpoints
 export async function getExternalEntityCandidates(
   country: string,
 ): Promise<ExternalEntityCandidates> {
-  const baseUrl = await ensureApiUrlInitialized()
   const params = new URLSearchParams({ country })
-  const response = await fetch(
-    `${baseUrl}/entities/external/candidates?${params.toString()}`,
+  return (await getApiClient()).get(
+    `/entities/external/candidates?${params.toString()}`,
   )
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
 }
 
 export async function connectExternalEntity(
   request: ConnectExternalEntityRequest,
 ): Promise<ExternalEntityConnectionResult> {
-  const baseUrl = await ensureApiUrlInitialized()
   const locale =
     (typeof window !== "undefined" &&
       typeof localStorage !== "undefined" &&
       (localStorage.getItem("locale") || undefined)) ||
     "en-US"
-  const response = await fetch(`${baseUrl}/entities/external`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Accept-Language": locale,
-    },
-    body: JSON.stringify(request),
+
+  return (await getApiClient()).post("/entities/external", request, {
+    headers: { "Accept-Language": locale },
   })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
 }
 
 export async function completeExternalEntityConnection(
   externalEntityId: string,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
   const params = new URLSearchParams({
     external_entity_id: externalEntityId,
   })
-  const response = await fetch(
-    `${baseUrl}/entities/external/complete?${params.toString()}`,
+  return (await getApiClient()).get(
+    `/entities/external/complete?${params.toString()}`,
   )
-  if (!response.ok) {
-    await handleApiError(response)
-  }
 }
 
 export async function disconnectExternalEntity(
   externalEntityId: string,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(
-    `${baseUrl}/entities/external/${externalEntityId}`,
-    { method: "DELETE" },
-  )
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).delete(`/entities/external/${externalEntityId}`)
 }
 
 export async function fetchExternalEntity(
   externalEntityId: string,
 ): Promise<FetchResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(
-    `${baseUrl}/data/fetch/external/${externalEntityId}`,
-    { method: "POST" },
-  )
-  const data = await response.json()
-  if (!response.ok && !data.code) {
-    const error = new Error("Fetch failed") as Error & { status?: number }
-    error.status = response.status
-    throw error
-  }
-  return data
+  return (await getApiClient()).post(`/data/fetch/external/${externalEntityId}`)
 }
 
 export async function getInstruments(
   request: InstrumentDataRequest,
 ): Promise<InstrumentsResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
   const params = new URLSearchParams()
-
   params.append("type", request.type)
   if (request.isin) params.append("isin", request.isin)
   if (request.name) params.append("name", request.name)
   if (request.ticker) params.append("ticker", request.ticker)
 
-  const response = await fetch(
-    `${baseUrl}/assets/instruments?${params.toString()}`,
-  )
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get(`/assets/instruments?${params.toString()}`)
 }
 
 export async function getInstrumentDetails(
   request: InstrumentDataRequest,
 ): Promise<InstrumentOverview> {
-  const baseUrl = await ensureApiUrlInitialized()
   const params = new URLSearchParams()
 
   params.append("type", request.type)
@@ -1301,162 +664,70 @@ export async function getInstrumentDetails(
   if (request.name) params.append("name", request.name)
   if (request.ticker) params.append("ticker", request.ticker)
 
-  const response = await fetch(
-    `${baseUrl}/assets/instruments/details?${params.toString()}`,
+  return (await getApiClient()).get(
+    `/assets/instruments/details?${params.toString()}`,
   )
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
 }
 
 export async function getMoneyEvents(
   query: MoneyEventQuery,
 ): Promise<MoneyEvents> {
-  const baseUrl = await ensureApiUrlInitialized()
   const params = new URLSearchParams()
   params.append("from_date", query.from_date)
   params.append("to_date", query.to_date)
 
-  const response = await fetch(`${baseUrl}/events?${params.toString()}`)
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get(`/events?${params.toString()}`)
 }
 
 export async function calculateSavings(
   request: SavingsCalculationRequest,
 ): Promise<SavingsCalculationResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/calculations/savings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).post("/calculations/savings", request)
 }
 
 export async function cloudAuth(
   request: CloudAuthRequest,
 ): Promise<CloudAuthResponse> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/cloud/auth`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).post("/cloud/auth", request)
 }
 
 export async function getCloudAuthToken(): Promise<CloudAuthData | null> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/cloud/auth`, {
-    method: "GET",
-  })
-
-  if (response.status === 204 || response.status === 404) {
-    return null
+  try {
+    return await (await getApiClient()).get<CloudAuthData>("/cloud/auth")
+  } catch (error: any) {
+    if (error.status === 404) return null
+    throw error
   }
-
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  const data = await response.json().catch(() => null)
-  if (!data) {
-    return null
-  }
-
-  return data as CloudAuthData
 }
 
 export async function getBackupsInfo(
   request?: GetBackupsInfoRequest,
 ): Promise<FullBackupsInfo> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const url = new URL(`${baseUrl}/cloud/backup`)
+  const params = new URLSearchParams()
   if (request?.only_local) {
-    url.searchParams.set("only_local", "true")
+    params.set("only_local", "true")
   }
-  const response = await fetch(url.toString(), {
-    method: "GET",
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get(`/cloud/backup?${params.toString()}`)
 }
 
 export async function uploadBackup(
   request: UploadBackupRequest,
 ): Promise<BackupSyncResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/cloud/backup/upload`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return response.json()
+  return (await getApiClient()).post("/cloud/backup/upload", request)
 }
 
 export async function importBackup(
   request: ImportBackupRequest,
 ): Promise<BackupSyncResult> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/cloud/backup/import`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(request),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-
-  return response.json()
+  return (await getApiClient()).post("/cloud/backup/import", request)
 }
 
 export async function getBackupSettings(): Promise<BackupSettings> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/cloud/backup/settings`, {
-    method: "GET",
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
-  return response.json()
+  return (await getApiClient()).get("/cloud/backup/settings")
 }
 
 export async function updateBackupSettings(
   settings: BackupSettings,
 ): Promise<void> {
-  const baseUrl = await ensureApiUrlInitialized()
-  const response = await fetch(`${baseUrl}/cloud/backup/settings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(settings),
-  })
-  if (!response.ok) {
-    await handleApiError(response)
-  }
+  return (await getApiClient()).post("/cloud/backup/settings", settings)
 }

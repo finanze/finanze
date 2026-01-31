@@ -1,7 +1,7 @@
 import logging
 from typing import Any
 
-import requests
+import httpx
 from domain.crypto import CryptoAsset
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import (
@@ -24,10 +24,12 @@ class CryptoCompareClient:
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def search(self, symbol: str) -> list[CryptoAsset]:
+    async def search(self, symbol: str) -> list[CryptoAsset]:
         if not symbol or not symbol.strip():
             raise MissingFieldsError(["symbol"])
-        data = self._fetch("/all/coinlist", params={"fsym": symbol.strip().upper()})
+        data = await self._fetch(
+            "/all/coinlist", params={"fsym": symbol.strip().upper()}
+        )
         if data.get("Response") == "Error":
             self._log.info(
                 f"CryptoCompare returned no data for symbol {symbol}: {data.get('Message')}"
@@ -64,7 +66,7 @@ class CryptoCompareClient:
             self._log.debug(f"Failed to map cryptocompare coin {raw}: {e}")
             return None
 
-    def get_prices(
+    async def get_prices(
         self, symbols: list[str], vs_currencies: list[str], timeout: int = TIMEOUT
     ) -> dict[str, dict[str, Dezimal]]:
         if not symbols:
@@ -76,8 +78,10 @@ class CryptoCompareClient:
         result: dict[str, dict[str, Dezimal]] = {}
         for chunk in self._chunk_symbols(deduped):
             fsyms = ",".join(chunk)
-            data = self._fetch(
-                "/pricemulti", params={"fsyms": fsyms, "tsyms": tsyms}, timeout=timeout
+            data = await self._fetch(
+                "/pricemulti",
+                params={"fsyms": fsyms, "tsyms": tsyms},
+                request_timeout=timeout,
             )
             self._merge_prices(result, data)
         return result
@@ -144,30 +148,30 @@ class CryptoCompareClient:
                 result[sym.upper()] = converted
         return result
 
-    def _fetch(
-        self, path: str, params: dict[str, Any] | None = None, timeout: int = TIMEOUT
+    async def _fetch(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        request_timeout: int = TIMEOUT,
     ) -> dict:
         url = f"{self.BASE_URL}{path}"
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 params=params,
-                timeout=timeout,
+                request_timeout=request_timeout,
                 max_retries=self.MAX_RETRIES,
                 backoff_factor=self.BACKOFF_FACTOR,
                 cooldown=self.COOLDOWN,
                 log=self._log,
             )
-        except requests.Timeout as e:
-            self._log.warning(f"Timeout calling CryptoCompare endpoint {url}")
-            raise e
-        except requests.RequestException as e:
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(f"Request error calling CryptoCompare endpoint {url}: {e}")
-            raise e
+            raise
 
         if not response.ok:
-            status = response.status_code
-            body = response.text
+            status = response.status
+            body = await response.text()
             if status == 429:
                 raise TooManyRequests()
             if status in (401, 403):
@@ -187,9 +191,10 @@ class CryptoCompareClient:
             response.raise_for_status()
 
         try:
-            return response.json()
+            return await response.json()
         except ValueError:
+            text = await response.text()
             self._log.error(
-                f"Failed to decode JSON from CryptoCompare for {url}: {response.text[:200]}"
+                f"Failed to decode JSON from CryptoCompare for {url}: {text[:200]}"
             )
             raise

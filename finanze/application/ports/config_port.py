@@ -6,21 +6,21 @@ from domain.user import User
 
 class ConfigPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def connect(self, user: User):
+    async def connect(self, user: User):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def disconnect(self):
+    async def disconnect(self):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def load(self) -> Settings:
+    async def load(self) -> Settings:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def raw_load(self) -> dict:
+    async def raw_load(self) -> dict:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def save(self, new_config: Settings) -> None:
+    async def save(self, new_config: Settings) -> None:
         raise NotImplementedError

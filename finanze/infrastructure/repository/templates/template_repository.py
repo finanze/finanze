@@ -84,10 +84,10 @@ class TemplateRepository(TemplatePort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, template: Template):
+    async def save(self, template: Template):
         now = datetime.now(tzlocal())
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 TemplateQueries.INSERT,
                 (
                     str(template.id),
@@ -101,10 +101,10 @@ class TemplateRepository(TemplatePort):
                 ),
             )
 
-    def update(self, template: Template):
+    async def update(self, template: Template):
         now = datetime.now(tzlocal())
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 TemplateQueries.UPDATE,
                 (
                     template.name,
@@ -117,33 +117,33 @@ class TemplateRepository(TemplatePort):
                 ),
             )
 
-    def delete(self, template_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(TemplateQueries.DELETE_BY_ID, (str(template_id),))
+    async def delete(self, template_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(TemplateQueries.DELETE_BY_ID, (str(template_id),))
 
-    def get_by_id(self, template_id: UUID) -> Template | None:
-        with self._db_client.read() as cursor:
-            cursor.execute(TemplateQueries.GET_BY_ID, (str(template_id),))
-            row = cursor.fetchone()
+    async def get_by_id(self, template_id: UUID) -> Template | None:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(TemplateQueries.GET_BY_ID, (str(template_id),))
+            row = await cursor.fetchone()
             if row is None:
                 return None
             return _map_row(row)
 
-    def get_by_type(self, template_type: TemplateType) -> list[Template]:
-        with self._db_client.read() as cursor:
-            cursor.execute(TemplateQueries.GET_BY_TYPE, (template_type.value,))
-            rows = cursor.fetchall()
+    async def get_by_type(self, template_type: TemplateType) -> list[Template]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(TemplateQueries.GET_BY_TYPE, (template_type.value,))
+            rows = await cursor.fetchall()
             return [_map_row(r) for r in rows] if rows else []
 
-    def get_by_name_and_type(
+    async def get_by_name_and_type(
         self, name: str, template_type: TemplateType
     ) -> Template | None:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 TemplateQueries.GET_BY_NAME_AND_TYPE,
                 (name, template_type.value),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row is None:
                 return None
             return _map_row(row)

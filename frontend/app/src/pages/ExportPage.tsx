@@ -54,6 +54,7 @@ import {
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { cn } from "@/lib/utils"
+import { saveBlobToDevice } from "@/lib/mobile"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
 import { Button } from "@/components/ui/Button"
@@ -585,14 +586,22 @@ export default function ExportPage() {
     setIsFileExporting(true)
     try {
       const result = await exportFile(payload)
-      const blobUrl = URL.createObjectURL(result.blob)
-      const anchor = document.createElement("a")
-      anchor.href = blobUrl
-      anchor.download = result.filename ?? "export"
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      URL.revokeObjectURL(blobUrl)
+      const filename = result.filename ?? "export"
+      const saved = await saveBlobToDevice({
+        blob: result.blob,
+        filename,
+        contentType: result.contentType,
+      })
+      if (!saved) {
+        const blobUrl = URL.createObjectURL(result.blob)
+        const anchor = document.createElement("a")
+        anchor.href = blobUrl
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(blobUrl)
+      }
       showToast(t.export.file.toast.success, "success")
       setIsFileExportDialogOpen(false)
       resetFileExportForm()
@@ -1950,6 +1959,8 @@ export default function ExportPage() {
   )
   const isGoogleSheetsIntegrationEnabled =
     googleSheetsIntegration?.status === ExternalIntegrationStatus.ON
+  const isGoogleSheetsIntegrationAvailable =
+    googleSheetsIntegration?.available ?? true
   const canExport = isGoogleSheetsIntegrationEnabled && hasSheetSections
   const canImport = isGoogleSheetsIntegrationEnabled && hasImportSections
   const sheetsConfigured = hasSheetSections
@@ -2502,7 +2513,7 @@ export default function ExportPage() {
   )
 
   const renderGoogleSheetsCard = () => (
-    <Card>
+    <Card className={cn(!isGoogleSheetsIntegrationAvailable && "opacity-60")}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -2526,7 +2537,8 @@ export default function ExportPage() {
           )}
         </div>
       </CardHeader>
-      {isGoogleSheetsIntegrationEnabled ? (
+      {isGoogleSheetsIntegrationAvailable &&
+      isGoogleSheetsIntegrationEnabled ? (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg border p-3">
@@ -2598,7 +2610,9 @@ export default function ExportPage() {
       ) : (
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t.export.integrationRequiredMessage}
+            {isGoogleSheetsIntegrationAvailable
+              ? t.export.integrationRequiredMessage
+              : t.common.notAvailableOnPlatform}
           </p>
         </CardContent>
       )}
@@ -2606,7 +2620,7 @@ export default function ExportPage() {
   )
 
   const renderGoogleSheetsImportCard = () => (
-    <Card>
+    <Card className={cn(!isGoogleSheetsIntegrationAvailable && "opacity-60")}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -2630,7 +2644,8 @@ export default function ExportPage() {
           )}
         </div>
       </CardHeader>
-      {isGoogleSheetsIntegrationEnabled ? (
+      {isGoogleSheetsIntegrationAvailable &&
+      isGoogleSheetsIntegrationEnabled ? (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg border p-3">
@@ -2698,7 +2713,9 @@ export default function ExportPage() {
       ) : (
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t.export.integrationRequiredMessage}
+            {isGoogleSheetsIntegrationAvailable
+              ? t.export.integrationRequiredMessage
+              : t.common.notAvailableOnPlatform}
           </p>
         </CardContent>
       )}

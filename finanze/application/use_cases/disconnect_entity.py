@@ -34,5 +34,5 @@ class DisconnectEntityImpl(AtomicUCMixin, DisconnectEntity):
         if not entity:
             raise EntityNotFound(entity_id)
 
-        self._credentials_port.delete(entity_id)
-        self._sessions_port.delete(entity_id)
+        await self._credentials_port.delete(entity_id)
+        await self._sessions_port.delete(entity_id)

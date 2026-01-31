@@ -1,9 +1,5 @@
 from decimal import Decimal, InvalidOperation
-from typing import Any, Union
-
-from pydantic import GetCoreSchemaHandler
-from pydantic_core import CoreSchema, core_schema
-from typing_extensions import Self
+from typing import Any, Self, Union
 
 ValidDezimal = Union[int, float, Decimal, str, "Dezimal"]
 ValidDezimalOperand = Union[int, Decimal, "Dezimal"]
@@ -132,9 +128,9 @@ class Dezimal:
         return Dezimal(self.val.copy_abs())
 
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, _source_type: Any, handler: GetCoreSchemaHandler
-    ) -> CoreSchema:
+    def __get_pydantic_core_schema__(cls, _source_type: Any, handler):
+        from pydantic_core import core_schema
+
         def validate(value: ValidDezimal) -> Dezimal:
             if isinstance(value, Dezimal):
                 return value

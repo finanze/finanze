@@ -1,5 +1,4 @@
 # MIT License
-
 # Copyright (c) 2020 nborrmann
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,9 +23,12 @@
 import logging
 from datetime import datetime
 from typing import Optional
+import json
 
-from pytr.api import TradeRepublicApi, TradeRepublicError
-from pytr.utils import preview
+from infrastructure.client.entity.financial.tr.api import (
+    TradeRepublicApi,
+    TradeRepublicError,
+)
 
 
 class TRTimeline:
@@ -235,3 +237,14 @@ class TRTimeline:
             return self.events
 
         return None
+
+
+def preview(response, num_lines=5):
+    lines = json.dumps(response, indent=2).splitlines()
+    head = "\n".join(lines[:num_lines])
+    tail = len(lines) - num_lines
+
+    if tail <= 0:
+        return f"{head}\n"
+    else:
+        return f"{head}\n{tail} more lines hidden"

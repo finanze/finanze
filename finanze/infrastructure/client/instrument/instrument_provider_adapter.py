@@ -11,34 +11,61 @@ from domain.instrument import (
     InstrumentOverview,
     InstrumentType,
 )
-from infrastructure.client.instrument.extraetf_client import ExtraEtfClient
-from infrastructure.client.instrument.finect_client import FinectClient
-from infrastructure.client.instrument.ft_client import FtClient
-from infrastructure.client.instrument.tradingview_client import TradingViewClient
-from infrastructure.client.instrument.yfinance_client import YFinanceClient
 
 MAX_INSTRUMENTS_RETURNED = 15
 
 
 class InstrumentProviderAdapter(InstrumentInfoProvider):
-    def __init__(self):
-        self._ft = FtClient()
-        self._yf = YFinanceClient()
-        self._finect = FinectClient()
-        self._tv = TradingViewClient()
-        self._ee = ExtraEtfClient()
+    def __init__(self, enabled_clients: Optional[list[str]] = None):
+        if enabled_clients is None:
+            enabled_clients = ["ft", "yf", "finect", "tv", "ee"]
+
+        self._clients_enabled = {name.lower() for name in enabled_clients}
         self._log = logging.getLogger(__name__)
 
-    def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
+        self._ft = None
+        self._yf = None
+        self._finect = None
+        self._tv = None
+        self._ee = None
+
+        if "ft" in self._clients_enabled:
+            from infrastructure.client.instrument.ft_client import FtClient
+
+            self._ft = FtClient()
+
+        if "yf" in self._clients_enabled:
+            from infrastructure.client.instrument.yfinance_client import YFinanceClient
+
+            self._yf = YFinanceClient()
+
+        if "finect" in self._clients_enabled:
+            from infrastructure.client.instrument.finect_client import FinectClient
+
+            self._finect = FinectClient()
+
+        if "tv" in self._clients_enabled:
+            from infrastructure.client.instrument.tradingview_client import (
+                TradingViewClient,
+            )
+
+            self._tv = TradingViewClient()
+
+        if "ee" in self._clients_enabled:
+            from infrastructure.client.instrument.extraetf_client import ExtraEtfClient
+
+            self._ee = ExtraEtfClient()
+
+    async def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         query = request.isin or request.ticker or request.name
         if not query:
             return []
 
         try:
             if request.type == InstrumentType.STOCK:
-                results = self._stock_search(request)
+                results = await self._stock_search(request)
             else:
-                results = self._fund_etf_search(request)
+                results = await self._fund_etf_search(request)
         except Exception:
             self._log.exception(
                 "InstrumentProviderAdapter lookup failed, returning empty list"
@@ -50,51 +77,68 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
             for overview in results[:MAX_INSTRUMENTS_RETURNED]
         ]
 
-    def _stock_search(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
-        try:
-            return self._tv.search(request)
-        except Exception:
-            self._log.exception(
-                "TradingViewClient search failed, falling back to YFinanceClient"
-            )
-
-        return self._yf.lookup(request)
-
-    def _fund_etf_search(
+    async def _stock_search(
         self, request: InstrumentDataRequest
     ) -> list[InstrumentOverview]:
-        try:
-            return self._finect.search(request)
-        except Exception:
-            self._log.exception("FinectClient search failed, falling back to FtClient")
-
-        try:
-            return self._ft.search(request)
-        except Exception:
-            self._log.exception(
-                "FinectClient search failed, falling back to YFinanceClient"
-            )
-
-        if request.type == InstrumentType.ETF:
+        if self._tv is not None:
             try:
-                return self._ee.search(request)
+                return await self._tv.search(request)
             except Exception:
                 self._log.exception(
-                    "ExtraEtfClient search failed, falling back to FinectClient"
+                    "TradingViewClient search failed, falling back to YFinanceClient"
                 )
 
-        return self._yf.lookup(request)
+        if self._yf is not None:
+            return self._yf.lookup(request)
 
-    def get_info(self, request: InstrumentDataRequest) -> Optional[InstrumentInfo]:
+        return []
+
+    async def _fund_etf_search(
+        self, request: InstrumentDataRequest
+    ) -> list[InstrumentOverview]:
+        if self._finect is not None:
+            try:
+                return await self._finect.search(request)
+            except Exception:
+                self._log.exception(
+                    "FinectClient search failed, falling back to FtClient"
+                )
+
+        if self._ft is not None:
+            try:
+                return await self._ft.search(request)
+            except Exception:
+                self._log.exception(
+                    "FtClient search failed, falling back to ExtraEtfClient/YFinanceClient"
+                )
+
+        if request.type == InstrumentType.ETF and self._ee is not None:
+            try:
+                return await self._ee.search(request)
+            except Exception:
+                self._log.exception(
+                    "ExtraEtfClient search failed, falling back to YFinanceClient"
+                )
+
+        if self._yf is not None:
+            return self._yf.lookup(request)
+
+        return []
+
+    async def get_info(
+        self, request: InstrumentDataRequest
+    ) -> Optional[InstrumentInfo]:
         query = request.ticker or request.isin or request.name
         if not query:
             return None
 
         try:
             if request.type != InstrumentType.STOCK:
-                info = self._get_instrument_info(query, request.type)
-            else:
+                info = await self._get_instrument_info(query, request.type)
+            elif self._yf is not None:
                 info = self._yf.get_instrument_info(query, request.type)
+            else:
+                return None
         except Exception:
             self._log.exception(
                 "InstrumentProviderAdapter get_info failed, returning None"
@@ -106,22 +150,27 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
 
         return self._normalize_info(info)
 
-    def _get_instrument_info(
+    async def _get_instrument_info(
         self, query: str, instrument_type: InstrumentType
     ) -> Optional[InstrumentInfo]:
-        try:
-            info = self._finect.get_instrument_info(query, instrument_type)
-            if info:
-                return info
-            else:
-                self._log.warning(
-                    "FinectClient returned no info, falling back to Yfinance"
+        if self._finect is not None:
+            try:
+                info = await self._finect.get_instrument_info(query, instrument_type)
+                if info:
+                    return info
+                else:
+                    self._log.warning(
+                        "FinectClient returned no info, falling back to Yfinance"
+                    )
+            except Exception:
+                self._log.exception(
+                    "FinectClient get_instrument_info failed, falling back to Yfinance"
                 )
-        except Exception:
-            self._log.exception(
-                "FinectClient get_instrument_info failed, falling back to Yfinance"
-            )
-        return self._yf.get_instrument_info(query, instrument_type)
+
+        if self._yf is not None:
+            return self._yf.get_instrument_info(query, instrument_type)
+
+        return None
 
     @staticmethod
     def _is_gbp_pence_currency(currency: Optional[str]) -> bool:

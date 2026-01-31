@@ -25,7 +25,7 @@ class UpdateRealEstateImpl(AtomicUCMixin, UpdateRealEstate):
     async def execute(self, request: UpdateRealEstateRequest):
         real_estate = request.real_estate
 
-        existing_real_estate = self._real_estate_port.get_by_id(real_estate.id)
+        existing_real_estate = await self._real_estate_port.get_by_id(real_estate.id)
         if existing_real_estate is None:
             raise RealEstateNotFound(
                 f"Real estate with ID {real_estate.id} does not exist."
@@ -35,22 +35,23 @@ class UpdateRealEstateImpl(AtomicUCMixin, UpdateRealEstate):
             assigned_flows = {flow.periodic_flow_id for flow in real_estate.flows}
             for existing_flow in existing_real_estate.flows:
                 if existing_flow.periodic_flow_id not in assigned_flows:
-                    self._periodic_flow_port.delete(existing_flow.periodic_flow_id)
+                    await self._periodic_flow_port.delete(
+                        existing_flow.periodic_flow_id
+                    )
 
         for re_flow in real_estate.flows:
             if re_flow.periodic_flow_id is None and re_flow.periodic_flow is not None:
-                re_flow.periodic_flow_id = self._periodic_flow_port.save(
-                    re_flow.periodic_flow
-                ).id
+                new_flow = await self._periodic_flow_port.save(re_flow.periodic_flow)
+                re_flow.periodic_flow_id = new_flow.id
             elif re_flow.periodic_flow is not None:
-                existing_pending_flow = self._periodic_flow_port.get_by_id(
+                existing_pending_flow = await self._periodic_flow_port.get_by_id(
                     re_flow.periodic_flow.id
                 )
                 if existing_pending_flow is None:
                     raise FlowNotFound(
                         f"Periodic flow with ID {re_flow.periodic_flow.id} does not exist."
                     )
-                self._periodic_flow_port.update(re_flow.periodic_flow)
+                await self._periodic_flow_port.update(re_flow.periodic_flow)
 
         if request.photo and request.photo.filename:
             try:
@@ -71,7 +72,7 @@ class UpdateRealEstateImpl(AtomicUCMixin, UpdateRealEstate):
             if real_estate.rental_data is None:
                 real_estate.rental_data = existing_real_estate.rental_data
 
-            self._real_estate_port.update(real_estate)
+            await self._real_estate_port.update(real_estate)
         except:
             if request.photo and request.photo.filename:
                 if real_estate.basic_info.photo_url:

@@ -1,13 +1,17 @@
+from quart import jsonify, request
+
 from domain.data_init import AlreadyUnlockedError, DecryptionError, MigrationAheadOfTime
-from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
+from domain.exception.exceptions import (
+    UserAlreadyLoggedIn,
+    UserNotFound,
+    InvalidUserCredentials,
+)
 from domain.use_cases.user_login import UserLogin
 from domain.user_login import LoginRequest
-from flask import jsonify, request
-from werkzeug.exceptions import Unauthorized
 
 
-def user_login(user_login_uc: UserLogin):
-    body = request.json
+async def user_login(user_login_uc: UserLogin):
+    body = await request.get_json()
     username = body.get("username")
     password = body.get("password")
     if not username:
@@ -18,11 +22,11 @@ def user_login(user_login_uc: UserLogin):
     login_request = LoginRequest(username=username, password=password)
 
     try:
-        user_login_uc.execute(login_request)
+        await user_login_uc.execute(login_request)
         return "", 204
 
     except DecryptionError as e:
-        raise Unauthorized(str(e))
+        raise InvalidUserCredentials(str(e))
 
     except UserNotFound:
         return jsonify({"message": "Username not found"}), 404

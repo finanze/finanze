@@ -367,12 +367,12 @@ class INGFetcher(FinancialEntityFetcher):
         self._log = logging.getLogger(__name__)
 
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
-        return self._client.complete_login(
+        return await self._client.complete_login(
             login_params.credentials, login_params.options, login_params.session
         )
 
     async def global_position(self) -> GlobalPosition:
-        position = self._client.get_position()
+        position = await self._client.get_position()
         products = position.get("products", [])
         legacy_products = position.get("legacyProducts", [])
 
@@ -382,12 +382,12 @@ class INGFetcher(FinancialEntityFetcher):
         cards = _build_cards(products, legacy_by_number, accounts_by_number)
 
         try:
-            funds = self._build_funds(products, legacy_by_number)
+            funds = await self._build_funds(products, legacy_by_number)
         except Exception:
             self._log.exception("Error building broker portfolio", exc_info=True)
             funds = []
 
-        stocks = self._build_broker_portfolio(products)
+        stocks = await self._build_broker_portfolio(products)
 
         product_positions = {}
         if accounts:
@@ -411,16 +411,16 @@ class INGFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        position = self._client.get_position()
+        position = await self._client.get_position()
         products = position.get("products", [])
 
-        investment_txs = self._fetch_broker_txs(products, registered_txs)
-        investment_txs += self._fetch_fund_txs(products, registered_txs)
+        investment_txs = await self._fetch_broker_txs(products, registered_txs)
+        investment_txs += await self._fetch_fund_txs(products, registered_txs)
 
         return Transactions(investment=investment_txs, account=[])
 
     async def auto_contributions(self) -> AutoContributions:
-        position = self._client.get_position()
+        position = await self._client.get_position()
         products = position.get("products", [])
 
         periodic_contributions: list[PeriodicContribution] = []
@@ -432,7 +432,7 @@ class INGFetcher(FinancialEntityFetcher):
             if not fund_local_uuid:
                 continue
             orders_resp = (
-                self._client.get_orders(
+                await self._client.get_orders(
                     product_id=fund_local_uuid,
                     order_status="pending",
                     to_date=in_five_years,
@@ -457,7 +457,7 @@ class INGFetcher(FinancialEntityFetcher):
                 amount = round(Dezimal(order.get("amount")), 2)
                 currency = order.get("currency")
 
-                isin = self._get_fund_isin(fund)
+                isin = await self._get_fund_isin(fund)
                 if not isin:
                     continue
 
@@ -484,7 +484,9 @@ class INGFetcher(FinancialEntityFetcher):
 
         return AutoContributions(periodic=periodic_contributions)
 
-    def _fetch_broker_txs(self, products, registered_txs: set[str]) -> list[StockTx]:
+    async def _fetch_broker_txs(
+        self, products, registered_txs: set[str]
+    ) -> list[StockTx]:
         broker = next((p for p in products if p.get("type") == "BROKER"), None)
         if not broker:
             return []
@@ -492,16 +494,18 @@ class INGFetcher(FinancialEntityFetcher):
         broker_id = _get_identifier(broker, "LOCAL_UUID")
         opening_date = _parse_broker_opening_date(broker.get("openingDate"))
 
-        txs = self._fetch_broker_movements(broker_id, opening_date, registered_txs)
+        txs = await self._fetch_broker_movements(
+            broker_id, opening_date, registered_txs
+        )
         return txs
 
-    def _load_fund_product_codes(self):
+    async def _load_fund_product_codes(self):
         if self._fund_product_codes_loaded:
             return
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=7)
         reporting = (
-            self._client.get_customer_investment_reporting(
+            await self._client.get_customer_investment_reporting(
                 family="FUNDS", start_date=start_date, end_date=end_date
             )
             or {}
@@ -519,18 +523,18 @@ class INGFetcher(FinancialEntityFetcher):
                 self._fund_product_code_by_uuid[uuid_val] = product_code
         self._fund_product_codes_loaded = True
 
-    def _get_fund_isin(self, fund: dict) -> Optional[str]:
+    async def _get_fund_isin(self, fund: dict) -> Optional[str]:
         uuid_val = fund.get("uuid")
         if not uuid_val:
             return fund.get("productNumber")
         if uuid_val in self._fund_isin_cache:
             return self._fund_isin_cache[uuid_val]
 
-        self._load_fund_product_codes()
+        await self._load_fund_product_codes()
         product_code = self._fund_product_code_by_uuid.get(uuid_val)
         isin = None
         if product_code:
-            details = self._client.get_investment_product_details(product_code)
+            details = await self._client.get_investment_product_details(product_code)
             isin = next(
                 (
                     p.get("value")
@@ -546,19 +550,19 @@ class INGFetcher(FinancialEntityFetcher):
 
         return isin
 
-    def _fetch_fund_txs(self, products, registered_txs: set[str]) -> list[FundTx]:
+    async def _fetch_fund_txs(self, products, registered_txs: set[str]) -> list[FundTx]:
         fund_products = [p for p in products if p.get("type") == "FUND"]
         if not fund_products:
             return []
 
-        self._load_fund_product_codes()
+        await self._load_fund_product_codes()
 
         fund_txs: list[FundTx] = []
         for fund in fund_products:
             fund_id = _get_identifier(fund, "LOCAL_UUID")
             if not fund_id:
                 continue
-            isin = self._get_fund_isin(fund)
+            isin = await self._get_fund_isin(fund)
             if not isin:
                 continue
 
@@ -567,7 +571,7 @@ class INGFetcher(FinancialEntityFetcher):
             limit = 100
             continue_next_page = True
             while continue_next_page:
-                resp = self._client.get_movements(
+                resp = await self._client.get_movements(
                     fund_id, from_date, offset=offset, limit=limit
                 )
                 elements = resp.get("elements") or []
@@ -622,7 +626,7 @@ class INGFetcher(FinancialEntityFetcher):
                     break
         return fund_txs
 
-    def _resolve_market_name(
+    async def _resolve_market_name(
         self, market_code: str | None, order_id: str | None
     ) -> str | None:
         if not market_code:
@@ -633,7 +637,7 @@ class INGFetcher(FinancialEntityFetcher):
         if not order_id or str(order_id).strip() in {"", "-"}:
             return market_code
         try:
-            detail = self._client.get_broker_order(market_code, str(order_id))
+            detail = await self._client.get_broker_order(market_code, str(order_id))
             desc = ((detail.get("market") or {}).get("description") or {}).get(
                 "description"
             )
@@ -644,7 +648,7 @@ class INGFetcher(FinancialEntityFetcher):
             pass
         return market_code
 
-    def _fetch_broker_movements(
+    async def _fetch_broker_movements(
         self, broker_id: str, from_date, registered_txs: set[str]
     ) -> list[StockTx]:
         all_elements: list[StockTx] = []
@@ -653,12 +657,12 @@ class INGFetcher(FinancialEntityFetcher):
         continue_next_page = True
 
         while continue_next_page:
-            resp = self._client.get_movements(
+            resp = await self._client.get_movements(
                 broker_id, from_date, offset=offset, limit=limit
             )
             elements = resp.get("elements") or []
             for mv in elements:
-                market_name = self._resolve_market_name(
+                market_name = await self._resolve_market_name(
                     mv.get("marketCode"), mv.get("idOrder")
                 )
                 tx = _map_movement_to_stock_tx(mv, market_name)
@@ -676,10 +680,10 @@ class INGFetcher(FinancialEntityFetcher):
 
         return all_elements
 
-    def _build_funds(
+    async def _build_funds(
         self, products: list[dict], legacy_by_number: dict[str, dict]
     ) -> list[FundDetail]:
-        self._load_fund_product_codes()
+        await self._load_fund_product_codes()
         funds: list[FundDetail] = []
         for prod in products:
             if prod.get("type") != "FUND":
@@ -694,7 +698,7 @@ class INGFetcher(FinancialEntityFetcher):
             product_number = _get_identifier(prod, "PRODUCT_NUMBER")
             legacy = legacy_by_number.get(product_number, {})
 
-            isin = self._get_fund_isin(prod)
+            isin = await self._get_fund_isin(prod)
             if not isin:
                 continue
 
@@ -724,7 +728,7 @@ class INGFetcher(FinancialEntityFetcher):
 
         return funds
 
-    def _build_broker_portfolio(self, products: list[dict]) -> list[StockDetail]:
+    async def _build_broker_portfolio(self, products: list[dict]) -> list[StockDetail]:
         broker = next((p for p in products if p.get("type") == "BROKER"), None)
         if not broker:
             return []
@@ -732,7 +736,7 @@ class INGFetcher(FinancialEntityFetcher):
         if not broker_id:
             return []
         try:
-            portfolio = self._client.get_broker_portfolio(broker_id) or {}
+            portfolio = await self._client.get_broker_portfolio(broker_id) or {}
         except Exception:
             return []
         positions = portfolio.get("portfolioPosition") or []

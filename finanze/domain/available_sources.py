@@ -42,6 +42,7 @@ class AvailableSource(Entity):
     external_entity_id: Optional[UUID] = None
     virtual_features: dict[Feature, datetime] = field(default_factory=dict)
     natively_supported_products: Optional[list[ProductType]] = None
+    fetchable: bool = True
 
 
 @dataclass

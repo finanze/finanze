@@ -5,8 +5,8 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from sqlite3 import Connection
-from threading import Lock
 from typing import Optional
+from asyncio import Lock
 
 from sqlcipher3 import dbapi2 as sqlcipher
 from sqlcipher3._sqlite3 import DatabaseError
@@ -42,8 +42,8 @@ class DBManager(DatasourceInitiator, Backupable):
     def unlocked(self) -> bool:
         return self._unlocked
 
-    def lock(self):
-        with self._lock:
+    async def lock(self):
+        async with self._lock:
             if not self._unlocked:
                 self._log.warning("Database is already locked.")
                 raise AlreadyLockedError()
@@ -51,19 +51,19 @@ class DBManager(DatasourceInitiator, Backupable):
             self._unlocked = False
             self._user = None
             self._pass = None
-            self._client.close()
+            await self._client.close()
             self._log.debug("Database locked successfully.")
 
-    def initialize(self, params: DatasourceInitParams):
-        self._initialize(params)
+    async def initialize(self, params: DatasourceInitParams):
+        await self._initialize(params)
 
-    def _initialize(self, params: DatasourceInitParams) -> UnderlyingConnection:
+    async def _initialize(self, params: DatasourceInitParams) -> UnderlyingConnection:
         user_path = params.user.path
 
         user_db_path = user_path / DB_NAME
         self._log.info(f"Attempting to connect and unlock database at {user_db_path}")
 
-        with self._lock:
+        async with self._lock:
             if self._unlocked:
                 self._log.info("Database is already unlocked")
                 raise AlreadyUnlockedError()
@@ -79,7 +79,7 @@ class DBManager(DatasourceInitiator, Backupable):
                 self._unlocked = True
                 self._client.set_connection(connection)
 
-                self._setup_database_schema(params)
+                await self._setup_database_schema(params)
                 self._pass = params.password
                 self._user = params.user
 
@@ -134,7 +134,9 @@ class DBManager(DatasourceInitiator, Backupable):
 
         return connection
 
-    def change_password(self, user_params: DatasourceInitParams, new_password: str):
+    async def change_password(
+        self, user_params: DatasourceInitParams, new_password: str
+    ):
         if not new_password:
             raise ValueError("New password cannot be empty")
 
@@ -143,9 +145,9 @@ class DBManager(DatasourceInitiator, Backupable):
                 "Database is unlocked, it must be locked before changing password"
             )
 
-        connection = self._initialize(user_params)
+        connection = await self._initialize(user_params)
         self._change_password(connection, new_password)
-        self.lock()
+        await self.lock()
 
     def _change_password(self, connection: UnderlyingConnection, new_password: str):
         if not self._unlocked:
@@ -156,7 +158,7 @@ class DBManager(DatasourceInitiator, Backupable):
 
         self._log.info("Database password changed successfully")
 
-    def _setup_database_schema(self, params: DatasourceInitParams):
+    async def _setup_database_schema(self, params: DatasourceInitParams):
         if not self._unlocked:
             raise Exception("Database must be unlocked before setting up schema")
 
@@ -165,29 +167,29 @@ class DBManager(DatasourceInitiator, Backupable):
         upgrader = DatabaseUpgrader(self._client, versions, params.context)
 
         try:
-            upgrader.upgrade()
+            await upgrader.upgrade()
             self._log.info("Database schema setup complete")
         except MigrationError:
             raise
         except Exception as e:
             raise MigrationError from e
 
-    def export(self) -> bytes:
+    async def export(self) -> bytes:
         tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         tmp_path = Path(tmp.name)
         tmp.close()
 
         try:
-            with self._client.tx():
+            async with self._client.tx():
                 # Update last update timestamp before exporting
                 pass
 
-            self._client.wal_checkpoint()
+            await self._client.wal_checkpoint()
 
             tmp_path_str = str(tmp_path.absolute())
 
-            with self._client.tx(skip_last_update=True) as cursor:
-                cursor.execute_script(f"""
+            async with self._client.tx(skip_last_update=True) as cursor:
+                await cursor.execute_script(f"""
                 ATTACH DATABASE '{tmp_path_str}' AS backup_db KEY '';
                 SELECT sqlcipher_export('backup_db');
                 DETACH DATABASE backup_db;
@@ -204,14 +206,14 @@ class DBManager(DatasourceInitiator, Backupable):
             except (OSError, NameError):
                 pass
 
-    def import_data(self, data: bytes):
-        self._client.wal_checkpoint()
+    async def import_data(self, data: bytes):
+        await self._client.wal_checkpoint()
 
         user = self._user
         user_path = user.path
         passwd = self._pass
         db_path = user_path / DB_NAME
-        self.lock()
+        await self.lock()
 
         temp_old_db_path = user_path / (DB_NAME + ".tmp")
         shutil.copy2(db_path, temp_old_db_path)
@@ -228,31 +230,31 @@ class DBManager(DatasourceInitiator, Backupable):
             db_path_str = str(db_path.absolute())
             sanitized_passwd = self._sanitize_password(passwd)
 
-            with temp_client.tx(skip_last_update=True) as cursor:
-                cursor.execute_script(f"""
+            async with temp_client.tx(skip_last_update=True) as cursor:
+                await cursor.execute_script(f"""
                 ATTACH DATABASE '{db_path_str}' AS new_db KEY '{sanitized_passwd}';
                 SELECT sqlcipher_export('new_db');
                 DETACH DATABASE new_db;
                 """)
             connection.close()
 
-        self._initialize(DatasourceInitParams(user=user, password=passwd))
+        await self._initialize(DatasourceInitParams.build(user=user, password=passwd))
 
         temp_old_db_path.unlink()
 
-    def get_last_updated(self) -> datetime:
-        with self._client.read() as cursor:
-            cursor.execute(
+    async def get_last_updated(self) -> datetime:
+        async with self._client.read() as cursor:
+            await cursor.execute(
                 """SELECT value
                    FROM sys_config
                    WHERE "key" = ?
                 """,
                 ("last_update",),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             return datetime.fromisoformat(row["value"])
 
-    def get_hashed_password(self) -> Optional[str]:
+    async def get_hashed_password(self) -> Optional[str]:
         if not self._unlocked:
             return None
 

@@ -5,15 +5,17 @@ from domain.exception.exceptions import FlowNotFound, RealEstateNotFound
 from domain.file_upload import FileUpload
 from domain.real_estate import UpdateRealEstateRequest
 from domain.use_cases.update_real_estate import UpdateRealEstate
-from flask import jsonify, request
+from quart import jsonify, request
 from infrastructure.controller.mappers.real_estate_mapper import map_real_estate
 
 
 async def update_real_estate(update_real_estate_uc: UpdateRealEstate):
     try:
         file_upload = None
-        if request.content_type and "multipart/form-data" in request.content_type:
-            if "data" not in request.form:
+        content_type = request.content_type
+        if content_type and "multipart/form-data" in content_type:
+            form = await request.form
+            if "data" not in form:
                 return jsonify(
                     {
                         "code": "INVALID_REQUEST",
@@ -22,7 +24,7 @@ async def update_real_estate(update_real_estate_uc: UpdateRealEstate):
                 ), 400
 
             try:
-                body = json.loads(request.form["data"])
+                body = json.loads(form["data"])
             except json.JSONDecodeError as e:
                 return jsonify(
                     {
@@ -31,7 +33,7 @@ async def update_real_estate(update_real_estate_uc: UpdateRealEstate):
                     }
                 ), 400
 
-            uploaded_file = request.files.get("photo")
+            uploaded_file = (await request.files).get("photo")
             if uploaded_file:
                 file_upload = FileUpload(
                     uploaded_file.filename,
@@ -41,7 +43,7 @@ async def update_real_estate(update_real_estate_uc: UpdateRealEstate):
                 )
         else:
             # Handle regular JSON request for backward compatibility
-            body = request.json
+            body = await request.get_json()
 
         if not body.get("id"):
             return jsonify(

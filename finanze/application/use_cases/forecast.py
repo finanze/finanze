@@ -194,19 +194,21 @@ class ForecastImpl(Forecast):
         return 0
 
     # ---------- Cash delta from pending and periodic flows ----------
-    def _linked_real_estate_periodic_ids(self) -> set:
+    async def _linked_real_estate_periodic_ids(self) -> set:
         ids: set = set()
-        for re in self._real_estate_port.get_all():
+        all_re = await self._real_estate_port.get_all()
+        for re in all_re:
             for f in re.flows:
                 if f.periodic_flow_id is not None:
                     ids.add(f.periodic_flow_id)
         return ids
 
-    def _build_cash_delta_from_flows(self, target: date) -> Dict[str, Dezimal]:
+    async def _build_cash_delta_from_flows(self, target: date) -> Dict[str, Dezimal]:
         today = date.today()
         cash_delta: Dict[str, Dezimal] = {}
         # Pending flows
-        for pf in self._pending_flow_port.get_all():
+        pending_flows = await self._pending_flow_port.get_all()
+        for pf in pending_flows:
             if not pf.enabled:
                 continue
             when = pf.date or today
@@ -221,10 +223,12 @@ class ForecastImpl(Forecast):
                 cash_delta.get(pf.currency, Dezimal(0)) + sign * pf.amount
             )
         # Periodic flows (exclude linked flows)
-        for flow in self._periodic_flow_port.get_all():
+        linked_ids = await self._linked_real_estate_periodic_ids()
+        periodic_flows = await self._periodic_flow_port.get_all()
+        for flow in periodic_flows:
             if not flow.enabled:
                 continue
-            if getattr(flow, "linked", False):
+            if flow.id in linked_ids:
                 continue
             count = self._count_periodic_occurrences(
                 flow.since, flow.frequency, flow.until, target
@@ -262,7 +266,7 @@ class ForecastImpl(Forecast):
         # MONTHLY and others default to identity
         return amount
 
-    def _add_real_estate_cash_delta(
+    async def _add_real_estate_cash_delta(
         self, target: date, cash_delta: Dict[str, Dezimal]
     ) -> None:
         today = date.today()
@@ -274,7 +278,7 @@ class ForecastImpl(Forecast):
         )
         if steps <= 0:
             return
-        real_estates: list[RealEstate] = self._real_estate_port.get_all()
+        real_estates: list[RealEstate] = await self._real_estate_port.get_all()
         for re in real_estates:
             currency = re.currency
             # Totals based on occurrences until target (income/costs/loan payments)
@@ -400,14 +404,14 @@ class ForecastImpl(Forecast):
                 cash_delta[currency] = cash_delta.get(currency, Dezimal(0)) + net_cash
 
     # ---------- Contributions ----------
-    def _apply_auto_contributions(
+    async def _apply_auto_contributions(
         self,
         target: date,
         forecast_positions: Dict[str, GlobalPosition],
         excluded_entities: Optional[list[UUID]],
         cash_delta: Dict[str, Dezimal],
     ) -> None:
-        contrib_map = self._auto_contributions_port.get_all_grouped_by_entity(
+        contrib_map = await self._auto_contributions_port.get_all_grouped_by_entity(
             ContributionQueryRequest(excluded_entities=excluded_entities)
         )
         for entity, contribs in contrib_map.items():
@@ -814,11 +818,11 @@ class ForecastImpl(Forecast):
             currency=re.currency,
         )
 
-    def _forecast_real_estate_equity(
+    async def _forecast_real_estate_equity(
         self, target: date
     ) -> list[RealEstateEquityForecast]:
         today = date.today()
-        real_estate: list[RealEstate] = self._real_estate_port.get_all()
+        real_estate: list[RealEstate] = await self._real_estate_port.get_all()
         months_delta = relativedelta(target, today)
         months = (
             months_delta.years * 12
@@ -899,7 +903,7 @@ class ForecastImpl(Forecast):
             for f in fund_inv.entries:
                 f.market_value = f.market_value * factor
 
-    def _simulate_monthly_revaluation_and_contributions(
+    async def _simulate_monthly_revaluation_and_contributions(
         self,
         forecast_positions: Dict[str, GlobalPosition],
         target: date,
@@ -909,7 +913,7 @@ class ForecastImpl(Forecast):
     ) -> None:
         monthly_rate = avg_increase / Dezimal(12)
         # Build contributions map once
-        contrib_map = self._auto_contributions_port.get_all_grouped_by_entity(
+        contrib_map = await self._auto_contributions_port.get_all_grouped_by_entity(
             ContributionQueryRequest(excluded_entities=excluded_entities)
         )
         # Precompute occurrences per entity
@@ -985,45 +989,47 @@ class ForecastImpl(Forecast):
                 p.market_value = mv
 
     # ---------- Core execute ----------
-    def execute(self, request: ForecastRequest) -> ForecastResult:
+    async def execute(self, request: ForecastRequest) -> ForecastResult:
         target = request.target_date
         today = date.today()
         if target <= today:
             raise ValueError("target_date must be in the future")
 
-        positions_by_entity = self._position_port.get_last_grouped_by_entity()
+        positions_by_entity = await self._position_port.get_last_grouped_by_entity()
         forecast_positions: Dict[str, GlobalPosition] = {}
         for entity, position in positions_by_entity.items():
             forecast_positions[str(entity.id)] = deepcopy(position)
 
         # Cash delta (exclude linked periodic flows)
-        cash_delta: Dict[str, Dezimal] = self._build_cash_delta_from_flows(target)
+        cash_delta: Dict[str, Dezimal] = await self._build_cash_delta_from_flows(target)
         # Add real estate net cash (including taxes)
-        self._add_real_estate_cash_delta(target, cash_delta)
+        await self._add_real_estate_cash_delta(target, cash_delta)
 
         # Contributions + revaluation path
-        excluded_entities = [e.id for e in self._entity_port.get_disabled_entities()]
+        disabled_entities = [
+            e.id for e in await self._entity_port.get_disabled_entities()
+        ]
         if (
             request.avg_annual_market_increase is not None
             and request.avg_annual_market_increase > Dezimal(0)
         ):
-            self._simulate_monthly_revaluation_and_contributions(
+            await self._simulate_monthly_revaluation_and_contributions(
                 forecast_positions,
                 target,
                 request.avg_annual_market_increase,
                 cash_delta,
-                excluded_entities,
+                disabled_entities,
             )
         else:
-            self._apply_auto_contributions(
-                target, forecast_positions, excluded_entities, cash_delta
+            await self._apply_auto_contributions(
+                target, forecast_positions, disabled_entities, cash_delta
             )
 
         # Liquidate matured investments
         self._liquidate_maturing_investments(forecast_positions, target, cash_delta)
 
         # Real estate equity forecast
-        re_equity = self._forecast_real_estate_equity(target)
+        re_equity = await self._forecast_real_estate_equity(target)
 
         # Keep portfolio totals in sync
         for gp in forecast_positions.values():

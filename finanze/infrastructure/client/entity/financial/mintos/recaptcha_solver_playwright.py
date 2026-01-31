@@ -2,10 +2,11 @@ import logging
 import os
 import random
 
-import aiohttp
 import speech_recognition as sr
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 from pydub import AudioSegment
+
+from infrastructure.client.http.http_session import get_http_session
 
 
 class RecaptchaSolver:
@@ -109,8 +110,9 @@ class RecaptchaSolver:
             return False
 
     async def download_audio(self, url, path):
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                with open(path, "wb") as f:
-                    f.write(await response.read())
+        session = get_http_session()
+        response = await session.get(url)
+        data = await response.read()
+        with open(path, "wb") as f:
+            f.write(data)
         self._log.debug("Downloaded audio asynchronously.")

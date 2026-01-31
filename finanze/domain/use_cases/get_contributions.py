@@ -5,5 +5,5 @@ from domain.auto_contributions import EntityContributions, ContributionQueryRequ
 
 class GetContributions(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def execute(self, query: ContributionQueryRequest) -> EntityContributions:
+    async def execute(self, query: ContributionQueryRequest) -> EntityContributions:
         pass

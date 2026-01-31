@@ -1,9 +1,12 @@
 import logging
 from typing import Optional
 
-import requests
+import httpx
+
+from aiocache import Cache
+from aiocache.serializers import PickleSerializer
+
 from application.ports.connectable_integration import ConnectableIntegration
-from cachetools import TTLCache
 from domain.exception.exceptions import (
     AddressNotFound,
     IntegrationSetupError,
@@ -14,6 +17,8 @@ from domain.external_integration import (
     ExternalIntegrationPayload,
 )
 from infrastructure.client.http.backoff import http_get_with_backoff
+from infrastructure.client.http.http_session import get_http_session
+from infrastructure.client.http.http_response import HttpResponse
 
 
 class EtherscanClient(ConnectableIntegration):
@@ -26,17 +31,18 @@ class EtherscanClient(ConnectableIntegration):
 
     def __init__(self):
         self._log = logging.getLogger(__name__)
-        self._cache = TTLCache(maxsize=50, ttl=self.TTL)
+        self._cache = Cache(Cache.MEMORY, serializer=PickleSerializer())
+        self._session = get_http_session()
 
-    def setup(self, credentials: ExternalIntegrationPayload):
-        self.fetch(
+    async def setup(self, credentials: ExternalIntegrationPayload):
+        await self.fetch(
             chain_id=1,
             module="stats",
             action="ethprice",
             credentials=credentials,
         )
 
-    def fetch(
+    async def fetch(
         self,
         chain_id: int,
         module: str,
@@ -61,19 +67,20 @@ class EtherscanClient(ConnectableIntegration):
         if end_block:
             params = f"{params}&endblock={end_block}"
 
-        cached_value = self._cache.get(params)
+        cached_value = await self._cache.get(params)
         if cached_value is not None:
             return cached_value
-        result = self._fetch_uncached(params)
-        self._cache[params] = result
+
+        result = await self._fetch_uncached(params)
+        await self._cache.set(params, result, ttl=self.TTL)
         return result
 
-    def _fetch_uncached(self, path: str):
+    async def _fetch_uncached(self, path: str):
         url = self.BASE_URL + path
 
-        def _should_retry(resp: requests.Response, attempt: int) -> bool:
+        async def _should_retry(resp: HttpResponse, attempt: int) -> bool:
             try:
-                data = resp.json()
+                data = await resp.json()
             except ValueError:
                 return False
             status = data.get("status")
@@ -85,7 +92,7 @@ class EtherscanClient(ConnectableIntegration):
             return False
 
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 cooldown=self.COOLDOWN,
                 max_retries=self.MAX_RETRIES,
@@ -94,19 +101,18 @@ class EtherscanClient(ConnectableIntegration):
                 log=self._log,
                 should_retry=_should_retry,
             )
-        except requests.RequestException as e:
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(f"Request error calling Etherscan endpoint {url}: {e}")
             raise
 
         if not response.ok:
-            if response.status_code == 429:
+            if response.status == 429:
                 raise TooManyRequests()
-            self._log.error(
-                f"Error fetching from Etherscan: {response.status_code} {response.text}"
-            )
+            body = await response.text()
+            self._log.error(f"Error fetching from Etherscan: {response.status} {body}")
             response.raise_for_status()
 
-        data = response.json()
+        data = await response.json()
         status = data.get("status")
         result = data.get("result")
         msg = data.get("message", "")
@@ -119,11 +125,11 @@ class EtherscanClient(ConnectableIntegration):
                 raise TooManyRequests()
             if "No transactions found" in msg:
                 raise AddressNotFound()
-            if "timeout" in msg.lower():
+            if "timeout" in str(msg).lower():
                 raise ValueError("Request timed out")
 
             self._log.error(
-                f"Error fetching from Etherscan: {response.status_code} {response.text}"
+                f"Error fetching from Etherscan: {response.status} {await response.text()}"
             )
             raise ValueError(result or msg)
 

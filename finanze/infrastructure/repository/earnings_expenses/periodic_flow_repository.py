@@ -30,12 +30,12 @@ class PeriodicFlowRepository(PeriodicFlowPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def save(self, flow: PeriodicFlow) -> PeriodicFlow:
+    async def save(self, flow: PeriodicFlow) -> PeriodicFlow:
         if flow.id is None:
             flow.id = uuid4()
 
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 PeriodicFlowsQueries.INSERT,
                 (
                     str(flow.id),
@@ -54,9 +54,9 @@ class PeriodicFlowRepository(PeriodicFlowPort):
             )
         return flow
 
-    def update(self, flow: PeriodicFlow):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def update(self, flow: PeriodicFlow):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 PeriodicFlowsQueries.UPDATE,
                 (
                     flow.name,
@@ -74,22 +74,22 @@ class PeriodicFlowRepository(PeriodicFlowPort):
                 ),
             )
 
-    def delete(self, flow_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(PeriodicFlowsQueries.DELETE_BY_ID, (str(flow_id),))
+    async def delete(self, flow_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(PeriodicFlowsQueries.DELETE_BY_ID, (str(flow_id),))
 
-    def get_all(self) -> list[PeriodicFlow]:
-        with self._db_client.read() as cursor:
-            cursor.execute(PeriodicFlowsQueries.GET_ALL)
-            return [_map_row_to_periodic_flow(row) for row in cursor.fetchall()]
+    async def get_all(self) -> list[PeriodicFlow]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(PeriodicFlowsQueries.GET_ALL)
+            return [_map_row_to_periodic_flow(row) for row in await cursor.fetchall()]
 
-    def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
-        with self._db_client.read() as cursor:
-            cursor.execute(
+    async def get_by_id(self, flow_id: UUID) -> Optional[PeriodicFlow]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
                 PeriodicFlowsQueries.GET_BY_ID,
                 (str(flow_id),),
             )
-            row = cursor.fetchone()
+            row = await cursor.fetchone()
             if row is None:
                 return None
 
