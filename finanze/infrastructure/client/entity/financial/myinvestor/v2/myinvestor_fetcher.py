@@ -215,6 +215,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             username,
             password,
             login_options=login_params.options,
+            session=login_params.session,
             process_id=process_id,
             code=code,
         )

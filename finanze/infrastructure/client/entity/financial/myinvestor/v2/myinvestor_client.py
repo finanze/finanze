@@ -1,14 +1,21 @@
 import logging
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
+from uuid import uuid4
 
 import httpx
 from aiocache import cached, Cache
 from dateutil.relativedelta import relativedelta
-from domain.entity_login import EntityLoginResult, LoginOptions, LoginResultCode
+from dateutil.tz import tzlocal
 
-from infrastructure.client.http.http_session import get_http_session
+from domain.entity_login import (
+    EntityLoginResult,
+    LoginOptions,
+    LoginResultCode,
+    EntitySession,
+)
 from infrastructure.client.http.http_response import HttpResponse
+from infrastructure.client.http.http_session import get_http_session
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -68,10 +75,11 @@ class MyInvestorAPIV2Client:
         username: str,
         password: str,
         login_options: LoginOptions,
+        session: Optional[EntitySession],
         process_id: str = None,
         code: str = None,
     ) -> EntityLoginResult:
-        self._headers = dict()
+        self._headers = {}
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
         self._headers["x-origin-b2b"] = self.BASE_URL
@@ -80,11 +88,13 @@ class MyInvestorAPIV2Client:
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
 
+        device_id = session.payload.get("device_id") if session else str(uuid4())
+
         request = {
             "customerId": username,
             "accessType": "USERNAME",
             "password": password,
-            "deviceId": "c768ee05-6abf-48aa-a7f2-dbc601da265f",
+            "deviceId": device_id,
             "platform": "BROWSER",
         }
 
@@ -105,17 +115,7 @@ class MyInvestorAPIV2Client:
             )
 
             if response.ok:
-                try:
-                    token = (await response.json())["payload"]["data"]["accessToken"]
-                except KeyError:
-                    return EntityLoginResult(
-                        LoginResultCode.UNEXPECTED_ERROR,
-                        message="Token not found in response",
-                    )
-
-                self._headers["Authorization"] = "Bearer " + token
-
-                return EntityLoginResult(LoginResultCode.CREATED)
+                return await self._handle_ok_login(response, device_id)
 
             elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
@@ -153,19 +153,7 @@ class MyInvestorAPIV2Client:
                         )
 
                 else:
-                    try:
-                        token = (await response.json())["payload"]["data"][
-                            "accessToken"
-                        ]
-                    except KeyError:
-                        return EntityLoginResult(
-                            LoginResultCode.UNEXPECTED_ERROR,
-                            message="Token not found in response",
-                        )
-
-                    self._headers["Authorization"] = "Bearer " + token
-
-                    return EntityLoginResult(LoginResultCode.CREATED)
+                    return await self._handle_ok_login(response, device_id)
 
             elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
@@ -177,6 +165,51 @@ class MyInvestorAPIV2Client:
 
         else:
             raise ValueError("Invalid params")
+
+    @staticmethod
+    def _create_session(token_data: dict, device_id: str) -> EntitySession:
+        access_token = token_data["accessToken"]
+        refresh_token = token_data["refreshToken"]
+        refresh_ttl = token_data["refreshExpiresIn"]
+        payload = {
+            "device_id": device_id,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+        }
+        refresh_token_expiration = datetime.now(tzlocal()) + relativedelta(
+            seconds=refresh_ttl
+        )
+        return EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=refresh_token_expiration,
+            payload=payload,
+        )
+
+    async def _handle_ok_login(self, response: HttpResponse, device_id: str):
+        try:
+            body = await response.json()
+            token_data = body.get("payload", {}).get("data", {})
+            access_token = token_data["accessToken"]
+        except KeyError:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message="Token not found in response",
+            )
+
+        self._headers["Authorization"] = f"Bearer {access_token}"
+
+        session = self._create_session(token_data, device_id)
+
+        return EntityLoginResult(LoginResultCode.CREATED, session=session)
+
+    async def refresh_token(self, refresh_token: str) -> HttpResponse:
+        # Returns same as login with 201 status code
+        return await self._post_request(
+            "/login/api/v1/auth/token/refresh",
+            body={"refreshToken": refresh_token},
+            raw=True,
+            base_url=self.LOGIN_URL,
+        )
 
     async def check_maintenance(self):
         resp = await self._session.get("https://cms.myinvestor.es/api/maintenances")
