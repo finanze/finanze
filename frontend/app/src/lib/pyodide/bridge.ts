@@ -1,6 +1,7 @@
 import { sqliteBridge } from "./bridges/sqliteBridge"
 import { preferencesBridge } from "./bridges/preferencesBridge"
 import { filesystemBridge } from "./bridges/filesystemBridge"
+import { yahooFinanceBridge } from "./bridges/yahooFinanceBridge"
 import { isPyodideReady } from "./runtime"
 import { appConsole } from "../capacitor/appConsole"
 
@@ -13,6 +14,9 @@ export const jsBridge = {
   },
   filesystem: {
     ...filesystemBridge,
+  },
+  yahooFinance: {
+    ...yahooFinanceBridge,
   },
 }
 

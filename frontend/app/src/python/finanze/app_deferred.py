@@ -89,6 +89,9 @@ class DeferredComponents:
         from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
             UrbanitaeFetcher,
         )
+        from infrastructure.client.entity.financial.unicaja.unicaja_fetcher import (
+            UnicajaFetcher,
+        )
         from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
             WecityFetcher,
         )
@@ -312,6 +315,7 @@ class DeferredComponents:
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
+            domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
         }
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: etherscan_client,
@@ -355,7 +359,7 @@ class DeferredComponents:
         )
         metal_client = MetalPriceClient()
         inst_provider = InstrumentProviderAdapter(
-            enabled_clients=["ft", "finect", "tv", "ee"]
+            enabled_clients=["ft", "yf", "finect", "tv", "ee"]
         )
 
         tx_handler = TransactionHandler(client=db_client)

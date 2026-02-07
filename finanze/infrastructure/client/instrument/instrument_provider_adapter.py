@@ -18,7 +18,7 @@ MAX_INSTRUMENTS_RETURNED = 15
 class InstrumentProviderAdapter(InstrumentInfoProvider):
     def __init__(self, enabled_clients: Optional[list[str]] = None):
         if enabled_clients is None:
-            enabled_clients = ["ft", "yf", "finect", "tv", "ee"]
+            enabled_clients = ["ft", "yf", "finect", "tv", "ee", "je"]
 
         self._clients_enabled = {name.lower() for name in enabled_clients}
         self._log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
         self._finect = None
         self._tv = None
         self._ee = None
+        self._je = None
 
         if "ft" in self._clients_enabled:
             from infrastructure.client.instrument.ft_client import FtClient
@@ -55,6 +56,11 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
             from infrastructure.client.instrument.extraetf_client import ExtraEtfClient
 
             self._ee = ExtraEtfClient()
+
+        if "je" in self._clients_enabled:
+            from infrastructure.client.instrument.jetf_client import JustEtfClient
+
+            self._je = JustEtfClient()
 
     async def lookup(self, request: InstrumentDataRequest) -> list[InstrumentOverview]:
         query = request.isin or request.ticker or request.name
@@ -89,7 +95,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
                 )
 
         if self._yf is not None:
-            return self._yf.lookup(request)
+            return await self._yf.lookup(request)
 
         return []
 
@@ -121,14 +127,14 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
                 )
 
         if self._yf is not None:
-            return self._yf.lookup(request)
+            return await self._yf.lookup(request)
 
         return []
 
     async def get_info(
         self, request: InstrumentDataRequest
     ) -> Optional[InstrumentInfo]:
-        query = request.ticker or request.isin or request.name
+        query = request.isin or request.ticker or request.name
         if not query:
             return None
 
@@ -136,7 +142,7 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
             if request.type != InstrumentType.STOCK:
                 info = await self._get_instrument_info(query, request.type)
             elif self._yf is not None:
-                info = self._yf.get_instrument_info(query, request.type)
+                info = await self._yf.get_instrument_info(query, request.type)
             else:
                 return None
         except Exception:
@@ -168,8 +174,32 @@ class InstrumentProviderAdapter(InstrumentInfoProvider):
                 )
 
         if self._yf is not None:
-            return self._yf.get_instrument_info(query, instrument_type)
+            try:
+                return await self._yf.get_instrument_info(query, instrument_type)
+            except Exception:
+                if instrument_type == InstrumentType.ETF:
+                    self._log.exception(
+                        "YFinanceClient get_instrument_info failed for ETF, falling back to ExtraEtfClient"
+                    )
+                else:
+                    raise
 
+        if self._je is not None:
+            try:
+                res = await self._je.get_instrument_info(query, instrument_type)
+                if res.price is not None:
+                    return res
+                else:
+                    self._log.warning(
+                        "JustEtfClient returned info with no price, falling back to YFinanceClient"
+                    )
+            except Exception:
+                self._log.exception(
+                    "JustEtfClient get_instrument_info failed, returning None"
+                )
+
+        if self._ee is not None:
+            return await self._ee.get_instrument_info(query, instrument_type)
         return None
 
     @staticmethod

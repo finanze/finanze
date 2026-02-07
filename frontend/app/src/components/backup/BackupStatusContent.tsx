@@ -153,10 +153,6 @@ export function BackupStatusContent({
     },
   ]
 
-  const ALL_BACKUP_TYPES: BackupFileType[] = Object.values(
-    BackupFileType,
-  ) as BackupFileType[]
-
   return (
     <div className={cn("flex flex-col gap-3", className)}>
       {showModeSelector && (
@@ -319,39 +315,6 @@ export function BackupStatusContent({
               )}
               {t.settings.backup.syncNow}
             </Button>
-          )}
-
-          {!isManualMode && !isConflict && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                disabled={baseActionsDisabled || !backups || !canCreateBackup}
-                onClick={() => handleUpload(ALL_BACKUP_TYPES)}
-              >
-                {isUploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <ArrowUpFromLine className="h-4 w-4 mr-2" />
-                )}
-                {t.settings.backup.upload}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                disabled={baseActionsDisabled || !backups || !canImportBackup}
-                onClick={() => handleImport(ALL_BACKUP_TYPES)}
-              >
-                {isImporting ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <ArrowDownToLine className="h-4 w-4 mr-2" />
-                )}
-                {t.settings.backup.download}
-              </Button>
-            </div>
           )}
         </>
       )}

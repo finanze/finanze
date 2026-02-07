@@ -456,7 +456,14 @@ function registerWorkerBridge(): void {
       requestMain("jsBridge.filesystem.isImageFile", args),
   }
 
-  ;(self as any).jsBridge = { sqlite, preferences, filesystem }
+  const yahooFinance = {
+    lookup: (...args: any[]) =>
+      requestMain("jsBridge.yahooFinance.lookup", args),
+    getInstrumentInfo: (...args: any[]) =>
+      requestMain("jsBridge.yahooFinance.getInstrumentInfo", args),
+  }
+
+  ;(self as any).jsBridge = { sqlite, preferences, filesystem, yahooFinance }
   ;(self as any).FileTransfer = createMainProxy("FileTransfer")
   ;(self as any).BackupProcessor = createMainProxy("BackupProcessor")
   ;(self as any).NativeCookies = createMainProxy("NativeCookies")

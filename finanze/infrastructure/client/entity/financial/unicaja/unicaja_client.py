@@ -6,7 +6,6 @@ from typing import Optional
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from dateutil.relativedelta import relativedelta
-from httpx_curl_cffi import AsyncCurlTransport
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
 from infrastructure.client.http.http_response import HttpResponse
@@ -48,13 +47,31 @@ def _encrypt_password(key: str, password: str) -> str:
     raise ValueError("Unsupported key length for encryption")
 
 
+def _create_mobile_client():
+    return new_http_session()
+
+
+def _create_desktop_client():
+    from httpx_curl_cffi import AsyncCurlTransport
+
+    return new_http_session(transport=AsyncCurlTransport(impersonate="firefox135"))
+
+
+def _create_client(mobile: bool):
+    if mobile:
+        return _create_mobile_client()
+    else:
+        return _create_desktop_client()
+
+
 class UnicajaClient:
     BASE_URL = "https://univia.unicajabanco.es"
     AUTH_PATH = "/services/rest/autenticacion"
 
-    def __init__(self):
+    def __init__(self, use_mobile_client: bool = False):
         self._log = logging.getLogger(__name__)
         self._session = None
+        self._use_mobile_client = use_mobile_client
 
     def _set_abck_cookie(self, abck: str) -> None:
         jar = self._session.cookies.jar
@@ -76,9 +93,7 @@ class UnicajaClient:
                 message="abck is required for automated login, but it was not provided",
             )
 
-        self._session = new_http_session(
-            transport=AsyncCurlTransport(impersonate="firefox135")
-        )
+        self._session = _create_client(self._use_mobile_client)
 
         ck = await self._ck()
 

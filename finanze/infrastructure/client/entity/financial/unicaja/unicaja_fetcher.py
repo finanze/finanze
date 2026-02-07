@@ -41,8 +41,8 @@ CONTRIBUTION_FREQUENCY = {
 
 
 class UnicajaFetcher(FinancialEntityFetcher):
-    def __init__(self):
-        self._client = UnicajaClient()
+    def __init__(self, use_mobile_client: bool = False):
+        self._client = UnicajaClient(use_mobile_client=use_mobile_client)
 
         self._log = logging.getLogger(__name__)
 
@@ -274,9 +274,11 @@ class UnicajaFetcher(FinancialEntityFetcher):
                     amount=amount,
                     currency=currency,
                     since=datetime.strptime(sub["fechaAlta"], "%Y-%m-%d").date(),
-                    until=datetime.strptime(sub["fechaLimite"], "%Y-%m-%d").date()
-                    if sub.get("fechaLimite")
-                    else None,
+                    until=(
+                        datetime.strptime(sub["fechaLimite"], "%Y-%m-%d").date()
+                        if sub.get("fechaLimite")
+                        else None
+                    ),
                     frequency=frequency,
                     active=active,
                     source=DataSource.REAL,

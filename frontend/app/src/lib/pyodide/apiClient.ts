@@ -6,10 +6,18 @@ import { ensureInitialized, withApiPrefix } from "@/lib/pyodide/init"
 import { jsBridge } from "@/lib/pyodide/bridge"
 
 function logInfo(message: string, data?: any) {
+  if (data === undefined) {
+    appConsole.info(`[PyodideApiClient] ${message}`)
+    return
+  }
   appConsole.info(`[PyodideApiClient] ${message}`, data)
 }
 
 function logDebug(message: string, data?: any) {
+  if (data === undefined) {
+    appConsole.debug(`[PyodideApiClient] ${message}`)
+    return
+  }
   appConsole.debug(`[PyodideApiClient] ${message}`, data)
 }
 

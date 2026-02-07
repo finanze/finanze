@@ -709,8 +709,7 @@ const formatInstrumentPriceLabel = (entry: InstrumentInfo, locale: string) => {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   })
-  const currency = entry.currency?.toUpperCase()
-  return currency ? `${currency} ${formatted}` : formatted
+  return formatted
 }
 
 const buildInstrumentResultKey = (entry: InstrumentInfo, index: number) => {

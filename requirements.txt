@@ -11,7 +11,7 @@ strictyaml==1.7.3
 pydantic==2.12.5
 requests_toolbelt==1.0.0
 tzlocal==5.3.1
-bs4==0.0.2
+beautifulsoup4==4.14.3
 aiocache==0.12.3
 sqlcipher3-wheels==0.5.7
 httpx-curl-cffi==0.1.5

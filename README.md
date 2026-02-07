@@ -189,9 +189,10 @@ Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
 ## Development
 
-### Setup
+This project requires `Python 3.13` or ` 3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses `3.13`.
+For the frontend use `pnpm`, and node 24.
 
-This project requires `Python 3.14`.
+### Setup
 
 1. Clone the repository:
 
@@ -208,9 +209,32 @@ This project requires `Python 3.14`.
     ```
 
 3. Install the required dependencies:
+
     ```sh
-    pip install -r requirements.txt
+    pip install -r requirements.txt -r requirements-dev.txt -r requirements-lint.txt -r requirements-packaging.txt
     pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA
+    pre-commit install
+    ```
+   
+4. Setup frontend:
+
+    ```sh
+    cd frontend/app
+    pnpm install
+    pnpm install:pyodide # For mobile app initial setup, it will download Pyodide and all required Python dependencies for mobile backend
+    ```
+   
+5. Run it
+
+    ```sh
+    python ./finanze/finanze --port 7592 --data-dir .storage --log-dir .storage/logs --log-level DEBUG --third-party-log-level DEBUG
+   
+    cd frontend/app
+    pnpm dev          # For electron desktop app
+    pnpm dev:mobile   # For mobile app (web feature limited, but useful for basic development and testing)
+    pnpm cap:ios      # For iOS development (requires Xcode and Mac)
+    pnpm cap:android  # For Android development (requires Android Studio and related SDKs
+    pnpm cap:sync     # To sync changes to native projects after frontend development
     ```
 
 ### How configuration works?
