@@ -39,7 +39,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
 
         self._log = Logger(__name__)
 
-    def execute(
+    async def execute(
         self, request: ConnectCryptoWalletRequest
     ) -> CryptoWalletConnectionResult:
         entity_id = request.entity_id
@@ -48,8 +48,10 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
         if not entity:
             raise EntityNotFound(entity_id)
 
-        enabled_integrations = self._external_integration_port.get_payloads_by_type(
-            ExternalIntegrationType.CRYPTO_PROVIDER
+        enabled_integrations = (
+            await self._external_integration_port.get_payloads_by_type(
+                ExternalIntegrationType.CRYPTO_PROVIDER
+            )
         )
 
         failed_addresses = {}
@@ -60,7 +62,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
 
         for address in request.addresses:
             existing_wallet = (
-                self._crypto_wallet_connections_port.get_by_entity_and_address(
+                await self._crypto_wallet_connections_port.get_by_entity_and_address(
                     entity_id, address
                 )
             )
@@ -71,7 +73,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
                 continue
 
             try:
-                specific_fetcher.fetch(
+                await specific_fetcher.fetch(
                     CryptoFetchRequest(
                         address=address, integrations=enabled_integrations
                     )
@@ -88,7 +90,7 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
                     address=address,
                     name=wallet_name,
                 )
-                self._crypto_wallet_connections_port.insert(wallet)
+                await self._crypto_wallet_connections_port.insert(wallet)
 
                 name_counter += 1
 

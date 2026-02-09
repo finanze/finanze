@@ -1,11 +1,11 @@
-from flask import request, jsonify
+from quart import request, jsonify
 
 from domain.cloud_auth import CloudAuthRequest, CloudAuthToken
 from domain.use_cases.handle_cloud_auth import HandleCloudAuth
 
 
-def handle_cloud_auth(handle_cloud_auth_uc: HandleCloudAuth):
-    body = request.get_json()
+async def handle_cloud_auth(handle_cloud_auth_uc: HandleCloudAuth):
+    body = await request.get_json()
 
     token = None
     token_data = body.get("token")
@@ -21,7 +21,7 @@ def handle_cloud_auth(handle_cloud_auth_uc: HandleCloudAuth):
         token=token,
     )
 
-    result = handle_cloud_auth_uc.execute(auth_request)
+    result = await handle_cloud_auth_uc.execute(auth_request)
 
     return jsonify(
         {

@@ -36,15 +36,15 @@ class EthereumFetcher(CryptoEntityFetcher):
         )
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
         if ExternalIntegrationId.ETHPLORER in request.integrations:
-            return self._ethplorer_fetcher.fetch(request)
+            return await self._ethplorer_fetcher.fetch(request)
         elif ExternalIntegrationId.ETHERSCAN in request.integrations:
             try:
-                return self._etherscan_fetcher.fetch(request)
+                return await self._etherscan_fetcher.fetch(request)
             except Exception as e:
                 self._log.warning(
-                    f"Etherscan fetch failed for address {request.address}: {e}. Falling back to Ethplorer."
+                    f"Etherscan fetch failed for address {request.address}: {e or type(e).__name__}. Falling back to Ethplorer."
                 )
 
-        return self._ethplorer_fetcher.fetch(request)
+        return await self._ethplorer_fetcher.fetch(request)

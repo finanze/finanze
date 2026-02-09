@@ -1,10 +1,10 @@
-from flask import jsonify
+from quart import jsonify
 
 from domain.use_cases.get_status import GetStatus
 
 
-def status(get_status_uc: GetStatus):
-    result = get_status_uc.execute()
+async def status(get_status_uc: GetStatus):
+    result = await get_status_uc.execute()
 
     user = None
     if result.user:
@@ -18,6 +18,7 @@ def status(get_status_uc: GetStatus):
         "status": result.status.value,
         "server": {
             "version": result.server.version,
+            "platform_type": result.server.platform_type,
             "options": {
                 "dataDir": result.server.options.data_dir,
                 "port": result.server.options.port,

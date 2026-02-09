@@ -7,5 +7,5 @@ class UpdatePeriodicFlowImpl(UpdatePeriodicFlow):
     def __init__(self, periodic_flow_port: PeriodicFlowPort):
         self._periodic_flow_port = periodic_flow_port
 
-    def execute(self, flow: PeriodicFlow):
-        self._periodic_flow_port.update(flow)
+    async def execute(self, flow: PeriodicFlow):
+        await self._periodic_flow_port.update(flow)

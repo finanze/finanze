@@ -7,5 +7,5 @@ class GetPendingFlowsImpl(GetPendingFlows):
     def __init__(self, pending_flow_port: PendingFlowPort):
         self._pending_flow_port = pending_flow_port
 
-    def execute(self) -> list[PendingFlow]:
-        return self._pending_flow_port.get_all()
+    async def execute(self) -> list[PendingFlow]:
+        return await self._pending_flow_port.get_all()

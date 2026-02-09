@@ -132,13 +132,13 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     index[entry_id] = entry
         return index
 
-    def _prepare_relationship_mappings(
+    async def _prepare_relationship_mappings(
         self,
         entity: Entity,
         base_position: GlobalPosition,
         request: UpdatePositionRequest,
     ) -> tuple[dict, dict]:
-        ctx = self._build_relationship_context(entity, base_position, request)
+        ctx = await self._build_relationship_context(entity, base_position, request)
 
         new_account_id_map: dict = {}
         new_portfolio_id_map: dict = {}
@@ -167,7 +167,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         validation_accounts: dict
         validation_portfolios: dict
 
-    def _build_relationship_context(
+    async def _build_relationship_context(
         self,
         entity: Entity,
         base_position: GlobalPosition,
@@ -178,8 +178,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         funds_container = request.products.get(ProductType.FUND)
         cards_container = request.products.get(ProductType.CARD)
 
-        real_position = self._position_port.get_last_grouped_by_entity(
-            PositionQueryRequest(entities=[entity.id], real=True)
+        real_position = (
+            await self._position_port.get_last_grouped_by_entity(
+                PositionQueryRequest(entities=[entity.id], real=True)
+            )
         ).get(entity)
 
         real_account_ids, real_portfolio_ids = self._collect_real_relationship_ids(
@@ -488,7 +490,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
         return entries
 
-    def _process_crypto_assets_in_position(self, position: GlobalPosition):
+    async def _process_crypto_assets_in_position(self, position: GlobalPosition):
         crypto_container = position.products.get(ProductType.CRYPTO)
         if not (crypto_container and hasattr(crypto_container, "entries")):
             return
@@ -496,7 +498,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             if not hasattr(crypto_wallet, "assets"):
                 continue
             for asset in crypto_wallet.assets:
-                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                asset_details = await self._crypto_asset_registry_port.get_by_symbol(
                     asset.symbol
                 )
                 if asset_details is None:
@@ -509,7 +511,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                         )
                         continue
                     asset_extended_details = (
-                        self._crypto_asset_info_provider.get_asset_details(
+                        await self._crypto_asset_info_provider.get_asset_details(
                             provider_id=provider_id,
                             currencies=SUPPORTED_CURRENCIES,
                             provider=provider,
@@ -522,13 +524,13 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                         icon_urls=[asset_extended_details.icon_url],
                         external_ids=asset.crypto_asset.external_ids,
                     )
-                    self._crypto_asset_registry_port.save(asset_details)
+                    await self._crypto_asset_registry_port.save(asset_details)
 
                 asset.crypto_asset = asset_details
 
     async def execute(self, request: UpdatePositionRequest):
         if request.entity_id:
-            entity = self._entity_port.get_by_id(request.entity_id)
+            entity = await self._entity_port.get_by_id(request.entity_id)
             if entity is None:
                 raise EntityNotFound(request.entity_id)
 
@@ -536,7 +538,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             name = request.new_entity_name.strip()
             if not name:
                 raise MissingFieldsError(["new_entity_name"])
-            existing = self._entity_port.get_by_name(name)
+            existing = await self._entity_port.get_by_name(name)
             if existing:
                 raise EntityNameAlreadyExists(name)
 
@@ -560,14 +562,16 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 origin=EntityOrigin.MANUAL,
                 icon_url=entity_icon_url,
             )
-            self._entity_port.insert(entity)
+            await self._entity_port.insert(entity)
         else:
             raise MissingFieldsError(["entity_id", "new_entity_name"])
 
         req_entity_id = entity.id
         now = datetime.now(tzlocal())
-        last_manual_imports = self._virtual_import_registry.get_last_import_records(
-            source=VirtualDataSource.MANUAL
+        last_manual_imports = (
+            await self._virtual_import_registry.get_last_import_records(
+                source=VirtualDataSource.MANUAL
+            )
         )
 
         prior_position_entry = None
@@ -578,18 +582,18 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
         prior_position = None
         if prior_position_entry:
-            prior_position = self._position_port.get_by_id(
+            prior_position = await self._position_port.get_by_id(
                 prior_position_entry.global_position_id
             )
 
         if prior_position_entry:
             for product_type in request.products.keys():
-                self._manual_position_data_port.delete_by_position_id_and_type(
+                await self._manual_position_data_port.delete_by_position_id_and_type(
                     prior_position_entry.global_position_id, product_type
                 )
 
         base_position = self._build_base_position(entity, prior_position, now, request)
-        self._prepare_relationship_mappings(entity, base_position, request)
+        await self._prepare_relationship_mappings(entity, base_position, request)
         self._assign_nested_component_ids(request)
         self._adjust_investment_costs(base_position)
         self._ensure_all_unique(base_position)
@@ -598,7 +602,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             base_position, request
         )
 
-        self._process_crypto_assets_in_position(base_position)
+        await self._process_crypto_assets_in_position(base_position)
 
         today = now.date()
         is_same_day = (
@@ -607,15 +611,15 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
 
         if is_same_day:
             import_id = last_manual_imports[0].import_id
-            self._virtual_import_registry.delete_by_import_feature_and_entity(
+            await self._virtual_import_registry.delete_by_import_feature_and_entity(
                 import_id, Feature.POSITION, req_entity_id
             )
             if prior_position_entry:
-                self._position_port.delete_by_id(
+                await self._position_port.delete_by_id(
                     prior_position_entry.global_position_id
                 )
-            self._position_port.save(base_position)
-            self._manual_position_data_port.save(manual_data_entries)
+            await self._position_port.save(base_position)
+            await self._manual_position_data_port.save(manual_data_entries)
 
             new_entries = [
                 VirtualDataImport(
@@ -627,12 +631,12 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     entity_id=req_entity_id,
                 )
             ]
-            self._virtual_import_registry.insert(new_entries)
+            await self._virtual_import_registry.insert(new_entries)
             return
 
         import_id = uuid4()
-        self._position_port.save(base_position)
-        self._manual_position_data_port.save(manual_data_entries)
+        await self._position_port.save(base_position)
+        await self._manual_position_data_port.save(manual_data_entries)
         cloned_entries = []
 
         for entry in last_manual_imports:
@@ -660,4 +664,4 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             )
         )
 
-        self._virtual_import_registry.insert(cloned_entries)
+        await self._virtual_import_registry.insert(cloned_entries)

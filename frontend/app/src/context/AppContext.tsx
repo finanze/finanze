@@ -9,11 +9,9 @@ import {
 } from "react"
 import {
   EntityStatus,
-  PlatformType,
   AutoRefreshMode,
   AutoRefreshMaxOutdatedTime,
   type Entity,
-  type PlatformInfo,
   type ExchangeRates,
   type ExternalIntegration,
   type FeatureFlags,
@@ -76,7 +74,6 @@ interface AppContextType {
   } | null
   settings: AppSettings
   isLoadingSettings: boolean
-  platform: PlatformType | null
   exchangeRates: ExchangeRates
   exchangeRatesLoading: boolean
   exchangeRatesError: string | null
@@ -212,7 +209,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   } | null>(null)
   const [settings, setSettings] = useState<AppSettings>({ ...defaultSettings })
   const [isLoadingSettings, setIsLoadingSettings] = useState(false)
-  const [platform, setPlatform] = useState<PlatformType | null>(null)
   const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({})
   const [exchangeRatesLoading, setExchangeRatesLoading] = useState(false)
   const [exchangeRatesError, setExchangeRatesError] = useState<string | null>(
@@ -242,24 +238,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
-  useEffect(() => {
-    const getPlatformInfo = async () => {
-      if (window.ipcAPI && window.ipcAPI.platform) {
-        try {
-          const platformInfo: PlatformInfo = await window.ipcAPI.platform()
-          setPlatform(platformInfo.type)
-        } catch (error) {
-          console.error("Failed to get platform info:", error)
-          setPlatform(PlatformType.WEB)
-        }
-      } else {
-        setPlatform(PlatformType.WEB)
-      }
-    }
-
-    getPlatformInfo()
-  }, [])
-
   const showToast = useCallback(
     (message: string, type: "success" | "error" | "warning") => {
       setToast({ message, type })
@@ -282,7 +260,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       setExchangeRatesError(null)
-      const rates = await getExchangeRates()
+      const rates = await getExchangeRates(false)
       setExchangeRates(rates)
     } catch (error) {
       console.error("Error fetching exchange rates silently:", error)
@@ -314,19 +292,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setExchangeRatesLoading(true)
       setExchangeRatesError(null)
-      const rates = await getExchangeRates()
+      const rates = await getExchangeRates(true)
       setExchangeRates(rates)
 
       if (!exchangeRatesTimerRef.current) {
         startExchangeRatesTimer()
       }
+
+      fetchExchangeRatesSilently()
     } catch (error) {
       console.error("Error fetching exchange rates:", error)
       setExchangeRatesError(t.common.fetchError)
     } finally {
       setExchangeRatesLoading(false)
     }
-  }, [isAuthenticated, startExchangeRatesTimer, t])
+  }, [isAuthenticated, startExchangeRatesTimer, fetchExchangeRatesSilently, t])
 
   const refreshExchangeRates = useCallback(async () => {
     await fetchExchangeRates()
@@ -483,7 +463,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast,
         settings,
         isLoadingSettings,
-        platform,
         exchangeRates,
         exchangeRatesLoading,
         exchangeRatesError,

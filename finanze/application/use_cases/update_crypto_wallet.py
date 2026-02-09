@@ -9,5 +9,5 @@ class UpdateCryptoWalletConnectionImpl(UpdateCryptoWalletConnection):
     def __init__(self, crypto_wallet_connections_port: CryptoWalletConnectionPort):
         self._crypto_wallet_connections_port = crypto_wallet_connections_port
 
-    def execute(self, data: UpdateCryptoWalletConnectionRequest):
-        self._crypto_wallet_connections_port.rename(data.id, data.name)
+    async def execute(self, data: UpdateCryptoWalletConnectionRequest):
+        await self._crypto_wallet_connections_port.rename(data.id, data.name)

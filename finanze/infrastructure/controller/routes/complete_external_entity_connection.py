@@ -6,7 +6,7 @@ from domain.external_entity import CompleteExternalEntityLinkRequest
 from domain.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnection,
 )
-from flask import request
+from quart import request
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ async def complete_external_entity_connection(
     return successfully_connected_external_entity()
 
 
-def successfully_connected_external_entity():
+async def successfully_connected_external_entity():
     html = """
     <html>
         <head>
@@ -48,7 +48,7 @@ def successfully_connected_external_entity():
     return html, 200
 
 
-def error_connecting_external_entity(http_status, details=None):
+async def error_connecting_external_entity(http_status, details=None):
     error_detail = f"<p>{details}</p>" if details else ""
     html = f"""
     <html>

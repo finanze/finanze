@@ -213,12 +213,12 @@ class FetchFinancialDataImpl(FetchFinancialData):
             raise ExecutionConflict()
 
         async with lock:
-            last_fetch = self._last_fetches_port.get_by_entity_id(entity_id)
+            last_fetch = await self._last_fetches_port.get_by_entity_id(entity_id)
             result = handle_cooldown(last_fetch, POSITION_UPDATE_COOLDOWN_SECONDS)
             if result:
                 return result
 
-            credentials = self._credentials_port.get(entity.id)
+            credentials = await self._credentials_port.get(entity.id)
             if credentials is None:
                 return FetchResult(FetchResultCode.NO_CREDENTIALS_AVAILABLE)
 
@@ -232,7 +232,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
             specific_fetcher = self._entity_fetchers[entity]
 
-            stored_session = self._sessions_port.get(entity.id)
+            stored_session = await self._sessions_port.get(entity.id)
             login_request = EntityLoginParams(
                 credentials=credentials,
                 two_factor=fetch_request.two_factor,
@@ -259,7 +259,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 )
 
             elif login_result_code == LoginResultCode.LOGIN_REQUIRED:
-                self._credentials_port.update_expiration(
+                await self._credentials_port.update_expiration(
                     entity.id, datetime.now(tzlocal())
                 )
                 return FetchResult(
@@ -277,13 +277,13 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 )
 
             elif login_result_code == LoginResultCode.CREATED:
-                self._credentials_port.update_last_usage(entity.id)
-                self._credentials_port.update_expiration(entity.id, None)
+                await self._credentials_port.update_last_usage(entity.id)
+                await self._credentials_port.update_expiration(entity.id, None)
 
                 session = login_result.session
                 if session:
-                    self._sessions_port.delete(entity.id)
-                    self._sessions_port.save(entity.id, session)
+                    await self._sessions_port.delete(entity.id)
+                    await self._sessions_port.save(entity.id, session)
 
             if not features:
                 features = DEFAULT_FEATURES
@@ -302,7 +302,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         position = None
         if Feature.POSITION in features:
             position = await specific_fetcher.global_position()
-            self._enrich_crypto_assets(position)
+            await self._enrich_crypto_assets(position)
 
         auto_contributions = None
         if Feature.AUTO_CONTRIBUTIONS in features:
@@ -313,7 +313,9 @@ class FetchFinancialDataImpl(FetchFinancialData):
         if Feature.TRANSACTIONS in features:
             registered_txs = {}
             if not options.deep:
-                registered_txs = self._transaction_port.get_refs_by_entity(entity.id)
+                registered_txs = await self._transaction_port.get_refs_by_entity(
+                    entity.id
+                )
 
             transactions = await specific_fetcher.transactions(registered_txs, options)
 
@@ -322,32 +324,32 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
         async with self._transaction_handler_port.start():
             if position:
-                self._position_port.save(position)
+                await self._position_port.save(position)
 
             if auto_contributions:
-                self._auto_contr_repository.save(
+                await self._auto_contr_repository.save(
                     entity.id, auto_contributions, DataSource.REAL
                 )
 
             if Feature.TRANSACTIONS in features and options.deep:
-                self._transaction_port.delete_by_entity_source(
+                await self._transaction_port.delete_by_entity_source(
                     entity.id, DataSource.REAL
                 )
 
             historic = None
             if transactions:
-                self._transaction_port.save(transactions)
+                await self._transaction_port.save(transactions)
 
                 if Feature.HISTORIC in features:
-                    historic_entries = self.build_historic(
+                    historic_entries = await self.build_historic(
                         entity, historical_position, specific_fetcher
                     )
                     historic = Historic(historic_entries)
 
-                    self._historic_port.delete_by_entity(entity.id)
-                    self._historic_port.save(historic.entries)
+                    await self._historic_port.delete_by_entity(entity.id)
+                    await self._historic_port.save(historic.entries)
 
-            self._update_last_fetch(entity.id, features)
+            await self._update_last_fetch(entity.id, features)
 
             data = FetchedData(
                 position=position,
@@ -428,7 +430,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
         return None
 
-    def build_historic(
+    async def build_historic(
         self,
         entity: Entity,
         historical_position: HistoricalPosition,
@@ -438,7 +440,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
         investments = list(investments_by_name.values())
 
-        related_txs = self._transaction_port.get_by_entity(entity.id)
+        related_txs = await self._transaction_port.get_by_entity(entity.id)
         txs_by_name = {}
         for tx in related_txs.investment:
             if tx.name in txs_by_name:
@@ -461,30 +463,33 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
         return historic_entries
 
-    def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
+    async def _update_last_fetch(self, entity_id: UUID, features: List[Feature]):
         now = datetime.now(tzlocal())
         records = []
         for feature in features:
             records.append(FetchRecord(entity_id=entity_id, feature=feature, date=now))
-        self._last_fetches_port.save(records)
+        await self._last_fetches_port.save(records)
 
-    def _enrich_crypto_assets(self, position: GlobalPosition):
+    async def _enrich_crypto_assets(self, position: GlobalPosition):
         crypto_entries = position.products.get(ProductType.CRYPTO)
         if not crypto_entries:
             return
 
         for wallet_entry in crypto_entries.entries:
             for crypto_entry in wallet_entry.assets:
-                asset_details = self._crypto_asset_registry_port.get_by_symbol(
+                asset_details = await self._crypto_asset_registry_port.get_by_symbol(
                     crypto_entry.symbol
                 )
                 if asset_details is None:
-                    candidate_assets = self._crypto_asset_info_provider.get_by_symbol(
-                        crypto_entry.symbol
+                    candidate_assets = (
+                        await self._crypto_asset_info_provider.get_by_symbol(
+                            crypto_entry.symbol
+                        )
                     )
                     if candidate_assets:
                         asset_info = candidate_assets[0]
                         asset_info.id = uuid4()
-                        self._crypto_asset_registry_port.save(asset_info)
-
-                crypto_entry.crypto_asset = asset_details
+                        await self._crypto_asset_registry_port.save(asset_info)
+                        crypto_entry.crypto_asset = asset_info
+                else:
+                    crypto_entry.crypto_asset = asset_details

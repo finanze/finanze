@@ -1,9 +1,9 @@
 from domain.use_cases.get_periodic_flows import GetPeriodicFlows
-from flask import jsonify
+from quart import jsonify
 
 
-def get_periodic_flows(get_periodic_flows_uc: GetPeriodicFlows):
-    flows = get_periodic_flows_uc.execute()
+async def get_periodic_flows(get_periodic_flows_uc: GetPeriodicFlows):
+    flows = await get_periodic_flows_uc.execute()
     return jsonify(
         [
             {

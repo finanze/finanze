@@ -13,5 +13,5 @@ class V0704Ethplorer(DBVersionMigration):
     def name(self):
         return "v0.7.0:4_ethplorer_integration"
 
-    def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
-        cursor.execute(SQL)
+    async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
+        await cursor.execute(SQL)

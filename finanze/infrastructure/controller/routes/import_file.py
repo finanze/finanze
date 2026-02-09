@@ -9,11 +9,12 @@ from domain.global_position import ProductType
 from domain.importing import ImportFileRequest
 from domain.settings import TemplateConfig
 from domain.use_cases.import_file import ImportFile
-from flask import jsonify, request
+from quart import jsonify, request
 
 
 async def import_file_route(import_file_uc: ImportFile):
-    if not request.content_type or "multipart/form-data" not in request.content_type:
+    content_type = request.content_type
+    if not content_type or "multipart/form-data" not in content_type:
         return (
             jsonify(
                 {
@@ -24,14 +25,14 @@ async def import_file_route(import_file_uc: ImportFile):
             HTTPStatus.BAD_REQUEST,
         )
 
-    uploaded_file = request.files.get("file")
+    uploaded_file = (await request.files).get("file")
     if not uploaded_file:
         return (
             jsonify({"code": "INVALID_REQUEST", "message": "Missing file"}),
             HTTPStatus.BAD_REQUEST,
         )
 
-    form = request.form
+    form = await request.form
     date_format = form.get("dateFormat")
     datetime_format = form.get("datetimeFormat")
     number_format_raw = form.get("numberFormat")

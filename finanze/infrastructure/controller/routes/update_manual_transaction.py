@@ -1,20 +1,12 @@
-from datetime import datetime
 from uuid import UUID
 
-from dateutil.tz import tzlocal
+from quart import jsonify, request
+
 from domain.exception.exceptions import TransactionNotFound
 from domain.use_cases.update_manual_transaction import UpdateManualTransaction
-from flask import jsonify, request
 from infrastructure.controller.mappers.transaction_mapper import (
     map_manual_transaction,
 )
-
-
-def _parse_datetime(value: str) -> datetime:
-    dt = datetime.fromisoformat(value)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=tzlocal())
-    return dt
 
 
 async def update_manual_transaction(
@@ -27,7 +19,7 @@ async def update_manual_transaction(
             {"code": "INVALID_REQUEST", "message": "Invalid transaction ID"}
         ), 400
 
-    body = request.json
+    body = await request.get_json()
 
     try:
         tx = map_manual_transaction(body, tx_id=tx_uuid)

@@ -11,7 +11,7 @@ class SearchCryptoAssetsImpl(SearchCryptoAssets):
     def __init__(self, crypto_asset_info_provider: CryptoAssetInfoProvider):
         self._provider = crypto_asset_info_provider
 
-    def execute(
+    async def execute(
         self, request: AvailableCryptoAssetsRequest
     ) -> AvailableCryptoAssetsResult:
         if not request.symbol and not request.name:
@@ -23,7 +23,7 @@ class SearchCryptoAssetsImpl(SearchCryptoAssets):
                 total=0,
             )
 
-        all_matches = self._provider.asset_lookup(
+        all_matches = await self._provider.asset_lookup(
             symbol=request.symbol, name=request.name
         )
         total = len(all_matches)

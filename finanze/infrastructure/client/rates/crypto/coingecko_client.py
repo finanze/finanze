@@ -1,11 +1,10 @@
-import json
 import logging
-import os
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
 
-import requests
-from cachetools import TTLCache, cached
+import httpx
+from aiocache import cached
+from aiocache.serializers import PickleSerializer
 from dateutil.tz import tzlocal
 
 from domain.crypto import (
@@ -26,6 +25,9 @@ from domain.exception.exceptions import (
 from domain.external_integration import ExternalIntegrationId
 from domain.native_entities import BSC, ETHEREUM, TRON, BITCOIN, LITECOIN
 from infrastructure.client.http.backoff import http_get_with_backoff
+from infrastructure.client.rates.crypto.coingecko_cache_strategy import (
+    CoinGeckoCacheStrategy,
+)
 
 
 class CoinGeckoClient:
@@ -47,22 +49,22 @@ class CoinGeckoClient:
         "litecoin": LITECOIN,
     }
 
-    def __init__(self, app_dir: str):
+    def __init__(self, cache_strategy: CoinGeckoCacheStrategy):
         self._log = logging.getLogger(__name__)
-        self._cache_file_path: str | None = None
+        self._strategy = cache_strategy
         self._coin_list_cache: list[dict[str, Any]] | None = None
         self._coin_list_last_updated: datetime | None = None
         self._platforms_cache: list[dict[str, Any]] | None = None
         self._platforms_last_updated: datetime | None = None
 
-        self._cache_file_path = os.path.join(app_dir, self.CACHE_FILENAME)
-        self._load_coin_list_cache()
-        self._load_platforms_cache()
+    async def initialize(self):
+        await self._load_coin_list_cache()
+        await self._load_platforms_cache()
 
-    def search(self, query: str) -> list[CryptoAsset]:
+    async def search(self, query: str) -> list[CryptoAsset]:
         if not query or not query.strip():
             raise MissingFieldsError(["query"])
-        data = self._fetch("/search", params={"query": query.strip()})
+        data = await self._fetch("/search", params={"query": query.strip()})
         coins = data.get("coins", [])
         return self._map_search_results(coins)
 
@@ -100,129 +102,41 @@ class CoinGeckoClient:
                 continue
         return results
 
-    def _load_coin_list_cache(self) -> None:
-        if not self._cache_file_path or not os.path.exists(self._cache_file_path):
-            return
-
+    async def _load_coin_list_cache(self) -> None:
         try:
-            if os.path.getsize(self._cache_file_path) == 0:
-                return
-
-            with open(self._cache_file_path, "r") as f:
-                data: dict[str, Any] = json.load(f)
-
-            if not isinstance(data, dict):
-                return
-
-            coins_data = data.get("coins", {})
-            if not isinstance(coins_data, dict):
-                return
-
-            last_updated_raw = coins_data.get("last_updated")
-            if isinstance(last_updated_raw, str):
-                try:
-                    self._coin_list_last_updated = datetime.fromisoformat(
-                        last_updated_raw
-                    )
-                except Exception:
-                    self._log.warning(
-                        "Malformed last_updated timestamp in coingecko.json"
-                    )
-
-            result = coins_data.get("result")
-            if isinstance(result, list):
-                self._coin_list_cache = result
-
+            (
+                self._coin_list_cache,
+                self._coin_list_last_updated,
+            ) = await self._strategy.load_coin_list()
         except Exception as e:
             self._log.warning(f"Failed to load coin list from cache: {e}")
 
-    def _load_platforms_cache(self) -> None:
-        if not self._cache_file_path or not os.path.exists(self._cache_file_path):
-            return
-
+    async def _load_platforms_cache(self) -> None:
         try:
-            if os.path.getsize(self._cache_file_path) == 0:
-                return
-
-            with open(self._cache_file_path, "r") as f:
-                data: dict[str, Any] = json.load(f)
-
-            if not isinstance(data, dict):
-                return
-
-            platforms_data = data.get("platforms", {})
-            if not isinstance(platforms_data, dict):
-                return
-
-            last_updated_raw = platforms_data.get("last_updated")
-            if isinstance(last_updated_raw, str):
-                try:
-                    self._platforms_last_updated = datetime.fromisoformat(
-                        last_updated_raw
-                    )
-                except Exception:
-                    self._log.warning(
-                        "Malformed last_updated timestamp for platforms in coingecko.json"
-                    )
-
-            result = platforms_data.get("result")
-            if isinstance(result, list):
-                self._platforms_cache = result
-
+            (
+                self._platforms_cache,
+                self._platforms_last_updated,
+            ) = await self._strategy.load_platforms()
         except Exception as e:
             self._log.warning(f"Failed to load platforms from cache: {e}")
 
-    def _save_coin_list_cache(self, coin_list: list[dict[str, Any]]) -> None:
-        if not self._cache_file_path:
-            return
-
+    async def _save_coin_list_cache(self, coin_list: list[dict[str, Any]]) -> None:
         try:
             self._coin_list_last_updated = datetime.now(tzlocal())
-
-            existing_data = self._read_cache_file()
-            existing_data["coins"] = {
-                "last_updated": self._coin_list_last_updated.isoformat(),
-                "result": coin_list,
-            }
-
-            with open(self._cache_file_path, "w") as f:
-                json.dump(existing_data, f, indent=2)
-
+            await self._strategy.save_coin_list(coin_list, self._coin_list_last_updated)
             self._coin_list_cache = coin_list
-
         except Exception as e:
             self._log.exception(f"Failed to persist coin list cache: {e}")
 
     def _read_cache_file(self) -> dict[str, Any]:
-        if not self._cache_file_path or not os.path.exists(self._cache_file_path):
-            return {}
-        try:
-            if os.path.getsize(self._cache_file_path) == 0:
-                return {}
-            with open(self._cache_file_path, "r") as f:
-                data = json.load(f)
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
+        # Deprecated/Removed
+        return {}
 
-    def _save_platforms_cache(self, platforms: list[dict[str, Any]]) -> None:
-        if not self._cache_file_path:
-            return
-
+    async def _save_platforms_cache(self, platforms: list[dict[str, Any]]) -> None:
         try:
             self._platforms_last_updated = datetime.now(tzlocal())
-
-            existing_data = self._read_cache_file()
-            existing_data["platforms"] = {
-                "last_updated": self._platforms_last_updated.isoformat(),
-                "result": platforms,
-            }
-
-            with open(self._cache_file_path, "w") as f:
-                json.dump(existing_data, f, indent=2)
-
+            await self._strategy.save_platforms(platforms, self._platforms_last_updated)
             self._platforms_cache = platforms
-
         except Exception as e:
             self._log.exception(f"Failed to persist platforms cache: {e}")
 
@@ -240,14 +154,18 @@ class CoinGeckoClient:
         age = datetime.now(tzlocal()) - self._coin_list_last_updated
         return age < timedelta(days=self.CACHE_MAX_AGE_DAYS)
 
-    @cached(cache=TTLCache(maxsize=1, ttl=86400))
-    def _get_coin_list(self) -> list[dict[str, Any]]:
+    @cached(
+        ttl=86400,
+        key_builder=lambda f, self: "coingecko_coin_list",
+        serializer=PickleSerializer(),
+    )
+    async def _get_coin_list(self) -> list[dict[str, Any]]:
         if self._is_coin_list_cache_valid():
             return self._coin_list_cache
 
         params = {"include_platform": "true"}
         try:
-            data = self._fetch("/coins/list", params=params, timeout=self.TIMEOUT)
+            data = await self._fetch("/coins/list", params=params, timeout=self.TIMEOUT)
         except Exception as e:
             self._log.error(f"Failed to fetch coin list from CoinGecko: {e}")
             if self._coin_list_cache:
@@ -265,11 +183,11 @@ class CoinGeckoClient:
                 return self._coin_list_cache
             return []
 
-        self._save_coin_list_cache(data)
+        await self._save_coin_list_cache(data)
 
         return data
 
-    def asset_lookup(
+    async def asset_lookup(
         self, symbol: str | None = None, name: str | None = None
     ) -> list[AvailableCryptoAsset]:
         if not symbol and not name:
@@ -279,8 +197,8 @@ class CoinGeckoClient:
         if not query_lower:
             return []
 
-        coin_list = self._get_coin_list()
-        platforms_index = self.get_asset_platforms()
+        coin_list = await self._get_coin_list()
+        platforms_index = await self.get_asset_platforms()
         matches: list[AvailableCryptoAsset] = []
 
         for coin in coin_list:
@@ -329,13 +247,17 @@ class CoinGeckoClient:
             provider_id=coin.get("id", ""),
         )
 
-    @cached(cache=TTLCache(maxsize=1, ttl=86400))
-    def get_asset_platforms(self) -> dict[str, CryptoPlatform]:
+    @cached(
+        ttl=86400,
+        key_builder=lambda f, self: "coingecko_asset_platforms",
+        serializer=PickleSerializer(),
+    )
+    async def get_asset_platforms(self) -> dict[str, CryptoPlatform]:
         if self._is_platforms_cache_valid():
             return self._build_platforms_index(self._platforms_cache)
 
         try:
-            data = self._fetch("/asset_platforms", timeout=self.TIMEOUT)
+            data = await self._fetch("/asset_platforms", timeout=self.TIMEOUT)
         except Exception as e:
             self._log.error(f"Failed to fetch asset platforms from CoinGecko: {e}")
             if self._platforms_cache:
@@ -353,7 +275,7 @@ class CoinGeckoClient:
                 return self._build_platforms_index(self._platforms_cache)
             return {}
 
-        self._save_platforms_cache(data)
+        await self._save_platforms_cache(data)
 
         return self._build_platforms_index(data)
 
@@ -373,11 +295,15 @@ class CoinGeckoClient:
                 )
         return index
 
-    @cached(cache=TTLCache(maxsize=1, ttl=86400))
-    def _get_coin_address_index(self) -> dict[str, dict[str, Any]]:
+    @cached(
+        ttl=86400,
+        key_builder=lambda f, self: "coingecko_coin_address_index",
+        serializer=PickleSerializer(),
+    )
+    async def _get_coin_address_index(self) -> dict[str, dict[str, Any]]:
         index: dict[str, dict[str, Any]] = {}
         try:
-            coin_list = self._get_coin_list()
+            coin_list = await self._get_coin_list()
         except Exception as e:
             self._log.error(f"Failed to fetch coin list for address overview: {e}")
             return index
@@ -410,12 +336,12 @@ class CoinGeckoClient:
         except Exception:
             return
 
-    def get_coin_overview_by_addresses(
+    async def get_coin_overview_by_addresses(
         self, addresses: list[str]
     ) -> dict[str, dict[str, Any]]:
         if not addresses:
             return {}
-        index = self._get_coin_address_index()
+        index = await self._get_coin_address_index()
         result: dict[str, dict[str, Any]] = {}
         seen: set[str] = set()
         for raw in addresses:
@@ -430,7 +356,7 @@ class CoinGeckoClient:
                 result[addr] = coin
         return result
 
-    def get_prices_by_addresses(
+    async def get_prices_by_addresses(
         self,
         addresses: list[str],
         vs_currencies: list[str],
@@ -450,7 +376,7 @@ class CoinGeckoClient:
             normalized.append(addr)
         if not normalized:
             return {}
-        overview = self.get_coin_overview_by_addresses(normalized)
+        overview = await self.get_coin_overview_by_addresses(normalized)
         id_to_addresses: dict[str, list[str]] = {}
         for addr in normalized:
             coin = overview.get(addr)
@@ -460,7 +386,7 @@ class CoinGeckoClient:
             id_to_addresses.setdefault(coin_id, []).append(addr)
         if not id_to_addresses:
             return {}
-        prices_by_id = self.get_prices(
+        prices_by_id = await self.get_prices(
             symbols=None,
             vs_currencies=vs_currencies,
             timeout=timeout,
@@ -475,7 +401,7 @@ class CoinGeckoClient:
                 result[addr] = dict(prices)
         return result
 
-    def get_prices(
+    async def get_prices(
         self,
         symbols: list[str] | None,
         vs_currencies: list[str],
@@ -486,16 +412,16 @@ class CoinGeckoClient:
             deduped_ids, vs_param = self._validate_ids_and_prepare(
                 coin_ids, vs_currencies
             )
-            return self._aggregate_prices_by_ids(deduped_ids, vs_param, timeout)
+            return await self._aggregate_prices_by_ids(deduped_ids, vs_param, timeout)
         if not symbols:
             raise MissingFieldsError(["symbols"])
-        return self._get_prices_impl(symbols, vs_currencies, timeout)
+        return await self._get_prices_impl(symbols, vs_currencies, timeout)
 
-    def _get_prices_impl(
+    async def _get_prices_impl(
         self, symbols: list[str], vs_currencies: list[str], timeout: int
     ) -> dict[str, dict[str, Dezimal]]:
         deduped, vs_param = self._validate_and_prepare(symbols, vs_currencies)
-        return self._aggregate_prices(deduped, vs_param, timeout)
+        return await self._aggregate_prices(deduped, vs_param, timeout)
 
     def _validate_and_prepare(
         self, symbols: list[str], vs_currencies: list[str]
@@ -508,12 +434,12 @@ class CoinGeckoClient:
         vs_param = ",".join(c.lower() for c in vs_currencies)
         return deduped, vs_param
 
-    def _aggregate_prices(
+    async def _aggregate_prices(
         self, deduped: list[str], vs_param: str, timeout: int
     ) -> dict[str, dict[str, Dezimal]]:
         result: dict[str, dict[str, Dezimal]] = {}
         for chunk in self._chunked(deduped, self.CHUNK_SIZE):
-            chunk_result = self._fetch_chunk(chunk, vs_param, timeout)
+            chunk_result = await self._fetch_chunk(chunk, vs_param, timeout)
             self._merge_prices_map(
                 chunk_result, result, key_transform=lambda k: k.upper()
             )
@@ -530,12 +456,12 @@ class CoinGeckoClient:
         vs_param = ",".join(c.lower() for c in vs_currencies)
         return deduped, vs_param
 
-    def _aggregate_prices_by_ids(
+    async def _aggregate_prices_by_ids(
         self, deduped: list[str], vs_param: str, timeout: int
     ) -> dict[str, dict[str, Dezimal]]:
         result: dict[str, dict[str, Dezimal]] = {}
         for chunk in self._chunked(deduped, self.CHUNK_SIZE):
-            chunk_result = self._fetch_ids_chunk(chunk, vs_param, timeout)
+            chunk_result = await self._fetch_ids_chunk(chunk, vs_param, timeout)
             self._merge_prices_map(chunk_result, result, key_transform=lambda k: k)
         return result
 
@@ -578,28 +504,28 @@ class CoinGeckoClient:
             deduped.append(item)
         return deduped
 
-    def _fetch_chunk(
+    async def _fetch_chunk(
         self, chunk: list[str], vs_param: str, timeout: int
     ) -> dict[str, Any]:
-        return self._fetch_simple_price(
+        return await self._fetch_simple_price(
             [s.lower() for s in chunk], vs_param, timeout, "symbols"
         )
 
-    def _fetch_ids_chunk(
+    async def _fetch_ids_chunk(
         self, chunk: list[str], vs_param: str, timeout: int
     ) -> dict[str, Any]:
-        return self._fetch_simple_price(
+        return await self._fetch_simple_price(
             [c.lower() for c in chunk], vs_param, timeout, "ids"
         )
 
-    def _fetch_simple_price(
+    async def _fetch_simple_price(
         self,
         values: list[str],
         vs_param: str,
         timeout: int,
         identifier_key: str,
     ) -> dict[str, Any]:
-        return self._fetch(
+        return await self._fetch(
             "/simple/price",
             params={
                 "vs_currencies": vs_param,
@@ -609,13 +535,12 @@ class CoinGeckoClient:
             timeout=timeout,
         )
 
-    # --- Token (contract) prices helpers ---
-    def _fetch_token_chunk(
+    async def _fetch_token_chunk(
         self, chain_slug: str, chunk: list[str], vs_param: str, timeout: int
     ) -> dict[str, Any]:
         addresses_param = ",".join(chunk)
         path = f"/simple/token_price/{chain_slug}"
-        return self._fetch(
+        return await self._fetch(
             path,
             params={
                 "vs_currencies": vs_param,
@@ -625,7 +550,7 @@ class CoinGeckoClient:
             timeout=timeout,
         )
 
-    def get_asset_details(
+    async def get_asset_details(
         self, provider_id: str, currencies: list[str]
     ) -> CryptoAssetDetails:
         params = {
@@ -634,9 +559,11 @@ class CoinGeckoClient:
             "tickers": "false",
             "localization": "false",
         }
-        data = self._fetch(f"/coins/{provider_id}", params=params, timeout=self.TIMEOUT)
+        data = await self._fetch(
+            f"/coins/{provider_id}", params=params, timeout=self.TIMEOUT
+        )
 
-        platforms_index = self.get_asset_platforms()
+        platforms_index = await self.get_asset_platforms()
         enriched_platforms = self._extract_platforms(data, platforms_index)
 
         icon_url = self._extract_icon_url(data)
@@ -710,31 +637,31 @@ class CoinGeckoClient:
 
         return self.ENTITY_CHAIN_MAP.get(provider_id)
 
-    def _fetch(
+    async def _fetch(
         self, path: str, params: dict[str, Any] | None = None, timeout: int = TIMEOUT
     ) -> dict:
         url = f"{self.BASE_URL}{path}"
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 params=params,
-                timeout=timeout,
+                request_timeout=timeout,
                 max_retries=self.MAX_RETRIES,
                 backoff_exponent_base=self.BACKOFF_EXPONENT_BASE,
                 backoff_factor=self.BACKOFF_FACTOR,
                 cooldown=self.COOLDOWN,
                 log=self._log,
             )
-        except requests.Timeout as e:
+        except TimeoutError as e:
             self._log.warning(f"Timeout calling CoinGecko endpoint {url}")
             raise e
-        except requests.RequestException as e:
+        except httpx.RequestError as e:
             self._log.error(f"Request error calling CoinGecko endpoint {url}: {e}")
-            raise e
+            raise
 
         if not response.ok:
-            status = response.status_code
-            body = response.text
+            status = response.status
+            body = await response.text()
             if status == 429:
                 raise TooManyRequests()
             if status in (401, 403):
@@ -751,9 +678,10 @@ class CoinGeckoClient:
             self._log.error(f"Unexpected CoinGecko response {status} for {url}: {body}")
             response.raise_for_status()
         try:
-            return response.json()
+            return await response.json()
         except ValueError:
+            text = await response.text()
             self._log.error(
-                f"Failed to decode JSON from CoinGecko for {url}: {response.text[:200]}"
+                f"Failed to decode JSON from CoinGecko for {url}: {text[:200]}"
             )
             raise

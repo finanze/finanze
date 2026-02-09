@@ -66,12 +66,14 @@ class FullBackupsInfo:
 class BackupProcessRequest:
     protocol: int
     password: str
+    type: BackupFileType
     payload: bytes
 
 
 @dataclass
 class BackupProcessResult:
     payload: bytes
+    size: int
 
 
 @dataclass
@@ -81,6 +83,7 @@ class BackupTransferPiece:
     date: datetime
     type: BackupFileType
     payload: bytes
+    size: int
 
 
 @dataclass

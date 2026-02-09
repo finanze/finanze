@@ -48,6 +48,9 @@ export default function RealEstatePage() {
     null,
   )
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
+  const [imageCacheKeys, setImageCacheKeys] = useState<Record<string, string>>(
+    {},
+  )
 
   // Load real estate data
   useEffect(() => {
@@ -70,15 +73,21 @@ export default function RealEstatePage() {
   useEffect(() => {
     const loadImageUrls = async () => {
       const urlsToLoad: Record<string, string> = {}
+      const nextCacheKeys: Record<string, string> = {}
 
       for (const property of realEstateList) {
-        if (
-          property.basic_info.photo_url &&
-          !imageUrls[property.basic_info.photo_url]
-        ) {
+        const photoUrl = property.basic_info.photo_url
+        if (!photoUrl) {
+          continue
+        }
+        const cacheKey = property.updated_at || String(Date.now())
+        const cacheKeyString = String(cacheKey)
+        const existingKey = imageCacheKeys[photoUrl]
+        if (!existingKey || existingKey !== cacheKeyString) {
           try {
-            const url = await getImageUrl(property.basic_info.photo_url)
-            urlsToLoad[property.basic_info.photo_url] = url
+            const url = await getImageUrl(photoUrl, cacheKeyString)
+            urlsToLoad[photoUrl] = url
+            nextCacheKeys[photoUrl] = cacheKeyString
           } catch (error) {
             console.error("Failed to load image URL:", error)
           }
@@ -87,13 +96,14 @@ export default function RealEstatePage() {
 
       if (Object.keys(urlsToLoad).length > 0) {
         setImageUrls(prev => ({ ...prev, ...urlsToLoad }))
+        setImageCacheKeys(prev => ({ ...prev, ...nextCacheKeys }))
       }
     }
 
     if (realEstateList.length > 0) {
       loadImageUrls()
     }
-  }, [realEstateList, imageUrls])
+  }, [realEstateList, imageUrls, imageCacheKeys])
 
   // Calculate monthly net cashflow for a property (before taxes)
   const calculateMonthlyCashflow = (property: RealEstate) => {
@@ -214,7 +224,7 @@ export default function RealEstatePage() {
 
   return (
     <motion.div
-      className="space-y-6 pb-6"
+      className="space-y-6"
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
@@ -225,14 +235,22 @@ export default function RealEstatePage() {
         className="flex items-center justify-between"
       >
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1 h-8 w-8"
+            onClick={() => navigate(-1)}
+          >
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {t.realEstate.title}
             </h1>
-            <PinAssetButton assetId="real-estate" />
+            <PinAssetButton
+              assetId="real-estate"
+              className="hidden md:inline-flex"
+            />
           </div>
         </div>
         <Button

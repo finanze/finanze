@@ -22,9 +22,9 @@ class EntitySQLRepository(EntityPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    def insert(self, entity: Entity):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def insert(self, entity: Entity):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 EntityQueries.INSERT,
                 (
                     str(entity.id),
@@ -36,9 +36,9 @@ class EntitySQLRepository(EntityPort):
                 ),
             )
 
-    def update(self, entity: Entity):
-        with self._db_client.tx() as cursor:
-            cursor.execute(
+    async def update(self, entity: Entity):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
                 EntityQueries.UPDATE,
                 (
                     entity.name,
@@ -50,40 +50,40 @@ class EntitySQLRepository(EntityPort):
                 ),
             )
 
-    def get_by_id(self, entity_id: UUID) -> Optional[Entity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(EntityQueries.GET_BY_ID, (str(entity_id),))
-            row = cursor.fetchone()
+    async def get_by_id(self, entity_id: UUID) -> Optional[Entity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(EntityQueries.GET_BY_ID, (str(entity_id),))
+            row = await cursor.fetchone()
             if row:
                 return _map_entity(row)
             return None
 
-    def get_all(self) -> list[Entity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(EntityQueries.GET_ALL)
-            return [_map_entity(row) for row in cursor.fetchall()]
+    async def get_all(self) -> list[Entity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(EntityQueries.GET_ALL)
+            return [_map_entity(row) for row in await cursor.fetchall()]
 
-    def get_by_natural_id(self, natural_id: str) -> Optional[Entity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(EntityQueries.GET_BY_NATURAL_ID, (natural_id,))
-            row = cursor.fetchone()
+    async def get_by_natural_id(self, natural_id: str) -> Optional[Entity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(EntityQueries.GET_BY_NATURAL_ID, (natural_id,))
+            row = await cursor.fetchone()
             if row:
                 return _map_entity(row)
             return None
 
-    def get_by_name(self, name: str) -> Optional[Entity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(EntityQueries.GET_BY_NAME, (name,))
-            row = cursor.fetchone()
+    async def get_by_name(self, name: str) -> Optional[Entity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(EntityQueries.GET_BY_NAME, (name,))
+            row = await cursor.fetchone()
             if row:
                 return _map_entity(row)
             return None
 
-    def delete_by_id(self, entity_id: UUID):
-        with self._db_client.tx() as cursor:
-            cursor.execute(EntityQueries.DELETE_BY_ID, (entity_id,))
+    async def delete_by_id(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(EntityQueries.DELETE_BY_ID, (entity_id,))
 
-    def get_disabled_entities(self) -> list[Entity]:
-        with self._db_client.read() as cursor:
-            cursor.execute(EntityQueries.GET_DISABLED_ENTITIES)
-            return [_map_entity(row) for row in cursor.fetchall()]
+    async def get_disabled_entities(self) -> list[Entity]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(EntityQueries.GET_DISABLED_ENTITIES)
+            return [_map_entity(row) for row in await cursor.fetchall()]

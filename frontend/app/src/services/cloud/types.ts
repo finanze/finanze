@@ -38,6 +38,11 @@ export interface CloudAuthProvider {
   initialize(): Promise<void>
   handleAuthCallbackUrl(url: string): Promise<void>
   signInWithGoogle(callbackUrl: string): Promise<void>
+  signInWithIdToken(
+    provider: "google" | "apple",
+    idToken: string,
+    nonce?: string,
+  ): Promise<void>
   signInWithEmail(email: string, password: string): Promise<void>
   signUpWithEmail(
     email: string,
@@ -55,6 +60,7 @@ export interface CloudAuthProvider {
   setSession(accessToken: string, refreshToken: string): Promise<void>
   setAutoRefreshEnabled(enabled: boolean): Promise<void>
   exchangeCodeForSession(code: string): Promise<void>
+  refreshSession(): Promise<void>
   onAuthStateChange(callback: AuthStateChangeCallback): () => void
   onAuthEvent(callback: (event: CloudAuthEvent) => void): () => void
 }

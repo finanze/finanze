@@ -9,12 +9,12 @@ from domain.importing import (
 
 
 class TemplateParserPort(metaclass=abc.ABCMeta):
-    def global_positions(
+    async def global_positions(
         self, candidates: list[ImportCandidate], existing_entities: dict[str, Entity]
     ) -> PositionImportResult:
         raise NotImplementedError
 
-    def transactions(
+    async def transactions(
         self, candidates: list[ImportCandidate], existing_entities: dict[str, Entity]
     ) -> TransactionsImportResult:
         raise NotImplementedError

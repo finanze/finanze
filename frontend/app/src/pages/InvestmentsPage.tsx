@@ -3,17 +3,17 @@ import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/Card"
-import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { getIconForProductType } from "@/utils/dashboardUtils"
 import { ProductType } from "@/types/position"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { usePinnedShortcuts } from "@/context/PinnedShortcutsContext"
+import { getEntitiesWithProductType } from "@/utils/financialDataUtils"
 
 export default function InvestmentsPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const { isLoading } = useFinancialData()
+  const { isLoading, positionsData, realEstateList } = useFinancialData()
   const { isPinned } = usePinnedShortcuts()
 
   const investmentRoutes = React.useMemo(() => {
@@ -21,79 +21,78 @@ export default function InvestmentsPage() {
       {
         path: "/banking",
         label: t.banking.title,
-        icon: getIconForProductType(ProductType.ACCOUNT, "h-6 w-6"),
-        color: "bg-teal-100 text-teal-600 dark:bg-teal-900 dark:text-teal-300",
+        icon: getIconForProductType(ProductType.ACCOUNT, "h-8 w-8"),
+        color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200",
         productType: ProductType.ACCOUNT,
         assetId: "banking" as const,
       },
       {
         path: "/investments/stocks-etfs",
         label: t.common.stocksEtfs,
-        icon: getIconForProductType(ProductType.STOCK_ETF, "h-6 w-6"),
-        color:
-          "bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-300",
+        icon: getIconForProductType(ProductType.STOCK_ETF, "h-8 w-8"),
+        color: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-200",
         productType: ProductType.STOCK_ETF,
         assetId: "stocks-etfs" as const,
       },
       {
         path: "/investments/funds",
         label: t.common.fundsInvestments,
-        icon: getIconForProductType(ProductType.FUND, "h-6 w-6"),
-        color:
-          "bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-300",
+        icon: getIconForProductType(ProductType.FUND, "h-8 w-8"),
+        color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950 dark:text-cyan-200",
         productType: ProductType.FUND,
         assetId: "funds" as const,
       },
       {
         path: "/investments/deposits",
         label: t.common.depositsInvestments,
-        icon: getIconForProductType(ProductType.DEPOSIT, "h-6 w-6"),
-        color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900 dark:text-cyan-300",
+        icon: getIconForProductType(ProductType.DEPOSIT, "h-8 w-8"),
+        color:
+          "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-200",
         productType: ProductType.DEPOSIT,
         assetId: "deposits" as const,
       },
       {
         path: "/investments/factoring",
         label: t.common.factoringInvestments,
-        icon: getIconForProductType(ProductType.FACTORING, "h-6 w-6"),
+        icon: getIconForProductType(ProductType.FACTORING, "h-8 w-8"),
         color:
-          "bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-300",
+          "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200",
         productType: ProductType.FACTORING,
         assetId: "factoring" as const,
       },
       {
         path: "/investments/real-estate-cf",
         label: t.common.realEstateCfInvestments,
-        icon: getIconForProductType(ProductType.REAL_ESTATE_CF, "h-6 w-6"),
+        icon: getIconForProductType(ProductType.REAL_ESTATE_CF, "h-8 w-8"),
         color:
-          "bg-emerald-100 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300",
+          "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-200",
         productType: ProductType.REAL_ESTATE_CF,
         assetId: "real-estate-cf" as const,
       },
       {
         path: "/investments/crypto",
         label: t.common.cryptoInvestments,
-        icon: getIconForProductType(ProductType.CRYPTO, "h-6 w-6"),
+        icon: getIconForProductType(ProductType.CRYPTO, "h-8 w-8"),
         color:
-          "bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-300",
+          "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-200",
         productType: ProductType.CRYPTO,
         assetId: "crypto" as const,
       },
       {
         path: "/investments/commodities",
         label: t.common.commodities,
-        icon: getIconForProductType(ProductType.COMMODITY, "h-6 w-6"),
+        icon: getIconForProductType(ProductType.COMMODITY, "h-8 w-8"),
         color:
-          "bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-300",
+          "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-200",
         productType: ProductType.COMMODITY,
         assetId: "commodities" as const,
       },
       {
         path: "/real-estate",
         label: t.realEstate.title,
-        icon: getIconForProductType(ProductType.REAL_ESTATE, "h-6 w-6"),
+        icon: getIconForProductType(ProductType.REAL_ESTATE, "h-8 w-8"),
         color:
-          "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-300",
+          "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200",
         productType: ProductType.REAL_ESTATE,
         assetId: "real-estate" as const,
       },
@@ -106,6 +105,34 @@ export default function InvestmentsPage() {
     }))
   }, [t.common, t.realEstate, isPinned])
 
+  const sortedRoutes = React.useMemo(() => {
+    const routesWithPositionInfo = investmentRoutes.map(route => {
+      const hasPositions =
+        route.productType === ProductType.REAL_ESTATE
+          ? realEstateList.length > 0
+          : getEntitiesWithProductType(positionsData, route.productType)
+              .length > 0
+
+      return {
+        ...route,
+        hasPositions,
+      }
+    })
+
+    return routesWithPositionInfo.sort((a, b) => {
+      // First: pinned items
+      if (a.pinned !== b.pinned) {
+        return Number(b.pinned) - Number(a.pinned)
+      }
+      // Second: items with positions
+      if (a.hasPositions !== b.hasPositions) {
+        return Number(b.hasPositions) - Number(a.hasPositions)
+      }
+      // Keep original order for items with same status
+      return 0
+    })
+  }, [investmentRoutes, positionsData, realEstateList])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -117,55 +144,50 @@ export default function InvestmentsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-bold">
           {t.common.myAssets || t.common.investments}
         </h1>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {investmentRoutes.map(route => (
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+        {sortedRoutes.map(route => (
           <Card
             key={route.path}
-            className={`p-6 transition-all cursor-pointer relative group ${
-              route.isDisabled ? "opacity-50" : "hover:shadow-lg"
-            }`}
+            className={`transition-all cursor-pointer relative group overflow-hidden ${
+              !route.hasPositions ? "opacity-50" : ""
+            } ${route.isDisabled ? "opacity-50" : "hover:shadow-lg"}`}
             onClick={() => navigate(route.path)}
           >
-            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-              <PinAssetButton assetId={route.assetId} />
+            <div
+              className={`absolute top-0 right-0 transition-opacity ${
+                route.pinned
+                  ? "opacity-100"
+                  : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              }`}
+            >
+              <div className="h-9 w-9 rounded-full flex items-center justify-center">
+                <PinAssetButton
+                  assetId={route.assetId}
+                  size="icon"
+                  className={
+                    route.pinned
+                      ? "hover:bg-transparent focus-visible:bg-transparent active:bg-transparent rotate-[10deg]"
+                      : "text-gray-400 md:text-current hover:bg-transparent focus-visible:bg-transparent active:bg-transparent"
+                  }
+                />
+              </div>
             </div>
-            <div className="flex items-center space-x-4 pr-8">
-              <div
-                className={`p-3 rounded-lg ${route.color} ${
-                  route.isDisabled ? "opacity-50" : ""
-                }`}
-              >
+            <div
+              className={`flex items-center justify-center px-4 py-6 ${route.color}`}
+            >
+              <div className={route.isDisabled ? "opacity-50" : ""}>
                 {route.icon}
               </div>
-              <div className="flex-1">
-                <h3
-                  className={`text-lg font-semibold ${
-                    route.isDisabled
-                      ? "text-gray-400 dark:text-gray-600"
-                      : "text-gray-900 dark:text-gray-100"
-                  }`}
-                >
-                  {route.label}
-                </h3>
-                <div className="flex gap-2 mt-3">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="p-0 h-auto text-primary hover:text-primary/80"
-                    onClick={e => {
-                      e.stopPropagation()
-                      navigate(route.path)
-                    }}
-                  >
-                    {t.common.viewDetails} →
-                  </Button>
-                </div>
-              </div>
+            </div>
+            <div className="flex items-center justify-center px-1 py-2.5 bg-card text-card-foreground">
+              <h3 className="text-base font-semibold text-center">
+                {route.label}
+              </h3>
             </div>
           </Card>
         ))}

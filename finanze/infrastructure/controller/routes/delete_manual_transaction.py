@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
-from flask import jsonify
+from quart import jsonify
 
 
 async def delete_manual_transaction(

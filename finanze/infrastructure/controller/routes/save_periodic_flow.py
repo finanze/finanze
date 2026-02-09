@@ -3,11 +3,11 @@ from datetime import date
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
 from domain.use_cases.save_periodic_flow import SavePeriodicFlow
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def save_periodic_flow(save_periodic_flow_uc: SavePeriodicFlow):
-    body = request.json
+async def save_periodic_flow(save_periodic_flow_uc: SavePeriodicFlow):
+    body = await request.get_json()
 
     try:
         since_date = body["since"]
@@ -35,5 +35,5 @@ def save_periodic_flow(save_periodic_flow_uc: SavePeriodicFlow):
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400
 
-    save_periodic_flow_uc.execute(flow)
+    await save_periodic_flow_uc.execute(flow)
     return "", 201

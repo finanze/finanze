@@ -4,8 +4,9 @@ import re
 from datetime import datetime
 from typing import Optional
 
-import requests
-from cachetools import TTLCache, cached
+import httpx
+
+from aiocache import cached, Cache
 from dateutil.tz import tzlocal
 
 from domain.entity_login import (
@@ -14,6 +15,8 @@ from domain.entity_login import (
     EntitySession,
     LoginOptions,
 )
+from infrastructure.client.http.http_session import get_http_session
+from infrastructure.client.http.http_response import HttpResponse
 
 EXPIRATION_DATETIME_REGEX = r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.?\d{0,6})\d*(.*)$"
 
@@ -38,11 +41,12 @@ class SegoAPIClient:
     def __init__(self):
         self._headers = {}
         self._log = logging.getLogger(__name__)
+        self._session = get_http_session()
 
-    def _execute_request(
-        self, path: str, method: str, body: dict, raw: bool = False
-    ) -> dict | requests.Response:
-        response = requests.request(
+    async def _execute_request(
+        self, path: str, method: str, body: dict | None, raw: bool = False
+    ) -> dict | HttpResponse:
+        response = await self._session.request(
             method, self.BASE_URL + path, json=body, headers=self._headers
         )
 
@@ -50,22 +54,23 @@ class SegoAPIClient:
             return response
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        self._log.error("Error Response Body:" + response.text)
+        body_text = await response.text()
+        self._log.error("Error Response Body:" + body_text)
         response.raise_for_status()
         return {}
 
-    def _get_request(self, path: str) -> requests.Response:
-        return self._execute_request(path, "GET", body=None)
+    async def _get_request(self, path: str) -> dict:
+        return await self._execute_request(path, "GET", body=None)
 
-    def _post_request(
+    async def _post_request(
         self, path: str, body: dict, raw: bool = False
-    ) -> dict | requests.Response:
-        return self._execute_request(path, "POST", body=body, raw=raw)
+    ) -> dict | HttpResponse:
+        return await self._execute_request(path, "POST", body=body, raw=raw)
 
     def _init_session(self):
-        self._headers = dict()
+        self._headers = {}
         self._headers["Content-Type"] = "application/json"
         self._headers["Ocp-Apim-Subscription-Key"] = codecs.decode(
             self.API_KEY, "rot_13"
@@ -75,7 +80,7 @@ class SegoAPIClient:
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
 
-    def login(
+    async def login(
         self,
         username: str,
         password: str,
@@ -89,7 +94,7 @@ class SegoAPIClient:
 
         if session and not login_options.force_new_session and now < session.expiration:
             self._inject_session(session)
-            if self._resumable_session():
+            if await self._resumable_session():
                 self._log.debug("Resuming session")
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
@@ -105,10 +110,12 @@ class SegoAPIClient:
         elif login_options.avoid_new_login:
             return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
-        response = self._post_request("/core/v1/Login/Inversor", body=request, raw=True)
+        response = await self._post_request(
+            "/core/v1/Login/Inversor", body=request, raw=True
+        )
 
         if response.ok:
-            response_body = response.json()
+            response_body = await response.json()
             if response_body["isCodigoEnviado"]:
                 return EntityLoginResult(LoginResultCode.CODE_REQUESTED)
 
@@ -133,7 +140,7 @@ class SegoAPIClient:
 
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-        elif response.status_code == 400:
+        elif response.status == 400:
             if code:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
             else:
@@ -142,13 +149,13 @@ class SegoAPIClient:
         else:
             return EntityLoginResult(
                 LoginResultCode.UNEXPECTED_ERROR,
-                message=f"Got unexpected response code {response.status_code}",
+                message=f"Got unexpected response code {response.status}",
             )
 
-    def _resumable_session(self) -> bool:
+    async def _resumable_session(self) -> bool:
         try:
-            self._get_request("/core/v1/InformacionBasica")
-        except requests.exceptions.HTTPError:
+            await self.get_wallet()
+        except httpx.HTTPStatusError:
             return False
         else:
             return True
@@ -156,16 +163,16 @@ class SegoAPIClient:
     def _inject_session(self, session: EntitySession):
         self._headers["Authorization"] = "Bearer " + session.payload["token"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_user(self):
-        return self._get_request("/core/v1/InformacionBasica")
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_user(self):
+        return await self._get_request("/core/v1/InformacionBasica")
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_wallet(self):
-        return self._get_request("/core/v1/wallet")
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_wallet(self):
+        return await self._get_request("/core/v1/wallet")
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_investments(self, states: set[str] = frozenset([])):
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_investments(self, states: set[str] = frozenset([])):
         states = list(states)
 
         request = {
@@ -178,18 +185,18 @@ class SegoAPIClient:
             "limit": 1000,
             "page": 0,
         }
-        return self._post_request("/factoring/v1/Inversiones/Filter", body=request)[
-            "list"
-        ]
+        return (
+            await self._post_request("/factoring/v1/Inversiones/Filter", body=request)
+        )["list"]
 
-    @cached(cache=TTLCache(maxsize=1, ttl=120))
-    def get_pending_investments(self):
-        return self._get_request("/factoring/v1/Inversiones/Pendientes")
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_pending_investments(self):
+        return await self._get_request("/factoring/v1/Inversiones/Pendientes")
 
-    @cached(cache=TTLCache(maxsize=10, ttl=120))
-    def get_movements(self, page: int = 1, limit: int = 100):
+    @cached(cache=Cache.MEMORY, ttl=120)
+    async def get_movements(self, page: int = 1, limit: int = 100):
         if limit > 100:
             raise ValueError("Limit cannot be greater than 100")
 
         params = f"?page={page}&limit=100"
-        return self._get_request(f"/core/v1/Wallet/Transactions{params}")
+        return await self._get_request(f"/core/v1/Wallet/Transactions{params}")

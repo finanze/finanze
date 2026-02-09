@@ -34,14 +34,14 @@ class GetBackupsImpl(GetBackups):
 
         self._log = logging.getLogger(__name__)
 
-    def execute(self, request: BackupsInfoRequest) -> FullBackupsInfo:
-        user_auth = self._cloud_register.get_auth()
+    async def execute(self, request: BackupsInfoRequest) -> FullBackupsInfo:
+        user_auth = await self._cloud_register.get_auth()
         CloudPermission.BACKUP_INFO.check(user_auth)
 
-        local_bkg_info = self._backup_local_registry.get_info()
+        local_bkg_info = await self._backup_local_registry.get_info()
         remote_bkg_info = BackupsInfo(pieces={})
         if not request.only_local:
-            remote_bkg_info = self._backup_repository.get_info(
+            remote_bkg_info = await self._backup_repository.get_info(
                 BackupInfoParams(auth=user_auth)
             )
 
@@ -52,7 +52,7 @@ class GetBackupsImpl(GetBackups):
             if backupable is None:
                 continue
 
-            last_update = backupable.get_last_updated()
+            last_update = await backupable.get_last_updated()
 
             local_backup = local_bkg_info.pieces.get(backup_type)
             remote_backup = remote_bkg_info.pieces.get(backup_type)

@@ -76,6 +76,21 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
     // No session material in the URL (could be a non-auth deeplink).
   }
 
+  async signInWithIdToken(
+    provider: "google" | "apple",
+    idToken: string,
+    nonce?: string,
+  ): Promise<void> {
+    const { error } = await this.getClient().auth.signInWithIdToken({
+      provider,
+      token: idToken,
+      nonce,
+    })
+    if (error) {
+      throw error
+    }
+  }
+
   async signInWithGoogle(callbackUrl: string): Promise<void> {
     const isElectron = typeof window !== "undefined" && !!window.ipcAPI
 
@@ -206,6 +221,13 @@ export class SupabaseAuthProvider implements CloudAuthProvider {
 
   async exchangeCodeForSession(code: string): Promise<void> {
     const { error } = await this.getClient().auth.exchangeCodeForSession(code)
+    if (error) {
+      throw error
+    }
+  }
+
+  async refreshSession(): Promise<void> {
+    const { error } = await this.getClient().auth.refreshSession()
     if (error) {
       throw error
     }

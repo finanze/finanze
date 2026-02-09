@@ -2,19 +2,21 @@ from dataclasses import asdict
 from datetime import datetime
 from uuid import UUID
 
+from dateutil.tz import tzlocal
+
 from application.ports.credentials_port import CredentialsPort
 from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_port import ExternalEntityPort
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
-from dateutil.tz import tzlocal
 from domain.available_sources import (
     AvailableSource,
     AvailableSources,
     FinancialEntityStatus,
 )
-from domain.entity import EntityOrigin, EntityType, Feature
+from domain.entity import EntityOrigin, EntityType, Feature, Entity
 from domain.external_entity import EXTERNAL_ENTITY_FEATURES, ExternalEntityStatus
 from domain.global_position import ProductType
 from domain.native_entities import NATIVE_ENTITIES
@@ -50,6 +52,8 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         crypto_wallet_connections_port: CryptoWalletConnectionPort,
         last_fetches_port: LastFetchesPort,
         virtual_import_registry: VirtualImportRegistry,
+        entity_fetchers: dict[Entity, FinancialEntityFetcher],
+        external_entity_fetchers: dict,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
@@ -57,16 +61,18 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._crypto_wallet_connections_port = crypto_wallet_connections_port
         self._last_fetches_port = last_fetches_port
         self._virtual_import_registry = virtual_import_registry
+        self._entity_fetchers = entity_fetchers
+        self._external_entity_fetchers = external_entity_fetchers
 
-    def execute(self) -> AvailableSources:
-        logged_entities = self._credentials_port.get_available_entities()
+    async def execute(self) -> AvailableSources:
+        logged_entities = await self._credentials_port.get_available_entities()
         logged_entity_ids = {e.entity_id: e.expiration for e in logged_entities}
 
-        all_entities = self._entity_port.get_all()
+        all_entities = await self._entity_port.get_all()
 
         native_entities_by_id = {e.id: e for e in NATIVE_ENTITIES}
 
-        last_virtual_imported_entities = self.get_last_virtual_imports_by_entity()
+        last_virtual_imported_entities = await self.get_last_virtual_imports_by_entity()
 
         entities = []
         for entity in all_entities:
@@ -89,7 +95,10 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
             if entity.origin == EntityOrigin.EXTERNALLY_PROVIDED:
                 products = self.EXTERNAL_ENTITY_PRODUCTS
-                external_entity = self._external_entity_port.get_by_entity_id(entity.id)
+                external_entity = await self._external_entity_port.get_by_entity_id(
+                    entity.id
+                )
+                dict_entity["fetchable"] = bool(self._external_entity_fetchers)
                 if not external_entity:
                     status = FinancialEntityStatus.DISCONNECTED
                     dict_entity["features"] = []
@@ -110,6 +119,12 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 products = dict_entity.get("products")
 
                 if entity.origin != EntityOrigin.MANUAL:
+                    if native_entity:
+                        fetchable = self._entity_fetchers.get(native_entity) is not None
+                    else:
+                        fetchable = True
+                    dict_entity["fetchable"] = fetchable
+
                     if entity.id in logged_entity_ids:
                         status = FinancialEntityStatus.CONNECTED
 
@@ -121,7 +136,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                         status = FinancialEntityStatus.CONNECTED
 
             else:
-                wallets = self._crypto_wallet_connections_port.get_by_entity_id(
+                wallets = await self._crypto_wallet_connections_port.get_by_entity_id(
                     entity.id
                 )
                 products = self.CRYPTO_WALLET_PRODUCTS
@@ -129,7 +144,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             last_fetch = {}
             if entity.origin != EntityOrigin.MANUAL:
                 if status != FinancialEntityStatus.DISCONNECTED:
-                    last_fetch_records = self._last_fetches_port.get_by_entity_id(
+                    last_fetch_records = await self._last_fetches_port.get_by_entity_id(
                         entity.id
                     )
                     last_fetch = {r.feature: r.date for r in last_fetch_records}
@@ -159,8 +174,12 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
 
         return AvailableSources(entities=entities)
 
-    def get_last_virtual_imports_by_entity(self) -> dict[UUID, list[VirtualDataImport]]:
-        last_virtual_imports = self._virtual_import_registry.get_last_import_records()
+    async def get_last_virtual_imports_by_entity(
+        self,
+    ) -> dict[UUID, list[VirtualDataImport]]:
+        last_virtual_imports = (
+            await self._virtual_import_registry.get_last_import_records()
+        )
         last_virtual_imported_entities = {}
         for virtual_import in last_virtual_imports:
             if virtual_import.entity_id not in last_virtual_imported_entities:

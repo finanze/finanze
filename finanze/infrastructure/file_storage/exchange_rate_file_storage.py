@@ -63,10 +63,10 @@ class ExchangeRateFileStorage(ExchangeRateStorage):
         except Exception as e:
             self._log.warning(f"Failed to load exchange rates from storage: {e}")
 
-    def get(self) -> ExchangeRates:
+    async def get(self) -> ExchangeRates:
         return self._rates_cache
 
-    def save(self, exchange_rates: ExchangeRates):
+    async def save(self, exchange_rates: ExchangeRates):
         serializable: dict[str, dict[str, str]] = {}
         for base, quotes in exchange_rates.items():
             serializable[base] = {}
@@ -90,5 +90,5 @@ class ExchangeRateFileStorage(ExchangeRateStorage):
         except Exception as e:
             self._log.exception(f"Failed to persist exchange rates: {e}")
 
-    def get_last_saved(self) -> datetime | None:
+    async def get_last_saved(self) -> datetime | None:
         return self._last_saved

@@ -29,7 +29,7 @@ class UpdateManualTransactionImpl(UpdateManualTransaction, AtomicUCMixin):
         if tx.id is None:
             raise ValueError("Transaction ID required for update")
 
-        existing = self._transaction_port.get_by_id(tx.id)
+        existing = await self._transaction_port.get_by_id(tx.id)
         if existing is None:
             raise TransactionNotFound(tx.id)
 
@@ -39,26 +39,26 @@ class UpdateManualTransactionImpl(UpdateManualTransaction, AtomicUCMixin):
         tx.entity.id = existing.entity.id
         tx.product_type = existing.product_type
 
-        real_entity = self._entity_port.get_by_id(tx.entity.id)
+        real_entity = await self._entity_port.get_by_id(tx.entity.id)
         if real_entity is None:
             raise EntityNotFound(tx.entity.id)
         tx.entity = real_entity
 
         tx = self._helper.update_derived_fields(tx)
 
-        self._transaction_port.delete_by_id(tx.id)
+        await self._transaction_port.delete_by_id(tx.id)
 
         if tx.product_type == tx.product_type.ACCOUNT:
             if not isinstance(tx, AccountTx):
                 raise ValueError(
                     "ACCOUNT product_type requires AccountTx data structure"
                 )
-            self._transaction_port.save(Transactions(account=[tx]))
+            await self._transaction_port.save(Transactions(account=[tx]))
         else:
             if not isinstance(tx, BaseInvestmentTx):
                 raise ValueError(
                     "ACCOUNT product_type requires AccountTx data structure"
                 )
-            self._transaction_port.save(Transactions(investment=[tx]))
+            await self._transaction_port.save(Transactions(investment=[tx]))
 
-        self._helper.refresh(tx.entity.id, has_transactions=True)
+        await self._helper.refresh(tx.entity.id, has_transactions=True)

@@ -68,7 +68,7 @@ class WecityFetcher(FinancialEntityFetcher):
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
 
-        return self._client.login(
+        return await self._client.login(
             username,
             password,
             login_options=login_params.options,
@@ -78,7 +78,7 @@ class WecityFetcher(FinancialEntityFetcher):
         )
 
     async def global_position(self) -> GlobalPosition:
-        wallet = Dezimal(self._client.get_wallet()["LW"]["balance"]) / 100
+        wallet = Dezimal((await self._client.get_wallet())["LW"]["balance"]) / 100
         account = Account(
             id=uuid4(),
             total=round(wallet, 2),
@@ -86,7 +86,7 @@ class WecityFetcher(FinancialEntityFetcher):
             type=AccountType.VIRTUAL_WALLET,
         )
 
-        investments = self._client.get_investments()
+        investments = await self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
@@ -96,11 +96,11 @@ class WecityFetcher(FinancialEntityFetcher):
             ):  # It can be marked as completed (5), but there could be pending principal
                 continue
 
-            raw_related_txs = self._client.get_investment_transactions(inv_id)[
+            raw_related_txs = (await self._client.get_investment_transactions(inv_id))[
                 "movements"
             ]
             related_txs = _normalize_transactions(raw_related_txs)
-            mapped_investment = self._map_investment(related_txs, inv_id, inv)
+            mapped_investment = await self._map_investment(related_txs, inv_id, inv)
             if mapped_investment:
                 investment_details.append(mapped_investment)
 
@@ -111,12 +111,14 @@ class WecityFetcher(FinancialEntityFetcher):
 
         return GlobalPosition(id=uuid4(), entity=WECITY, products=products)
 
-    def _map_investment(self, related_txs, inv_id, inv) -> RealEstateCFDetail | None:
+    async def _map_investment(
+        self, related_txs, inv_id, inv
+    ) -> RealEstateCFDetail | None:
         opportunity = inv["opportunity"]
         name = opportunity["name"].strip()
         amount = Dezimal(inv["amount"]["initial"])
         pending = Dezimal(inv["amount"]["current"])
-        investments_details = self._client.get_investment_details(inv_id)
+        investments_details = await self._client.get_investment_details(inv_id)
         opportunity = investments_details["opportunity"]
 
         raw_business_type = opportunity["investment_type_id"]
@@ -262,7 +264,9 @@ class WecityFetcher(FinancialEntityFetcher):
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions
     ) -> Transactions:
-        raw_transactions = _normalize_transactions(self._client.get_transactions())
+        raw_transactions = _normalize_transactions(
+            await self._client.get_transactions()
+        )
 
         txs = []
         for tx in raw_transactions:
@@ -332,15 +336,15 @@ class WecityFetcher(FinancialEntityFetcher):
         ).hexdigest()
 
     async def historical_position(self) -> HistoricalPosition:
-        investments = self._client.get_investments()
+        investments = await self._client.get_investments()
 
         investment_details = []
         for inv_id, inv in investments.items():
-            raw_related_txs = self._client.get_investment_transactions(inv_id)[
+            raw_related_txs = (await self._client.get_investment_transactions(inv_id))[
                 "movements"
             ]
             related_txs = _normalize_transactions(raw_related_txs)
-            mapped_investment = self._map_investment(related_txs, inv_id, inv)
+            mapped_investment = await self._map_investment(related_txs, inv_id, inv)
             if mapped_investment:
                 investment_details.append(mapped_investment)
 

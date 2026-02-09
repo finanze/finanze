@@ -7,23 +7,24 @@ from domain.user import User
 
 class DatasourceInitiator(metaclass=abc.ABCMeta):
     @property
+    @abc.abstractmethod
     def unlocked(self) -> bool:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def lock(self):
+    async def lock(self):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def initialize(self, params: DatasourceInitParams):
+    async def initialize(self, params: DatasourceInitParams):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def change_password(self, params: DatasourceInitParams, new_password: str):
+    async def change_password(self, params: DatasourceInitParams, new_password: str):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_hashed_password(self) -> Optional[str]:
+    async def get_hashed_password(self) -> Optional[str]:
         raise NotImplementedError
 
     @abc.abstractmethod

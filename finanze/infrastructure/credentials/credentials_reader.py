@@ -10,7 +10,7 @@ from domain.native_entities import NATIVE_ENTITIES
 
 
 class CredentialsReader(CredentialsPort):
-    def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
+    async def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
         if entity_id == domain.native_entities.MY_INVESTOR.id:
             return {
                 "user": os.environ["MYI_USERNAME"],
@@ -61,17 +61,17 @@ class CredentialsReader(CredentialsPort):
 
         return None
 
-    def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
+    async def get_available_entities(self) -> list[FinancialEntityCredentialsEntry]:
         return [FinancialEntityCredentialsEntry(e.id) for e in NATIVE_ENTITIES]
 
-    def save(self, entity_id: UUID, credentials: EntityCredentials):
+    async def save(self, entity_id: UUID, credentials: EntityCredentials):
         pass
 
-    def delete(self, entity_id: UUID):
+    async def delete(self, entity_id: UUID):
         pass
 
-    def update_last_usage(self, entity_id: UUID):
+    async def update_last_usage(self, entity_id: UUID):
         pass
 
-    def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
+    async def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
         pass

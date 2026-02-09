@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from flask import jsonify, request
+from quart import jsonify, request
 
 from domain.exception.exceptions import (
     MissingFieldsError,
@@ -15,7 +15,7 @@ from infrastructure.controller.mappers.manual_position_mapper import map_manual_
 
 
 async def update_position(update_position_uc: UpdatePosition):
-    body = request.json
+    body = await request.get_json()
     if not isinstance(body, dict):
         return jsonify(
             {"code": "INVALID_REQUEST", "message": "Expected a JSON object"}

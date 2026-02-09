@@ -1,9 +1,9 @@
 import logging
 from uuid import uuid4
 
-import requests
+import httpx
+from aiocache import cached, Cache
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from cachetools import TTLCache, cached
 from domain.crypto import CryptoFetchRequest, CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import AddressNotFound, TooManyRequests
@@ -26,8 +26,8 @@ class LitecoinFetcher(CryptoEntityFetcher):
     def __init__(self):
         self._log = logging.getLogger(__name__)
 
-    def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
-        balance = self._fetch_address(request.address)
+    async def fetch(self, request: CryptoFetchRequest) -> CryptoCurrencyWallet:
+        balance = await self._fetch_address(request.address)
 
         return CryptoCurrencyWallet(
             id=request.connection_id,
@@ -41,34 +41,36 @@ class LitecoinFetcher(CryptoEntityFetcher):
             ],
         )
 
-    @cached(cache=TTLCache(maxsize=50, ttl=TTL))
-    def _fetch_address(self, address: str) -> Dezimal:
+    @cached(cache=Cache.MEMORY, ttl=TTL)
+    async def _fetch_address(self, address: str) -> Dezimal:
         url = f"{self.BASE_URL}/{address}/balance"
-        balance = self._fetch(url).get("balance", 0)
+        data = await self._fetch(url)
+        balance = data.get("balance", 0)
 
         return Dezimal(balance) * self.SCALE
 
-    def _fetch(self, url: str) -> dict:
+    async def _fetch(self, url: str) -> dict:
         try:
-            response = http_get_with_backoff(
+            response = await http_get_with_backoff(
                 url,
                 cooldown=self.COOLDOWN,
                 max_retries=self.MAX_RETRIES,
                 backoff_factor=self.BACKOFF_FACTOR,
                 log=self._log,
             )
-        except requests.RequestException as e:
+        except (httpx.RequestError, TimeoutError) as e:
             self._log.error(f"Request error calling BlockCypher endpoint {url}: {e}")
             raise
 
         if response.ok:
-            return response.json()
+            return await response.json()
 
-        if response.status_code == 404:
+        if response.status == 404:
             raise AddressNotFound()
-        if response.status_code == 429:
+        if response.status == 429:
             raise TooManyRequests()
 
-        self._log.error("Error Response Body:" + response.text)
+        body = await response.text()
+        self._log.error("Error Response Body:" + body)
         response.raise_for_status()
         return {}

@@ -84,7 +84,7 @@ class UserDataManager(DataManager):
             path=Path(os.path.join(self._profiles_dir, str(user_id))),
         )
 
-    def get_last_user(self) -> Optional[User]:
+    async def get_last_user(self) -> Optional[User]:
         last_logged_id_str = self._profiles_data.get("last_logged")
         if not last_logged_id_str:
             return None
@@ -95,7 +95,7 @@ class UserDataManager(DataManager):
 
         return None
 
-    def set_last_user(self, user: User):
+    async def set_last_user(self, user: User):
         user_id_str = str(user.id)
         self._profiles_data["last_logged"] = user_id_str
 
@@ -106,19 +106,19 @@ class UserDataManager(DataManager):
 
         self._save_profiles()
 
-    def get_users(self) -> List[User]:
+    async def get_users(self) -> List[User]:
         return [
             self._profile_to_user(p_data)
             for p_data in self._profiles_data.get("profiles", [])
         ]
 
-    def get_user(self, username: str) -> Optional[User]:
+    async def get_user(self, username: str) -> Optional[User]:
         for profile_data in self._profiles_data.get("profiles", []):
             if profile_data.get("name") == username:
                 return self._profile_to_user(profile_data)
         return None
 
-    def create_user(self, user: UserRegistration) -> User:
+    async def create_user(self, user: UserRegistration) -> User:
         if self.get_user(user.username):
             raise UserAlreadyExists(
                 f"User with username '{user.username}' already exists."
@@ -140,7 +140,7 @@ class UserDataManager(DataManager):
 
         return self._profile_to_user(profile_data)
 
-    def update_user(self, user: User):
+    async def update_user(self, user: User):
         user_id_str = str(user.id)
         profile_found = False
         for profile in self._profiles_data.get("profiles", []):

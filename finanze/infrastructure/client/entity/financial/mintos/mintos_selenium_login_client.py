@@ -75,7 +75,7 @@ async def login(
         cookie_header = _cookies_to_header(cookies)
         log.debug(f"Got {len(cookies)} cookies from browser")
 
-        inject_cookies_fn(cookie_header)
+        await inject_cookies_fn(cookie_header)
 
         return EntityLoginResult(LoginResultCode.CREATED)
 

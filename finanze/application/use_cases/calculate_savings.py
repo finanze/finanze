@@ -21,7 +21,9 @@ from domain.use_cases.calculate_savings import CalculateSavings
 
 
 class CalculateSavingsImpl(CalculateSavings):
-    def execute(self, request: SavingsCalculationRequest) -> SavingsCalculationResult:
+    async def execute(
+        self, request: SavingsCalculationRequest
+    ) -> SavingsCalculationResult:
         self._validate(request)
         data = replace(request)
         if data.base_amount is None:

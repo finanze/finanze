@@ -3,11 +3,11 @@ from datetime import date
 from domain.dezimal import Dezimal
 from domain.forecast import ForecastRequest
 from domain.use_cases.forecast import Forecast
-from flask import jsonify, request
+from quart import jsonify, request
 
 
-def forecast(forecast_uc: Forecast):
-    body = request.json or {}
+async def forecast(forecast_uc: Forecast):
+    body = await request.get_json() or {}
 
     try:
         target_date_raw = body["target_date"]
@@ -48,7 +48,7 @@ def forecast(forecast_uc: Forecast):
         ), 400
 
     try:
-        result = forecast_uc.execute(
+        result = await forecast_uc.execute(
             ForecastRequest(
                 target_date=target_date,
                 avg_annual_market_increase=avg_increase,

@@ -1,10 +1,10 @@
-from flask import jsonify
+from quart import jsonify
 
 from domain.use_cases.get_cloud_auth import GetCloudAuth
 
 
-def get_cloud_auth(get_cloud_auth_uc: GetCloudAuth):
-    result = get_cloud_auth_uc.execute()
+async def get_cloud_auth(get_cloud_auth_uc: GetCloudAuth):
+    result = await get_cloud_auth_uc.execute()
 
     if result is None:
         return "", 204

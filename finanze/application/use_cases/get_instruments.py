@@ -9,5 +9,5 @@ class GetInstrumentsImpl(GetInstruments):
     def __init__(self, provider: InstrumentInfoProvider):
         self._provider = provider
 
-    def execute(self, request: InstrumentDataRequest) -> List[InstrumentOverview]:  # noqa: D401
-        return self._provider.lookup(request)
+    async def execute(self, request: InstrumentDataRequest) -> List[InstrumentOverview]:  # noqa: D401
+        return await self._provider.lookup(request)

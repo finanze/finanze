@@ -1,8 +1,8 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, TypeAlias
 
-from pydantic.dataclasses import dataclass
-
+from domain.platform import OS
 from domain.user import User
 
 
@@ -43,6 +43,7 @@ class BackendOptions:
 @dataclass
 class BackendDetails:
     version: str
+    platform_type: OS
     options: BackendOptions
 
 

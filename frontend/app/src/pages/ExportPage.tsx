@@ -54,6 +54,7 @@ import {
 } from "@/types"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { cn } from "@/lib/utils"
+import { saveBlobToDevice } from "@/lib/mobile"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { ErrorDetailsDialog } from "@/components/ui/ErrorDetailsDialog"
 import { Button } from "@/components/ui/Button"
@@ -585,14 +586,22 @@ export default function ExportPage() {
     setIsFileExporting(true)
     try {
       const result = await exportFile(payload)
-      const blobUrl = URL.createObjectURL(result.blob)
-      const anchor = document.createElement("a")
-      anchor.href = blobUrl
-      anchor.download = result.filename ?? "export"
-      document.body.appendChild(anchor)
-      anchor.click()
-      document.body.removeChild(anchor)
-      URL.revokeObjectURL(blobUrl)
+      const filename = result.filename ?? "export"
+      const saved = await saveBlobToDevice({
+        blob: result.blob,
+        filename,
+        contentType: result.contentType,
+      })
+      if (!saved) {
+        const blobUrl = URL.createObjectURL(result.blob)
+        const anchor = document.createElement("a")
+        anchor.href = blobUrl
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        document.body.removeChild(anchor)
+        URL.revokeObjectURL(blobUrl)
+      }
       showToast(t.export.file.toast.success, "success")
       setIsFileExportDialogOpen(false)
       resetFileExportForm()
@@ -1950,6 +1959,8 @@ export default function ExportPage() {
   )
   const isGoogleSheetsIntegrationEnabled =
     googleSheetsIntegration?.status === ExternalIntegrationStatus.ON
+  const isGoogleSheetsIntegrationAvailable =
+    googleSheetsIntegration?.available ?? true
   const canExport = isGoogleSheetsIntegrationEnabled && hasSheetSections
   const canImport = isGoogleSheetsIntegrationEnabled && hasImportSections
   const sheetsConfigured = hasSheetSections
@@ -2439,7 +2450,7 @@ export default function ExportPage() {
               <LayoutTemplate className="h-5 w-5 text-primary" />
               <CardTitle>{cardTitle}</CardTitle>
             </div>
-            <Badge variant="outline">
+            <Badge variant="outline" className="text-center">
               {isLoading ? (
                 <span className="flex items-center gap-1 text-xs">
                   <LoadingSpinner className="h-4 w-4" />
@@ -2475,7 +2486,9 @@ export default function ExportPage() {
             <FileText className="mr-2 h-5 w-5 text-primary" />
             <CardTitle>{t.export.file.cardTitle}</CardTitle>
           </div>
-          <Badge variant="secondary">{t.export.file.singleRunBadge}</Badge>
+          <Badge variant="secondary" className="text-center">
+            {t.export.file.singleRunBadge}
+          </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
           {t.export.file.cardDescription}
@@ -2502,7 +2515,7 @@ export default function ExportPage() {
   )
 
   const renderGoogleSheetsCard = () => (
-    <Card>
+    <Card className={cn(!isGoogleSheetsIntegrationAvailable && "opacity-60")}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -2526,7 +2539,8 @@ export default function ExportPage() {
           )}
         </div>
       </CardHeader>
-      {isGoogleSheetsIntegrationEnabled ? (
+      {isGoogleSheetsIntegrationAvailable &&
+      isGoogleSheetsIntegrationEnabled ? (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg border p-3">
@@ -2598,7 +2612,9 @@ export default function ExportPage() {
       ) : (
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t.export.integrationRequiredMessage}
+            {isGoogleSheetsIntegrationAvailable
+              ? t.export.integrationRequiredMessage
+              : t.common.notAvailableOnPlatform}
           </p>
         </CardContent>
       )}
@@ -2606,7 +2622,7 @@ export default function ExportPage() {
   )
 
   const renderGoogleSheetsImportCard = () => (
-    <Card>
+    <Card className={cn(!isGoogleSheetsIntegrationAvailable && "opacity-60")}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
@@ -2630,7 +2646,8 @@ export default function ExportPage() {
           )}
         </div>
       </CardHeader>
-      {isGoogleSheetsIntegrationEnabled ? (
+      {isGoogleSheetsIntegrationAvailable &&
+      isGoogleSheetsIntegrationEnabled ? (
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 gap-3">
             <div className="rounded-lg border p-3">
@@ -2698,7 +2715,9 @@ export default function ExportPage() {
       ) : (
         <CardContent className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            {t.export.integrationRequiredMessage}
+            {isGoogleSheetsIntegrationAvailable
+              ? t.export.integrationRequiredMessage
+              : t.common.notAvailableOnPlatform}
           </p>
         </CardContent>
       )}
@@ -2713,7 +2732,7 @@ export default function ExportPage() {
             <FileUp className="mr-2 h-5 w-5 text-primary" />
             <CardTitle>{t.export.fileImport.cardTitle}</CardTitle>
           </div>
-          <Badge variant="secondary">
+          <Badge variant="secondary" className="text-center">
             {t.export.fileImport.singleRunBadge}
           </Badge>
         </div>
@@ -4312,7 +4331,7 @@ export default function ExportPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                <CardFooter className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -4326,7 +4345,7 @@ export default function ExportPage() {
                   <Button
                     onClick={handleFileExport}
                     disabled={isFileExporting}
-                    className="w-full sm:w-auto"
+                    className="whitespace-nowrap"
                   >
                     {isFileExporting ? (
                       <LoadingSpinner className="mr-2 h-4 w-4" />
@@ -4755,7 +4774,7 @@ export default function ExportPage() {
                     </p>
                   </div>
                 </CardContent>
-                <CardFooter className="flex flex-wrap items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
+                <CardFooter className="flex items-center justify-end gap-2 border-t border-border/60 px-3 py-3 sm:px-6 sm:py-4">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -4769,7 +4788,7 @@ export default function ExportPage() {
                   <Button
                     onClick={() => handleFileImport()}
                     disabled={isFileImporting}
-                    className="w-full sm:w-auto"
+                    className="whitespace-nowrap"
                   >
                     {isFileImporting ? (
                       <LoadingSpinner className="mr-2 h-4 w-4" />

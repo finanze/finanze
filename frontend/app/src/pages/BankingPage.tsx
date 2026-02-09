@@ -430,7 +430,7 @@ function BankingManualControls({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="flex flex-wrap items-center gap-2 md:justify-end">
+      <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end">
         {isAnyEditMode ? (
           <>
             <Button
@@ -772,28 +772,29 @@ export default function BankingPage() {
       variants={fadeListContainer}
       initial="hidden"
       animate="show"
-      className="space-y-6 pb-6"
+      className="space-y-6"
     >
       <motion.div variants={fadeListItem}>
         <div className="mb-6 space-y-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => navigate(-1)}
-                >
-                  <ArrowLeft size={20} />
-                </Button>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold">{t.banking.title}</h1>
-                  <PinAssetButton assetId="banking" />
-                </div>
+          <div className="flex flex-col gap-3 [@media(min-width:500px)]:flex-row [@media(min-width:500px)]:items-center [@media(min-width:500px)]:justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="p-1 h-8 w-8"
+                onClick={() => navigate(-1)}
+              >
+                <ArrowLeft size={20} />
+              </Button>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold">{t.banking.title}</h1>
+                <PinAssetButton
+                  assetId="banking"
+                  className="hidden md:inline-flex"
+                />
               </div>
-              <p className="text-muted-foreground">{t.banking.subtitle}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 md:justify-end">
+            <div className="flex flex-wrap items-center justify-center gap-2 [@media(min-width:500px)]:justify-end">
               <Button
                 variant="ghost"
                 size="sm"
@@ -809,24 +810,26 @@ export default function BankingPage() {
                   ? t.banking.hideNumbers
                   : t.banking.showNumbers}
               </Button>
-              <MultiSelect
-                options={bankingEntityOptions}
-                value={selectedEntities}
-                onChange={setSelectedEntities}
-                placeholder={t.transactions.selectEntities}
-                className="min-w-[200px]"
-              />
+              {manualControllers.length > 0 && (
+                <BankingManualControls
+                  controllers={manualControllers}
+                  t={t}
+                  showToast={showToast}
+                  refreshEntity={refreshEntity}
+                  className="items-center [@media(min-width:450px)]:items-end"
+                />
+              )}
             </div>
           </div>
-          {manualControllers.length > 0 && (
-            <BankingManualControls
-              controllers={manualControllers}
-              t={t}
-              showToast={showToast}
-              refreshEntity={refreshEntity}
-              className="md:items-end"
+          <div className="flex flex-col gap-3 [@media(min-width:450px)]:flex-row [@media(min-width:450px)]:items-center [@media(min-width:450px)]:justify-end">
+            <MultiSelect
+              options={bankingEntityOptions}
+              value={selectedEntities}
+              onChange={setSelectedEntities}
+              placeholder={t.transactions.selectEntities}
+              className="w-full min-w-0 max-w-full [@media(min-width:450px)]:min-w-[200px] [@media(min-width:450px)]:max-w-[320px]"
             />
-          )}
+          </div>
         </div>
       </motion.div>
 

@@ -14,8 +14,10 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
 import { useI18n } from "@/i18n"
 import { useCloud } from "@/context/CloudContext"
-import { BackupMode, CloudRole } from "@/types"
-import { cn } from "@/lib/utils"
+import { CloudRole } from "@/types"
+import { isNativeMobile } from "@/lib/platform"
+import { useBackupStatus } from "@/hooks/useBackupStatus"
+import { BackupStatusContent } from "@/components/backup/BackupStatusContent"
 
 const GoogleIcon = () => (
   <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -44,8 +46,6 @@ export function CloudTab() {
     user,
     role,
     permissions,
-    backupMode,
-    setBackupMode,
     isLoading,
     isInitialized,
     oauthError,
@@ -60,10 +60,13 @@ export function CloudTab() {
     signOut,
   } = useCloud()
 
+  const backupStatus = useBackupStatus({ isActive: true })
+
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<React.ReactNode | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [authMode, setAuthMode] = useState<"signIn" | "signUp">("signIn")
   const [newPassword, setNewPassword] = useState("")
   const [confirmNewPassword, setConfirmNewPassword] = useState("")
@@ -78,6 +81,7 @@ export function CloudTab() {
   >(null)
 
   const isElectron = Boolean(window.ipcAPI)
+  const canUseGoogleSignIn = isElectron || isNativeMobile()
   const isSignedIn = !!user
   const canSeeBackup = permissions.includes("backup.info")
 
@@ -91,64 +95,6 @@ export function CloudTab() {
       // ignore
     }
   }
-
-  const setMode = (mode: BackupMode) => {
-    setBackupMode(mode)
-  }
-
-  const backupModeSelector = (
-    <div
-      className="inline-flex w-fit items-center rounded-full border border-border bg-muted/30 p-0.5"
-      role="tablist"
-      aria-label={t.settings.backup.enableLabel}
-    >
-      <button
-        type="button"
-        role="tab"
-        aria-selected={backupMode === BackupMode.OFF}
-        onClick={() => setMode(BackupMode.OFF)}
-        disabled={isLoading}
-        className={cn(
-          "h-7 rounded-full px-2 text-xs font-medium transition-colors",
-          backupMode === BackupMode.OFF
-            ? "bg-foreground text-background"
-            : "text-muted-foreground hover:text-foreground",
-        )}
-      >
-        {t.settings.backup.modes[BackupMode.OFF]}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={backupMode === BackupMode.AUTO}
-        onClick={() => setMode(BackupMode.AUTO)}
-        disabled={isLoading}
-        className={cn(
-          "h-7 rounded-full px-2 text-xs font-medium transition-colors",
-          backupMode === BackupMode.AUTO
-            ? "bg-foreground text-background"
-            : "text-muted-foreground hover:text-foreground",
-        )}
-      >
-        {t.settings.backup.modes[BackupMode.AUTO]}
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={backupMode === BackupMode.MANUAL}
-        onClick={() => setMode(BackupMode.MANUAL)}
-        disabled={isLoading}
-        className={cn(
-          "h-7 rounded-full px-2 text-xs font-medium transition-colors",
-          backupMode === BackupMode.MANUAL
-            ? "bg-foreground text-background"
-            : "text-muted-foreground hover:text-foreground",
-        )}
-      >
-        {t.settings.backup.modes[BackupMode.MANUAL]}
-      </button>
-    </div>
-  )
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -362,9 +308,16 @@ export function CloudTab() {
     >
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <User className="h-5 w-5 text-primary" />
-            <CardTitle>{t.settings.cloud.accountTitle}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <User className="h-5 w-5 text-primary" />
+              <CardTitle>{t.settings.cloud.accountTitle}</CardTitle>
+            </div>
+            {role === CloudRole.PLUS && (
+              <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
+                {t.settings.cloud.roles[role]}
+              </Badge>
+            )}
           </div>
           <CardDescription>{t.settings.cloud.description}</CardDescription>
         </CardHeader>
@@ -444,43 +397,46 @@ export function CloudTab() {
             </div>
           ) : isSignedIn ? (
             <div className="space-y-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-border/50 bg-muted/20 p-4 dark:bg-muted/10">
-                <div className="space-y-1">
-                  <p className="text-sm text-muted-foreground">
-                    {t.settings.cloud.signedInAs}
-                  </p>
-                  <p className="font-medium">{user.email}</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  className={`flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between rounded-lg border bg-muted/20 p-4 dark:bg-muted/10 flex-1 ${
+                    role === CloudRole.PLUS
+                      ? "border-amber-400/60 shadow-[0_0_0_1px_rgba(251,191,36,0.18)]"
+                      : "border-border/50"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">
+                      {t.settings.cloud.signedInAs}
+                    </p>
+                    <p className="font-medium">{user.email}</p>
+                  </div>
+                  <div className="flex items-center gap-2" />
                 </div>
-                <div className="flex items-center gap-2">
-                  {role === CloudRole.PLUS && (
-                    <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0">
-                      {t.settings.cloud.roles[role]}
-                    </Badge>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={async () => {
+                    setError(null)
+                    setSuccess(null)
+                    clearOAuthError()
+                    setActiveAction("signOut")
+                    try {
+                      await signOut()
+                    } finally {
+                      setActiveAction(null)
+                    }
+                  }}
+                  disabled={isLoading}
+                  aria-label={t.settings.cloud.logout}
+                  className="self-center sm:self-auto mx-auto sm:mx-0"
+                >
+                  {isLoading && activeAction === "signOut" ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <LogOut className="h-4 w-4" />
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={async () => {
-                      setError(null)
-                      setSuccess(null)
-                      clearOAuthError()
-                      setActiveAction("signOut")
-                      try {
-                        await signOut()
-                      } finally {
-                        setActiveAction(null)
-                      }
-                    }}
-                    disabled={isLoading}
-                    aria-label={t.settings.cloud.logout}
-                  >
-                    {isLoading && activeAction === "signOut" ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <LogOut className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+                </Button>
               </div>
             </div>
           ) : (
@@ -553,24 +509,6 @@ export function CloudTab() {
                     )}
                   </button>
                 )}
-
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  className="w-full text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                  onClick={() => {
-                    setError(null)
-                    setSuccess(null)
-                    clearOAuthError()
-                    setAuthMode(prev =>
-                      prev === "signIn" ? "signUp" : "signIn",
-                    )
-                  }}
-                >
-                  {authMode === "signIn"
-                    ? t.settings.cloud.noAccount
-                    : t.settings.cloud.alreadyHaveAccount}
-                </button>
               </form>
 
               <div className="relative">
@@ -595,11 +533,18 @@ export function CloudTab() {
                     setActiveAction("googleSignIn")
                     try {
                       await signInWithGoogle()
+                    } catch (err) {
+                      console.error("Google sign-in error:", err)
+                      setError(
+                        err instanceof Error
+                          ? err.message
+                          : t.settings.cloud.loginError,
+                      )
                     } finally {
                       setActiveAction(null)
                     }
                   }}
-                  disabled={isLoading || !isElectron}
+                  disabled={isLoading || !canUseGoogleSignIn}
                   className="w-full"
                   size="lg"
                 >
@@ -617,13 +562,15 @@ export function CloudTab() {
                     </>
                   )}
                 </Button>
-                {!isElectron && (
+                {!canUseGoogleSignIn && (
                   <span className="text-xs text-muted-foreground">
                     {t.settings.cloud.googleDesktopOnly}
                   </span>
                 )}
                 {oauthError && (
-                  <p className="text-sm text-destructive">{oauthError}</p>
+                  <p className="text-sm text-destructive text-center">
+                    {oauthError}
+                  </p>
                 )}
               </div>
 
@@ -663,29 +610,42 @@ export function CloudTab() {
 
       {isSignedIn && canSeeBackup && (
         <Card>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto]">
-            <div>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <HardDrive className="h-5 w-5 text-primary" />
-                  <CardTitle>{t.settings.backup.enableLabel}</CardTitle>
-                </div>
-                <CardDescription>
-                  {t.settings.backup.enableDescription}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="sm:hidden">{backupModeSelector}</div>
-                <p className="text-sm text-muted-foreground">
-                  {t.settings.backup.modeDescriptions[backupMode]}
-                </p>
-              </CardContent>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5 text-primary" />
+              <CardTitle>{t.settings.backup.enableLabel}</CardTitle>
             </div>
-
-            <div className="hidden sm:flex items-center px-6">
-              {backupModeSelector}
-            </div>
-          </div>
+            <CardDescription>
+              {t.settings.backup.enableDescription}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BackupStatusContent
+              backups={backupStatus.backups}
+              backupEnabled={backupStatus.backupEnabled}
+              backupMode={backupStatus.backupMode}
+              setBackupMode={backupStatus.setBackupMode}
+              isManualMode={backupStatus.isManualMode}
+              isLoading={backupStatus.isLoading}
+              isUploading={backupStatus.isUploading}
+              isImporting={backupStatus.isImporting}
+              isSyncing={backupStatus.isSyncing}
+              isCooldownActive={backupStatus.isCooldownActive}
+              isSyncCooldownActive={backupStatus.isSyncCooldownActive}
+              isConflict={backupStatus.isConflict}
+              conflictTypes={backupStatus.conflictTypes}
+              hasCredentialsMismatch={backupStatus.hasCredentialsMismatch}
+              baseActionsDisabled={backupStatus.baseActionsDisabled}
+              overallStatus={backupStatus.overallStatus}
+              lastBackupDate={backupStatus.lastBackupDate}
+              feedbackMessage={backupStatus.feedbackMessage}
+              canCreateBackup={backupStatus.canCreateBackup}
+              canImportBackup={backupStatus.canImportBackup}
+              handleUpload={backupStatus.handleUpload}
+              handleImport={backupStatus.handleImport}
+              runManualSync={backupStatus.runManualSync}
+            />
+          </CardContent>
         </Card>
       )}
     </motion.div>

@@ -1,13 +1,17 @@
+from quart import jsonify, request
+
 from domain.data_init import DecryptionError
-from domain.exception.exceptions import UserAlreadyLoggedIn, UserNotFound
+from domain.exception.exceptions import (
+    UserAlreadyLoggedIn,
+    UserNotFound,
+    InvalidUserCredentials,
+)
 from domain.use_cases.change_user_password import ChangeUserPassword
 from domain.user_login import ChangePasswordRequest
-from flask import jsonify, request
-from werkzeug.exceptions import Unauthorized
 
 
-def change_user_password(change_user_password_uc: ChangeUserPassword):
-    body = request.json
+async def change_user_password(change_user_password_uc: ChangeUserPassword):
+    body = await request.get_json()
     username = body.get("username")
     old_password = body.get("oldPassword")
     new_password = body.get("newPassword")
@@ -23,11 +27,11 @@ def change_user_password(change_user_password_uc: ChangeUserPassword):
     )
 
     try:
-        change_user_password_uc.execute(change_password_request)
+        await change_user_password_uc.execute(change_password_request)
         return "", 204
 
     except DecryptionError as e:
-        raise Unauthorized(str(e))
+        raise InvalidUserCredentials(str(e))
 
     except UserNotFound:
         return jsonify({"message": "Username not found"}), 404

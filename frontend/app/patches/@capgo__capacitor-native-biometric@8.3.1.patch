@@ -1,0 +1,28 @@
+diff --git a/android/src/main/java/ee/forgr/biometric/NativeBiometric.java b/android/src/main/java/ee/forgr/biometric/NativeBiometric.java
+index e9ad59b49481acd47be1995f3e17f73f480a75bf..371f763afc288b8257a446e63024311d73d5f24b 100644
+--- a/android/src/main/java/ee/forgr/biometric/NativeBiometric.java
++++ b/android/src/main/java/ee/forgr/biometric/NativeBiometric.java
+@@ -360,15 +360,16 @@ public class NativeBiometric extends Plugin {
+     }
+ 
+     private String encryptString(String stringToEncrypt, String KEY_ALIAS) throws GeneralSecurityException, IOException {
+-        Cipher cipher;
+-        cipher = Cipher.getInstance(TRANSFORMATION);
++        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+ 
+-        // Generate a random IV for each encryption operation
+-        byte[] iv = new byte[GCM_IV_LENGTH];
+-        SecureRandom secureRandom = new SecureRandom();
+-        secureRandom.nextBytes(iv);
++        // IMPORTANT (Android Keystore): some devices/OS versions reject caller-provided IVs for GCM.
++        // Let the Keystore/Cipher generate the IV, then persist it alongside the ciphertext.
++        cipher.init(Cipher.ENCRYPT_MODE, getKey(KEY_ALIAS));
++        byte[] iv = cipher.getIV();
++        if (iv == null || iv.length != GCM_IV_LENGTH) {
++            throw new GeneralSecurityException("Unexpected IV length");
++        }
+ 
+-        cipher.init(Cipher.ENCRYPT_MODE, getKey(KEY_ALIAS), new GCMParameterSpec(128, iv));
+         byte[] encryptedBytes = cipher.doFinal(stringToEncrypt.getBytes(StandardCharsets.UTF_8));
+ 
+         // Prepend IV to the encrypted data

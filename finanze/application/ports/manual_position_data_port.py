@@ -9,15 +9,15 @@ from domain.global_position import (
 
 class ManualPositionDataPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def save(self, entries: list[ManualPositionData]):
+    async def save(self, entries: list[ManualPositionData]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_trackable(self) -> list[ManualPositionData]:
+    async def get_trackable(self) -> list[ManualPositionData]:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def delete_by_position_id_and_type(
+    async def delete_by_position_id_and_type(
         self, global_position_id: UUID, product_type: ProductType
     ):
         raise NotImplementedError
