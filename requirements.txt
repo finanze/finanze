@@ -27,3 +27,4 @@ openpyxl==3.1.5
 Pillow==12.1.0
 httpx==0.28.1
 base58==2.1.1
+ecdsa==0.19.1
