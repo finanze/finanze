@@ -710,7 +710,7 @@
         "description": "Configure your Google Sheets API to enable data import and export."
       },
       "ETHERSCAN": {
-        "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC nets (recommended only if standard fetch fails, or if using a paid API).",
+        "description": "Configure your Etherscan API to increase data fetch rate for ETH and BSC (paid) nets (recommended only if standard fetch fails, or if using a paid API).",
         "help": "How to get an API key",
         "hint": {
           "title": "Generate an Etherscan API key",
@@ -1476,7 +1476,8 @@
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "This address is already connected.",
       "ADDRESS_NOT_FOUND": "We could not find this address. Check it and try again.",
-      "TOO_MANY_REQUESTS": "Too many attempts. Wait a moment and try again."
+      "TOO_MANY_REQUESTS": "Too many attempts. Wait a moment and try again.",
+      "XPUB_ALREADY_EXISTS": "This key is already connected."
     },
     "toasts": {
       "allSuccess": "Wallet added successfully.",
@@ -1484,12 +1485,33 @@
       "partialSuccessMultiple": "{count} addresses added successfully.",
       "allFailed": "No addresses were added."
     },
-    "submit": "Add wallet"
+    "submit": "Add wallet",
+    "derived": {
+      "useXpub": "Use extended public key (xpub)",
+      "manualTab": "Manual",
+      "xpubTab": "XPUB",
+      "xpubLabel": "Extended Public Key",
+      "xpubPlaceholder": "xpub6...",
+      "xpubRequired": "Extended public key is required.",
+      "scriptTypeLabel": "Script Type",
+      "scriptTypePlaceholder": "Select script type",
+      "scriptTypeRequired": "Script type is required.",
+      "advancedOptions": "Advanced options",
+      "accountLabel": "Account index",
+      "accountHint": "Default is 0. Change only if needed.",
+      "previewButton": "Preview addresses",
+      "previewError": "Failed to derive addresses. Check the xpub and try again.",
+      "invalidXpub": "Invalid extended public key. Check it and try again.",
+      "previewFirst": "Preview addresses before adding the wallet.",
+      "basePath": "Base path",
+      "receivingAddresses": "Receiving addresses",
+      "changeAddresses": "Change addresses"
+    }
   },
   "walletManagement": {
     "title": "Manage Wallets",
     "subtitle": "Connected wallets for {{entityName}}",
-    "addWallet": "Add Wallet",
+    "addWallet": "Add",
     "noWallets": "No wallets connected",
     "noWalletsDescription": "Start by adding your first wallet to this crypto entity",
     "addFirstWallet": "Add Your First Wallet",

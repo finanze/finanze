@@ -1,3 +1,4 @@
+from dataclasses import field
 from enum import Enum
 from typing import Optional
 from uuid import UUID
@@ -9,6 +10,7 @@ from domain.external_integration import (
     EnabledExternalIntegrations,
     ExternalIntegrationId,
 )
+from domain.public_key import ScriptType, CoinType
 
 
 class CryptoCurrencyType(str, Enum):
@@ -26,18 +28,86 @@ class CryptoAsset:
 
 
 @dataclass
-class CryptoWalletConnection:
+class HDAddress:
+    address: str
+    index: int
+    change: int
+    path: str
+    pubkey: str
+
+
+@dataclass
+class HDWallet:
+    xpub: str
+    addresses: list[HDAddress]
+    script_type: ScriptType
+    coin_type: CoinType
+    account: int
+
+
+class AddressSource(str, Enum):
+    DERIVED = "DERIVED"
+    MANUAL = "MANUAL"
+
+
+@dataclass
+class CryptoWallet:
     id: UUID
     entity_id: UUID
-    address: str
+    addresses: list[str]
     name: str
+    address_source: AddressSource
+    hd_wallet: Optional[HDWallet]
 
 
 @dataclass
 class CryptoFetchRequest:
-    address: str
     integrations: EnabledExternalIntegrations
-    connection_id: Optional[UUID] = None
+    addresses: list[str] = field(default_factory=list)
+    txs: bool = False
+
+
+@dataclass
+class CryptoFetchedPosition:
+    id: Optional[UUID]
+    symbol: str
+    balance: Dezimal
+    type: CryptoCurrencyType
+    name: Optional[str] = None
+    contract_address: Optional[str] = None
+
+
+@dataclass
+class CryptoFetchResult:
+    address: str
+    assets: list[CryptoFetchedPosition] = field(default_factory=list)
+    has_txs: Optional[bool] = None
+
+
+@dataclass
+class CryptoFetchResults:
+    results: dict[str, Optional[CryptoFetchResult]]
+
+    def __add__(self, other: CryptoFetchResults) -> CryptoFetchResults:
+        combined_results = self.results.copy()
+        for address, result in other.results.items():
+            if address not in combined_results or combined_results[address] is None:
+                combined_results[address] = result
+            elif result is not None:
+                existing_assets = {
+                    asset.symbol: asset for asset in combined_results[address].assets
+                }
+                for asset in result.assets:
+                    if asset.symbol in existing_assets:
+                        existing_assets[asset.symbol].balance += asset.balance
+                    else:
+                        existing_assets[asset.symbol] = asset
+                combined_results[address].assets = list(existing_assets.values())
+                if result.has_txs is not None:
+                    combined_results[address].has_txs = (
+                        combined_results[address].has_txs or result.has_txs
+                    )
+        return CryptoFetchResults(results=combined_results)
 
 
 @dataclass
@@ -45,11 +115,16 @@ class ConnectCryptoWallet:
     entity_id: UUID
     addresses: list[str]
     name: str
+    address_source: AddressSource
+    xpub: Optional[str] = None
+    script_type: ScriptType | None = None
+    account: int = 0
 
 
 class CryptoWalletConnectionFailureCode(str, Enum):
     ADDRESS_ALREADY_EXISTS = "ADDRESS_ALREADY_EXISTS"
     ADDRESS_NOT_FOUND = "ADDRESS_NOT_FOUND"
+    XPUB_ALREADY_EXISTS = "XPUB_ALREADY_EXISTS"
     TOO_MANY_REQUESTS = "TOO_MANY_REQUESTS"
     UNEXPECTED_ERROR = "UNEXPECTED_ERROR"
 

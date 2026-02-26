@@ -234,6 +234,7 @@ def _create_crypto_entity(
     name: str,
     features: list[Feature] = [Feature.POSITION],
     required_external_integrations: list[ExternalIntegrationId] = [],
+    allows_hd_wallet: bool = False,
 ) -> NativeCryptoWalletEntity:
     return NativeCryptoWalletEntity(
         id=UUID(f"c0000000-0000-0000-0000-000000000{num:03d}"),
@@ -244,12 +245,13 @@ def _create_crypto_entity(
         features=features,
         required_external_integrations=required_external_integrations,
         icon_url=None,
+        allows_hd_wallet=allows_hd_wallet,
     )
 
 
-BITCOIN = _create_crypto_entity(1, "Bitcoin")
+BITCOIN = _create_crypto_entity(1, "Bitcoin", allows_hd_wallet=True)
 ETHEREUM = _create_crypto_entity(2, "Ethereum")
-LITECOIN = _create_crypto_entity(3, "Litecoin")
+LITECOIN = _create_crypto_entity(3, "Litecoin", allows_hd_wallet=True)
 TRON = _create_crypto_entity(4, "Tron")
 BSC = _create_crypto_entity(
     5,

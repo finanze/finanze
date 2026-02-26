@@ -98,6 +98,9 @@ class DeferredComponents:
         from infrastructure.client.instrument.instrument_provider_adapter import (
             InstrumentProviderAdapter,
         )
+        from infrastructure.crypto.public_key_derivation_adapter import (
+            PublicKeyDerivationAdapter,
+        )
         from infrastructure.client.rates.crypto.crypto_price_client import (
             CryptoAssetInfoClient,
         )
@@ -133,8 +136,8 @@ class DeferredComponents:
         from infrastructure.repository.crypto.crypto_asset_repository import (
             CryptoAssetRegistryRepository,
         )
-        from infrastructure.repository.crypto.crypto_wallet_connection_repository import (
-            CryptoWalletConnectionRepository,
+        from infrastructure.repository.crypto.crypto_wallet_repository import (
+            CryptoWalletRepository,
         )
         from infrastructure.repository.db.transaction_handler import TransactionHandler
         from infrastructure.repository.earnings_expenses.pending_flow_repository import (
@@ -184,6 +187,9 @@ class DeferredComponents:
         from application.use_cases.calculate_loan import CalculateLoanImpl
         from application.use_cases.calculate_savings import CalculateSavingsImpl
         from application.use_cases.connect_crypto_wallet import ConnectCryptoWalletImpl
+        from application.use_cases.derive_crypto_addresses import (
+            DeriveCryptoAddressesImpl,
+        )
         from application.use_cases.connect_external_integration import (
             ConnectExternalIntegrationImpl,
         )
@@ -339,7 +345,7 @@ class DeferredComponents:
         entity_repo = EntityRepository(client=db_client)
         sessions_repo = SessionsRepository(client=db_client)
         virtual_repo = VirtualImportRepository(client=db_client)
-        wallet_repo = CryptoWalletConnectionRepository(client=db_client)
+        wallet_repo = CryptoWalletRepository(client=db_client)
         crypto_asset_repo = CryptoAssetRegistryRepository(client=db_client)
         last_fetches_repo = LastFetchesRepository(client=db_client)
         ext_int_repo = ExternalIntegrationRepository(client=db_client)
@@ -361,6 +367,7 @@ class DeferredComponents:
         inst_provider = InstrumentProviderAdapter(
             enabled_clients=["ft", "yf", "finect", "tv", "ee"]
         )
+        public_key_derivation = PublicKeyDerivationAdapter()
 
         tx_handler = TransactionHandler(client=db_client)
 
@@ -411,6 +418,7 @@ class DeferredComponents:
             last_fetches_repo,
             ext_int_repo,
             tx_handler,
+            public_key_derivation,
         )
         self.import_file = ImportFileImpl(
             position_repo,
@@ -454,7 +462,14 @@ class DeferredComponents:
         )
 
         self.conn_crypto = ConnectCryptoWalletImpl(
-            wallet_repo, crypto_entity_fetchers, ext_int_repo
+            wallet_repo,
+            crypto_entity_fetchers,
+            ext_int_repo,
+            public_key_derivation,
+            tx_handler,
+        )
+        self.derive_crypto = DeriveCryptoAddressesImpl(
+            public_key_derivation, entity_repo
         )
         self.up_crypto = UpdateCryptoWalletConnectionImpl(wallet_repo)
         self.del_crypto = DeleteCryptoWalletConnectionImpl(wallet_repo)

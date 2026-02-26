@@ -5,7 +5,7 @@ from uuid import UUID
 from dateutil.tz import tzlocal
 
 from application.ports.credentials_port import CredentialsPort
-from application.ports.crypto_wallet_connection_port import CryptoWalletConnectionPort
+from application.ports.crypto_wallet_port import CryptoWalletPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -49,7 +49,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         entity_port: EntityPort,
         external_entity_port: ExternalEntityPort,
         credentials_port: CredentialsPort,
-        crypto_wallet_connections_port: CryptoWalletConnectionPort,
+        crypto_wallet_port: CryptoWalletPort,
         last_fetches_port: LastFetchesPort,
         virtual_import_registry: VirtualImportRegistry,
         entity_fetchers: dict[Entity, FinancialEntityFetcher],
@@ -58,7 +58,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
         self._credentials_port = credentials_port
-        self._crypto_wallet_connections_port = crypto_wallet_connections_port
+        self._crypto_wallet_port = crypto_wallet_port
         self._last_fetches_port = last_fetches_port
         self._virtual_import_registry = virtual_import_registry
         self._entity_fetchers = entity_fetchers
@@ -136,8 +136,8 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                         status = FinancialEntityStatus.CONNECTED
 
             else:
-                wallets = await self._crypto_wallet_connections_port.get_by_entity_id(
-                    entity.id
+                wallets = await self._crypto_wallet_port.get_by_entity_id(
+                    entity.id, hd_addresses=False
                 )
                 products = self.CRYPTO_WALLET_PRODUCTS
 

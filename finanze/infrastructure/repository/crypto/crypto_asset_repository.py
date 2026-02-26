@@ -55,7 +55,7 @@ class CryptoAssetRegistryRepository(CryptoAssetRegistryPort):
 
         async with self._db_client.tx() as cursor:
             await cursor.execute(
-                CryptoAssetQueries.INSERT,
+                CryptoAssetQueries.UPSERT,
                 (
                     str(asset.id),
                     asset.name,

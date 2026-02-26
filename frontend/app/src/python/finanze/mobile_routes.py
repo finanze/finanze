@@ -170,6 +170,13 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
             d.del_crypto,
         ),
         (
+            "GET",
+            "/api/v1/crypto-wallet/derivate",
+            "derive_crypto_addresses",
+            "derive_crypto_addresses",
+            d.derive_crypto,
+        ),
+        (
             "POST",
             "/api/v1/commodities",
             "save_commodities",

@@ -69,7 +69,8 @@ class AddressNotFound(Exception):
 
 
 class TooManyRequests(Exception):
-    pass
+    def __init__(self, completed=None):
+        self.completed = completed
 
 
 class IntegrationSetupErrorCode(str, Enum):

@@ -227,15 +227,12 @@ class PositionQueries(str, Enum):
                a.symbol    AS asset_symbol,
                a.icon_urls AS asset_icon_urls,
                a.external_ids AS asset_external_ids,
-               c.address   AS address,
-               c.name      AS wallet_name,
                i.initial_investment AS initial_investment,
                i.average_buy_price  AS average_buy_price,
                i.currency  AS investment_currency
         FROM crypto_currency_positions p
             LEFT JOIN crypto_currency_initial_investments i ON p.id = i.crypto_currency_position
             LEFT JOIN crypto_assets a ON p.crypto_asset_id = a.id
-            LEFT JOIN crypto_wallet_connections c ON p.wallet_id = c.id
         WHERE global_position_id = ?
     """
 

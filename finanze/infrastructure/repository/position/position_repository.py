@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from application.ports.position_port import PositionPort
 from domain.commodity import CommodityType, WeightUnit
-from domain.crypto import CryptoAsset, CryptoCurrencyType
+from domain.crypto import CryptoAsset, CryptoCurrencyType, CryptoWallet
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -48,7 +48,10 @@ from domain.global_position import (
     StockInvestments,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
-
+from infrastructure.repository.crypto.crypto_wallet_repository import (
+    CryptoWalletRepository,
+)
+from infrastructure.repository.crypto.queries import CryptoWalletQueries
 from infrastructure.repository.db.client import DBClient, DBCursor
 from infrastructure.repository.position.queries import (
     PositionQueries,
@@ -993,24 +996,10 @@ class PositionSQLRepository(PositionPort):
                 (str(global_position.id),),
             )
 
-            wallets = {}
+            wallet_positions: dict[Optional[UUID], list[CryptoCurrencyPosition]] = {}
             for row in cursor:
                 raw_wallet_id = row["wallet_id"]
-                if raw_wallet_id:
-                    wallet_id = UUID(raw_wallet_id)
-                    if wallet_id not in wallets:
-                        wallet = CryptoCurrencyWallet(
-                            id=wallet_id,
-                            address=row["address"],
-                            name=row["wallet_name"],
-                            assets=[],
-                        )
-                        wallets[wallet_id] = wallet
-                    else:
-                        wallet = wallets[wallet_id]
-                else:
-                    wallet = wallets.get(None, CryptoCurrencyWallet(assets=[]))
-                    wallets[None] = wallet
+                wallet_id = UUID(raw_wallet_id) if raw_wallet_id else None
 
                 crypto_asset = None
                 if row["crypto_asset_id"]:
@@ -1048,8 +1037,6 @@ class PositionSQLRepository(PositionPort):
                     currency=row["currency"],
                     contract_address=row["contract_address"],
                     crypto_asset=crypto_asset,
-                    wallet_address=row["address"],
-                    wallet_name=row["wallet_name"],
                     initial_investment=(
                         Dezimal(row["initial_investment"])
                         if row["initial_investment"]
@@ -1067,11 +1054,40 @@ class PositionSQLRepository(PositionPort):
                     ),
                     source=global_position.source,
                 )
-                wallet.assets.append(crypto_pos)
+                wallet_positions.setdefault(wallet_id, []).append(crypto_pos)
 
-            wallets = list(wallets.values())
+            if not wallet_positions:
+                return None
 
-            return CryptoCurrencies(wallets)
+            wallet_ids_to_fetch = {wid for wid in wallet_positions if wid is not None}
+            wallets_by_id: dict[UUID, CryptoWallet] = {}
+            if wallet_ids_to_fetch:
+                await cursor.execute(
+                    CryptoWalletQueries.GET_BY_ENTITY_ID,
+                    (str(global_position.entity.id),),
+                )
+                crypto_wallets = await CryptoWalletRepository._map_crypto_rows(
+                    cursor, await cursor.fetchall(), False
+                )
+                wallets_by_id = {w.id: w for w in crypto_wallets}
+
+            result_wallets = []
+            for wallet_id, positions in wallet_positions.items():
+                if wallet_id is not None and wallet_id in wallets_by_id:
+                    w = wallets_by_id[wallet_id]
+                    wallet = CryptoCurrencyWallet(
+                        id=w.id,
+                        name=w.name,
+                        address_source=w.address_source,
+                        addresses=w.addresses,
+                        assets=positions,
+                        hd_wallet=w.hd_wallet,
+                    )
+                else:
+                    wallet = CryptoCurrencyWallet(assets=positions)
+                result_wallets.append(wallet)
+
+            return CryptoCurrencies(result_wallets)
 
     async def _get_commodities(
         self, global_position: GlobalPosition

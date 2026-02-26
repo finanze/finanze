@@ -1,4 +1,4 @@
-import { DataSource, EntityOrigin } from "."
+import { DataSource, EntityOrigin, HDWallet } from "."
 
 export interface ManualEntryData {
   tracker_key?: string | null
@@ -263,6 +263,7 @@ export interface CryptoAsset {
   symbol: string
   icon_urls?: string[] | null
   external_ids?: Record<string, string> | null
+  contract_address?: string | null
 }
 
 export interface CryptoCurrencyPosition {
@@ -283,9 +284,10 @@ export interface CryptoCurrencyPosition {
 
 export interface CryptoCurrencyWallet {
   id?: string | null
-  address?: string | null
+  addresses?: string[] | null
   name?: string | null
   assets?: CryptoCurrencyPosition[] | null
+  hd_wallet: HDWallet | null
 }
 
 export interface CryptoCurrencies {

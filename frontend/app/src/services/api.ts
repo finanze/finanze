@@ -34,6 +34,8 @@ import {
   InstrumentOverview,
   InstrumentsResponse,
   CryptoWalletConnectionResult,
+  DerivedAddressesResult,
+  DeriveCryptoAddressesRequest,
   TemplateType,
   Template,
   TemplateCreatePayload,
@@ -434,6 +436,26 @@ export async function updateCryptoWallet(
 
 export async function deleteCryptoWallet(id: string): Promise<void> {
   return (await getApiClient()).delete(`/crypto-wallet/${id}`)
+}
+
+export async function deriveCryptoAddresses(
+  request: DeriveCryptoAddressesRequest,
+): Promise<DerivedAddressesResult> {
+  const params = new URLSearchParams()
+  params.set("xpub", request.xpub)
+  params.set("network", request.network)
+  if (request.script_type) {
+    params.set("script_type", request.script_type)
+  }
+  if (request.account != null) {
+    params.set("account", request.account.toString())
+  }
+  if (request.range != null) {
+    params.set("range", request.range.toString())
+  }
+  return (await getApiClient()).get(
+    `/crypto-wallet/derivate?${params.toString()}`,
+  )
 }
 
 export async function saveCommodity(

@@ -7,6 +7,7 @@ __pycache__
 /backend
 /build
 /dist
+.coverage
 
 .DS_Store
 .idea

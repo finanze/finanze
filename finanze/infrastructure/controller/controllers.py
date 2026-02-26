@@ -14,6 +14,7 @@ from domain.use_cases.create_template import CreateTemplate
 from domain.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnection
 from domain.use_cases.delete_external_entity import DeleteExternalEntity
 from domain.use_cases.delete_manual_transaction import DeleteManualTransaction
+from domain.use_cases.derive_crypto_addresses import DeriveCryptoAddresses
 from domain.use_cases.delete_periodic_flow import DeletePeriodicFlow
 from domain.use_cases.delete_real_estate import DeleteRealEstate
 from domain.use_cases.delete_template import DeleteTemplate
@@ -102,6 +103,9 @@ from infrastructure.controller.routes.delete_manual_transaction import (
     delete_manual_transaction,
 )
 from infrastructure.controller.routes.delete_periodic_flow import delete_periodic_flow
+from infrastructure.controller.routes.derive_crypto_addresses import (
+    derive_crypto_addresses,
+)
 from infrastructure.controller.routes.delete_real_estate import delete_real_estate
 from infrastructure.controller.routes.delete_template import delete_template
 from infrastructure.controller.routes.disconnect_entity import disconnect_entity
@@ -204,6 +208,7 @@ async def register_routes(
     connect_crypto_wallet_uc: ConnectCryptoWallet,
     update_crypto_wallet_uc: UpdateCryptoWalletConnection,
     delete_crypto_wallet_uc: DeleteCryptoWalletConnection,
+    derive_crypto_addresses_uc: DeriveCryptoAddresses,
     save_commodities_uc: SaveCommodities,
     get_external_integrations_uc: GetExternalIntegrations,
     connect_external_integrations_uc: ConnectExternalIntegration,
@@ -365,6 +370,10 @@ async def register_routes(
     @app.route("/api/v1/crypto-wallet/<wallet_connection_id>", methods=["DELETE"])
     async def delete_crypto_wallet_route(wallet_connection_id: str):
         return await delete_crypto_wallet(delete_crypto_wallet_uc, wallet_connection_id)
+
+    @app.route("/api/v1/crypto-wallet/derivate", methods=["GET"])
+    async def derive_crypto_addresses_route():
+        return await derive_crypto_addresses(derive_crypto_addresses_uc)
 
     @app.route("/api/v1/commodities", methods=["POST"])
     async def save_commodities_route():

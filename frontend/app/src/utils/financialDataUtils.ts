@@ -2148,9 +2148,12 @@ export const getCryptoPositions = (
           aggregation.value += value
           aggregation.initialInvestment += investedContribution
           aggregation.entities.add(entityName)
-          if (wallet.address) {
-            aggregation.addresses.add(wallet.address)
-          }
+          const addresses = wallet.addresses ?? []
+          addresses.forEach(address => {
+            if (address) {
+              aggregation.addresses.add(address)
+            }
+          })
         })
       })
     }

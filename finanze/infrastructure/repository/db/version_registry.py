@@ -115,6 +115,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_1_add_entity_img import (
 from infrastructure.repository.db.versions.v0.v08.v080_2_migrate_applied_at_to_iso import (
     V0802MigrateAppliedAtToIso,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_3_crypto_addresses import (
+    V0803CryptoAddresses,
+)
 
 versions = [
     V0Genesis(),
@@ -164,4 +167,5 @@ versions = [
     V0800SysConfig(),
     V0801AddEntityImage(),
     V0802MigrateAppliedAtToIso(),
+    V0803CryptoAddresses(),
 ]

@@ -121,9 +121,11 @@ class EtherscanClient(ConnectableIntegration):
                 raise IntegrationSetupError(
                     IntegrationSetupErrorCode.INVALID_CREDENTIALS
                 )
+            if result and "not supported for this chain" in result:
+                raise ValueError("API Key does not support the requested chain")
             if result and ("Max calls" in result or "Free API access" in result):
                 raise TooManyRequests()
-            if "No transactions found" in msg:
+            if "No transactions found" in msg or "Invalid address format" in msg:
                 raise AddressNotFound()
             if "timeout" in str(msg).lower():
                 raise ValueError("Request timed out")

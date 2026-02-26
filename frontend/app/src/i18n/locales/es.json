@@ -708,7 +708,7 @@
         "description": "Configura Google Sheets para habilitar la importación y exportación de datos."
       },
       "ETHERSCAN": {
-        "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (recomendado solo si falla la obtención estándar, o si la API es de pago)",
+        "description": "Configura la API de Etherscan para subir la cuota y velocidad de obtención de datos de redes ETH y BSC (solo de pago) (recomendado solo si falla la obtención estándar, o si la API es de pago)",
         "help": "Cómo obtener la clave API",
         "hint": {
           "title": "Generar una clave API de Etherscan",
@@ -1475,7 +1475,8 @@
     "addressErrors": {
       "ADDRESS_ALREADY_EXISTS": "Esta dirección ya está conectada.",
       "ADDRESS_NOT_FOUND": "No pudimos encontrar esta dirección. Revísala e inténtalo de nuevo.",
-      "TOO_MANY_REQUESTS": "Demasiados intentos. Espera un momento e inténtalo otra vez."
+      "TOO_MANY_REQUESTS": "Demasiados intentos. Espera un momento e inténtalo otra vez.",
+      "XPUB_ALREADY_EXISTS": "Esta clave pública ya está conectada."
     },
     "toasts": {
       "allSuccess": "Billetera agregada correctamente.",
@@ -1483,12 +1484,33 @@
       "partialSuccessMultiple": "{count} direcciones agregadas correctamente.",
       "allFailed": "No se agregó ninguna dirección."
     },
-    "submit": "Agregar billetera"
+    "submit": "Agregar billetera",
+    "derived": {
+      "useXpub": "Usar clave pública extendida (xpub)",
+      "manualTab": "Manual",
+      "xpubTab": "XPUB",
+      "xpubLabel": "Clave Pública Extendida",
+      "xpubPlaceholder": "xpub6...",
+      "xpubRequired": "La clave pública extendida es obligatoria.",
+      "scriptTypeLabel": "Tipo de script",
+      "scriptTypePlaceholder": "Seleccionar tipo de script",
+      "scriptTypeRequired": "El tipo de script es obligatorio.",
+      "advancedOptions": "Opciones avanzadas",
+      "accountLabel": "Índice de cuenta",
+      "accountHint": "Por defecto es 0. Cambiar solo si es necesario.",
+      "previewButton": "Previsualizar direcciones",
+      "previewError": "Error al derivar direcciones. Verifica el xpub e inténtalo de nuevo.",
+      "invalidXpub": "Clave pública extendida inválida. Revísala e inténtalo de nuevo.",
+      "previewFirst": "Previsualiza las direcciones antes de agregar la billetera.",
+      "basePath": "Ruta base",
+      "receivingAddresses": "Direcciones de recepción",
+      "changeAddresses": "Direcciones de cambio"
+    }
   },
   "walletManagement": {
     "title": "Gestionar billeteras",
     "subtitle": "Billeteras conectadas para {{entityName}}",
-    "addWallet": "Agregar billetera",
+    "addWallet": "Agregar",
     "noWallets": "No hay billeteras conectadas",
     "noWalletsDescription": "Comienza agregando tu primera billetera a esta entidad cripto",
     "addFirstWallet": "Agregar tu primera billetera",
