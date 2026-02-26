@@ -2,11 +2,10 @@ import hashlib
 from dataclasses import dataclass
 
 import base58
-import bech32
+from application.ports.public_key_derivation import PublicKeyDerivation
 from ecdsa import SECP256k1
 from ecdsa.ellipticcurve import Point
 
-from application.ports.public_key_derivation import PublicKeyDerivation
 from domain.public_key import (
     AddressDerivationRequest,
     DerivedAddressesResult,
@@ -14,6 +13,7 @@ from domain.public_key import (
     CoinType,
     DerivedAddress,
 )
+import infrastructure.crypto.bech32 as bech32
 
 
 @dataclass(frozen=True)

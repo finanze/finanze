@@ -4,7 +4,7 @@ import sys
 import traceback
 
 from args import parse_args
-from infrastructure.config.server_details_adapter import _resolve_version
+from infrastructure.config.server_details_adapter import resolve_version
 from server import FinanzeServer
 
 log = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def main() -> None:
     try:
         args = parse_args()
 
-        log.info(f"Initializing Finanze server v{_resolve_version()}...")
+        log.info(f"Initializing Finanze server v{resolve_version()}...")
         server = FinanzeServer(args)
 
         asyncio.run(server.run())
