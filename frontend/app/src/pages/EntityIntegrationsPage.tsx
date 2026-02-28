@@ -226,6 +226,7 @@ export default function EntityIntegrationsPage() {
         }
 
         await scrape(selectedEntity, selectedEntity.features)
+        await fetchEntities()
         showToast(t.walletForm.toasts.allSuccess, "success")
         setShowAddWallet(false)
         setView("entities")
@@ -239,6 +240,7 @@ export default function EntityIntegrationsPage() {
 
       if (successCount > 0) {
         await scrape(selectedEntity, selectedEntity.features)
+        await fetchEntities()
 
         const toastMessage =
           successCount === normalizedAddresses.length
