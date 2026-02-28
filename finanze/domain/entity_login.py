@@ -25,6 +25,9 @@ class LoginResultCode(str, Enum):
     INVALID_CODE = "INVALID_CODE"
     INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
 
+    # Other unexpected-unsuccessful-controlled results
+    CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE"
+
     # Not setup
     NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE"
 

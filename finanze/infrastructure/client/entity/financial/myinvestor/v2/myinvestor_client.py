@@ -7,6 +7,8 @@ import httpx
 from aiocache import cached, Cache
 from dateutil.relativedelta import relativedelta
 from dateutil.tz import tzlocal
+from infrastructure.client.http.http_response import HttpResponse
+from infrastructure.client.http.http_session import get_http_session
 
 from domain.entity_login import (
     EntityLoginResult,
@@ -14,8 +16,6 @@ from domain.entity_login import (
     LoginResultCode,
     EntitySession,
 )
-from infrastructure.client.http.http_response import HttpResponse
-from infrastructure.client.http.http_session import get_http_session
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -119,6 +119,8 @@ class MyInvestorAPIV2Client:
 
             elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
+            elif response.status == 403:
+                return self._handle_forbidden_login(response)
             else:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
@@ -157,6 +159,8 @@ class MyInvestorAPIV2Client:
 
             elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
+            elif response.status == 403:
+                return self._handle_forbidden_login(response)
             else:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
@@ -165,6 +169,21 @@ class MyInvestorAPIV2Client:
 
         else:
             raise ValueError("Invalid params")
+
+    @staticmethod
+    def _handle_forbidden_login(response: HttpResponse) -> EntityLoginResult:
+        body = response.json()
+        error_code = body.get("status", {}).get("code", "")
+        if error_code == "SECURITY_001":
+            return EntityLoginResult(
+                LoginResultCode.CURRENTLY_UNAVAILABLE,
+                message=body.get("status", {}).get("message", ""),
+            )
+        else:
+            return EntityLoginResult(
+                LoginResultCode.UNEXPECTED_ERROR,
+                message=body.get("status", {}).get("message", ""),
+            )
 
     @staticmethod
     def _create_session(token_data: dict, device_id: str) -> EntitySession:

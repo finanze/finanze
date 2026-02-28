@@ -10,17 +10,17 @@ from domain.use_cases.connect_crypto_wallet import ConnectCryptoWallet
 
 async def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
     body = await request.get_json()
-    addresses = body.get("addresses")
 
     if (
         not body
         or not body.get("entityId")
-        or addresses is None
+        or body.get("addresses") is None
         or not body.get("name")
         or not body.get("source")
     ):
         return {"message": "source, entityId, address and name are required"}, 400
 
+    addresses = body.get("addresses")
     source = body.get("source")
     try:
         source = AddressSource(source)

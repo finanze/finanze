@@ -1,3 +1,4 @@
+import base58
 import pytest
 
 from domain.public_key import (
@@ -38,6 +39,17 @@ VALID_BTC_ZPUB = "zpub6rFR7y4Q2AijBEqTUquhVz398htDFrtymD9xYYfG1m4wAcvPhXNfE3EfH1
 
 
 VALID_ELECTRUM_ZPUB = "zpub6nCvPheBJa1JynNZn2t29jdYX444VGohf6i3aYWEsTEBQE2BHDRE7cyT8R9LGSPBbaHvR4eFvsrLBotW5HME8WBGnc6LbGdvXtNhPWuMPbz"
+
+
+def _build_depth2_xpub(root_xpub: str, account: int = 0) -> str:
+    version, chain_code, key_data, _, _ = decode_extended_key(root_xpub)
+    pubkey = key_data[1:] if key_data[0] == 0x00 else key_data
+    child1_pubkey, child1_chain = derive_child_pubkey(pubkey, chain_code, 0)
+    child2_pubkey, child2_chain = derive_child_pubkey(child1_pubkey, child1_chain, 0)
+    fingerprint = hash160(child1_pubkey)[:4]
+    child_index = (0x80000000 + account).to_bytes(4, "big")
+    raw = version + b"\x02" + fingerprint + child_index + child2_chain + child2_pubkey
+    return base58.b58encode_check(raw).decode()
 
 
 class TestDecodeExtendedKey:
@@ -407,24 +419,21 @@ class TestDeriveAddresses:
         assert addresses_acc0[0].address != addresses_acc1[0].address
 
     def test_account_inferred_from_xpub_at_depth_2(self):
-        from infrastructure.crypto.public_key_derivation_adapter import (
-            decode_extended_key,
+        depth_2_xpub = _build_depth2_xpub(VALID_BTC_XPUB, account=3)
+
+        _, _, _, depth, child_index = decode_extended_key(depth_2_xpub)
+        assert depth == 2
+        assert child_index == 0x80000000 + 3
+
+        addresses, base_path = derive_addresses(
+            depth_2_xpub,
+            network=CoinType.BITCOIN,
+            script_type=ScriptType.P2PKH,
+            account=99,
+            count=1,
         )
 
-        _, _, _, depth, child_index = decode_extended_key(VALID_BTC_XPUB)
-
-        if depth == 2 and child_index >= 0x80000000:
-            expected_account = child_index - 0x80000000
-
-            addresses, base_path = derive_addresses(
-                VALID_BTC_XPUB,
-                network=CoinType.BITCOIN,
-                script_type=ScriptType.P2PKH,
-                account=99,
-                count=1,
-            )
-
-            assert f"{expected_account}'" in base_path
+        assert "3'" in base_path
 
 
 class TestPublicKeyDerivationAdapter:

@@ -29,18 +29,6 @@ class CryptoWalletRepository(CryptoWalletPort):
             for hd_row in hd_addr_rows
         ]
 
-    async def get_by_id(
-        self, entity_id: UUID, hd_addresses: bool
-    ) -> List[CryptoWallet]:
-        async with self._db_client.read() as cursor:
-            await cursor.execute(
-                CryptoWalletQueries.GET_BY_ENTITY_ID,
-                (str(entity_id),),
-            )
-            return await self._map_crypto_rows(
-                cursor, await cursor.fetchall(), hd_addresses
-            )
-
     async def get_by_entity_id(
         self, entity_id: UUID, hd_addresses: bool
     ) -> List[CryptoWallet]:

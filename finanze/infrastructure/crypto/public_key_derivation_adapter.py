@@ -238,10 +238,14 @@ def pubkey_to_taproot_internal(pubkey: bytes) -> bytes:
         raise ValueError(f"Invalid pubkey length: {len(pubkey)}")
 
 
+def tagged_hash(tag: str, data: bytes) -> bytes:
+    tag_hash = hashlib.sha256(tag.encode()).digest()
+    return hashlib.sha256(tag_hash + tag_hash + data).digest()
+
+
 def taproot_tweak_pubkey(pubkey: bytes) -> bytes:
     internal_key = pubkey_to_taproot_internal(pubkey)
-    tweak_hash = hashlib.sha256(b"TapTweak" + b"TapTweak" + internal_key).digest()
-    tweak_hash = hashlib.sha256(tweak_hash).digest()
+    tweak_hash = tagged_hash("TapTweak", internal_key)
 
     x = int.from_bytes(internal_key, "big")
     p = SECP256k1.curve.p()
