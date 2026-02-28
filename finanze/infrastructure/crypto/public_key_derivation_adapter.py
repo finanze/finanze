@@ -157,11 +157,20 @@ def derive_child_pubkey(
     return child_pubkey, child_chain_code
 
 
+def _ripemd160(data: bytes) -> bytes:
+    try:
+        h = hashlib.new("ripemd160")
+        h.update(data)
+        return h.digest()
+    except ValueError:
+        from infrastructure.crypto.ripemd160 import ripemd160
+
+        return ripemd160(data)
+
+
 def hash160(data: bytes) -> bytes:
     sha256_hash = hashlib.sha256(data).digest()
-    ripemd160 = hashlib.new("ripemd160")
-    ripemd160.update(sha256_hash)
-    return ripemd160.digest()
+    return _ripemd160(sha256_hash)
 
 
 def pubkey_to_p2pkh(pubkey: bytes, network: CoinType) -> str:
