@@ -42,7 +42,6 @@ class HDWallet:
     addresses: list[HDAddress]
     script_type: ScriptType
     coin_type: CoinType
-    account: int
 
 
 class AddressSource(str, Enum):
@@ -88,25 +87,36 @@ class CryptoFetchResult:
 class CryptoFetchResults:
     results: dict[str, Optional[CryptoFetchResult]]
 
+    @staticmethod
+    def _asset_key(asset: CryptoFetchedPosition) -> tuple:
+        if asset.type == CryptoCurrencyType.TOKEN and asset.contract_address:
+            return asset.type, asset.contract_address
+        return asset.type, asset.symbol
+
+    @staticmethod
+    def _merge_results(
+        existing: CryptoFetchResult, incoming: CryptoFetchResult
+    ) -> None:
+        existing_assets = {
+            CryptoFetchResults._asset_key(asset): asset for asset in existing.assets
+        }
+        for asset in incoming.assets:
+            key = CryptoFetchResults._asset_key(asset)
+            if key in existing_assets:
+                existing_assets[key].balance += asset.balance
+            else:
+                existing_assets[key] = asset
+        existing.assets = list(existing_assets.values())
+        if incoming.has_txs is not None:
+            existing.has_txs = existing.has_txs or incoming.has_txs
+
     def __add__(self, other: CryptoFetchResults) -> CryptoFetchResults:
         combined_results = self.results.copy()
         for address, result in other.results.items():
             if address not in combined_results or combined_results[address] is None:
                 combined_results[address] = result
             elif result is not None:
-                existing_assets = {
-                    asset.symbol: asset for asset in combined_results[address].assets
-                }
-                for asset in result.assets:
-                    if asset.symbol in existing_assets:
-                        existing_assets[asset.symbol].balance += asset.balance
-                    else:
-                        existing_assets[asset.symbol] = asset
-                combined_results[address].assets = list(existing_assets.values())
-                if result.has_txs is not None:
-                    combined_results[address].has_txs = (
-                        combined_results[address].has_txs or result.has_txs
-                    )
+                self._merge_results(combined_results[address], result)
         return CryptoFetchResults(results=combined_results)
 
 
@@ -118,7 +128,6 @@ class ConnectCryptoWallet:
     address_source: AddressSource
     xpub: Optional[str] = None
     script_type: ScriptType | None = None
-    account: int = 0
 
 
 class CryptoWalletConnectionFailureCode(str, Enum):

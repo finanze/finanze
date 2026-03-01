@@ -43,7 +43,6 @@ class AddressDerivationRequest:
     receiving_range: tuple[int, int] = (0, 30)
     change_range: tuple[int, int] = (0, 30)
     script_type: ScriptType | None = None
-    account: int = 0
 
 
 @dataclass(frozen=True)
@@ -52,4 +51,3 @@ class AddressDerivationPreviewRequest:
     entity: Entity
     range: int = 5
     script_type: ScriptType | None = None
-    account: int = 0

@@ -68,7 +68,6 @@ class CryptoWalletRepository(CryptoWalletPort):
                     addresses=hd_wallet_addresses,
                     script_type=ScriptType(row["script_type"]),
                     coin_type=CoinType(row["coin"]),
-                    account=row["account"],
                 )
 
             wallet = CryptoWallet(
@@ -141,7 +140,6 @@ class CryptoWalletRepository(CryptoWalletPort):
                     hd_wallet.xpub,
                     hd_wallet.script_type.value,
                     hd_wallet.coin_type.value,
-                    hd_wallet.account,
                 ),
             )
 

@@ -27,7 +27,6 @@ class CryptoWalletQueries(str, Enum):
               hdw.xpub,
               hdw.script_type,
               hdw.coin,
-              hdw.account,
               json_group_array(
                       cwa.address
               ) as addresses
@@ -36,28 +35,7 @@ class CryptoWalletQueries(str, Enum):
                 LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
        WHERE cw.entity_id = ?
        GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
-                hdw.xpub, hdw.script_type, hdw.coin, hdw.account
-    """
-
-    GET_BY_ID = """
-       SELECT cw.id,
-              cw.entity_id,
-              cw.name,
-              cw.address_source,
-              cw.created_at,
-              hdw.xpub,
-              hdw.script_type,
-              hdw.coin,
-              hdw.account,
-              json_group_array(
-                      cwa.address
-              ) as addresses
-       FROM crypto_wallets cw
-                LEFT JOIN crypto_wallet_addresses cwa ON cw.id = cwa.wallet_id
-                LEFT JOIN hd_wallet hdw ON cw.id = hdw.wallet_id
-       WHERE cw.id = ?
-       GROUP BY cw.id, cw.entity_id, cw.name, cw.address_source, cw.created_at,
-                hdw.xpub, hdw.script_type, hdw.coin, hdw.account
+                hdw.xpub, hdw.script_type, hdw.coin
     """
 
     GET_HD_ADDRESSES_BY_WALLET_ID = """
@@ -103,8 +81,8 @@ class CryptoWalletQueries(str, Enum):
     """
 
     INSERT_HD_WALLET = """
-        INSERT INTO hd_wallet (wallet_id, xpub, script_type, coin, account)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO hd_wallet (wallet_id, xpub, script_type, coin)
+        VALUES (?, ?, ?, ?)
     """
 
     RENAME = """

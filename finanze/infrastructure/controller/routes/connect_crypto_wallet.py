@@ -29,12 +29,10 @@ async def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
 
     xpub = body.get("xpub")
     raw_script_type = body.get("script_type")
-    raw_account = body.get("account")
 
     script_type = None
-    account = 0
 
-    if xpub or raw_script_type or raw_account is not None:
+    if xpub or raw_script_type:
         if not xpub or not raw_script_type:
             return {
                 "message": "xpub and script_type are required when providing HD wallet params"
@@ -46,14 +44,6 @@ async def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
             return {
                 "message": f"Invalid script_type. Valid values: {[st.value for st in ScriptType]}"
             }, 400
-
-        if raw_account is not None:
-            try:
-                account = int(raw_account)
-                if account < 0:
-                    raise ValueError
-            except (ValueError, TypeError):
-                return {"message": "Invalid account parameter"}, 400
     elif not addresses:
         return {
             "message": "Either addresses or HD wallet parameters (xpub and script_type) must be provided"
@@ -67,7 +57,6 @@ async def connect_crypto_wallet(connect_crypto_wallet_uc: ConnectCryptoWallet):
             address_source=source,
             xpub=xpub,
             script_type=script_type,
-            account=account,
         )
     )
     return jsonify(response), 200

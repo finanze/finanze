@@ -54,7 +54,6 @@ class DeriveCryptoAddressesImpl(DeriveCryptoAddresses):
             receiving_range=(0, request.range),
             change_range=(0, request.range),
             script_type=request.script_type,
-            account=request.account,
         )
 
         return self._public_key_derivation.calculate(derivation_request)

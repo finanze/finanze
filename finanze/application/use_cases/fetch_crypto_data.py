@@ -379,7 +379,6 @@ class FetchCryptoDataImpl(FetchCryptoData):
                     receiving_range=recv_range,
                     change_range=change_range,
                     script_type=wallet.hd_wallet.script_type,
-                    account=wallet.hd_wallet.account,
                 )
             )
             recv_batch = result.receiving

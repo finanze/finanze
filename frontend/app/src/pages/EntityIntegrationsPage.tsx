@@ -214,7 +214,6 @@ export default function EntityIntegrationsPage() {
         source: data.source,
         xpub: data.xpub,
         script_type: data.scriptType,
-        account: data.account,
       })
 
       if (data.source === AddressSource.DERIVED) {

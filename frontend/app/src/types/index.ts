@@ -72,7 +72,6 @@ export interface HDWallet {
   addresses: HDAddress[]
   script_type: ScriptType
   coin_type: string
-  account: number
 }
 
 export interface CryptoWalletConnection {
@@ -539,7 +538,6 @@ export interface CreateCryptoWalletRequest {
   source: AddressSource
   xpub?: string | null
   script_type?: ScriptType | null
-  account?: number | null
 }
 
 export interface UpdateCryptoWalletConnectionRequest {
@@ -572,7 +570,6 @@ export interface DeriveCryptoAddressesRequest {
   xpub: string
   network: string
   script_type?: string | null
-  account?: number
   range?: number
 }
 

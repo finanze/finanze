@@ -447,9 +447,6 @@ export async function deriveCryptoAddresses(
   if (request.script_type) {
     params.set("script_type", request.script_type)
   }
-  if (request.account != null) {
-    params.set("account", request.account.toString())
-  }
   if (request.range != null) {
     params.set("range", request.range.toString())
   }

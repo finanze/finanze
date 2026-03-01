@@ -151,7 +151,6 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             receiving_range=(0, 1),
             change_range=(0, 1),
             script_type=request.script_type,
-            account=request.account,
         )
 
         derived_result = self._public_key_derivation.calculate(derivation_request)
@@ -172,7 +171,6 @@ class ConnectCryptoWalletImpl(ConnectCryptoWallet):
             addresses=[],
             script_type=derived_result.script_type,
             coin_type=derived_result.coin,
-            account=request.account,
         )
 
         async with self._transaction_handler_port.start():

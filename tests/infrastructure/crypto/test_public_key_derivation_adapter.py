@@ -296,22 +296,16 @@ class TestTaprootTweakPubkey:
 
 
 class TestDeriveAddresses:
-    def test_derive_btc_p2pkh_addresses(self):
-        addresses, base_path = derive_addresses(
-            VALID_BTC_XPUB,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            change=0,
-            start_index=0,
-            count=5,
-        )
-
-        assert len(addresses) == 5
-        assert "44'" in base_path
-        for i, addr in enumerate(addresses):
-            assert addr.index == i
-            assert addr.address.startswith("1")
-            assert len(addr.pubkey) == 66
+    def test_derive_btc_p2pkh_depth0_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            derive_addresses(
+                VALID_BTC_XPUB,
+                network=CoinType.BITCOIN,
+                script_type=ScriptType.P2PKH,
+                change=0,
+                start_index=0,
+                count=5,
+            )
 
     def test_derive_btc_p2sh_p2wpkh_addresses(self):
         addresses, _ = derive_addresses(
@@ -355,33 +349,22 @@ class TestDeriveAddresses:
         for addr in addresses:
             assert addr.address.startswith("bc1p")
 
-    def test_derive_change_addresses(self):
-        receiving, _ = derive_addresses(
-            VALID_BTC_XPUB,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            change=0,
-            start_index=0,
-            count=1,
-        )
-        change, _ = derive_addresses(
-            VALID_BTC_XPUB,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            change=1,
-            start_index=0,
-            count=1,
-        )
-
-        assert receiving[0].address != change[0].address
-        assert receiving[0].change == 0
-        assert change[0].change == 1
+    def test_derive_change_addresses_depth0_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            derive_addresses(
+                VALID_BTC_XPUB,
+                network=CoinType.BITCOIN,
+                script_type=ScriptType.P2PKH,
+                change=0,
+                start_index=0,
+                count=1,
+            )
 
     def test_derive_with_start_index(self):
         addresses, _ = derive_addresses(
-            VALID_BTC_XPUB,
+            VALID_BTC_ZPUB,
             network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
+            script_type=ScriptType.P2WPKH,
             start_index=10,
             count=3,
         )
@@ -398,42 +381,29 @@ class TestDeriveAddresses:
                 script_type=ScriptType.P2PKH,
             )
 
-    def test_derive_with_custom_account(self):
-        addresses_acc0, base_path_0 = derive_addresses(
-            VALID_BTC_XPUB,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            account=0,
-            count=2,
-        )
-        addresses_acc1, base_path_1 = derive_addresses(
-            VALID_BTC_XPUB,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            account=1,
-            count=2,
-        )
+    def test_derive_with_custom_account_depth0_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            derive_addresses(
+                VALID_BTC_XPUB,
+                network=CoinType.BITCOIN,
+                script_type=ScriptType.P2PKH,
+                count=2,
+            )
 
-        assert "0'" in base_path_0
-        assert "1'" in base_path_1
-        assert addresses_acc0[0].address != addresses_acc1[0].address
-
-    def test_account_inferred_from_xpub_at_depth_2(self):
+    def test_account_inferred_from_xpub_at_depth_2_raises_error(self):
         depth_2_xpub = _build_depth2_xpub(VALID_BTC_XPUB, account=3)
 
         _, _, _, depth, child_index = decode_extended_key(depth_2_xpub)
         assert depth == 2
         assert child_index == 0x80000000 + 3
 
-        addresses, base_path = derive_addresses(
-            depth_2_xpub,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            account=99,
-            count=1,
-        )
-
-        assert "3'" in base_path
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            derive_addresses(
+                depth_2_xpub,
+                network=CoinType.BITCOIN,
+                script_type=ScriptType.P2PKH,
+                count=1,
+            )
 
 
 class TestPublicKeyDerivationAdapter:
@@ -441,7 +411,7 @@ class TestPublicKeyDerivationAdapter:
     def adapter(self):
         return PublicKeyDerivationAdapter()
 
-    def test_calculate_with_xpub(self, adapter):
+    def test_calculate_with_xpub_depth0_raises_error(self, adapter):
         request = AddressDerivationRequest(
             xpub=VALID_BTC_XPUB,
             coin=CoinType.BITCOIN,
@@ -449,14 +419,8 @@ class TestPublicKeyDerivationAdapter:
             change_range=(0, 3),
         )
 
-        result = adapter.calculate(request)
-
-        assert result.key_type == "xpub"
-        assert result.script_type == ScriptType.P2PKH
-        assert result.coin == CoinType.BITCOIN
-        assert len(result.receiving) == 5
-        assert len(result.change) == 3
-        assert result.base_path != ""
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            adapter.calculate(request)
 
     def test_calculate_with_ypub(self, adapter):
         request = AddressDerivationRequest(
@@ -489,7 +453,7 @@ class TestPublicKeyDerivationAdapter:
         for addr in result.receiving:
             assert addr.address.startswith("bc1q")
 
-    def test_calculate_with_script_type_override(self, adapter):
+    def test_calculate_with_script_type_override_depth0_raises_error(self, adapter):
         request = AddressDerivationRequest(
             xpub=VALID_BTC_XPUB,
             coin=CoinType.BITCOIN,
@@ -498,15 +462,12 @@ class TestPublicKeyDerivationAdapter:
             script_type=ScriptType.P2TR,
         )
 
-        result = adapter.calculate(request)
-
-        assert result.script_type == ScriptType.P2TR
-        for addr in result.receiving:
-            assert addr.address.startswith("bc1p")
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            adapter.calculate(request)
 
     def test_calculate_invalid_receiving_range_raises(self, adapter):
         request = AddressDerivationRequest(
-            xpub=VALID_BTC_XPUB,
+            xpub=VALID_BTC_ZPUB,
             coin=CoinType.BITCOIN,
             receiving_range=(10, 5),
             change_range=(0, 2),
@@ -517,7 +478,7 @@ class TestPublicKeyDerivationAdapter:
 
     def test_calculate_invalid_change_range_raises(self, adapter):
         request = AddressDerivationRequest(
-            xpub=VALID_BTC_XPUB,
+            xpub=VALID_BTC_ZPUB,
             coin=CoinType.BITCOIN,
             receiving_range=(0, 5),
             change_range=(10, 5),
@@ -539,7 +500,7 @@ class TestPublicKeyDerivationAdapter:
 
     def test_calculate_produces_unique_addresses(self, adapter):
         request = AddressDerivationRequest(
-            xpub=VALID_BTC_XPUB,
+            xpub=VALID_BTC_ZPUB,
             coin=CoinType.BITCOIN,
             receiving_range=(0, 10),
             change_range=(0, 10),
@@ -554,7 +515,7 @@ class TestPublicKeyDerivationAdapter:
 
     def test_calculate_is_deterministic(self, adapter):
         request = AddressDerivationRequest(
-            xpub=VALID_BTC_XPUB,
+            xpub=VALID_BTC_ZPUB,
             coin=CoinType.BITCOIN,
             receiving_range=(0, 5),
             change_range=(0, 3),
@@ -570,26 +531,16 @@ class TestPublicKeyDerivationAdapter:
             a.address for a in result2.change
         ]
 
-    def test_calculate_with_custom_account(self, adapter):
-        request_acc0 = AddressDerivationRequest(
+    def test_calculate_with_custom_account_depth0_raises_error(self, adapter):
+        request = AddressDerivationRequest(
             xpub=VALID_BTC_XPUB,
             coin=CoinType.BITCOIN,
             receiving_range=(0, 2),
             change_range=(0, 1),
-            account=0,
-        )
-        request_acc1 = AddressDerivationRequest(
-            xpub=VALID_BTC_XPUB,
-            coin=CoinType.BITCOIN,
-            receiving_range=(0, 2),
-            change_range=(0, 1),
-            account=1,
         )
 
-        result0 = adapter.calculate(request_acc0)
-        result1 = adapter.calculate(request_acc1)
-
-        assert result0.receiving[0].address != result1.receiving[0].address
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            adapter.calculate(request)
 
 
 class TestGetPurpose:
@@ -777,86 +728,85 @@ class TestNeedsHardenedDerivation:
 
 
 class TestBuildDerivationPathByDepth:
-    def test_depth_0_with_hardened_derives_all_levels(self):
-        levels, base_path = build_derivation_path(
-            depth=0,
-            script_type=ScriptType.P2WPKH,
-            network=CoinType.BITCOIN,
-            account=0,
-            derive_hardened=True,
-        )
-        assert levels == [84, 0, 0]
-        assert base_path == "m/84'/0'/0'"
+    def test_depth_0_with_hardened_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            build_derivation_path(
+                depth=0,
+                script_type=ScriptType.P2WPKH,
+                network=CoinType.BITCOIN,
+                derive_hardened=True,
+            )
 
-    def test_depth_1_with_hardened_derives_coin_type_and_account(self):
-        levels, base_path = build_derivation_path(
-            depth=1,
-            script_type=ScriptType.P2WPKH,
-            network=CoinType.BITCOIN,
-            account=0,
-            derive_hardened=True,
-        )
-        assert levels == [0, 0]
-        assert base_path == "m/84'/0'/0'"
+    def test_depth_1_with_hardened_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            build_derivation_path(
+                depth=1,
+                script_type=ScriptType.P2WPKH,
+                network=CoinType.BITCOIN,
+                derive_hardened=True,
+            )
 
-    def test_depth_2_with_hardened_derives_only_account(self):
-        levels, base_path = build_derivation_path(
-            depth=2,
-            script_type=ScriptType.P2WPKH,
-            network=CoinType.BITCOIN,
-            account=0,
-            derive_hardened=True,
-        )
-        assert levels == [0]
-        assert base_path == "m/84'/0'/0'"
+    def test_depth_2_with_hardened_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            build_derivation_path(
+                depth=2,
+                script_type=ScriptType.P2WPKH,
+                network=CoinType.BITCOIN,
+                derive_hardened=True,
+            )
 
     def test_depth_3_with_hardened_no_more_levels(self):
         levels, base_path = build_derivation_path(
             depth=3,
             script_type=ScriptType.P2WPKH,
             network=CoinType.BITCOIN,
-            account=0,
             derive_hardened=True,
         )
         assert levels == []
         assert base_path == "m/84'/0'/0'"
 
-    def test_without_hardened_returns_empty_levels_with_full_base_path(self):
+    def test_without_hardened_depth_below_3_returns_m_base_path(self):
         levels, base_path = build_derivation_path(
             depth=1,
             script_type=ScriptType.P2WPKH,
             network=CoinType.BITCOIN,
-            account=0,
+            derive_hardened=False,
+        )
+        assert levels == []
+        assert base_path == "m"
+
+    def test_without_hardened_depth_3_returns_full_base_path(self):
+        levels, base_path = build_derivation_path(
+            depth=3,
+            script_type=ScriptType.P2WPKH,
+            network=CoinType.BITCOIN,
             derive_hardened=False,
         )
         assert levels == []
         assert base_path == "m/84'/0'/0'"
 
-    def test_custom_account_included_in_levels(self):
-        levels, base_path = build_derivation_path(
-            depth=0,
-            script_type=ScriptType.P2PKH,
-            network=CoinType.BITCOIN,
-            account=5,
-            derive_hardened=True,
-        )
-        assert levels == [44, 0, 5]
-        assert base_path == "m/44'/0'/5'"
+    def test_depth_0_with_hardened_raises_for_any_script_type(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            build_derivation_path(
+                depth=0,
+                script_type=ScriptType.P2PKH,
+                network=CoinType.BITCOIN,
+                derive_hardened=True,
+            )
 
-    def test_litecoin_uses_correct_coin_type(self):
+    def test_litecoin_depth_3_uses_correct_coin_type(self):
         levels, base_path = build_derivation_path(
-            depth=0,
+            depth=3,
             script_type=ScriptType.P2PKH,
             network=CoinType.LITECOIN,
-            account=0,
             derive_hardened=True,
         )
-        assert levels == [44, 2, 0]
+        assert levels == []
         assert base_path == "m/44'/2'/0'"
 
 
 class TestDerivationByKeyDepth:
-    def test_key_at_depth_1_derives_with_full_base_path(self):
+    def test_key_at_depth_1_derives_with_m_base_path(self):
         addresses, base_path = derive_addresses(
             VALID_ELECTRUM_ZPUB,
             network=CoinType.BITCOIN,
@@ -866,7 +816,7 @@ class TestDerivationByKeyDepth:
             count=3,
         )
 
-        assert base_path == "m/84'/0'/0'"
+        assert base_path == "m"
         assert len(addresses) == 3
         for addr in addresses:
             assert addr.address.startswith("bc1q")
@@ -881,7 +831,7 @@ class TestDerivationByKeyDepth:
             count=1,
         )
 
-        assert addresses[0].path == "m/84'/0'/0'/0/0"
+        assert addresses[0].path == "m/0/0"
         assert addresses[0].change == 0
         assert addresses[0].index == 0
 
@@ -895,7 +845,7 @@ class TestDerivationByKeyDepth:
             count=1,
         )
 
-        assert addresses[0].path == "m/84'/0'/0'/1/0"
+        assert addresses[0].path == "m/1/0"
         assert addresses[0].change == 1
 
     def test_key_at_depth_3_uses_full_base_path(self):
@@ -911,16 +861,13 @@ class TestDerivationByKeyDepth:
         assert base_path == "m/84'/0'/0'"
         assert len(addresses) == 3
 
-    def test_key_at_depth_0_builds_full_path(self):
-        addresses, base_path = derive_addresses(
-            VALID_BTC_XPUB,
-            network=CoinType.BITCOIN,
-            script_type=ScriptType.P2PKH,
-            change=0,
-            start_index=0,
-            count=2,
-        )
-
-        assert "44'" in base_path
-        assert "0'" in base_path
-        assert len(addresses) == 2
+    def test_key_at_depth_0_with_hardened_raises_error(self):
+        with pytest.raises(ValueError, match="Cannot derive hardened"):
+            derive_addresses(
+                VALID_BTC_XPUB,
+                network=CoinType.BITCOIN,
+                script_type=ScriptType.P2PKH,
+                change=0,
+                start_index=0,
+                count=2,
+            )

@@ -24,7 +24,7 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
         receiving = [
             DerivedAddress(
                 index=i,
-                path=f"m/44'/{request.coin.value}/{request.account}/0/{i}",
+                path=f"m/44'/{request.coin.value}/0/{i}",
                 address=f"address_receiving_{i}",
                 pubkey=f"pubkey_receiving_{i}",
                 change=0,
@@ -35,7 +35,7 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
         change = [
             DerivedAddress(
                 index=i,
-                path=f"m/44'/{request.coin.value}/{request.account}/1/{i}",
+                path=f"m/44'/{request.coin.value}/1/{i}",
                 address=f"address_change_{i}",
                 pubkey=f"pubkey_change_{i}",
                 change=1,
@@ -51,7 +51,7 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
             coin=request.coin,
             receiving=receiving,
             change=change,
-            base_path=f"m/44'/{request.coin.value}/{request.account}'",
+            base_path=f"m/44'/{request.coin.value}'/0'",
         )
 
 
@@ -103,7 +103,6 @@ class TestDeriveCryptoAddressesImpl:
             xpub="xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8",
             entity=native_entities.BITCOIN,
             range=5,
-            account=0,
         )
 
         result = await use_case.execute(request)
@@ -111,7 +110,7 @@ class TestDeriveCryptoAddressesImpl:
         assert result.coin == CoinType.BITCOIN
         assert len(result.receiving) == 5
         assert len(result.change) == 5
-        assert result.base_path == "m/44'/BITCOIN/0'"
+        assert result.base_path == "m/44'/BITCOIN'/0'"
 
     @pytest.mark.asyncio
     async def test_execute_with_litecoin(self, use_case):
@@ -119,7 +118,6 @@ class TestDeriveCryptoAddressesImpl:
             xpub="Ltub2SSUS19CirucVPBSjuRMt2SF9H93viG9rz4TkpzAEFjsxHXKjA3jFe1b91cgf2f5dVLrjjJDBTQaVQHMJvhPLiTFGZqPXBbPNxae12HPLLN",
             entity=native_entities.LITECOIN,
             range=10,
-            account=0,
         )
 
         result = await use_case.execute(request)
@@ -135,7 +133,6 @@ class TestDeriveCryptoAddressesImpl:
             entity=native_entities.BITCOIN,
             range=3,
             script_type=ScriptType.P2WPKH,
-            account=0,
         )
 
         result = await use_case.execute(request)
@@ -143,25 +140,11 @@ class TestDeriveCryptoAddressesImpl:
         assert result.script_type == ScriptType.P2WPKH
 
     @pytest.mark.asyncio
-    async def test_execute_with_custom_account(self, use_case):
-        request = AddressDerivationPreviewRequest(
-            xpub="xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8",
-            entity=native_entities.BITCOIN,
-            range=2,
-            account=5,
-        )
-
-        result = await use_case.execute(request)
-
-        assert result.base_path == "m/44'/BITCOIN/5'"
-
-    @pytest.mark.asyncio
     async def test_execute_with_ethereum_raises_value_error(self, use_case):
         request = AddressDerivationPreviewRequest(
             xpub="xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8",
             entity=native_entities.ETHEREUM,
             range=5,
-            account=0,
         )
 
         with pytest.raises(ValueError, match="does not support address derivation"):

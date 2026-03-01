@@ -3,16 +3,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import {
-  Loader2,
-  Plus,
-  X,
-  ChevronDown,
-  ChevronUp,
-  Eye,
-  Wallet,
-  Key,
-} from "lucide-react"
+import { Loader2, Plus, X, Eye, Wallet, Key } from "lucide-react"
 import {
   AddressSource,
   CryptoWalletConnectionResult,
@@ -23,11 +14,6 @@ import {
 import { useI18n } from "@/i18n"
 import { ApiErrorException } from "@/utils/apiErrors"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/Popover"
 import { deriveCryptoAddresses } from "@/services/api"
 
 export interface AddWalletSubmitData {
@@ -36,7 +22,6 @@ export interface AddWalletSubmitData {
   addresses: string[]
   xpub?: string
   scriptType?: ScriptType
-  account?: number
 }
 
 interface AddWalletFormProps {
@@ -79,8 +64,6 @@ export function AddWalletForm({
   const [xpubError, setXpubError] = useState("")
   const [scriptType, setScriptType] = useState<ScriptType | "">("")
   const [scriptTypeError, setScriptTypeError] = useState("")
-  const [account, setAccount] = useState(0)
-  const [showAdvanced, setShowAdvanced] = useState(false)
 
   const [derivedPreview, setDerivedPreview] =
     useState<DerivedAddressesResult | null>(null)
@@ -194,12 +177,10 @@ export function AddWalletForm({
 
   const handlePreviewAddresses = async (options?: {
     scriptType?: ScriptType
-    account?: number
     xpub?: string
   }) => {
     const scriptTypeValue = options?.scriptType ?? (scriptType || undefined)
     const xpubValue = (options?.xpub ?? xpub).trim()
-    const accountValue = options?.account ?? account
 
     let isValid = true
     if (!xpubValue) {
@@ -228,7 +209,6 @@ export function AddWalletForm({
         xpub: xpubValue,
         network: entity.id,
         script_type: scriptTypeValue,
-        account: accountValue,
       })
       setDerivedPreview(result)
     } catch (error) {
@@ -273,7 +253,6 @@ export function AddWalletForm({
           addresses: [],
           xpub: validated.trimmedXpub,
           scriptType: validated.scriptType,
-          account,
         })
 
         const failedEntries = result?.failed ?? {}
@@ -504,52 +483,6 @@ export function AddWalletForm({
                     <p className="text-sm text-red-500">{scriptTypeError}</p>
                   )}
                 </div>
-
-                <Popover open={showAdvanced} onOpenChange={setShowAdvanced}>
-                  <PopoverTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showAdvanced ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                      {derivedT.advancedOptions || "Advanced options"}
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    align="start"
-                    sideOffset={8}
-                    className="w-64 p-3 space-y-2"
-                  >
-                    <Label htmlFor="account-index" className="text-xs">
-                      {derivedT.accountLabel || "Account index"}
-                    </Label>
-                    <Input
-                      id="account-index"
-                      type="number"
-                      min={0}
-                      step={1}
-                      value={account}
-                      onChange={e => {
-                        const val = parseInt(e.target.value, 10)
-                        const nextAccount = isNaN(val) || val < 0 ? 0 : val
-                        setAccount(nextAccount)
-                        if (derivedPreview && scriptType) {
-                          void handlePreviewAddresses({ account: nextAccount })
-                        }
-                      }}
-                      disabled={isLoading || isDerivingAddresses}
-                      className="h-8 text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {derivedT.accountHint ||
-                        "Default is 0. Change only if needed."}
-                    </p>
-                  </PopoverContent>
-                </Popover>
 
                 <Button
                   type="button"

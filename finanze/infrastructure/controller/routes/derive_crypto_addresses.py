@@ -12,7 +12,6 @@ async def derive_crypto_addresses(derive_crypto_addresses_uc: DeriveCryptoAddres
     xpub = request.args.get("xpub")
     entity_id = request.args.get("network")
     script_type = request.args.get("script_type")
-    account = request.args.get("account", "0")
     range_param = request.args.get("range", "5")
 
     if not xpub:
@@ -41,15 +40,6 @@ async def derive_crypto_addresses(derive_crypto_addresses_uc: DeriveCryptoAddres
             {"code": "INVALID_REQUEST", "message": "Invalid range parameter"}
         ), 400
 
-    try:
-        account_value = int(account)
-        if account_value < 0:
-            raise ValueError("Account must be non-negative")
-    except ValueError:
-        return jsonify(
-            {"code": "INVALID_REQUEST", "message": "Invalid account parameter"}
-        ), 400
-
     entity = native_entities.get_native_by_id(entity_uuid, EntityType.CRYPTO_WALLET)
     if not entity:
         return jsonify(
@@ -76,7 +66,6 @@ async def derive_crypto_addresses(derive_crypto_addresses_uc: DeriveCryptoAddres
         entity=entity,
         range=range_value,
         script_type=script_type_enum,
-        account=account_value,
     )
 
     try:

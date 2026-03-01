@@ -237,18 +237,22 @@ export class HttpApiClient implements ApiClient {
     }
 
     let data: any = null
-    try {
-      if (response.status !== 204 && response.status !== 205) {
-        const raw = await response.text()
-        if (raw) {
+    if (response.status !== 204 && response.status !== 205) {
+      const raw = await response.text()
+      if (raw.trim()) {
+        try {
           data = JSON.parse(raw)
+        } catch {
+          const error: any = new Error("Failed to parse JSON response")
+          error.status = response.status
+          error.code = "INVALID_JSON_RESPONSE"
+          error.details = {
+            statusText: response.statusText,
+            body: raw,
+          }
+          throw error
         }
       }
-    } catch {
-      if (!response.ok) {
-        this.handleError(response)
-      }
-      data = null
     }
 
     if (!response.ok) {

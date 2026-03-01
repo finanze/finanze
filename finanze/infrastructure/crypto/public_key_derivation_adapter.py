@@ -285,25 +285,26 @@ def build_derivation_path(
     depth: int,
     script_type: ScriptType,
     network: CoinType,
-    account: int,
+    account: int = 0,
     derive_hardened: bool = True,
 ) -> tuple[list[int], str]:
     purpose = get_purpose(script_type)
     coin_type = get_network_config(network).coin_type
 
-    base_path = f"m/{purpose}'/{coin_type}'/{account}'"
-
-    if not derive_hardened:
-        return [], base_path
-
-    if depth >= 3:
+    if derive_hardened:
+        if depth < 3:
+            raise ValueError(
+                "Cannot derive hardened account-level paths from a master or intermediate public key. "
+                "An account-level extended public key (depth >= 3) is required."
+            )
+        base_path = f"m/{purpose}'/{coin_type}'/{account}'"
         levels = []
-    elif depth == 2:
-        levels = [account]
-    elif depth == 1:
-        levels = [coin_type, account]
     else:
-        levels = [purpose, coin_type, account]
+        if depth >= 3:
+            base_path = f"m/{purpose}'/{coin_type}'/{account}'"
+        else:
+            base_path = "m"
+        levels = []
 
     return levels, base_path
 
@@ -315,7 +316,6 @@ def derive_addresses(
     change: int = 0,
     start_index: int = 0,
     count: int = 30,
-    account: int = 0,
 ) -> tuple[list[DerivedAddress], str]:
     validate_network_matches_extended_key(extended_key, network)
 
@@ -329,15 +329,17 @@ def derive_addresses(
     if len(pubkey) == 32:
         raise ValueError("This appears to be an extended private key, not a public key")
 
-    inferred_account = account
-    if depth == 2:
+    account = 0
+    if depth == 3:
         hardened_bit = 0x80000000
         if child_index >= hardened_bit:
-            inferred_account = child_index - hardened_bit
+            account = child_index - hardened_bit
+        else:
+            account = child_index
 
     derive_hardened = needs_hardened_derivation(extended_key, depth)
     levels_to_derive, base_path = build_derivation_path(
-        depth, script_type, network, inferred_account, derive_hardened
+        depth, script_type, network, account, derive_hardened
     )
 
     current_pubkey, current_chain = derive_path_levels(
@@ -403,7 +405,6 @@ class PublicKeyDerivationAdapter(PublicKeyDerivation):
             change=0,
             start_index=receiving_start,
             count=receiving_end - receiving_start,
-            account=request.account,
         )
 
         change_start, change_end = request.change_range
@@ -417,7 +418,6 @@ class PublicKeyDerivationAdapter(PublicKeyDerivation):
             change=1,
             start_index=change_start,
             count=change_end - change_start,
-            account=request.account,
         )
 
         return DerivedAddressesResult(

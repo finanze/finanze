@@ -35,11 +35,15 @@ class LitecoinFetcher(CryptoEntityFetcher):
             else:
                 self._log.error(f"Error fetching from Blockcypher for Litecoin: {e}")
 
+        if not results:
+            results = CryptoFetchResults(results={})
+
         remaining_addresses = (
             [addr for addr in request.addresses if addr not in results.results]
             if results
             else request.addresses
         )
+
         request = CryptoFetchRequest(
             integrations=request.integrations,
             addresses=remaining_addresses,

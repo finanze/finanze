@@ -217,7 +217,7 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
         receiving = [
             DerivedAddress(
                 index=i,
-                path=f"m/84'/0'/{request.account}'/0/{i}",
+                path=f"m/84'/0'/0/{i}",
                 address=f"recv_{i}",
                 pubkey=f"pub_recv_{i}",
                 change=0,
@@ -227,7 +227,7 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
         change = [
             DerivedAddress(
                 index=i,
-                path=f"m/84'/0'/{request.account}'/1/{i}",
+                path=f"m/84'/0'/1/{i}",
                 address=f"change_{i}",
                 pubkey=f"pub_change_{i}",
                 change=1,
@@ -240,7 +240,7 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
             coin=request.coin,
             receiving=receiving,
             change=change,
-            base_path=f"m/84'/0'/{request.account}'",
+            base_path="m/84'/0'/0'",
         )
 
 
@@ -268,7 +268,6 @@ def _make_derived_wallet(entity_id=BITCOIN_ID, hd_addresses=None):
             addresses=hd_addresses or [],
             script_type=ScriptType.P2WPKH,
             coin_type=CoinType.BITCOIN,
-            account=0,
         ),
     )
 
