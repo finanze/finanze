@@ -2,7 +2,7 @@ import { useAppContext } from "@/context/AppContext"
 import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
-import { AddWalletForm } from "@/components/AddWalletForm"
+import { AddWalletForm, AddWalletSubmitData } from "@/components/AddWalletForm"
 import { ManageWalletsView } from "@/components/ManageWalletsView"
 import { PinPad } from "@/components/PinPad"
 import { FeatureSelector } from "@/components/FeatureSelector"
@@ -25,6 +25,7 @@ import {
   ExternalEntityConnectionResult,
   ExternalEntitySetupResponseCode,
   CryptoWalletConnectionResult,
+  AddressSource,
 } from "@/types"
 import {
   createCryptoWallet,
@@ -200,27 +201,45 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleAddWallet = async (
-    name: string,
-    addresses: string[],
+    data: AddWalletSubmitData,
   ): Promise<CryptoWalletConnectionResult | void> => {
     if (!selectedEntity) return
-
-    const normalizedAddresses = addresses.map(address => address.trim())
 
     setIsAddingWallet(true)
     try {
       const result = await createCryptoWallet({
         entityId: selectedEntity.id,
-        name,
-        addresses: normalizedAddresses,
+        name: data.name,
+        addresses: data.addresses.map(a => a.trim()),
+        source: data.source,
+        xpub: data.xpub,
+        script_type: data.scriptType,
       })
 
+      if (data.source === AddressSource.DERIVED) {
+        const failedEntries = result?.failed ?? {}
+        const failedCount = Object.keys(failedEntries).length
+
+        if (failedCount > 0) {
+          return result
+        }
+
+        await scrape(selectedEntity, selectedEntity.features)
+        await fetchEntities()
+        showToast(t.walletForm.toasts.allSuccess, "success")
+        setShowAddWallet(false)
+        setView("entities")
+        return result
+      }
+
+      const normalizedAddresses = data.addresses.map(a => a.trim())
       const failedEntries = result?.failed ?? {}
       const failedCount = Object.keys(failedEntries).length
       const successCount = normalizedAddresses.length - failedCount
 
       if (successCount > 0) {
         await scrape(selectedEntity, selectedEntity.features)
+        await fetchEntities()
 
         const toastMessage =
           successCount === normalizedAddresses.length
@@ -851,13 +870,13 @@ export default function EntityIntegrationsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70] p-2 md:p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="max-w-md w-full mx-4"
+              className="w-full max-w-md md:max-w-6xl max-h-[92vh]"
             >
               <AddWalletForm
                 entity={selectedEntity}

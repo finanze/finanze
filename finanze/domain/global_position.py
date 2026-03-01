@@ -9,7 +9,7 @@ from pydantic.dataclasses import dataclass
 
 from domain.base import BaseData
 from domain.commodity import CommodityRegister
-from domain.crypto import CryptoAsset, CryptoCurrencyType
+from domain.crypto import CryptoAsset, CryptoCurrencyType, AddressSource, HDWallet
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.exception.exceptions import MissingFieldsError
@@ -314,8 +314,6 @@ class CryptoCurrencyPosition(BaseData):
     initial_investment: Optional[Dezimal] = None
     average_buy_price: Optional[Dezimal] = None
     investment_currency: Optional[str] = None
-    wallet_address: Optional[str] = None
-    wallet_name: Optional[str] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
@@ -336,9 +334,11 @@ class CryptoCurrencyPosition(BaseData):
 @dataclass
 class CryptoCurrencyWallet(BaseData):
     id: Optional[UUID] = None
-    address: Optional[str] = None
+    addresses: list[str] = field(default_factory=list)
     name: Optional[str] = None
     assets: list[CryptoCurrencyPosition] = field(default_factory=list)
+    address_source: Optional[AddressSource] = None
+    hd_wallet: Optional[HDWallet] = None
 
 
 class CryptoInitialInvestmentType(str, Enum):

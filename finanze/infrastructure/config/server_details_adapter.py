@@ -8,7 +8,7 @@ from domain.platform import OS
 from domain.status import BackendDetails, BackendLogLevel, BackendOptions
 
 
-def _resolve_version() -> str:
+def resolve_version() -> str:
     try:
         from version import __version__
 
@@ -40,7 +40,7 @@ class ServerDetailsAdapter(ServerDetailsPort):
     async def get_backend_details(self) -> BackendDetails:
         options = self._build_options()
         return BackendDetails(
-            version=_resolve_version(), options=options, platform_type=self._os
+            version=resolve_version(), options=options, platform_type=self._os
         )
 
     def _build_options(self) -> BackendOptions:

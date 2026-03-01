@@ -9,3 +9,24 @@ dynamic = ["dependencies", "version"]
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+pythonpath = ["finanze"]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["finanze"]
+omit = ["finanze/__pycache__/*", "tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+]
+

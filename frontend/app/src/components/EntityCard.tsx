@@ -419,15 +419,30 @@ export function EntityCard({
                     </div>
                     {entity.connected && entity.connected.length > 0 && (
                       <div className="flex gap-1 flex-wrap">
-                        {entity.connected.slice(0, 3).map((wallet, index) => (
-                          <Badge
-                            key={index}
-                            variant="secondary"
-                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
-                          >
-                            {`•••${wallet.address.slice(-6)}`}
-                          </Badge>
-                        ))}
+                        {entity.connected.slice(0, 3).map((wallet, index) =>
+                          (() => {
+                            const isDerived =
+                              wallet.address_source === "DERIVED"
+                            const displayKey = isDerived
+                              ? (wallet.hd_wallet?.xpub ?? "")
+                              : (wallet.addresses[0] ?? "")
+                            const extraAddresses = isDerived
+                              ? 0
+                              : Math.max(wallet.addresses.length - 1, 0)
+
+                            return (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                              >
+                                {displayKey
+                                  ? `•••${displayKey.slice(-6)}${extraAddresses > 0 ? ` +${extraAddresses}` : ""}`
+                                  : wallet.name}
+                              </Badge>
+                            )
+                          })(),
+                        )}
                         {entity.connected.length > 3 && (
                           <Badge
                             variant="secondary"

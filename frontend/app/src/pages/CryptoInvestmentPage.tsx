@@ -119,7 +119,7 @@ interface NetworkAssetSummary {
   wallets: Array<{
     id: string
     name: string
-    address: string
+    displayValue: string
   }>
 }
 
@@ -134,16 +134,40 @@ interface EntityNetworkGroup {
 
 type ViewMode = "wallets" | "network"
 
+const getWalletAddresses = (
+  wallet: CryptoCurrencyWallet | null | undefined,
+): string[] => {
+  return (wallet?.addresses ?? []).filter(Boolean)
+}
+
+const getPrimaryWalletAddress = (
+  wallet: CryptoCurrencyWallet | null | undefined,
+): string | null => {
+  const addresses = getWalletAddresses(wallet)
+  return addresses.length > 0 ? addresses[0] : null
+}
+
+const getPrimaryWalletDisplayValue = (
+  wallet: CryptoCurrencyWallet | null | undefined,
+): string | null => {
+  return wallet?.hd_wallet?.xpub ?? getPrimaryWalletAddress(wallet)
+}
+
 const getWalletIdentifier = (wallet: CryptoCurrencyWallet): string => {
   return (
     wallet.id ??
-    wallet.address ??
+    wallet.hd_wallet?.xpub ??
+    getPrimaryWalletAddress(wallet) ??
     `wallet-${Math.random().toString(36).slice(2)}`
   )
 }
 
 const isWalletlessEntry = (wallet: CryptoCurrencyWallet): boolean => {
-  return !wallet.id && !wallet.address
+  return (
+    !wallet.id &&
+    getWalletAddresses(wallet).length === 0 &&
+    !wallet.hd_wallet?.xpub
+  )
 }
 
 const hasExchangeRateEntry = (
@@ -266,9 +290,11 @@ function WalletOwnershipBadge({
               <span className="text-sm font-medium text-foreground">
                 {wallet.name}
               </span>
-              <span className="text-xs font-mono text-muted-foreground">
-                ...{wallet.address.slice(-6)}
-              </span>
+              {wallet.displayValue && (
+                <span className="text-xs font-mono text-muted-foreground">
+                  ...{wallet.displayValue.slice(-6)}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -338,7 +364,7 @@ function WalletActionsMenu({
 
 export default function CryptoInvestmentPage() {
   const { positionsData, isLoading } = useFinancialData()
-  const { settings, exchangeRates, entities } = useAppContext()
+  const { settings, exchangeRates, entities, fetchEntities } = useAppContext()
 
   if (isLoading) {
     return (
@@ -355,6 +381,7 @@ export default function CryptoInvestmentPage() {
         settings={settings}
         exchangeRates={exchangeRates}
         entities={entities}
+        fetchEntities={fetchEntities}
       />
     </ManualPositionsManager>
   )
@@ -365,6 +392,7 @@ interface CryptoInvestmentContentProps {
   settings: ReturnType<typeof useAppContext>["settings"]
   exchangeRates: ReturnType<typeof useAppContext>["exchangeRates"]
   entities: ReturnType<typeof useAppContext>["entities"]
+  fetchEntities: ReturnType<typeof useAppContext>["fetchEntities"]
 }
 
 function CryptoInvestmentContent({
@@ -372,6 +400,7 @@ function CryptoInvestmentContent({
   settings,
   exchangeRates,
   entities,
+  fetchEntities,
 }: CryptoInvestmentContentProps) {
   const { t, locale } = useI18n()
   const navigate = useNavigate()
@@ -760,7 +789,7 @@ function CryptoInvestmentContent({
 
       if (existingGroup) {
         const walletWithDrafts: WalletWithComputed = {
-          wallet: { name: null, assets: [] },
+          wallet: { name: null, assets: [], hd_wallet: null },
           assets: draftAssets,
           nativeAssets: draftAssets.filter(a => !a.isToken),
           tokenAssets: draftAssets.filter(a => a.isToken),
@@ -795,7 +824,7 @@ function CryptoInvestmentContent({
           },
           wallets: [
             {
-              wallet: { name: null, assets: [] },
+              wallet: { name: null, assets: [], hd_wallet: null },
               assets: draftAssets,
               nativeAssets: draftAssets.filter(a => !a.isToken),
               tokenAssets: draftAssets.filter(a => a.isToken),
@@ -844,7 +873,9 @@ function CryptoInvestmentContent({
     return entityFilteredWalletGroups.flatMap(group =>
       group.wallets.map(walletGroup => {
         const wallet = walletGroup.wallet
-        const walletName = wallet.name ?? wallet.address ?? group.entity.name
+        const walletDisplayValue = getPrimaryWalletDisplayValue(wallet)
+        const walletName =
+          wallet.name ?? walletDisplayValue ?? group.entity.name
         return {
           value: getWalletIdentifier(wallet),
           label: `${group.entity.name} - ${walletName}`,
@@ -929,18 +960,16 @@ function CryptoInvestmentContent({
             {
               id: string
               name: string
-              address: string
+              displayValue: string
             }
           >
         }
       >()
       entityGroup.wallets.forEach(walletGroup => {
+        const walletAddress = getPrimaryWalletDisplayValue(walletGroup.wallet)
         const walletName =
-          walletGroup.wallet.name ??
-          walletGroup.wallet.address ??
-          entityGroup.entity.name
+          walletGroup.wallet.name ?? walletAddress ?? entityGroup.entity.name
         const walletId = getWalletIdentifier(walletGroup.wallet)
-        const walletAddress = walletGroup.wallet.address
         const walletKey = walletAddress ? walletAddress.toLowerCase() : walletId
 
         walletGroup.assets.forEach(assetView => {
@@ -956,7 +985,7 @@ function CryptoInvestmentContent({
               existing.wallets.set(walletKey, {
                 id: walletId,
                 name: walletName,
-                address: walletAddress,
+                displayValue: walletAddress,
               })
             }
           } else {
@@ -965,14 +994,14 @@ function CryptoInvestmentContent({
               {
                 id: string
                 name: string
-                address: string
+                displayValue: string
               }
             >()
             if (walletAddress) {
               wallets.set(walletKey, {
                 id: walletId,
                 name: walletName,
-                address: walletAddress,
+                displayValue: walletAddress,
               })
             }
             assetMap.set(assetKey, {
@@ -1141,7 +1170,7 @@ function CryptoInvestmentContent({
 
   const handleEditWallet = (wallet: CryptoCurrencyWallet, entityId: string) => {
     setWalletToEdit(wallet)
-    setEditWalletName(wallet.name ?? wallet.address ?? "")
+    setEditWalletName(wallet.name ?? getPrimaryWalletDisplayValue(wallet) ?? "")
     setEditWalletEntityId(entityId)
     setShowEditDialog(true)
   }
@@ -1218,6 +1247,7 @@ function CryptoInvestmentContent({
         } else {
           await refreshEntity("crypto")
         }
+        await fetchEntities()
       } catch (refreshError) {
         console.error(
           "Error refreshing crypto data after wallet deletion:",
@@ -1342,8 +1372,14 @@ function CryptoInvestmentContent({
                   totalValue: walletTotalValue,
                 } = walletGroup
                 const hasAssets = walletGroup.assets.length > 0
+                const walletAddress = getPrimaryWalletAddress(wallet)
+                const walletXpub = wallet.hd_wallet?.xpub ?? null
+                const walletDisplayValue = walletXpub ?? walletAddress
+                const walletAddresses = getWalletAddresses(wallet)
+                const extraAddressCount =
+                  walletAddresses.length > 1 ? walletAddresses.length - 1 : 0
                 const walletName =
-                  wallet.name ?? wallet.address ?? entityGroup.entity.name
+                  wallet.name ?? walletDisplayValue ?? entityGroup.entity.name
                 const walletKey = getWalletIdentifier(wallet)
                 return (
                   <div
@@ -1368,37 +1404,116 @@ function CryptoInvestmentContent({
                               </span>
                             )}
                           </div>
-                          {wallet.address && (
+                          {walletXpub ? (
                             <div className="flex items-center gap-2 group">
                               <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
-                                {wallet.address.slice(0, 8)}...
-                                {wallet.address.slice(-6)}
+                                {walletXpub.slice(0, 12)}...
+                                {walletXpub.slice(-6)}
                               </p>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
-                                  copiedAddress === wallet.address
+                                  copiedAddress === walletXpub
                                     ? "text-green-600 dark:text-green-400"
                                     : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                                 }`}
-                                onClick={() =>
-                                  handleCopyAddress(wallet.address!)
-                                }
+                                onClick={() => handleCopyAddress(walletXpub)}
                                 title={
-                                  copiedAddress === wallet.address
+                                  copiedAddress === walletXpub
                                     ? t.common.copied
                                     : t.common.copy
                                 }
                               >
-                                {copiedAddress === wallet.address ? (
+                                {copiedAddress === walletXpub ? (
                                   <Check className="h-3 w-3" />
                                 ) : (
                                   <Copy className="h-3 w-3" />
                                 )}
                               </Button>
                             </div>
-                          )}
+                          ) : walletAddress ? (
+                            <div className="flex items-center gap-2 group">
+                              <p className="text-sm text-gray-600 dark:text-gray-400 font-mono truncate">
+                                {walletAddress.slice(0, 8)}...
+                                {walletAddress.slice(-6)}
+                              </p>
+                              {extraAddressCount > 0 && (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="text-xs rounded-full border border-gray-300 dark:border-gray-600 px-2 py-0.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    >
+                                      +{extraAddressCount}
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent
+                                    align="start"
+                                    sideOffset={8}
+                                    className="w-72 space-y-2 p-3"
+                                  >
+                                    <ul className="space-y-2">
+                                      {walletAddresses.map(address => (
+                                        <li
+                                          key={address}
+                                          className="flex items-center justify-between gap-2"
+                                        >
+                                          <span className="text-xs font-mono text-muted-foreground break-all">
+                                            {address}
+                                          </span>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className={`p-1 h-6 w-6 flex-shrink-0 ${
+                                              copiedAddress === address
+                                                ? "text-green-600 dark:text-green-400"
+                                                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                            }`}
+                                            onClick={() =>
+                                              handleCopyAddress(address)
+                                            }
+                                            title={
+                                              copiedAddress === address
+                                                ? t.common.copied
+                                                : t.common.copy
+                                            }
+                                          >
+                                            {copiedAddress === address ? (
+                                              <Check className="h-3 w-3" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`p-1 h-6 w-6 opacity-70 hover:opacity-100 transition-all duration-200 flex-shrink-0 ${
+                                  copiedAddress === walletAddress
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                }`}
+                                onClick={() => handleCopyAddress(walletAddress)}
+                                title={
+                                  copiedAddress === walletAddress
+                                    ? t.common.copied
+                                    : t.common.copy
+                                }
+                              >
+                                {copiedAddress === walletAddress ? (
+                                  <Check className="h-3 w-3" />
+                                ) : (
+                                  <Copy className="h-3 w-3" />
+                                )}
+                              </Button>
+                            </div>
+                          ) : null}
                         </div>
                       </div>
                       <WalletActionsMenu
@@ -2236,7 +2351,7 @@ function CryptoInvestmentContent({
         title={t.common.warning}
         message={t.walletManagement.deleteWalletConfirm.replace(
           "{{walletName}}",
-          walletToDelete?.name || walletToDelete?.address || "",
+          walletToDelete?.name || getPrimaryWalletAddress(walletToDelete) || "",
         )}
         onConfirm={confirmDeleteWallet}
         onCancel={() => {

@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 import httpx
-from aiocache import cached, Cache
+from aiocache import cached
 
 from application.ports.connectable_integration import ConnectableIntegration
 from domain.exception.exceptions import (
@@ -32,9 +32,8 @@ class EthplorerClient(ConnectableIntegration):
         await self._fetch(url)
 
     @cached(
-        cache=Cache.MEMORY,
         ttl=TTL,
-        key_builder=lambda f, self, address, *args, **kwargs: address,
+        key_builder=lambda f, self, base_url, address, *args, **kwargs: address,
     )
     async def fetch_address_info(
         self,
@@ -73,6 +72,9 @@ class EthplorerClient(ConnectableIntegration):
 
             if response.status == 429:
                 raise TooManyRequests()
+
+            if response.status == 406:
+                raise AddressNotFound()
 
             body = await response.text()
             self._log.error(f"Error fetching from Ethplorer: {response.status} {body}")

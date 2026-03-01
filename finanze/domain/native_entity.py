@@ -60,6 +60,7 @@ class NativeFinancialEntity(Entity):
 class NativeCryptoWalletEntity(Entity):
     features: list[Feature]
     required_external_integrations: list[ExternalIntegrationId]
+    allows_hd_wallet: bool
 
 
 EntityCredentials = dict[str, str]

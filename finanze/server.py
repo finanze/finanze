@@ -26,6 +26,7 @@ from application.use_cases.delete_crypto_wallet import DeleteCryptoWalletConnect
 from application.use_cases.delete_external_entity import DeleteExternalEntityImpl
 from application.use_cases.delete_manual_transaction import DeleteManualTransactionImpl
 from application.use_cases.delete_periodic_flow import DeletePeriodicFlowImpl
+from application.use_cases.derive_crypto_addresses import DeriveCryptoAddressesImpl
 from application.use_cases.delete_real_estate import DeleteRealEstateImpl
 from application.use_cases.delete_template import DeleteTemplateImpl
 from application.use_cases.disconnect_entity import DisconnectEntityImpl
@@ -151,6 +152,9 @@ from infrastructure.config.server_details_adapter import ServerDetailsAdapter
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
 from infrastructure.credentials.credentials_reader import CredentialsReader
+from infrastructure.crypto.public_key_derivation_adapter import (
+    PublicKeyDerivationAdapter,
+)
 from infrastructure.features.env_feature_flag_adapter import EnvFeatureFlagAdapter
 from infrastructure.file_storage.exchange_rate_file_storage import (
     ExchangeRateFileStorage,
@@ -169,8 +173,8 @@ from infrastructure.repository.credentials.credentials_repository import (
 from infrastructure.repository.crypto.crypto_asset_repository import (
     CryptoAssetRegistryRepository,
 )
-from infrastructure.repository.crypto.crypto_wallet_connection_repository import (
-    CryptoWalletConnectionRepository,
+from infrastructure.repository.crypto.crypto_wallet_repository import (
+    CryptoWalletRepository,
 )
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.manager import DBManager
@@ -296,9 +300,7 @@ class FinanzeServer:
         entity_repository = EntityRepository(client=db_client)
         sessions_repository = SessionsRepository(client=db_client)
         virtual_import_registry = VirtualImportRepository(client=db_client)
-        crypto_wallet_connections_repository = CryptoWalletConnectionRepository(
-            client=db_client
-        )
+        crypto_wallet_repository = CryptoWalletRepository(client=db_client)
         crypto_asset_repository = CryptoAssetRegistryRepository(client=db_client)
         last_fetches_repository = LastFetchesRepository(client=db_client)
         external_integration_repository = ExternalIntegrationRepository(
@@ -321,6 +323,7 @@ class FinanzeServer:
         )
         metal_price_client = MetalPriceClient()
         instrument_provider = InstrumentProviderAdapter()
+        public_key_derivation = PublicKeyDerivationAdapter()
 
         credentials_storage_mode = args.credentials_storage_mode
         if credentials_storage_mode == "DB":
@@ -376,7 +379,7 @@ class FinanzeServer:
             entity_repository,
             external_entity_repository,
             credentials_port,
-            crypto_wallet_connections_repository,
+            crypto_wallet_repository,
             last_fetches_repository,
             virtual_import_registry,
             financial_entity_fetchers,
@@ -399,12 +402,13 @@ class FinanzeServer:
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
             crypto_entity_fetchers,
-            crypto_wallet_connections_repository,
+            crypto_wallet_repository,
             crypto_asset_repository,
             crypto_asset_info_client,
             last_fetches_repository,
             external_integration_repository,
             transaction_handler,
+            public_key_derivation,
         )
         fetch_external_financial_data = FetchExternalFinancialDataImpl(
             entity_repository,
@@ -509,15 +513,21 @@ class FinanzeServer:
             external_integration_repository,
         )
         connect_crypto_wallet = ConnectCryptoWalletImpl(
-            crypto_wallet_connections_repository,
+            crypto_wallet_repository,
             crypto_entity_fetchers,
             external_integration_repository,
+            public_key_derivation,
+            transaction_handler,
         )
         update_crypto_wallet = UpdateCryptoWalletConnectionImpl(
-            crypto_wallet_connections_repository
+            crypto_wallet_repository
         )
         delete_crypto_wallet = DeleteCryptoWalletConnectionImpl(
-            crypto_wallet_connections_repository
+            crypto_wallet_repository
+        )
+        derive_crypto_addresses = DeriveCryptoAddressesImpl(
+            public_key_derivation,
+            entity_repository,
         )
         save_commodities = SaveCommoditiesImpl(
             position_repository,
@@ -718,6 +728,7 @@ class FinanzeServer:
             connect_crypto_wallet,
             update_crypto_wallet,
             delete_crypto_wallet,
+            derive_crypto_addresses,
             save_commodities,
             get_external_integrations,
             connect_external_integrations,

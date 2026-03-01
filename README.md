@@ -113,9 +113,9 @@ Important points to remark:
 Crypto is a bit special, as it is not a financial entity, but a financial product. To add it just set up a wallet,
 currently the following are supported:
 
--   **Bitcoin**
+-   **Bitcoin** (xpub supported)
 -   **Ethereum**: ERC20 tokens are supported too.
--   **Litecoin**
+-   **Litecoin** (xpub supported)
 -   **Tron**: TRC20 tokens are supported too.
 -   **Binance Smart Chain**: BSC tokens are supported too (requires Etherscan integration setup with an API Key).
 
@@ -256,7 +256,7 @@ important ones are::
 There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
 this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
 
-*Deprecated* - Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
+*Just for development* - Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and `{ENTITY_NAME}_PASSWORD`.
 Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
 This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
 

@@ -47,11 +47,40 @@ export enum DataSource {
   MANUAL = "MANUAL",
 }
 
+export enum AddressSource {
+  DERIVED = "DERIVED",
+  MANUAL = "MANUAL",
+}
+
+export enum ScriptType {
+  P2PKH = "p2pkh",
+  P2SH_P2WPKH = "p2sh-p2wpkh",
+  P2WPKH = "p2wpkh",
+  P2TR = "p2tr",
+}
+
+export interface HDAddress {
+  address: string
+  index: number
+  change: number
+  path: string
+  pubkey: string
+}
+
+export interface HDWallet {
+  xpub: string
+  addresses: HDAddress[]
+  script_type: ScriptType
+  coin_type: string
+}
+
 export interface CryptoWalletConnection {
   id: string
   entity_id: string
-  address: string
+  addresses: string[]
   name: string
+  address_source: AddressSource
+  hd_wallet: HDWallet | null
 }
 
 export interface Entity {
@@ -76,6 +105,7 @@ export interface Entity {
   virtual_features: Record<Feature, string>
   natively_supported_products?: ProductType[] | null
   fetchable?: boolean
+  allows_hd_wallet?: boolean | null
 }
 
 export enum EntitySessionCategory {
@@ -505,6 +535,9 @@ export interface CreateCryptoWalletRequest {
   entityId: string
   name: string
   addresses: string[]
+  source: AddressSource
+  xpub?: string | null
+  script_type?: ScriptType | null
 }
 
 export interface UpdateCryptoWalletConnectionRequest {
@@ -513,12 +546,31 @@ export interface UpdateCryptoWalletConnectionRequest {
 }
 
 export interface CryptoWalletConnectionResult {
-  created?: Array<{
-    id: string
-    address: string
-    name?: string | null
-  }>
   failed?: Record<string, string>
+}
+
+export interface DerivedAddress {
+  index: number
+  path: string
+  address: string
+  pubkey: string
+  change: number
+}
+
+export interface DerivedAddressesResult {
+  key_type: string
+  script_type: string
+  coin: string
+  base_path: string
+  receiving: DerivedAddress[]
+  change: DerivedAddress[]
+}
+
+export interface DeriveCryptoAddressesRequest {
+  xpub: string
+  network: string
+  script_type?: string | null
+  range?: number
 }
 
 declare global {

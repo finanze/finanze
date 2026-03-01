@@ -98,6 +98,8 @@ BEGINNING = date.fromisocalendar(2018, 1, 1)
 ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 STOCKS_TX_FETCH_STEP = relativedelta(months=4)
 
+ACTIVE_CONTRIBUTION_STATUSES = ["ACTIVE", "PAUSED"]
+
 
 def _get_stock_investments(broker_investments) -> list[StockDetail]:
     stock_list = []
@@ -956,7 +958,8 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         periodic_contributions = [
             self._map_periodic_contribution(auto_contribution)
             for auto_contribution in auto_contributions
-            if auto_contribution["contributionType"] == "ONE_DATE"
+            if auto_contribution.get("contributionType") == "ONE_DATE"
+            and auto_contribution.get("status") in ACTIVE_CONTRIBUTION_STATUSES
         ]
 
         return AutoContributions(periodic=periodic_contributions)
