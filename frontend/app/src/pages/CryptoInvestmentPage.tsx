@@ -119,7 +119,7 @@ interface NetworkAssetSummary {
   wallets: Array<{
     id: string
     name: string
-    address: string
+    displayValue: string
   }>
 }
 
@@ -290,9 +290,11 @@ function WalletOwnershipBadge({
               <span className="text-sm font-medium text-foreground">
                 {wallet.name}
               </span>
-              <span className="text-xs font-mono text-muted-foreground">
-                ...{wallet.address.slice(-6)}
-              </span>
+              {wallet.displayValue && (
+                <span className="text-xs font-mono text-muted-foreground">
+                  ...{wallet.displayValue.slice(-6)}
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -958,7 +960,7 @@ function CryptoInvestmentContent({
             {
               id: string
               name: string
-              address: string
+              displayValue: string
             }
           >
         }
@@ -983,7 +985,7 @@ function CryptoInvestmentContent({
               existing.wallets.set(walletKey, {
                 id: walletId,
                 name: walletName,
-                address: walletAddress,
+                displayValue: walletAddress,
               })
             }
           } else {
@@ -992,14 +994,14 @@ function CryptoInvestmentContent({
               {
                 id: string
                 name: string
-                address: string
+                displayValue: string
               }
             >()
             if (walletAddress) {
               wallets.set(walletKey, {
                 id: walletId,
                 name: walletName,
-                address: walletAddress,
+                displayValue: walletAddress,
               })
             }
             assetMap.set(assetKey, {

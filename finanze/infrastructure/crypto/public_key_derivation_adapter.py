@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import base58
 from application.ports.public_key_derivation import PublicKeyDerivation
 from ecdsa import SECP256k1
-from ecdsa.ellipticcurve import Point
+from ecdsa.ellipticcurve import Point, INFINITY
 
 from domain.public_key import (
     AddressDerivationRequest,
@@ -147,9 +147,15 @@ def derive_child_pubkey(
     il = int.from_bytes(h[:32], "big")
     ir = h[32:]
 
+    if il >= SECP256k1.order:
+        raise ValueError(f"Invalid child key at index {index}: IL >= curve order")
+
     parent_point = point_from_pubkey(parent_pubkey)
     il_point = SECP256k1.generator * il
     child_point = parent_point + il_point
+
+    if child_point == INFINITY:
+        raise ValueError(f"Invalid child key at index {index}: point at infinity")
 
     child_pubkey = point_to_compressed(child_point)
     child_chain_code = ir
