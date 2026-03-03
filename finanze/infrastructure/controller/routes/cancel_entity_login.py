@@ -2,14 +2,14 @@ from uuid import UUID
 
 from quart import request, jsonify
 
-from domain.use_cases.add_entity_credentials import AddEntityCredentials
+from domain.use_cases.cancel_entity_login import CancelEntityLogin
 
 
-async def cancel_entity_login(add_entity_credentials: AddEntityCredentials):
+async def cancel_entity_login(cancel_entity_login_uc: CancelEntityLogin):
     body = await request.get_json()
     entity = body.get("entity", None)
     if not entity:
         return jsonify({"message": "Entity not provided"}), 400
 
-    add_entity_credentials.cancel_login(UUID(entity))
+    cancel_entity_login_uc.execute(UUID(entity))
     return jsonify({"ok": True}), 200

@@ -17,6 +17,7 @@ import {
   type Feature,
   FetchResultCode,
   LoginResultCode,
+  LoginConfirmationType,
   EntityStatus,
   EntityType,
   EntityOrigin,
@@ -324,7 +325,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         if (response.code === "CODE_REQUESTED") {
           setProcessId(response.processId || null)
           setCurrentAction("login")
-          if (response.details?.confirmation_type === "IN_APP") {
+          if (response.confirmationType === LoginConfirmationType.IN_APP) {
             setInAppConfirmation(true)
             setIsLoggingIn(true)
             try {

@@ -9,6 +9,10 @@ from pydantic.dataclasses import dataclass
 from domain.native_entity import EntityCredentials
 
 
+class LoginConfirmationType(str, Enum):
+    IN_APP = "IN_APP"
+
+
 class LoginResultCode(str, Enum):
     # Success
     CREATED = "CREATED"
@@ -48,6 +52,7 @@ class EntityLoginResult:
     code: LoginResultCode
     message: Optional[str] = None
     details: Optional[dict] = None
+    confirmation_type: Optional[LoginConfirmationType] = None
     process_id: Optional[str] = None
     session: Optional[EntitySession] = None
 

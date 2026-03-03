@@ -17,6 +17,7 @@ from degiro_connector.trading.models.transaction import HistoryRequest
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
+    LoginConfirmationType,
     LoginResultCode,
 )
 
@@ -56,8 +57,8 @@ class DegiroClient:
                     self._log.info("Degiro in-app confirmation required")
                     return EntityLoginResult(
                         LoginResultCode.CODE_REQUESTED,
+                        confirmation_type=LoginConfirmationType.IN_APP,
                         process_id=in_app_token,
-                        details={"confirmation_type": "IN_APP"},
                     )
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,

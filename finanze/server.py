@@ -8,6 +8,7 @@ import uvicorn
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.cancel_entity_login import CancelEntityLoginImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.calculate_savings import CalculateSavingsImpl
@@ -472,6 +473,7 @@ class FinanzeServer:
             sessions_repository,
             transaction_handler,
         )
+        cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
         disconnect_entity = DisconnectEntityImpl(
             credentials_port, sessions_repository, transaction_handler
         )
@@ -712,6 +714,7 @@ class FinanzeServer:
             import_sheets,
             import_file,
             add_entity_credentials,
+            cancel_entity_login,
             get_status,
             user_logout,
             get_settings,

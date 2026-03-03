@@ -1,5 +1,4 @@
 import logging
-from uuid import UUID
 
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.credentials_port import CredentialsPort
@@ -83,14 +82,3 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
             await self._sessions_port.save(entity.id, session)
 
         return EntityLoginResult(LoginResultCode.CREATED)
-
-    def cancel_login(self, entity_id: UUID) -> None:
-        entity = native_entities.get_native_by_id(
-            entity_id, EntityType.FINANCIAL_INSTITUTION, EntityType.CRYPTO_EXCHANGE
-        )
-        if not entity:
-            return
-
-        fetcher = self._entity_fetchers.get(entity)
-        if fetcher:
-            fetcher.cancel_login()

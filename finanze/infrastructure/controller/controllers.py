@@ -1,5 +1,6 @@
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 from domain.use_cases.add_manual_transaction import AddManualTransaction
+from domain.use_cases.cancel_entity_login import CancelEntityLogin
 from domain.use_cases.calculate_loan import CalculateLoan
 from domain.use_cases.calculate_savings import CalculateSavings
 from domain.use_cases.change_user_password import ChangeUserPassword
@@ -191,6 +192,7 @@ async def register_routes(
     import_sheets_uc: ImportSheets,
     import_file_uc: ImportFile,
     add_entity_credentials_uc: AddEntityCredentials,
+    cancel_entity_login_uc: CancelEntityLogin,
     get_status_uc: GetStatus,
     user_logout_uc: UserLogout,
     get_settings_uc: GetSettings,
@@ -288,7 +290,7 @@ async def register_routes(
 
     @app.route("/api/v1/entities/login/cancel", methods=["POST"])
     async def cancel_entity_login_route():
-        return await cancel_entity_login(add_entity_credentials_uc)
+        return await cancel_entity_login(cancel_entity_login_uc)
 
     @app.route("/api/v1/entities/login", methods=["DELETE"])
     async def disconnect_entity_route():
