@@ -288,9 +288,14 @@ export interface FetchRequest {
   deep?: boolean
 }
 
+export enum LoginConfirmationType {
+  IN_APP = "IN_APP",
+}
+
 export interface LoginResponse {
   code: LoginResultCode
   processId?: string
+  confirmationType?: LoginConfirmationType
   details?: any
 }
 

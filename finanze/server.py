@@ -8,6 +8,7 @@ import uvicorn
 
 import domain.native_entities
 from application.use_cases.add_entity_credentials import AddEntityCredentialsImpl
+from application.use_cases.cancel_entity_login import CancelEntityLoginImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.calculate_savings import CalculateSavingsImpl
@@ -109,6 +110,7 @@ from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
+from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
     IndexaCapitalFetcher,
@@ -264,6 +266,7 @@ class FinanzeServer:
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
             domain.native_entities.ING: INGFetcher(),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
+            domain.native_entities.DEGIRO: DegiroFetcher(),
         }
 
         external_entity_fetchers = {
@@ -470,6 +473,7 @@ class FinanzeServer:
             sessions_repository,
             transaction_handler,
         )
+        cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
         disconnect_entity = DisconnectEntityImpl(
             credentials_port, sessions_repository, transaction_handler
         )
@@ -710,6 +714,7 @@ class FinanzeServer:
             import_sheets,
             import_file,
             add_entity_credentials,
+            cancel_entity_login,
             get_status,
             user_logout,
             get_settings,
