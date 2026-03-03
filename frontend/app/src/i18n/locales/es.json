@@ -322,7 +322,9 @@
     "biometricLoginReason": "Desbloquear Finanze",
     "biometricSaved": "Inicio de sesión biométrico activado",
     "biometricError": "No se pudo activar el inicio de sesión biométrico",
-    "biometricLoginFailed": "La autenticación biométrica falló"
+    "biometricLoginFailed": "La autenticación biométrica falló",
+    "inAppConfirmationTitle": "Confirma el inicio de sesión en",
+    "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión."
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",

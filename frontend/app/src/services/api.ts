@@ -111,6 +111,12 @@ export async function loginEntity(
   }
 }
 
+export async function cancelEntityLogin(entityId: string): Promise<void> {
+  await (
+    await getApiClient()
+  ).post("/entities/login/cancel", { entity: entityId })
+}
+
 export async function disconnectEntity(entityId: string): Promise<void> {
   await (await getApiClient()).delete("/entities/login", { id: entityId })
 }

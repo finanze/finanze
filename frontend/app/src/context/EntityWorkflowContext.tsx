@@ -17,12 +17,14 @@ import {
   type Feature,
   FetchResultCode,
   LoginResultCode,
+  LoginConfirmationType,
   EntityStatus,
   EntityType,
   EntityOrigin,
 } from "@/types"
 import {
   loginEntity,
+  cancelEntityLogin,
   fetchFinancialEntity,
   fetchCryptoEntity,
   fetchExternalEntity,
@@ -74,6 +76,8 @@ interface EntityWorkflowContextValue {
   pinLength: number
   pinError: boolean
   clearPinError: () => void
+  inAppConfirmation: boolean
+  cancelInAppConfirmation: () => void
   selectedFeatures: Feature[]
   setSelectedFeatures: (features: Feature[]) => void
   fetchOptions: FetchOptions
@@ -156,6 +160,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     "entities" | "login" | "features" | "external-login"
   >("entities")
   const [pinError, setPinError] = useState(false)
+  const [inAppConfirmation, setInAppConfirmation] = useState(false)
   const [fetchingEntityState, setFetchingEntityState] =
     useState<FetchingEntityState>({
       fetchingEntityIds: [],
@@ -211,6 +216,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     const { preserveSelectedFeatures = false } = options
     setPinRequired(false)
     setActivePinEntityId(null)
+    setInAppConfirmation(false)
 
     if (!preserveSelectedFeatures) {
       setSelectedFeatures([])
@@ -240,6 +246,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const clearPinError = useCallback(() => {
     setPinError(false)
   }, [])
+
+  const cancelInAppConfirmation = useCallback(() => {
+    if (selectedEntity) {
+      cancelEntityLogin(selectedEntity.id).catch(() => {})
+    }
+    resetState()
+    setView("entities")
+  }, [selectedEntity, resetState, setView])
 
   const setOnScrapeCompleted = useCallback(
     (callback: ((entityId: string) => Promise<void>) | null) => {
@@ -309,10 +323,57 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         })
 
         if (response.code === "CODE_REQUESTED") {
-          setPinRequired(true)
           setProcessId(response.processId || null)
-          setPinLength(selectedEntity.pin?.positions || 4)
           setCurrentAction("login")
+          if (response.confirmationType === LoginConfirmationType.IN_APP) {
+            setInAppConfirmation(true)
+            setIsLoggingIn(true)
+            try {
+              const confirmResponse = await loginEntity({
+                entity: selectedEntity.id,
+                credentials: credentials,
+                processId: response.processId || undefined,
+              })
+              if (
+                confirmResponse.code === "CREATED" ||
+                confirmResponse.code === "RESUMED"
+              ) {
+                updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
+                showToast(
+                  t.common.loginSuccessEntity.replace(
+                    "{entity}",
+                    selectedEntity.name,
+                  ),
+                  "success",
+                )
+                resetState()
+                setView("entities")
+              } else {
+                const errorMessage =
+                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
+                  t.common.loginErrorEntity.replace(
+                    "{entity}",
+                    selectedEntity.name,
+                  )
+                showToast(errorMessage, "error")
+                resetState()
+              }
+            } catch {
+              showToast(
+                t.common.loginErrorEntity.replace(
+                  "{entity}",
+                  selectedEntity.name,
+                ),
+                "error",
+              )
+              resetState()
+            } finally {
+              setIsLoggingIn(false)
+            }
+            return
+          }
+          setPinRequired(true)
+          setPinLength(selectedEntity.pin?.positions || 4)
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
           updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
           showToast(
@@ -983,6 +1044,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         pinLength,
         pinError,
         clearPinError,
+        inAppConfirmation,
+        cancelInAppConfirmation,
         selectedFeatures,
         setSelectedFeatures,
         fetchOptions,

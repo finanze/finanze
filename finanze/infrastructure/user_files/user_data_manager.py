@@ -119,7 +119,7 @@ class UserDataManager(DataManager):
         return None
 
     async def create_user(self, user: UserRegistration) -> User:
-        if self.get_user(user.username):
+        if await self.get_user(user.username):
             raise UserAlreadyExists(
                 f"User with username '{user.username}' already exists."
             )

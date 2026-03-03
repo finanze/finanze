@@ -33,6 +33,8 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
         response["message"] = result.message
     if result.details:
         response["details"] = result.details
+    if result.confirmation_type:
+        response["confirmationType"] = result.confirmation_type
     if result.process_id:
         response["processId"] = result.process_id
     return jsonify(response), 200

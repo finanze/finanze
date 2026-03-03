@@ -324,7 +324,9 @@
     "biometricLoginReason": "Unlock Finanze",
     "biometricSaved": "Biometric login enabled",
     "biometricError": "Could not enable biometric login",
-    "biometricLoginFailed": "Biometric authentication failed"
+    "biometricLoginFailed": "Biometric authentication failed",
+    "inAppConfirmationTitle": "Confirm login in",
+    "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request."
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
