@@ -4,7 +4,7 @@ import { DataSource, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -12,11 +12,7 @@ import { getColorForName, cn } from "@/lib/utils"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
-import {
-  formatCurrency,
-  formatPercentage,
-  formatGainLoss,
-} from "@/lib/formatters"
+import { formatCurrency, formatGainLoss } from "@/lib/formatters"
 import {
   getStockAndFundPositions,
   getEntitiesWithProductType,
@@ -27,10 +23,13 @@ import {
 import { ProductType, type StockDetail, EquityType } from "@/types/position"
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
   TrendingUp,
   TrendingDown,
   Pencil,
   Trash2,
+  Layers,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
@@ -178,6 +177,10 @@ function StocksViewContent({
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<
+    "amount" | "relativeGain" | "absoluteGain"
+  >("amount")
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
   const filteredStockPositions = useMemo(() => {
     if (selectedEntities.length === 0) return positions
@@ -368,17 +371,27 @@ function StocksViewContent({
     }, 0)
   }, [displayPositions, exchangeRates, defaultCurrency])
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const sortedDisplayItems = useMemo(
     () =>
-      [...displayItems].sort(
-        (a, b) => (b.position.value || 0) - (a.position.value || 0),
-      ),
-    [displayItems],
+      [...displayItems].sort((a, b) => {
+        let aVal: number
+        let bVal: number
+        switch (sortBy) {
+          case "relativeGain":
+            aVal = a.position.change ?? 0
+            bVal = b.position.change ?? 0
+            break
+          case "absoluteGain":
+            aVal = a.position.gainLossAmount ?? 0
+            bVal = b.position.gainLossAmount ?? 0
+            break
+          default:
+            aVal = a.position.value || 0
+            bVal = b.position.value || 0
+        }
+        return sortOrder === "desc" ? bVal - aVal : aVal - bVal
+      }),
+    [displayItems, sortBy, sortOrder],
   )
 
   const handleSliceClick = useCallback((slice: { name: string }) => {
@@ -453,77 +466,8 @@ function StocksViewContent({
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.common.stocksEtfs}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex justify-between items-baseline">
-                      <p className="text-2xl font-bold">
-                        {formattedTotalValue}
-                      </p>
-                      {totalInitialInvestment > 0 &&
-                        (() => {
-                          const percentageValue =
-                            ((totalValue - totalInitialInvestment) /
-                              totalInitialInvestment) *
-                            100
-                          const sign = percentageValue >= 0 ? "+" : "-"
-                          return (
-                            <p
-                              className={cn(
-                                "text-sm font-medium",
-                                percentageValue === 0
-                                  ? "text-gray-500 dark:text-gray-400"
-                                  : percentageValue > 0
-                                    ? "text-green-600 dark:text-green-400"
-                                    : "text-red-600 dark:text-red-400",
-                              )}
-                            >
-                              {sign}
-                              {formatPercentage(
-                                Math.abs(percentageValue),
-                                locale,
-                              )}
-                            </p>
-                          )
-                        })()}
-                    </div>
-                    {totalInitialInvestment > 0 && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {t.dashboard.investedAmount}{" "}
-                        {formatCurrency(
-                          totalInitialInvestment,
-                          locale,
-                          defaultCurrency,
-                        )}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.numberOfAssets}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {sortedDisplayItems.length}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sortedDisplayItems.length === 1
-                        ? t.investments.asset
-                        : t.investments.assets}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
@@ -533,8 +477,99 @@ function StocksViewContent({
                   containerClassName="overflow-visible w-full"
                   variant="bare"
                   onSliceClick={handleSliceClick}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      totalInitialInvestment > 0
+                        ? ((totalValue - totalInitialInvestment) /
+                            totalInitialInvestment) *
+                          100
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.totalValue,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          defaultCurrency,
+                        ),
+                      },
+                      ...(totalInitialInvestment > 0
+                        ? [
+                            {
+                              label: t.dashboard.investedAmount,
+                              value: formatCurrency(
+                                totalInitialInvestment,
+                                locale,
+                                defaultCurrency,
+                              ),
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
                 />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown size={14} />
+                {t.investments.sortBy}
+              </span>
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                {(
+                  [
+                    { value: "amount", label: t.investments.sortAmount },
+                    {
+                      value: "relativeGain",
+                      label: t.investments.sortRelativeGain,
+                    },
+                    {
+                      value: "absoluteGain",
+                      label: t.investments.sortAbsoluteGain,
+                    },
+                  ] as const
+                ).map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      sortBy === option.value
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                aria-label={
+                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                }
+              >
+                {sortOrder === "asc" ? (
+                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                ) : (
+                  <ArrowRight size={16} className="rotate-90" />
+                )}
+              </button>
             </div>
 
             <div className="space-y-4">

@@ -9,7 +9,9 @@ async def cancel_entity_login(cancel_entity_login_uc: CancelEntityLogin):
     body = await request.get_json()
     entity = body.get("entity", None)
     if not entity:
-        return jsonify({"message": "Entity not provided"}), 400
+        return jsonify(
+            {"code": "INVALID_REQUEST", "message": "Entity not provided"}
+        ), 400
 
     cancel_entity_login_uc.execute(UUID(entity))
     return jsonify({"ok": True}), 200

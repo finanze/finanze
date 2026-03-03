@@ -2480,8 +2480,9 @@ export const getDaysStatus = (
   dateString: string,
   t: any,
   extendedMaturity?: string | null,
+  referenceDate?: Date | null,
 ) => {
-  const today = new Date()
+  const today = referenceDate ? new Date(referenceDate) : new Date()
   today.setHours(0, 0, 0, 0)
 
   const parseDate = (value?: string | null) => {

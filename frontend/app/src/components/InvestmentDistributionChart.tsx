@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import {
   PieChart,
   Pie,
@@ -8,9 +8,19 @@ import {
   Sector,
 } from "recharts"
 import { Card } from "@/components/ui/Card"
-import { formatCurrency } from "@/lib/formatters"
+import {
+  formatCurrency,
+  formatCompactCurrency,
+  formatPercentage,
+} from "@/lib/formatters"
+import { cn } from "@/lib/utils"
 import { useI18n } from "@/i18n"
-import { PieChart as PieChartIcon } from "lucide-react"
+import { PieChart as PieChartIcon, Info } from "lucide-react"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 
 interface ChartDataItem {
   name: string
@@ -21,6 +31,30 @@ interface ChartDataItem {
   convertedValue?: number
   convertedCurrency?: string
   id?: string
+}
+
+interface DonutBadge {
+  icon: React.ReactNode
+  value: string
+}
+
+interface DonutCenterConfig {
+  count?: number
+  countLabel?: string
+  countLabelSingular?: string
+  rawValue: number
+  gainPercentage?: number
+  badgeText?: string
+  infoRows?: {
+    label: string
+    value: string
+  }[]
+}
+
+interface DonutToggleConfig {
+  activeView: string
+  onViewChange: (view: string) => void
+  options: { value: string; label: string }[]
 }
 
 interface InvestmentDistributionChartProps {
@@ -43,6 +77,9 @@ interface InvestmentDistributionChartProps {
   }[]
   onInnerSliceClick?: (item: any) => void
   maxOuterRadius?: number
+  centerContent?: DonutCenterConfig
+  toggleConfig?: DonutToggleConfig
+  badges?: DonutBadge[]
 }
 
 const RADIAN = Math.PI / 180
@@ -100,6 +137,28 @@ const CustomTooltip = ({
   return null
 }
 
+function InfoPopover({ rows }: { rows: { label: string; value: string }[] }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="text-muted-foreground hover:text-foreground transition-colors pointer-events-auto">
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-3" align="center">
+        <div className="space-y-1 text-sm">
+          {rows.map((row, i) => (
+            <div key={i}>
+              <span className="text-muted-foreground">{row.label}: </span>
+              <span className="font-semibold">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export const InvestmentDistributionChart: React.FC<
   InvestmentDistributionChartProps
 > = ({
@@ -115,7 +174,10 @@ export const InvestmentDistributionChart: React.FC<
   variant = "default",
   innerData,
   onInnerSliceClick,
-  maxOuterRadius = 170,
+  maxOuterRadius: maxOuterRadiusProp = 170,
+  centerContent,
+  toggleConfig,
+  badges,
 }) => {
   const { t } = useI18n()
   const [activeInnerIndex, setActiveInnerIndex] = useState<number>(-1)
@@ -124,6 +186,28 @@ export const InvestmentDistributionChart: React.FC<
   const [size, setSize] = useState({ width: 0 })
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
   const hasData = Array.isArray(data) && data.length > 0
+
+  const compactNumbers = useMemo(() => {
+    if (typeof window === "undefined") return true
+    try {
+      const raw = localStorage.getItem("dashboardOptions")
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        return parsed.compactNumbers !== false
+      }
+    } catch {
+      /* ignore */
+    }
+    return true
+  }, [])
+
+  const formattedCenterValue = centerContent
+    ? compactNumbers
+      ? formatCompactCurrency(centerContent.rawValue, locale, currency)
+      : formatCurrency(centerContent.rawValue, locale, currency)
+    : ""
+
+  const maxOuterRadius = centerContent ? 200 : maxOuterRadiusProp
 
   useEffect(() => {
     if (variant !== "bare" || !hasData) return
@@ -169,32 +253,70 @@ export const InvestmentDistributionChart: React.FC<
       )
     }
     const effectiveWidth = size.width || 600
-    const effectiveHeight = chartSize.height || 420
+    const effectiveHeight = chartSize.height || (centerContent ? 380 : 420)
     const limitingSide = Math.min(effectiveWidth, effectiveHeight)
-    const computed = limitingSide / 2 - 42
-    const outerRadius = Math.max(Math.min(computed, maxOuterRadius), 100)
-    const innerRadius = Math.round(outerRadius * 0.62)
+    const computed = limitingSide / 2 - (centerContent ? 30 : 42)
+    const outerRadius = Math.max(
+      Math.min(computed, maxOuterRadius),
+      centerContent ? 110 : 100,
+    )
+    const innerRadius = centerContent
+      ? Math.round(outerRadius * 0.8)
+      : Math.round(outerRadius * 0.62)
     return (
       <div
         ref={wrapperRef}
         className={`relative flex justify-center ${containerClassName}`}
       >
         <div className="w-full flex flex-col max-w-[640px] mx-auto">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 px-4 pt-2">
-            {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
-            {title}
-          </h3>
+          {toggleConfig ? (
+            <div
+              className="inline-flex items-center gap-3 px-4 pt-2"
+              role="tablist"
+            >
+              <PieChartIcon size={18} className="text-primary" />
+              {toggleConfig.options.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={toggleConfig.activeView === opt.value}
+                  onClick={() => toggleConfig.onViewChange(opt.value)}
+                  className={cn(
+                    "text-base font-medium transition-colors",
+                    toggleConfig.activeView === opt.value
+                      ? "text-foreground font-extrabold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          ) : !centerContent ? (
+            <h3 className="text-lg font-semibold flex items-center gap-2 mb-1 px-4 pt-2">
+              {titleIcon || <PieChartIcon size={18} className="text-primary" />}{" "}
+              {title}
+            </h3>
+          ) : null}
           <div
             ref={chartAreaRef}
-            className="flex-1 min-h-[360px] h-[420px] flex items-center justify-center p-0 overflow-visible"
+            className={cn(
+              "flex-1 flex items-center justify-center p-0 overflow-visible relative",
+              centerContent
+                ? "min-h-[320px] h-[380px]"
+                : "min-h-[360px] h-[420px]",
+            )}
           >
             <ResponsiveContainer width="100%" height="100%">
               <PieChart style={{ userSelect: "none" }}>
                 {innerData &&
                   innerData.length > 0 &&
                   (() => {
-                    const ringOuter = innerRadius - 15
-                    const ringThickness = 5
+                    const ringOuter = centerContent
+                      ? innerRadius - 6
+                      : innerRadius - 15
+                    const ringThickness = centerContent ? 4 : 5
                     const ringInner = ringOuter - ringThickness
                     const activeOuter = ringOuter + 3
                     const activeInner = ringInner - 2
@@ -215,7 +337,7 @@ export const InvestmentDistributionChart: React.FC<
                         outerRadius={ringOuter}
                         innerRadius={ringInner}
                         stroke="hsl(var(--background))"
-                        strokeWidth={2}
+                        strokeWidth={centerContent ? 1 : 2}
                         paddingAngle={5}
                         activeIndex={activeInnerIndex}
                         activeShape={activeShape}
@@ -252,13 +374,14 @@ export const InvestmentDistributionChart: React.FC<
                   cy="50%"
                   isAnimationActive={false}
                   labelLine={false}
-                  label={renderCustomizedLabel}
+                  label={centerContent ? false : renderCustomizedLabel}
                   outerRadius={outerRadius}
                   innerRadius={innerRadius}
                   fill="#8884d8"
                   dataKey="value"
                   stroke="hsl(var(--background))"
-                  strokeWidth={2}
+                  strokeWidth={centerContent ? 1 : 2}
+                  paddingAngle={centerContent ? 1 : undefined}
                 >
                   {data.map((entry, index) => (
                     <Cell
@@ -280,9 +403,78 @@ export const InvestmentDistributionChart: React.FC<
                       showOriginalCurrency={showOriginalCurrency}
                     />
                   }
+                  wrapperStyle={{ zIndex: 50 }}
                 />
               </PieChart>
             </ResponsiveContainer>
+            {centerContent && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
+                {centerContent.count != null && centerContent.countLabel && (
+                  <span className="text-xs text-muted-foreground mb-0.5">
+                    <span className="font-bold text-foreground">
+                      {centerContent.count}
+                    </span>{" "}
+                    {centerContent.count === 1
+                      ? centerContent.countLabelSingular
+                      : centerContent.countLabel}
+                  </span>
+                )}
+                <span
+                  className={cn(
+                    "font-light",
+                    compactNumbers ? "text-3xl" : "text-[1.7rem]",
+                  )}
+                >
+                  {formattedCenterValue}
+                </span>
+                {centerContent.badgeText && (
+                  <span className="text-sm font-semibold text-muted-foreground mt-0.5">
+                    {centerContent.badgeText}
+                  </span>
+                )}
+                {centerContent.gainPercentage != null &&
+                  centerContent.gainPercentage !== 0 && (
+                    <div className="flex items-center gap-1">
+                      <span
+                        className={cn(
+                          "text-sm font-medium",
+                          centerContent.gainPercentage > 0
+                            ? "text-green-500"
+                            : centerContent.gainPercentage < 0
+                              ? "text-red-500"
+                              : "text-muted-foreground",
+                        )}
+                      >
+                        {centerContent.gainPercentage > 0 ? "+" : ""}
+                        {formatPercentage(centerContent.gainPercentage, locale)}
+                      </span>
+                      {centerContent.infoRows &&
+                        centerContent.infoRows.length > 0 && (
+                          <InfoPopover rows={centerContent.infoRows} />
+                        )}
+                    </div>
+                  )}
+                {(centerContent.gainPercentage == null ||
+                  centerContent.gainPercentage === 0) &&
+                  centerContent.infoRows &&
+                  centerContent.infoRows.length > 0 && (
+                    <InfoPopover rows={centerContent.infoRows} />
+                  )}
+              </div>
+            )}
+            {badges && badges.length > 0 && (
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 pointer-events-none z-10">
+                {badges.map((badge, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-muted/80 backdrop-blur-sm border border-border/50 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-sm"
+                  >
+                    {badge.icon}
+                    {badge.value}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -404,6 +596,7 @@ export const InvestmentDistributionChart: React.FC<
                   showOriginalCurrency={showOriginalCurrency}
                 />
               }
+              wrapperStyle={{ zIndex: 50 }}
             />
           </PieChart>
         </ResponsiveContainer>

@@ -131,13 +131,20 @@ export default function DashboardPage() {
     includeCardExpenses: boolean
     includeRealEstate: boolean
     includeResidences: boolean
+    compactNumbers: boolean
   }
   const [dashboardOptions, setDashboardOptions] = useState<DashboardOptions>(
     () => {
       if (typeof window !== "undefined") {
         try {
           const raw = localStorage.getItem("dashboardOptions")
-          if (raw) return JSON.parse(raw)
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            return {
+              ...parsed,
+              compactNumbers: parsed.compactNumbers !== false,
+            }
+          }
         } catch {
           // ignore
         }
@@ -147,6 +154,7 @@ export default function DashboardPage() {
         includeCardExpenses: false,
         includeRealEstate: true,
         includeResidences: false,
+        compactNumbers: true,
       }
     },
   )
@@ -1667,6 +1675,9 @@ export default function DashboardPage() {
                             project.maturity,
                             t,
                             project.extendedMaturity,
+                            forecastMode && forecastResult
+                              ? new Date(forecastResult.target_date)
+                              : null,
                           )
                           const route = getInvestmentRouteForProject(
                             project.type,

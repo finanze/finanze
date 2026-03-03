@@ -2,7 +2,7 @@ import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -18,6 +18,7 @@ import { copyToClipboard } from "@/lib/clipboard"
 import {
   calculateCryptoAssetInitialInvestment,
   calculateCryptoAssetValue,
+  calculateCryptoValue,
   calculateInvestmentDistribution,
   convertCurrency,
   getWalletAssets,
@@ -45,6 +46,7 @@ import {
   Edit3,
   Trash2,
   MoreVertical,
+  Layers,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
@@ -76,6 +78,7 @@ interface WalletAssetView {
   initialInvestment: number
   roi: number | null
   amount: number
+  currentPrice: number
   isToken: boolean
   iconUrl: string | null
   hasAssetDetails: boolean
@@ -116,6 +119,7 @@ interface NetworkAssetSummary {
   totalInitialInvestment: number
   roi: number | null
   totalAmount: number
+  currentPrice: number
   wallets: Array<{
     id: string
     name: string
@@ -607,6 +611,12 @@ function CryptoInvestmentContent({
                   initialInvestment,
                   roi,
                   amount: effectiveAsset.amount ?? 0,
+                  currentPrice: calculateCryptoValue(
+                    1,
+                    symbol,
+                    defaultCurrency,
+                    rates,
+                  ),
                   isToken,
                   iconUrl,
                   hasAssetDetails,
@@ -769,6 +779,12 @@ function CryptoInvestmentContent({
             initialInvestment,
             roi,
             amount: draft.amount ?? 0,
+            currentPrice: calculateCryptoValue(
+              1,
+              symbol,
+              defaultCurrency,
+              rates,
+            ),
             isToken,
             iconUrl: draft.crypto_asset?.icon_urls?.[0] ?? null,
             hasAssetDetails,
@@ -861,12 +877,13 @@ function CryptoInvestmentContent({
   }, [walletGroupsWithDrafts])
 
   const entityFilteredWalletGroups = useMemo<EntityWalletGroup[]>(() => {
-    if (selectedEntities.length === 0) {
-      return walletGroupsWithDrafts
-    }
-    return walletGroupsWithDrafts.filter(group =>
-      selectedEntities.includes(group.entity.id),
-    )
+    const groups =
+      selectedEntities.length === 0
+        ? walletGroupsWithDrafts
+        : walletGroupsWithDrafts.filter(group =>
+            selectedEntities.includes(group.entity.id),
+          )
+    return [...groups].sort((a, b) => b.totalValue - a.totalValue)
   }, [walletGroupsWithDrafts, selectedEntities])
 
   const walletFilterOptions = useMemo<MultiSelectOption[]>(() => {
@@ -918,6 +935,7 @@ function CryptoInvestmentContent({
         }
       })
       .filter((group): group is EntityWalletGroup => group !== null)
+      .sort((a, b) => b.totalValue - a.totalValue)
   }, [entityFilteredWalletGroups, selectedWalletFilters])
 
   useEffect(() => {
@@ -955,6 +973,7 @@ function CryptoInvestmentContent({
           valueAvailable: boolean
           totalInitialInvestment: number
           totalAmount: number
+          currentPrice: number
           wallets: Map<
             string,
             {
@@ -1013,6 +1032,7 @@ function CryptoInvestmentContent({
               valueAvailable: assetView.valueAvailable,
               totalInitialInvestment: assetView.initialInvestment,
               totalAmount: assetView.amount,
+              currentPrice: assetView.currentPrice,
               wallets,
             })
           }
@@ -1040,6 +1060,7 @@ function CryptoInvestmentContent({
             totalInitialInvestment: entry.totalInitialInvestment,
             roi,
             totalAmount: entry.totalAmount,
+            currentPrice: entry.currentPrice,
             wallets,
           }
         })
@@ -1076,11 +1097,6 @@ function CryptoInvestmentContent({
     () =>
       filteredCryptoWallets.reduce((sum, group) => sum + group.totalValue, 0),
     [filteredCryptoWallets],
-  )
-
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, settings.general.defaultCurrency),
-    [totalValue, locale, settings.general.defaultCurrency],
   )
 
   const totalCryptoAssets = useMemo(() => {
@@ -1627,6 +1643,17 @@ function CryptoInvestmentContent({
                                         >
                                           {amountText}
                                         </p>
+                                        {assetView.valueAvailable &&
+                                          assetView.currentPrice > 0 && (
+                                            <p className="text-xs text-muted-foreground truncate">
+                                              {formatCurrency(
+                                                assetView.currentPrice,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                              )}
+                                            </p>
+                                          )}
                                       </div>
                                     </div>
                                     <div className="text-right">
@@ -1776,6 +1803,17 @@ function CryptoInvestmentContent({
                                         >
                                           {amountText}
                                         </p>
+                                        {assetView.valueAvailable &&
+                                          assetView.currentPrice > 0 && (
+                                            <p className="text-xs text-muted-foreground truncate">
+                                              {formatCurrency(
+                                                assetView.currentPrice,
+                                                locale,
+                                                settings.general
+                                                  .defaultCurrency,
+                                              )}
+                                            </p>
+                                          )}
                                       </div>
                                     </div>
                                     <div className="text-right">
@@ -1886,6 +1924,16 @@ function CryptoInvestmentContent({
                               >
                                 {amountText}
                               </p>
+                              {assetView.valueAvailable &&
+                                assetView.currentPrice > 0 && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {formatCurrency(
+                                      assetView.currentPrice,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )}
+                                  </p>
+                                )}
                             </div>
                           </div>
                           <div className="text-right">
@@ -2125,6 +2173,16 @@ function CryptoInvestmentContent({
                               >
                                 {amountText}
                               </p>
+                              {assetSummary.valueAvailable &&
+                                assetSummary.currentPrice > 0 && (
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {formatCurrency(
+                                      assetSummary.currentPrice,
+                                      locale,
+                                      settings.general.defaultCurrency,
+                                    )}
+                                  </p>
+                                )}
                             </div>
                           </div>
                           <div className="text-right">
@@ -2239,50 +2297,8 @@ function CryptoInvestmentContent({
         </Card>
       ) : (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-            <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {t.common.cryptoInvestments}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {t.investments.numberOfAssets}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-2xl font-bold">{totalCryptoAssets}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {totalCryptoAssets === 1
-                      ? t.investments.asset
-                      : t.investments.assets}
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                    {t.walletManagement.wallets}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-2xl font-bold">{totalFilteredWallets}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {totalFilteredWallets === 1
-                      ? t.walletManagement.wallet
-                      : t.walletManagement.wallets}
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+          <Card className="-mx-6 rounded-none border-x-0">
+            <CardContent className="pt-6">
               <InvestmentDistributionChart
                 data={chartData}
                 title={t.common.distribution}
@@ -2309,9 +2325,37 @@ function CryptoInvestmentContent({
                     )
                   }
                 }}
+                toggleConfig={{
+                  activeView: "asset",
+                  onViewChange: () => {},
+                  options: [{ value: "asset", label: t.investments.byAsset }],
+                }}
+                badges={[
+                  {
+                    icon: <Layers className="h-3 w-3" />,
+                    value: `${totalCryptoAssets} ${totalCryptoAssets === 1 ? t.investments.asset : t.investments.assets}`,
+                  },
+                  {
+                    icon: <Wallet className="h-3 w-3" />,
+                    value: `${totalFilteredWallets} ${totalFilteredWallets === 1 ? t.walletManagement.wallet : t.walletManagement.wallets}`,
+                  },
+                ]}
+                centerContent={{
+                  rawValue: totalValue,
+                  infoRows: [
+                    {
+                      label: t.dashboard.totalValue,
+                      value: formatCurrency(
+                        totalValue,
+                        locale,
+                        settings.general.defaultCurrency,
+                      ),
+                    },
+                  ],
+                }}
               />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           <Tabs
             value={viewMode}
