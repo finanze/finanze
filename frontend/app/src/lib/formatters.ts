@@ -79,6 +79,22 @@ export const formatGainLoss = (
   return value >= 0 ? `+${formatted}` : `-${formatted}`
 }
 
+export const formatCompactCurrency = (
+  value: number,
+  locale: string,
+  currency: string,
+): string => {
+  const formatter = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    notation: "compact",
+    compactDisplay: "short",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })
+  return formatter.format(value)
+}
+
 export const formatConvertedCurrency = (
   value: number,
   locale: string,

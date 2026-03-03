@@ -186,6 +186,15 @@
     "numberOfAssets": "Number of Assets",
     "asset": "asset",
     "assets": "assets",
+    "entry": "entry",
+    "byAsset": "Per asset",
+    "byType": "Per type",
+    "sortBy": "Sort by",
+    "sortAmount": "Amount",
+    "sortRelativeGain": "Gain %",
+    "sortAbsoluteGain": "Gain",
+    "sortStart": "Start",
+    "sortMaturity": "Maturity",
     "cryptoView": {
       "belongsTo": "Belongs to",
       "viewModeLabel": "View",
@@ -251,7 +260,11 @@
       "effectiveMaturity": "Effective maturity",
       "extendedMaturity": "Extended maturity",
       "extendableMaturity": "Extendable maturity",
-      "initialMaturityDate": "Initial maturity date"
+      "initialMaturityDate": "Initial maturity date",
+      "sortBy": "Sort by",
+      "sortMaturity": "Maturity",
+      "sortStartDate": "Start date",
+      "sortInvested": "Amount"
     }
   },
   "toast": {
@@ -855,7 +868,8 @@
     "includePendingMoney": "Include pending money",
     "includeCardExpenses": "Subtract card expenses",
     "includeRealEstateEquity": "Include real estate equity",
-    "includeResidences": "Include residences"
+    "includeResidences": "Include residences",
+    "compactNumbers": "Compact numbers"
   },
   "forecast": {
     "title": "Forecast",
