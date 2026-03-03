@@ -79,6 +79,7 @@ from infrastructure.controller.routes.add_entity_login import add_entity_login
 from infrastructure.controller.routes.add_manual_transaction import (
     add_manual_transaction,
 )
+from infrastructure.controller.routes.cancel_entity_login import cancel_entity_login
 from infrastructure.controller.routes.calculate_loan import calculate_loan
 from infrastructure.controller.routes.calculate_savings import calculate_savings
 from infrastructure.controller.routes.change_user_password import change_user_password
@@ -284,6 +285,10 @@ async def register_routes(
     @app.route("/api/v1/entities/login", methods=["POST"])
     async def add_entity_login_route():
         return await add_entity_login(add_entity_credentials_uc)
+
+    @app.route("/api/v1/entities/login/cancel", methods=["POST"])
+    async def cancel_entity_login_route():
+        return await cancel_entity_login(add_entity_credentials_uc)
 
     @app.route("/api/v1/entities/login", methods=["DELETE"])
     async def disconnect_entity_route():

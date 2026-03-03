@@ -109,6 +109,7 @@ from infrastructure.client.entity.crypto.tron.tron_fetcher import TronFetcher
 from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
+from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
     IndexaCapitalFetcher,
@@ -264,6 +265,7 @@ class FinanzeServer:
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
             domain.native_entities.ING: INGFetcher(),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
+            domain.native_entities.DEGIRO: DegiroFetcher(),
         }
 
         external_entity_fetchers = {

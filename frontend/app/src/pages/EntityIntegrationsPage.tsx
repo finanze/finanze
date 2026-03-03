@@ -14,7 +14,7 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useState, useEffect } from "react"
 import { useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { ExternalLink, Landmark, Wallet, Check } from "lucide-react"
+import { ExternalLink, Landmark, Wallet, Check, Smartphone } from "lucide-react"
 import {
   EntityOrigin,
   EntitySetupLoginType,
@@ -50,6 +50,8 @@ export default function EntityIntegrationsPage() {
     isLoggingIn,
     selectedEntity,
     pinRequired,
+    inAppConfirmation,
+    cancelInAppConfirmation,
     selectEntity,
     scrape,
     view,
@@ -827,6 +829,48 @@ export default function EntityIntegrationsPage() {
               className="relative w-full max-w-md mx-auto"
             >
               <FeatureSelector />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* In-App Confirmation Modal */}
+      <AnimatePresence>
+        {inAppConfirmation && selectedEntity && (
+          <motion.div
+            key="in-app-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 px-4 py-8"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="relative w-full max-w-md mx-auto"
+            >
+              <Card className="w-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5" />
+                    {t.login.inAppConfirmationTitle} {selectedEntity.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col items-center py-8">
+                  <LoadingSpinner size="lg" />
+                  <p className="mt-4 text-center text-muted-foreground">
+                    {t.login.inAppConfirmationMessage}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-6"
+                    onClick={cancelInAppConfirmation}
+                  >
+                    {t.common.cancel}
+                  </Button>
+                </CardContent>
+              </Card>
             </motion.div>
           </motion.div>
         )}
