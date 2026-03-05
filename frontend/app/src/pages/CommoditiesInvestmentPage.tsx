@@ -6,13 +6,15 @@ import {
   ArrowLeft,
   Plus,
   Save,
-  Edit,
+  Edit3,
   Trash2,
   X,
   Layers,
   Scale,
   TrendingUp,
   TrendingDown,
+  MoreVertical,
+  ChevronDown,
 } from "lucide-react"
 import {
   Card,
@@ -44,6 +46,11 @@ import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
 import { cn, getCurrencySymbol } from "@/lib/utils"
 import { formatCurrency } from "@/lib/formatters"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 
 interface CommodityEntry extends Commodity {
   isExpanded: boolean
@@ -88,6 +95,13 @@ export default function CommoditiesInvestmentPage() {
   const [fieldErrors, setFieldErrors] = useState<
     Record<string, { name?: string; amount?: string }>
   >({})
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  const toggleCardExpanded = useCallback((key: string) => {
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   const [newEntry, setNewEntry] = useState<Partial<CommodityRegister>>({
     name: "",
@@ -632,6 +646,18 @@ export default function CommoditiesInvestmentPage() {
                             defaultCurrency,
                           ),
                         },
+                        {
+                          label: t.investments.sortAbsoluteGain,
+                          value: `${totalValue - totalInitialInvestmentConverted >= 0 ? "+" : ""}${formatCurrency(
+                            totalValue - totalInitialInvestmentConverted,
+                            locale,
+                            defaultCurrency,
+                          )}`,
+                          valueClassName:
+                            totalValue - totalInitialInvestmentConverted >= 0
+                              ? "text-green-500"
+                              : "text-red-500",
+                        },
                       ]
                     : []),
                 ],
@@ -935,86 +961,194 @@ export default function CommoditiesInvestmentPage() {
                           100
                         : null
 
+                    const isExpanded = expandedCards[c.id] ?? false
+
                     return (
                       <Card
                         key={c.id}
-                        className={`transition-all hover:shadow-md ${c.isModified ? "ring-2 ring-blue-500" : ""}`}
+                        className={cn(
+                          "transition-all overflow-hidden",
+                          c.isModified && "ring-2 ring-blue-500",
+                        )}
                       >
-                        <CardContent className="p-4">
+                        <div
+                          className="p-4 cursor-pointer hover:bg-accent/40 transition-colors"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={isExpanded}
+                          onClick={e => {
+                            if (
+                              (e.target as HTMLElement).closest(
+                                "[data-no-expand]",
+                              )
+                            )
+                              return
+                            toggleCardExpanded(c.id)
+                          }}
+                          onKeyDown={e => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              toggleCardExpanded(c.id)
+                            }
+                          }}
+                        >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-                                {c.name}
-                              </h4>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                                  {c.name}
+                                </h4>
+                                {c.isModified && (
+                                  <span className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
                                 {formatWeight(c.amount, c.unit)}
                               </p>
-                              {formattedEntryValue && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  {formattedEntryValue}
-                                </p>
-                              )}
-                              {roiAmount !== null && roiPercent !== null && (
-                                <div
-                                  className={cn(
-                                    "flex items-center gap-1 text-sm",
-                                    roiAmount >= 0
-                                      ? "text-green-500"
-                                      : "text-red-500",
-                                  )}
-                                >
-                                  {roiAmount >= 0 ? (
-                                    <TrendingUp size={14} />
-                                  ) : (
-                                    <TrendingDown size={14} />
-                                  )}
-                                  <span>
-                                    {roiAmount >= 0 ? "+" : ""}
-                                    {formatCurrency(
-                                      roiAmount,
-                                      locale,
-                                      defaultCurrency,
+                            </div>
+                            <div className="flex items-start gap-1 flex-shrink-0">
+                              <div className="text-right">
+                                {formattedEntryValue && (
+                                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                                    {formattedEntryValue}
+                                  </p>
+                                )}
+                                {roiPercent !== null && (
+                                  <p
+                                    className={cn(
+                                      "text-xs font-medium",
+                                      roiPercent >= 0
+                                        ? "text-green-500"
+                                        : "text-red-500",
                                     )}
-                                  </span>
-                                  <span className="text-xs opacity-80">
-                                    ({roiPercent >= 0 ? "+" : ""}
-                                    {roiPercent.toFixed(2)}%)
-                                  </span>
+                                  >
+                                    {roiPercent >= 0 ? "+" : ""}
+                                    {roiPercent.toFixed(2)}%
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-center">
+                                <div data-no-expand>
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                        type="button"
+                                      >
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                      align="end"
+                                      sideOffset={8}
+                                      className="w-44 p-2 space-y-1"
+                                    >
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setEditingCommodityId(c.id)
+                                        }
+                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left transition-colors hover:bg-accent hover:text-accent-foreground"
+                                      >
+                                        <Edit3 className="h-3.5 w-3.5" />
+                                        {t.common.edit}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          requestDeleteCommodity(c)
+                                        }
+                                        className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm font-medium text-left text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-500/10"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                        {t.common.delete}
+                                      </button>
+                                    </PopoverContent>
+                                  </Popover>
                                 </div>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {c.isModified && (
-                                <span className="h-2 w-2 rounded-full bg-blue-500" />
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setEditingCommodityId(c.id)}
-                                className="p-1 h-8 w-8"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => requestDeleteCommodity(c)}
-                                className="p-1 h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                                <ChevronDown
+                                  className={cn(
+                                    "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                                    isExpanded && "rotate-180",
+                                  )}
+                                />
+                              </div>
                             </div>
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400 mt-3">
-                            <span className="font-medium text-blue-600 dark:text-blue-400">
-                              {percentageOfPortfolio.toFixed(1)}%
-                            </span>{" "}
-                            {t.investments.ofInvestmentType.replace(
-                              "{type}",
-                              t.common.commodities.toLowerCase(),
-                            )}
-                          </div>
-                        </CardContent>
+                        </div>
+
+                        <AnimatePresence initial={false}>
+                          {isExpanded && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2, ease: "easeInOut" }}
+                              className="overflow-hidden"
+                            >
+                              <div className="px-4 pb-4 pt-1 space-y-2 border-t border-border">
+                                {roiAmount !== null && roiPercent !== null && (
+                                  <div className="flex items-center justify-between text-sm pt-2">
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                      {t.investments.sortAbsoluteGain}
+                                    </span>
+                                    <div
+                                      className={cn(
+                                        "flex items-center gap-1 font-medium",
+                                        roiAmount >= 0
+                                          ? "text-green-500"
+                                          : "text-red-500",
+                                      )}
+                                    >
+                                      {roiAmount >= 0 ? (
+                                        <TrendingUp size={14} />
+                                      ) : (
+                                        <TrendingDown size={14} />
+                                      )}
+                                      <span>
+                                        {roiAmount >= 0 ? "+" : ""}
+                                        {formatCurrency(
+                                          roiAmount,
+                                          locale,
+                                          defaultCurrency,
+                                        )}
+                                      </span>
+                                      <span className="text-xs opacity-80">
+                                        ({roiPercent >= 0 ? "+" : ""}
+                                        {roiPercent.toFixed(2)}%)
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                                {details && details.convertedInitial > 0 && (
+                                  <div className="flex items-center justify-between text-sm pt-2">
+                                    <span className="text-gray-500 dark:text-gray-400">
+                                      {t.commodityManagement.initialInvestment}
+                                    </span>
+                                    <span className="text-gray-900 dark:text-gray-100 font-medium">
+                                      {formatCurrency(
+                                        details.convertedInitial,
+                                        locale,
+                                        defaultCurrency,
+                                      )}
+                                    </span>
+                                  </div>
+                                )}
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium text-blue-600 dark:text-blue-400">
+                                    {percentageOfPortfolio.toFixed(1)}%
+                                  </span>{" "}
+                                  {t.investments.ofInvestmentType.replace(
+                                    "{type}",
+                                    t.common.commodities.toLowerCase(),
+                                  )}
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </Card>
                     )
                   })}

@@ -33,11 +33,11 @@ import {
 import { Button } from "@/components/ui/Button"
 
 const PILL_HEIGHT = 48
-const PILL_HEIGHT_COLLAPSED = 30
+const PILL_HEIGHT_COLLAPSED = 33
 const INDICATOR_INSET = 2
 const COLLAPSE_DURATION = 0.18
 const DOT_SIZE = 6
-const DOT_GAP = 5
+const DOT_GAP = 6.5
 const TAB_SIZE = 40
 const TAB_GAP = 6
 const EXPANDED_INSET = 8

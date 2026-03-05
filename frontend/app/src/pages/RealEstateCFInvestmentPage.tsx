@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useCallback, useEffect } from "react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { DataSource, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -45,6 +45,7 @@ import {
   TrendingUp,
   Info,
   Layers,
+  ChevronDown,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
@@ -462,6 +463,13 @@ function RealEstateViewContent({
   const [expandedHistoricEntries, setExpandedHistoricEntries] = useState<
     Record<string, boolean>
   >({})
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>(
+    {},
+  )
+
+  const toggleCardExpanded = useCallback((key: string) => {
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }))
+  }, [])
 
   const filteredRealEstatePositions = useMemo(() => {
     if (selectedEntities.length === 0) {
@@ -1159,7 +1167,7 @@ function RealEstateViewContent({
               </CardContent>
             </Card>
 
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground flex items-center gap-1">
                 <ArrowUpDown size={14} />
                 {t.investments.sortBy}
@@ -1233,63 +1241,13 @@ function RealEstateViewContent({
                     : ""
 
                 const showActions = isEditMode && isManual
-
-                const entityButton = (
-                  <button
-                    key="entity"
-                    type="button"
-                    onClick={() => {
-                      const entityObj = entities.find(
-                        entity => entity.name === position.entity,
-                      )
-                      const id = entityObj?.id || position.entity
-                      setSelectedEntities(prev =>
-                        prev.includes(id) ? prev : [...prev, id],
-                      )
-                    }}
-                    className={cn(
-                      "px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
-                      getColorForName(position.entity),
-                    )}
-                  >
-                    {position.entity}
-                  </button>
-                )
+                const isExpanded = expandedCards[item.key] ?? false
 
                 const rawProjectType =
                   position.investment_project_type ||
                   position.business_type ||
                   position.type ||
                   ""
-
-                const summaryItems: React.ReactNode[] = [
-                  <div key="entity" className="flex items-center">
-                    {entityButton}
-                  </div>,
-                  <div key="type" className="flex items-center gap-1 text-sm">
-                    <Building size={14} />
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {translateProjectType(rawProjectType)}
-                    </span>
-                  </div>,
-                ]
-
-                if (position.interest_rate && position.interest_rate > 0) {
-                  summaryItems.push(
-                    <div
-                      key="interest"
-                      className="flex items-center gap-1 text-sm"
-                    >
-                      <Percent size={14} />
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                        {(position.interest_rate * 100).toFixed(2)}%
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {t.investments.annually}
-                      </span>
-                    </div>,
-                  )
-                }
 
                 return (
                   <Card
@@ -1300,213 +1258,259 @@ function RealEstateViewContent({
                       }
                     }}
                     className={cn(
-                      "p-6 border-l-4 transition-colors",
+                      "border-l-4 transition-all overflow-hidden",
                       highlightClass,
                     )}
                     style={{ borderLeftColor: borderColor }}
                   >
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                      <div className="space-y-2 flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                          <h3 className="font-semibold text-lg">
-                            {position.name}
-                          </h3>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="default" className="text-xs">
-                              {translateState(position.state)}
-                            </Badge>
-                            {position.source &&
-                              position.source !== DataSource.REAL && (
-                                <SourceBadge
-                                  source={position.source}
-                                  title={t.management?.source}
-                                  className="text-[0.65rem]"
-                                />
-                              )}
-                            {isDirty && (
-                              <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
-                                {manualTranslate("management.unsavedChanges")}
+                    <div
+                      className="flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
+                      onClick={e => {
+                        if (
+                          (e.target as HTMLElement).closest("[data-no-expand]")
+                        )
+                          return
+                        toggleCardExpanded(item.key)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleCardExpanded(item.key)
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={isExpanded}
+                    >
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <h3 className="text-base sm:text-lg font-semibold leading-tight">
+                          {position.name}
+                        </h3>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <Badge variant="default" className="text-xs">
+                            {translateState(position.state)}
+                          </Badge>
+                          <button
+                            type="button"
+                            data-no-expand
+                            onClick={() => {
+                              const entityObj = entities.find(
+                                entity => entity.name === position.entity,
+                              )
+                              const id = entityObj?.id || position.entity
+                              setSelectedEntities(prev =>
+                                prev.includes(id) ? prev : [...prev, id],
+                              )
+                            }}
+                            className={cn(
+                              "px-2 py-0.5 rounded-full text-xs font-semibold transition-colors hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-primary",
+                              getColorForName(position.entity),
+                            )}
+                          >
+                            {position.entity}
+                          </button>
+                          {position.source &&
+                            position.source !== DataSource.REAL && (
+                              <SourceBadge
+                                source={position.source}
+                                title={t.management?.source}
+                                className="text-[0.65rem]"
+                              />
+                            )}
+                          {isDirty && (
+                            <span className="text-[0.65rem] font-semibold text-blue-600 dark:text-blue-400">
+                              {manualTranslate("management.unsavedChanges")}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground">
+                          <Building size={12} />
+                          <span>{translateProjectType(rawProjectType)}</span>
+                          {position.interest_rate > 0 && (
+                            <>
+                              <span>•</span>
+                              <Percent size={12} />
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                {(position.interest_rate * 100).toFixed(2)}%
                               </span>
+                            </>
+                          )}
+                          <span>•</span>
+                          <Calendar size={12} />
+                          <span>
+                            {formatDate(
+                              position.displayMaturity || position.maturity,
+                              locale,
                             )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2 text-sm text-gray-600 dark:text-gray-400 sm:flex-row sm:flex-wrap sm:items-center">
-                          {summaryItems.map((item, index) => (
-                            <React.Fragment key={index}>
-                              {item}
-                              {index < summaryItems.length - 1 && (
-                                <span className="hidden text-gray-400 dark:text-gray-500 sm:inline">
-                                  •
-                                </span>
-                              )}
-                            </React.Fragment>
-                          ))}
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs text-gray-500">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp
-                              size={14}
-                              className="text-gray-400 dark:text-gray-500"
-                            />
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {t.investments.investment}
-                            </span>
-                            <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(position.last_invest_date, locale)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <Calendar
-                              size={14}
-                              className="text-gray-400 dark:text-gray-500"
-                            />
-                            <span className="text-gray-500 dark:text-gray-400">
-                              {t.investments.maturity}
-                            </span>
-                            <span className="text-gray-900 dark:text-gray-100">
-                              {formatDate(
-                                position.displayMaturity || position.maturity,
-                                locale,
-                              )}
-                            </span>
-                            {position.maturityInfo && (
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-4 w-4"
-                                    aria-label={position.maturityInfo.label}
-                                  >
-                                    <Info size={12} />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent
-                                  align="start"
-                                  className="w-56 space-y-2"
-                                >
-                                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                    {position.maturityInfo.isExtended
-                                      ? t.investments.historicSection
-                                          .initialMaturityDate
-                                      : t.investments.historicSection
-                                          .extendableMaturity}
-                                  </p>
-                                  <div className="space-y-2 text-sm">
-                                    <div>
-                                      <p className="font-medium text-gray-900 dark:text-gray-100">
-                                        {position.maturityInfo.isExtended
-                                          ? formatDate(
-                                              position.maturity,
-                                              locale,
-                                            )
-                                          : formatDate(
-                                              position.extendedMaturity ||
-                                                position.maturity,
-                                              locale,
-                                            )}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </PopoverContent>
-                              </Popover>
-                            )}
-                          </div>
+                          </span>
                         </div>
                       </div>
-
-                      <div className="text-right space-y-1 flex-shrink-0 self-stretch sm:self-auto w-full sm:w-auto">
-                        <div className="text-2xl font-bold">
-                          {position.formattedAmount}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right space-y-0.5">
+                          <div className="text-base sm:text-lg font-semibold leading-tight">
+                            {position.formattedAmount}
+                          </div>
+                          {position.currency !== defaultCurrency && (
+                            <div className="text-xs text-muted-foreground">
+                              {position.formattedConvertedAmount}
+                            </div>
+                          )}
+                          {position.formattedProfit && (
+                            <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
+                              {position.formattedProfit}
+                            </div>
+                          )}
                         </div>
-                        {position.currency !== defaultCurrency && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {position.formattedConvertedAmount}
-                          </div>
-                        )}
-                        {(position.formattedPendingAmount ||
-                          position.formattedProfit) && (
-                          <div className="space-y-1 text-sm">
-                            {position.formattedPendingAmount && (
-                              <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                                <span className="text-gray-600 dark:text-gray-400">
-                                  {t.investments.pending}
-                                </span>
-                                <span className="font-medium text-orange-600 dark:text-orange-400">
-                                  {position.formattedPendingAmount}
-                                </span>
-                              </div>
-                            )}
-                            {position.formattedProfit && (
-                              <div className="flex flex-wrap items-center gap-1 sm:justify-end">
-                                <span className="text-gray-500 dark:text-gray-400">
-                                  {t.investments.expected}
-                                </span>
-                                <span className="font-medium text-emerald-600 dark:text-emerald-400">
-                                  {position.formattedProfit}
-                                  {position.profitabilityPct !== null && (
-                                    <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
-                                      ({position.profitabilityPct.toFixed(2)}%)
-                                    </span>
-                                  )}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <div className="text-sm text-gray-600 dark:text-gray-400 space-y-0.5">
-                          <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {percentageOfRealEstate.toFixed(1)}%
-                          </span>
-                          {" " +
-                            t.investments.ofInvestmentType.replace(
-                              "{type}",
-                              t.common.realEstateCf.toLowerCase(),
-                            )}
-                        </div>
-                        {showActions && (
-                          <div className="flex items-center justify-end gap-2 pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  editByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  editByLocalId(manualDraft.localId)
-                                } else if (originalId) {
-                                  editByOriginalId(originalId)
-                                }
-                              }}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              {t.common.edit}
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
-                                if (manualDraft?.originalId) {
-                                  deleteByOriginalId(manualDraft.originalId)
-                                } else if (manualDraft) {
-                                  deleteByLocalId(manualDraft.localId)
-                                } else if (originalId) {
-                                  deleteByOriginalId(originalId)
-                                }
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        )}
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                            isExpanded && "rotate-180",
+                          )}
+                        />
                       </div>
                     </div>
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="expanded"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="px-4 pb-4">
+                            <div className="border-t border-border/50 pt-3 space-y-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.investment}
+                                  </div>
+                                  <div className="text-foreground">
+                                    {formatDate(
+                                      position.last_invest_date,
+                                      locale,
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.maturity}
+                                  </div>
+                                  <div className="text-foreground">
+                                    {formatDate(
+                                      position.displayMaturity ||
+                                        position.maturity,
+                                      locale,
+                                    )}
+                                  </div>
+                                </div>
+                                {position.maturityInfo && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {position.maturityInfo.isExtended
+                                        ? t.investments.historicSection
+                                            .initialMaturityDate
+                                        : t.investments.historicSection
+                                            .extendableMaturity}
+                                    </div>
+                                    <div className="text-foreground">
+                                      {position.maturityInfo.isExtended
+                                        ? formatDate(position.maturity, locale)
+                                        : formatDate(
+                                            position.extendedMaturity ||
+                                              position.maturity,
+                                            locale,
+                                          )}
+                                    </div>
+                                  </div>
+                                )}
+                                {position.formattedPendingAmount && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.pending}
+                                    </div>
+                                    <div className="font-medium text-orange-600 dark:text-orange-400">
+                                      {position.formattedPendingAmount}
+                                    </div>
+                                  </div>
+                                )}
+                                {position.formattedProfit && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.expectedProfit}
+                                    </div>
+                                    <div className="font-medium text-emerald-600 dark:text-emerald-400">
+                                      {position.formattedProfit}
+                                      {position.profitabilityPct !== null && (
+                                        <span className="ml-1 text-xs text-emerald-500 dark:text-emerald-300">
+                                          (
+                                          {position.profitabilityPct.toFixed(2)}
+                                          %)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                    {t.investments.ofInvestmentType.replace(
+                                      "{type}",
+                                      t.common.realEstateCf.toLowerCase(),
+                                    )}
+                                  </div>
+                                  <div className="font-medium text-blue-600 dark:text-blue-400">
+                                    {percentageOfRealEstate.toFixed(1)}%
+                                  </div>
+                                </div>
+                              </div>
+                              {showActions && (
+                                <div
+                                  className="flex items-center gap-2 pt-2 border-t border-border/30"
+                                  data-no-expand
+                                >
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        editByOriginalId(manualDraft.originalId)
+                                      } else if (manualDraft) {
+                                        editByLocalId(manualDraft.localId)
+                                      } else if (originalId) {
+                                        editByOriginalId(originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    {t.common.edit}
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-500 hover:text-red-600"
+                                    onClick={() => {
+                                      if (manualDraft?.originalId) {
+                                        deleteByOriginalId(
+                                          manualDraft.originalId,
+                                        )
+                                      } else if (manualDraft) {
+                                        deleteByLocalId(manualDraft.localId)
+                                      } else if (originalId) {
+                                        deleteByOriginalId(originalId)
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 )
               })}
@@ -1544,7 +1548,7 @@ function RealEstateViewContent({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-muted-foreground flex items-center gap-1">
               <ArrowUpDown size={14} />
               {t.investments.historicSection.sortBy}

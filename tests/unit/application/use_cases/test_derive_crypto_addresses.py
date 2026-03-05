@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 from uuid import UUID
 
@@ -6,7 +8,6 @@ from application.use_cases.derive_crypto_addresses import (
     ENTITY_TO_COIN_TYPE,
 )
 from application.ports.public_key_derivation import PublicKeyDerivation
-from application.ports.entity_port import EntityPort
 from domain import native_entities
 from domain.exception.exceptions import EntityNotFound
 from domain.public_key import (
@@ -55,32 +56,6 @@ class MockPublicKeyDerivation(PublicKeyDerivation):
         )
 
 
-class MockEntityPort(EntityPort):
-    async def insert(self, entity):
-        pass
-
-    async def update(self, entity):
-        pass
-
-    async def get_by_id(self, entity_id):
-        return None
-
-    async def get_all(self):
-        return []
-
-    async def get_by_natural_id(self, natural_id):
-        return None
-
-    async def get_by_name(self, name):
-        return None
-
-    async def delete_by_id(self, entity_id):
-        pass
-
-    async def get_disabled_entities(self):
-        return []
-
-
 class TestDeriveCryptoAddressesImpl:
     @pytest.fixture
     def mock_public_key_derivation(self):
@@ -88,7 +63,13 @@ class TestDeriveCryptoAddressesImpl:
 
     @pytest.fixture
     def mock_entity_port(self):
-        return MockEntityPort()
+        port = AsyncMock()
+        port.get_by_id = AsyncMock(return_value=None)
+        port.get_all = AsyncMock(return_value=[])
+        port.get_by_natural_id = AsyncMock(return_value=None)
+        port.get_by_name = AsyncMock(return_value=None)
+        port.get_disabled_entities = AsyncMock(return_value=[])
+        return port
 
     @pytest.fixture
     def use_case(self, mock_public_key_derivation, mock_entity_port):
