@@ -42,6 +42,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import MY_INVESTOR
 from domain.transactions import (
     AccountTx,
@@ -99,47 +100,6 @@ ACCOUNT_TX_FETCH_STEP = relativedelta(months=2)
 STOCKS_TX_FETCH_STEP = relativedelta(months=4)
 
 ACTIVE_CONTRIBUTION_STATUSES = ["ACTIVE", "PAUSED"]
-
-
-def _get_stock_investments(broker_investments) -> list[StockDetail]:
-    stock_list = []
-    if broker_investments:
-        for stock in broker_investments["investmentList"]:
-            product_type = (
-                EquityType.STOCK
-                if stock.get("brokerProductType") == "RV"
-                else EquityType.ETF
-            )
-            origin_currency_liquidation_value = Dezimal(
-                stock.get("originCurrencyLiquidationValue")
-            )
-            shares = Dezimal(stock.get("shares"))
-            market_value = Dezimal(origin_currency_liquidation_value * shares)
-
-            stock_list.append(
-                StockDetail(
-                    id=uuid4(),
-                    name=stock["investmentName"],
-                    ticker=stock.get("ticker", ""),
-                    isin=stock["isin"],
-                    market=stock["marketCode"],
-                    shares=shares,
-                    initial_investment=round(
-                        Dezimal(stock["initialInvestmentCurrency"]), 4
-                    ),
-                    average_buy_price=round(
-                        Dezimal(stock["initialInvestmentCurrency"])
-                        / Dezimal(stock["shares"]),
-                        4,
-                    ),
-                    market_value=round(market_value, 4),
-                    currency=stock["liquidationValueCurrency"],
-                    type=product_type,
-                    subtype=stock.get("activeTypeCode"),
-                )
-            )
-
-    return stock_list
 
 
 def _map_deposit_tx(
@@ -209,9 +169,10 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
         two_factor = login_params.two_factor
 
         username, password = credentials["user"], credentials["password"]
-        process_id, code = None, None
+        process_id, code, token = None, None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
+            token = two_factor.token
 
         return await self._client.login(
             username,
@@ -220,6 +181,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             session=login_params.session,
             process_id=process_id,
             code=code,
+            captcha_token=token,
         )
 
     async def global_position(self) -> GlobalPosition:
@@ -715,7 +677,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             )
 
             broker_investments = investments.get("BROKER")
-            found_stocks = _get_stock_investments(broker_investments)
+            found_stocks = await self._get_stock_investments(broker_investments)
             self._log.debug(f"Found {len(found_stocks)} stocks")
             stocks += found_stocks
 
@@ -809,6 +771,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             raw_asset_type = fund_details.get("assetType")
             asset_type = _parse_asset_type(raw_asset_type)
 
+            raw_issuer = fund_details.get("agent")
+            issuer = resolve_issuer(raw_issuer, name)
+
             key_info_sheet = fund_details.get("urlKiid")
 
             fund_list.append(
@@ -825,6 +790,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                     type=FundType.PENSION_FUND,
                     asset_type=asset_type,
                     info_sheet_url=key_info_sheet,
+                    issuer=issuer,
                     source=DataSource.REAL,
                 )
             )
@@ -1202,8 +1168,14 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             for fund in category_investment_data.get("investmentList", []):
                 isin = fund.get("isin")
                 fund_details = await self._client.get_fund_details(isin)
+                name = fund.get("investmentName") or fund_details.get(
+                    "name", "Unknown Fund"
+                )
                 raw_asset_type = fund_details.get("assetType")
                 asset_type = _parse_asset_type(raw_asset_type)
+
+                raw_issuer = fund_details.get("agent")
+                issuer = resolve_issuer(raw_issuer, name)
 
                 key_info_sheet = fund_details.get("urlKiid")
                 added_values = await self._client.get_fund_added_values(
@@ -1236,9 +1208,9 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 fund_list.append(
                     FundDetail(
                         id=uuid4(),
-                        name=fund["investmentName"],
+                        name=name,
                         isin=isin,
-                        market=fund["marketCode"],
+                        market=fund.get("marketCode"),
                         shares=shares,
                         initial_investment=initial_investment,
                         average_buy_price=round(
@@ -1250,6 +1222,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                         asset_type=asset_type,
                         currency=fund.get("liquidationValueCurrency", "EUR"),
                         info_sheet_url=key_info_sheet,
+                        issuer=issuer,
                         portfolio=FundPortfolio(id=portfolio_id)
                         if portfolio_id
                         else None,
@@ -1257,3 +1230,62 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
                 )
 
         return fund_list
+
+    async def _get_stock_investments(self, broker_investments) -> list[StockDetail]:
+        stock_list = []
+        if broker_investments:
+            for stock in broker_investments["investmentList"]:
+                product_type = (
+                    EquityType.STOCK
+                    if stock.get("brokerProductType") == "RV"
+                    else EquityType.ETF
+                )
+                origin_currency_liquidation_value = Dezimal(
+                    stock.get("originCurrencyLiquidationValue")
+                )
+                shares = Dezimal(stock.get("shares"))
+                market_value = Dezimal(origin_currency_liquidation_value * shares)
+                isin = stock.get("isin")
+                market_id = stock.get("marketCode")
+                name = stock.get("investmentName")
+                stock_id = stock.get("stockId")
+
+                issuer, info_sheet_url = None, None
+                if stock_id is not None and product_type == EquityType.ETF:
+                    try:
+                        etf_details = await self._client.get_stock_details(stock_id)
+                        long_name = etf_details.get("name")
+                        info_sheet_url = etf_details.get("urlKiid")
+                        issuer = resolve_issuer(None, long_name, name)
+                        name = long_name or name
+                    except Exception as e:
+                        self._log.exception(
+                            f"Error getting ETF details for {isin} in market {market_id}: {e}"
+                        )
+
+                stock_list.append(
+                    StockDetail(
+                        id=uuid4(),
+                        name=name,
+                        ticker=stock.get("ticker", ""),
+                        isin=isin,
+                        market=market_id,
+                        shares=shares,
+                        initial_investment=round(
+                            Dezimal(stock["initialInvestmentCurrency"]), 4
+                        ),
+                        average_buy_price=round(
+                            Dezimal(stock["initialInvestmentCurrency"])
+                            / Dezimal(stock["shares"]),
+                            4,
+                        ),
+                        market_value=round(market_value, 4),
+                        currency=stock["liquidationValueCurrency"],
+                        type=product_type,
+                        subtype=stock.get("activeTypeCode"),
+                        issuer=issuer,
+                        info_sheet_url=info_sheet_url,
+                    )
+                )
+
+        return stock_list

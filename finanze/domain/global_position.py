@@ -151,6 +151,7 @@ class StockDetail(BaseData):
     subtype: Optional[str] = None
     info_sheet_url: Optional[str] = None
     manual_data: Optional[ManualEntryData] = None
+    issuer: Optional[str] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
@@ -194,6 +195,7 @@ class FundDetail(BaseData):
     portfolio: Optional[FundPortfolio] = None
     info_sheet_url: Optional[str] = None
     manual_data: Optional[ManualEntryData] = None
+    issuer: Optional[str] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):

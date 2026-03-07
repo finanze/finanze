@@ -244,12 +244,13 @@ class FetchFinancialDataImpl(FetchFinancialData):
             login_message = login_result.message
 
             if login_result_code == LoginResultCode.CODE_REQUESTED:
+                details = {"message": login_message}
+                if login_result.process_id:
+                    details["processId"] = login_result.process_id
                 return FetchResult(
                     FetchResultCode.CODE_REQUESTED,
-                    details={
-                        "message": login_message,
-                        "processId": login_result.process_id,
-                    },
+                    details=details,
+                    confirmation_type=login_result.confirmation_type,
                 )
 
             elif login_result_code == LoginResultCode.MANUAL_LOGIN:

@@ -45,8 +45,10 @@ import {
   ExternalLink,
   Layers,
   ChevronDown,
+  BarChart3,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { MultiSelect } from "@/components/ui/MultiSelect"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
@@ -934,6 +936,8 @@ function FundsInvestmentPageContent({
                   ? eachLabelSource.toLocaleLowerCase(locale)
                   : ""
 
+                const issuerIcon = getIssuerIconPath(position.issuer)
+
                 return (
                   <Card
                     key={item.key}
@@ -949,7 +953,7 @@ function FundsInvestmentPageContent({
                     style={{ borderLeftColor: borderColor }}
                   >
                     <div
-                      className="flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
+                      className="relative flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
                       onClick={e => {
                         if (
                           (e.target as HTMLElement).closest("[data-no-expand]")
@@ -967,9 +971,29 @@ function FundsInvestmentPageContent({
                       tabIndex={0}
                       aria-expanded={isExpanded}
                     >
+                      {issuerIcon ? (
+                        <img
+                          src={issuerIcon}
+                          alt={position.issuer!}
+                          className="hidden sm:block h-9 w-9 rounded-md object-contain shrink-0 self-center"
+                        />
+                      ) : (
+                        <div className="hidden sm:flex h-9 w-9 rounded-md bg-muted items-center justify-center shrink-0 self-center">
+                          <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1 space-y-1.5">
-                        <h3 className="text-base sm:text-lg font-semibold leading-tight">
-                          {position.name}
+                        <h3 className="flex items-center gap-1.5 text-base sm:text-lg font-semibold leading-tight">
+                          {issuerIcon ? (
+                            <img
+                              src={issuerIcon}
+                              alt={position.issuer!}
+                              className="sm:hidden h-5 w-5 rounded-sm object-contain shrink-0"
+                            />
+                          ) : (
+                            <BarChart3 className="sm:hidden h-5 w-5 text-muted-foreground shrink-0" />
+                          )}
+                          <span>{position.name}</span>
                         </h3>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {position.assetType && (
@@ -1102,11 +1126,17 @@ function FundsInvestmentPageContent({
                         </div>
                         <ChevronDown
                           className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                            "hidden sm:block h-4 w-4 text-muted-foreground transition-transform duration-200",
                             isExpanded && "rotate-180",
                           )}
                         />
                       </div>
+                      <ChevronDown
+                        className={cn(
+                          "sm:hidden absolute bottom-3 right-3 h-4 w-4 text-muted-foreground transition-transform duration-200",
+                          isExpanded && "rotate-180",
+                        )}
+                      />
                     </div>
                     <AnimatePresence initial={false}>
                       {isExpanded && (
@@ -1162,6 +1192,16 @@ function FundsInvestmentPageContent({
                                     </div>
                                     <div className="text-foreground font-mono text-xs">
                                       {position.isin}
+                                    </div>
+                                  </div>
+                                )}
+                                {position.issuer && (
+                                  <div>
+                                    <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                      {t.investments.issuer}
+                                    </div>
+                                    <div className="text-foreground text-sm">
+                                      {position.issuer}
                                     </div>
                                   </div>
                                 )}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useCallback } from "react"
+import React, { useEffect, useMemo, useState, useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { DataSource, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
@@ -31,8 +31,11 @@ import {
   Trash2,
   Layers,
   ChevronDown,
+  ChartCandlestick,
+  ExternalLink,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
+import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
 import { MultiSelectOption } from "@/components/ui/MultiSelect"
@@ -70,6 +73,178 @@ interface StocksViewContentProps {
   entities: Entity[]
   defaultCurrency: string
   exchangeRates: ExchangeRates | null
+}
+
+function isMostlyWhiteLogo(image: HTMLImageElement): boolean {
+  const sampleSize = 32
+  const canvas = document.createElement("canvas")
+  canvas.width = sampleSize
+  canvas.height = sampleSize
+
+  const context = canvas.getContext("2d", { willReadFrequently: true })
+  if (!context) return false
+
+  context.clearRect(0, 0, sampleSize, sampleSize)
+  context.drawImage(image, 0, 0, sampleSize, sampleSize)
+
+  const { data } = context.getImageData(0, 0, sampleSize, sampleSize)
+  let opaquePixels = 0
+  let whitePixels = 0
+
+  for (let index = 0; index < data.length; index += 4) {
+    const alpha = data[index + 3]
+    if (alpha < 32) continue
+
+    opaquePixels += 1
+
+    const red = data[index]
+    const green = data[index + 1]
+    const blue = data[index + 2]
+    const minChannel = Math.min(red, green, blue)
+    const maxChannel = Math.max(red, green, blue)
+
+    if (minChannel >= 235 && maxChannel - minChannel <= 15) {
+      whitePixels += 1
+    }
+  }
+
+  if (opaquePixels === 0) return false
+
+  return whitePixels / opaquePixels >= 0.9
+}
+
+function StockPositionLogo({
+  position,
+  className: externalClassName,
+  size = "md",
+}: {
+  position: StockPositionWithEntity
+  className?: string
+  size?: "sm" | "md"
+}) {
+  const sizeClasses = size === "sm" ? "h-5 w-5" : "h-9 w-9"
+  const iconSize = size === "sm" ? "h-3 w-3" : "h-5 w-5"
+  const tickerToken = position.symbol?.split(".")[0]?.trim()
+  const issuerIcon = getIssuerIconPath(position.issuer)
+  const sources =
+    position.equityType === EquityType.ETF
+      ? issuerIcon
+        ? [issuerIcon]
+        : []
+      : [
+          position.isin?.trim()
+            ? `https://static.finanze.me/icons/ticker/${encodeURIComponent(position.isin.trim())}.png`
+            : null,
+          tickerToken
+            ? `https://static.finanze.me/icons/ticker/${encodeURIComponent(tickerToken)}.png`
+            : null,
+        ].filter((value): value is string => Boolean(value))
+  const [sourceIndex, setSourceIndex] = useState(0)
+  const [shouldInvert, setShouldInvert] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  const imageRef = useRef<HTMLImageElement | null>(null)
+
+  useEffect(() => {
+    const root = document.documentElement
+    const updateMode = () => {
+      setIsDarkMode(root.classList.contains("dark"))
+    }
+
+    updateMode()
+
+    const observer = new MutationObserver(updateMode)
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  useEffect(() => {
+    setSourceIndex(0)
+    setShouldInvert(false)
+  }, [sources.join("|")])
+
+  const isStock = position.equityType === EquityType.STOCK
+  const currentSrc = sources[sourceIndex]
+  const fallback = (
+    <div
+      className={cn(
+        sizeClasses,
+        "bg-muted flex items-center justify-center shrink-0 self-center",
+        "rounded-md",
+        externalClassName,
+      )}
+    >
+      <ChartCandlestick className={cn(iconSize, "text-muted-foreground")} />
+    </div>
+  )
+
+  useEffect(() => {
+    if (isDarkMode) {
+      setShouldInvert(false)
+      return
+    }
+
+    if (!isStock) {
+      return
+    }
+
+    const image = imageRef.current
+    if (!image || !image.complete || image.naturalWidth === 0) {
+      return
+    }
+
+    try {
+      setShouldInvert(isMostlyWhiteLogo(image))
+    } catch {
+      setShouldInvert(false)
+    }
+  }, [isDarkMode, isStock, currentSrc])
+
+  if (!currentSrc) {
+    return fallback
+  }
+
+  return (
+    <img
+      ref={imageRef}
+      src={currentSrc}
+      alt={
+        position.equityType === EquityType.ETF
+          ? position.issuer || position.name
+          : position.isin || tickerToken || position.name
+      }
+      crossOrigin={isStock ? "anonymous" : undefined}
+      className={cn(
+        sizeClasses,
+        "object-contain shrink-0 self-center",
+        isStock
+          ? cn("rounded-none", !isDarkMode && shouldInvert && "invert")
+          : "rounded-md",
+        externalClassName,
+      )}
+      onLoad={event => {
+        if (!isStock || isDarkMode) {
+          setShouldInvert(false)
+          return
+        }
+
+        try {
+          setShouldInvert(isMostlyWhiteLogo(event.currentTarget))
+        } catch {
+          setShouldInvert(false)
+        }
+      }}
+      onError={() => {
+        setShouldInvert(false)
+        setSourceIndex(prev => prev + 1)
+      }}
+    />
+  )
 }
 
 export default function StocksInvestmentPage() {
@@ -687,6 +862,11 @@ function StocksViewContent({
                   ? eachLabelSource.toLocaleLowerCase(locale)
                   : ""
 
+                const infoSheetUrl =
+                  position.equityType === EquityType.ETF
+                    ? position.infoSheetUrl?.trim() || null
+                    : null
+
                 return (
                   <Card
                     key={item.key}
@@ -702,7 +882,7 @@ function StocksViewContent({
                     style={{ borderLeftColor: borderColor }}
                   >
                     <div
-                      className="flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
+                      className="relative flex items-start justify-between gap-3 p-4 cursor-pointer transition-colors hover:bg-accent/40"
                       onClick={e => {
                         if (
                           (e.target as HTMLElement).closest("[data-no-expand]")
@@ -720,9 +900,18 @@ function StocksViewContent({
                       tabIndex={0}
                       aria-expanded={isExpanded}
                     >
+                      <StockPositionLogo
+                        position={position}
+                        className="hidden sm:flex"
+                      />
                       <div className="min-w-0 flex-1 space-y-1.5">
-                        <h3 className="text-base sm:text-lg font-semibold leading-tight">
-                          {position.name}
+                        <h3 className="flex items-center gap-1.5 text-base sm:text-lg font-semibold leading-tight">
+                          <StockPositionLogo
+                            position={position}
+                            size="sm"
+                            className="sm:hidden"
+                          />
+                          <span>{position.name}</span>
                         </h3>
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {position.equityType && (
@@ -821,11 +1010,17 @@ function StocksViewContent({
                         </div>
                         <ChevronDown
                           className={cn(
-                            "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                            "hidden sm:block h-4 w-4 text-muted-foreground transition-transform duration-200",
                             isExpanded && "rotate-180",
                           )}
                         />
                       </div>
+                      <ChevronDown
+                        className={cn(
+                          "sm:hidden absolute bottom-3 right-3 h-4 w-4 text-muted-foreground transition-transform duration-200",
+                          isExpanded && "rotate-180",
+                        )}
+                      />
                     </div>
                     <AnimatePresence initial={false}>
                       {isExpanded && (
@@ -894,6 +1089,17 @@ function StocksViewContent({
                                     </div>
                                   </div>
                                 )}
+                                {position.equityType === EquityType.ETF &&
+                                  position.issuer && (
+                                    <div>
+                                      <div className="text-xs text-muted-foreground font-medium mb-0.5">
+                                        {t.investments.issuer}
+                                      </div>
+                                      <div className="text-foreground text-sm">
+                                        {position.issuer}
+                                      </div>
+                                    </div>
+                                  )}
                                 {position.formattedGainLossAmount && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
@@ -923,6 +1129,18 @@ function StocksViewContent({
                                   </div>
                                 </div>
                               </div>
+                              {infoSheetUrl && (
+                                <a
+                                  href={infoSheetUrl}
+                                  target="_blank"
+                                  rel="noreferrer noopener"
+                                  data-no-expand
+                                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline transition-colors"
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  {t.investments.openInfoSheet}
+                                </a>
+                              )}
                               {showActions && (
                                 <div
                                   className="flex items-center gap-2 pt-2 border-t border-border/30"

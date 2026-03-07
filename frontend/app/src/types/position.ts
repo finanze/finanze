@@ -112,6 +112,7 @@ export interface StockDetail {
   subtype?: string | null
   info_sheet_url?: string | null
   manual_data?: ManualEntryData | null
+  issuer?: string | null
   source: DataSource
 }
 
@@ -155,6 +156,7 @@ export interface FundDetail {
   portfolio?: FundPortfolio | null
   info_sheet_url?: string | null
   manual_data?: ManualEntryData | null
+  issuer?: string | null
   source: DataSource
 }
 

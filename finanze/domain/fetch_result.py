@@ -5,7 +5,12 @@ from uuid import UUID
 
 from domain.auto_contributions import AutoContributions
 from domain.entity import Feature
-from domain.entity_login import LoginOptions, LoginResultCode, TwoFactor
+from domain.entity_login import (
+    LoginConfirmationType,
+    LoginOptions,
+    LoginResultCode,
+    TwoFactor,
+)
 from domain.global_position import GlobalPosition
 from domain.historic import Historic
 from domain.transactions import Transactions
@@ -37,6 +42,7 @@ class FetchResultCode(str, Enum):
     NOT_CONNECTED = "NOT_CONNECTED"
     LOGIN_REQUIRED = "LOGIN_REQUIRED"
     UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR"
+    CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE"
 
 
 @dataclass
@@ -66,6 +72,7 @@ class FetchResult:
     code: FetchResultCode
     data: Optional[FetchedData | list[FetchedData]] = None
     details: Optional[dict] = None
+    confirmation_type: Optional[LoginConfirmationType] = None
 
 
 FETCH_BAD_LOGIN_CODES = {
@@ -76,4 +83,5 @@ FETCH_BAD_LOGIN_CODES = {
     LoginResultCode.NO_CREDENTIALS_AVAILABLE: FetchResultCode.NO_CREDENTIALS_AVAILABLE,
     LoginResultCode.UNEXPECTED_ERROR: FetchResultCode.UNEXPECTED_LOGIN_ERROR,
     LoginResultCode.NOT_LOGGED: FetchResultCode.NOT_LOGGED,
+    LoginResultCode.CURRENTLY_UNAVAILABLE: FetchResultCode.CURRENTLY_UNAVAILABLE,
 }

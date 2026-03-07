@@ -722,6 +722,7 @@ class INGFetcher(FinancialEntityFetcher):
                 currency=currency,
                 type=FundType.MUTUAL_FUND,
                 asset_type=AssetType.MIXED,
+                issuer="ING",
                 portfolio=None,
             )
             funds.append(fund)

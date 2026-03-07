@@ -176,6 +176,7 @@
     "pending": "Pending",
     "gross": "gross",
     "openInfoSheet": "View fund sheet",
+    "issuer": "Issuer",
     "symbol": "Symbol",
     "shares": "Shares",
     "price": "Price",
@@ -327,7 +328,9 @@
     "biometricError": "Could not enable biometric login",
     "biometricLoginFailed": "Biometric authentication failed",
     "inAppConfirmationTitle": "Confirm login in",
-    "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request."
+    "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
+    "captchaTitle": "Security verification for",
+    "captchaMessage": "Please complete the CAPTCHA to continue."
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
