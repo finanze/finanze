@@ -111,6 +111,7 @@ from infrastructure.client.entity.financial.cajamar.cajamar_fetcher import (
     CajamarFetcher,
 )
 from infrastructure.client.entity.financial.degiro.degiro_fetcher import DegiroFetcher
+from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import IBKRFetcher
 from infrastructure.client.entity.financial.f24.f24_fetcher import F24Fetcher
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_fetcher import (
     IndexaCapitalFetcher,
@@ -267,6 +268,7 @@ class FinanzeServer:
             domain.native_entities.ING: INGFetcher(),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
             domain.native_entities.DEGIRO: DegiroFetcher(),
+            domain.native_entities.IBKR: IBKRFetcher(),
         }
 
         external_entity_fetchers = {

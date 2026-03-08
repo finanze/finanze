@@ -122,6 +122,7 @@ from infrastructure.repository.db.versions.v0.v08.v080_4_remove_hd_wallet_accoun
     V0804RemoveHdWalletAccount,
 )
 from infrastructure.repository.db.versions.v0.v08.v080_5_degiro import V0805Degiro
+from infrastructure.repository.db.versions.v0.v08.v080_6_ibkr import V0806IBKR
 
 versions = [
     V0Genesis(),
@@ -174,4 +175,5 @@ versions = [
     V0803CryptoAddresses(),
     V0804RemoveHdWalletAccount(),
     V0805Degiro(),
+    V0806IBKR(),
 ]
