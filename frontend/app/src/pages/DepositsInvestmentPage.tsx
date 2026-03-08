@@ -4,7 +4,7 @@ import { DataSource, EntityOrigin, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { cn } from "@/lib/utils"
@@ -20,7 +20,10 @@ import { ProductType, type Deposit } from "@/types/position"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
+  ArrowRight,
+  ArrowUpDown,
   Calendar,
+  Layers,
   Percent,
   TrendingUp,
   Pencil,
@@ -245,6 +248,10 @@ function DepositsViewContent({
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<"amount" | "start" | "maturity">(
+    "amount",
+  )
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
 
   const entityOriginMap = useMemo(() => {
     const map: Record<string, EntityOrigin | null> = {}
@@ -398,11 +405,6 @@ function DepositsViewContent({
     [displayPositions],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const weightedAverageInterest = useMemo(() => {
     if (displayPositions.length === 0) return 0
     const totalWeightedInterest = displayPositions.reduce((sum, position) => {
@@ -421,11 +423,26 @@ function DepositsViewContent({
 
   const sortedDisplayItems = useMemo(
     () =>
-      [...displayItems].sort(
-        (a, b) =>
-          (b.position.convertedAmount || 0) - (a.position.convertedAmount || 0),
-      ),
-    [displayItems],
+      [...displayItems].sort((a, b) => {
+        let aVal: number | string
+        let bVal: number | string
+        switch (sortBy) {
+          case "start":
+            aVal = a.position.creation || ""
+            bVal = b.position.creation || ""
+            break
+          case "maturity":
+            aVal = a.position.maturity || ""
+            bVal = b.position.maturity || ""
+            break
+          default:
+            aVal = a.position.convertedAmount || 0
+            bVal = b.position.convertedAmount || 0
+        }
+        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+        return sortOrder === "desc" ? -cmp : cmp
+      }),
+    [displayItems, sortBy, sortOrder],
   )
 
   const handleSliceClick = useCallback((slice: { name: string }) => {
@@ -500,68 +517,8 @@ function DepositsViewContent({
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.dashboard.investedAmount}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.numberOfAssets}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {sortedDisplayItems.length}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sortedDisplayItems.length === 1
-                        ? t.investments.asset
-                        : t.investments.assets}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.weightedAverageInterest}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {weightedAverageInterest.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t.investments.annually}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.expectedProfit}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(
-                        totalExpectedReturn,
-                        locale,
-                        defaultCurrency,
-                      )}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
@@ -571,8 +528,103 @@ function DepositsViewContent({
                   containerClassName="overflow-visible w-full"
                   variant="bare"
                   onSliceClick={handleSliceClick}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                    },
+                    {
+                      icon: <Percent className="h-3 w-3" />,
+                      value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                    },
+                    {
+                      icon: <TrendingUp className="h-3 w-3" />,
+                      value: formatCurrency(
+                        totalExpectedReturn,
+                        locale,
+                        defaultCurrency,
+                      ),
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      totalValue > 0
+                        ? (totalExpectedReturn / totalValue) * 100
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.investedAmount,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          defaultCurrency,
+                        ),
+                      },
+                      ...(totalExpectedReturn > 0
+                        ? [
+                            {
+                              label: t.investments.expectedProfit,
+                              value: formatCurrency(
+                                totalExpectedReturn,
+                                locale,
+                                defaultCurrency,
+                              ),
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
                 />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown size={14} />
+                {t.investments.sortBy}
+              </span>
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                {(
+                  [
+                    { value: "amount", label: t.investments.sortAmount },
+                    { value: "start", label: t.investments.sortStart },
+                    { value: "maturity", label: t.investments.sortMaturity },
+                  ] as const
+                ).map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      sortBy === option.value
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                aria-label={
+                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                }
+              >
+                {sortOrder === "asc" ? (
+                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                ) : (
+                  <ArrowRight size={16} className="rotate-90" />
+                )}
+              </button>
             </div>
 
             <div className="space-y-4">

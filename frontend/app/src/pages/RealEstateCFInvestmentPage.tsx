@@ -4,7 +4,7 @@ import { DataSource, type ExchangeRates } from "@/types"
 import { useI18n, type Locale, type Translations } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Badge } from "@/components/ui/Badge"
@@ -31,6 +31,7 @@ import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowUpDown,
   Calendar,
   Clock,
   Filter,
@@ -43,6 +44,7 @@ import {
   Trash2,
   TrendingUp,
   Info,
+  Layers,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
@@ -50,8 +52,8 @@ import {
   MultiSelect,
   type MultiSelectOption,
 } from "@/components/ui/MultiSelect"
-import { getHistoric } from "@/services/api"
-import type { HistoricQueryRequest, RealEstateCFEntry } from "@/types/historic"
+import type { RealEstateCFEntry, HistoricSortBy } from "@/types/historic"
+import { useHistoricPagination } from "@/hooks/useHistoricPagination"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
@@ -155,11 +157,17 @@ interface RealEstateViewContentProps {
   historicEntries: RealEstateCFEntry[]
   isHistoricVisible: boolean
   isHistoricLoading: boolean
+  isHistoricLoadingMore: boolean
   hasHistoricLoaded: boolean
   historicError: string | null
+  historicSortBy: HistoricSortBy
+  historicSortOrder: "asc" | "desc"
+  onSetHistoricSortBy: (_sortBy: HistoricSortBy) => void
+  onSetHistoricSortOrder: (_order: "asc" | "desc") => void
   onToggleHistoric: () => void
   onReloadHistoric: () => void
   historicSectionRef: React.RefObject<HTMLDivElement | null>
+  historicSentinelRef: (_el: HTMLDivElement | null) => void
 }
 
 export default function RealEstateCFInvestmentPage() {
@@ -170,14 +178,13 @@ export default function RealEstateCFInvestmentPage() {
 
   const [selectedEntities, setSelectedEntities] = useState<string[]>([])
   const [isHistoricVisible, setIsHistoricVisible] = useState(false)
-  const [historicEntries, setHistoricEntries] = useState<RealEstateCFEntry[]>(
-    [],
-  )
-  const [isHistoricLoading, setIsHistoricLoading] = useState(false)
-  const [hasHistoricLoaded, setHasHistoricLoaded] = useState(false)
-  const [historicError, setHistoricError] = useState<string | null>(null)
-  const historicFilterKeyRef = useRef<string>("")
   const historicSectionRef = useRef<HTMLDivElement | null>(null)
+
+  const historic = useHistoricPagination({
+    productType: ProductType.REAL_ESTATE_CF,
+    selectedEntities,
+    isVisible: isHistoricVisible,
+  })
 
   const allRealEstatePositions = useMemo<RealEstatePosition[]>(() => {
     if (!positionsData?.positions) return []
@@ -348,83 +355,9 @@ export default function RealEstateCFInvestmentPage() {
     )
   }, [entities, positionsData])
 
-  const fetchErrorMessage = t.common.fetchError
-
-  const loadHistoricEntries = useCallback(async () => {
-    if (isHistoricLoading) {
-      return
-    }
-
-    const filterKey =
-      selectedEntities.length > 0 ? selectedEntities.join("|") : "ALL"
-
-    setIsHistoricLoading(true)
-    setHistoricError(null)
-    setHasHistoricLoaded(false)
-    setHistoricEntries([])
-
-    try {
-      const response = await getHistoric({
-        product_types: [ProductType.REAL_ESTATE_CF],
-        entities: selectedEntities.length > 0 ? selectedEntities : undefined,
-      } satisfies HistoricQueryRequest)
-
-      const entries = Array.isArray(response.entries)
-        ? (response.entries.filter(
-            entry => entry.product_type === ProductType.REAL_ESTATE_CF,
-          ) as RealEstateCFEntry[])
-        : []
-
-      setHistoricEntries(entries)
-      historicFilterKeyRef.current = filterKey
-      setHasHistoricLoaded(true)
-    } catch (error) {
-      console.error("Failed to load real estate CF historic entries", error)
-      const message = error instanceof Error ? error.message : fetchErrorMessage
-      historicFilterKeyRef.current = filterKey
-      setHistoricError(message)
-    } finally {
-      setIsHistoricLoading(false)
-    }
-  }, [fetchErrorMessage, isHistoricLoading, selectedEntities])
-
   const handleToggleHistoric = useCallback(() => {
-    if (!isHistoricVisible) {
-      setHistoricError(null)
-    }
-
     setIsHistoricVisible(prev => !prev)
-  }, [isHistoricVisible])
-
-  const handleReloadHistoric = useCallback(() => {
-    void loadHistoricEntries()
-  }, [loadHistoricEntries])
-
-  useEffect(() => {
-    if (!isHistoricVisible || isHistoricLoading) {
-      return
-    }
-
-    const filterKey =
-      selectedEntities.length > 0 ? selectedEntities.join("|") : "ALL"
-
-    if (hasHistoricLoaded && filterKey === historicFilterKeyRef.current) {
-      return
-    }
-
-    if (historicError && filterKey === historicFilterKeyRef.current) {
-      return
-    }
-
-    void loadHistoricEntries()
-  }, [
-    isHistoricVisible,
-    isHistoricLoading,
-    hasHistoricLoaded,
-    selectedEntities,
-    historicError,
-    loadHistoricEntries,
-  ])
+  }, [])
 
   useEffect(() => {
     if (!isHistoricVisible) {
@@ -460,14 +393,20 @@ export default function RealEstateCFInvestmentPage() {
         entities={entities ?? []}
         defaultCurrency={settings.general.defaultCurrency}
         exchangeRates={exchangeRates}
-        historicEntries={historicEntries}
+        historicEntries={historic.entries as RealEstateCFEntry[]}
         isHistoricVisible={isHistoricVisible}
-        isHistoricLoading={isHistoricLoading}
-        hasHistoricLoaded={hasHistoricLoaded}
-        historicError={historicError}
+        isHistoricLoading={historic.isLoading}
+        isHistoricLoadingMore={historic.isLoadingMore}
+        hasHistoricLoaded={historic.hasLoaded}
+        historicError={historic.error}
+        historicSortBy={historic.sortBy}
+        historicSortOrder={historic.sortOrder}
+        onSetHistoricSortBy={historic.setSortBy}
+        onSetHistoricSortOrder={historic.setSortOrder}
         onToggleHistoric={handleToggleHistoric}
-        onReloadHistoric={handleReloadHistoric}
+        onReloadHistoric={historic.reload}
         historicSectionRef={historicSectionRef}
+        historicSentinelRef={historic.sentinelRef}
       />
     </ManualPositionsManager>
   )
@@ -487,11 +426,17 @@ function RealEstateViewContent({
   historicEntries,
   isHistoricVisible,
   isHistoricLoading,
+  isHistoricLoadingMore,
   hasHistoricLoaded,
   historicError,
+  historicSortBy,
+  historicSortOrder,
+  onSetHistoricSortBy,
+  onSetHistoricSortOrder,
   onToggleHistoric,
   onReloadHistoric,
   historicSectionRef,
+  historicSentinelRef,
 }: RealEstateViewContentProps) {
   const navigate = useNavigate()
   const {
@@ -510,6 +455,10 @@ function RealEstateViewContent({
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const [highlighted, setHighlighted] = useState<string | null>(null)
+  const [sortBy, setSortBy] = useState<"amount" | "start" | "maturity">(
+    "amount",
+  )
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [expandedHistoricEntries, setExpandedHistoricEntries] = useState<
     Record<string, boolean>
   >({})
@@ -981,11 +930,6 @@ function RealEstateViewContent({
     [displayPositions],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const { weightedAverageInterest, weightedAverageProfitability, totalProfit } =
     useMemo(() => {
       if (displayPositions.length === 0) {
@@ -1020,12 +964,26 @@ function RealEstateViewContent({
 
   const sortedDisplayItems = useMemo(
     () =>
-      [...displayItems].sort(
-        (a, b) =>
-          (b.position.convertedPendingAmount || 0) -
-          (a.position.convertedPendingAmount || 0),
-      ),
-    [displayItems],
+      [...displayItems].sort((a, b) => {
+        let aVal: number | string
+        let bVal: number | string
+        switch (sortBy) {
+          case "start":
+            aVal = a.position.last_invest_date || ""
+            bVal = b.position.last_invest_date || ""
+            break
+          case "maturity":
+            aVal = a.position.displayMaturity || a.position.maturity || ""
+            bVal = b.position.displayMaturity || b.position.maturity || ""
+            break
+          default:
+            aVal = a.position.convertedPendingAmount || 0
+            bVal = b.position.convertedPendingAmount || 0
+        }
+        const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+        return sortOrder === "desc" ? -cmp : cmp
+      }),
+    [displayItems, sortBy, sortOrder],
   )
 
   const handleSliceClick = useCallback((slice: { name: string }) => {
@@ -1070,10 +1028,7 @@ function RealEstateViewContent({
         <ManualPositionsUnsavedNotice />
       </motion.div>
 
-      <motion.div
-        variants={fadeListItem}
-        className="pb-6 border-b border-gray-200 dark:border-gray-800"
-      >
+      <motion.div variants={fadeListItem}>
         <div className="flex flex-wrap gap-4 xl:flex-nowrap xl:items-center xl:justify-between">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1 min-w-[200px]">
             <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1137,70 +1092,8 @@ function RealEstateViewContent({
           </Card>
         ) : (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-              <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.dashboard.investedAmount}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.numberOfAssets}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {sortedDisplayItems.length}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {sortedDisplayItems.length === 1
-                        ? t.investments.asset
-                        : t.investments.assets}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.weightedAverageInterest}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold">
-                      {weightedAverageInterest.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {t.investments.interest} {t.investments.annually}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                      {t.investments.expectedProfit}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                      {formatCurrency(totalProfit, locale, defaultCurrency)}
-                    </p>
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                      {weightedAverageProfitability.toFixed(2)}%
-                      <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                        {t.investments.profitability}
-                      </span>
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+            <Card className="-mx-6 rounded-none border-x-0">
+              <CardContent className="pt-6">
                 <InvestmentDistributionChart
                   data={chartData}
                   title={t.common.distribution}
@@ -1210,8 +1103,103 @@ function RealEstateViewContent({
                   containerClassName="overflow-visible w-full"
                   variant="bare"
                   onSliceClick={handleSliceClick}
+                  toggleConfig={{
+                    activeView: "asset",
+                    onViewChange: () => {},
+                    options: [{ value: "asset", label: t.investments.byAsset }],
+                  }}
+                  badges={[
+                    {
+                      icon: <Layers className="h-3 w-3" />,
+                      value: `${sortedDisplayItems.length} ${sortedDisplayItems.length === 1 ? t.investments.asset : t.investments.assets}`,
+                    },
+                    {
+                      icon: <Percent className="h-3 w-3" />,
+                      value: `${weightedAverageInterest.toFixed(2)}% ${t.investments.annually}`,
+                    },
+                    {
+                      icon: <TrendingUp className="h-3 w-3" />,
+                      value: formatCurrency(
+                        totalProfit,
+                        locale,
+                        defaultCurrency,
+                      ),
+                    },
+                  ]}
+                  centerContent={{
+                    rawValue: totalValue,
+                    gainPercentage:
+                      weightedAverageProfitability > 0
+                        ? weightedAverageProfitability
+                        : undefined,
+                    infoRows: [
+                      {
+                        label: t.dashboard.investedAmount,
+                        value: formatCurrency(
+                          totalValue,
+                          locale,
+                          defaultCurrency,
+                        ),
+                      },
+                      ...(totalProfit > 0
+                        ? [
+                            {
+                              label: t.investments.expectedProfit,
+                              value: formatCurrency(
+                                totalProfit,
+                                locale,
+                                defaultCurrency,
+                              ),
+                            },
+                          ]
+                        : []),
+                    ],
+                  }}
                 />
+              </CardContent>
+            </Card>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-muted-foreground flex items-center gap-1">
+                <ArrowUpDown size={14} />
+                {t.investments.sortBy}
+              </span>
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                {(
+                  [
+                    { value: "amount", label: t.investments.sortAmount },
+                    { value: "start", label: t.investments.sortStart },
+                    { value: "maturity", label: t.investments.sortMaturity },
+                  ] as const
+                ).map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSortBy(option.value)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                      sortBy === option.value
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
               </div>
+              <button
+                onClick={() =>
+                  setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+                }
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                aria-label={
+                  sortOrder === "asc" ? "Sort descending" : "Sort ascending"
+                }
+              >
+                {sortOrder === "asc" ? (
+                  <ArrowRight size={16} className="rotate-[-90deg]" />
+                ) : (
+                  <ArrowRight size={16} className="rotate-90" />
+                )}
+              </button>
             </div>
 
             <div className="space-y-4">
@@ -1554,6 +1542,62 @@ function RealEstateViewContent({
                 />
               </Button>
             </div>
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <ArrowUpDown size={14} />
+              {t.investments.historicSection.sortBy}
+            </span>
+            <div className="flex items-center bg-muted rounded-lg p-1">
+              {(
+                [
+                  {
+                    value: "maturity",
+                    label: t.investments.historicSection.sortMaturity,
+                  },
+                  {
+                    value: "last_invest_date",
+                    label: t.investments.historicSection.sortStartDate,
+                  },
+                  {
+                    value: "invested",
+                    label: t.investments.historicSection.sortInvested,
+                  },
+                ] as const
+              ).map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => onSetHistoricSortBy(option.value)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                    historicSortBy === option.value
+                      ? "bg-background text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() =>
+                onSetHistoricSortOrder(
+                  historicSortOrder === "asc" ? "desc" : "asc",
+                )
+              }
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+              aria-label={
+                historicSortOrder === "asc"
+                  ? "Sort descending"
+                  : "Sort ascending"
+              }
+            >
+              {historicSortOrder === "asc" ? (
+                <ArrowRight size={16} className="rotate-[-90deg]" />
+              ) : (
+                <ArrowRight size={16} className="rotate-90" />
+              )}
+            </button>
           </div>
 
           {historicError ? (
@@ -2052,6 +2096,13 @@ function RealEstateViewContent({
                   </Card>
                 )
               })}
+              <div ref={historicSentinelRef} />
+              {isHistoricLoadingMore && (
+                <div className="flex items-center justify-center gap-3 py-4 text-sm text-gray-600 dark:text-gray-400">
+                  <LoadingSpinner size="sm" />
+                  <span>{t.common.loading}</span>
+                </div>
+              )}
             </div>
           )}
         </motion.section>

@@ -184,6 +184,15 @@
     "numberOfAssets": "Número de activos",
     "asset": "activo",
     "assets": "activos",
+    "entry": "entrada",
+    "byAsset": "Por activo",
+    "byType": "Por tipo",
+    "sortBy": "Ordenar por",
+    "sortAmount": "Importe",
+    "sortRelativeGain": "Gan. %",
+    "sortAbsoluteGain": "Ganancia",
+    "sortStart": "Inicio",
+    "sortMaturity": "Vencimiento",
     "cryptoView": {
       "belongsTo": "Pertenece a",
       "viewModeLabel": "Vista",
@@ -249,7 +258,11 @@
       "effectiveMaturity": "Vencimiento efectivo",
       "extendedMaturity": "Vencimiento extendido",
       "extendableMaturity": "Vencimiento prolongable",
-      "initialMaturityDate": "Fecha de vencimiento inicial"
+      "initialMaturityDate": "Fecha de vencimiento inicial",
+      "sortBy": "Ordenar por",
+      "sortMaturity": "Vencimiento",
+      "sortStartDate": "Inicio",
+      "sortInvested": "Importe"
     }
   },
   "toast": {
@@ -857,7 +870,8 @@
     "includePendingMoney": "Incluir dinero pendiente",
     "includeCardExpenses": "Descontar gastos de tarjetas",
     "includeRealEstateEquity": "Incluir patrimonio inmobiliario",
-    "includeResidences": "Incluir residencias"
+    "includeResidences": "Incluir residencias",
+    "compactNumbers": "Números compactos"
   },
   "forecast": {
     "title": "Proyectar",

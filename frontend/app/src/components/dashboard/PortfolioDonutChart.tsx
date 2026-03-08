@@ -1,7 +1,11 @@
 import { useState, useMemo, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
 import { useI18n } from "@/i18n"
-import { formatCurrency, formatPercentage } from "@/lib/formatters"
+import {
+  formatCurrency,
+  formatPercentage,
+  formatCompactCurrency,
+} from "@/lib/formatters"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/context/ThemeContext"
 import {
@@ -23,27 +27,11 @@ import {
   CreditCard,
   Home,
   ChartPie,
+  Hash,
 } from "lucide-react"
 import { Switch } from "@/components/ui/Switch"
 import { getImageUrl } from "@/services/api"
 import { EntityOrigin } from "@/types"
-
-const formatCompactCurrency = (
-  value: number,
-  locale: string,
-  currency: string,
-): string => {
-  const formatter = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-    notation: "compact",
-    compactDisplay: "short",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 1,
-  })
-
-  return formatter.format(value)
-}
 
 type DistributionItem = {
   type: string
@@ -70,6 +58,7 @@ type DashboardOptions = {
   includeCardExpenses: boolean
   includeRealEstate: boolean
   includeResidences: boolean
+  compactNumbers: boolean
 }
 
 interface PortfolioDonutChartProps {
@@ -554,6 +543,23 @@ export function PortfolioDonutChart({
                 </div>
               </div>
             </div>
+            <div className="border-t border-border pt-3 mt-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm flex items-center gap-2">
+                  <Hash className="h-4 w-4 text-muted-foreground" />
+                  {t.dashboard.compactNumbers}
+                </div>
+                <Switch
+                  checked={dashboardOptions.compactNumbers}
+                  onCheckedChange={val =>
+                    setDashboardOptions(prev => ({
+                      ...prev,
+                      compactNumbers: Boolean(val),
+                    }))
+                  }
+                />
+              </div>
+            </div>
           </PopoverContent>
         </Popover>
       </div>
@@ -566,7 +572,7 @@ export function PortfolioDonutChart({
                 data={currentDistribution}
                 cx="50%"
                 cy="50%"
-                innerRadius="76%"
+                innerRadius="80%"
                 outerRadius="100%"
                 fill="#8884d8"
                 dataKey="value"
@@ -603,7 +609,9 @@ export function PortfolioDonutChart({
               {t.dashboard.totalValue}
             </span>
             <span className="text-4xl font-light">
-              {formatCompactCurrency(totalValue, locale, currency)}
+              {dashboardOptions.compactNumbers
+                ? formatCompactCurrency(totalValue, locale, currency)
+                : formatCurrency(totalValue, locale, currency)}
             </span>
             {gainPercentage !== 0 && (
               <div className="flex items-center gap-1">
@@ -628,13 +636,23 @@ export function PortfolioDonutChart({
                       </button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-3" align="center">
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">
-                          {t.dashboard.investedAmount}:{" "}
-                        </span>
-                        <span className="font-semibold">
-                          {formatCurrency(investedAmount, locale, currency)}
-                        </span>
+                      <div className="space-y-1 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">
+                            {t.dashboard.totalValue}:{" "}
+                          </span>
+                          <span className="font-semibold">
+                            {formatCurrency(totalValue, locale, currency)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            {t.dashboard.investedAmount}:{" "}
+                          </span>
+                          <span className="font-semibold">
+                            {formatCurrency(investedAmount, locale, currency)}
+                          </span>
+                        </div>
                       </div>
                     </PopoverContent>
                   </Popover>

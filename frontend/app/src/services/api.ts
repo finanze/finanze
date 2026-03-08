@@ -353,6 +353,11 @@ export async function getHistoric(
         params.append("product_type", type),
       )
     }
+    if (queryParams.page) params.append("page", queryParams.page.toString())
+    if (queryParams.limit) params.append("limit", queryParams.limit.toString())
+    if (queryParams.sort_by) params.append("sort_by", queryParams.sort_by)
+    if (queryParams.sort_order)
+      params.append("sort_order", queryParams.sort_order)
   }
 
   const queryString = params.toString() ? `?${params.toString()}` : ""
