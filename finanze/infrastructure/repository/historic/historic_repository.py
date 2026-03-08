@@ -13,6 +13,7 @@ from domain.historic import (
     FactoringEntry,
     Historic,
     HistoricQueryRequest,
+    HistoricSortBy,
     RealEstateCFEntry,
 )
 from domain.transactions import BaseInvestmentTx
@@ -222,6 +223,19 @@ class HistoricSQLRepository(HistoricPort):
             final_sql = base_sql
             if conditions:
                 final_sql += "\nWHERE " + " AND ".join(conditions)
+
+            sort_column_map = {
+                HistoricSortBy.MATURITY: "h.effective_maturity",
+                HistoricSortBy.LAST_INVEST_DATE: "h.last_invest_date",
+                HistoricSortBy.INVESTED: "CAST(h.invested AS REAL)",
+            }
+            sort_col = sort_column_map.get(query.sort_by, "h.maturity")
+            sort_dir = query.sort_order.value.upper()
+            final_sql += f"\nORDER BY {sort_col} {sort_dir}"
+
+            offset = (query.page - 1) * query.limit
+            final_sql += " LIMIT ? OFFSET ?"
+            params.extend([str(query.limit), str(offset)])
 
             await cursor.execute(final_sql, params)
             entries = await cursor.fetchall()

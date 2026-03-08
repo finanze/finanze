@@ -48,7 +48,7 @@ export function InvestmentFilters({
   }
 
   return (
-    <div className="pb-6 border-b border-gray-200 dark:border-gray-800">
+    <div className="pb-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between flex-wrap">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">

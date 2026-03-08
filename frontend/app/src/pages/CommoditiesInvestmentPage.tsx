@@ -2,7 +2,18 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Plus, Save, Edit, Trash2, X } from "lucide-react"
+import {
+  ArrowLeft,
+  Plus,
+  Save,
+  Edit,
+  Trash2,
+  X,
+  Layers,
+  Scale,
+  TrendingUp,
+  TrendingDown,
+} from "lucide-react"
 import {
   Card,
   CardContent,
@@ -24,13 +35,14 @@ import {
   WeightUnit,
   ProductType,
   Commodities,
+  COMMODITY_SYMBOLS,
 } from "@/types/position"
 import { CommodityRegister } from "@/types"
 import { saveCommodity } from "@/services/api"
 import { convertWeight, convertCurrency } from "@/utils/financialDataUtils"
 import { CommodityIcon, CommodityIconsStack } from "@/utils/commodityIcons"
 import { cn, getCurrencySymbol } from "@/lib/utils"
-import { formatCurrency, formatPercentage } from "@/lib/formatters"
+import { formatCurrency } from "@/lib/formatters"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 
 interface CommodityEntry extends Commodity {
@@ -391,11 +403,6 @@ export default function CommoditiesInvestmentPage() {
     [commoditiesWithComputed],
   )
 
-  const formattedTotalValue = useMemo(
-    () => formatCurrency(totalValue, locale, defaultCurrency),
-    [totalValue, locale, defaultCurrency],
-  )
-
   const percentageChange = useMemo(() => {
     if (!totalInitialInvestmentConverted) return null
     if (totalInitialInvestmentConverted === 0) return null
@@ -454,6 +461,45 @@ export default function CommoditiesInvestmentPage() {
     })
     return lookup
   }, [commoditiesWithComputed])
+
+  const commodityPricePerUnit = useMemo(() => {
+    const prices: Partial<Record<CommodityType, number>> = {}
+    if (!exchangeRates) return prices
+    const rates = exchangeRates[defaultCurrency]
+    if (!rates) return prices
+    Object.values(CommodityType).forEach(type => {
+      const symbol = COMMODITY_SYMBOLS[type]
+      const rate = rates[symbol]
+      if (rate && rate > 0) {
+        const pricePerTroyOunce = 1 / rate
+        const unitMultiplier = convertWeight(
+          1,
+          displayUnit as WeightUnit,
+          WeightUnit.TROY_OUNCE,
+        )
+        prices[type] = pricePerTroyOunce * unitMultiplier
+      }
+    })
+    return prices
+  }, [exchangeRates, defaultCurrency, displayUnit])
+
+  const groupedSorted = useMemo(() => {
+    const typeTotals = new Map<CommodityType, number>()
+    commoditiesWithComputed.forEach(c => {
+      const value =
+        c.convertedMarket !== null
+          ? c.convertedMarket
+          : c.valueForDistribution || 0
+      typeTotals.set(c.type, (typeTotals.get(c.type) || 0) + value)
+    })
+    return Object.entries(grouped)
+      .map(([type, list]) => ({
+        type: type as CommodityType,
+        list,
+        groupTotal: typeTotals.get(type as CommodityType) || 0,
+      }))
+      .sort((a, b) => b.groupTotal - a.groupTotal)
+  }, [grouped, commoditiesWithComputed])
 
   const groupRefs = useRef<
     Partial<Record<CommodityType, HTMLDivElement | null>>
@@ -539,80 +585,8 @@ export default function CommoditiesInvestmentPage() {
       </div>
 
       {commodities.length > 0 && (
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-          <div className="flex flex-col gap-4 xl:col-span-1 order-1 xl:order-1">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.common.commodities}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex justify-between items-baseline">
-                  <p className="text-2xl font-bold">{formattedTotalValue}</p>
-                  {percentageChange !== null && (
-                    <p
-                      className={`text-sm font-medium ${
-                        percentageChange === 0
-                          ? "text-gray-500 dark:text-gray-400"
-                          : percentageChange > 0
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {percentageChange > 0
-                        ? "+"
-                        : percentageChange < 0
-                          ? "-"
-                          : ""}
-                      {formatPercentage(Math.abs(percentageChange), locale)}
-                    </p>
-                  )}
-                </div>
-                {totalInitialInvestmentConverted > 0 && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {t.dashboard.investedAmount}{" "}
-                    {formatCurrency(
-                      totalInitialInvestmentConverted,
-                      locale,
-                      defaultCurrency,
-                    )}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.investments.numberOfAssets}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">{commodities.length}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {commodities.length === 1
-                    ? t.investments.asset
-                    : t.investments.assets}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {t.commodityManagement.kpis.totalWeight}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-2xl font-bold">
-                  {aggregates.totalWeight.toFixed(2)}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="xl:col-span-2 order-2 xl:order-2 flex items-center">
+        <Card className="-mx-6 rounded-none border-x-0">
+          <CardContent className="pt-6">
             <InvestmentDistributionChart
               data={chartData}
               title={t.common.distribution}
@@ -622,9 +596,49 @@ export default function CommoditiesInvestmentPage() {
               containerClassName="overflow-visible w-full"
               variant="bare"
               onSliceClick={handleSliceClick}
+              toggleConfig={{
+                activeView: "asset",
+                onViewChange: () => {},
+                options: [{ value: "asset", label: t.investments.byAsset }],
+              }}
+              badges={[
+                {
+                  icon: <Layers className="h-3 w-3" />,
+                  value: `${commodities.length} ${commodities.length === 1 ? t.investments.asset : t.investments.assets}`,
+                },
+                {
+                  icon: <Scale className="h-3 w-3" />,
+                  value: `${aggregates.totalWeight.toFixed(2)} ${t.enums.weightUnit[aggregates.displayUnit as WeightUnit]}`,
+                },
+              ]}
+              centerContent={{
+                rawValue: totalValue,
+                gainPercentage:
+                  totalInitialInvestmentConverted > 0
+                    ? (percentageChange ?? undefined)
+                    : undefined,
+                infoRows: [
+                  {
+                    label: t.dashboard.totalValue,
+                    value: formatCurrency(totalValue, locale, defaultCurrency),
+                  },
+                  ...(totalInitialInvestmentConverted > 0
+                    ? [
+                        {
+                          label: t.dashboard.investedAmount,
+                          value: formatCurrency(
+                            totalInitialInvestmentConverted,
+                            locale,
+                            defaultCurrency,
+                          ),
+                        },
+                      ]
+                    : []),
+                ],
+              }}
             />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <AnimatePresence>
@@ -849,8 +863,8 @@ export default function CommoditiesInvestmentPage() {
           animate="show"
           className="space-y-6"
         >
-          {Object.entries(grouped).map(([type, list]) => {
-            const typedType = type as CommodityType
+          {groupedSorted.map(({ type, list, groupTotal }) => {
+            const typedType = type
             const isGroupHighlighted = highlightedType === typedType
             return (
               <motion.div
@@ -865,10 +879,28 @@ export default function CommoditiesInvestmentPage() {
                     "outline outline-2 outline-primary/60 outline-offset-4 rounded-lg",
                 )}
               >
-                <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                  <CommodityIcon type={typedType} size="md" />{" "}
-                  {t.enums.commodityType[typedType]}
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <CommodityIcon type={typedType} size="md" />{" "}
+                    {t.enums.commodityType[typedType]}
+                    {commodityPricePerUnit[typedType] != null &&
+                      commodityPricePerUnit[typedType]! > 0 && (
+                        <span className="text-xs font-normal text-gray-400 dark:text-gray-500">
+                          {formatCurrency(
+                            commodityPricePerUnit[typedType]!,
+                            locale,
+                            defaultCurrency,
+                          )}
+                          /{t.enums.weightUnit[displayUnit as WeightUnit]}
+                        </span>
+                      )}
+                  </h3>
+                  {groupTotal > 0 && (
+                    <span className="text-xl font-bold">
+                      {formatCurrency(groupTotal, locale, defaultCurrency)}
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-1 items-start">
                   {list.map(c => {
                     const details = commodityDetailsLookup[c.id]
@@ -886,6 +918,21 @@ export default function CommoditiesInvestmentPage() {
                     const formattedEntryValue =
                       entryValue > 0
                         ? formatCurrency(entryValue, locale, defaultCurrency)
+                        : null
+
+                    const hasRoi =
+                      details &&
+                      details.convertedMarket !== null &&
+                      details.convertedInitial > 0
+                    const roiAmount = hasRoi
+                      ? details.convertedMarket! - details.convertedInitial
+                      : null
+                    const roiPercent =
+                      hasRoi && details.convertedInitial > 0
+                        ? ((details.convertedMarket! -
+                            details.convertedInitial) /
+                            details.convertedInitial) *
+                          100
                         : null
 
                     return (
@@ -906,6 +953,34 @@ export default function CommoditiesInvestmentPage() {
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                   {formattedEntryValue}
                                 </p>
+                              )}
+                              {roiAmount !== null && roiPercent !== null && (
+                                <div
+                                  className={cn(
+                                    "flex items-center gap-1 text-sm",
+                                    roiAmount >= 0
+                                      ? "text-green-500"
+                                      : "text-red-500",
+                                  )}
+                                >
+                                  {roiAmount >= 0 ? (
+                                    <TrendingUp size={14} />
+                                  ) : (
+                                    <TrendingDown size={14} />
+                                  )}
+                                  <span>
+                                    {roiAmount >= 0 ? "+" : ""}
+                                    {formatCurrency(
+                                      roiAmount,
+                                      locale,
+                                      defaultCurrency,
+                                    )}
+                                  </span>
+                                  <span className="text-xs opacity-80">
+                                    ({roiPercent >= 0 ? "+" : ""}
+                                    {roiPercent.toFixed(2)}%)
+                                  </span>
+                                </div>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
