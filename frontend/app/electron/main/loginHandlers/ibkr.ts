@@ -40,30 +40,31 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
         details.url.includes("/AccountManagement/OneBarAuthentication") &&
         details.statusCode === 200
       ) {
-        // Read ALL cookies from the session cookie jar — no URL filter,
-        // since path-scoped cookies (e.g. JSESSIONID on /AccountManagement/)
-        // would be excluded by a URL filter on the root path
-        ibkrSession.cookies
-          .get({})
-          .then(cookies => {
-            const ibkrCookies = cookies.filter(
-              c =>
-                c.domain?.includes("interactivebrokers") ||
-                c.domain?.includes(".ie"),
-            )
-            const cookieStr = ibkrCookies
-              .map(c => `${c.name}=${c.value}`)
-              .join("; ")
-            if (cookieStr) {
-              result.success = true
-              result.credentials.cookie = cookieStr
-              sendCompletion(result)
-              closeWindow()
-            }
-          })
-          .catch(err => {
-            console.error("Failed to read IBKR cookies:", err)
-          })
+        // Wait briefly for Electron to commit Set-Cookie headers from
+        // this response into the cookie jar before reading
+        setTimeout(() => {
+          ibkrSession.cookies
+            .get({})
+            .then(cookies => {
+              const ibkrCookies = cookies.filter(
+                c =>
+                  c.domain?.includes("interactivebrokers") ||
+                  c.domain?.includes(".ie"),
+              )
+              const cookieStr = ibkrCookies
+                .map(c => `${c.name}=${c.value}`)
+                .join("; ")
+              if (cookieStr) {
+                result.success = true
+                result.credentials.cookie = cookieStr
+                sendCompletion(result)
+                closeWindow()
+              }
+            })
+            .catch(err => {
+              console.error("Failed to read IBKR cookies:", err)
+            })
+        }, 500)
       }
       callback({})
     },

@@ -123,7 +123,7 @@ class IBKRClient:
             )
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-        except httpx.HTTPStatusError:
+        except (httpx.HTTPStatusError, ValueError):
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
         except Exception as e:
             self._log.error(f"IBKR login error: {e}", exc_info=True)
@@ -164,6 +164,9 @@ class IBKRClient:
             params={"json": "1"},
         )
         resp.raise_for_status()
+        content_type = resp.headers.get("content-type", "")
+        if "json" not in content_type:
+            raise ValueError("OneBarAuthentication returned non-JSON response")
         data = resp.json()
         if "sessionId" not in data:
             raise ValueError("No sessionId in auth response")
