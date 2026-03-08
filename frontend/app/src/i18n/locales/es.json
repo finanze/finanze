@@ -334,6 +334,7 @@
     "EXTERNAL_LOGIN_FAILED": "Error en el inicio de sesión externo. Por favor intente de nuevo.",
     "LOGIN_REQUIRED": "Se requiere iniciar sesión en {entity}. Por favor inicie sesión nuevamente.",
     "LOGIN_REQUIRED_SCRAPE": "Se requiere iniciar sesión para obtener datos. Por favor inicie sesión en la entidad nuevamente.",
+    "CURRENTLY_UNAVAILABLE": "{entity} no está disponible por mantenimiento programado. Inténtalo más tarde.",
     "REMOTE_FAILED": "La entidad no ha respondido correctamente, inténtalo en un rato.",
     "LINK_EXPIRED": "El enlace de conexión ha expirado. Vuelve a enlazar la entidad para continuar.",
     "PARTIALLY_COMPLETED": "No todas las fuentes se cargaron correctamente para {entity}.",
