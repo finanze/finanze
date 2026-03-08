@@ -1,3 +1,4 @@
+import codecs
 import logging
 from datetime import date, datetime
 from typing import Optional
@@ -15,6 +16,7 @@ from domain.entity_login import (
     LoginOptions,
     LoginResultCode,
     EntitySession,
+    LoginConfirmationType,
 )
 
 GET_DATE_FORMAT = "%Y%m%d"
@@ -24,6 +26,7 @@ DATE_FORMAT = "%Y-%m-%d"
 class MyInvestorAPIV2Client:
     LOGIN_URL = "https://api.myinvestor.es"
     BASE_URL = "https://api.myinvestor.es"
+    SKEY = codecs.decode("6Yre_qxeNNNNNZdjBggQugXWMYmLJQgIw_6gYhLr", "rot_13")
 
     def __init__(self):
         self._headers = {}
@@ -37,9 +40,13 @@ class MyInvestorAPIV2Client:
         body: dict | None,
         raw: bool = False,
         base_url: str = BASE_URL,
+        headers: dict | None = None,
     ) -> dict | HttpResponse:
+        if headers is None:
+            headers = self._headers
+
         response = await self._session.request(
-            method, base_url + path, json=body, headers=self._headers
+            method, base_url + path, json=body, headers=headers
         )
 
         if raw:
@@ -60,14 +67,21 @@ class MyInvestorAPIV2Client:
             self._log.exception(f"GET request to {path} failed: {e}")
             return await self._base_get_request(path, base_url)
 
-    async def _base_get_request(self, path: str, base_url: str) -> dict:
-        return await self._execute_request(path, "GET", body=None, base_url=base_url)
+    async def _base_get_request(self, path: str, base_url: str, headers=None) -> dict:
+        return await self._execute_request(
+            path, "GET", body=None, base_url=base_url, headers=headers
+        )
 
     async def _post_request(
-        self, path: str, body: dict, raw: bool = False, base_url: str = BASE_URL
+        self,
+        path: str,
+        body: dict,
+        raw: bool = False,
+        base_url: str = BASE_URL,
+        headers: dict | None = None,
     ) -> dict | HttpResponse:
         return await self._execute_request(
-            path, "POST", body=body, raw=raw, base_url=base_url
+            path, "POST", body=body, raw=raw, base_url=base_url, headers=headers
         )
 
     async def login(
@@ -78,17 +92,27 @@ class MyInvestorAPIV2Client:
         session: Optional[EntitySession],
         process_id: str = None,
         code: str = None,
+        captcha_token: str = None,
     ) -> EntityLoginResult:
         self._headers = {}
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
-        self._headers["x-origin-b2b"] = self.BASE_URL
+        self._headers["Origin"] = self.BASE_URL
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
         )
 
         device_id = session.payload.get("device_id") if session else str(uuid4())
+
+        headers = {
+            **self._headers,
+            "x-device-id": device_id,
+            "x-myinvestor-app": "version=3.117.0,platform=web",
+        }
+
+        if captcha_token:
+            headers["X-Recaptcha-Token"] = captcha_token
 
         request = {
             "customerId": username,
@@ -112,6 +136,7 @@ class MyInvestorAPIV2Client:
                 body=request,
                 raw=True,
                 base_url=self.LOGIN_URL,
+                headers=headers,
             )
 
             if response.ok:
@@ -120,7 +145,7 @@ class MyInvestorAPIV2Client:
             elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CODE)
             elif response.status == 403:
-                return self._handle_forbidden_login(response)
+                return await self._handle_forbidden_login(response)
             else:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
@@ -133,6 +158,7 @@ class MyInvestorAPIV2Client:
                 body=request,
                 raw=True,
                 base_url=self.LOGIN_URL,
+                headers=headers,
             )
 
             if response.ok:
@@ -160,7 +186,7 @@ class MyInvestorAPIV2Client:
             elif response.status == 400:
                 return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
             elif response.status == 403:
-                return self._handle_forbidden_login(response)
+                return await self._handle_forbidden_login(response)
             else:
                 return EntityLoginResult(
                     LoginResultCode.UNEXPECTED_ERROR,
@@ -171,12 +197,14 @@ class MyInvestorAPIV2Client:
             raise ValueError("Invalid params")
 
     @staticmethod
-    def _handle_forbidden_login(response: HttpResponse) -> EntityLoginResult:
-        body = response.json()
+    async def _handle_forbidden_login(response: HttpResponse) -> EntityLoginResult:
+        body = await response.json()
         error_code = body.get("status", {}).get("code", "")
         if error_code == "SECURITY_001":
             return EntityLoginResult(
-                LoginResultCode.CURRENTLY_UNAVAILABLE,
+                LoginResultCode.CODE_REQUESTED,
+                confirmation_type=LoginConfirmationType.CAPTCHA,
+                process_id=MyInvestorAPIV2Client.SKEY,
                 message=body.get("status", {}).get("message", ""),
             )
         else:
@@ -402,6 +430,12 @@ class MyInvestorAPIV2Client:
 
     async def get_deposits(self):
         return (await self._get_request("/cperf-server/api/v2/deposits/self"))[
+            "payload"
+        ]["data"]
+
+    @cached(cache=Cache.MEMORY, ttl=3600)
+    async def get_stock_details(self, stock_id: str):
+        return (await self._get_request(f"/broker/v2/stock-etfs/{stock_id}/extended"))[
             "payload"
         ]["data"]
 

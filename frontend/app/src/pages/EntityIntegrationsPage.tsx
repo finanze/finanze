@@ -5,6 +5,7 @@ import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm, AddWalletSubmitData } from "@/components/AddWalletForm"
 import { ManageWalletsView } from "@/components/ManageWalletsView"
 import { PinPad } from "@/components/PinPad"
+import { CaptchaModal } from "@/components/CaptchaModal"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -50,6 +51,7 @@ export default function EntityIntegrationsPage() {
     isLoggingIn,
     selectedEntity,
     pinRequired,
+    captchaRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
     selectEntity,
@@ -905,6 +907,11 @@ export default function EntityIntegrationsPage() {
             </motion.div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* CAPTCHA Modal */}
+      <AnimatePresence>
+        {captchaRequired && selectedEntity && <CaptchaModal />}
       </AnimatePresence>
 
       {/* Add Wallet Modal */}

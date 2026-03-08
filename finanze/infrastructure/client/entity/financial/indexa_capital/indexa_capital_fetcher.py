@@ -3,8 +3,9 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_record import DataSource
@@ -22,6 +23,7 @@ from domain.global_position import (
     GlobalPosition,
     ProductType,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import INDEXA_CAPITAL
 from domain.transactions import FundPortfolioTx, FundTx, Transactions, TxType
 from infrastructure.client.entity.financial.indexa_capital.indexa_capital_client import (
@@ -111,6 +113,11 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
 
                     fund_details_url = self._parse_fund_details_url(instrument)
 
+                    name = instrument.get("name")
+
+                    issuer = instrument.get("management_company_description")
+                    issuer = resolve_issuer(issuer, name)
+
                     asset_type = AssetType.OTHER
                     if "equity" in raw_asset_type:
                         asset_type = AssetType.EQUITY
@@ -122,7 +129,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     fund_details.append(
                         FundDetail(
                             id=uuid4(),
-                            name=instrument.get("name"),
+                            name=name,
                             isin=isin,
                             market=instrument.get("market_code"),
                             shares=titles,
@@ -133,6 +140,7 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                             asset_type=asset_type,
                             currency=account_currency,
                             info_sheet_url=fund_details_url,
+                            issuer=issuer,
                             portfolio=FundPortfolio(id=fund_portfolio_id),
                         )
                     )

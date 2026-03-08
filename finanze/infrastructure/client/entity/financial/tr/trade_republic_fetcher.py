@@ -34,6 +34,7 @@ from domain.global_position import (
     StockInvestments,
 )
 from domain.crypto import CryptoCurrencyType
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import (
     AccountTx,
@@ -230,7 +231,11 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         detail_topics = ["instrument"]
         if instrument_type == "MUTUALFUND":
             detail_topics.append("mutualFundDetails")
-        else:
+
+        elif instrument_type == "FUND":
+            detail_topics.append("etfDetails")
+
+        elif instrument_type == "STOCK":
             detail_topics.append("stockDetails")
 
         details = await self._client.get_details(isin, detail_topics)
@@ -251,6 +256,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         if instrument_type == "FUND":
             type_id = "ETF"
+            if details.etf_details:
+                etf_details = details.etf_details
+                raw_issuer = etf_details.get("issuer")
+                issuer = resolve_issuer(raw_issuer, name)
 
         elif instrument_type == "CRYPTO":
             return CryptoCurrencyPosition(
@@ -272,7 +281,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
 
         elif instrument_type == "MUTUALFUND":
             fund_details = details.fund_details
-            name = fund_details["name"]
+            name = fund_details.get("name")
             fund_type = fund_details["fundType"].lower()
             kid_url = details.instrument.get("kidLink")
             asset_type = AssetType.OTHER
@@ -282,6 +291,9 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 asset_type = AssetType.FIXED_INCOME
             elif "money" in fund_type:
                 asset_type = AssetType.MONEY_MARKET
+
+            raw_issuer = fund_details.get("issuer")
+            issuer = resolve_issuer(raw_issuer, name)
 
             return FundDetail(
                 id=uuid4(),
@@ -296,6 +308,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 type=FundType.MUTUAL_FUND,
                 asset_type=asset_type,
                 currency=currency,
+                issuer=issuer,
             )
 
         # elif type_id == "BOND":
@@ -308,6 +321,9 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             subtype = instrument_type
 
         equity_type = EquityType.STOCK if type_id == "STOCK" else EquityType.ETF
+        if equity_type == EquityType.ETF:
+            raw_issuer = details.fund_details.get("issuer")
+            issuer = resolve_issuer(raw_issuer, name)
 
         return StockDetail(
             id=uuid4(),
@@ -322,6 +338,7 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             currency=currency,
             type=equity_type,
             subtype=subtype,
+            issuer=issuer,
         )
 
     async def global_position(self) -> GlobalPosition:

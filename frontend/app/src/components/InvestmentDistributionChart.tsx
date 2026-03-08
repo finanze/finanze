@@ -48,6 +48,7 @@ interface DonutCenterConfig {
   infoRows?: {
     label: string
     value: string
+    valueClassName?: string
   }[]
 }
 
@@ -137,7 +138,11 @@ const CustomTooltip = ({
   return null
 }
 
-function InfoPopover({ rows }: { rows: { label: string; value: string }[] }) {
+function InfoPopover({
+  rows,
+}: {
+  rows: { label: string; value: string; valueClassName?: string }[]
+}) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -150,7 +155,9 @@ function InfoPopover({ rows }: { rows: { label: string; value: string }[] }) {
           {rows.map((row, i) => (
             <div key={i}>
               <span className="text-muted-foreground">{row.label}: </span>
-              <span className="font-semibold">{row.value}</span>
+              <span className={cn("font-semibold", row.valueClassName)}>
+                {row.value}
+              </span>
             </div>
           ))}
         </div>

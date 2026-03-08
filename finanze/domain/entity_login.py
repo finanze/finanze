@@ -11,6 +11,7 @@ from domain.native_entity import EntityCredentials
 
 class LoginConfirmationType(str, Enum):
     IN_APP = "IN_APP"
+    CAPTCHA = "CAPTCHA"
 
 
 class LoginResultCode(str, Enum):
@@ -61,6 +62,7 @@ class EntityLoginResult:
 class TwoFactor:
     code: Optional[str] = None
     process_id: Optional[str] = None
+    token: Optional[str] = None
 
 
 @dataclass

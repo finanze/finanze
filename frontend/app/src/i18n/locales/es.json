@@ -39,6 +39,7 @@
     "distributionByAsset": "Distribución por Activo",
     "distribution": "Distribución",
     "stocks": "Acciones",
+    "all": "Todo",
     "funds": "Fondos",
     "deposits": "Depósitos",
     "factoring": "Factoring",
@@ -174,6 +175,7 @@
     "gross": "bruto",
     "symbol": "Símbolo",
     "openInfoSheet": "Ver ficha del fondo",
+    "issuer": "Emisor",
     "shares": "Acciones",
     "price": "Precio",
     "isin": "ISIN",
@@ -187,7 +189,7 @@
     "entry": "entrada",
     "byAsset": "Por activo",
     "byType": "Por tipo",
-    "sortBy": "Ordenar por",
+    "sortBy": "",
     "sortAmount": "Importe",
     "sortRelativeGain": "Gan. %",
     "sortAbsoluteGain": "Ganancia",
@@ -259,7 +261,7 @@
       "extendedMaturity": "Vencimiento extendido",
       "extendableMaturity": "Vencimiento prolongable",
       "initialMaturityDate": "Fecha de vencimiento inicial",
-      "sortBy": "Ordenar por",
+      "sortBy": "",
       "sortMaturity": "Vencimiento",
       "sortStartDate": "Inicio",
       "sortInvested": "Importe"
@@ -324,7 +326,9 @@
     "biometricError": "No se pudo activar el inicio de sesión biométrico",
     "biometricLoginFailed": "La autenticación biométrica falló",
     "inAppConfirmationTitle": "Confirma el inicio de sesión en",
-    "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión."
+    "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión.",
+    "captchaTitle": "Verificación de seguridad de",
+    "captchaMessage": "Por favor, completa el CAPTCHA para continuar."
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
