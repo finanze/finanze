@@ -34,6 +34,7 @@ class KnownIssuer(str, Enum):
     WISDOMTREE = "WisdomTree"
     XTRACKERS = "Xtrackers"
 
+    @property
     def compact(self) -> str:
         return self.value.replace(" ", "").replace("&", "").lower()
 
