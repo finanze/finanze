@@ -9,7 +9,6 @@ from dateutil.relativedelta import relativedelta
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
 from infrastructure.client.http.http_response import HttpResponse
-from infrastructure.client.http.http_session import new_http_session
 
 REQUEST_DATE_FORMAT = "%Y-%m-%d"
 
@@ -48,13 +47,15 @@ def _encrypt_password(key: str, password: str) -> str:
 
 
 def _create_mobile_client():
+    from infrastructure.client.http.http_session import new_http_session
+
     return new_http_session()
 
 
 def _create_desktop_client():
-    from httpx_curl_cffi import AsyncCurlTransport
+    from infrastructure.client.http.http_session import new_impersonated_http_session
 
-    return new_http_session(transport=AsyncCurlTransport(impersonate="firefox135"))
+    return new_impersonated_http_session()
 
 
 def _create_client(mobile: bool):

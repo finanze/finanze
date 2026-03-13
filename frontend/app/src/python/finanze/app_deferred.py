@@ -167,6 +167,15 @@ class DeferredComponents:
         from infrastructure.repository.templates.template_repository import (
             TemplateRepository,
         )
+        from infrastructure.repository.keychain.public_keychain_repository import (
+            PublicKeychainRepository,
+        )
+        from infrastructure.client.keychain.public_keychain_client import (
+            PublicKeychainClient,
+        )
+        from infrastructure.keychain.public_keychain_adapter import (
+            PublicKeychainAdapter,
+        )
         from infrastructure.repository.virtual.virtual_import_repository import (
             VirtualImportRepository,
         )
@@ -356,6 +365,13 @@ class DeferredComponents:
         temp_repo = TemplateRepository(client=db_client)
         creds_repo = CredentialsRepository(client=db_client)
 
+        public_keychain_data_repo = PublicKeychainRepository(client=db_client)
+        public_keychain_fetcher = PublicKeychainClient()
+        public_keychain = PublicKeychainAdapter(
+            data_port=public_keychain_data_repo,
+            fetcher_port=public_keychain_fetcher,
+        )
+
         file_storage = MobileFileStorage()
         ex_storage = PreferenceExchangeRateStorage()
 
@@ -389,7 +405,11 @@ class DeferredComponents:
             {},
         )
         self.add_entity_creds = AddEntityCredentialsImpl(
-            financial_entity_fetchers, creds_repo, sessions_repo, tx_handler
+            financial_entity_fetchers,
+            creds_repo,
+            sessions_repo,
+            tx_handler,
+            public_keychain,
         )
         self.disconnect_entity = DisconnectEntityImpl(
             creds_repo, sessions_repo, tx_handler
@@ -408,6 +428,7 @@ class DeferredComponents:
             crypto_asset_repo,
             crypto_info,
             tx_handler,
+            public_keychain,
         )
         self.fetch_crypto = FetchCryptoDataImpl(
             position_repo,

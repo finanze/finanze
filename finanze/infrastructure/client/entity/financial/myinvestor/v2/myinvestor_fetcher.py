@@ -182,6 +182,7 @@ class MyInvestorFetcherV2(FinancialEntityFetcher):
             process_id=process_id,
             code=code,
             captcha_token=token,
+            keychain=login_params.keychain,
         )
 
     async def global_position(self) -> GlobalPosition:

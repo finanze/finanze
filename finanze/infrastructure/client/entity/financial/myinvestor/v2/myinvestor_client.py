@@ -1,4 +1,3 @@
-import codecs
 import logging
 from datetime import date, datetime
 from typing import Optional
@@ -18,6 +17,7 @@ from domain.entity_login import (
     EntitySession,
     LoginConfirmationType,
 )
+from domain.public_keychain import PublicKeychain
 
 GET_DATE_FORMAT = "%Y%m%d"
 DATE_FORMAT = "%Y-%m-%d"
@@ -26,12 +26,12 @@ DATE_FORMAT = "%Y-%m-%d"
 class MyInvestorAPIV2Client:
     LOGIN_URL = "https://api.myinvestor.es"
     BASE_URL = "https://api.myinvestor.es"
-    SKEY = codecs.decode("6Yre_qxeNNNNNZdjBggQugXWMYmLJQgIw_6gYhLr", "rot_13")
 
     def __init__(self):
         self._headers = {}
         self._log = logging.getLogger(__name__)
         self._session = get_http_session()
+        self._skey: Optional[str] = None
 
     async def _execute_request(
         self,
@@ -93,7 +93,13 @@ class MyInvestorAPIV2Client:
         process_id: str = None,
         code: str = None,
         captcha_token: str = None,
+        keychain: Optional[PublicKeychain] = None,
     ) -> EntityLoginResult:
+        if keychain:
+            entry = keychain.get("MYI_SKEY")
+            if entry:
+                self._skey = entry.decode()
+
         self._headers = {}
         self._headers["Content-Type"] = "application/json"
         self._headers["Referer"] = self.BASE_URL
@@ -196,15 +202,16 @@ class MyInvestorAPIV2Client:
         else:
             raise ValueError("Invalid params")
 
-    @staticmethod
-    async def _handle_forbidden_login(response: HttpResponse) -> EntityLoginResult:
+    async def _handle_forbidden_login(
+        self, response: HttpResponse
+    ) -> EntityLoginResult:
         body = await response.json()
         error_code = body.get("status", {}).get("code", "")
         if error_code == "SECURITY_001":
             return EntityLoginResult(
                 LoginResultCode.CODE_REQUESTED,
                 confirmation_type=LoginConfirmationType.CAPTCHA,
-                process_id=MyInvestorAPIV2Client.SKEY,
+                process_id=self._skey,
                 message=body.get("status", {}).get("message", ""),
             )
         else:
