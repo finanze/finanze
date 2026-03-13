@@ -167,6 +167,10 @@ export function RealEstateFormModal({
     number | null
   >(null)
   const [tempRentPercentage, setTempRentPercentage] = useState("")
+  const [loanPercentagePopoverOpen, setLoanPercentagePopoverOpen] = useState<
+    number | null
+  >(null)
+  const [tempLoanPercentage, setTempLoanPercentage] = useState("")
   const [calculatingLoanIndex, setCalculatingLoanIndex] = useState<
     number | null
   >(null)
@@ -730,6 +734,23 @@ export function RealEstateFormModal({
   const openPercentagePopover = (expenseIndex: number) => {
     setPercentagePopoverOpen(expenseIndex)
     setTempPercentage("")
+  }
+
+  const calculateLoanAmountFromPercentage = (percentage: number) => {
+    const purchasePrice = formData.purchase_info.price || 0
+    return (purchasePrice * percentage) / 100
+  }
+
+  const applyLoanPercentage = (flowIndex: number, percentage: number) => {
+    const calculatedAmount = calculateLoanAmountFromPercentage(percentage)
+    updateFlowPayload(flowIndex, "loan_amount", calculatedAmount)
+    setLoanPercentagePopoverOpen(null)
+    setTempLoanPercentage("")
+  }
+
+  const openLoanPercentagePopover = (flowIndex: number) => {
+    setLoanPercentagePopoverOpen(flowIndex)
+    setTempLoanPercentage("")
   }
 
   const calculateAmountFromRentPercentage = (percentage: number) => {
@@ -2340,7 +2361,7 @@ export function RealEstateFormModal({
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.labels.monthlyPayment}
@@ -2412,7 +2433,7 @@ export function RealEstateFormModal({
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.loanTypeLabel}
@@ -2457,24 +2478,156 @@ export function RealEstateFormModal({
                                       </PopoverContent>
                                     </Popover>
                                   </Label>
-                                  <div className="relative">
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      step="0.01"
-                                      value={loanPayload.loan_amount || ""}
-                                      onChange={e =>
-                                        updateFlowPayload(
-                                          originalIndex,
-                                          "loan_amount",
-                                          parseFloat(e.target.value) || null,
-                                        )
+                                  <div className="flex gap-2 items-end">
+                                    <div className="relative flex-1">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={loanPayload.loan_amount || ""}
+                                        onChange={e =>
+                                          updateFlowPayload(
+                                            originalIndex,
+                                            "loan_amount",
+                                            parseFloat(e.target.value) || null,
+                                          )
+                                        }
+                                        className="pr-12"
+                                      />
+                                      <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
+                                        {getCurrencySymbol(formData.currency)}
+                                      </span>
+                                    </div>
+                                    <Popover
+                                      open={
+                                        loanPercentagePopoverOpen ===
+                                        originalIndex
                                       }
-                                      className="pr-12"
-                                    />
-                                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">
-                                      {getCurrencySymbol(formData.currency)}
-                                    </span>
+                                      onOpenChange={open => {
+                                        if (!open) {
+                                          setLoanPercentagePopoverOpen(null)
+                                          setTempLoanPercentage("")
+                                        }
+                                      }}
+                                    >
+                                      <PopoverTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            openLoanPercentagePopover(
+                                              originalIndex,
+                                            )
+                                          }
+                                          className="hover:bg-blue-50 hover:text-blue-600 h-10"
+                                          title={
+                                            t.realEstate.purchase
+                                              .calculateByPercentage
+                                          }
+                                        >
+                                          <Percent size={16} />
+                                        </Button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-64">
+                                        <div className="space-y-3">
+                                          <div>
+                                            <Label className="text-sm font-medium">
+                                              {
+                                                t.realEstate.purchase
+                                                  .percentageOfPurchasePrice
+                                              }
+                                            </Label>
+                                            <div className="mt-1">
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={tempLoanPercentage}
+                                                onChange={e =>
+                                                  setTempLoanPercentage(
+                                                    e.target.value,
+                                                  )
+                                                }
+                                                placeholder="0.00"
+                                                className="text-sm"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            {[70, 80, 90].map(pct => (
+                                              <Button
+                                                key={pct}
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() =>
+                                                  applyLoanPercentage(
+                                                    originalIndex,
+                                                    pct,
+                                                  )
+                                                }
+                                              >
+                                                {pct}%
+                                              </Button>
+                                            ))}
+                                          </div>
+                                          <div className="text-xs text-gray-500">
+                                            {tempLoanPercentage &&
+                                              !isNaN(
+                                                parseFloat(tempLoanPercentage),
+                                              ) && (
+                                                <>
+                                                  {parseFloat(
+                                                    tempLoanPercentage,
+                                                  )}
+                                                  % {t.realEstate.purchase.of}{" "}
+                                                  {formatCurrency(
+                                                    formData.purchase_info
+                                                      .price || 0,
+                                                    locale,
+                                                    formData.currency,
+                                                  )}{" "}
+                                                  ={" "}
+                                                  {formatCurrency(
+                                                    calculateLoanAmountFromPercentage(
+                                                      parseFloat(
+                                                        tempLoanPercentage,
+                                                      ),
+                                                    ),
+                                                    locale,
+                                                    formData.currency,
+                                                  )}
+                                                </>
+                                              )}
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            onClick={() => {
+                                              const percentage =
+                                                parseFloat(tempLoanPercentage)
+                                              if (!isNaN(percentage)) {
+                                                applyLoanPercentage(
+                                                  originalIndex,
+                                                  percentage,
+                                                )
+                                              }
+                                            }}
+                                            disabled={
+                                              !tempLoanPercentage ||
+                                              isNaN(
+                                                parseFloat(tempLoanPercentage),
+                                              )
+                                            }
+                                            className="w-full"
+                                            size="sm"
+                                          >
+                                            {t.realEstate.purchase.apply}
+                                          </Button>
+                                        </div>
+                                      </PopoverContent>
+                                    </Popover>
                                   </div>
                                 </div>
                                 <div>
@@ -2522,7 +2675,7 @@ export function RealEstateFormModal({
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4 mb-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.interestTypeLabel}
@@ -2641,7 +2794,7 @@ export function RealEstateFormModal({
                                 ) : null}
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
                                   <Label>
                                     {t.realEstate.loans.fromLabel}

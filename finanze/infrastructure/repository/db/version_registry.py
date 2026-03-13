@@ -125,6 +125,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_5_degiro import V0805Degi
 from infrastructure.repository.db.versions.v0.v08.v080_6_add_issuer import (
     V0806AddIssuer,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_7_public_keychain import (
+    V0807PublicKeychain,
+)
 
 versions = [
     V0Genesis(),
@@ -178,4 +181,5 @@ versions = [
     V0804RemoveHdWalletAccount(),
     V0805Degiro(),
     V0806AddIssuer(),
+    V0807PublicKeychain(),
 ]

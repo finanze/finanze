@@ -43,7 +43,12 @@ class SegoFetcher(FinancialEntityFetcher):
             code = two_factor.code
 
         return await self._client.login(
-            username, password, login_params.options, code, login_params.session
+            username,
+            password,
+            login_params.options,
+            code,
+            login_params.session,
+            keychain=login_params.keychain,
         )
 
     async def global_position(self) -> GlobalPosition:

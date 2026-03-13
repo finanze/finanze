@@ -42,6 +42,8 @@ from application.ports.backup_repository import BackupRepository
 from application.ports.backup_processor import BackupProcessor
 from application.ports.datasource_backup_port import Backupable
 from application.ports.datasource_initiator import DatasourceInitiator
+from application.ports.public_keychain_loader import PublicKeychainLoader
+from domain.public_keychain import PublicKeychain
 
 from application.use_cases.register_user import RegisterUserImpl
 from application.use_cases.user_login import UserLoginImpl
@@ -120,6 +122,9 @@ async def app(tmp_path):
         BackupFileType.CONFIG: backupable_config,
     }
 
+    keychain_loader = AsyncMock(spec=PublicKeychainLoader)
+    keychain_loader.load = AsyncMock(return_value=PublicKeychain({}))
+
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
     )
@@ -136,7 +141,11 @@ async def app(tmp_path):
     get_settings_uc = GetSettingsImpl(config_loader)
     update_settings_uc = UpdateSettingsImpl(config_loader)
     add_entity_credentials_uc = AddEntityCredentialsImpl(
-        entity_fetchers, credentials_port, sessions_port, transaction_handler_port
+        entity_fetchers,
+        credentials_port,
+        sessions_port,
+        transaction_handler_port,
+        keychain_loader,
     )
     fetch_financial_data_uc = FetchFinancialDataImpl(
         position_port,
@@ -151,6 +160,7 @@ async def app(tmp_path):
         crypto_asset_registry_port,
         crypto_asset_info_provider,
         transaction_handler_port,
+        keychain_loader,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,

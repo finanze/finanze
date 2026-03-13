@@ -16,6 +16,7 @@ from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.position_port import PositionPort
+from application.ports.public_keychain_loader import PublicKeychainLoader
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
@@ -170,6 +171,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         crypto_asset_registry_port: CryptoAssetRegistryPort,
         crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
+        keychain_loader: PublicKeychainLoader,
     ):
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
@@ -183,6 +185,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._crypto_asset_info_provider = crypto_asset_info_provider
         self._crypto_asset_registry_port = crypto_asset_registry_port
         self._transaction_handler_port = transaction_handler_port
+        self._keychain_loader = keychain_loader
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -232,12 +235,15 @@ class FetchFinancialDataImpl(FetchFinancialData):
 
             specific_fetcher = self._entity_fetchers[entity]
 
+            keychain = await self._keychain_loader.load()
+
             stored_session = await self._sessions_port.get(entity.id)
             login_request = EntityLoginParams(
                 credentials=credentials,
                 two_factor=fetch_request.two_factor,
                 options=fetch_request.login_options,
                 session=stored_session,
+                keychain=keychain,
             )
             login_result = await specific_fetcher.login(login_request)
             login_result_code = login_result.code

@@ -362,12 +362,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 resetState()
                 setView("entities")
               } else {
-                const errorMessage =
+                const errorMessage = (
                   t.errors[confirmResponse.code as keyof typeof t.errors] ||
-                  t.common.loginErrorEntity.replace(
-                    "{entity}",
-                    selectedEntity.name,
-                  )
+                  t.common.loginErrorEntity
+                ).replace("{entity}", selectedEntity.name)
                 showToast(errorMessage, "error")
                 resetState()
               }
@@ -401,11 +399,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
-            t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginErrorEntity.replace(
-                "{entity}",
-                selectedEntity.name,
-              ),
+            (
+              t.errors[response.code as keyof typeof t.errors] ||
+              t.common.loginErrorEntity
+            ).replace("{entity}", selectedEntity.name),
             "error",
           )
         } else {
@@ -753,9 +750,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           setPinError(true)
           const entityName = entity?.name || t.common.crypto
-          const errorMessage =
+          const errorMessage = (
             t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity.replace("{entity}", entityName)
+            t.common.fetchErrorEntity
+          ).replace("{entity}", entityName)
           notify(errorMessage, "error")
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           if (!silent) {
@@ -902,8 +900,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         } else {
           showToast(
-            t.errors[loginResponse.code as keyof typeof t.errors] ||
-              t.common.loginError,
+            (
+              t.errors[loginResponse.code as keyof typeof t.errors] ||
+              t.common.loginError
+            ).replace("{entity}", selectedEntity.name),
             "error",
           )
           resetState()

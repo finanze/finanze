@@ -3,6 +3,7 @@ import logging
 from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.credentials_port import CredentialsPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
+from application.ports.public_keychain_loader import PublicKeychainLoader
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from domain import native_entities
@@ -26,12 +27,14 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         credentials_port: CredentialsPort,
         sessions_port: SessionsPort,
         transaction_handler_port: TransactionHandlerPort,
+        keychain_loader: PublicKeychainLoader,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
 
         self._entity_fetchers = entity_fetchers
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
+        self._keychain_loader = keychain_loader
 
         self._log = logging.getLogger(__name__)
 
@@ -56,12 +59,15 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
 
         specific_fetcher = self._entity_fetchers[entity]
 
+        keychain = await self._keychain_loader.load()
+
         login_options = LoginOptions(avoid_new_login=False, force_new_session=True)
 
         login_request = EntityLoginParams(
             credentials=credentials,
             two_factor=login_request.two_factor,
             options=login_options,
+            keychain=keychain,
         )
         login_result = await specific_fetcher.login(login_request)
         if login_result.code != LoginResultCode.CREATED:

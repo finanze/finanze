@@ -581,7 +581,7 @@ export default function LoginPage() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent
-                          className="w-64 text-left text-sm"
+                          className="w-64 max-h-[50vh] overflow-y-auto text-left text-sm"
                           sideOffset={8}
                         >
                           <p className="font-medium text-foreground">

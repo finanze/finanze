@@ -4,9 +4,11 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from domain.native_entity import EntityCredentials
+from domain.public_keychain import PublicKeychain
 
 
 class LoginConfirmationType(str, Enum):
@@ -79,9 +81,10 @@ class EntityLoginRequest:
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
 
 
-@dataclass
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class EntityLoginParams:
     credentials: EntityCredentials
+    keychain: PublicKeychain
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     session: Optional[EntitySession] = None
