@@ -1,6 +1,5 @@
 import logging
 
-from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.credentials_port import CredentialsPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.public_keychain_loader import PublicKeychainLoader
@@ -20,7 +19,7 @@ from domain.exception.exceptions import EntityNotFound, InvalidProvidedCredentia
 from domain.use_cases.add_entity_credentials import AddEntityCredentials
 
 
-class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
+class AddEntityCredentialsImpl(AddEntityCredentials):
     def __init__(
         self,
         entity_fetchers: dict[Entity, FinancialEntityFetcher],
@@ -29,12 +28,11 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         transaction_handler_port: TransactionHandlerPort,
         keychain_loader: PublicKeychainLoader,
     ):
-        AtomicUCMixin.__init__(self, transaction_handler_port)
-
         self._entity_fetchers = entity_fetchers
         self._credentials_port = credentials_port
         self._sessions_port = sessions_port
         self._keychain_loader = keychain_loader
+        self._transaction_handler_port = transaction_handler_port
 
         self._log = logging.getLogger(__name__)
 
@@ -73,18 +71,19 @@ class AddEntityCredentialsImpl(AtomicUCMixin, AddEntityCredentials):
         if login_result.code != LoginResultCode.CREATED:
             return login_result
 
-        await self._credentials_port.delete(entity.id)
+        async with self._transaction_handler_port.start():
+            await self._credentials_port.delete(entity.id)
 
-        credentials_to_store = {
-            k: v
-            for k, v in credentials.items()
-            if entity.credentials_template[k] != CredentialType.INTERNAL_TEMP
-        }
-        await self._credentials_port.save(entity.id, credentials_to_store)
+            credentials_to_store = {
+                k: v
+                for k, v in credentials.items()
+                if entity.credentials_template[k] != CredentialType.INTERNAL_TEMP
+            }
+            await self._credentials_port.save(entity.id, credentials_to_store)
 
-        await self._sessions_port.delete(entity.id)
-        session = login_result.session
-        if session:
-            await self._sessions_port.save(entity.id, session)
+            await self._sessions_port.delete(entity.id)
+            session = login_result.session
+            if session:
+                await self._sessions_port.save(entity.id, session)
 
-        return EntityLoginResult(LoginResultCode.CREATED)
+            return EntityLoginResult(LoginResultCode.CREATED)

@@ -260,7 +260,8 @@ export function EntityCard({
   const badgeInfo = getBadgeInfo()
 
   const isFinancialInstitution =
-    entity.type === EntityType.FINANCIAL_INSTITUTION
+    entity.type === EntityType.FINANCIAL_INSTITUTION ||
+    entity.type === EntityType.CRYPTO_EXCHANGE
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
   const isDisconnected = effectiveStatus === EntityStatus.DISCONNECTED

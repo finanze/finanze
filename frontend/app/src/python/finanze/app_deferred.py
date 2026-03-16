@@ -2,6 +2,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from finanze.app_core import MobileAppCore
 
@@ -94,6 +95,9 @@ class DeferredComponents:
         )
         from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
             WecityFetcher,
+        )
+        from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
+            BinanceFetcher,
         )
         from infrastructure.client.instrument.instrument_provider_adapter import (
             InstrumentProviderAdapter,
@@ -331,6 +335,7 @@ class DeferredComponents:
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
             domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
+            domain.native_entities.BINANCE: BinanceFetcher(),
         }
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: etherscan_client,

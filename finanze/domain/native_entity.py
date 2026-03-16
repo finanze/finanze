@@ -63,6 +63,11 @@ class NativeCryptoWalletEntity(Entity):
     allows_hd_wallet: bool
 
 
+@dataclass(eq=False)
+class NativeCryptoExchangeEntity(NativeFinancialEntity):
+    pass
+
+
 EntityCredentials = dict[str, str]
 
 

@@ -391,6 +391,7 @@
     "refreshEntity": "Update data",
     "financialInstitutions": "Financial Institutions",
     "cryptoWallets": "Crypto Wallets",
+    "cryptoExchanges": "Crypto Exchanges",
     "commodities": "Commodities",
     "commoditiesDescription": "Integrate your commodities with live market value",
     "manualDataEntry": "User data",

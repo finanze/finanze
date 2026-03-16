@@ -527,7 +527,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               }
               throw e
             }
-          } else if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+          } else if (
+            entity.type === EntityType.FINANCIAL_INSTITUTION ||
+            entity.type === EntityType.CRYPTO_EXCHANGE
+          ) {
             response = await fetchFinancialEntity({
               entity: entity.id,
               features: features,

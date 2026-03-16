@@ -27,6 +27,12 @@ class PositionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_last_by_entity_and_account(
+        self, query: Optional[PositionQueryRequest] = None
+    ) -> dict[Entity, list[GlobalPosition]]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def delete_position_for_date(
         self, entity_id: UUID, date: datetime.date, source: DataSource
     ):

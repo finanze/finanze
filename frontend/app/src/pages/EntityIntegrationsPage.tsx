@@ -15,7 +15,14 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useState, useEffect } from "react"
 import { useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { ExternalLink, Landmark, Wallet, Check, Smartphone } from "lucide-react"
+import {
+  ExternalLink,
+  Landmark,
+  Wallet,
+  Check,
+  Smartphone,
+  Bitcoin,
+} from "lucide-react"
 import {
   EntityOrigin,
   EntitySetupLoginType,
@@ -140,6 +147,9 @@ export default function EntityIntegrationsPage() {
   const connectedCryptoEntities = connectedEntities.filter(
     entity => entity.type === EntityType.CRYPTO_WALLET,
   )
+  const connectedCryptoExchangeEntities = connectedEntities.filter(
+    entity => entity.type === EntityType.CRYPTO_EXCHANGE,
+  )
 
   // Categorize unconnected entities by type
   const unconnectedFinancialEntities = unconnectedEntities.filter(
@@ -147,6 +157,9 @@ export default function EntityIntegrationsPage() {
   )
   const unconnectedCryptoEntities = unconnectedEntities.filter(
     entity => entity.type === EntityType.CRYPTO_WALLET,
+  )
+  const unconnectedCryptoExchangeEntities = unconnectedEntities.filter(
+    entity => entity.type === EntityType.CRYPTO_EXCHANGE,
   )
 
   const handleEntitySelect = (entity: any) => {
@@ -169,16 +182,20 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleRelogin = (entity: any) => {
-    // Only handle relogin for financial institutions
-    if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+    if (
+      entity.type === EntityType.FINANCIAL_INSTITUTION ||
+      entity.type === EntityType.CRYPTO_EXCHANGE
+    ) {
       selectEntity(entity)
       handleLogin(entity)
     }
   }
 
   const handleDisconnect = async (entity: any) => {
-    // Only handle disconnect for financial institutions
-    if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+    if (
+      entity.type === EntityType.FINANCIAL_INSTITUTION ||
+      entity.type === EntityType.CRYPTO_EXCHANGE
+    ) {
       await disconnectEntity(entity.id)
     }
   }
@@ -595,6 +612,41 @@ export default function EntityIntegrationsPage() {
                       </motion.div>
                     </div>
                   )}
+
+                  {/* Crypto Exchanges */}
+                  {connectedCryptoExchangeEntities.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <Bitcoin className="h-5 w-5 mr-2" />
+                        {t.entities.cryptoExchanges}
+                      </h3>
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                        initial={false}
+                        animate="show"
+                      >
+                        {connectedCryptoExchangeEntities.map(entity => (
+                          <motion.div key={entity.id} variants={fadeListItem}>
+                            <EntityCard
+                              entity={entity}
+                              onSelect={() => handleEntitySelect(entity)}
+                              onRelogin={() => handleRelogin(entity)}
+                              onDisconnect={() => handleDisconnect(entity)}
+                              onManage={() => handleManage(entity)}
+                              onExternalContinue={
+                                handleContinueExternalEntityLink
+                              }
+                              onExternalDisconnect={
+                                handleDisconnectExternalProvided
+                              }
+                              linkingExternalEntityId={linkingExternalEntityId}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -721,6 +773,40 @@ export default function EntityIntegrationsPage() {
                       variants={fadeListContainer}
                     >
                       {unconnectedCryptoEntities.map(entity => (
+                        <motion.div key={entity.id} variants={fadeListItem}>
+                          <EntityCard
+                            entity={entity}
+                            onSelect={() => handleEntitySelect(entity)}
+                            onRelogin={() => handleRelogin(entity)}
+                            onDisconnect={() => handleDisconnect(entity)}
+                            onManage={() => handleManage(entity)}
+                            onExternalContinue={
+                              handleContinueExternalEntityLink
+                            }
+                            onExternalDisconnect={
+                              handleDisconnectExternalProvided
+                            }
+                            linkingExternalEntityId={linkingExternalEntityId}
+                            onExternalRelink={handleRelinkExternalProvided}
+                          />
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </div>
+                )}
+
+                {/* Crypto Exchanges */}
+                {unconnectedCryptoExchangeEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Bitcoin className="h-5 w-5 mr-2" />
+                      {t.entities.cryptoExchanges}
+                    </h3>
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                      variants={fadeListContainer}
+                    >
+                      {unconnectedCryptoExchangeEntities.map(entity => (
                         <motion.div key={entity.id} variants={fadeListItem}>
                           <EntityCard
                             entity={entity}
