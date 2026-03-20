@@ -4,6 +4,8 @@ import hmac
 import logging
 import time
 
+from aiocache import Cache, cached
+
 from domain.entity_login import EntityLoginResult, LoginResultCode
 from infrastructure.client.http.http_session import HttpSession, get_http_session
 
@@ -108,6 +110,10 @@ class BinanceClient:
 
     async def get_exchange_info(self) -> dict:
         return await self._get(f"{self.SPOT_BASE_URL}/api/v3/exchangeInfo")
+
+    @cached(cache=Cache.MEMORY, ttl=30)
+    async def get_ticker_prices(self) -> list[dict]:
+        return await self._get(f"{self.SPOT_BASE_URL}/api/v3/ticker/price")
 
     async def get_my_trades(self, symbol: str, limit: int = 1000) -> list[dict]:
         return await self._signed_get(

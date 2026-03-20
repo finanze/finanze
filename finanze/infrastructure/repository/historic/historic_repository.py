@@ -54,6 +54,9 @@ def _map_historic_row(row) -> BaseHistoricEntry:
         "entity": entity,
         "product_type": ProductType(row["product_type"]),
         "related_txs": [],
+        "entity_account_id": UUID(row["entity_account_id"])
+        if row["entity_account_id"]
+        else None,
     }
 
     if common["product_type"] == ProductType.FACTORING:
@@ -118,6 +121,9 @@ class HistoricSQLRepository(HistoricPort):
                     "extended_maturity": None,
                     "type": None,
                     "business_type": None,
+                    "entity_account_id": str(entry.entity_account_id)
+                    if entry.entity_account_id
+                    else None,
                 }
 
                 if isinstance(entry, FactoringEntry):
@@ -190,9 +196,12 @@ class HistoricSQLRepository(HistoricPort):
 
         return historic_entries
 
-    async def delete_by_entity(self, entity_id: UUID):
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
         async with self._db_client.tx() as cursor:
-            await cursor.execute(HistoricQueries.DELETE_BY_ENTITY, (str(entity_id),))
+            await cursor.execute(
+                HistoricQueries.DELETE_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
+            )
 
     async def get_by_filters(
         self, query: HistoricQueryRequest, fetch_related_txs: bool = False
@@ -222,7 +231,7 @@ class HistoricSQLRepository(HistoricPort):
 
             final_sql = base_sql
             if conditions:
-                final_sql += "\nWHERE " + " AND ".join(conditions)
+                final_sql += "\nAND " + " AND ".join(conditions)
 
             sort_column_map = {
                 HistoricSortBy.MATURITY: "h.effective_maturity",

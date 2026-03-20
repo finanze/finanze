@@ -202,7 +202,7 @@
       "viewModeLabel": "View",
       "viewModes": {
         "wallets": "By wallet",
-        "network": "By network"
+        "network": "By source"
       }
     },
     "weightedAverageInterest": "Weighted Avg. Interest",
@@ -288,6 +288,12 @@
       "USER": "Username",
       "API_TOKEN": "API Token"
     },
+    "credentialFields": {
+      "apiKey": "API Key",
+      "secretKey": "Secret Key"
+    },
+    "addAccountName": "Name this account",
+    "accountNamePlaceholder": "Account name (optional)",
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
     "welcomeBack": "Welcome back, {username}!",
@@ -329,8 +335,8 @@
     "biometricLoginFailed": "Biometric authentication failed",
     "inAppConfirmationTitle": "Confirm login in",
     "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
-    "captchaTitle": "Security verification for",
-    "captchaMessage": "Please complete the CAPTCHA to continue."
+    "challengeTitle": "Security verification for",
+    "challengeMessage": "Please complete the security verification to continue."
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
@@ -396,6 +402,10 @@
     "commoditiesDescription": "Integrate your commodities with live market value",
     "manualDataEntry": "User data",
     "manage": "Manage",
+    "addAccount": "Add Account",
+    "manageAccounts": "Manage Accounts",
+    "account": "Account",
+    "noAccounts": "No accounts connected",
     "moreFinancialInstitutionsCard": "More Banks",
     "addExternalEntity": "Financial institutions",
     "requiresProviderIntegration": "Requires integration",

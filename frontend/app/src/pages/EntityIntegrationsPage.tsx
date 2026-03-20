@@ -4,8 +4,9 @@ import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm, AddWalletSubmitData } from "@/components/AddWalletForm"
 import { ManageWalletsView } from "@/components/ManageWalletsView"
+import { ManageAccountsDialog } from "@/components/ManageAccountsDialog"
 import { PinPad } from "@/components/PinPad"
-import { CaptchaModal } from "@/components/CaptchaModal"
+import { ChallengeModal } from "@/components/ChallengeModal"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -58,7 +59,7 @@ export default function EntityIntegrationsPage() {
     isLoggingIn,
     selectedEntity,
     pinRequired,
-    captchaRequired,
+    challengeRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
     selectEntity,
@@ -73,6 +74,7 @@ export default function EntityIntegrationsPage() {
   const [showAddWallet, setShowAddWallet] = useState(false)
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
+  const [showManageAccounts, setShowManageAccounts] = useState(false)
   // External entity linking state
   const [showAddExternalEntity, setShowAddExternalEntity] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
@@ -196,7 +198,9 @@ export default function EntityIntegrationsPage() {
       entity.type === EntityType.FINANCIAL_INSTITUTION ||
       entity.type === EntityType.CRYPTO_EXCHANGE
     ) {
-      await disconnectEntity(entity.id)
+      const accountId = entity.accounts?.[0]?.id
+      if (!accountId) return
+      await disconnectEntity(entity.id, accountId)
     }
   }
 
@@ -211,14 +215,22 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleManage = (entity: any) => {
-    // Only handle manage for crypto wallets
     if (
       entity.type === EntityType.CRYPTO_WALLET &&
       isCryptoWalletConnected(entity)
     ) {
       selectEntity(entity)
       setShowManageWallets(true)
+    } else if (entity.type === EntityType.CRYPTO_EXCHANGE) {
+      selectEntity(entity)
+      setShowManageAccounts(true)
     }
+  }
+
+  const handleAddAccount = (entity: any) => {
+    selectEntity(entity)
+    setShowManageAccounts(false)
+    handleLogin(entity)
   }
 
   const handleAddWallet = async (
@@ -563,6 +575,7 @@ export default function EntityIntegrationsPage() {
                               onRelogin={() => handleRelogin(entity)}
                               onDisconnect={() => handleDisconnect(entity)}
                               onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
                               onExternalContinue={
                                 handleContinueExternalEntityLink
                               }
@@ -599,6 +612,7 @@ export default function EntityIntegrationsPage() {
                               onRelogin={() => handleRelogin(entity)}
                               onDisconnect={() => handleDisconnect(entity)}
                               onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
                               onExternalContinue={
                                 handleContinueExternalEntityLink
                               }
@@ -634,6 +648,7 @@ export default function EntityIntegrationsPage() {
                               onRelogin={() => handleRelogin(entity)}
                               onDisconnect={() => handleDisconnect(entity)}
                               onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
                               onExternalContinue={
                                 handleContinueExternalEntityLink
                               }
@@ -749,6 +764,7 @@ export default function EntityIntegrationsPage() {
                           onRelogin={() => handleRelogin(entity)}
                           onDisconnect={() => handleDisconnect(entity)}
                           onManage={() => handleManage(entity)}
+                          onAddAccount={() => handleAddAccount(entity)}
                           onExternalContinue={handleContinueExternalEntityLink}
                           onExternalDisconnect={
                             handleDisconnectExternalProvided
@@ -780,6 +796,7 @@ export default function EntityIntegrationsPage() {
                             onRelogin={() => handleRelogin(entity)}
                             onDisconnect={() => handleDisconnect(entity)}
                             onManage={() => handleManage(entity)}
+                            onAddAccount={() => handleAddAccount(entity)}
                             onExternalContinue={
                               handleContinueExternalEntityLink
                             }
@@ -814,6 +831,7 @@ export default function EntityIntegrationsPage() {
                             onRelogin={() => handleRelogin(entity)}
                             onDisconnect={() => handleDisconnect(entity)}
                             onManage={() => handleManage(entity)}
+                            onAddAccount={() => handleAddAccount(entity)}
                             onExternalContinue={
                               handleContinueExternalEntityLink
                             }
@@ -995,9 +1013,8 @@ export default function EntityIntegrationsPage() {
         )}
       </AnimatePresence>
 
-      {/* CAPTCHA Modal */}
       <AnimatePresence>
-        {captchaRequired && selectedEntity && <CaptchaModal />}
+        {challengeRequired && selectedEntity && <ChallengeModal />}
       </AnimatePresence>
 
       {/* Add Wallet Modal */}
@@ -1054,6 +1071,16 @@ export default function EntityIntegrationsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Manage Accounts Dialog for crypto exchanges */}
+      {selectedEntity && (
+        <ManageAccountsDialog
+          entity={selectedEntity}
+          isOpen={showManageAccounts}
+          onClose={() => setShowManageAccounts(false)}
+          onAddAccount={() => handleAddAccount(selectedEntity)}
+        />
+      )}
 
       {/* Add External Entity Modal */}
       <AnimatePresence>

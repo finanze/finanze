@@ -2,8 +2,9 @@ from datetime import datetime
 from typing import List, Optional, Set
 from uuid import UUID
 
-from application.ports.transaction_port import TransactionPort
 from dateutil.tz import tzlocal
+
+from application.ports.transaction_port import TransactionPort
 from domain.dezimal import Dezimal
 from domain.entity import Entity
 from domain.fetch_record import DataSource
@@ -48,6 +49,9 @@ def _map_account_row(row) -> AccountTx:
         entity=entity,
         source=DataSource(row["source"]),
         product_type=ProductType.ACCOUNT,
+        entity_account_id=UUID(row["entity_account_id"])
+        if row["entity_account_id"]
+        else None,
         fees=Dezimal(row["fees"]),
         retentions=Dezimal(row["retentions"]),
         interest_rate=Dezimal(row["interest_rate"]) if row["interest_rate"] else None,
@@ -83,6 +87,9 @@ def _map_investment_row(
         "entity": entity,
         "source": DataSource(row["source"]),
         "product_type": ProductType(row["product_type"]),
+        "entity_account_id": UUID(row["entity_account_id"])
+        if row["entity_account_id"]
+        else None,
     }
 
     if row["product_type"] == ProductType.STOCK_ETF.value:
@@ -208,6 +215,9 @@ class TransactionSQLRepository(TransactionPort):
                     "portfolio_name": None,
                     "product_subtype": None,
                     "asset_contract_address": None,
+                    "entity_account_id": str(tx.entity_account_id)
+                    if tx.entity_account_id
+                    else None,
                 }
 
                 if isinstance(tx, StockTx):
@@ -307,6 +317,7 @@ class TransactionSQLRepository(TransactionPort):
                         str(tx.interest_rate) if tx.interest_rate else None,
                         str(tx.avg_balance) if tx.avg_balance else None,
                         str(tx.net_amount) if tx.net_amount else None,
+                        str(tx.entity_account_id) if tx.entity_account_id else None,
                     ),
                 )
 
@@ -342,7 +353,7 @@ class TransactionSQLRepository(TransactionPort):
                 params.extend([str(e) for e in excluded_entities])
 
             if conditions:
-                query += " WHERE " + " AND ".join(conditions)
+                query += " AND " + " AND ".join(conditions)
 
             query += " ORDER BY it.date ASC"
             await cursor.execute(query, tuple(params))
@@ -371,7 +382,7 @@ class TransactionSQLRepository(TransactionPort):
                 params.extend([str(e) for e in excluded_entities])
 
             if conditions:
-                query += " WHERE " + " AND ".join(conditions)
+                query += " AND " + " AND ".join(conditions)
 
             query += " ORDER BY at.date ASC"
 
@@ -471,7 +482,7 @@ class TransactionSQLRepository(TransactionPort):
             )
             params.append(str(query.historic_entry_id))
 
-        where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+        where_clause = f"AND {' AND '.join(conditions)}" if conditions else ""
         order_pagination = "ORDER BY tx.date DESC LIMIT ? OFFSET ?"
         offset = (query.page - 1) * query.limit
         params.extend([query.limit, offset])
@@ -502,20 +513,6 @@ class TransactionSQLRepository(TransactionPort):
                 (source,),
             )
 
-    async def delete_by_entity_source(self, entity_id: UUID, source: DataSource):
-        async with self._db_client.tx() as cursor:
-            await cursor.execute(
-                TransactionQueries.DELETE_INVESTMENT_BY_ENTITY_SOURCE,
-                (
-                    str(entity_id),
-                    source,
-                ),
-            )
-            await cursor.execute(
-                TransactionQueries.DELETE_ACCOUNT_BY_ENTITY_SOURCE,
-                (str(entity_id), source),
-            )
-
     async def get_by_id(self, tx_id: UUID) -> Optional[BaseTx]:
         async with self._db_client.read() as cursor:
             await cursor.execute(
@@ -544,4 +541,15 @@ class TransactionSQLRepository(TransactionPort):
             await cursor.execute(
                 TransactionQueries.DELETE_BY_ID_ACCOUNT,
                 (str(tx_id),),
+            )
+
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                TransactionQueries.DELETE_INVESTMENT_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
+            )
+            await cursor.execute(
+                TransactionQueries.DELETE_ACCOUNT_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
             )

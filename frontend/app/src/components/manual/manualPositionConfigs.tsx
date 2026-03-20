@@ -2637,20 +2637,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Account>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(account => {
-          if (!isManualSource(account)) return
-          result.push({
-            ...account,
-            localId: account.id || `${entity.id}-account-${account.name}`,
-            originalId: account.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.ACCOUNT] as
+            | { entries?: Account[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(account => {
+            if (!isManualSource(account)) return
+            result.push({
+              ...account,
+              localId: account.id || `${entity.id}-account-${account.name}`,
+              originalId: account.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -2834,20 +2835,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Card>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.CARD] as
-          | { entries?: Card[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(card => {
-          if (!isManualSource(card)) return
-          result.push({
-            ...card,
-            localId: card.id || `${entity.id}-card-${card.name}`,
-            originalId: card.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CARD] as
+            | { entries?: Card[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(card => {
+            if (!isManualSource(card)) return
+            result.push({
+              ...card,
+              localId: card.id || `${entity.id}-card-${card.name}`,
+              originalId: card.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3045,20 +3047,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Loan>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.LOAN] as
-          | { entries?: Loan[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(loan => {
-          if (!isManualSource(loan)) return
-          result.push({
-            ...loan,
-            localId: loan.id || `${entity.id}-loan-${loan.name}`,
-            originalId: loan.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.LOAN] as
+            | { entries?: Loan[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(loan => {
+            if (!isManualSource(loan)) return
+            result.push({
+              ...loan,
+              localId: loan.id || `${entity.id}-loan-${loan.name}`,
+              originalId: loan.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3380,54 +3383,56 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FundPortfolio>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
-        const accountProduct = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
-        const accountEntries = accountProduct?.entries ?? []
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[
+            ProductType.FUND_PORTFOLIO
+          ] as { entries?: FundPortfolio[] } | undefined
+          const accountProduct = entityPosition.products[
+            ProductType.ACCOUNT
+          ] as { entries?: Account[] } | undefined
+          const accountEntries = accountProduct?.entries ?? []
 
-        const entries = product?.entries ?? []
-        entries.forEach(portfolio => {
-          if (!isManualSource(portfolio)) return
-          let resolvedAccountId = portfolio.account_id ?? null
+          const entries = product?.entries ?? []
+          entries.forEach(portfolio => {
+            if (!isManualSource(portfolio)) return
+            let resolvedAccountId = portfolio.account_id ?? null
 
-          if (portfolio.account && accountEntries.length > 0) {
-            const targetIban = portfolio.account.iban?.trim().toUpperCase()
-            const targetName = portfolio.account.name?.trim().toLowerCase()
+            if (portfolio.account && accountEntries.length > 0) {
+              const targetIban = portfolio.account.iban?.trim().toUpperCase()
+              const targetName = portfolio.account.name?.trim().toLowerCase()
 
-            const matchedAccount = accountEntries.find(account => {
-              if (account.type !== AccountType.FUND_PORTFOLIO) return false
-              if (!account.id) return false
+              const matchedAccount = accountEntries.find(account => {
+                if (account.type !== AccountType.FUND_PORTFOLIO) return false
+                if (!account.id) return false
 
-              const accountIban = account.iban?.trim().toUpperCase()
-              if (!targetIban || !accountIban || accountIban !== targetIban) {
-                return false
+                const accountIban = account.iban?.trim().toUpperCase()
+                if (!targetIban || !accountIban || accountIban !== targetIban) {
+                  return false
+                }
+
+                const accountName = account.name?.trim().toLowerCase()
+                if (targetName && accountName) {
+                  return accountName === targetName
+                }
+
+                return true
+              })
+
+              if (matchedAccount?.id) {
+                resolvedAccountId = matchedAccount.id
               }
-
-              const accountName = account.name?.trim().toLowerCase()
-              if (targetName && accountName) {
-                return accountName === targetName
-              }
-
-              return true
-            })
-
-            if (matchedAccount?.id) {
-              resolvedAccountId = matchedAccount.id
             }
-          }
 
-          result.push({
-            ...portfolio,
-            account_id: resolvedAccountId,
-            localId: portfolio.id || `${entity.id}-portfolio-${portfolio.name}`,
-            originalId: portfolio.id,
-            entityId: entity.id,
-            entityName: entity.name,
+            result.push({
+              ...portfolio,
+              account_id: resolvedAccountId,
+              localId:
+                portfolio.id || `${entity.id}-portfolio-${portfolio.name}`,
+              originalId: portfolio.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3582,20 +3587,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FundDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FUND] as
-          | { entries?: FundDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(fund => {
-          if (!isManualSource(fund)) return
-          result.push({
-            ...fund,
-            localId: fund.id || `${entity.id}-fund-${fund.isin || fund.name}`,
-            originalId: fund.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.FUND] as
+            | { entries?: FundDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(fund => {
+            if (!isManualSource(fund)) return
+            result.push({
+              ...fund,
+              localId: fund.id || `${entity.id}-fund-${fund.isin || fund.name}`,
+              originalId: fund.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4283,21 +4289,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<StockDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.STOCK_ETF] as
-          | { entries?: StockDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(stock => {
-          if (!isManualSource(stock)) return
-          result.push({
-            ...stock,
-            localId:
-              stock.id || `${entity.id}-stock-${stock.isin || stock.ticker}`,
-            originalId: stock.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.STOCK_ETF] as
+            | { entries?: StockDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(stock => {
+            if (!isManualSource(stock)) return
+            result.push({
+              ...stock,
+              localId:
+                stock.id || `${entity.id}-stock-${stock.isin || stock.ticker}`,
+              originalId: stock.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4821,20 +4828,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Deposit>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.DEPOSIT] as
-          | { entries?: Deposit[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(deposit => {
-          if (!isManualSource(deposit)) return
-          result.push({
-            ...deposit,
-            localId: deposit.id || `${entity.id}-deposit-${deposit.name}`,
-            originalId: deposit.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.DEPOSIT] as
+            | { entries?: Deposit[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(deposit => {
+            if (!isManualSource(deposit)) return
+            result.push({
+              ...deposit,
+              localId: deposit.id || `${entity.id}-deposit-${deposit.name}`,
+              originalId: deposit.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4978,20 +4986,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FactoringDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FACTORING] as
-          | { entries?: FactoringDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(factor => {
-          if (!isManualSource(factor)) return
-          result.push({
-            ...factor,
-            localId: factor.id || `${entity.id}-factoring-${factor.name}`,
-            originalId: factor.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.FACTORING] as
+            | { entries?: FactoringDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(factor => {
+            if (!isManualSource(factor)) return
+            result.push({
+              ...factor,
+              localId: factor.id || `${entity.id}-factoring-${factor.name}`,
+              originalId: factor.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -5185,21 +5194,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<RealEstateCFDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.REAL_ESTATE_CF] as
-          | { entries?: RealEstateCFDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(realEstate => {
-          if (!isManualSource(realEstate)) return
-          result.push({
-            ...realEstate,
-            localId:
-              realEstate.id || `${entity.id}-realestate-${realEstate.name}`,
-            originalId: realEstate.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[
+            ProductType.REAL_ESTATE_CF
+          ] as { entries?: RealEstateCFDetail[] } | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(realEstate => {
+            if (!isManualSource(realEstate)) return
+            result.push({
+              ...realEstate,
+              localId:
+                realEstate.id || `${entity.id}-realestate-${realEstate.name}`,
+              originalId: realEstate.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -5459,23 +5469,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<CryptoCurrencyPosition>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.CRYPTO] as
-          | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
-          | undefined
-        const wallets = product?.entries ?? []
-        wallets.forEach(wallet => {
-          const assets = wallet.assets ?? []
-          assets.forEach(asset => {
-            if (!isManualSource(asset)) return
-            result.push({
-              ...asset,
-              localId:
-                asset.id || `${entity.id}-crypto-${asset.symbol}-${asset.name}`,
-              originalId: asset.id,
-              entityId: entity.id,
-              entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CRYPTO] as
+            | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
+            | undefined
+          const wallets = product?.entries ?? []
+          wallets.forEach(wallet => {
+            const assets = wallet.assets ?? []
+            assets.forEach(asset => {
+              if (!isManualSource(asset)) return
+              result.push({
+                ...asset,
+                localId:
+                  asset.id ||
+                  `${entity.id}-crypto-${asset.symbol}-${asset.name}`,
+                originalId: asset.id,
+                entityId: entity.id,
+                entityName: entity.name,
+              })
             })
           })
         })

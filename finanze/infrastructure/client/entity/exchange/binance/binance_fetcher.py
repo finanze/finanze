@@ -81,6 +81,12 @@ ALWAYS_INCLUDE_ASSETS = {
     "BNB",
 }
 
+# Fiat currencies to use for market value, in order of preference
+FIAT_QUOTES = ["EUR", "USD"]
+
+# Stablecoin fallbacks: if no direct fiat pair exists, price via stablecoin then convert
+STABLECOIN_QUOTES = ["USDT", "BUSD", "FDUSD", "USDC"]
+
 # Max time range per deposit/withdrawal API call (90 days in ms)
 _90_DAYS_MS = 90 * 24 * 60 * 60 * 1000
 
@@ -108,10 +114,14 @@ class BinanceFetcher(FinancialEntityFetcher):
 
         combined = self._combine_assets(spot_assets, futures_assets)
 
+        price_index = await self._build_price_index()
+
         positions = []
         for symbol, amount in combined.items():
             if amount == 0:
                 continue
+
+            market_value, currency = self._price_in_fiat(symbol, amount, price_index)
 
             positions.append(
                 CryptoCurrencyPosition(
@@ -120,6 +130,8 @@ class BinanceFetcher(FinancialEntityFetcher):
                     symbol=symbol,
                     amount=amount,
                     type=CryptoCurrencyType.NATIVE,
+                    market_value=market_value,
+                    currency=currency,
                 )
             )
 
@@ -134,6 +146,40 @@ class BinanceFetcher(FinancialEntityFetcher):
             entity=BINANCE,
             products=products,
         )
+
+    async def _build_price_index(self) -> dict[str, Dezimal]:
+        """Build a symbol -> price lookup from ticker prices."""
+        try:
+            tickers = await self._client.get_ticker_prices()
+            return {t["symbol"]: Dezimal(t["price"]) for t in tickers}
+        except Exception as e:
+            self._log.warning(f"Could not fetch ticker prices: {e}")
+            return {}
+
+    @staticmethod
+    def _price_in_fiat(
+        asset: str,
+        amount: Dezimal,
+        price_index: dict[str, Dezimal],
+    ) -> tuple[Dezimal | None, str | None]:
+        """Price an asset in fiat (EUR/USD). Falls back via stablecoin conversion."""
+        # 1. Direct fiat pair (e.g. BTCEUR, BTCUSD)
+        for fiat in FIAT_QUOTES:
+            price = price_index.get(f"{asset}{fiat}")
+            if price is not None:
+                return round(amount * price, 4), fiat
+
+        # 2. Via stablecoin: asset->stablecoin then stablecoin->fiat
+        for stable in STABLECOIN_QUOTES:
+            asset_price = price_index.get(f"{asset}{stable}")
+            if asset_price is None:
+                continue
+            for fiat in FIAT_QUOTES:
+                conversion = price_index.get(f"{stable}{fiat}")
+                if conversion is not None:
+                    return round(amount * asset_price * conversion, 4), fiat
+
+        return None, None
 
     async def transactions(
         self, registered_txs: set[str], options: FetchOptions

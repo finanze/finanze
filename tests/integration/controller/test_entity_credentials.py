@@ -37,6 +37,12 @@ def _setup_fetcher(entity_fetchers, entity, login_result):
     return fetcher
 
 
+def _setup_entity_account_port_no_existing(entity_account_port):
+    """Set up entity_account_port to simulate no existing accounts (first login)."""
+    entity_account_port.get_by_entity_id = AsyncMock(return_value=[])
+    entity_account_port.create = AsyncMock()
+
+
 class TestEntityLoginRouteValidation:
     @pytest.mark.asyncio
     async def test_returns_400_when_entity_missing(self, client):
@@ -104,7 +110,10 @@ class TestInvalidCredentials:
 
 class TestSuccessfulLogin:
     @pytest.mark.asyncio
-    async def test_returns_200_with_created_code(self, client, entity_fetchers):
+    async def test_returns_200_with_created_code(
+        self, client, entity_fetchers, entity_account_port
+    ):
+        _setup_entity_account_port_no_existing(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -120,11 +129,13 @@ class TestSuccessfulLogin:
         assert response.status_code == 200
         body = await response.get_json()
         assert body["code"] == "CREATED"
+        assert "entityAccountId" in body
 
     @pytest.mark.asyncio
     async def test_credentials_saved_after_created(
-        self, client, entity_fetchers, credentials_port
+        self, client, entity_fetchers, credentials_port, entity_account_port
     ):
+        _setup_entity_account_port_no_existing(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -137,15 +148,20 @@ class TestSuccessfulLogin:
                 "credentials": {"user": "myuser", "password": "mypass"},
             },
         )
-        credentials_port.save.assert_awaited_once_with(
-            uuid.UUID(MY_INVESTOR_ID),
-            {"user": "myuser", "password": "mypass"},
-        )
+        credentials_port.save.assert_awaited_once()
+        saved_call_args = credentials_port.save.await_args
+        saved_entity_account_id = saved_call_args[0][0]
+        saved_entity_id = saved_call_args[0][1]
+        saved_credentials = saved_call_args[0][2]
+        assert isinstance(saved_entity_account_id, uuid.UUID)
+        assert saved_entity_id == uuid.UUID(MY_INVESTOR_ID)
+        assert saved_credentials == {"user": "myuser", "password": "mypass"}
 
     @pytest.mark.asyncio
-    async def test_old_credentials_deleted_before_save(
-        self, client, entity_fetchers, credentials_port
+    async def test_entity_account_created_on_first_login(
+        self, client, entity_fetchers, entity_account_port
     ):
+        _setup_entity_account_port_no_existing(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -158,7 +174,40 @@ class TestSuccessfulLogin:
                 "credentials": {"user": "myuser", "password": "mypass"},
             },
         )
-        credentials_port.delete.assert_awaited_once_with(uuid.UUID(MY_INVESTOR_ID))
+        entity_account_port.create.assert_awaited_once()
+        created_account = entity_account_port.create.await_args[0][0]
+        assert created_account.entity_id == uuid.UUID(MY_INVESTOR_ID)
+
+    @pytest.mark.asyncio
+    async def test_old_credentials_deleted_before_save_on_relogin(
+        self, client, entity_fetchers, credentials_port, entity_account_port
+    ):
+        from domain.entity_account import EntityAccount
+
+        existing_account_id = uuid.uuid4()
+        existing_account = EntityAccount(
+            id=existing_account_id,
+            entity_id=uuid.UUID(MY_INVESTOR_ID),
+            created_at=datetime.now(timezone.utc),
+        )
+        entity_account_port.get_by_entity_id = AsyncMock(
+            return_value=[existing_account]
+        )
+        entity_account_port.create = AsyncMock()
+
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(code=LoginResultCode.CREATED),
+        )
+        await client.post(
+            LOGIN_ENTITY_URL,
+            json={
+                "entity": MY_INVESTOR_ID,
+                "credentials": {"user": "myuser", "password": "mypass"},
+            },
+        )
+        credentials_port.delete.assert_awaited_once_with(existing_account_id)
         # delete must have been called before save
         delete_order = credentials_port.delete.await_args_list
         save_order = credentials_port.save.await_args_list
@@ -167,8 +216,9 @@ class TestSuccessfulLogin:
 
     @pytest.mark.asyncio
     async def test_session_saved_when_present(
-        self, client, entity_fetchers, sessions_port
+        self, client, entity_fetchers, sessions_port, entity_account_port
     ):
+        _setup_entity_account_port_no_existing(entity_account_port)
         session = EntitySession(
             creation=datetime.now(timezone.utc),
             expiration=None,
@@ -186,7 +236,14 @@ class TestSuccessfulLogin:
                 "credentials": {"user": "myuser", "password": "mypass"},
             },
         )
-        sessions_port.save.assert_awaited_once_with(uuid.UUID(MY_INVESTOR_ID), session)
+        sessions_port.save.assert_awaited_once()
+        saved_call_args = sessions_port.save.await_args
+        saved_entity_account_id = saved_call_args[0][0]
+        saved_entity_id = saved_call_args[0][1]
+        saved_session = saved_call_args[0][2]
+        assert isinstance(saved_entity_account_id, uuid.UUID)
+        assert saved_entity_id == uuid.UUID(MY_INVESTOR_ID)
+        assert saved_session == session
 
 
 class TestLoginFlowDeferral:
@@ -259,7 +316,10 @@ class TestLoginFlowDeferral:
 
 class TestInternalCredentials:
     @pytest.mark.asyncio
-    async def test_internal_cred_not_required(self, client, entity_fetchers):
+    async def test_internal_cred_not_required(
+        self, client, entity_fetchers, entity_account_port
+    ):
+        _setup_entity_account_port_no_existing(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             UNICAJA,
@@ -278,8 +338,9 @@ class TestInternalCredentials:
 
     @pytest.mark.asyncio
     async def test_internal_temp_not_saved(
-        self, client, entity_fetchers, credentials_port
+        self, client, entity_fetchers, credentials_port, entity_account_port
     ):
+        _setup_entity_account_port_no_existing(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MINTOS,
@@ -298,8 +359,10 @@ class TestInternalCredentials:
         )
         credentials_port.save.assert_awaited_once()
         saved_call_args = credentials_port.save.await_args
-        saved_entity_id = saved_call_args[0][0]
-        saved_credentials = saved_call_args[0][1]
+        saved_entity_account_id = saved_call_args[0][0]
+        saved_entity_id = saved_call_args[0][1]
+        saved_credentials = saved_call_args[0][2]
+        assert isinstance(saved_entity_account_id, uuid.UUID)
         assert saved_entity_id == uuid.UUID(MINTOS_ID)
         assert "user" in saved_credentials
         assert "password" in saved_credentials

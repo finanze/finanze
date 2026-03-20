@@ -74,6 +74,7 @@ EntityCredentials = dict[str, str]
 @dataclass
 class FinancialEntityCredentialsEntry:
     entity_id: UUID
+    entity_account_id: Optional[UUID] = None
     created_at: Optional[datetime] = None
     last_used_at: Optional[datetime] = None
     expiration: Optional[datetime] = None

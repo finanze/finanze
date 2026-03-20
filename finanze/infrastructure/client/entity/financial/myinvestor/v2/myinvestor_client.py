@@ -16,6 +16,7 @@ from domain.entity_login import (
     LoginResultCode,
     EntitySession,
     LoginConfirmationType,
+    ChallengeType,
 )
 from domain.public_keychain import PublicKeychain
 
@@ -210,7 +211,8 @@ class MyInvestorAPIV2Client:
         if error_code == "SECURITY_001":
             return EntityLoginResult(
                 LoginResultCode.CODE_REQUESTED,
-                confirmation_type=LoginConfirmationType.CAPTCHA,
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                challenge_type=ChallengeType.RECAPTCHA,
                 process_id=self._skey,
                 message=body.get("status", {}).get("message", ""),
             )

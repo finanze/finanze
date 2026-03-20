@@ -90,6 +90,8 @@ class GetContributionsImpl(GetContributions):
                         active=pc.active,
                         source=pc.source,
                         next_date=_next_contribution_date(pc),
+                        entity=pc.entity,
+                        entity_account_id=pc.entity_account_id,
                     )
                 )
             contributions[str(entity.id)] = AutoContributions(periodic=updated_periodic)

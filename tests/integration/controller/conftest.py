@@ -43,6 +43,7 @@ from application.ports.backup_processor import BackupProcessor
 from application.ports.datasource_backup_port import Backupable
 from application.ports.datasource_initiator import DatasourceInitiator
 from application.ports.public_keychain_loader import PublicKeychainLoader
+from application.ports.entity_account_port import EntityAccountPort
 from domain.public_keychain import PublicKeychain
 
 from application.use_cases.register_user import RegisterUserImpl
@@ -125,6 +126,8 @@ async def app(tmp_path):
     keychain_loader = AsyncMock(spec=PublicKeychainLoader)
     keychain_loader.load = AsyncMock(return_value=PublicKeychain({}))
 
+    entity_account_port = AsyncMock(spec=EntityAccountPort)
+
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
     )
@@ -146,6 +149,7 @@ async def app(tmp_path):
         sessions_port,
         transaction_handler_port,
         keychain_loader,
+        entity_account_port,
     )
     fetch_financial_data_uc = FetchFinancialDataImpl(
         position_port,
@@ -161,6 +165,7 @@ async def app(tmp_path):
         crypto_asset_info_provider,
         transaction_handler_port,
         keychain_loader,
+        entity_account_port,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,
@@ -254,6 +259,7 @@ async def app(tmp_path):
         backup_processor,
         backupable_ports,
         data_initiator,
+        entity_account_port,
     )
 
     await db_client.silent_close()
@@ -329,3 +335,8 @@ async def backupable_ports(app):
 @pytest_asyncio.fixture
 async def data_initiator(app):
     return app[13]
+
+
+@pytest_asyncio.fixture
+async def entity_account_port(app):
+    return app[14]

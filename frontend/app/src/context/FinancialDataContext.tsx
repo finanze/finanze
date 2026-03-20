@@ -200,19 +200,34 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         setPositionsData(prevPositions => {
           if (!prevPositions) return positionsResponse
 
+          const updatedPositions = { ...prevPositions.positions }
+          // Remove entries for queried entities that are no longer in the response
+          for (const eid of queryParams.entities) {
+            if (!(eid in positionsResponse.positions)) {
+              delete updatedPositions[eid]
+            }
+          }
+          // Merge in new data
+          Object.assign(updatedPositions, positionsResponse.positions)
+
           return {
             ...prevPositions,
-            positions: {
-              ...prevPositions.positions,
-              ...positionsResponse.positions,
-            },
+            positions: updatedPositions,
           }
         })
 
         setContributions(prevContributions => {
           if (!prevContributions) return contributionsData
+
+          const updated = { ...prevContributions }
+          // Remove entries for queried entities no longer in the response
+          for (const eid of queryParams.entities) {
+            if (!(eid in contributionsData)) {
+              delete updated[eid]
+            }
+          }
           return {
-            ...prevContributions,
+            ...updated,
             ...contributionsData,
           }
         })

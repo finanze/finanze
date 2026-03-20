@@ -104,11 +104,16 @@ export function PinPad() {
       const featuresToUse = pendingParams?.features ?? selectedFeatures
       const optionsToUse = pendingParams?.options ?? fetchOptions
 
-      scrape(selectedEntity, featuresToUse, {
-        code: pinString,
-        deep: optionsToUse.deep,
-        avoidNewLogin: optionsToUse.avoidNewLogin,
-      })
+      scrape(
+        selectedEntity,
+        featuresToUse,
+        {
+          code: pinString,
+          deep: optionsToUse.deep,
+          avoidNewLogin: optionsToUse.avoidNewLogin,
+        },
+        pendingParams?.entityAccountId,
+      )
     }
   }
 

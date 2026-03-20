@@ -454,6 +454,7 @@ class GlobalPosition:
     date: Optional[datetime] = None
     products: ProductPositions = field(default_factory=dict)
     source: DataSource = DataSource.REAL
+    entity_account_id: Optional[UUID] = None
 
     def __post_init__(self):
         if self.date is None:
@@ -467,7 +468,7 @@ class HistoricalPosition:
 
 @dataclass
 class EntitiesPosition:
-    positions: dict[str, GlobalPosition]
+    positions: dict[str, list[GlobalPosition]]
 
 
 @dataclass

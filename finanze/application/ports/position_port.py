@@ -27,7 +27,7 @@ class PositionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_last_by_entity_and_account(
+    async def get_last_by_entity_broken_down(
         self, query: Optional[PositionQueryRequest] = None
     ) -> dict[Entity, list[GlobalPosition]]:
         raise NotImplementedError

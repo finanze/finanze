@@ -268,34 +268,36 @@ function FundsInvestmentPageContent({
 
     const list: ReadOnlyFundPortfolioItem[] = []
 
-    Object.values(positionsData.positions).forEach(globalPosition => {
-      const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
-        | { entries?: FundPortfolio[] }
-        | undefined
-      const entries = product?.entries ?? []
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(globalPosition => {
+        const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
+          | { entries?: FundPortfolio[] }
+          | undefined
+        const entries = product?.entries ?? []
 
-      entries.forEach(portfolio => {
-        const source = portfolio.source ?? DataSource.REAL
-        if (source === DataSource.MANUAL) {
-          return
-        }
+        entries.forEach(portfolio => {
+          const source = portfolio.source ?? DataSource.REAL
+          if (source === DataSource.MANUAL) {
+            return
+          }
 
-        const id =
-          portfolio.id ||
-          `${globalPosition.entity.id}-readonly-${
-            portfolio.name?.trim() || "portfolio"
-          }`
+          const id =
+            portfolio.id ||
+            `${globalPosition.entity.id}-readonly-${
+              portfolio.name?.trim() || "portfolio"
+            }`
 
-        list.push({
-          id,
-          name: portfolio.name ?? null,
-          currency: portfolio.currency ?? null,
-          entityId: globalPosition.entity.id,
-          entityName: globalPosition.entity.name,
-          source,
+          list.push({
+            id,
+            name: portfolio.name ?? null,
+            currency: portfolio.currency ?? null,
+            entityId: globalPosition.entity.id,
+            entityName: globalPosition.entity.name,
+            source,
+          })
         })
       })
-    })
 
     return list.sort((a, b) => {
       if (a.entityName !== b.entityName) {

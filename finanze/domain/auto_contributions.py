@@ -52,6 +52,7 @@ class PeriodicContribution:
     next_date: Optional[date] = None
     target_subtype: Optional[ContributionTargetSubtype] = None
     entity: Optional[Entity] = None
+    entity_account_id: Optional[UUID] = None
 
 
 @dataclass

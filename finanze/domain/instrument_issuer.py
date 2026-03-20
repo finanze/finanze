@@ -9,6 +9,7 @@ class KnownIssuer(str, Enum):
     ARK = "Ark"
     AXA = "AXA"
     BBVA = "BBVA"
+    BITWISE = "Bitwise"
     BLACKROCK = "BlackRock"
     BNP_PARIBAS = "BNP Paribas"
     CASER = "Caser"
@@ -45,6 +46,7 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "is ": KnownIssuer.BLACKROCK,
     "bgf ": KnownIssuer.BLACKROCK,
     "jpm ": KnownIssuer.JP_MORGAN,
+    "dbx ": KnownIssuer.XTRACKERS,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

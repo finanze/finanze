@@ -43,19 +43,19 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 ### Supported Assets by Financial Entity
 
 | Entity         | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-|----------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
-| Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
-| SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets     |
-| Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-| Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
-| Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
-| Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING            | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
-| Grupo Cajamar  | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-| DEGIRO         | ✅        | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
+| -------------- | -------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
+| Urbanitae      | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
+| MyInvestor     | ✅       | ✅    | ✅    | ✅             | ✅       | ✅         | ❌                  | -      | -     |                     |
+| SEGO           | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
+| Trade Republic | ✅       | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
+| Unicaja        | ✅       | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
+| Wecity         | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
+| Mintos         | ✅       | -     | -     | ❌             | ❌       | -          | -                   | -      | ❌    | Crowdlending        |
+| Freedom24      | ✅       | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
+| Indexa Capital | ✅       | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
+| ING            | ✅       | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
+| Grupo Cajamar  | ✅       | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
+| DEGIRO         | ✅       | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
 
 #### GoCardless Integration
 
@@ -76,19 +76,19 @@ Not all entities support the same features, in general we can group data in the 
   deposits are not included here).
 
 | Entity         | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
-|----------------|-----------------|---------------------------|--------------------------------|------------------------|
-| Urbanitae      | ✅               | -                         | ✅                              | ✅                      |
-| MyInvestor     | ✅               | ✅                         | ✅                              | ❌                      |
-| SEGO           | ✅               | -                         | ✅                              | ✅                      |
-| Trade Republic | ✅               | ✅                         | ✅                              | -                      |
-| Unicaja        | ✅               | ✅                         | ❌                              | -                      |
-| Wecity         | ✅               | -                         | ✅                              | ✅                      |
-| Mintos         | ✅               | -                         | ❌                              | ❌                      |
-| Freedom24      | ✅               | -                         | ✅                              | ❌                      |
-| Indexa Capital | ✅               | -                         | ✅                              | -                      |
-| ING            | ✅               | ✅                         | ✅                              | -                      |
-| Grupo Cajamar  | ✅               | -                         | ❌                              | -                      |
-| DEGIRO         | ✅               | -                         | ✅                              | -                      |
+| -------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
+| Urbanitae      | ✅              | -                         | ✅                             | ✅                     |
+| MyInvestor     | ✅              | ✅                        | ✅                             | ❌                     |
+| SEGO           | ✅              | -                         | ✅                             | ✅                     |
+| Trade Republic | ✅              | ✅                        | ✅                             | -                      |
+| Unicaja        | ✅              | ✅                        | ❌                             | -                      |
+| Wecity         | ✅              | -                         | ✅                             | ✅                     |
+| Mintos         | ✅              | -                         | ❌                             | ❌                     |
+| Freedom24      | ✅              | -                         | ✅                             | ❌                     |
+| Indexa Capital | ✅              | -                         | ✅                             | -                      |
+| ING            | ✅              | ✅                        | ✅                             | -                      |
+| Grupo Cajamar  | ✅              | -                         | ❌                             | -                      |
+| DEGIRO         | ✅              | -                         | ✅                             | -                      |
 
 ### Financial Entity notes
 
@@ -254,19 +254,6 @@ important ones are::
 - `USERNAME` and `PASSWORD` optional, to auto start session on load.
 - `MULTI_USER` optional, to allow multiple user sign up (only recommended for local development).
 - Other Selenium related ones.
-
-### Credentials
-
-There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
-this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
-
-_Just for development_ - Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and
-`{ENTITY_NAME}_PASSWORD`.
-Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
-This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
-
-Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
-can get the needed environment names.
 
 ## Attributions & Credits
 

@@ -5,6 +5,7 @@ const KNOWN_ISSUER_ICONS: Record<string, string> = {
   Ark: "ark",
   AXA: "axa",
   BBVA: "bbva",
+  Bitwise: "bitwise",
   BlackRock: "blackrock",
   "BNP Paribas": "bnpparibas",
   Caser: "caser",

@@ -200,7 +200,7 @@
       "viewModeLabel": "Vista",
       "viewModes": {
         "wallets": "Por billetera",
-        "network": "Por red"
+        "network": "Por origen"
       }
     },
     "weightedAverageInterest": "Interés ponderado",
@@ -286,6 +286,12 @@
       "USER": "Nombre de Usuario",
       "API_TOKEN": "Token API"
     },
+    "credentialFields": {
+      "apiKey": "Clave API",
+      "secretKey": "Clave Secreta"
+    },
+    "addAccountName": "Nombrar esta cuenta",
+    "accountNamePlaceholder": "Nombre de cuenta (opcional)",
     "title": "Bienvenido a Finanze",
     "subtitle": "Tus datos financieros están encriptados",
     "welcomeBack": "¡Bienvenido de vuelta, {username}!",
@@ -327,8 +333,8 @@
     "biometricLoginFailed": "La autenticación biométrica falló",
     "inAppConfirmationTitle": "Confirma el inicio de sesión en",
     "inAppConfirmationMessage": "Abre la app de la institución en tu teléfono y confirma la solicitud de inicio de sesión.",
-    "captchaTitle": "Verificación de seguridad de",
-    "captchaMessage": "Por favor, completa el CAPTCHA para continuar."
+    "challengeTitle": "Verificación de seguridad de",
+    "challengeMessage": "Por favor, completa la verificación de seguridad para continuar."
   },
   "pinpad": {
     "enterCode": "Ingresa el código de {length} dígitos de",
@@ -394,6 +400,10 @@
     "commoditiesDescription": "Integra tus materias primas con valor de mercado en tiempo real",
     "manualDataEntry": "Datos de usuario",
     "manage": "Gestionar",
+    "addAccount": "Añadir cuenta",
+    "manageAccounts": "Gestionar cuentas",
+    "account": "Cuenta",
+    "noAccounts": "No hay cuentas conectadas",
     "moreFinancialInstitutionsCard": "Más bancos",
     "addExternalEntity": "Instituciones financieras",
     "requiresProviderIntegration": "Requiere integración",

@@ -399,7 +399,7 @@ export function ManualTransactionDialog({
     const option = entities.find(entity => entity.id === formState.entityId)
     if (option) return option.name
     const positionEntityName =
-      positionsData?.positions?.[formState.entityId]?.entity?.name
+      positionsData?.positions?.[formState.entityId]?.[0]?.entity?.name
     return positionEntityName || ""
   }, [entities, formState.entityId, formState.entityName, positionsData])
 
@@ -409,7 +409,7 @@ export function ManualTransactionDialog({
       return suggestions
     }
 
-    const entityPosition = positionsData.positions[formState.entityId]
+    const entityPosition = positionsData.positions[formState.entityId]?.[0]
     if (!entityPosition) {
       return suggestions
     }
@@ -1016,9 +1016,6 @@ export function ManualTransactionDialog({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
-          onClick={e => {
-            if (e.target === e.currentTarget) handleClose()
-          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}

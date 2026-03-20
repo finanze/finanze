@@ -52,6 +52,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         contrib.source == DataSource.REAL,
                         contrib.source,
                         datetime.now(tzlocal()).isoformat(),
+                        str(contrib.entity_account_id)
+                        if contrib.entity_account_id
+                        else None,
                     ),
                 )
 
@@ -80,7 +83,7 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                 params.extend([str(e) for e in query.excluded_entities])
 
             if conditions:
-                sql += " WHERE " + " AND ".join(conditions)
+                sql += " AND " + " AND ".join(conditions)
 
             await cursor.execute(sql, tuple(params))
 
@@ -122,6 +125,9 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
                         active=bool(row["active"]),
                         source=row["source"],
                         entity=entity,
+                        entity_account_id=UUID(row["entity_account_id"])
+                        if row["entity_account_id"]
+                        else None,
                     )
                 )
 
@@ -134,4 +140,11 @@ class AutoContributionsSQLRepository(AutoContributionsPort):
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 AutoContributionsQueries.DELETE_BY_SOURCE, (source.value,)
+            )
+
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                AutoContributionsQueries.DELETE_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
             )

@@ -46,7 +46,7 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def delete_by_entity_source(self, entity_id: UUID, source: DataSource):
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
         raise NotImplementedError
 
     @abc.abstractmethod

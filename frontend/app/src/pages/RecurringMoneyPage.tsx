@@ -488,20 +488,24 @@ export default function RecurringMoneyPage() {
     const loans: Loan[] = []
 
     // Extract all loans from positions data
-    Object.values(positionsData.positions).forEach(globalPosition => {
-      // Check if this entity has loan products
-      if (
-        globalPosition.products &&
-        globalPosition.products[ProductType.LOAN]
-      ) {
-        const loanProducts = globalPosition.products[ProductType.LOAN] as Loans
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(globalPosition => {
+        // Check if this entity has loan products
+        if (
+          globalPosition.products &&
+          globalPosition.products[ProductType.LOAN]
+        ) {
+          const loanProducts = globalPosition.products[
+            ProductType.LOAN
+          ] as Loans
 
-        if (loanProducts && loanProducts.entries) {
-          const entityLoans = loanProducts.entries
-          loans.push(...entityLoans)
+          if (loanProducts && loanProducts.entries) {
+            const entityLoans = loanProducts.entries
+            loans.push(...entityLoans)
+          }
         }
-      }
-    })
+      })
 
     // Filter loans that don't already have a corresponding recurring expense
     const filteredLoans = loans

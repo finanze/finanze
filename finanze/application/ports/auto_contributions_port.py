@@ -20,3 +20,7 @@ class AutoContributionsPort(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def delete_by_source(self, source: DataSource):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def delete_by_entity_account_id(self, entity_account_id: UUID):
+        raise NotImplementedError

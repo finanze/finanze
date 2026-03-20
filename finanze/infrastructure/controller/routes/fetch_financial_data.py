@@ -14,11 +14,11 @@ def _map_features(features: list[str]) -> list[Feature]:
 async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
     body = await request.get_json()
 
-    entity = body.get("entity", None)
-    if not entity:
-        return jsonify({"message": "Source entity not provided"}), 400
+    entity_account_id = body.get("entityAccountId", None)
+    if not entity_account_id:
+        return jsonify({"message": "Entity account not provided"}), 400
 
-    entity = UUID(entity)
+    entity_account_id = UUID(entity_account_id)
 
     feature_fields = body.get("features", [])
     try:
@@ -33,7 +33,7 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
     deep = body.get("deep", False)
 
     fetch_request = FetchRequest(
-        entity_id=entity,
+        entity_account_id=entity_account_id,
         features=features,
         two_factor=TwoFactor(code=code, process_id=process_id, token=token),
         fetch_options=FetchOptions(deep=deep),

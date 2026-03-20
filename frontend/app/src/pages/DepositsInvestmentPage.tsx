@@ -99,83 +99,86 @@ export default function DepositsInvestmentPage() {
 
     const deposits: DepositPosition[] = []
 
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      const depositProduct = entityPosition.products[ProductType.DEPOSIT]
-      if (
-        depositProduct &&
-        "entries" in depositProduct &&
-        depositProduct.entries.length > 0
-      ) {
-        const entityName = entityPosition.entity?.name || "Unknown"
-        const entityId = entityPosition.entity?.id || null
-        const entityOrigin = entityPosition.entity?.origin ?? null
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const depositProduct = entityPosition.products[ProductType.DEPOSIT]
+        if (
+          depositProduct &&
+          "entries" in depositProduct &&
+          depositProduct.entries.length > 0
+        ) {
+          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityId = entityPosition.entity?.id || null
+          const entityOrigin = entityPosition.entity?.origin ?? null
 
-        depositProduct.entries.forEach((deposit: any, index: number) => {
-          const entryId = deposit.id ? String(deposit.id) : undefined
-          const amount = Number(deposit.amount ?? 0)
-          const expectedInterestsRaw =
-            deposit.expected_interests != null
-              ? Number(deposit.expected_interests)
-              : 0
-          const hasExpectedInterests =
-            Number.isFinite(expectedInterestsRaw) && expectedInterestsRaw !== 0
-          const expectedInterests = hasExpectedInterests
-            ? expectedInterestsRaw
-            : null
-          const convertedAmount = convertCurrency(
-            amount,
-            deposit.currency,
-            settings.general.defaultCurrency,
-            exchangeRates,
-          )
-
-          const convertedExpectedAmount =
-            expectedInterests != null
-              ? convertCurrency(
-                  expectedInterests,
-                  deposit.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
+          depositProduct.entries.forEach((deposit: any, index: number) => {
+            const entryId = deposit.id ? String(deposit.id) : undefined
+            const amount = Number(deposit.amount ?? 0)
+            const expectedInterestsRaw =
+              deposit.expected_interests != null
+                ? Number(deposit.expected_interests)
+                : 0
+            const hasExpectedInterests =
+              Number.isFinite(expectedInterestsRaw) &&
+              expectedInterestsRaw !== 0
+            const expectedInterests = hasExpectedInterests
+              ? expectedInterestsRaw
               : null
-
-          deposits.push({
-            id:
-              entryId ??
-              `${entityId ?? "entity"}-deposit-${deposit.name ?? index}`,
-            entryId,
-            name: deposit.name ?? "—",
-            entity: entityName,
-            entityId,
-            entityOrigin,
-            amount,
-            convertedAmount,
-            expectedInterests,
-            convertedExpectedAmount,
-            formattedAmount: formatCurrency(amount, locale, deposit.currency),
-            formattedConvertedAmount: formatCurrency(
-              convertedAmount,
-              locale,
+            const convertedAmount = convertCurrency(
+              amount,
+              deposit.currency,
               settings.general.defaultCurrency,
-            ),
-            formattedExpectedAmount:
-              convertedExpectedAmount != null
-                ? formatCurrency(
-                    convertedExpectedAmount,
-                    locale,
+              exchangeRates,
+            )
+
+            const convertedExpectedAmount =
+              expectedInterests != null
+                ? convertCurrency(
+                    expectedInterests,
+                    deposit.currency,
                     settings.general.defaultCurrency,
+                    exchangeRates,
                   )
-                : null,
-            interest_rate: Number(deposit.interest_rate ?? 0),
-            maturity: deposit.maturity || "",
-            creation: deposit.creation || "",
-            currency: deposit.currency,
-            source:
-              (deposit.source as DataSource | undefined) ?? DataSource.REAL,
+                : null
+
+            deposits.push({
+              id:
+                entryId ??
+                `${entityId ?? "entity"}-deposit-${deposit.name ?? index}`,
+              entryId,
+              name: deposit.name ?? "—",
+              entity: entityName,
+              entityId,
+              entityOrigin,
+              amount,
+              convertedAmount,
+              expectedInterests,
+              convertedExpectedAmount,
+              formattedAmount: formatCurrency(amount, locale, deposit.currency),
+              formattedConvertedAmount: formatCurrency(
+                convertedAmount,
+                locale,
+                settings.general.defaultCurrency,
+              ),
+              formattedExpectedAmount:
+                convertedExpectedAmount != null
+                  ? formatCurrency(
+                      convertedExpectedAmount,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )
+                  : null,
+              interest_rate: Number(deposit.interest_rate ?? 0),
+              maturity: deposit.maturity || "",
+              creation: deposit.creation || "",
+              currency: deposit.currency,
+              source:
+                (deposit.source as DataSource | undefined) ?? DataSource.REAL,
+            })
           })
-        })
-      }
-    })
+        }
+      })
 
     return deposits
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])

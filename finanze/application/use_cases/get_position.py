@@ -42,10 +42,11 @@ def _enrich_loans(position):
 
 
 def _enrich_data(data: dict):
-    for entity_id, position in data.items():
-        if position is None:
+    for entity_id, positions in data.items():
+        if positions is None:
             continue
-        _enrich_loans(position)
+        for position in positions:
+            _enrich_loans(position)
 
 
 class GetPositionImpl(GetPosition):
@@ -62,12 +63,12 @@ class GetPositionImpl(GetPosition):
             entities=query.entities, excluded_entities=excluded_entities
         )
         global_position_by_entity = (
-            await self._position_port.get_last_grouped_by_entity(query)
+            await self._position_port.get_last_by_entity_broken_down(query)
         )
 
         global_position_by_entity = {
-            str(entity.id): position
-            for entity, position in global_position_by_entity.items()
+            str(entity.id): positions
+            for entity, positions in global_position_by_entity.items()
         }
 
         _enrich_data(global_position_by_entity)

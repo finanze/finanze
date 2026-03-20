@@ -6,6 +6,7 @@ import pytest
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.entity import Feature
+from domain.entity_account import EntityAccount
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
@@ -18,6 +19,7 @@ from domain.native_entities import MY_INVESTOR
 FETCH_URL = "/api/v1/data/fetch/financial"
 
 MY_INVESTOR_ID = "e0000000-0000-0000-0000-000000000001"
+ENTITY_ACCOUNT_ID = "a0000000-0000-0000-0000-000000000001"
 
 
 def _setup_fetcher(entity_fetchers, entity, login_result, position=None):
@@ -40,22 +42,35 @@ def _make_position():
     )
 
 
+def _make_entity_account():
+    return EntityAccount(
+        id=uuid.UUID(ENTITY_ACCOUNT_ID),
+        entity_id=uuid.UUID(MY_INVESTOR_ID),
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+def _setup_entity_account(entity_account_port):
+    entity_account_port.get_by_id = AsyncMock(return_value=_make_entity_account())
+
+
 class TestFetchRouteValidation:
     @pytest.mark.asyncio
-    async def test_returns_400_when_entity_missing(self, client):
+    async def test_returns_400_when_entity_account_missing(self, client):
         response = await client.post(
             FETCH_URL,
             json={"features": ["POSITION"]},
         )
         assert response.status_code == 400
         body = await response.get_json()
-        assert "entity" in body["message"].lower()
+        assert "entity account" in body["message"].lower()
 
     @pytest.mark.asyncio
-    async def test_returns_400_on_invalid_feature(self, client):
+    async def test_returns_400_on_invalid_feature(self, client, entity_account_port):
+        _setup_entity_account(entity_account_port)
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["NONEXISTENT"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["NONEXISTENT"]},
         )
         assert response.status_code == 400
         body = await response.get_json()
@@ -64,22 +79,31 @@ class TestFetchRouteValidation:
 
 class TestEntityNotFound:
     @pytest.mark.asyncio
-    async def test_returns_404_for_unknown_entity(self, client):
+    async def test_returns_not_connected_for_unknown_account(
+        self, client, entity_account_port
+    ):
+        entity_account_port.get_by_id = AsyncMock(return_value=None)
         random_id = str(uuid.uuid4())
         response = await client.post(
             FETCH_URL,
-            json={"entity": random_id, "features": ["POSITION"]},
+            json={"entityAccountId": random_id, "features": ["POSITION"]},
         )
-        assert response.status_code == 404
+        assert response.status_code == 200
         body = await response.get_json()
-        assert body["code"] == "ENTITY_NOT_FOUND"
+        assert body["code"] == "NOT_CONNECTED"
 
 
 class TestFeatureNotSupported:
     @pytest.mark.asyncio
     async def test_returns_feature_not_supported(
-        self, client, entity_fetchers, credentials_port, last_fetches_port
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -87,7 +111,7 @@ class TestFeatureNotSupported:
         )
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["HISTORIC"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["HISTORIC"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -97,19 +121,25 @@ class TestFeatureNotSupported:
 class TestNoCredentials:
     @pytest.mark.asyncio
     async def test_returns_no_credentials_available(
-        self, client, entity_fetchers, credentials_port, last_fetches_port
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(return_value=None)
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -119,19 +149,25 @@ class TestNoCredentials:
 class TestInvalidStoredCredentials:
     @pytest.mark.asyncio
     async def test_returns_invalid_credentials_for_incomplete_stored_creds(
-        self, client, entity_fetchers, credentials_port, last_fetches_port
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(return_value={"user": "myuser"})
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -141,8 +177,14 @@ class TestInvalidStoredCredentials:
 class TestCooldown:
     @pytest.mark.asyncio
     async def test_returns_cooldown_when_recently_fetched(
-        self, client, entity_fetchers, credentials_port, last_fetches_port
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -153,11 +195,13 @@ class TestCooldown:
             feature=Feature.POSITION,
             date=datetime.now(timezone.utc),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[recent_record])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(
+            return_value=[recent_record]
+        )
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -175,7 +219,9 @@ class TestLoginResults:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -185,7 +231,7 @@ class TestLoginResults:
                 process_id="proc-123",
             ),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -193,7 +239,7 @@ class TestLoginResults:
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -209,7 +255,9 @@ class TestLoginResults:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
@@ -218,7 +266,7 @@ class TestLoginResults:
                 message="Session expired",
             ),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -226,7 +274,7 @@ class TestLoginResults:
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -240,13 +288,15 @@ class TestLoginResults:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.INVALID_CREDENTIALS),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -254,7 +304,7 @@ class TestLoginResults:
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -270,7 +320,9 @@ class TestSuccessfulFetch:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         position = _make_position()
         _setup_fetcher(
             entity_fetchers,
@@ -278,7 +330,7 @@ class TestSuccessfulFetch:
             EntityLoginResult(code=LoginResultCode.CREATED),
             position=position,
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -286,7 +338,7 @@ class TestSuccessfulFetch:
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -301,7 +353,9 @@ class TestSuccessfulFetch:
         last_fetches_port,
         sessions_port,
         position_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         position = _make_position()
         _setup_fetcher(
             entity_fetchers,
@@ -309,7 +363,7 @@ class TestSuccessfulFetch:
             EntityLoginResult(code=LoginResultCode.CREATED),
             position=position,
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -317,7 +371,7 @@ class TestSuccessfulFetch:
 
         await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         position_port.save.assert_awaited_once_with(position)
 
@@ -329,13 +383,15 @@ class TestSuccessfulFetch:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -343,7 +399,7 @@ class TestSuccessfulFetch:
 
         await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         last_fetches_port.save.assert_awaited_once()
         saved_records = last_fetches_port.save.await_args[0][0]
@@ -358,13 +414,15 @@ class TestSuccessfulFetch:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -372,13 +430,13 @@ class TestSuccessfulFetch:
 
         await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         credentials_port.update_last_usage.assert_awaited_once_with(
-            uuid.UUID(MY_INVESTOR_ID)
+            uuid.UUID(ENTITY_ACCOUNT_ID)
         )
         credentials_port.update_expiration.assert_awaited_once_with(
-            uuid.UUID(MY_INVESTOR_ID), None
+            uuid.UUID(ENTITY_ACCOUNT_ID), None
         )
 
     @pytest.mark.asyncio
@@ -389,7 +447,9 @@ class TestSuccessfulFetch:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         session = EntitySession(
             creation=datetime.now(timezone.utc),
             expiration=None,
@@ -400,7 +460,7 @@ class TestSuccessfulFetch:
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED, session=session),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -408,10 +468,14 @@ class TestSuccessfulFetch:
 
         await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
-        sessions_port.delete.assert_awaited_once_with(uuid.UUID(MY_INVESTOR_ID))
-        sessions_port.save.assert_awaited_once_with(uuid.UUID(MY_INVESTOR_ID), session)
+        sessions_port.delete.assert_awaited_once_with(uuid.UUID(ENTITY_ACCOUNT_ID))
+        sessions_port.save.assert_awaited_once_with(
+            uuid.UUID(ENTITY_ACCOUNT_ID),
+            uuid.UUID(MY_INVESTOR_ID),
+            session,
+        )
 
 
 class TestResumedLogin:
@@ -423,13 +487,15 @@ class TestResumedLogin:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.RESUMED),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -437,7 +503,7 @@ class TestResumedLogin:
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID, "features": ["POSITION"]},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -456,7 +522,9 @@ class TestDefaultFeatures:
         last_fetches_port,
         sessions_port,
         position_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         position = _make_position()
         _setup_fetcher(
             entity_fetchers,
@@ -464,7 +532,7 @@ class TestDefaultFeatures:
             EntityLoginResult(code=LoginResultCode.CREATED),
             position=position,
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -472,7 +540,7 @@ class TestDefaultFeatures:
 
         response = await client.post(
             FETCH_URL,
-            json={"entity": MY_INVESTOR_ID},
+            json={"entityAccountId": ENTITY_ACCOUNT_ID},
         )
         assert response.status_code == 200
         body = await response.get_json()
@@ -489,13 +557,15 @@ class TestMultipleFeatures:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         fetcher = _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -504,7 +574,7 @@ class TestMultipleFeatures:
         response = await client.post(
             FETCH_URL,
             json={
-                "entity": MY_INVESTOR_ID,
+                "entityAccountId": ENTITY_ACCOUNT_ID,
                 "features": ["POSITION", "AUTO_CONTRIBUTIONS"],
             },
         )
@@ -523,14 +593,16 @@ class TestMultipleFeatures:
         last_fetches_port,
         sessions_port,
         transaction_port,
+        entity_account_port,
     ):
+        _setup_entity_account(entity_account_port)
         fetcher = _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
         transaction_port.get_refs_by_entity = AsyncMock(return_value=set())
-        last_fetches_port.get_by_entity_id = AsyncMock(return_value=[])
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
         )
@@ -539,7 +611,7 @@ class TestMultipleFeatures:
         response = await client.post(
             FETCH_URL,
             json={
-                "entity": MY_INVESTOR_ID,
+                "entityAccountId": ENTITY_ACCOUNT_ID,
                 "features": ["TRANSACTIONS"],
             },
         )

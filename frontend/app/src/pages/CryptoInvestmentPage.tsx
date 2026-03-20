@@ -95,6 +95,8 @@ interface WalletWithComputed {
   tokenAssets: WalletAssetView[]
   totalValue: number
   totalInitialInvestment: number
+  accountId?: string | null
+  accountName?: string | null
 }
 
 interface EntityWalletGroup {
@@ -480,8 +482,9 @@ function CryptoInvestmentContent({
     const hideUnknownTokens =
       settings.assets?.crypto?.hideUnknownTokens ?? false
 
-    return Object.values(positionsData.positions).reduce<EntityWalletGroup[]>(
-      (acc, entityPosition) => {
+    return Object.values(positionsData.positions)
+      .flat()
+      .reduce<EntityWalletGroup[]>((acc, entityPosition) => {
         const entityId = entityPosition.entity?.id
         const entityName = entityPosition.entity?.name
 
@@ -505,6 +508,10 @@ function CryptoInvestmentContent({
         const entityIconUrl = entityData?.icon_url
         const isCryptoWalletEntity = entityType === "CRYPTO_WALLET"
         const nativeEntityIconPath = `entities/${entityId}.png`
+
+        const accountId = entityPosition.entity_account_id ?? null
+        const accountInfo = entityData?.accounts?.find(a => a.id === accountId)
+        const accountName = accountInfo?.name ?? null
 
         const wallets = (cryptoProduct.entries as CryptoCurrencyWallet[])
           .map(wallet => {
@@ -628,11 +635,9 @@ function CryptoInvestmentContent({
               .filter((view): view is WalletAssetView => view !== null)
 
             const sortedAssetViews = [...assetViews].sort((a, b) => {
-              // Prioritize by value availability: assets with available values come first
               if (a.valueAvailable !== b.valueAvailable) {
                 return a.valueAvailable ? -1 : 1
               }
-              // Both available or both unavailable: sort by value descending
               return b.value - a.value
             })
 
@@ -655,36 +660,49 @@ function CryptoInvestmentContent({
               tokenAssets,
               totalValue,
               totalInitialInvestment,
+              accountId,
+              accountName,
             }
           })
           .sort((a, b) => b.totalValue - a.totalValue)
 
-        const entityTotalValue = wallets.reduce(
-          (sum, wallet) => sum + wallet.totalValue,
-          0,
-        )
-        const entityTotalInitialInvestment = wallets.reduce(
-          (sum, wallet) => sum + wallet.totalInitialInvestment,
-          0,
-        )
+        const existingGroup = acc.find(g => g.entity.id === entityId)
+        if (existingGroup) {
+          existingGroup.wallets.push(...wallets)
+          existingGroup.wallets.sort((a, b) => b.totalValue - a.totalValue)
+          const addedValue = wallets.reduce((s, w) => s + w.totalValue, 0)
+          const addedInvestment = wallets.reduce(
+            (s, w) => s + w.totalInitialInvestment,
+            0,
+          )
+          existingGroup.totalValue += addedValue
+          existingGroup.totalInitialInvestment += addedInvestment
+        } else {
+          const entityTotalValue = wallets.reduce(
+            (sum, wallet) => sum + wallet.totalValue,
+            0,
+          )
+          const entityTotalInitialInvestment = wallets.reduce(
+            (sum, wallet) => sum + wallet.totalInitialInvestment,
+            0,
+          )
 
-        acc.push({
-          entity: {
-            id: entityId,
-            name: entityName,
-            type: entityType,
-            origin: entityOrigin,
-            icon_url: entityIconUrl,
-          },
-          wallets,
-          totalValue: entityTotalValue,
-          totalInitialInvestment: entityTotalInitialInvestment,
-        })
+          acc.push({
+            entity: {
+              id: entityId,
+              name: entityName,
+              type: entityType,
+              origin: entityOrigin,
+              icon_url: entityIconUrl,
+            },
+            wallets,
+            totalValue: entityTotalValue,
+            totalInitialInvestment: entityTotalInitialInvestment,
+          })
+        }
 
         return acc
-      },
-      [],
-    )
+      }, [])
   }, [
     positionsData,
     exchangeRates,
@@ -1352,13 +1370,27 @@ function CryptoInvestmentContent({
                   const walletCount = entityGroup.wallets.filter(
                     walletGroup => !isWalletlessEntry(walletGroup.wallet),
                   ).length
-                  if (walletCount === 0) return null
+                  const accountIdSet = new Set(
+                    entityGroup.wallets.map(w => w.accountId).filter(Boolean),
+                  )
+                  const accountCount = accountIdSet.size
+                  if (walletCount === 0 && accountCount <= 1) return null
                   return (
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {walletCount}{" "}
-                      {walletCount !== 1
-                        ? t.walletManagement.wallets
-                        : t.walletManagement.wallet}
+                      {walletCount > 0 && (
+                        <>
+                          {walletCount}{" "}
+                          {walletCount !== 1
+                            ? t.walletManagement.wallets
+                            : t.walletManagement.wallet}
+                        </>
+                      )}
+                      {walletCount > 0 && accountCount > 1 && " · "}
+                      {accountCount > 1 && (
+                        <>
+                          {accountCount} {t.entities.account}s
+                        </>
+                      )}
                     </p>
                   )
                 })()}
@@ -1843,10 +1875,21 @@ function CryptoInvestmentContent({
                 )
               })}
 
-            {entityGroup.wallets
-              .filter(walletGroup => isWalletlessEntry(walletGroup.wallet))
-              .flatMap(walletGroup => walletGroup.assets)
-              .map(assetView => {
+            {(() => {
+              const walletlessGroups = entityGroup.wallets.filter(walletGroup =>
+                isWalletlessEntry(walletGroup.wallet),
+              )
+              if (walletlessGroups.length === 0) return null
+
+              const accountIds = new Set(
+                walletlessGroups.map(w => w.accountId).filter(Boolean),
+              )
+              const showAccountHeaders = accountIds.size > 1
+
+              const renderAssetCard = (
+                assetView: WalletAssetView,
+                cardKey: string,
+              ) => {
                 const assetSymbol =
                   assetView.symbol || assetView.displayName || ""
                 const amountText =
@@ -1857,14 +1900,9 @@ function CryptoInvestmentContent({
                   chartColorMap.get(assetView.groupingKey) ?? "transparent"
                 const hasAccent = color !== "transparent"
                 const isHighlighted = highlightedAsset === assetView.groupingKey
-
                 return (
                   <div
-                    key={
-                      assetView.originalId ??
-                      assetView.localId ??
-                      assetView.groupingKey
-                    }
+                    key={cardKey}
                     ref={element =>
                       registerAssetRef(assetView.groupingKey, element)
                     }
@@ -2004,7 +2042,59 @@ function CryptoInvestmentContent({
                     </Card>
                   </div>
                 )
-              })}
+              }
+
+              if (showAccountHeaders) {
+                const accountGroups = new Map<
+                  string,
+                  { name: string; assets: WalletAssetView[] }
+                >()
+                walletlessGroups.forEach(wg => {
+                  const key = wg.accountId ?? "default"
+                  const existing = accountGroups.get(key)
+                  if (existing) {
+                    existing.assets.push(...wg.assets)
+                  } else {
+                    accountGroups.set(key, {
+                      name:
+                        wg.accountName ||
+                        `${t.entities.account} ${accountGroups.size + 1}`,
+                      assets: [...wg.assets],
+                    })
+                  }
+                })
+                return Array.from(accountGroups.entries()).map(
+                  ([accountKey, group]) => (
+                    <React.Fragment key={`account-${accountKey}`}>
+                      <div className="col-span-full mt-2">
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                          {group.name}
+                        </p>
+                      </div>
+                      {group.assets.map(assetView =>
+                        renderAssetCard(
+                          assetView,
+                          assetView.originalId ??
+                            assetView.localId ??
+                            `${accountKey}-${assetView.groupingKey}`,
+                        ),
+                      )}
+                    </React.Fragment>
+                  ),
+                )
+              }
+
+              return walletlessGroups
+                .flatMap(walletGroup => walletGroup.assets)
+                .map(assetView =>
+                  renderAssetCard(
+                    assetView,
+                    assetView.originalId ??
+                      assetView.localId ??
+                      assetView.groupingKey,
+                  ),
+                )
+            })()}
           </div>
         </motion.section>
       ))}

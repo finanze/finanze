@@ -376,10 +376,11 @@ export interface GlobalPosition {
   date: string
   products: ProductPositions
   source: DataSource
+  entity_account_id?: string | null
 }
 
 export interface EntitiesPosition {
-  positions: Record<string, GlobalPosition>
+  positions: Record<string, GlobalPosition[]>
 }
 
 export interface PositionQueryRequest {

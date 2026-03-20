@@ -81,12 +81,14 @@ export function Sidebar() {
   const investmentRoutes = useMemo(() => {
     const hasProductEntries = (pt: ProductType) => {
       if (!positionsData?.positions) return false
-      return Object.values(positionsData.positions).some((entity: any) => {
-        const product = entity.products[pt]
-        if (!product) return false
-        if (product.entries && product.entries.length > 0) return true
-        return Array.isArray(product) && product.length > 0
-      })
+      return Object.values(positionsData.positions)
+        .flat()
+        .some((entity: any) => {
+          const product = entity.products[pt]
+          if (!product) return false
+          if (product.entries && product.entries.length > 0) return true
+          return Array.isArray(product) && product.length > 0
+        })
     }
     const routes = [
       {

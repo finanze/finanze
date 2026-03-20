@@ -13,7 +13,12 @@ from domain.public_keychain import PublicKeychain
 
 class LoginConfirmationType(str, Enum):
     IN_APP = "IN_APP"
-    CAPTCHA = "CAPTCHA"
+    CHALLENGE = "CHALLENGE"
+
+
+class ChallengeType(str, Enum):
+    RECAPTCHA = "RECAPTCHA"
+    AWSWAF = "AWSWAF"
 
 
 class LoginResultCode(str, Enum):
@@ -56,8 +61,10 @@ class EntityLoginResult:
     message: Optional[str] = None
     details: Optional[dict] = None
     confirmation_type: Optional[LoginConfirmationType] = None
+    challenge_type: Optional[ChallengeType] = None
     process_id: Optional[str] = None
     session: Optional[EntitySession] = None
+    entity_account_id: Optional[UUID] = None
 
 
 @dataclass
@@ -79,6 +86,8 @@ class EntityLoginRequest:
     credentials: EntityCredentials
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
+    entity_account_id: Optional[UUID] = None
+    account_name: Optional[str] = None
 
 
 @dataclass(config=ConfigDict(arbitrary_types_allowed=True))
@@ -92,4 +101,4 @@ class EntityLoginParams:
 
 @dataclass
 class EntityDisconnectRequest:
-    entity_id: UUID
+    entity_account_id: UUID

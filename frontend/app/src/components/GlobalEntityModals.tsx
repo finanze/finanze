@@ -6,14 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Button } from "@/components/ui/Button"
 import { PinPad } from "@/components/PinPad"
-import { CaptchaModal } from "@/components/CaptchaModal"
+import { ChallengeModal } from "@/components/ChallengeModal"
 import { ExternalLink, Smartphone } from "lucide-react"
 
 export function GlobalEntityModals() {
   const {
     selectedEntity,
     pinRequired,
-    captchaRequired,
+    challengeRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
     view,
@@ -136,10 +136,9 @@ export function GlobalEntityModals() {
         )}
       </AnimatePresence>
 
-      {/* Global CAPTCHA Modal - shown when not on entities page */}
       <AnimatePresence>
-        {captchaRequired && selectedEntity && !isOnEntitiesPage && (
-          <CaptchaModal />
+        {challengeRequired && selectedEntity && !isOnEntitiesPage && (
+          <ChallengeModal />
         )}
       </AnimatePresence>
     </>

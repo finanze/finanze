@@ -12,6 +12,7 @@ from domain.auto_contributions import (
     ContributionTargetType,
     PeriodicContribution,
 )
+from domain.crypto import CryptoCurrencyType
 from domain.dezimal import Dezimal
 from domain.entity_login import EntityLoginParams, EntityLoginResult
 from domain.fetch_record import DataSource
@@ -33,7 +34,6 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
-from domain.crypto import CryptoCurrencyType
 from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import TRADE_REPUBLIC
 from domain.transactions import (
@@ -53,7 +53,7 @@ FALLBACK_LOCALE = "en"
 
 def parse_sub_section_float(section: dict, fallback_locale: str) -> Optional[Dezimal]:
     if not section:
-        return Dezimal(0)
+        return None
 
     value = section.get("detail", {}).get("text")
     if value is None:
@@ -156,15 +156,17 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         two_factor = login_params.two_factor
 
         phone, pin = credentials["phone"], credentials["password"]
-        process_id, code = None, None
+        process_id, code, token = None, None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
+            token = two_factor.token
         return await self._client.login(
             phone,
             pin,
             login_options=login_params.options,
             process_id=process_id,
             code=code,
+            waf_token=token,
             session=login_params.session,
         )
 
@@ -675,12 +677,10 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         shares = parse_sub_section_float(
             get_section(tx_section, "Shares"), inferred_locale
         )
-        taxes = abs(
-            parse_sub_section_float(get_section(tx_section, "Tax"), inferred_locale)
-        )
-        fees = abs(
-            parse_sub_section_float(get_section(tx_section, "Fee"), inferred_locale)
-        )
+        taxes = parse_sub_section_float(get_section(tx_section, "Tax"), inferred_locale)
+        taxes = abs(taxes) if taxes else None
+        fees = parse_sub_section_float(get_section(tx_section, "Fee"), inferred_locale)
+        fees = abs(fees) if fees else None
 
         sub_tx_section = get_section(tx_section, "Transaction")
         if sub_tx_section:
@@ -697,15 +697,18 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 inferred_locale = infer_locale_from_section(
                     get_section(tx_section, "Total")
                 ) or infer_locale_from_section(get_section(tx_section, "Share price"))
-                shares = parse_sub_section_float(
-                    get_section(section_data, "Shares"), inferred_locale
-                )
-                taxes = abs(
-                    parse_sub_section_float(
+                if not shares or shares == 0:
+                    shares = parse_sub_section_float(
+                        get_section(section_data, "Shares"), inferred_locale
+                    )
+                if not taxes or taxes == 0:
+                    taxes = parse_sub_section_float(
                         get_section(section_data, "Tax"), inferred_locale
                     )
-                )
+                    taxes = abs(taxes) if taxes else None
 
+        fees = fees or 0
+        taxes = taxes or 0
         amount = abs(net_amount_val + fees + taxes)
         # Provided price sometimes doesn't match with the executed price, or it has another currency
         # In Private Equity we don't have shares
@@ -713,6 +716,12 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
             price = round(amount / shares, 4)
         else:
             price = amount
+
+        if shares is None:
+            self._log.warning(
+                f"Could not get shares for ISIN {isin} transaction {raw_tx['id']}, skipping"
+            )
+            return None
 
         if product_type == ProductType.FUND:
             return FundTx(
@@ -825,13 +834,18 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         annual_rate = parse_sub_section_float(
             get_section(ov_section, "Annual rate"), inferred_locale
         )
+        taxes = parse_sub_section_float(
+            get_section(ov_section, "Taxes"), inferred_locale
+        )
+        accrued = parse_sub_section_float(
+            get_section(ov_section, "Accrued"), inferred_locale
+        )
 
         if not annual_rate:
             if subtitle:
                 annual_rate = parse_float(subtitle.split(" ")[0], inferred_locale)
             else:
                 self._log.warning(f"No interest rate found in tx: {raw_tx['id']}")
-                return None
 
         event_type = raw_tx.get("eventType", "").strip().upper()
         if title in ["Interest"] or event_type == "INTEREST_PAYOUT":
@@ -841,26 +855,33 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 inferred_locale = infer_locale_from_section(
                     get_section(ov_section, "Total")
                 ) or infer_locale_from_section(get_section(ov_section, "Accrued"))
-                accrued = parse_sub_section_float(
-                    get_section(tx_section, "Accrued"), inferred_locale
-                )
-                taxes = parse_sub_section_float(
-                    get_section(tx_section, "Tax"), inferred_locale
-                )
+                if not accrued or accrued == 0:
+                    accrued = parse_sub_section_float(
+                        get_section(tx_section, "Accrued"), inferred_locale
+                    )
+                if not taxes or taxes == 0:
+                    taxes = parse_sub_section_float(
+                        get_section(tx_section, "Tax"), inferred_locale
+                    )
             else:
-                taxes = 0
-                accrued = amount_obj["value"]
+                if not taxes or taxes == 0:
+                    taxes = 0
+                if not accrued or accrued == 0:
+                    accrued = amount_obj["value"]
         else:
-            taxes = 0
-            accrued = amount_obj["value"]
+            if not taxes or taxes == 0:
+                taxes = 0
+            if not accrued or accrued == 0:
+                accrued = amount_obj["value"]
 
         accrued = Dezimal(round(accrued, 2))
         avg_balance = Dezimal(round(avg_balance, 2))
 
-        if annual_rate == 0:
+        if not annual_rate:
             annual_rate = accrued / avg_balance * 12 * 100
 
         annual_rate = Dezimal(round(annual_rate / 100, 4))
+
         fallback_subtitle = (
             f"{str(annual_rate * 100).rstrip('0').rstrip('.')}%" if annual_rate else ""
         )

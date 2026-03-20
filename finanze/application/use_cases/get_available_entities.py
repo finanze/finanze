@@ -6,6 +6,7 @@ from dateutil.tz import tzlocal
 
 from application.ports.credentials_port import CredentialsPort
 from application.ports.crypto_wallet_port import CryptoWalletPort
+from application.ports.entity_account_port import EntityAccountPort
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
@@ -14,6 +15,7 @@ from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.available_sources import (
     AvailableSource,
     AvailableSources,
+    EntityAccountInfo,
     FinancialEntityStatus,
 )
 from domain.entity import EntityOrigin, EntityType, Feature, Entity
@@ -54,6 +56,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         virtual_import_registry: VirtualImportRegistry,
         entity_fetchers: dict[Entity, FinancialEntityFetcher],
         external_entity_fetchers: dict,
+        entity_account_port: EntityAccountPort,
     ):
         self._entity_port = entity_port
         self._external_entity_port = external_entity_port
@@ -63,10 +66,15 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
         self._virtual_import_registry = virtual_import_registry
         self._entity_fetchers = entity_fetchers
         self._external_entity_fetchers = external_entity_fetchers
+        self._entity_account_port = entity_account_port
 
     async def execute(self) -> AvailableSources:
         logged_entities = await self._credentials_port.get_available_entities()
-        logged_entity_ids = {e.entity_id: e.expiration for e in logged_entities}
+        logged_by_entity_id = {}
+        for e in logged_entities:
+            if e.entity_id not in logged_by_entity_id:
+                logged_by_entity_id[e.entity_id] = []
+            logged_by_entity_id[e.entity_id].append(e)
 
         all_entities = await self._entity_port.get_all()
 
@@ -83,6 +91,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
             wallets = None
             external_entity_id = None
             products = None
+            accounts = None
 
             last_virtual_imported_data = last_virtual_imported_entities.get(entity.id)
             virtual_features = {}
@@ -125,11 +134,35 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                         fetchable = True
                     dict_entity["fetchable"] = fetchable
 
-                    if entity.id in logged_entity_ids:
-                        status = FinancialEntityStatus.CONNECTED
+                    cred_entries = logged_by_entity_id.get(entity.id, [])
+                    if cred_entries:
+                        now = datetime.now(tzlocal())
+                        account_infos = []
+                        any_connected = False
+                        any_requires_login = False
+                        for cred_entry in cred_entries:
+                            if cred_entry.expiration and cred_entry.expiration < now:
+                                acct_status = FinancialEntityStatus.REQUIRES_LOGIN
+                                any_requires_login = True
+                            else:
+                                acct_status = FinancialEntityStatus.CONNECTED
+                                any_connected = True
 
-                        expiration = logged_entity_ids.get(entity.id)
-                        if expiration and expiration < datetime.now(tzlocal()):
+                            acct = await self._entity_account_port.get_by_id(
+                                cred_entry.entity_account_id
+                            )
+                            account_infos.append(
+                                EntityAccountInfo(
+                                    id=cred_entry.entity_account_id,
+                                    name=acct.name if acct else None,
+                                    status=acct_status,
+                                )
+                            )
+
+                        accounts = account_infos
+                        if any_connected:
+                            status = FinancialEntityStatus.CONNECTED
+                        elif any_requires_login:
                             status = FinancialEntityStatus.REQUIRES_LOGIN
                 else:
                     if virtual_features:
@@ -169,6 +202,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                     external_entity_id=external_entity_id,
                     virtual_features=virtual_features,
                     natively_supported_products=products,
+                    accounts=accounts,
                 )
             )
 

@@ -157,7 +157,6 @@ from infrastructure.config.config_loader import ConfigLoader
 from infrastructure.config.server_details_adapter import ServerDetailsAdapter
 from infrastructure.controller.config import quart
 from infrastructure.controller.controllers import register_routes
-from infrastructure.credentials.credentials_reader import CredentialsReader
 from infrastructure.crypto.public_key_derivation_adapter import (
     PublicKeyDerivationAdapter,
 )
@@ -176,6 +175,9 @@ from infrastructure.repository import (
 )
 from infrastructure.repository.credentials.credentials_repository import (
     CredentialsRepository,
+)
+from infrastructure.repository.entity_account.entity_account_repository import (
+    EntityAccountRepository,
 )
 from infrastructure.repository.crypto.crypto_asset_repository import (
     CryptoAssetRegistryRepository,
@@ -323,6 +325,7 @@ class FinanzeServer:
         real_estate_repository = RealEstateRepository(client=db_client)
         external_entity_repository = ExternalEntityRepository(client=db_client)
         template_repository = TemplateRepository(client=db_client)
+        entity_account_repository = EntityAccountRepository(client=db_client)
 
         public_keychain_data_repository = PublicKeychainRepository(client=db_client)
         public_keychain_fetcher_client = PublicKeychainClient()
@@ -344,15 +347,7 @@ class FinanzeServer:
         instrument_provider = InstrumentProviderAdapter()
         public_key_derivation = PublicKeyDerivationAdapter()
 
-        credentials_storage_mode = args.credentials_storage_mode
-        if credentials_storage_mode == "DB":
-            credentials_port = CredentialsRepository(client=db_client)
-        elif credentials_storage_mode == "ENV":
-            credentials_port = CredentialsReader()
-        else:
-            raise ValueError(
-                f"Invalid credentials storage mode: {credentials_storage_mode}"
-            )
+        credentials_port = CredentialsRepository(client=db_client)
 
         transaction_handler = TransactionHandler(client=db_client)
 
@@ -403,6 +398,7 @@ class FinanzeServer:
             virtual_import_registry,
             financial_entity_fetchers,
             external_entity_fetchers,
+            entity_account_repository,
         )
         fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
@@ -418,6 +414,7 @@ class FinanzeServer:
             crypto_asset_info_client,
             transaction_handler,
             public_keychain,
+            entity_account_repository,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -490,10 +487,17 @@ class FinanzeServer:
             sessions_repository,
             transaction_handler,
             public_keychain,
+            entity_account_repository,
         )
         cancel_entity_login = CancelEntityLoginImpl(financial_entity_fetchers)
         disconnect_entity = DisconnectEntityImpl(
-            credentials_port, sessions_repository, transaction_handler
+            credentials_port,
+            sessions_repository,
+            transaction_handler,
+            entity_account_repository,
+            transaction_repository,
+            auto_contrib_repository,
+            historic_repository,
         )
         get_settings = GetSettingsImpl(config_loader)
         update_settings = UpdateSettingsImpl(config_loader)

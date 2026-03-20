@@ -2,9 +2,9 @@ from enum import Enum
 
 
 class LastFetchesQueries(str, Enum):
-    GET_BY_ENTITY_ID = (
-        "SELECT entity_id, feature, date FROM last_fetches WHERE entity_id = ?"
-    )
+    GET_BY_ENTITY_ID = "SELECT entity_id, feature, date, entity_account_id FROM last_fetches WHERE entity_id = ?"
+
+    GET_BY_ENTITY_ACCOUNT_ID = "SELECT entity_id, feature, date, entity_account_id FROM last_fetches WHERE entity_account_id = ?"
 
     GET_GROUPED_BY_ENTITY = """
         SELECT lf.entity_id,
@@ -21,6 +21,6 @@ class LastFetchesQueries(str, Enum):
     """
 
     UPSERT = """
-        INSERT OR REPLACE INTO last_fetches (entity_id, feature, date)
-        VALUES (?, ?, ?)
+        INSERT OR REPLACE INTO last_fetches (id, entity_id, feature, date, entity_account_id)
+        VALUES (?, ?, ?, ?, ?)
     """

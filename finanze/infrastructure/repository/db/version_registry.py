@@ -129,6 +129,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_7_public_keychain import 
     V0807PublicKeychain,
 )
 from infrastructure.repository.db.versions.v0.v08.v080_9_binance import V0809Binance
+from infrastructure.repository.db.versions.v0.v08.v080_10_entity_accounts import (
+    V0810EntityAccounts,
+)
 
 versions = [
     V0Genesis(),
@@ -184,4 +187,5 @@ versions = [
     V0806AddIssuer(),
     V0807PublicKeychain(),
     V0809Binance(),
+    V0810EntityAccounts(),
 ]

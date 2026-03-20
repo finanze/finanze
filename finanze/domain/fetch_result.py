@@ -52,8 +52,9 @@ class FetchOptions:
 
 @dataclass
 class FetchRequest:
-    entity_id: Optional[UUID]
     features: list[Feature]
+    entity_id: Optional[UUID] = None
+    entity_account_id: Optional[UUID] = None
     two_factor: Optional[TwoFactor] = None
     login_options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     fetch_options: Optional[FetchOptions] = field(default_factory=FetchOptions)

@@ -11,6 +11,8 @@ from domain.entity_login import (
     EntitySession,
     LoginOptions,
     LoginResultCode,
+    LoginConfirmationType,
+    ChallengeType,
 )
 from infrastructure.client.entity.financial.tr.api import TradeRepublicApi
 from infrastructure.client.entity.financial.tr.portfolio import Portfolio
@@ -64,6 +66,8 @@ def _rebuild_cookie_jar(cookie_list: list[dict]) -> httpx.Cookies:
 
 
 class TradeRepublicClient:
+    WAF_CHALLENGE_URL = "https://8dc6d8e337ce.330bb79d.eu-central-1.token.awswaf.com/8dc6d8e337ce/db33ccb9f7c7/challenge.js"
+
     def __init__(self):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
@@ -75,6 +79,7 @@ class TradeRepublicClient:
         login_options: LoginOptions,
         process_id: str = None,
         code: str = None,
+        waf_token: str = None,
         session: Optional[EntitySession] = None,
     ) -> EntityLoginResult:
         self._tr_api = TradeRepublicApi(
@@ -82,6 +87,17 @@ class TradeRepublicClient:
             pin=pin,
             locale="en",
         )
+
+        if waf_token:
+            self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
+
+        else:
+            return EntityLoginResult(
+                LoginResultCode.CODE_REQUESTED,
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                challenge_type=ChallengeType.AWSWAF,
+                process_id=self.WAF_CHALLENGE_URL,
+            )
 
         if session and not login_options.force_new_session:
             self._inject_session(session)
@@ -98,6 +114,8 @@ class TradeRepublicClient:
                     return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 elif e.response.status_code == 400:
                     return EntityLoginResult(LoginResultCode.INVALID_CODE)
+                elif e.response.status_code == 403:
+                    return EntityLoginResult(LoginResultCode.CURRENTLY_UNAVAILABLE)
                 else:
                     self._log.error("Unexpected error during login", exc_info=e)
                     return EntityLoginResult(
@@ -116,6 +134,17 @@ class TradeRepublicClient:
             if not login_options.avoid_new_login:
                 try:
                     countdown = await self._initiate_weblogin()
+
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 403:
+                        return EntityLoginResult(LoginResultCode.CURRENTLY_UNAVAILABLE)
+                    else:
+                        self._log.error("Unexpected error during login", exc_info=e)
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message=f"Got unexpected error {e.response.status_code} during login",
+                    )
+
                 except ValueError as e:
                     if str(e) == "NUMBER_INVALID":
                         return EntityLoginResult(
@@ -133,6 +162,11 @@ class TradeRepublicClient:
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
+        return EntityLoginResult(
+            LoginResultCode.UNEXPECTED_ERROR,
+            message="Unexpected behavior during login",
+        )
+
     async def _resumable_session(self) -> bool:
         try:
             await self._tr_api.settings()
@@ -147,6 +181,8 @@ class TradeRepublicClient:
             f"{self._tr_api._host}/api/v1/auth/web/login",
             json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
         )
+        r.raise_for_status()
+
         j = await r.json()
         try:
             if j.get("errorCode") == "TOO_MANY_REQUESTS":

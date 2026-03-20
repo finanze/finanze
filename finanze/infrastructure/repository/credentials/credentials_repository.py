@@ -15,11 +15,11 @@ class CredentialsRepository(CredentialsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    async def get(self, entity_id: UUID) -> Optional[EntityCredentials]:
+    async def get(self, entity_account_id: UUID) -> Optional[EntityCredentials]:
         async with self._db_client.read() as cursor:
             await cursor.execute(
-                CredentialQueries.GET_BY_ENTITY,
-                (str(entity_id),),
+                CredentialQueries.GET_BY_ACCOUNT,
+                (str(entity_account_id),),
             )
             row = await cursor.fetchone()
             if row:
@@ -33,6 +33,7 @@ class CredentialsRepository(CredentialsPort):
             return [
                 FinancialEntityCredentialsEntry(
                     entity_id=UUID(row["entity_id"]),
+                    entity_account_id=UUID(row["entity_account_id"]),
                     created_at=datetime.fromisoformat(row["created_at"]),
                     last_used_at=datetime.fromisoformat(row["last_used_at"])
                     if row["last_used_at"]
@@ -44,12 +45,15 @@ class CredentialsRepository(CredentialsPort):
                 for row in await cursor.fetchall()
             ]
 
-    async def save(self, entity_id: UUID, credentials: EntityCredentials):
+    async def save(
+        self, entity_account_id: UUID, entity_id: UUID, credentials: EntityCredentials
+    ):
         now = datetime.now(tzlocal()).isoformat()
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 CredentialQueries.INSERT,
                 (
+                    str(entity_account_id),
                     str(entity_id),
                     json.dumps(credentials),
                     now,
@@ -57,26 +61,35 @@ class CredentialsRepository(CredentialsPort):
                 ),
             )
 
-    async def delete(self, entity_id: UUID):
+    async def delete(self, entity_account_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                CredentialQueries.DELETE_BY_ACCOUNT,
+                (str(entity_account_id),),
+            )
+
+    async def delete_by_entity_id(self, entity_id: UUID):
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 CredentialQueries.DELETE_BY_ENTITY,
                 (str(entity_id),),
             )
 
-    async def update_last_usage(self, entity_id: UUID):
+    async def update_last_usage(self, entity_account_id: UUID):
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 CredentialQueries.UPDATE_LAST_USED_AT,
-                (datetime.now(tzlocal()).isoformat(), str(entity_id)),
+                (datetime.now(tzlocal()).isoformat(), str(entity_account_id)),
             )
 
-    async def update_expiration(self, entity_id: UUID, expiration: Optional[datetime]):
+    async def update_expiration(
+        self, entity_account_id: UUID, expiration: Optional[datetime]
+    ):
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 CredentialQueries.UPDATE_EXPIRATION,
                 (
                     expiration.isoformat() if expiration is not None else None,
-                    str(entity_id),
+                    str(entity_account_id),
                 ),
             )

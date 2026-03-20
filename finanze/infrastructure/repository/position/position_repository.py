@@ -452,6 +452,9 @@ class PositionSQLRepository(PositionPort):
                     position.date.isoformat(),
                     str(position.entity.id),
                     position.source.value,
+                    str(position.entity_account_id)
+                    if position.entity_account_id
+                    else None,
                 ),
             )
 
@@ -463,9 +466,6 @@ class PositionSQLRepository(PositionPort):
         real_global_position_by_entity, manual_global_positions_by_entity = {}, {}
 
         if not query or query.real is None or query.real:
-            # TODO: this now will return the same as manual_global_positions_by_entity,
-            # so we may have multiple real positions here, hence having to merge them all
-            # like we do with the manual ones
             real_global_position_by_entity = await self._get_real_grouped_by_entity(
                 query
             )
@@ -475,17 +475,15 @@ class PositionSQLRepository(PositionPort):
             ] = await self._get_non_real_grouped_by_entity(query)
 
         global_position_by_entity = {}
-        for entity, position in real_global_position_by_entity.items():
+        for entity, positions in real_global_position_by_entity.items():
+            aggregated_real = _aggregate_positions(positions)
             if entity in manual_global_positions_by_entity:
                 manual_positions = manual_global_positions_by_entity[entity]
-                aggregated_manual_position = _aggregate_positions(manual_positions)
-
-                global_position_by_entity[entity] = (
-                    position + aggregated_manual_position
-                )
+                aggregated_manual = _aggregate_positions(manual_positions)
+                global_position_by_entity[entity] = aggregated_real + aggregated_manual
                 del manual_global_positions_by_entity[entity]
             else:
-                global_position_by_entity[entity] = position
+                global_position_by_entity[entity] = aggregated_real
 
         for entity, manual_positions in manual_global_positions_by_entity.items():
             global_position_by_entity[entity] = _aggregate_positions(manual_positions)
@@ -495,10 +493,10 @@ class PositionSQLRepository(PositionPort):
     async def get_last_by_entity_broken_down(
         self, query: Optional[PositionQueryRequest] = None
     ) -> dict[Entity, list[GlobalPosition]]:
-        real_global_position_by_entity, manual_global_positions_by_entity = {}, {}
+        real_global_positions_by_entity, manual_global_positions_by_entity = {}, {}
 
         if not query or query.real is None or query.real:
-            real_global_position_by_entity = await self._get_real_grouped_by_entity(
+            real_global_positions_by_entity = await self._get_real_grouped_by_entity(
                 query
             )
         if not query or query.real is None or not query.real:
@@ -507,12 +505,11 @@ class PositionSQLRepository(PositionPort):
             )
 
         global_position_by_entity = {}
-        # TODO: real_global_position_by_entity will have entity-positions with the multi=True change
-        for entity, position in real_global_position_by_entity.items():
+        for entity, positions in real_global_positions_by_entity.items():
             if entity not in global_position_by_entity:
-                global_position_by_entity[entity] = [position]
+                global_position_by_entity[entity] = list(positions)
             else:
-                global_position_by_entity[entity].append(position)
+                global_position_by_entity[entity].extend(positions)
 
         for entity, manual_positions in manual_global_positions_by_entity.items():
             if entity not in global_position_by_entity:
@@ -545,37 +542,12 @@ class PositionSQLRepository(PositionPort):
 
             products = query.products if query else None
 
-            # TODO: Update this to use multi=True
             return await self._map_position_rows(cursor, products=products)
 
     async def _map_position_rows(
-        self, cursor: DBCursor, multi: bool = False, products: list[ProductType] = None
-    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
-        # TODO: this method now will always be multi=True so the other logic must be removed
+        self, cursor: DBCursor, products: list[ProductType] = None
+    ) -> dict[Entity, list[GlobalPosition]]:
         rows = await cursor.fetchall()
-
-        if not multi:
-            positions: dict[Entity, GlobalPosition] = {}
-            for row in rows:
-                entity = Entity(
-                    id=UUID(row["entity_id"]),
-                    name=row["entity_name"],
-                    natural_id=row["entity_natural_id"],
-                    type=row["entity_type"],
-                    origin=row["entity_origin"],
-                    icon_url=row["icon_url"],
-                )
-                pos_id = UUID(row["id"])
-                source = DataSource(row["source"])
-                position = GlobalPosition(
-                    id=pos_id,
-                    entity=entity,
-                    date=datetime.fromisoformat(row["date"]),
-                    source=source,
-                )
-                position.products = await self._get_product_positions(position)
-                positions[entity] = position
-            return positions
 
         entities: dict[UUID, Entity] = {}
         result: dict[Entity, list[GlobalPosition]] = {}
@@ -595,11 +567,15 @@ class PositionSQLRepository(PositionPort):
 
             pos_id = UUID(row["id"])
             source = DataSource(row["source"])
+            entity_account_id = (
+                UUID(row["entity_account_id"]) if row["entity_account_id"] else None
+            )
             position = GlobalPosition(
                 id=pos_id,
                 entity=entity,
                 date=datetime.fromisoformat(row["date"]),
                 source=source,
+                entity_account_id=entity_account_id,
             )
             position.products = await self._get_product_positions(position, products)
 
@@ -613,7 +589,7 @@ class PositionSQLRepository(PositionPort):
 
     async def _get_non_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
+    ) -> dict[Entity, list[GlobalPosition]]:
         async with self._db_client.read() as cursor:
             sql = PositionQueries.NON_REAL_GROUPED_BY_ENTITY_BASE.value
 
@@ -631,7 +607,7 @@ class PositionSQLRepository(PositionPort):
 
             products = query.products if query else None
 
-            return await self._map_position_rows(cursor, multi=True, products=products)
+            return await self._map_position_rows(cursor, products=products)
 
     async def _get_accounts(
         self, global_position: GlobalPosition
@@ -1269,6 +1245,9 @@ class PositionSQLRepository(PositionPort):
                 entity=entity,
                 date=datetime.fromisoformat(row["date"]),
                 source=source,
+                entity_account_id=UUID(row["entity_account_id"])
+                if row["entity_account_id"]
+                else None,
             )
             position.products = await self._get_product_positions(position)
             return position

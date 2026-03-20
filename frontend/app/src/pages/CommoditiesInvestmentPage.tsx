@@ -126,25 +126,27 @@ export default function CommoditiesInvestmentPage() {
   const getAllCommodityEntries = (): CommodityEntry[] => {
     if (!positionsData?.positions) return []
     const all: CommodityEntry[] = []
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      if (entityPosition?.products[ProductType.COMMODITY]) {
-        const commodityProduct = entityPosition.products[
-          ProductType.COMMODITY
-        ] as Commodities
-        if (
-          "entries" in commodityProduct &&
-          commodityProduct.entries.length > 0
-        ) {
-          all.push(
-            ...commodityProduct.entries.map(c => ({
-              ...c,
-              isExpanded: false,
-              isModified: false,
-            })),
-          )
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        if (entityPosition?.products[ProductType.COMMODITY]) {
+          const commodityProduct = entityPosition.products[
+            ProductType.COMMODITY
+          ] as Commodities
+          if (
+            "entries" in commodityProduct &&
+            commodityProduct.entries.length > 0
+          ) {
+            all.push(
+              ...commodityProduct.entries.map(c => ({
+                ...c,
+                isExpanded: false,
+                isModified: false,
+              })),
+            )
+          }
         }
-      }
-    })
+      })
     return all
   }
 
