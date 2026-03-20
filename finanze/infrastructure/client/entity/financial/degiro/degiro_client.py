@@ -3,7 +3,7 @@ import logging
 from datetime import date, datetime
 
 from dateutil.tz import tzlocal
-from degiro_connector.core.exceptions import DeGiroConnectionError
+from degiro_connector.core.exceptions import DeGiroConnectionError, MaintenanceError
 from degiro_connector.core.models.model_connection import ModelConnection
 from degiro_connector.trading.api import API as TradingAPI
 from degiro_connector.trading.models.account import (
@@ -49,6 +49,13 @@ class DegiroClient:
 
         try:
             await asyncio.to_thread(self._trading_api.connect)
+        except MaintenanceError as e:
+            self._log.warning("Degiro is under maintenance: %s", e)
+            message = str(e.error_details.error) if e.error_details else str(e)
+            return EntityLoginResult(
+                LoginResultCode.CURRENTLY_UNAVAILABLE,
+                message=message,
+            )
         except DeGiroConnectionError as e:
             status = e.error_details.status if e.error_details else None
             if status == 12:
