@@ -73,6 +73,7 @@
     "crypto": "Crypto",
     "commodities": "Commodities",
     "stocks": "Stocks",
+    "all": "All",
     "funds": "Funds",
     "deposits": "Deposits",
     "factoring": "Factoring",
@@ -175,6 +176,7 @@
     "pending": "Pending",
     "gross": "gross",
     "openInfoSheet": "View fund sheet",
+    "issuer": "Issuer",
     "symbol": "Symbol",
     "shares": "Shares",
     "price": "Price",
@@ -189,7 +191,7 @@
     "entry": "entry",
     "byAsset": "Per asset",
     "byType": "Per type",
-    "sortBy": "Sort by",
+    "sortBy": "",
     "sortAmount": "Amount",
     "sortRelativeGain": "Gain %",
     "sortAbsoluteGain": "Gain",
@@ -261,7 +263,7 @@
       "extendedMaturity": "Extended maturity",
       "extendableMaturity": "Extendable maturity",
       "initialMaturityDate": "Initial maturity date",
-      "sortBy": "Sort by",
+      "sortBy": "",
       "sortMaturity": "Maturity",
       "sortStartDate": "Start date",
       "sortInvested": "Amount"
@@ -326,7 +328,9 @@
     "biometricError": "Could not enable biometric login",
     "biometricLoginFailed": "Biometric authentication failed",
     "inAppConfirmationTitle": "Confirm login in",
-    "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request."
+    "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
+    "captchaTitle": "Security verification for",
+    "captchaMessage": "Please complete the CAPTCHA to continue."
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",

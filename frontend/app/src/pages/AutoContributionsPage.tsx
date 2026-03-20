@@ -1112,7 +1112,7 @@ export default function AutoContributionsPage() {
               </div>
             </div>
             <div className="flex items-center justify-between pt-1 text-[0.7rem] font-medium">
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge
                   className={cn(
                     "gap-1 border-transparent px-2 py-0.5",

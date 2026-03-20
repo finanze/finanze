@@ -96,7 +96,7 @@ class TradeRepublicApi:
 
     async def _web_request(self, url_path, payload=None, method="GET"):
         if self._web_session_token_expires_at < time.time():
-            r = await self._websession.get(f"{self._host}/api/v1/auth/web/session")
+            r = await self._websession.get(f"{self._host}/api/v2/auth/account")
             r.raise_for_status()
             self._web_session_token_expires_at = time.time() + 290
         return await self._websession.request(

@@ -92,15 +92,15 @@ class PositionWriteQueries(str, Enum):
     INSERT_FUND_POSITION = """
         INSERT INTO fund_positions (id, global_position_id, name, isin, market,
                                     shares, initial_investment, average_buy_price,
-                                    market_value, type, asset_type, currency, portfolio_id, info_sheet_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    market_value, type, asset_type, currency, portfolio_id, info_sheet_url, issuer)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INSERT_STOCK_POSITION = """
         INSERT INTO stock_positions (id, global_position_id, name, ticker, isin, market,
                                      shares, initial_investment, average_buy_price,
-                                     market_value, currency, type, subtype, info_sheet_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                     market_value, currency, type, subtype, info_sheet_url, issuer)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
 

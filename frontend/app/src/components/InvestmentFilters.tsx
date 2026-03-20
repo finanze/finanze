@@ -13,6 +13,7 @@ interface InvestmentFiltersProps {
   onWalletsChange?: (wallets: string[]) => void
   minimal?: boolean // when true show only the selector (no label, icon, border)
   placeholderOverride?: string
+  extraFilters?: React.ReactNode
 }
 
 export function InvestmentFilters({
@@ -24,6 +25,7 @@ export function InvestmentFilters({
   onWalletsChange,
   minimal = false,
   placeholderOverride,
+  extraFilters,
 }: InvestmentFiltersProps) {
   const { t } = useI18n()
 
@@ -72,6 +74,9 @@ export function InvestmentFilters({
                 placeholder={t.walletManagement.walletFilterPlaceholder}
               />
             </div>
+          )}
+          {extraFilters && (
+            <div className="flex items-center gap-2">{extraFilters}</div>
           )}
         </div>
         {(selectedEntities.length > 0 ||

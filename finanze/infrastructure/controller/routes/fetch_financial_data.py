@@ -28,13 +28,14 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
 
     code = body.get("code", None)
     process_id = body.get("processId", None)
+    token = body.get("token", None)
     avoid_new_login = body.get("avoidNewLogin", False)
     deep = body.get("deep", False)
 
     fetch_request = FetchRequest(
         entity_id=entity,
         features=features,
-        two_factor=TwoFactor(code=code, process_id=process_id),
+        two_factor=TwoFactor(code=code, process_id=process_id, token=token),
         fetch_options=FetchOptions(deep=deep),
         login_options=LoginOptions(avoid_new_login=avoid_new_login),
     )
@@ -45,5 +46,7 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
         response["details"] = result.details
     if result.data:
         response["data"] = result.data
+    if result.confirmation_type:
+        response["confirmationType"] = result.confirmation_type
 
     return jsonify(response), 200

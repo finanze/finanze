@@ -403,6 +403,7 @@ export interface StockFundPosition {
   infoSheetUrl?: string | null
   equityType?: string | null
   fundType?: string | null
+  issuer?: string | null
 }
 
 export interface CryptoPosition {
@@ -1885,6 +1886,7 @@ export const getStockAndFundPositions = (
               : undefined,
           infoSheetUrl: stock.info_sheet_url || null,
           equityType: stock.type || null,
+          issuer: stock.issuer || null,
         })
       })
     }
@@ -1960,6 +1962,7 @@ export const getStockAndFundPositions = (
               : undefined,
           infoSheetUrl: fund.info_sheet_url || null,
           fundType: fund.type || null,
+          issuer: fund.issuer || null,
         })
       })
     }
