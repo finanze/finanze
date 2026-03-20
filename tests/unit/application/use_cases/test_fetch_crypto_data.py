@@ -1,18 +1,12 @@
-from contextlib import asynccontextmanager
-from typing import List, Optional
+from typing import List
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 
-from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_entity_fetcher import CryptoEntityFetcher
-from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.crypto_wallet_port import CryptoWalletPort
-from application.ports.external_integration_port import ExternalIntegrationPort
-from application.ports.last_fetches_port import LastFetchesPort
-from application.ports.position_port import PositionPort
 from application.ports.public_key_derivation import PublicKeyDerivation
-from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.use_cases.fetch_crypto_data import (
     FetchCryptoDataImpl,
     UNUSED_GAP,
@@ -21,7 +15,6 @@ from application.use_cases.fetch_crypto_data import (
 from domain import native_entities
 from domain.crypto import (
     AddressSource,
-    CryptoAsset,
     CryptoFetchedPosition,
     CryptoFetchRequest,
     CryptoFetchResult,
@@ -33,8 +26,6 @@ from domain.crypto import (
 )
 from domain.dezimal import Dezimal
 from domain.entity import Feature
-from domain.external_integration import EnabledExternalIntegrations
-from domain.fetch_record import FetchRecord
 from domain.fetch_result import FetchRequest, FetchResultCode
 from domain.public_key import (
     AddressDerivationRequest,
@@ -46,35 +37,6 @@ from domain.public_key import (
 
 BITCOIN_ENTITY = native_entities.BITCOIN
 BITCOIN_ID = BITCOIN_ENTITY.id
-
-
-class MockPositionPort(PositionPort):
-    def __init__(self):
-        self.saved = []
-
-    async def save(self, position):
-        self.saved.append(position)
-
-    async def get_by_id(self, position_id):
-        return None
-
-    async def get_last_grouped_by_entity(self, query=None):
-        return {}
-
-    async def delete_position_for_date(self, entity_id, date, source):
-        pass
-
-    async def delete_by_id(self, position_id):
-        pass
-
-    async def get_stock_detail(self, entry_id):
-        return None
-
-    async def get_fund_detail(self, entry_id):
-        return None
-
-    async def update_market_value(self, entry_id, product_type, market_value):
-        pass
 
 
 class MockCryptoWalletPort(CryptoWalletPort):
@@ -139,79 +101,6 @@ class MockCryptoEntityFetcher(CryptoEntityFetcher):
         return CryptoFetchResults(results=results)
 
 
-class MockCryptoAssetRegistryPort(CryptoAssetRegistryPort):
-    async def get_by_symbol(self, symbol: str) -> Optional[CryptoAsset]:
-        return None
-
-    async def save(self, asset: CryptoAsset):
-        pass
-
-
-class MockCryptoAssetInfoProvider(CryptoAssetInfoProvider):
-    async def get_by_symbol(self, symbol: str):
-        return []
-
-    async def get_multiple_prices_by_symbol(self, symbols, fiat_isos=None):
-        result = {}
-        for s in symbols:
-            result[s.upper()] = {"EUR": Dezimal("50000")}
-        return result
-
-    async def get_prices_by_addresses(self, addresses, fiat_isos=None):
-        return {}
-
-    async def get_price(self, symbol, fiat_iso, **kwargs):
-        return Dezimal(0)
-
-    async def get_multiple_overview_by_addresses(self, addresses):
-        return {}
-
-    async def asset_lookup(self, symbol=None, name=None):
-        return []
-
-    async def get_asset_platforms(self):
-        return {}
-
-    async def get_asset_details(self, provider_id, currencies, provider=None):
-        return None
-
-    async def get_native_entity_by_platform(self, provider_id, provider):
-        return None
-
-
-class MockLastFetchesPort(LastFetchesPort):
-    async def get_by_entity_id(self, entity_id: UUID):
-        return None
-
-    async def save(self, records: list[FetchRecord]):
-        pass
-
-
-class MockExternalIntegrationPort(ExternalIntegrationPort):
-    async def get_payloads_by_type(
-        self, integration_type
-    ) -> EnabledExternalIntegrations:
-        return {}
-
-    async def get_all(self):
-        return []
-
-    async def activate(self, integration, payload):
-        pass
-
-    async def deactivate(self, integration):
-        pass
-
-    async def get_payload(self, integration):
-        return None
-
-
-class MockTransactionHandlerPort(TransactionHandlerPort):
-    @asynccontextmanager
-    async def start(self):
-        yield
-
-
 class MockPublicKeyDerivation(PublicKeyDerivation):
     def calculate(self, request: AddressDerivationRequest) -> DerivedAddressesResult:
         receiving = [
@@ -274,32 +163,66 @@ def _make_derived_wallet(entity_id=BITCOIN_ID, hd_addresses=None):
 
 @pytest.fixture
 def position_port():
-    return MockPositionPort()
+    saved_positions = []
+    port = AsyncMock()
+    port.save = AsyncMock(side_effect=lambda pos: saved_positions.append(pos))
+    port.saved = saved_positions
+    port.get_by_id = AsyncMock(return_value=None)
+    port.get_last_grouped_by_entity = AsyncMock(return_value={})
+    port.get_stock_detail = AsyncMock(return_value=None)
+    port.get_fund_detail = AsyncMock(return_value=None)
+    return port
 
 
 @pytest.fixture
 def crypto_asset_registry():
-    return MockCryptoAssetRegistryPort()
+    port = AsyncMock()
+    port.get_by_symbol = AsyncMock(return_value=None)
+    return port
 
 
 @pytest.fixture
 def crypto_asset_info():
-    return MockCryptoAssetInfoProvider()
+    async def _mock_prices(symbols, fiat_isos=None):
+        return {s.upper(): {"EUR": Dezimal("50000")} for s in symbols}
+
+    port = AsyncMock()
+    port.get_by_symbol = AsyncMock(return_value=[])
+    port.get_multiple_prices_by_symbol = AsyncMock(side_effect=_mock_prices)
+    port.get_prices_by_addresses = AsyncMock(return_value={})
+    port.get_price = AsyncMock(return_value=Dezimal(0))
+    port.get_multiple_overview_by_addresses = AsyncMock(return_value={})
+    port.asset_lookup = AsyncMock(return_value=[])
+    port.get_asset_platforms = AsyncMock(return_value={})
+    port.get_asset_details = AsyncMock(return_value=None)
+    port.get_native_entity_by_platform = AsyncMock(return_value=None)
+    return port
 
 
 @pytest.fixture
 def last_fetches_port():
-    return MockLastFetchesPort()
+    port = AsyncMock()
+    port.get_by_entity_id = AsyncMock(return_value=None)
+    return port
 
 
 @pytest.fixture
 def ext_int_port():
-    return MockExternalIntegrationPort()
+    port = AsyncMock()
+    port.get_payloads_by_type = AsyncMock(return_value={})
+    port.get_all = AsyncMock(return_value=[])
+    port.get_payload = AsyncMock(return_value=None)
+    return port
 
 
 @pytest.fixture
 def tx_handler():
-    return MockTransactionHandlerPort()
+    handler = MagicMock()
+    ctx = AsyncMock()
+    ctx.__aenter__ = AsyncMock(return_value=None)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    handler.start = MagicMock(return_value=ctx)
+    return handler
 
 
 @pytest.fixture

@@ -564,124 +564,136 @@ export function PortfolioDonutChart({
         </Popover>
       </div>
 
-      <div className="flex flex-col xl:flex-row xl:items-start items-center">
-        <div className="relative w-full max-w-[280px] xl:max-w-[240px] 2xl:max-w-[280px] aspect-square flex-shrink-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={currentDistribution}
-                cx="50%"
-                cy="50%"
-                innerRadius="80%"
-                outerRadius="100%"
-                fill="#8884d8"
-                dataKey="value"
-                nameKey={distributionView === "by-asset" ? "type" : "name"}
-                isAnimationActive={false}
-                stroke="hsl(var(--background))"
-                strokeWidth={1}
-                paddingAngle={1}
-              >
-                {currentDistribution.map((entry, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={
-                      distributionView === "by-asset"
-                        ? getPieSliceColorForAssetType(
-                            (entry as DistributionItem).type,
-                          )
-                        : entityColorMap.get(
-                            (entry as EntityDistributionItem).id,
-                          )
-                    }
-                    style={{ outline: "none" }}
-                  />
-                ))}
-              </Pie>
-              <Tooltip
-                content={<CustomTooltip />}
-                wrapperStyle={{ zIndex: 50 }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
-            <span className="text-xs text-muted-foreground mb-0.5">
-              {t.dashboard.totalValue}
-            </span>
-            <span className="text-4xl font-light">
-              {dashboardOptions.compactNumbers
-                ? formatCompactCurrency(totalValue, locale, currency)
-                : formatCurrency(totalValue, locale, currency)}
-            </span>
-            {gainPercentage !== 0 && (
-              <div className="flex items-center gap-1">
-                <span
-                  className={cn(
-                    "text-sm font-medium",
-                    gainPercentage > 0
-                      ? "text-green-500"
-                      : gainPercentage < 0
-                        ? "text-red-500"
-                        : "text-muted-foreground",
-                  )}
+      <div className="flex flex-col xl:flex-row xl:items-center items-center">
+        <div className="w-full xl:flex-1 flex justify-center">
+          <div className="relative w-full max-w-[280px] xl:max-w-[240px] 2xl:max-w-[280px] aspect-square flex-shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={currentDistribution}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="80%"
+                  outerRadius="100%"
+                  fill="#8884d8"
+                  dataKey="value"
+                  nameKey={distributionView === "by-asset" ? "type" : "name"}
+                  isAnimationActive={false}
+                  stroke="hsl(var(--background))"
+                  strokeWidth={1}
+                  paddingAngle={1}
                 >
-                  {gainPercentage > 0 ? "+" : ""}
-                  {formatPercentage(gainPercentage, locale)}
-                </span>
-                {investedAmount > 0 && (
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button className="text-muted-foreground hover:text-foreground transition-colors pointer-events-auto">
-                        <Info className="h-3.5 w-3.5" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-3" align="center">
-                      <div className="space-y-1 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">
-                            {t.dashboard.totalValue}:{" "}
-                          </span>
-                          <span className="font-semibold">
-                            {formatCurrency(totalValue, locale, currency)}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">
-                            {t.dashboard.investedAmount}:{" "}
-                          </span>
-                          <span className="font-semibold">
-                            {formatCurrency(investedAmount, locale, currency)}
-                          </span>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  {currentDistribution.map((entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={
+                        distributionView === "by-asset"
+                          ? getPieSliceColorForAssetType(
+                              (entry as DistributionItem).type,
+                            )
+                          : entityColorMap.get(
+                              (entry as EntityDistributionItem).id,
+                            )
+                      }
+                      style={{ outline: "none" }}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip
+                  content={<CustomTooltip />}
+                  wrapperStyle={{ zIndex: 50 }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
+              <span className="text-xs text-muted-foreground mb-0.5">
+                {t.dashboard.totalValue}
+              </span>
+              <span
+                className={cn(
+                  "font-light",
+                  dashboardOptions.compactNumbers && "text-4xl",
                 )}
-              </div>
-            )}
-            {gainPercentage === 0 && investedAmount > 0 && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="text-muted-foreground hover:text-foreground transition-colors pointer-events-auto">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-3" align="center">
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">
-                      {t.dashboard.investedAmount}:{" "}
-                    </span>
-                    <span className="font-semibold">
-                      {formatCurrency(investedAmount, locale, currency)}
-                    </span>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            )}
+                style={
+                  dashboardOptions.compactNumbers
+                    ? undefined
+                    : { fontSize: "1.7rem" }
+                }
+              >
+                {dashboardOptions.compactNumbers
+                  ? formatCompactCurrency(totalValue, locale, currency)
+                  : formatCurrency(totalValue, locale, currency)}
+              </span>
+              {gainPercentage !== 0 && (
+                <div className="flex items-center gap-1">
+                  <span
+                    className={cn(
+                      "text-sm font-medium",
+                      gainPercentage > 0
+                        ? "text-green-500"
+                        : gainPercentage < 0
+                          ? "text-red-500"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {gainPercentage > 0 ? "+" : ""}
+                    {formatPercentage(gainPercentage, locale)}
+                  </span>
+                  {investedAmount > 0 && (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="text-muted-foreground hover:text-foreground transition-colors pointer-events-auto">
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-3" align="center">
+                        <div className="space-y-1 text-sm">
+                          <div>
+                            <span className="text-muted-foreground">
+                              {t.dashboard.totalValue}:{" "}
+                            </span>
+                            <span className="font-semibold">
+                              {formatCurrency(totalValue, locale, currency)}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">
+                              {t.dashboard.investedAmount}:{" "}
+                            </span>
+                            <span className="font-semibold">
+                              {formatCurrency(investedAmount, locale, currency)}
+                            </span>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+              )}
+              {gainPercentage === 0 && investedAmount > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors pointer-events-auto">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-3" align="center">
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">
+                        {t.dashboard.investedAmount}:{" "}
+                      </span>
+                      <span className="font-semibold">
+                        {formatCurrency(investedAmount, locale, currency)}
+                      </span>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="w-full mt-4 xl:mt-0 xl:w-auto xl:flex-1 xl:pl-6 xl:max-w-[520px] xl:self-center xl:ml-auto">
+        <div className="w-full mt-4 xl:mt-0 xl:w-auto xl:flex-1 xl:pl-6 xl:max-w-[520px] xl:self-center">
           <div className="grid grid-cols-3 min-[500px]:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-3 gap-2 xl:justify-end">
             {visibleItems.map((item, index) => renderLegendItem(item, index))}
             {!legendExpanded && renderOverflowBox()}

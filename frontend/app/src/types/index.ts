@@ -284,12 +284,14 @@ export interface FetchRequest {
   features: Feature[]
   code?: string
   processId?: string
+  token?: string
   avoidNewLogin?: boolean
   deep?: boolean
 }
 
 export enum LoginConfirmationType {
   IN_APP = "IN_APP",
+  CAPTCHA = "CAPTCHA",
 }
 
 export interface LoginResponse {
@@ -301,6 +303,7 @@ export interface LoginResponse {
 
 export interface FetchResponse {
   code: FetchResultCode
+  confirmationType?: LoginConfirmationType
   details?: {
     wait?: number
     processId?: string
@@ -391,6 +394,7 @@ export enum FetchResultCode {
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
   LOGIN_REQUIRED = "LOGIN_REQUIRED",
+  CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE",
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",
 }
 

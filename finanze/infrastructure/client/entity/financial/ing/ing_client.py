@@ -13,7 +13,7 @@ from domain.entity_login import (
     LoginResultCode,
 )
 from domain.native_entity import EntityCredentials
-from infrastructure.client.http.http_session import new_http_session
+from infrastructure.client.http.http_session import new_impersonated_http_session
 
 SESSION_LIFETIME = 4 * 60  # 4 minutes
 
@@ -75,8 +75,8 @@ class INGAPIClient:
 
             return EntityLoginResult(code=LoginResultCode.MANUAL_LOGIN)
 
-        self._genoma_session = new_http_session()
-        self._api_session = new_http_session()
+        self._genoma_session = new_impersonated_http_session()
+        self._api_session = new_impersonated_http_session()
 
         now = datetime.now(tzlocal())
         if session and not login_options.force_new_session and now < session.expiration:
@@ -132,7 +132,6 @@ class INGAPIClient:
             "apiExtendedSessionCtx"
         ]
 
-    @cached(cache=Cache.MEMORY, ttl=120)
     async def get_user(self) -> dict:
         return await self._get_request("/client", api=False)
 

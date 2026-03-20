@@ -70,3 +70,75 @@ def get_http_session() -> HttpSession:
 
 def new_http_session(**kwargs) -> HttpSession:
     return HttpSession(httpx.AsyncClient(**kwargs))
+
+
+class _CurlCffiResponse:
+    def __init__(self, response):
+        self._response = response
+
+    @property
+    def ok(self) -> bool:
+        return 200 <= self._response.status_code < 400
+
+    @property
+    def status(self) -> int:
+        return self._response.status_code
+
+    @property
+    def headers(self) -> dict[str, str]:
+        return dict(self._response.headers)
+
+    def raise_for_status(self):
+        from curl_cffi.requests.exceptions import HTTPError
+
+        try:
+            self._response.raise_for_status()
+        except HTTPError:
+            raise httpx.HTTPStatusError(
+                message=f"{self._response.status_code}",
+                request=httpx.Request("GET", str(self._response.url)),
+                response=httpx.Response(self._response.status_code),
+            )
+
+    async def json(self):
+        return self._response.json()
+
+    async def text(self) -> str:
+        return self._response.text
+
+    async def read(self) -> bytes:
+        return self._response.content
+
+
+class ImpersonatedHttpSession:
+    def __init__(self, impersonate: str = "firefox135"):
+        from curl_cffi.requests import AsyncSession
+
+        self._session = AsyncSession(impersonate=impersonate)
+        self._headers = {}
+
+    @property
+    def headers(self):
+        return self._headers
+
+    @property
+    def cookies(self):
+        return self._session.cookies
+
+    @property
+    def cookie_jar(self):
+        return self._session.cookies.jar
+
+    async def request(self, method: str, url: str, **kwargs) -> _CurlCffiResponse:
+        headers = kwargs.pop("headers", None)
+        merged = dict(self._headers)
+        if headers:
+            merged.update(headers)
+        resp = await self._session.request(method, url, headers=merged, **kwargs)
+        return _CurlCffiResponse(resp)
+
+
+def new_impersonated_http_session(
+    impersonate: str = "firefox135",
+) -> ImpersonatedHttpSession:
+    return ImpersonatedHttpSession(impersonate=impersonate)

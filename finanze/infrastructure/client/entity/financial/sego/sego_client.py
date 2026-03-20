@@ -1,4 +1,3 @@
-import codecs
 import logging
 import re
 from datetime import datetime
@@ -15,6 +14,7 @@ from domain.entity_login import (
     EntitySession,
     LoginOptions,
 )
+from domain.public_keychain import PublicKeychain
 from infrastructure.client.http.http_session import get_http_session
 from infrastructure.client.http.http_response import HttpResponse
 
@@ -36,12 +36,11 @@ def _parse_expiration_datetime(expiration: str) -> Optional[datetime]:
 class SegoAPIClient:
     BASE_URL = "https://api.segofinance.com"
 
-    API_KEY = "3215739s71p549r6no77368ps1o40rp8"
-
     def __init__(self):
         self._headers = {}
         self._log = logging.getLogger(__name__)
         self._session = get_http_session()
+        self._api_key: Optional[str] = None
 
     async def _execute_request(
         self, path: str, method: str, body: dict | None, raw: bool = False
@@ -72,9 +71,8 @@ class SegoAPIClient:
     def _init_session(self):
         self._headers = {}
         self._headers["Content-Type"] = "application/json"
-        self._headers["Ocp-Apim-Subscription-Key"] = codecs.decode(
-            self.API_KEY, "rot_13"
-        )
+        if self._api_key:
+            self._headers["Ocp-Apim-Subscription-Key"] = self._api_key
         self._headers["User-Agent"] = (
             "Mozilla/5.0 (Linux; Android 11; moto g(20)) AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/95.0.4638.74 Mobile Safari/537.36"
@@ -87,7 +85,13 @@ class SegoAPIClient:
         login_options: LoginOptions,
         code: str = None,
         session: Optional[EntitySession] = None,
+        keychain: Optional[PublicKeychain] = None,
     ) -> EntityLoginResult:
+        if keychain:
+            entry = keychain.get("SEGO_KEY")
+            if entry:
+                self._api_key = entry.decode()
+
         self._init_session()
 
         now = datetime.now(tzlocal())

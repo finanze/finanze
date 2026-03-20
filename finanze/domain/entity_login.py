@@ -4,13 +4,16 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass
 
 from domain.native_entity import EntityCredentials
+from domain.public_keychain import PublicKeychain
 
 
 class LoginConfirmationType(str, Enum):
     IN_APP = "IN_APP"
+    CAPTCHA = "CAPTCHA"
 
 
 class LoginResultCode(str, Enum):
@@ -61,6 +64,7 @@ class EntityLoginResult:
 class TwoFactor:
     code: Optional[str] = None
     process_id: Optional[str] = None
+    token: Optional[str] = None
 
 
 @dataclass
@@ -77,9 +81,10 @@ class EntityLoginRequest:
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
 
 
-@dataclass
+@dataclass(config=ConfigDict(arbitrary_types_allowed=True))
 class EntityLoginParams:
     credentials: EntityCredentials
+    keychain: PublicKeychain
     two_factor: Optional[TwoFactor] = None
     options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     session: Optional[EntitySession] = None

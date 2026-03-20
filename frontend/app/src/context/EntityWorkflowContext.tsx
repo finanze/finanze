@@ -42,6 +42,7 @@ export interface FetchOptions {
   deep?: boolean
   avoidNewLogin?: boolean
   code?: string
+  token?: string
   silent?: boolean
 }
 
@@ -78,6 +79,10 @@ interface EntityWorkflowContextValue {
   clearPinError: () => void
   inAppConfirmation: boolean
   cancelInAppConfirmation: () => void
+  captchaRequired: boolean
+  captchaSiteKey: string | null
+  submitCaptchaToken: (token: string) => void
+  cancelCaptcha: () => void
   selectedFeatures: Feature[]
   setSelectedFeatures: (features: Feature[]) => void
   fetchOptions: FetchOptions
@@ -161,6 +166,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   >("entities")
   const [pinError, setPinError] = useState(false)
   const [inAppConfirmation, setInAppConfirmation] = useState(false)
+  const [captchaRequired, setCaptchaRequired] = useState(false)
+  const [captchaSiteKey, setCaptchaSiteKey] = useState<string | null>(null)
   const [fetchingEntityState, setFetchingEntityState] =
     useState<FetchingEntityState>({
       fetchingEntityIds: [],
@@ -217,6 +224,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     setPinRequired(false)
     setActivePinEntityId(null)
     setInAppConfirmation(false)
+    setCaptchaRequired(false)
+    setCaptchaSiteKey(null)
 
     if (!preserveSelectedFeatures) {
       setSelectedFeatures([])
@@ -254,6 +263,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     resetState()
     setView("entities")
   }, [selectedEntity, resetState, setView])
+
+  const cancelCaptcha = useCallback(() => {
+    resetState()
+  }, [resetState])
 
   const setOnScrapeCompleted = useCallback(
     (callback: ((entityId: string) => Promise<void>) | null) => {
@@ -349,12 +362,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 resetState()
                 setView("entities")
               } else {
-                const errorMessage =
+                const errorMessage = (
                   t.errors[confirmResponse.code as keyof typeof t.errors] ||
-                  t.common.loginErrorEntity.replace(
-                    "{entity}",
-                    selectedEntity.name,
-                  )
+                  t.common.loginErrorEntity
+                ).replace("{entity}", selectedEntity.name)
                 showToast(errorMessage, "error")
                 resetState()
               }
@@ -388,11 +399,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
-            t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginErrorEntity.replace(
-                "{entity}",
-                selectedEntity.name,
-              ),
+            (
+              t.errors[response.code as keyof typeof t.errors] ||
+              t.common.loginErrorEntity
+            ).replace("{entity}", selectedEntity.name),
             "error",
           )
         } else {
@@ -525,6 +535,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               deep: options.deep,
               avoidNewLogin: options.avoidNewLogin,
               code: options.code,
+              token: options.token,
             })
           } else {
             response = await fetchCryptoEntity({
@@ -552,7 +563,21 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
             return
           }
-          if (entity) {
+          if (response.confirmationType === LoginConfirmationType.CAPTCHA) {
+            const siteKey = response.details?.processId || null
+            if (siteKey && entity) {
+              setSelectedEntity(entity)
+              setSelectedFeatures(features)
+              setFetchOptions(current => ({
+                ...current,
+                deep: options.deep ?? DEFAULT_FETCH_OPTIONS.deep,
+                avoidNewLogin: options.avoidNewLogin,
+              }))
+              setCurrentAction("scrape")
+              setCaptchaSiteKey(siteKey)
+              setCaptchaRequired(true)
+            }
+          } else if (entity) {
             const processIdValue = response.details?.processId || null
             const pinLen = entity.pin?.positions || 4
             const pendingPayload: PendingScrapeParams = {
@@ -725,9 +750,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           setPinError(true)
           const entityName = entity?.name || t.common.crypto
-          const errorMessage =
+          const errorMessage = (
             t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity.replace("{entity}", entityName)
+            t.common.fetchErrorEntity
+          ).replace("{entity}", entityName)
           notify(errorMessage, "error")
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           if (!silent) {
@@ -829,6 +855,19 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ],
   )
 
+  const submitCaptchaToken = useCallback(
+    (token: string) => {
+      if (!selectedEntity) return
+      setCaptchaRequired(false)
+      setCaptchaSiteKey(null)
+      scrape(selectedEntity, selectedFeatures, {
+        ...fetchOptions,
+        token: token,
+      })
+    },
+    [selectedEntity, selectedFeatures, fetchOptions, scrape],
+  )
+
   const handleScrapeManualLoginCompletion = useCallback(
     async (credentials: Record<string, string>) => {
       if (!selectedEntity) return
@@ -861,8 +900,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
         } else {
           showToast(
-            t.errors[loginResponse.code as keyof typeof t.errors] ||
-              t.common.loginError,
+            (
+              t.errors[loginResponse.code as keyof typeof t.errors] ||
+              t.common.loginError
+            ).replace("{entity}", selectedEntity.name),
             "error",
           )
           resetState()
@@ -1046,6 +1087,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         clearPinError,
         inAppConfirmation,
         cancelInAppConfirmation,
+        captchaRequired,
+        captchaSiteKey,
+        submitCaptchaToken,
+        cancelCaptcha,
         selectedFeatures,
         setSelectedFeatures,
         fetchOptions,

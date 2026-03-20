@@ -1,5 +1,4 @@
 import base64
-import codecs
 import logging
 from datetime import date, datetime
 from typing import Optional
@@ -12,6 +11,7 @@ from cryptography.hazmat.backends import default_backend
 from dateutil.relativedelta import relativedelta
 
 from domain.entity_login import EntityLoginResult, LoginResultCode
+from domain.public_keychain import PublicKeychain
 from infrastructure.client.http.http_session import get_http_session
 from infrastructure.client.http.http_response import HttpResponse
 
@@ -36,13 +36,12 @@ def _generate_iv(date: datetime) -> bytes:
 class UrbanitaeAPIClient:
     BASE_URL = "https://urbanitae.com/api"
 
-    PASSWORD_ENCRYPTION_KEY = "9ZJtHA1fYAr1w2nT"
-
     def __init__(self):
         self._headers = {}
         self._user_info = None
         self._log = logging.getLogger(__name__)
         self._session = get_http_session()
+        self._encryption_key: Optional[str] = None
 
     async def _execute_request(
         self, path: str, method: str, body: dict | None, raw: bool = False
@@ -74,7 +73,14 @@ class UrbanitaeAPIClient:
     ) -> dict | HttpResponse:
         return await self._execute_request(path, "POST", body=body, raw=raw)
 
-    async def login(self, username: str, password: str) -> EntityLoginResult:
+    async def login(
+        self, username: str, password: str, keychain: Optional[PublicKeychain] = None
+    ) -> EntityLoginResult:
+        if keychain:
+            entry = keychain.get("URBANITAE_EKEY")
+            if entry:
+                self._encryption_key = entry.decode()
+
         self._headers = {}
         self._headers["Content-Type"] = "application/json"
         self._headers["User-Agent"] = (
@@ -108,7 +114,7 @@ class UrbanitaeAPIClient:
             )
 
     def _encrypt_password(self, password: str) -> str:
-        key = str.encode(codecs.decode(self.PASSWORD_ENCRYPTION_KEY, "rot_13"))
+        key = str.encode(self._encryption_key)
         iv = _generate_iv(datetime.now())
         password_bytes = password.encode("utf-8")
         padded_data = _pkcs7_pad(password_bytes, 16)

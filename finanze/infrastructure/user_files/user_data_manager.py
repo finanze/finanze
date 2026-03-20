@@ -22,9 +22,8 @@ class UserDataManager(DataManager):
         os.makedirs(self._profiles_dir, exist_ok=True)
 
         self._profiles_data: Dict[str, Any] = {}
-        self._load_profiles()
-
         self._log = logging.getLogger(__name__)
+        self._load_profiles()
 
     def _load_profiles(self):
         default_data = {"last_logged": None, "profiles": []}

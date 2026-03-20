@@ -4,15 +4,18 @@ from infrastructure.repository.db.query_mixin import QueryMixin
 from infrastructure.repository.db.upgrader import DBVersionMigration
 
 SQL = """
-      INSERT OR IGNORE INTO entities (id, name, natural_id, type, origin)
-      VALUES ('e0000000-0000-0000-0000-000000000013', 'Interactive Brokers', NULL, 'FINANCIAL_INSTITUTION', 'NATIVE');
+      ALTER TABLE stock_positions
+          ADD COLUMN issuer VARCHAR(50);
+
+      ALTER TABLE fund_positions
+          ADD COLUMN issuer VARCHAR(50);
       """
 
 
-class V0806IBKR(DBVersionMigration, QueryMixin):
+class V0806AddIssuer(DBVersionMigration, QueryMixin):
     @property
     def name(self):
-        return "v0.8.0:6_ibkr"
+        return "v0.8.0:6_add_issuer"
 
     async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)

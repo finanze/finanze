@@ -48,7 +48,9 @@ class UrbanitaeFetcher(FinancialEntityFetcher):
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
         credentials = login_params.credentials
         username, password = credentials["user"], credentials["password"]
-        return await self._client.login(username, password)
+        return await self._client.login(
+            username, password, keychain=login_params.keychain
+        )
 
     async def global_position(self) -> GlobalPosition:
         wallet = await self._client.get_wallet()

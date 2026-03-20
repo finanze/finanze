@@ -350,6 +350,7 @@ async def _save_funds(cursor, position: GlobalPosition, funds: FundInvestments):
                 detail.currency,
                 str(detail.portfolio.id) if detail.portfolio else None,
                 detail.info_sheet_url,
+                detail.issuer,
             ),
         )
 
@@ -373,6 +374,7 @@ async def _save_stocks(cursor, position: GlobalPosition, stocks: StockInvestment
                 detail.type.value,
                 detail.subtype,
                 detail.info_sheet_url,
+                detail.issuer,
             ),
         )
 
@@ -731,6 +733,7 @@ class PositionSQLRepository(PositionPort):
                     type=EquityType(row["type"]),
                     subtype=row["subtype"],
                     info_sheet_url=row["info_sheet_url"],
+                    issuer=row["issuer"],
                     source=global_position.source,
                     manual_data=_map_manual_entry_data(row),
                 )
@@ -840,6 +843,7 @@ class PositionSQLRepository(PositionPort):
                     ),
                     source=global_position.source,
                     info_sheet_url=row["info_sheet_url"],
+                    issuer=row["issuer"],
                     manual_data=_map_manual_entry_data(row),
                 )
                 for row in cursor
@@ -1264,6 +1268,7 @@ class PositionSQLRepository(PositionPort):
                 type=EquityType(row["type"]),
                 subtype=row["subtype"],
                 info_sheet_url=row["info_sheet_url"],
+                issuer=row["issuer"],
                 source=DataSource(row["source"]),
             )
 
@@ -1290,6 +1295,7 @@ class PositionSQLRepository(PositionPort):
                 type=FundType(row["type"]),
                 asset_type=AssetType(row["asset_type"]) if row["asset_type"] else None,
                 info_sheet_url=row["info_sheet_url"],
+                issuer=row["issuer"],
                 source=DataSource(row["source"]),
             )
 
