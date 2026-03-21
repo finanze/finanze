@@ -42,20 +42,21 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 
 ### Supported Assets by Financial Entity
 
-| Entity         | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-|----------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
-| Urbanitae      | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor     | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
-| SEGO           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets     |
-| Unicaja        | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-| Wecity         | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos         | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
-| Freedom24      | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
-| Indexa Capital | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING            | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
-| Grupo Cajamar  | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-| DEGIRO         | ✅        | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
+| Entity              | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
+|---------------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
+| Urbanitae           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
+| MyInvestor          | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
+| SEGO                | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
+| Trade Republic      | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets     |
+| Unicaja             | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
+| Wecity              | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
+| Mintos              | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
+| Freedom24           | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
+| Indexa Capital      | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
+| ING                 | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
+| Grupo Cajamar       | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
+| DEGIRO              | ✅        | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
+| Interactive Brokers | ✅        | -     | ❌     | ✅️ Stocks      | -        | -          | -                   | -      | ❌     |                     |
 
 #### GoCardless Integration
 
@@ -75,20 +76,21 @@ Not all entities support the same features, in general we can group data in the 
 - **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments (
   deposits are not included here).
 
-| Entity         | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
-|----------------|-----------------|---------------------------|--------------------------------|------------------------|
-| Urbanitae      | ✅               | -                         | ✅                              | ✅                      |
-| MyInvestor     | ✅               | ✅                         | ✅                              | ❌                      |
-| SEGO           | ✅               | -                         | ✅                              | ✅                      |
-| Trade Republic | ✅               | ✅                         | ✅                              | -                      |
-| Unicaja        | ✅               | ✅                         | ❌                              | -                      |
-| Wecity         | ✅               | -                         | ✅                              | ✅                      |
-| Mintos         | ✅               | -                         | ❌                              | ❌                      |
-| Freedom24      | ✅               | -                         | ✅                              | ❌                      |
-| Indexa Capital | ✅               | -                         | ✅                              | -                      |
-| ING            | ✅               | ✅                         | ✅                              | -                      |
-| Grupo Cajamar  | ✅               | -                         | ❌                              | -                      |
-| DEGIRO         | ✅               | -                         | ✅                              | -                      |
+| Entity              | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
+|---------------------|-----------------|---------------------------|--------------------------------|------------------------|
+| Urbanitae           | ✅               | -                         | ✅                              | ✅                      |
+| MyInvestor          | ✅               | ✅                         | ✅                              | ❌                      |
+| SEGO                | ✅               | -                         | ✅                              | ✅                      |
+| Trade Republic      | ✅               | ✅                         | ✅                              | -                      |
+| Unicaja             | ✅               | ✅                         | ❌                              | -                      |
+| Wecity              | ✅               | -                         | ✅                              | ✅                      |
+| Mintos              | ✅               | -                         | ❌                              | ❌                      |
+| Freedom24           | ✅               | -                         | ✅                              | ❌                      |
+| Indexa Capital      | ✅               | -                         | ✅                              | -                      |
+| ING                 | ✅               | ✅                         | ✅                              | -                      |
+| Grupo Cajamar       | ✅               | -                         | ❌                              | -                      |
+| DEGIRO              | ✅               | ❌                         | ✅                              | -                      |
+| Interactive Brokers | ✅               | ❌                         | ✅⚠️                            | -                      |
 
 ### Financial Entity notes
 
@@ -98,7 +100,7 @@ following ones:
 - **SEGO** (e-mail)
 - **Trade Republic** (mobile app or SMS)
 - **Wecity** (SMS)
-- Sometimes **MyInvestor** (SMS) and may fail sometimes due to random captcha
+- Sometimes **MyInvestor** (SMS) and may ask sometimes for captcha
 - **DEGIRO** (mobile app confirmation)
 
 Important points to remark:
@@ -107,7 +109,7 @@ Important points to remark:
   Akamai for anti
   bot protection.
 - **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
-- **ING** only works via frontend, as it requires user interaction to log in.
+- **ING** and **IBKR** only work via frontend, as require user interaction to log in.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
   removal.
 
