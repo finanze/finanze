@@ -77,9 +77,13 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
   try {
     await ibkrWindow.loadURL(`${IBKR_URL}/portal/`)
   } catch (error) {
-    console.error("Failed to load IBKR login page:", error)
-    ibkrWindow?.close()
-    return { success: false }
+    const isAborted =
+      error instanceof Error && error.message.includes("ERR_ABORTED")
+    if (!isAborted) {
+      console.error("Failed to load IBKR login page:", error)
+      ibkrWindow?.close()
+      return { success: false }
+    }
   }
 
   ibkrWindow.on("closed", () => {
