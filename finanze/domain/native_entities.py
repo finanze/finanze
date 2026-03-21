@@ -250,6 +250,25 @@ DEGIRO = NativeFinancialEntity(
     icon_url=None,
 )
 
+IBKR = NativeFinancialEntity(
+    id=UUID("e0000000-0000-0000-0000-000000000013"),
+    name="Interactive Brokers",
+    natural_id=None,
+    type=EntityType.FINANCIAL_INSTITUTION,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[
+        ProductType.ACCOUNT,
+        ProductType.STOCK_ETF,
+    ],
+    setup_login_type=EntitySetupLoginType.MANUAL,
+    session_category=EntitySessionCategory.NONE,
+    credentials_template={
+        "cookie": CredentialType.INTERNAL_TEMP,
+    },
+    icon_url=None,
+)
+
 
 def _create_crypto_entity(
     num: int,
@@ -319,6 +338,7 @@ NATIVE_ENTITIES = [
     ING,
     CAJAMAR,
     DEGIRO,
+    IBKR,
     BITCOIN,
     ETHEREUM,
     LITECOIN,

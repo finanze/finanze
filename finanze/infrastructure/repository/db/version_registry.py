@@ -128,6 +128,7 @@ from infrastructure.repository.db.versions.v0.v08.v080_6_add_issuer import (
 from infrastructure.repository.db.versions.v0.v08.v080_7_public_keychain import (
     V0807PublicKeychain,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_8_ibkr import V0808IBKR
 from infrastructure.repository.db.versions.v0.v08.v080_9_binance import V0809Binance
 from infrastructure.repository.db.versions.v0.v08.v080_10_entity_accounts import (
     V0810EntityAccounts,
@@ -186,6 +187,7 @@ versions = [
     V0805Degiro(),
     V0806AddIssuer(),
     V0807PublicKeychain(),
+    V0808IBKR(),
     V0809Binance(),
     V0810EntityAccounts(),
 ]
