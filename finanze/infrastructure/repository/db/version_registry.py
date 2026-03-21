@@ -128,6 +128,7 @@ from infrastructure.repository.db.versions.v0.v08.v080_6_add_issuer import (
 from infrastructure.repository.db.versions.v0.v08.v080_7_public_keychain import (
     V0807PublicKeychain,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_8_ibkr import V0808IBKR
 
 versions = [
     V0Genesis(),
@@ -182,4 +183,5 @@ versions = [
     V0805Degiro(),
     V0806AddIssuer(),
     V0807PublicKeychain(),
+    V0808IBKR(),
 ]
