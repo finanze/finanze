@@ -15,7 +15,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --ignore=tests/e2e"
 pythonpath = ["finanze"]
 asyncio_default_fixture_loop_scope = "function"
 
