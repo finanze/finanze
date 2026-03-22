@@ -243,7 +243,7 @@ class DegiroClient:
         session_id = None
         try:
             session_id = self._trading_api.connection_storage.session_id
-        except (ConnectionError, TimeoutError):
+        except ConnectionError, TimeoutError:
             pass
 
         return {

@@ -2075,7 +2075,7 @@ export default function ExportPage() {
 
   const handleConfirmImport = async () => {
     setIsImporting(true)
-    let result: ManualImportResult | null = null
+    let result: ManualImportResult | null
 
     try {
       result = await runManualImport()

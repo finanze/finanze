@@ -203,7 +203,7 @@ class DBManager(DatasourceInitiator, Backupable):
             try:
                 if tmp_path.exists():
                     tmp_path.unlink()
-            except (OSError, NameError):
+            except OSError, NameError:
                 pass
 
     async def import_data(self, data: bytes):

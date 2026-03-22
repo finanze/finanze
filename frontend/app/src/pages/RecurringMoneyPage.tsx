@@ -733,8 +733,8 @@ export default function RecurringMoneyPage() {
     const diffTime = next.getTime() - today.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-    let urgencyLevel: "urgent" | "soon" | "normal" = "normal"
-    let timeText = ""
+    let urgencyLevel: "urgent" | "soon" | "normal"
+    let timeText: string
 
     if (diffDays === 0) {
       urgencyLevel = "urgent"

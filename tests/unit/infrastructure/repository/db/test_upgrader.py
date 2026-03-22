@@ -42,13 +42,15 @@ class FailingMigration(DBVersionMigration):
         raise self._error
 
 
-def _make_db():
+@pytest.fixture
+def db():
     conn = sqlite3.connect(":memory:")
     conn.execute(
         "CREATE TABLE IF NOT EXISTS sys_config (key TEXT PRIMARY KEY, value TEXT)"
     )
     conn.commit()
-    return DBClient(connection=conn), conn
+    yield DBClient(connection=conn), conn
+    conn.close()
 
 
 def _make_context():
@@ -65,8 +67,8 @@ async def _insert_migration_record(conn, version, name):
 
 class TestUpgradeEmptyVersions:
     @pytest.mark.asyncio
-    async def test_raises_value_error(self):
-        db_client, _ = _make_db()
+    async def test_raises_value_error(self, db):
+        db_client, _ = db
         upgrader = DatabaseUpgrader(db_client, [], _make_context())
 
         with pytest.raises(ValueError, match="Invalid target version"):
@@ -75,8 +77,8 @@ class TestUpgradeEmptyVersions:
 
 class TestUpgradeAppliesAllMigrations:
     @pytest.mark.asyncio
-    async def test_applies_all_from_scratch(self):
-        db_client, conn = _make_db()
+    async def test_applies_all_from_scratch(self, db):
+        db_client, conn = db
         m0 = FakeMigration("create_users")
         m1 = FakeMigration("create_accounts")
         m2 = FakeMigration("add_indexes")
@@ -97,8 +99,8 @@ class TestUpgradeAppliesAllMigrations:
         assert rows[2] == (2, "add_indexes")
 
     @pytest.mark.asyncio
-    async def test_applies_up_to_explicit_target(self):
-        db_client, conn = _make_db()
+    async def test_applies_up_to_explicit_target(self, db):
+        db_client, conn = db
         m0 = FakeMigration("first")
         m1 = FakeMigration("second")
         m2 = FakeMigration("third")
@@ -118,8 +120,8 @@ class TestUpgradeAppliesAllMigrations:
 
 class TestUpgradeNoOp:
     @pytest.mark.asyncio
-    async def test_no_op_when_already_at_target(self):
-        db_client, conn = _make_db()
+    async def test_no_op_when_already_at_target(self, db):
+        db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
         )
@@ -139,8 +141,8 @@ class TestUpgradeNoOp:
 
 class TestMigrationAheadOfTimeError:
     @pytest.mark.asyncio
-    async def test_raises_when_current_ahead_of_target(self):
-        db_client, conn = _make_db()
+    async def test_raises_when_current_ahead_of_target(self, db):
+        db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
         )
@@ -160,8 +162,8 @@ class TestMigrationAheadOfTimeError:
 
 class TestMigrationErrorOnFailure:
     @pytest.mark.asyncio
-    async def test_raises_migration_error(self):
-        db_client, _ = _make_db()
+    async def test_raises_migration_error(self, db):
+        db_client, _ = db
         m0 = FakeMigration("first")
         m1 = FailingMigration("second", RuntimeError("table already exists"))
         upgrader = DatabaseUpgrader(db_client, [m0, m1], _make_context())
@@ -170,8 +172,8 @@ class TestMigrationErrorOnFailure:
             await upgrader.upgrade()
 
     @pytest.mark.asyncio
-    async def test_successful_migrations_before_failure_are_recorded(self):
-        db_client, conn = _make_db()
+    async def test_successful_migrations_before_failure_are_recorded(self, db):
+        db_client, conn = db
         m0 = FakeMigration("first")
         m1 = FailingMigration("second", RuntimeError("boom"))
         upgrader = DatabaseUpgrader(db_client, [m0, m1], _make_context())
@@ -187,8 +189,8 @@ class TestMigrationErrorOnFailure:
 
 class TestMigrationIntegrityErrorOnNameMismatch:
     @pytest.mark.asyncio
-    async def test_raises_on_name_mismatch(self):
-        db_client, conn = _make_db()
+    async def test_raises_on_name_mismatch(self, db):
+        db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
         )
@@ -203,8 +205,8 @@ class TestMigrationIntegrityErrorOnNameMismatch:
             await upgrader.upgrade()
 
     @pytest.mark.asyncio
-    async def test_raises_on_name_mismatch_for_earlier_migration(self):
-        db_client, conn = _make_db()
+    async def test_raises_on_name_mismatch_for_earlier_migration(self, db):
+        db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
         )
@@ -223,8 +225,8 @@ class TestMigrationIntegrityErrorOnNameMismatch:
 
 class TestUpgradeAppliesOnlyPendingMigrations:
     @pytest.mark.asyncio
-    async def test_skips_already_applied(self):
-        db_client, conn = _make_db()
+    async def test_skips_already_applied(self, db):
+        db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
         )
@@ -251,8 +253,8 @@ class TestUpgradeAppliesOnlyPendingMigrations:
         assert rows[2] == (2, "third")
 
     @pytest.mark.asyncio
-    async def test_applies_single_pending_migration(self):
-        db_client, conn = _make_db()
+    async def test_applies_single_pending_migration(self, db):
+        db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
         )

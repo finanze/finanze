@@ -77,6 +77,11 @@ export default defineConfig(({ command, mode }) => {
                     sourcemap,
                     minify: isBuild,
                     outDir: "dist-electron/main",
+                    lib: {
+                      entry: "electron/main/index.ts",
+                      formats: ["cjs"],
+                      fileName: () => "[name].cjs",
+                    },
                     rollupOptions: {
                       external: electronExternals,
                     },
@@ -92,6 +97,10 @@ export default defineConfig(({ command, mode }) => {
                     outDir: "dist-electron/preload",
                     rollupOptions: {
                       external: electronExternals,
+                      output: {
+                        inlineDynamicImports: true,
+                        entryFileNames: "[name].cjs",
+                      },
                     },
                   },
                 },

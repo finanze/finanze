@@ -11,7 +11,6 @@ import {
   type BrowserWindowConstructorOptions,
 } from "electron"
 import windowStateKeeper from "electron-window-state"
-import isDev from "electron-is-dev"
 import { createMenu } from "./menu"
 import { getElectronOS, getElectronPlatformInfo } from "../shared/platform"
 import {
@@ -54,6 +53,8 @@ const packageMetadata = packageJson as {
   repository?: string | { url?: string }
   homepage?: string
 }
+
+const isDev = !app.isPackaged
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)

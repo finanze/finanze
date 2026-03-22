@@ -83,7 +83,7 @@ class DegiroFetcher(FinancialEntityFetcher):
         if two_factor and two_factor.code:
             try:
                 one_time_password = int(two_factor.code)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         return await self._client.login(

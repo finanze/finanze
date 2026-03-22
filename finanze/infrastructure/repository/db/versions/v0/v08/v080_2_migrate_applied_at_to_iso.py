@@ -21,12 +21,12 @@ class V0802MigrateAppliedAtToIso(DBVersionMigration):
                     if dt.tzinfo is None:
                         dt = dt.replace(tzinfo=tzlocal())
                     iso_value = dt.isoformat()
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     try:
                         dt = datetime.strptime(applied_at, "%Y-%m-%d %H:%M:%S")
                         dt = dt.replace(tzinfo=tzlocal())
                         iso_value = dt.isoformat()
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         dt = datetime.strptime(applied_at, "%Y-%m-%d %H:%M:%S.%f")
                         dt = dt.replace(tzinfo=tzlocal())
                         iso_value = dt.isoformat()

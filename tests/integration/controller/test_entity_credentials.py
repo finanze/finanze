@@ -6,28 +6,19 @@ import pytest
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.entity_login import (
+    ChallengeType,
     EntityLoginResult,
     EntitySession,
+    LoginConfirmationType,
     LoginResultCode,
 )
 from domain.native_entities import MY_INVESTOR, UNICAJA, MINTOS
 
-SIGNUP_URL = "/api/v1/signup"
 LOGIN_ENTITY_URL = "/api/v1/entities/login"
-
-USERNAME = "testuser"
-PASSWORD = "securePass123"
 
 MY_INVESTOR_ID = "e0000000-0000-0000-0000-000000000001"
 UNICAJA_ID = "e0000000-0000-0000-0000-000000000002"
 MINTOS_ID = "e0000000-0000-0000-0000-000000000007"
-
-
-async def _signup_and_stay_logged_in(client):
-    response = await client.post(
-        SIGNUP_URL, json={"username": USERNAME, "password": PASSWORD}
-    )
-    assert response.status_code == 204
 
 
 def _setup_fetcher(entity_fetchers, entity, login_result):
@@ -367,3 +358,89 @@ class TestInternalCredentials:
         assert "user" in saved_credentials
         assert "password" in saved_credentials
         assert "cookie" not in saved_credentials
+
+
+class TestChallengeFlow:
+    @pytest.mark.asyncio
+    async def test_returns_confirmation_type_in_app(
+        self, client, entity_fetchers, credentials_port
+    ):
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Confirm in your app",
+                confirmation_type=LoginConfirmationType.IN_APP,
+            ),
+        )
+        response = await client.post(
+            LOGIN_ENTITY_URL,
+            json={
+                "entity": MY_INVESTOR_ID,
+                "credentials": {"user": "myuser", "password": "mypass"},
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "IN_APP"
+        credentials_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_returns_challenge_type(
+        self, client, entity_fetchers, credentials_port
+    ):
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Solve the captcha",
+                challenge_type=ChallengeType.RECAPTCHA,
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+            ),
+        )
+        response = await client.post(
+            LOGIN_ENTITY_URL,
+            json={
+                "entity": MY_INVESTOR_ID,
+                "credentials": {"user": "myuser", "password": "mypass"},
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "CHALLENGE"
+        assert body["challengeType"] == "RECAPTCHA"
+        credentials_port.save.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_returns_challenge_type_awswaf(
+        self, client, entity_fetchers, credentials_port
+    ):
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Complete WAF challenge",
+                challenge_type=ChallengeType.AWSWAF,
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                process_id="waf-proc-001",
+            ),
+        )
+        response = await client.post(
+            LOGIN_ENTITY_URL,
+            json={
+                "entity": MY_INVESTOR_ID,
+                "credentials": {"user": "myuser", "password": "mypass"},
+            },
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "CHALLENGE"
+        assert body["challengeType"] == "AWSWAF"
+        assert body["processId"] == "waf-proc-001"
+        credentials_port.save.assert_not_awaited()

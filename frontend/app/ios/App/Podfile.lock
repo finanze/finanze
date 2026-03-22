@@ -11,7 +11,7 @@ PODS:
     - PromisesObjC (~> 2.4)
   - Capacitor (8.0.1):
     - CapacitorCordova
-  - CapacitorCommunitySqlite (8.0.0):
+  - CapacitorCommunitySqlite (8.0.1):
     - Capacitor
     - SQLCipher
     - ZIPFoundation
@@ -31,7 +31,7 @@ PODS:
     - Capacitor
   - CapgoCapacitorNativeBiometric (7.1.13):
     - Capacitor
-  - CapgoCapacitorSocialLogin (8.2.18):
+  - CapgoCapacitorSocialLogin (8.3.9):
     - Capacitor
     - GoogleSignIn (~> 9.0.0)
   - GoogleSignIn (9.0.0):
@@ -116,7 +116,7 @@ SPEC CHECKSUMS:
   AppAuth: 1c1a8afa7e12f2ec3a294d9882dfa5ab7d3cb063
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
   Capacitor: ff35b0f66370b84aa238251b35b91886a3207c16
-  CapacitorCommunitySqlite: 8a61c1d599927d4321c13b28f132de8ca94b6d95
+  CapacitorCommunitySqlite: b6bcd768fdd12ef1572aff962c4f128945494ebb
   CapacitorCordova: 0d65b9bb74e995dcecb9463f34f1af2aba6f955c
   CapacitorDevice: 9a16fb36a19ff391bf75afbe3cf16f883b3b3aa0
   CapacitorFilesystem: a957d4a4b6860844c4eba5bf441607a5166f92a7
@@ -125,7 +125,7 @@ SPEC CHECKSUMS:
   CapacitorShare: 12f1d192170cbcf9f108fd675ac8e343761a4638
   CapacitorSplashScreen: 422880d7117605c30699eb4b21644b62db42e86c
   CapgoCapacitorNativeBiometric: c9a116d9516b3f52dd335aea6a0c5073be36fe5a
-  CapgoCapacitorSocialLogin: 911d8633d55ee3919968f15f5c7c4e150efd997f
+  CapgoCapacitorSocialLogin: 3d381db31e18920626fe44a88352e8a503c63017
   GoogleSignIn: c7f09cfbc85a1abf69187be091997c317cc33b77
   GoogleUtilities: 00c88b9a86066ef77f0da2fab05f65d7768ed8e1
   GTMAppAuth: 217a876b249c3c585a54fd6f73e6b58c4f5c4238

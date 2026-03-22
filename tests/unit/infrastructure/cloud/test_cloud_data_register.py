@@ -32,13 +32,16 @@ def _make_token() -> CloudAuthToken:
     )
 
 
+TEST_JWT_SECRET = "test-secret-key-that-is-at-least-32-bytes!"
+
+
 def _make_jwt(email="user@example.com", role="PLUS", permissions=None):
     payload = {"email": email}
     if role is not None:
         payload["user_role"] = role
     if permissions is not None:
         payload["permissions"] = permissions
-    return jwt.encode(payload, "secret", algorithm="HS256")
+    return jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
 
 @pytest_asyncio.fixture
@@ -268,7 +271,7 @@ class TestDecodeToken:
         await register.connect(user)
 
         payload = {"email": "test@example.com"}
-        jwt_token = jwt.encode(payload, "secret", algorithm="HS256")
+        jwt_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
         result = await register.decode_token(jwt_token)
 
         assert result.role == CloudUserRole.NONE
@@ -279,7 +282,7 @@ class TestDecodeToken:
         await register.connect(user)
 
         payload = {"email": "test@example.com", "user_role": "INVALID_ROLE"}
-        jwt_token = jwt.encode(payload, "secret", algorithm="HS256")
+        jwt_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
         result = await register.decode_token(jwt_token)
 
         assert result.role == CloudUserRole.NONE
@@ -290,7 +293,7 @@ class TestDecodeToken:
         await register.connect(user)
 
         payload = {"user_role": "PLUS"}
-        jwt_token = jwt.encode(payload, "secret", algorithm="HS256")
+        jwt_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
 
         with pytest.raises(InvalidToken):
             await register.decode_token(jwt_token)
@@ -311,7 +314,7 @@ class TestDecodeToken:
         await register.connect(user)
 
         payload = {"email": "test@example.com", "permissions": "not_a_list"}
-        jwt_token = jwt.encode(payload, "secret", algorithm="HS256")
+        jwt_token = jwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
         result = await register.decode_token(jwt_token)
 
         assert result.permissions == []

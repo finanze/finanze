@@ -376,9 +376,9 @@ export async function signup(
       return { success: false }
     }
     if (error.status === 500) {
-      throw new Error("Server error")
+      throw new Error("Server error", { cause: error })
     }
-    throw new Error("Signup failed")
+    throw new Error("Signup failed", { cause: error })
   }
 }
 

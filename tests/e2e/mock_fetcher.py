@@ -1,0 +1,305 @@
+import threading
+from datetime import date, datetime, timedelta
+from uuid import uuid4
+
+from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
+from domain.auto_contributions import (
+    AutoContributions,
+    ContributionFrequency,
+    ContributionTargetType,
+    PeriodicContribution,
+)
+from domain.crypto import CryptoCurrencyType
+from domain.dezimal import Dezimal
+from domain.entity_login import (
+    EntityLoginParams,
+    EntityLoginResult,
+    EntitySession,
+    LoginResultCode,
+)
+from domain.fetch_record import DataSource
+from domain.fetch_result import FetchOptions
+from domain.global_position import (
+    Account,
+    AccountType,
+    Accounts,
+    CryptoCurrencies,
+    CryptoCurrencyPosition,
+    CryptoCurrencyWallet,
+    GlobalPosition,
+    HistoricalPosition,
+    ProductType,
+)
+from domain.transactions import (
+    AccountTx,
+    CryptoCurrencyTx,
+    StockTx,
+    Transactions,
+    TxType,
+)
+
+
+class MockFinancialEntityFetcher(FinancialEntityFetcher):
+    def __init__(self, entity):
+        self._entity = entity
+
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )
+
+    def cancel_login(self) -> None:
+        pass
+
+    async def global_position(self) -> GlobalPosition:
+        account = Account(
+            id=uuid4(),
+            total=Dezimal("12345.67"),
+            currency="EUR",
+            type=AccountType.CHECKING,
+            name="Mock Checking Account",
+        )
+        return GlobalPosition(
+            id=uuid4(),
+            entity=self._entity,
+            products={ProductType.ACCOUNT: Accounts(entries=[account])},
+        )
+
+    async def auto_contributions(self) -> AutoContributions:
+        now = date.today()
+        contribution = PeriodicContribution(
+            id=uuid4(),
+            alias=None,
+            target="MOCK_ETF",
+            target_name="Mock ETF Plan",
+            target_type=ContributionTargetType.STOCK_ETF,
+            amount=Dezimal("100"),
+            currency="EUR",
+            since=now - timedelta(days=90),
+            until=None,
+            frequency=ContributionFrequency.MONTHLY,
+            active=True,
+            source=DataSource.REAL,
+            entity=self._entity,
+        )
+        return AutoContributions(periodic=[contribution])
+
+    async def transactions(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        now = datetime.now(tzlocal())
+        stock_a = StockTx(
+            id=uuid4(),
+            ref="mock-tx-stock-a",
+            name="Mock Stock A",
+            amount=Dezimal("500"),
+            currency="EUR",
+            type=TxType.BUY,
+            date=now - timedelta(days=5),
+            entity=self._entity,
+            source=DataSource.REAL,
+            product_type=ProductType.STOCK_ETF,
+            shares=Dezimal("10"),
+            price=Dezimal("50"),
+            net_amount=Dezimal("498.50"),
+            fees=Dezimal("1.50"),
+        )
+        stock_b = StockTx(
+            id=uuid4(),
+            ref="mock-tx-stock-b",
+            name="Mock Stock B",
+            amount=Dezimal("300"),
+            currency="EUR",
+            type=TxType.BUY,
+            date=now - timedelta(days=3),
+            entity=self._entity,
+            source=DataSource.REAL,
+            product_type=ProductType.STOCK_ETF,
+            shares=Dezimal("5"),
+            price=Dezimal("60"),
+            net_amount=Dezimal("299.00"),
+            fees=Dezimal("1.00"),
+        )
+        investment_txs = [stock_a, stock_b]
+
+        if options.deep:
+            stock_old = StockTx(
+                id=uuid4(),
+                ref="mock-tx-stock-old",
+                name="Mock Stock Old",
+                amount=Dezimal("200"),
+                currency="EUR",
+                type=TxType.BUY,
+                date=now - timedelta(days=730),
+                entity=self._entity,
+                source=DataSource.REAL,
+                product_type=ProductType.STOCK_ETF,
+                shares=Dezimal("4"),
+                price=Dezimal("50"),
+                net_amount=Dezimal("199.50"),
+                fees=Dezimal("0.50"),
+            )
+            investment_txs.append(stock_old)
+
+        interest_tx = AccountTx(
+            id=uuid4(),
+            ref="mock-tx-interest",
+            name="Mock Interest Payment",
+            amount=Dezimal("25.50"),
+            currency="EUR",
+            type=TxType.INTEREST,
+            date=now - timedelta(days=1),
+            entity=self._entity,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal("0"),
+            retentions=Dezimal("0"),
+        )
+
+        return Transactions(investment=investment_txs, account=[interest_tx])
+
+    async def historical_position(self) -> HistoricalPosition:
+        return HistoricalPosition(positions={})
+
+
+MOCK_PIN_CODE = "1234"
+MOCK_PROCESS_ID = "mock-process-123"
+
+
+class MockPinEntityFetcher(MockFinancialEntityFetcher):
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        two_factor = login_params.two_factor
+
+        if not two_factor or not two_factor.code:
+            return EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                process_id=MOCK_PROCESS_ID,
+            )
+
+        if two_factor.code != MOCK_PIN_CODE:
+            return EntityLoginResult(code=LoginResultCode.INVALID_CODE)
+
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )
+
+
+class MockCryptoExchangeFetcher(FinancialEntityFetcher):
+    _call_counter = 0
+    _lock = threading.Lock()
+
+    def __init__(self, entity):
+        self._entity = entity
+
+    @classmethod
+    def _next_counter(cls):
+        with cls._lock:
+            cls._call_counter += 1
+            return cls._call_counter
+
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )
+
+    def cancel_login(self) -> None:
+        pass
+
+    async def global_position(self) -> GlobalPosition:
+        counter = self._next_counter()
+        btc = CryptoCurrencyPosition(
+            id=uuid4(),
+            symbol="BTC",
+            amount=Dezimal("0.5"),
+            type=CryptoCurrencyType.NATIVE,
+            name="Bitcoin",
+            market_value=Dezimal("25000"),
+            currency="USD",
+            source=DataSource.REAL,
+        )
+        eth = CryptoCurrencyPosition(
+            id=uuid4(),
+            symbol="ETH",
+            amount=Dezimal("5.0"),
+            type=CryptoCurrencyType.NATIVE,
+            name="Ethereum",
+            market_value=Dezimal("10000"),
+            currency="USD",
+            source=DataSource.REAL,
+        )
+        wallet = CryptoCurrencyWallet(
+            name=f"Mock Crypto Wallet {counter}",
+            assets=[btc, eth],
+        )
+        return GlobalPosition(
+            id=uuid4(),
+            entity=self._entity,
+            products={ProductType.CRYPTO: CryptoCurrencies(entries=[wallet])},
+        )
+
+    async def auto_contributions(self) -> AutoContributions:
+        return AutoContributions(periodic=[])
+
+    async def transactions(
+        self, registered_txs: set[str], options: FetchOptions
+    ) -> Transactions:
+        now = datetime.now(tzlocal())
+        counter = self._next_counter()
+        btc_buy = CryptoCurrencyTx(
+            id=uuid4(),
+            ref=f"mock-crypto-tx-btc-{counter}",
+            name=f"Crypto BTC Buy {counter}",
+            amount=Dezimal("1000"),
+            currency="USD",
+            type=TxType.BUY,
+            date=now - timedelta(days=2),
+            entity=self._entity,
+            source=DataSource.REAL,
+            product_type=ProductType.CRYPTO,
+            currency_amount=Dezimal("0.04"),
+            symbol="BTC",
+            price=Dezimal("25000"),
+            net_amount=Dezimal("995.00"),
+            fees=Dezimal("5.00"),
+        )
+        eth_sell = CryptoCurrencyTx(
+            id=uuid4(),
+            ref=f"mock-crypto-tx-eth-{counter}",
+            name=f"Crypto ETH Sell {counter}",
+            amount=Dezimal("500"),
+            currency="USD",
+            type=TxType.SELL,
+            date=now - timedelta(days=1),
+            entity=self._entity,
+            source=DataSource.REAL,
+            product_type=ProductType.CRYPTO,
+            currency_amount=Dezimal("0.25"),
+            symbol="ETH",
+            price=Dezimal("2000"),
+            net_amount=Dezimal("497.50"),
+            fees=Dezimal("2.50"),
+        )
+        return Transactions(investment=[btc_buy, eth_sell], account=[])
+
+    async def historical_position(self) -> HistoricalPosition:
+        return HistoricalPosition(positions={})

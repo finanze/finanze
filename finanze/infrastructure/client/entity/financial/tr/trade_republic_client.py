@@ -27,7 +27,7 @@ def _json_cookie_jar(jar: httpx.Cookies) -> list[dict]:
         if cookie.expires is not None:
             try:
                 expires_timestamp = int(cookie.expires)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 expires_timestamp = 0
 
         cookie_dict = {

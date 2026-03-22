@@ -1,22 +1,35 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
+from domain.auto_contributions import (
+    AutoContributions,
+    ContributionFrequency,
+    ContributionTargetType,
+    PeriodicContribution,
+)
+from domain.dezimal import Dezimal
 from domain.entity import Feature
 from domain.entity_account import EntityAccount
 from domain.entity_login import (
+    ChallengeType,
     EntityLoginResult,
     EntitySession,
+    LoginConfirmationType,
     LoginResultCode,
 )
-from domain.fetch_record import FetchRecord
-from domain.global_position import GlobalPosition
+from domain.fetch_record import DataSource, FetchRecord
+from domain.global_position import GlobalPosition, ProductType
 from domain.native_entities import MY_INVESTOR
+from domain.transactions import AccountTx, Transactions, TxType
 
 FETCH_URL = "/api/v1/data/fetch/financial"
+GET_POSITIONS_URL = "/api/v1/positions"
+GET_TRANSACTIONS_URL = "/api/v1/transactions"
+GET_CONTRIBUTIONS_URL = "/api/v1/contributions"
 
 MY_INVESTOR_ID = "e0000000-0000-0000-0000-000000000001"
 ENTITY_ACCOUNT_ID = "a0000000-0000-0000-0000-000000000001"
@@ -375,6 +388,16 @@ class TestSuccessfulFetch:
         )
         position_port.save.assert_awaited_once_with(position)
 
+        # Read-after-write: verify position via GET /positions
+        position_port.get_last_by_entity_broken_down = AsyncMock(
+            return_value={MY_INVESTOR: [position]}
+        )
+        get_resp = await client.get(GET_POSITIONS_URL)
+        assert get_resp.status_code == 200
+        pos_body = await get_resp.get_json()
+        assert MY_INVESTOR_ID in pos_body["positions"]
+        assert len(pos_body["positions"][MY_INVESTOR_ID]) == 1
+
     @pytest.mark.asyncio
     async def test_last_fetch_recorded(
         self,
@@ -557,14 +580,32 @@ class TestMultipleFeatures:
         credentials_port,
         last_fetches_port,
         sessions_port,
+        position_port,
+        auto_contr_port,
         entity_account_port,
     ):
         _setup_entity_account(entity_account_port)
+        test_contrib = PeriodicContribution(
+            id=uuid.uuid4(),
+            alias="Auto DCA",
+            target="AAPL",
+            target_name="Apple",
+            target_type=ContributionTargetType.STOCK_ETF,
+            amount=Dezimal("100"),
+            currency="EUR",
+            since=date(2025, 1, 1),
+            until=None,
+            frequency=ContributionFrequency.MONTHLY,
+            active=True,
+            source=DataSource.REAL,
+        )
+        auto_contribs = AutoContributions(periodic=[test_contrib])
         fetcher = _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
         )
+        fetcher.auto_contributions = AsyncMock(return_value=auto_contribs)
         last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}
@@ -584,6 +625,35 @@ class TestMultipleFeatures:
         fetcher.global_position.assert_awaited_once()
         fetcher.auto_contributions.assert_awaited_once()
 
+        # Read-after-write: verify position via GET /positions
+        position_port.save.assert_awaited_once()
+        saved_position = position_port.save.await_args[0][0]
+        position_port.get_last_by_entity_broken_down = AsyncMock(
+            return_value={MY_INVESTOR: [saved_position]}
+        )
+        get_resp = await client.get(GET_POSITIONS_URL)
+        assert get_resp.status_code == 200
+        pos_body = await get_resp.get_json()
+        assert MY_INVESTOR_ID in pos_body["positions"]
+
+        # Read-after-write: verify contributions via GET /contributions
+        auto_contr_port.save.assert_awaited_once()
+        saved_contribs = auto_contr_port.save.await_args[0][1]
+        auto_contr_port.get_all_grouped_by_entity = AsyncMock(
+            return_value={MY_INVESTOR: saved_contribs}
+        )
+        get_resp2 = await client.get(GET_CONTRIBUTIONS_URL)
+        assert get_resp2.status_code == 200
+        contrib_body = await get_resp2.get_json()
+
+        assert MY_INVESTOR_ID in contrib_body
+        periodic = contrib_body[MY_INVESTOR_ID]["periodic"]
+        assert len(periodic) == 1
+        assert periodic[0]["alias"] == "Auto DCA"
+        assert periodic[0]["target"] == "AAPL"
+        assert periodic[0]["amount"] == 100.0
+        assert periodic[0]["source"] == "REAL"
+
     @pytest.mark.asyncio
     async def test_fetch_with_transactions(
         self,
@@ -596,10 +666,27 @@ class TestMultipleFeatures:
         entity_account_port,
     ):
         _setup_entity_account(entity_account_port)
+        test_tx = AccountTx(
+            id=uuid.uuid4(),
+            ref="TX-FETCH-001",
+            name="Fetched Transfer",
+            amount=Dezimal("1500"),
+            currency="EUR",
+            type=TxType.TRANSFER_IN,
+            date=datetime.now(timezone.utc),
+            entity=MY_INVESTOR,
+            source=DataSource.REAL,
+            product_type=ProductType.ACCOUNT,
+            fees=Dezimal("0"),
+            retentions=Dezimal("0"),
+        )
         fetcher = _setup_fetcher(
             entity_fetchers,
             MY_INVESTOR,
             EntityLoginResult(code=LoginResultCode.CREATED),
+        )
+        fetcher.transactions = AsyncMock(
+            return_value=Transactions(account=[test_tx], investment=[])
         )
         transaction_port.get_refs_by_entity = AsyncMock(return_value=set())
         last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
@@ -619,3 +706,135 @@ class TestMultipleFeatures:
         body = await response.get_json()
         assert body["code"] == "COMPLETED"
         fetcher.transactions.assert_awaited_once()
+        transaction_port.save.assert_awaited_once()
+
+        # Read-after-write: verify transactions via GET /transactions
+        saved_txs = transaction_port.save.await_args[0][0]
+        saved_tx = saved_txs.account[0]
+        transaction_port.get_by_filters = AsyncMock(return_value=[saved_tx])
+        get_resp = await client.get(GET_TRANSACTIONS_URL)
+        assert get_resp.status_code == 200
+        tx_body = await get_resp.get_json()
+
+        txs = tx_body["transactions"]
+        assert len(txs) == 1
+        assert txs[0]["name"] == "Fetched Transfer"
+        assert txs[0]["amount"] == 1500.0
+        assert txs[0]["source"] == "REAL"
+        assert txs[0]["currency"] == "EUR"
+
+
+class TestChallengeFlow:
+    @pytest.mark.asyncio
+    async def test_returns_confirmation_type_in_app(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Confirm in your app",
+                confirmation_type=LoginConfirmationType.IN_APP,
+                process_id="proc-app-001",
+            ),
+        )
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "IN_APP"
+        assert body["details"]["message"] == "Confirm in your app"
+        assert body["details"]["processId"] == "proc-app-001"
+
+    @pytest.mark.asyncio
+    async def test_returns_challenge_type_recaptcha(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Solve the captcha",
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                challenge_type=ChallengeType.RECAPTCHA,
+                process_id="captcha-001",
+            ),
+        )
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "CHALLENGE"
+        assert body["details"]["challengeType"] == "RECAPTCHA"
+        assert body["details"]["processId"] == "captcha-001"
+
+    @pytest.mark.asyncio
+    async def test_returns_challenge_type_awswaf(
+        self,
+        client,
+        entity_fetchers,
+        credentials_port,
+        last_fetches_port,
+        sessions_port,
+        entity_account_port,
+    ):
+        _setup_entity_account(entity_account_port)
+        _setup_fetcher(
+            entity_fetchers,
+            MY_INVESTOR,
+            EntityLoginResult(
+                code=LoginResultCode.CODE_REQUESTED,
+                message="Complete WAF challenge",
+                confirmation_type=LoginConfirmationType.CHALLENGE,
+                challenge_type=ChallengeType.AWSWAF,
+            ),
+        )
+        last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
+        credentials_port.get = AsyncMock(
+            return_value={"user": "myuser", "password": "mypass"}
+        )
+        sessions_port.get = AsyncMock(return_value=None)
+
+        response = await client.post(
+            FETCH_URL,
+            json={"entityAccountId": ENTITY_ACCOUNT_ID, "features": ["POSITION"]},
+        )
+        assert response.status_code == 200
+        body = await response.get_json()
+        assert body["code"] == "CODE_REQUESTED"
+        assert body["confirmationType"] == "CHALLENGE"
+        assert body["details"]["challengeType"] == "AWSWAF"

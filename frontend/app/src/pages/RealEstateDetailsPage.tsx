@@ -110,7 +110,7 @@ export default function RealEstateDetailsPage() {
       if (!flow.periodic_flow?.enabled) continue
       const amount = flow.periodic_flow.amount
       const freq = flow.periodic_flow.frequency
-      let monthly = amount
+      let monthly: number
       switch (freq) {
         case "DAILY":
           monthly = amount * 30

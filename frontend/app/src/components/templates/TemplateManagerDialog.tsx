@@ -438,7 +438,7 @@ export function TemplateManagerDialog({
     )
     const controlId = `default-value-${field.field}`
 
-    let control: ReactNode = null
+    let control: ReactNode
     if (field.type === TemplateFieldType.BOOLEAN) {
       control = (
         <select

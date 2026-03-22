@@ -47,10 +47,9 @@ class BlockcypherClient:
     @cached(
         cache=Cache.MEMORY,
         ttl=TTL,
-        key_builder=lambda f,
-        self,
-        addresses,
-        fetched_results: f"blockcypher_addresses_{'_'.join(addresses)}",
+        key_builder=lambda f, self, addresses, fetched_results: (
+            f"blockcypher_addresses_{'_'.join(addresses)}"
+        ),
     )
     async def _fetch_addresses(
         self, addresses: list[str], fetched_results: dict[str, CryptoFetchResult | None]

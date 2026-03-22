@@ -265,22 +265,28 @@ class FinanzeServer:
             domain.native_entities.BSC: BSCFetcher(etherscan_client, ethplorer_client),
         }
 
-        financial_entity_fetchers = {
-            domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
-            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
-            domain.native_entities.UNICAJA: UnicajaFetcher(),
-            domain.native_entities.URBANITAE: UrbanitaeFetcher(),
-            domain.native_entities.WECITY: WecityFetcher(),
-            domain.native_entities.SEGO: SegoFetcher(),
-            domain.native_entities.MINTOS: MintosFetcher(),
-            domain.native_entities.F24: F24Fetcher(),
-            domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
-            domain.native_entities.ING: INGFetcher(),
-            domain.native_entities.CAJAMAR: CajamarFetcher(),
-            domain.native_entities.DEGIRO: DegiroFetcher(),
-            domain.native_entities.IBKR: IBKRFetcher(),
-            domain.native_entities.BINANCE: BinanceFetcher(),
-        }
+        if os.getenv("E2E_TEST_MODE", "").strip() == "1":
+            from e2e.test_mode import get_e2e_financial_fetchers
+
+            self._log.warning("E2E TEST MODE ACTIVE - using mock fetchers")
+            financial_entity_fetchers = get_e2e_financial_fetchers()
+        else:
+            financial_entity_fetchers = {
+                domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
+                domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
+                domain.native_entities.UNICAJA: UnicajaFetcher(),
+                domain.native_entities.URBANITAE: UrbanitaeFetcher(),
+                domain.native_entities.WECITY: WecityFetcher(),
+                domain.native_entities.SEGO: SegoFetcher(),
+                domain.native_entities.MINTOS: MintosFetcher(),
+                domain.native_entities.F24: F24Fetcher(),
+                domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
+                domain.native_entities.ING: INGFetcher(),
+                domain.native_entities.CAJAMAR: CajamarFetcher(),
+                domain.native_entities.DEGIRO: DegiroFetcher(),
+                domain.native_entities.IBKR: IBKRFetcher(),
+                domain.native_entities.BINANCE: BinanceFetcher(),
+            }
 
         external_entity_fetchers = {
             ExternalIntegrationId.GOCARDLESS: GoCardlessFetcher(gocardless_client),

@@ -39,11 +39,9 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
 
     @cached(
         ttl=PRICE_CACHE_TTL,
-        key_builder=lambda f,
-        self,
-        symbol,
-        fiat_iso,
-        **kwargs: f"crypto_price:{symbol.upper()}_{fiat_iso.upper()}",
+        key_builder=lambda f, self, symbol, fiat_iso, **kwargs: (
+            f"crypto_price:{symbol.upper()}_{fiat_iso.upper()}"
+        ),
         serializer=PickleSerializer(),
     )
     async def get_price(self, symbol: str, fiat_iso: str, **kwargs) -> Dezimal:
@@ -59,11 +57,9 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
 
     @cached(
         ttl=PRICE_CACHE_TTL,
-        key_builder=lambda f,
-        self,
-        symbols,
-        fiat_isos,
-        **kwargs: f"crypto_multi_price:{','.join(sorted(symbols)).upper()}_{','.join(sorted(fiat_isos)).upper()}",
+        key_builder=lambda f, self, symbols, fiat_isos, **kwargs: (
+            f"crypto_multi_price:{','.join(sorted(symbols)).upper()}_{','.join(sorted(fiat_isos)).upper()}"
+        ),
         serializer=PickleSerializer(),
     )
     async def get_multiple_prices_by_symbol(
@@ -89,11 +85,9 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
 
     @cached(
         ttl=PRICE_CACHE_TTL,
-        key_builder=lambda f,
-        self,
-        addresses,
-        fiat_isos,
-        **kwargs: f"crypto_addr_price:{','.join(sorted(a.lower() for a in addresses))}_{','.join(sorted(f.upper() for f in fiat_isos))}",
+        key_builder=lambda f, self, addresses, fiat_isos, **kwargs: (
+            f"crypto_addr_price:{','.join(sorted(a.lower() for a in addresses))}_{','.join(sorted(f.upper() for f in fiat_isos))}"
+        ),
         serializer=PickleSerializer(),
     )
     async def get_prices_by_addresses(
@@ -149,11 +143,9 @@ class CryptoAssetInfoClient(CryptoAssetInfoProvider):
 
     @cached(
         ttl=3600,
-        key_builder=lambda f,
-        self,
-        provider_id,
-        currencies,
-        provider=ExternalIntegrationId.COINGECKO: f"crypto_asset_details:{provider_id}_{'_'.join(sorted(currencies))}",
+        key_builder=lambda f, self, provider_id, currencies, provider=ExternalIntegrationId.COINGECKO: (
+            f"crypto_asset_details:{provider_id}_{'_'.join(sorted(currencies))}"
+        ),
         serializer=PickleSerializer(),
     )
     async def get_asset_details(

@@ -259,8 +259,8 @@ class TestCommodityDeleteBeforeSave:
         position_port = AsyncMock()
 
         call_order = []
-        position_port.delete_position_for_date.side_effect = (
-            lambda *a, **kw: call_order.append("delete")
+        position_port.delete_position_for_date.side_effect = lambda *a, **kw: (
+            call_order.append("delete")
         )
 
         async def save_side_effect(*a, **kw):

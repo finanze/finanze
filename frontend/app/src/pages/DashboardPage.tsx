@@ -1069,7 +1069,7 @@ export default function DashboardPage() {
             )
 
             let kind: "flow" | "contribution" | "maturity"
-            let recurring = false
+            let recurring: boolean
 
             if (event.type === MoneyEventType.CONTRIBUTION) {
               kind = "contribution"

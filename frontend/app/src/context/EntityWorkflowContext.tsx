@@ -99,7 +99,11 @@ interface EntityWorkflowContextValue {
   storedCredentials: Record<string, string> | null
   view: "entities" | "login" | "features" | "external-login"
   setView: (view: "entities" | "login" | "features" | "external-login") => void
-  login: (credentials: Record<string, string>, pin?: string) => Promise<void>
+  login: (
+    credentials: Record<string, string>,
+    pin?: string,
+    accountName?: string,
+  ) => Promise<void>
   scrape: (
     entity: Entity | null,
     features: Feature[],
@@ -331,7 +335,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   )
 
   const login = useCallback(
-    async (credentials: Record<string, string>, pin?: string) => {
+    async (
+      credentials: Record<string, string>,
+      pin?: string,
+      accountName?: string,
+    ) => {
       if (!selectedEntity) return
 
       try {
@@ -350,6 +358,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           code: pin,
           processId: processId || undefined,
           token: freshWafToken,
+          accountName,
         })
 
         if (response.code === "CODE_REQUESTED") {

@@ -21,7 +21,8 @@ CREATE TABLE public_keychain (
 """
 
 
-def _make_db():
+@pytest.fixture
+def db():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     conn.execute(CREATE_TABLE_SQL)
@@ -29,7 +30,8 @@ def _make_db():
         "CREATE TABLE IF NOT EXISTS sys_config (key TEXT PRIMARY KEY, value TEXT)"
     )
     conn.commit()
-    return DBClient(connection=conn)
+    yield DBClient(connection=conn)
+    conn.close()
 
 
 def _entry(key="k1", value="val", algo=1, version=1):
@@ -44,8 +46,8 @@ def _entry(key="k1", value="val", algo=1, version=1):
 
 class TestSaveAndRetrieve:
     @pytest.mark.asyncio
-    async def test_save_and_retrieve_entries(self):
-        repo = PublicKeychainRepository(client=_make_db())
+    async def test_save_and_retrieve_entries(self, db):
+        repo = PublicKeychainRepository(client=db)
 
         entries = [_entry("k1", "v1"), _entry("k2", "v2")]
         await repo.save(entries)
@@ -56,16 +58,16 @@ class TestSaveAndRetrieve:
         assert keys == {"k1", "k2"}
 
     @pytest.mark.asyncio
-    async def test_retrieve_empty(self):
-        repo = PublicKeychainRepository(client=_make_db())
+    async def test_retrieve_empty(self, db):
+        repo = PublicKeychainRepository(client=db)
         result = await repo.retrieve()
         assert result == []
 
 
 class TestUpsert:
     @pytest.mark.asyncio
-    async def test_save_updates_existing_entry(self):
-        repo = PublicKeychainRepository(client=_make_db())
+    async def test_save_updates_existing_entry(self, db):
+        repo = PublicKeychainRepository(client=db)
 
         await repo.save([_entry("k1", "old_value", algo=1, version=1)])
         await repo.save([_entry("k1", "new_value", algo=1, version=2)])
@@ -78,8 +80,8 @@ class TestUpsert:
 
 class TestRetrievePreservesFields:
     @pytest.mark.asyncio
-    async def test_all_fields_persisted(self):
-        repo = PublicKeychainRepository(client=_make_db())
+    async def test_all_fields_persisted(self, db):
+        repo = PublicKeychainRepository(client=db)
         now = datetime.now(tzlocal())
         entry = PublicKeyEntry(
             key="mykey", value="myval", algo=1, version=5, updated_at=now

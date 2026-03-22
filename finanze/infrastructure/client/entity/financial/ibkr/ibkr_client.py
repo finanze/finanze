@@ -123,7 +123,7 @@ class IBKRClient:
             )
             return EntityLoginResult(LoginResultCode.CREATED, session=new_session)
 
-        except (httpx.HTTPStatusError, ValueError):
+        except httpx.HTTPStatusError, ValueError:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
         except Exception as e:
             self._log.error(f"IBKR login error: {e}", exc_info=True)

@@ -274,7 +274,7 @@ def _map_trade(
         tx_date = datetime.strptime(date_str, "%Y-%m-%d, %H:%M:%S").replace(
             tzinfo=tzlocal()
         )
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
     shares = abs(qty)
@@ -404,7 +404,7 @@ def _map_account_tx(
 
     try:
         tx_date = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=tzlocal())
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
     tx_type = section_config["type_fn"](description, amount)
