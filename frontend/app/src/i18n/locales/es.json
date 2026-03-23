@@ -1456,8 +1456,8 @@
       "CRYPTO": "Criptomonedas",
       "COMMODITY": "Materia Prima",
       "PENDING_FLOWS": "Pendiente",
-      "BOND": "Bono",
-      "DERIVATIVE": "Derivado"
+      "BOND": "Bonos",
+      "DERIVATIVE": "Derivados"
     },
     "assetType": {
       "EQUITY": "Renta Variable",

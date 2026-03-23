@@ -193,6 +193,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     active: boolean
     features: Feature[]
     options: FetchOptions
+    entityAccountId?: string
   }>({
     active: false,
     features: [],
@@ -727,6 +728,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               active: true,
               features: features,
               options: options,
+              entityAccountId,
             }
 
             await startExternalLogin(entity, response.details?.credentials)
@@ -1060,6 +1062,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         ) {
           const features = scrapeManualLogin.current.features
           const options = scrapeManualLogin.current.options
+          const entityAccountId = scrapeManualLogin.current.entityAccountId
 
           scrapeManualLogin.current = {
             active: false,
@@ -1068,7 +1071,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
 
           try {
-            await scrape(selectedEntity, features, options)
+            await scrape(selectedEntity, features, options, entityAccountId)
           } finally {
             setView("entities")
           }

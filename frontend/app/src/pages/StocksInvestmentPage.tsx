@@ -142,6 +142,7 @@ function StockPositionLogo({
   const [sourceIndex, setSourceIndex] = useState(0)
   const [shouldInvert, setShouldInvert] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const imageRef = useRef<HTMLImageElement | null>(null)
 
   useEffect(() => {
@@ -166,6 +167,7 @@ function StockPositionLogo({
   useEffect(() => {
     setSourceIndex(0)
     setShouldInvert(false)
+    setLoaded(false)
   }, [sources.join("|")])
 
   const isStock = position.equityType === EquityType.STOCK
@@ -209,6 +211,39 @@ function StockPositionLogo({
     return fallback
   }
 
+  if (!loaded) {
+    return (
+      <>
+        {fallback}
+        <img
+          src={currentSrc}
+          alt=""
+          crossOrigin={isStock ? "anonymous" : undefined}
+          className="absolute h-0 w-0 opacity-0 pointer-events-none"
+          onLoad={event => {
+            const img = event.currentTarget
+            if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+              setSourceIndex(prev => prev + 1)
+              return
+            }
+            setLoaded(true)
+            imageRef.current = img
+            if (isStock && !isDarkMode) {
+              try {
+                setShouldInvert(isMostlyWhiteLogo(img))
+              } catch {
+                setShouldInvert(false)
+              }
+            }
+          }}
+          onError={() => {
+            setSourceIndex(prev => prev + 1)
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <img
       ref={imageRef}
@@ -227,20 +262,9 @@ function StockPositionLogo({
           : "rounded-md",
         externalClassName,
       )}
-      onLoad={event => {
-        if (!isStock || isDarkMode) {
-          setShouldInvert(false)
-          return
-        }
-
-        try {
-          setShouldInvert(isMostlyWhiteLogo(event.currentTarget))
-        } catch {
-          setShouldInvert(false)
-        }
-      }}
       onError={() => {
         setShouldInvert(false)
+        setLoaded(false)
         setSourceIndex(prev => prev + 1)
       }}
     />

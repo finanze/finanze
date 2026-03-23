@@ -47,6 +47,7 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "bgf ": KnownIssuer.BLACKROCK,
     "jpm ": KnownIssuer.JP_MORGAN,
     "dbx ": KnownIssuer.XTRACKERS,
+    "franklin ": KnownIssuer.FRANKLIN_TEMPLETON,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

@@ -99,7 +99,6 @@ export default defineConfig(({ command, mode }) => {
                       external: electronExternals,
                       output: {
                         inlineDynamicImports: true,
-                        entryFileNames: "[name].cjs",
                       },
                     },
                   },

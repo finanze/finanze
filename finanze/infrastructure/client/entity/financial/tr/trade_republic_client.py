@@ -88,6 +88,7 @@ class TradeRepublicClient:
             locale="en",
         )
 
+        self._tr_api._websession.headers["x-tr-platform"] = "web"
         if waf_token:
             self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
 
