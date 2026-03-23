@@ -8,6 +8,8 @@ import {
   CryptoCurrencyWallet,
   CryptoCurrencyPosition,
   CryptoCurrencyType,
+  DerivativeDetail,
+  DerivativePositions,
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
@@ -326,6 +328,38 @@ export const convertCommodityAmountToDisplayUnit = (
   displayUnit: WeightUnit,
 ): number => {
   return convertWeight(amount, originalUnit, displayUnit)
+}
+
+const STABLECOIN_CURRENCY_MAP: Record<string, string> = { BNFCR: "USD" }
+
+const sumDerivativeValues = (
+  entityPosition: { products: Record<string, any> },
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+  underlyingFilter?: Set<ProductType>,
+): number => {
+  const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
+    | DerivativePositions
+    | undefined
+  if (
+    !derivProduct ||
+    !("entries" in derivProduct) ||
+    derivProduct.entries.length === 0
+  )
+    return 0
+
+  return derivProduct.entries.reduce((sum: number, d: DerivativeDetail) => {
+    if (underlyingFilter && !underlyingFilter.has(d.underlying_asset))
+      return sum
+    const mv = d.market_value || 0
+    const currency = STABLECOIN_CURRENCY_MAP[d.currency] || d.currency
+    return (
+      sum +
+      (targetCurrency && exchangeRates
+        ? convertCurrency(mv, currency, targetCurrency, exchangeRates)
+        : mv)
+    )
+  }, 0)
 }
 
 export const getTransactionDisplayType = (txType: TxType): "in" | "out" => {
@@ -778,6 +812,35 @@ export const getAssetDistribution = (
         assetTypes["COMMODITY"].value += commodityTotal
         totalValue += commodityTotal
       }
+
+      const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
+        | DerivativePositions
+        | undefined
+      if (
+        derivProduct &&
+        "entries" in derivProduct &&
+        derivProduct.entries.length > 0
+      ) {
+        derivProduct.entries.forEach((d: DerivativeDetail) => {
+          const bucket = d.underlying_asset || "CRYPTO"
+          if (!assetTypes[bucket]) {
+            assetTypes[bucket] = {
+              type: bucket,
+              value: 0,
+              percentage: 0,
+              change: 0,
+            }
+          }
+          const mv = d.market_value || 0
+          const currency = STABLECOIN_CURRENCY_MAP[d.currency] || d.currency
+          const converted =
+            targetCurrency && exchangeRates
+              ? convertCurrency(mv, currency, targetCurrency, exchangeRates)
+              : mv
+          assetTypes[bucket].value += converted
+          totalValue += converted
+        })
+      }
     })
 
   // Include Real Estate owned equity as its own asset category (market value - outstanding debt)
@@ -1078,6 +1141,12 @@ export const getEntityDistribution = (
           entityTotal += commodityValue
         })
       }
+
+      entityTotal += sumDerivativeValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+      )
 
       if (entityTotal > 0) {
         entities[entityId] = {
@@ -1393,6 +1462,12 @@ export const getTotalAssets = (
           total += commodityValue
         })
       }
+
+      total += sumDerivativeValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+      )
     })
 
   // Add pending flows if provided
@@ -2655,6 +2730,19 @@ export const getTotalDisplayedAssets = (
           total += commodityValue
         })
       }
+
+      const displayedUnderlyingTypes = new Set([
+        ProductType.FUND,
+        ProductType.STOCK_ETF,
+        ProductType.CRYPTO,
+        ProductType.COMMODITY,
+      ])
+      total += sumDerivativeValues(
+        entityPosition,
+        targetCurrency,
+        exchangeRates,
+        displayedUnderlyingTypes,
+      )
     })
 
   return total

@@ -108,6 +108,13 @@ class BinanceClient:
     async def get_futures_account(self) -> dict:
         return await self._signed_get(self.FUTURES_BASE_URL, "/fapi/v3/account")
 
+    async def get_position_risk(self) -> list[dict]:
+        result = await self._signed_get(self.FUTURES_BASE_URL, "/fapi/v3/positionRisk")
+        if isinstance(result, list):
+            return result
+        self._log.warning(f"positionRisk returned unexpected type: {type(result)}")
+        return []
+
     async def get_exchange_info(self) -> dict:
         return await self._get(f"{self.SPOT_BASE_URL}/api/v3/exchangeInfo")
 

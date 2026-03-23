@@ -13,7 +13,12 @@ from domain.global_position import (
     CryptoCurrencies,
     CryptoCurrencyPosition,
     CryptoCurrencyWallet,
+    DerivativeContractType,
+    DerivativeDetail,
+    DerivativePositions,
     GlobalPosition,
+    MarginType,
+    PositionDirection,
     ProductType,
 )
 from domain.native_entities import BINANCE
@@ -64,9 +69,11 @@ FIAT_CURRENCIES = {
 EXCLUDED_ASSETS = {
     "LDUSDT",
     "BFUSD",
-    "BNFCR",
     "RWUSD",
 }
+
+# Assets only relevant in the futures wallet context (not tradeable on spot)
+FUTURES_ONLY_ASSETS = {"BNFCR"}
 
 # Always query pairs involving these common quote currencies
 ALWAYS_INCLUDE_ASSETS = {
@@ -105,25 +112,45 @@ class BinanceFetcher(FinancialEntityFetcher):
         spot_account = await self._client.get_spot_account()
         spot_assets = self._get_spot_assets(spot_account)
 
-        futures_assets: dict[str, Dezimal] = {}
-        try:
-            futures_account = await self._client.get_futures_account()
-            futures_assets = self._get_futures_assets(futures_account, spot_assets)
-        except Exception as e:
-            self._log.warning(f"Could not fetch futures account: {e}")
-
-        combined = self._combine_assets(spot_assets, futures_assets)
-
         price_index = await self._build_price_index()
 
-        positions = []
+        # Futures wallet assets + derivative positions
+        futures_wallet_assets: dict[str, Dezimal] = {}
+        derivative_entries = []
+        try:
+            futures_account = await self._client.get_futures_account()
+            futures_wallet_assets = self._get_futures_wallet_assets(futures_account)
+
+            # Derivative positions from positionRisk
+            position_risk = await self._client.get_position_risk()
+            self._log.info(f"positionRisk returned {len(position_risk)} entries")
+            derivative_entries = self._build_derivative_positions(position_risk)
+        except Exception as e:
+            self._log.warning(f"Could not fetch futures data: {e}")
+
+        # Combine spot + futures wallet balances per asset
+        combined = dict(spot_assets)
+        for asset, amount in futures_wallet_assets.items():
+            if asset in combined:
+                combined[asset] = combined[asset] + amount
+            else:
+                combined[asset] = amount
+
+        # Build crypto positions from combined balances
+        crypto_positions = []
         for symbol, amount in combined.items():
             if amount == 0:
                 continue
+            if symbol == "BNFCR":
+                # BNFCR is 1:1 USD
+                market_value = amount
+                currency = "USD"
+            else:
+                market_value, currency = self._price_in_fiat(
+                    symbol, amount, price_index
+                )
 
-            market_value, currency = self._price_in_fiat(symbol, amount, price_index)
-
-            positions.append(
+            crypto_positions.append(
                 CryptoCurrencyPosition(
                     id=uuid4(),
                     name=symbol,
@@ -137,9 +164,11 @@ class BinanceFetcher(FinancialEntityFetcher):
 
         products = {
             ProductType.CRYPTO: CryptoCurrencies(
-                [CryptoCurrencyWallet(assets=positions)]
+                [CryptoCurrencyWallet(assets=crypto_positions)]
             ),
         }
+        if derivative_entries:
+            products[ProductType.DERIVATIVE] = DerivativePositions(derivative_entries)
 
         return GlobalPosition(
             id=uuid4(),
@@ -371,7 +400,11 @@ class BinanceFetcher(FinancialEntityFetcher):
         assets: dict[str, Dezimal] = {}
         for balance in spot_account.get("balances", []):
             asset = balance["asset"]
-            if asset in FIAT_CURRENCIES or asset in EXCLUDED_ASSETS:
+            if (
+                asset in FIAT_CURRENCIES
+                or asset in EXCLUDED_ASSETS
+                or asset in FUTURES_ONLY_ASSETS
+            ):
                 continue
             free = Dezimal(balance.get("free", "0"))
             locked = Dezimal(balance.get("locked", "0"))
@@ -381,27 +414,90 @@ class BinanceFetcher(FinancialEntityFetcher):
         return assets
 
     @staticmethod
-    def _get_futures_assets(
-        futures_account: dict, spot_assets: dict[str, Dezimal]
+    def _get_futures_wallet_assets(
+        futures_account: dict,
     ) -> dict[str, Dezimal]:
+        """Extract non-zero futures wallet balances as {asset: amount} dict.
+
+        BNFCR (1:1 USD) represents the cash debt in multi-asset mode.
+        Other assets (e.g. BTC) are collateral held in the futures wallet.
+        These will be combined with spot balances to avoid duplication.
+        """
         assets: dict[str, Dezimal] = {}
         for asset_data in futures_account.get("assets", []):
             asset = asset_data["asset"]
-            if asset in FIAT_CURRENCIES or asset in EXCLUDED_ASSETS:
+            if asset in EXCLUDED_ASSETS:
                 continue
             wallet_balance = Dezimal(asset_data.get("walletBalance", "0"))
-            if wallet_balance > 0 and asset in spot_assets:
-                assets[asset] = wallet_balance
+            if wallet_balance == 0:
+                continue
+            assets[asset] = wallet_balance
         return assets
 
     @staticmethod
-    def _combine_assets(
-        spot: dict[str, Dezimal], futures: dict[str, Dezimal]
-    ) -> dict[str, Dezimal]:
-        combined: dict[str, Dezimal] = dict(spot)
-        for asset, amount in futures.items():
-            if asset in combined:
-                combined[asset] = combined[asset] + amount
+    def _build_derivative_positions(
+        position_risk: list[dict],
+    ) -> list[DerivativeDetail]:
+        """Map positionRisk entries to DerivativeDetail domain objects."""
+        entries = []
+        for position in position_risk:
+            position_amt = Dezimal(position.get("positionAmt", "0"))
+            if position_amt == 0:
+                continue
+
+            symbol = position["symbol"]
+            direction = (
+                PositionDirection.LONG if position_amt > 0 else PositionDirection.SHORT
+            )
+            size = abs(position_amt)
+
+            # Perpetual vs dated futures: dated contracts have "_" in the symbol
+            if "_" in symbol:
+                contract_type = DerivativeContractType.FUTURES
             else:
-                combined[asset] = amount
-        return combined
+                contract_type = DerivativeContractType.PERPETUAL
+
+            entry_price = Dezimal(position.get("entryPrice", "0"))
+            mark_price = Dezimal(position.get("markPrice", "0"))
+            unrealized_pnl = Dezimal(position.get("unRealizedProfit", "0"))
+            initial_margin = Dezimal(position.get("initialMargin", "0"))
+            notional = abs(Dezimal(position.get("notional", "0")))
+            liquidation_price = Dezimal(position.get("liquidationPrice", "0"))
+            margin_asset = position.get("marginAsset", "USDT")
+
+            # Leverage = notional / initialMargin
+            leverage = None
+            if initial_margin and initial_margin != 0:
+                leverage = round(notional / initial_margin, 0)
+
+            # Margin type from isolated wallet value
+            isolated_wallet = position.get("isolatedWallet", "0")
+            margin_type = (
+                MarginType.ISOLATED if isolated_wallet != "0" else MarginType.CROSS
+            )
+
+            entries.append(
+                DerivativeDetail(
+                    id=uuid4(),
+                    symbol=symbol,
+                    underlying_asset=ProductType.CRYPTO,
+                    underlying_symbol=symbol.replace("USDT", "").replace("BUSD", ""),
+                    contract_type=contract_type,
+                    direction=direction,
+                    size=size,
+                    entry_price=entry_price,
+                    currency=margin_asset,
+                    mark_price=mark_price,
+                    market_value=unrealized_pnl,
+                    unrealized_pnl=unrealized_pnl,
+                    leverage=leverage,
+                    margin=initial_margin,
+                    margin_type=margin_type,
+                    liquidation_price=liquidation_price
+                    if liquidation_price != 0
+                    else None,
+                    name=symbol,
+                    source=DataSource.REAL,
+                )
+            )
+        return entries

@@ -103,6 +103,17 @@ class PositionWriteQueries(str, Enum):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
+    INSERT_DERIVATIVE_POSITION = """
+        INSERT INTO derivative_positions (id, global_position_id, symbol, underlying_asset,
+                                          contract_type, direction, size, entry_price, currency,
+                                          mark_price, market_value, unrealized_pnl, leverage,
+                                          margin, margin_type, liquidation_price, isin,
+                                          strike_price, knock_out_price, ratio, issuer,
+                                          underlying_symbol, underlying_isin, expiry, name,
+                                          initial_investment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
 
 class PositionQueries(str, Enum):
     INSERT_GLOBAL_POSITION = "INSERT INTO global_positions (id, date, entity_id, source, entity_account_id) VALUES (?, ?, ?, ?, ?)"
@@ -240,6 +251,10 @@ class PositionQueries(str, Enum):
 
     GET_COMMODITIES_BY_GLOBAL_POSITION_ID = (
         "SELECT * FROM commodity_positions WHERE global_position_id = ?"
+    )
+
+    GET_DERIVATIVES_BY_GLOBAL_POSITION_ID = (
+        "SELECT * FROM derivative_positions WHERE global_position_id = ?"
     )
 
     GET_ENTITY_ID_FROM_GLOBAL_POSITION_ID = (

@@ -195,6 +195,8 @@
     "sortAmount": "Amount",
     "sortRelativeGain": "Gain %",
     "sortAbsoluteGain": "Gain",
+    "actives": "Actives",
+    "passives": "Passives",
     "sortStart": "Start",
     "sortMaturity": "Maturity",
     "cryptoView": {
@@ -203,6 +205,45 @@
       "viewModes": {
         "wallets": "By wallet",
         "network": "By source"
+      }
+    },
+    "derivatives": {
+      "title": "Derivatives",
+      "singular": "derivative",
+      "plural": "derivatives",
+      "includeDerivatives": "Include Derivatives",
+      "size": "Size",
+      "direction": {
+        "LONG": "Long",
+        "SHORT": "Short"
+      },
+      "contractType": {
+        "PERPETUAL": "Perpetual",
+        "FUTURES": "Futures",
+        "KNOCK_OUT": "Knock Out",
+        "FACTOR": "Factor",
+        "WARRANT": "Warrant",
+        "OPTIONS": "Options",
+        "CFD": "CFD",
+        "OTHER": "Other"
+      },
+      "detail": {
+        "positionDetails": "Position Details",
+        "overview": "Overview",
+        "symbol": "Symbol",
+        "underlying": "Underlying",
+        "direction": "Direction",
+        "contractType": "Contract Type",
+        "pricing": "Pricing",
+        "entryPrice": "Entry Price",
+        "markPrice": "Mark Price",
+        "marketValue": "Market Value",
+        "unrealizedPnl": "Unrealized P&L",
+        "risk": "Risk & Margin",
+        "leverage": "Leverage",
+        "margin": "Margin",
+        "marginType": "Margin Type",
+        "liquidationPrice": "Liquidation Price"
       }
     },
     "weightedAverageInterest": "Weighted Avg. Interest",

@@ -3,6 +3,7 @@ from domain.global_position import (
     Crowdlending,
     CryptoCurrencies,
     Deposits,
+    DerivativePositions,
     FactoringInvestments,
     FundInvestments,
     FundPortfolios,
@@ -108,6 +109,14 @@ def _add_loans(self: Loans, other: Loans) -> Loans:
     )
 
 
+def _add_derivatives(
+    self: DerivativePositions, other: DerivativePositions
+) -> DerivativePositions:
+    return DerivativePositions(
+        entries=self.entries + other.entries,
+    )
+
+
 def _add_products(self: ProductPositions, other: ProductPositions) -> ProductPositions:
     if not other:
         return self
@@ -150,4 +159,5 @@ def add_extensions():
     Accounts.__add__ = _add_accounts
     Cards.__add__ = _add_cards
     Loans.__add__ = _add_loans
+    DerivativePositions.__add__ = _add_derivatives
     GlobalPosition.__add__ = _add_position

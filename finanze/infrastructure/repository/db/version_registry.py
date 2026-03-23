@@ -133,6 +133,9 @@ from infrastructure.repository.db.versions.v0.v08.v080_9_binance import V0809Bin
 from infrastructure.repository.db.versions.v0.v08.v080_10_entity_accounts import (
     V0810EntityAccounts,
 )
+from infrastructure.repository.db.versions.v0.v08.v080_11_derivatives import (
+    V0811Derivatives,
+)
 
 versions = [
     V0Genesis(),
@@ -190,4 +193,5 @@ versions = [
     V0808IBKR(),
     V0809Binance(),
     V0810EntityAccounts(),
+    V0811Derivatives(),
 ]

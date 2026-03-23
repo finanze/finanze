@@ -193,6 +193,8 @@
     "sortAmount": "Importe",
     "sortRelativeGain": "Gan. %",
     "sortAbsoluteGain": "Ganancia",
+    "actives": "Activos",
+    "passives": "Pasivos",
     "sortStart": "Inicio",
     "sortMaturity": "Vencimiento",
     "cryptoView": {
@@ -201,6 +203,45 @@
       "viewModes": {
         "wallets": "Por billetera",
         "network": "Por origen"
+      }
+    },
+    "derivatives": {
+      "title": "Derivados",
+      "singular": "derivado",
+      "plural": "derivados",
+      "includeDerivatives": "Incluir Derivados",
+      "size": "Cantidad",
+      "direction": {
+        "LONG": "Largo",
+        "SHORT": "Corto"
+      },
+      "contractType": {
+        "PERPETUAL": "Perpetuo",
+        "FUTURES": "Futuros",
+        "KNOCK_OUT": "Knock Out",
+        "FACTOR": "Factor",
+        "WARRANT": "Warrant",
+        "OPTIONS": "Opciones",
+        "CFD": "CFD",
+        "OTHER": "Otro"
+      },
+      "detail": {
+        "positionDetails": "Detalles de la Posición",
+        "overview": "Resumen",
+        "symbol": "Símbolo",
+        "underlying": "Subyacente",
+        "direction": "Dirección",
+        "contractType": "Tipo de Contrato",
+        "pricing": "Precios",
+        "entryPrice": "Precio de Entrada",
+        "markPrice": "Precio Actual",
+        "marketValue": "Valor de Mercado",
+        "unrealizedPnl": "P&L no Realizado",
+        "risk": "Riesgo y Margen",
+        "leverage": "Apalancamiento",
+        "margin": "Margen",
+        "marginType": "Tipo de Margen",
+        "liquidationPrice": "Precio de Liquidación"
       }
     },
     "weightedAverageInterest": "Interés ponderado",
