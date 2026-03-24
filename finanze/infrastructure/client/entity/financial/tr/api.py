@@ -36,7 +36,9 @@ from infrastructure.client.http.http_session import new_http_session
 
 
 class TradeRepublicApi:
-    _default_headers = {"User-Agent": "TradeRepublic/Android 30/App Version 1.1.5534"}
+    _default_headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"
+    }
     _host = "https://api.traderepublic.com"
     _weblogin = False
 

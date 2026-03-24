@@ -38,11 +38,6 @@ import {
 } from "@/services/autoRefreshService"
 import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
-import {
-  resolveAwsWafToken,
-  getFreshAwsWafToken,
-  cleanupAwsWaf,
-} from "@/lib/awswaf"
 
 export interface FetchOptions {
   deep?: boolean
@@ -148,6 +143,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     showToast,
     updateEntityStatus,
     updateEntityLastFetch,
+    updateEntityAccount,
     fetchEntities,
     settings,
     entities,
@@ -236,6 +232,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ((entityId: string) => Promise<void>) | null
   >(null)
 
+  const scrapeRef = useRef<typeof scrape>(null!)
+
   const resetState = useCallback((options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
     setPinRequired(false)
@@ -244,7 +242,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     setChallengeRequired(false)
     setChallengeProcessId(null)
     setChallengeType(null)
-    cleanupAwsWaf()
 
     if (!preserveSelectedFeatures) {
       setSelectedFeatures([])
@@ -349,16 +346,18 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
         if (!storedCredentials) {
           setStoredCredentials(credentials)
+        } else {
+          const merged = { ...storedCredentials, ...credentials }
+          if (JSON.stringify(merged) !== JSON.stringify(storedCredentials)) {
+            setStoredCredentials(merged)
+          }
         }
-
-        const freshWafToken = await getFreshAwsWafToken()
 
         const response = await loginEntity({
           entity: selectedEntity.id,
           credentials: credentials,
           code: pin,
           processId: processId || undefined,
-          token: freshWafToken,
           accountName,
         })
 
@@ -379,6 +378,12 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 confirmResponse.code === "RESUMED"
               ) {
                 updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
+                if (confirmResponse.entityAccountId) {
+                  updateEntityAccount(
+                    selectedEntity.id,
+                    confirmResponse.entityAccountId,
+                  )
+                }
                 showToast(
                   t.common.loginSuccessEntity.replace(
                     "{entity}",
@@ -414,59 +419,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
             if (
-              response.challengeType === ChallengeType.AWSWAF &&
-              response.processId
-            ) {
-              try {
-                const wafToken = await resolveAwsWafToken(response.processId)
-                const retryResponse = await loginEntity({
-                  entity: selectedEntity.id,
-                  credentials: credentials,
-                  token: wafToken,
-                })
-                if (
-                  retryResponse.code === "CREATED" ||
-                  retryResponse.code === "RESUMED"
-                ) {
-                  updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
-                  showToast(
-                    t.common.loginSuccessEntity.replace(
-                      "{entity}",
-                      selectedEntity.name,
-                    ),
-                    "success",
-                  )
-                  resetState()
-                  setView("entities")
-                } else if (retryResponse.code === "CODE_REQUESTED") {
-                  setProcessId(retryResponse.processId || null)
-                  setPinRequired(true)
-                  setPinLength(selectedEntity.pin?.positions || 4)
-                } else {
-                  showToast(
-                    t.common.loginErrorEntity.replace(
-                      "{entity}",
-                      selectedEntity.name,
-                    ),
-                    "error",
-                  )
-                  resetState()
-                }
-              } catch {
-                showToast(
-                  t.common.loginErrorEntity.replace(
-                    "{entity}",
-                    selectedEntity.name,
-                  ),
-                  "error",
-                )
-                resetState()
-              } finally {
-                setIsLoggingIn(false)
-              }
-              return
-            }
-            if (
               response.challengeType === ChallengeType.RECAPTCHA &&
               response.processId
             ) {
@@ -480,15 +432,44 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           setPinLength(selectedEntity.pin?.positions || 4)
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
           updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
-          showToast(
-            t.common.loginSuccessEntity.replace(
-              "{entity}",
-              selectedEntity.name,
-            ),
-            "success",
-          )
-          resetState()
-          setView("entities")
+          if (response.entityAccountId) {
+            updateEntityAccount(selectedEntity.id, response.entityAccountId)
+          }
+
+          if (scrapeManualLogin.current.active) {
+            const features = scrapeManualLogin.current.features
+            const options = scrapeManualLogin.current.options
+            const entityAccountId =
+              response.entityAccountId ||
+              scrapeManualLogin.current.entityAccountId
+
+            scrapeManualLogin.current = {
+              active: false,
+              features: [],
+              options: DEFAULT_FETCH_OPTIONS,
+            }
+
+            try {
+              await scrapeRef.current(
+                selectedEntity,
+                features,
+                options,
+                entityAccountId,
+              )
+            } finally {
+              setView("entities")
+            }
+          } else {
+            showToast(
+              t.common.loginSuccessEntity.replace(
+                "{entity}",
+                selectedEntity.name,
+              ),
+              "success",
+            )
+            resetState()
+            setView("entities")
+          }
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
@@ -626,7 +607,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             entity.type === EntityType.FINANCIAL_INSTITUTION ||
             entity.type === EntityType.CRYPTO_EXCHANGE
           ) {
-            const freshWafToken = await getFreshAwsWafToken()
             const accountId = entityAccountId || entity.accounts?.[0]?.id
             response = await fetchFinancialEntity({
               entity: entity.id,
@@ -635,7 +615,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               deep: options.deep,
               avoidNewLogin: options.avoidNewLogin,
               code: options.code,
-              token: freshWafToken || options.token,
+              token: options.token,
               entityAccountId: accountId,
             })
           } else {
@@ -667,17 +647,6 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
             const processIdValue = response.details?.processId || null
             const challengeTypeValue = response.details?.challengeType || null
-            if (challengeTypeValue === ChallengeType.AWSWAF && processIdValue) {
-              try {
-                await resolveAwsWafToken(processIdValue)
-                scrape(entity, features, options, entityAccountId)
-              } catch {
-                if (silent && entity) {
-                  recordAutoRefreshFailure(entity.id, response)
-                }
-              }
-              return
-            }
             if (processIdValue && entity) {
               setSelectedEntity(entity)
               setSelectedFeatures(features)
@@ -970,6 +939,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ],
   )
 
+  scrapeRef.current = scrape
+
   const submitChallengeToken = useCallback(
     (token: string) => {
       if (!selectedEntity) return
@@ -985,6 +956,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           .then(response => {
             if (response.code === "CREATED" || response.code === "RESUMED") {
               updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
+              if (response.entityAccountId) {
+                updateEntityAccount(selectedEntity.id, response.entityAccountId)
+              }
               showToast(
                 t.common.loginSuccessEntity.replace(
                   "{entity}",
@@ -1060,9 +1034,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           loginResponse.code === LoginResultCode.CREATED ||
           loginResponse.code === LoginResultCode.RESUMED
         ) {
+          if (loginResponse.entityAccountId) {
+            updateEntityAccount(
+              selectedEntity.id,
+              loginResponse.entityAccountId,
+            )
+          }
           const features = scrapeManualLogin.current.features
           const options = scrapeManualLogin.current.options
-          const entityAccountId = scrapeManualLogin.current.entityAccountId
+          const entityAccountId =
+            loginResponse.entityAccountId ||
+            scrapeManualLogin.current.entityAccountId
 
           scrapeManualLogin.current = {
             active: false,
@@ -1074,6 +1056,77 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             await scrape(selectedEntity, features, options, entityAccountId)
           } finally {
             setView("entities")
+          }
+        } else if (loginResponse.code === LoginResultCode.CODE_REQUESTED) {
+          setProcessId(loginResponse.processId || null)
+          setCurrentAction("login")
+          setStoredCredentials(credentials)
+          if (loginResponse.confirmationType === LoginConfirmationType.IN_APP) {
+            setInAppConfirmation(true)
+            try {
+              const confirmResponse = await loginEntity({
+                entity: selectedEntity.id,
+                credentials,
+                processId: loginResponse.processId || undefined,
+              })
+              if (
+                confirmResponse.code === LoginResultCode.CREATED ||
+                confirmResponse.code === LoginResultCode.RESUMED
+              ) {
+                if (confirmResponse.entityAccountId) {
+                  updateEntityAccount(
+                    selectedEntity.id,
+                    confirmResponse.entityAccountId,
+                  )
+                }
+                const features = scrapeManualLogin.current.features
+                const options = scrapeManualLogin.current.options
+                const entityAccountId =
+                  confirmResponse.entityAccountId ||
+                  scrapeManualLogin.current.entityAccountId
+
+                scrapeManualLogin.current = {
+                  active: false,
+                  features: [],
+                  options: DEFAULT_FETCH_OPTIONS,
+                }
+
+                try {
+                  await scrape(
+                    selectedEntity,
+                    features,
+                    options,
+                    entityAccountId,
+                  )
+                } finally {
+                  setView("entities")
+                }
+              } else {
+                showToast(
+                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
+                    t.common.loginError,
+                  "error",
+                )
+                resetState()
+                setView("entities")
+              }
+            } catch {
+              showToast(t.common.loginError, "error")
+              resetState()
+              setView("entities")
+            }
+          } else if (
+            loginResponse.confirmationType ===
+              LoginConfirmationType.CHALLENGE &&
+            loginResponse.challengeType === ChallengeType.RECAPTCHA &&
+            loginResponse.processId
+          ) {
+            setChallengeProcessId(loginResponse.processId)
+            setChallengeType(ChallengeType.RECAPTCHA)
+            setChallengeRequired(true)
+          } else {
+            setPinRequired(true)
+            setPinLength(selectedEntity.pin?.positions || 4)
           }
         } else {
           showToast(
@@ -1093,7 +1146,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         setIsLoggingIn(false)
       }
     },
-    [resetState, scrape, selectedEntity, setView, showToast, t],
+    [
+      resetState,
+      scrape,
+      selectedEntity,
+      setView,
+      showToast,
+      t,
+      updateEntityStatus,
+    ],
   )
 
   useEffect(() => {
@@ -1130,11 +1191,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             ).every(key => result.credentials[key])
 
             if (allCredentialsProvided) {
-              try {
-                await login(result.credentials)
-              } finally {
-                setView("entities")
-              }
+              await login(result.credentials)
             } else {
               setStoredCredentials(result.credentials)
               setView("login")

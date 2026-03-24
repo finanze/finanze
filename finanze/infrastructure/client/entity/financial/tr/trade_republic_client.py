@@ -11,8 +11,6 @@ from domain.entity_login import (
     EntitySession,
     LoginOptions,
     LoginResultCode,
-    LoginConfirmationType,
-    ChallengeType,
 )
 from infrastructure.client.entity.financial.tr.api import TradeRepublicApi
 from infrastructure.client.entity.financial.tr.portfolio import Portfolio
@@ -66,8 +64,6 @@ def _rebuild_cookie_jar(cookie_list: list[dict]) -> httpx.Cookies:
 
 
 class TradeRepublicClient:
-    WAF_CHALLENGE_URL = "https://8dc6d8e337ce.330bb79d.eu-central-1.token.awswaf.com/8dc6d8e337ce/db33ccb9f7c7/challenge.js"
-
     def __init__(self):
         self._tr_api = None
         self._log = logging.getLogger(__name__)
@@ -88,23 +84,19 @@ class TradeRepublicClient:
             locale="en",
         )
 
-        self._tr_api._websession.headers["x-tr-platform"] = "web"
-        if waf_token:
-            self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
-
-        else:
-            return EntityLoginResult(
-                LoginResultCode.CODE_REQUESTED,
-                confirmation_type=LoginConfirmationType.CHALLENGE,
-                challenge_type=ChallengeType.AWSWAF,
-                process_id=self.WAF_CHALLENGE_URL,
-            )
-
         if session and not login_options.force_new_session:
             self._inject_session(session)
             if await self._resumable_session():
                 self._log.debug("Resuming session")
                 return EntityLoginResult(LoginResultCode.RESUMED)
+
+        if waf_token:
+            self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
+        else:
+            return EntityLoginResult(
+                LoginResultCode.MANUAL_LOGIN,
+                details={"phone": phone, "password": pin},
+            )
 
         if code and process_id:
             self._tr_api._process_id = process_id
@@ -125,7 +117,7 @@ class TradeRepublicClient:
                     )
 
             sess_created_at = datetime.now(tzlocal())
-            session_payload = self._export_session()
+            session_payload = self._export_session(waf_token)
             new_session = EntitySession(
                 creation=sess_created_at, expiration=None, payload=session_payload
             )
@@ -137,8 +129,11 @@ class TradeRepublicClient:
                     countdown = await self._initiate_weblogin()
 
                 except httpx.HTTPStatusError as e:
-                    if e.response.status_code == 403:
-                        return EntityLoginResult(LoginResultCode.CURRENTLY_UNAVAILABLE)
+                    if e.response.status_code in (403, 405):
+                        return EntityLoginResult(
+                            LoginResultCode.UNEXPECTED_ERROR,
+                            message="Invalid challenge token",
+                        )
                     else:
                         self._log.error("Unexpected error during login", exc_info=e)
                     return EntityLoginResult(
@@ -202,14 +197,20 @@ class TradeRepublicClient:
 
         return int(j["countdownInSeconds"]) + 1
 
-    def _export_session(self) -> dict:
-        return {"cookies": _json_cookie_jar(self._tr_api._websession.cookies)}
+    def _export_session(self, waf_token: str) -> dict:
+        return {
+            "cookies": _json_cookie_jar(self._tr_api._websession.cookies),
+            "waf_token": waf_token,
+        }
 
     def _inject_session(self, session: EntitySession):
         cookies = _rebuild_cookie_jar(session.payload["cookies"])
         self._tr_api._websession.clear_cookies()
         for cookie in cookies.jar:
             self._tr_api._websession.set_cookie(cookie)
+        waf_token = session.payload.get("waf_token")
+        if waf_token:
+            self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
         self._tr_api._weblogin = True
 
     async def close(self):

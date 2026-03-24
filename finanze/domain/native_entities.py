@@ -75,12 +75,13 @@ TRADE_REPUBLIC = NativeFinancialEntity(
         ProductType.FUND,
         ProductType.CRYPTO,
     ],
-    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.SHORT,
     pin=PinDetails(positions=4),
     credentials_template={
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
+        "awsWafToken": CredentialType.INTERNAL_TEMP,
     },
     icon_url=None,
 )
@@ -264,6 +265,8 @@ IBKR = NativeFinancialEntity(
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.NONE,
     credentials_template={
+        "user": CredentialType.USER,
+        "password": CredentialType.PASSWORD,
         "cookie": CredentialType.INTERNAL_TEMP,
     },
     icon_url=None,

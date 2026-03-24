@@ -84,9 +84,6 @@ class DeferredComponents:
         )
         from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
         from infrastructure.client.entity.financial.sego.sego_fetcher import SegoFetcher
-        from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
-            TradeRepublicFetcher,
-        )
         from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
             UrbanitaeFetcher,
         )
@@ -330,7 +327,6 @@ class DeferredComponents:
         }
         financial_entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
-            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
             domain.native_entities.URBANITAE: UrbanitaeFetcher(),
             domain.native_entities.WECITY: WecityFetcher(),
             domain.native_entities.SEGO: SegoFetcher(),

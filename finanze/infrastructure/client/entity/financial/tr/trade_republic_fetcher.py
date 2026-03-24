@@ -156,17 +156,17 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         two_factor = login_params.two_factor
 
         phone, pin = credentials["phone"], credentials["password"]
-        process_id, code, token = None, None, None
+        waf_token = credentials.get("awsWafToken")
+        process_id, code = None, None
         if two_factor:
             process_id, code = two_factor.process_id, two_factor.code
-            token = two_factor.token
         return await self._client.login(
             phone,
             pin,
             login_options=login_params.options,
             process_id=process_id,
             code=code,
-            waf_token=token,
+            waf_token=waf_token,
             session=login_params.session,
         )
 
@@ -875,12 +875,17 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
                 accrued = amount_obj["value"]
 
         accrued = Dezimal(round(accrued, 2))
-        avg_balance = Dezimal(round(avg_balance, 2))
+        if avg_balance is None and annual_rate is not None and annual_rate != 0:
+            avg_balance = accrued / annual_rate * 12 * 100
 
-        if not annual_rate:
+        if avg_balance:
+            avg_balance = Dezimal(round(avg_balance, 2))
+
+        if not annual_rate and avg_balance is not None and avg_balance != 0:
             annual_rate = accrued / avg_balance * 12 * 100
 
-        annual_rate = Dezimal(round(annual_rate / 100, 4))
+        if annual_rate:
+            annual_rate = Dezimal(round(annual_rate / 100, 4))
 
         fallback_subtitle = (
             f"{str(annual_rate * 100).rstrip('0').rstrip('.')}%" if annual_rate else ""

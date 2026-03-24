@@ -86,6 +86,7 @@ interface AppContextType {
   fetchEntities: () => Promise<void>
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   updateEntityLastFetch: (entityId: string, features: string[]) => void
+  updateEntityAccount: (entityId: string, accountId: string) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
   fetchSettings: () => Promise<void>
@@ -395,6 +396,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const updateEntityAccount = useCallback(
+    (entityId: string, accountId: string) => {
+      setEntities(prevEntities =>
+        prevEntities.map(entity => {
+          if (entity.id !== entityId) return entity
+          const existing = entity.accounts || []
+          if (existing.some(a => a.id === accountId)) return entity
+          return {
+            ...entity,
+            accounts: [
+              ...existing,
+              { id: accountId, name: null, status: EntityStatus.CONNECTED },
+            ],
+          }
+        }),
+      )
+    },
+    [],
+  )
+
   const fetchExternalIntegrations = useCallback(async () => {
     try {
       setExternalIntegrationsLoading(true)
@@ -473,6 +494,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         fetchEntities,
         updateEntityStatus,
         updateEntityLastFetch,
+        updateEntityAccount,
         showToast,
         hideToast,
         fetchSettings,

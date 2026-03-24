@@ -5,9 +5,7 @@ import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
-import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { ChallengeType } from "@/types"
-import { resolveAwsWafToken } from "@/lib/awswaf"
 
 declare global {
   interface Window {
@@ -80,33 +78,6 @@ function RecaptchaChallenge({
   return <div ref={containerRef} />
 }
 
-function AwsWafChallenge({
-  scriptUrl,
-  onToken,
-  onError,
-}: {
-  scriptUrl: string
-  onToken: (token: string) => void
-  onError: () => void
-}) {
-  const onTokenRef = useRef(onToken)
-  onTokenRef.current = onToken
-  const onErrorRef = useRef(onError)
-  onErrorRef.current = onError
-  const attemptedRef = useRef(false)
-
-  useEffect(() => {
-    if (attemptedRef.current) return
-    attemptedRef.current = true
-
-    resolveAwsWafToken(scriptUrl)
-      .then(token => onTokenRef.current(token))
-      .catch(() => onErrorRef.current())
-  }, [scriptUrl])
-
-  return <LoadingSpinner size="lg" />
-}
-
 export function ChallengeModal() {
   const {
     challengeProcessId,
@@ -148,13 +119,6 @@ export function ChallengeModal() {
               <RecaptchaChallenge
                 siteKey={challengeProcessId}
                 onToken={submitChallengeToken}
-              />
-            )}
-            {challengeType === ChallengeType.AWSWAF && (
-              <AwsWafChallenge
-                scriptUrl={challengeProcessId}
-                onToken={submitChallengeToken}
-                onError={cancelChallenge}
               />
             )}
             <Button variant="outline" onClick={cancelChallenge}>

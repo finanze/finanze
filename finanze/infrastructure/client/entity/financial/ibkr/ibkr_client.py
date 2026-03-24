@@ -77,11 +77,13 @@ class IBKRClient:
         login_options: LoginOptions,
         session: Optional[EntitySession] = None,
     ) -> EntityLoginResult:
-        logging_in = len(credentials) > 0
+        logging_in = "cookie" in credentials
         if not logging_in and not self._alive_session(session):
             if login_options.avoid_new_login:
                 return EntityLoginResult(code=LoginResultCode.NOT_LOGGED)
-            return EntityLoginResult(code=LoginResultCode.MANUAL_LOGIN)
+            return EntityLoginResult(
+                code=LoginResultCode.MANUAL_LOGIN, details=credentials
+            )
 
         now = datetime.now(tzlocal())
         if (
@@ -97,7 +99,7 @@ class IBKRClient:
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
         if not logging_in:
-            return EntityLoginResult(LoginResultCode.MANUAL_LOGIN)
+            return EntityLoginResult(LoginResultCode.MANUAL_LOGIN, details=credentials)
 
         try:
             self._init_http_client(credentials["cookie"])
