@@ -170,7 +170,7 @@ class MockFinancialEntityFetcher(FinancialEntityFetcher):
         return HistoricalPosition(positions={})
 
 
-MOCK_PIN_CODE = "1234"
+MOCK_PIN_CODE = "123456"
 MOCK_PROCESS_ID = "mock-process-123"
 
 
@@ -186,6 +186,25 @@ class MockPinEntityFetcher(MockFinancialEntityFetcher):
 
         if two_factor.code != MOCK_PIN_CODE:
             return EntityLoginResult(code=LoginResultCode.INVALID_CODE)
+
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )
+
+
+class MockManualLoginFetcher(MockFinancialEntityFetcher):
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        if login_params.session:
+            return EntityLoginResult(
+                code=LoginResultCode.MANUAL_LOGIN,
+                details={"phone": "+34612345678", "password": "1234"},
+            )
 
         session = EntitySession(
             creation=datetime.now(tzlocal()),

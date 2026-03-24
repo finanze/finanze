@@ -2,7 +2,7 @@
   "name": "finanze",
   "version": "0.7.0",
   "description": "A personal portfolio tracker app that helps you dentralize a variety of assets and investments across different financial entites.",
-  "main": "dist-electron/main/index.cjs",
+  "main": "dist-electron/main/index.js",
   "packageManager": "pnpm@10.32.1",
   "keywords": [],
   "author": "marcosav",

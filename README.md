@@ -113,11 +113,10 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** if not using the desktop app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
-  Akamai for anti
-  bot protection.
-- **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
-- **ING** and **IBKR** only work via frontend, as require user interaction to log in.
+- **Unicaja** if not using the app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
+  Akamai for antibot protection.
+- **Mintos** needs Selenium to resolve reCAPTCHA when not using the app.
+- **Trade Republic**, **ING** and **IBKR** only work via app, as require user interaction to log in.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
   removal.
 

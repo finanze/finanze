@@ -77,11 +77,6 @@ export default defineConfig(({ command, mode }) => {
                     sourcemap,
                     minify: isBuild,
                     outDir: "dist-electron/main",
-                    lib: {
-                      entry: "electron/main/index.ts",
-                      formats: ["cjs"],
-                      fileName: () => "[name].cjs",
-                    },
                     rollupOptions: {
                       external: electronExternals,
                     },

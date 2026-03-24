@@ -173,7 +173,12 @@ test.describe('Feature Selection Verification', () => {
         }
 
         // Disconnect ALL other entities that may have leftover transactions
-        for (const otherEntity of ['Urbanitae', 'Trade Republic', 'DEGIRO']) {
+        for (const otherEntity of [
+            'Urbanitae',
+            'Trade Republic',
+            'DEGIRO',
+            'Wecity',
+        ]) {
             await page.getByRole('button', { name: 'Integrations' }).click()
             await page
                 .getByRole('heading', { name: 'Integrations' })
