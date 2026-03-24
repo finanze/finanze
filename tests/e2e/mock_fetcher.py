@@ -1,3 +1,4 @@
+import asyncio
 import threading
 from datetime import date, datetime, timedelta
 from uuid import uuid4
@@ -196,6 +197,10 @@ class MockPinEntityFetcher(MockFinancialEntityFetcher):
             code=LoginResultCode.CREATED,
             session=session,
         )
+
+    async def global_position(self) -> GlobalPosition:
+        await asyncio.sleep(2)
+        return await super().global_position()
 
 
 class MockManualLoginFetcher(MockFinancialEntityFetcher):

@@ -12,7 +12,6 @@ def get_e2e_financial_fetchers() -> dict:
         native_entities.MY_INVESTOR,
         native_entities.UNICAJA,
         native_entities.URBANITAE,
-        native_entities.SEGO,
         native_entities.MINTOS,
         native_entities.F24,
         native_entities.INDEXA_CAPITAL,
@@ -24,6 +23,7 @@ def get_e2e_financial_fetchers() -> dict:
 
     fetchers = {entity: MockFinancialEntityFetcher(entity) for entity in simple}
     fetchers[native_entities.WECITY] = MockPinEntityFetcher(native_entities.WECITY)
+    fetchers[native_entities.SEGO] = MockPinEntityFetcher(native_entities.SEGO)
     fetchers[native_entities.TRADE_REPUBLIC] = MockManualLoginFetcher(
         native_entities.TRADE_REPUBLIC
     )
