@@ -93,28 +93,30 @@ public class LoginWebViewPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
 
-        let cookieStore = self.dataStore?.httpCookieStore ?? WKWebsiteDataStore.default().httpCookieStore
+        DispatchQueue.main.async {
+            let cookieStore = self.dataStore?.httpCookieStore ?? WKWebsiteDataStore.default().httpCookieStore
 
-        cookieStore.getAllCookies { allCookies in
-            let host = url.host?.lowercased() ?? ""
-            let matching = allCookies.filter { cookie in
-                let domain = cookie.domain.lowercased()
-                if domain.hasPrefix(".") {
-                    return host == String(domain.dropFirst()) || host.hasSuffix(domain)
+            cookieStore.getAllCookies { allCookies in
+                let host = url.host?.lowercased() ?? ""
+                let matching = allCookies.filter { cookie in
+                    let domain = cookie.domain.lowercased()
+                    if domain.hasPrefix(".") {
+                        return host == String(domain.dropFirst()) || host.hasSuffix(domain)
+                    }
+                    return host == domain
                 }
-                return host == domain
-            }
 
-            var cookiesObj: [String: String] = [:]
-            for cookie in matching {
-                cookiesObj[cookie.name] = cookie.value
-            }
+                var cookiesObj: [String: String] = [:]
+                for cookie in matching {
+                    cookiesObj[cookie.name] = cookie.value
+                }
 
-            let raw = matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-            call.resolve([
-                "cookies": cookiesObj,
-                "raw": raw
-            ])
+                let raw = matching.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+                call.resolve([
+                    "cookies": cookiesObj,
+                    "raw": raw
+                ])
+            }
         }
     }
 
