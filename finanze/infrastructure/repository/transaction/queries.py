@@ -79,14 +79,14 @@ class TransactionQueries(str, Enum):
         WHERE at.entity_id = ?
     """
 
-    GET_REFS_BY_ENTITY = """
+    GET_REFS_BY_ENTITY_ACCOUNT = """
         SELECT ref
         FROM investment_transactions
-        WHERE entity_id = ?
+        WHERE entity_account_id = ?
         UNION
         SELECT ref
         FROM account_transactions
-        WHERE entity_id = ?
+        WHERE entity_account_id = ?
     """
 
     INVESTMENT_AND_ACCOUNT_BY_ENTITY_AND_SOURCE = """

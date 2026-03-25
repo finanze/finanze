@@ -344,8 +344,10 @@ class FetchFinancialDataImpl(FetchFinancialData):
         if Feature.TRANSACTIONS in features:
             registered_txs = {}
             if not options.deep:
-                registered_txs = await self._transaction_port.get_refs_by_entity(
-                    entity.id
+                registered_txs = (
+                    await self._transaction_port.get_refs_by_entity_account(
+                        entity_account_id
+                    )
                 )
 
             transactions = await specific_fetcher.transactions(registered_txs, options)

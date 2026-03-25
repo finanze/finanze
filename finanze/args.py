@@ -59,7 +59,6 @@ def parse_args() -> argparse.Namespace:
     args.data_dir = Path(args.data_dir)
     os.makedirs(args.data_dir, exist_ok=True)
 
-    args.credentials_storage_mode = os.environ.get("CREDENTIAL_STORAGE", "DB")
     args.logged_username = os.environ.get("USERNAME")
     args.logged_password = os.environ.get("PASSWORD")
 

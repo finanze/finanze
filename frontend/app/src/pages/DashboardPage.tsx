@@ -250,19 +250,21 @@ export default function DashboardPage() {
         type: "CHECKING",
         name: t.forecast.cashDeltaLabel,
       }))
-      cloned.positions["forecast-cash-delta"] = {
-        id: "forecast-cash-delta",
-        entity: {
+      cloned.positions["forecast-cash-delta"] = [
+        {
           id: "forecast-cash-delta",
-          name: t.forecast.cashDeltaEntity,
+          entity: {
+            id: "forecast-cash-delta",
+            name: t.forecast.cashDeltaEntity,
+            is_real: true,
+          },
+          date: forecastResult.target_date,
           is_real: true,
+          products: {
+            ACCOUNT: { entries: accountEntries },
+          },
         },
-        date: forecastResult.target_date,
-        is_real: true,
-        products: {
-          ACCOUNT: { entries: accountEntries },
-        },
-      }
+      ]
     }
     return cloned
   }, [forecastResult, t.forecast.cashDeltaEntity, t.forecast.cashDeltaLabel])

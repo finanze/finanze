@@ -19,6 +19,10 @@ class EntityAccountPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_by_ids(self, account_ids: list[UUID]) -> list[EntityAccount]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def soft_delete(self, account_id: UUID):
         raise NotImplementedError
 

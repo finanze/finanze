@@ -20,7 +20,7 @@ class TransactionPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
-    async def get_refs_by_entity(self, entity_id: UUID) -> set[str]:
+    async def get_refs_by_entity_account(self, entity_account_id: UUID) -> set[str]:
         raise NotImplementedError
 
     @abc.abstractmethod

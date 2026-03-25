@@ -710,18 +710,19 @@ class TradeRepublicFetcher(FinancialEntityFetcher):
         fees = fees or 0
         taxes = taxes or 0
         amount = abs(net_amount_val + fees + taxes)
-        # Provided price sometimes doesn't match with the executed price, or it has another currency
-        # In Private Equity we don't have shares
-        if shares != 0:
-            price = round(amount / shares, 4)
-        else:
-            price = amount
 
         if shares is None:
             self._log.warning(
                 f"Could not get shares for ISIN {isin} transaction {raw_tx['id']}, skipping"
             )
             return None
+
+        # Provided price sometimes doesn't match with the executed price, or it has another currency
+        # In Private Equity we don't have shares
+        if shares != 0:
+            price = round(amount / shares, 4)
+        else:
+            price = amount
 
         if product_type == ProductType.FUND:
             return FundTx(

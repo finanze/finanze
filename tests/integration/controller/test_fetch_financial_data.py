@@ -688,7 +688,7 @@ class TestMultipleFeatures:
         fetcher.transactions = AsyncMock(
             return_value=Transactions(account=[test_tx], investment=[])
         )
-        transaction_port.get_refs_by_entity = AsyncMock(return_value=set())
+        transaction_port.get_refs_by_entity_account = AsyncMock(return_value=set())
         last_fetches_port.get_by_entity_account_id = AsyncMock(return_value=[])
         credentials_port.get = AsyncMock(
             return_value={"user": "myuser", "password": "mypass"}

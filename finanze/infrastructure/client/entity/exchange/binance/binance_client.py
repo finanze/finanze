@@ -88,18 +88,16 @@ class BinanceClient:
         self._secret_key = secret_key
 
         try:
-            url = f"{self.SPOT_BASE_URL}/api/v3/ping"
-            response = await self._session.get(url, headers=self._auth_headers())
-
-            if response.ok:
-                return EntityLoginResult(LoginResultCode.CREATED)
-            else:
-                return EntityLoginResult(
-                    LoginResultCode.UNEXPECTED_ERROR,
-                    message=f"Unexpected response code {response.status}",
-                )
+            await self.get_spot_account()
+            return EntityLoginResult(LoginResultCode.CREATED)
         except Exception as e:
             self._log.error(f"Binance setup error: {e}")
+            status = getattr(e, "status", None)
+            if status and 400 <= status < 500:
+                return EntityLoginResult(
+                    LoginResultCode.INVALID_CREDENTIALS,
+                    message=f"Authentication failed ({status})",
+                )
             return EntityLoginResult(LoginResultCode.UNEXPECTED_ERROR, message=str(e))
 
     async def get_spot_account(self) -> dict:

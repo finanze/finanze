@@ -45,6 +45,17 @@ class EntityAccountRepository(EntityAccountPort):
                 return self._map_row(row)
             return None
 
+    async def get_by_ids(self, account_ids: list[UUID]) -> list[EntityAccount]:
+        if not account_ids:
+            return []
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                EntityAccountQueries.get_by_ids(len(account_ids)),
+                [str(aid) for aid in account_ids],
+            )
+            rows = await cursor.fetchall()
+            return [self._map_row(row) for row in rows]
+
     async def soft_delete(self, account_id: UUID):
         async with self._db_client.tx() as cursor:
             await cursor.execute(

@@ -76,6 +76,12 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                 logged_by_entity_id[e.entity_id] = []
             logged_by_entity_id[e.entity_id].append(e)
 
+        all_account_ids = [
+            e.entity_account_id for e in logged_entities if e.entity_account_id
+        ]
+        all_accounts = await self._entity_account_port.get_by_ids(all_account_ids)
+        accounts_by_id = {a.id: a for a in all_accounts}
+
         all_entities = await self._entity_port.get_all()
 
         native_entities_by_id = {e.id: e for e in NATIVE_ENTITIES}
@@ -148,9 +154,7 @@ class GetAvailableEntitiesImpl(GetAvailableEntities):
                                 acct_status = FinancialEntityStatus.CONNECTED
                                 any_connected = True
 
-                            acct = await self._entity_account_port.get_by_id(
-                                cred_entry.entity_account_id
-                            )
+                            acct = accounts_by_id.get(cred_entry.entity_account_id)
                             account_infos.append(
                                 EntityAccountInfo(
                                     id=cred_entry.entity_account_id,

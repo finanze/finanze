@@ -97,6 +97,9 @@ STABLECOIN_QUOTES = ["USDT", "BUSD", "FDUSD", "USDC"]
 # Max time range per deposit/withdrawal API call (90 days in ms)
 _90_DAYS_MS = 90 * 24 * 60 * 60 * 1000
 
+# Lookback period for deposit/withdrawal history scanning (days)
+_HISTORY_LOOKBACK_DAYS = 1460
+
 
 class BinanceFetcher(FinancialEntityFetcher):
     def __init__(self):
@@ -301,8 +304,7 @@ class BinanceFetcher(FinancialEntityFetcher):
         """Scan deposit or withdrawal history in 90-day windows to extract coin names."""
         coins: set[str] = set()
         now_ms = int(time.time() * 1000)
-        # Go back ~2 years (enough to catch most activity)
-        start_ms = now_ms - (730 * 24 * 60 * 60 * 1000)
+        start_ms = now_ms - (_HISTORY_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
         window_start = start_ms
 
         while window_start < now_ms:
@@ -471,9 +473,9 @@ class BinanceFetcher(FinancialEntityFetcher):
                 leverage = round(notional / initial_margin, 0)
 
             # Margin type from isolated wallet value
-            isolated_wallet = position.get("isolatedWallet", "0")
+            isolated_wallet = Dezimal(position.get("isolatedWallet", "0"))
             margin_type = (
-                MarginType.ISOLATED if isolated_wallet != "0" else MarginType.CROSS
+                MarginType.ISOLATED if isolated_wallet != 0 else MarginType.CROSS
             )
 
             entries.append(

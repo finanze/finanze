@@ -22,3 +22,12 @@ class EntityAccountQueries(str, Enum):
     SOFT_DELETE = "UPDATE entity_accounts SET deleted_at = ? WHERE id = ?"
 
     SOFT_DELETE_BY_ENTITY_ID = "UPDATE entity_accounts SET deleted_at = ? WHERE entity_id = ? AND deleted_at IS NULL"
+
+    @staticmethod
+    def get_by_ids(count: int) -> str:
+        placeholders = ",".join("?" for _ in range(count))
+        return f"""
+            SELECT id, name, entity_id, created_at, deleted_at
+            FROM entity_accounts
+            WHERE id IN ({placeholders}) AND deleted_at IS NULL
+        """

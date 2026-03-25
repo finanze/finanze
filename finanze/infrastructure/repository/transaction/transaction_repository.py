@@ -407,11 +407,11 @@ class TransactionSQLRepository(TransactionPort):
             )
             return [_map_account_row(row) for row in await cursor.fetchall()]
 
-    async def get_refs_by_entity(self, entity_id: UUID) -> Set[str]:
+    async def get_refs_by_entity_account(self, entity_account_id: UUID) -> Set[str]:
         async with self._db_client.read() as cursor:
             await cursor.execute(
-                TransactionQueries.GET_REFS_BY_ENTITY,
-                (str(entity_id), str(entity_id)),
+                TransactionQueries.GET_REFS_BY_ENTITY_ACCOUNT,
+                (str(entity_account_id), str(entity_account_id)),
             )
             return {row[0] for row in await cursor.fetchall()}
 
