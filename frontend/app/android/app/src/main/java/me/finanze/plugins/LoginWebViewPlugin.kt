@@ -108,6 +108,7 @@ class LoginWebViewPlugin : Plugin() {
 
         try {
             val cookieManager = CookieManager.getInstance()
+            cookieManager.flush()
             val cookieString = cookieManager.getCookie(url)
 
             val result = JSObject()
@@ -259,9 +260,15 @@ class LoginWebViewPlugin : Plugin() {
                 return super.shouldInterceptRequest(view, request)
             }
 
+            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                super.onPageStarted(view, url, favicon)
+                // Inject early so XHR/fetch are patched before page JS runs
+                view?.evaluateJavascript(fullInjectScript, null)
+            }
+
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                // Inject the interception script after each page load
+                // Re-inject to cover any edge cases
                 view?.evaluateJavascript(fullInjectScript, null)
 
                 val data = JSObject().apply {

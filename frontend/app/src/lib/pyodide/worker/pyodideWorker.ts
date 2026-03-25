@@ -467,6 +467,7 @@ function registerWorkerBridge(): void {
   ;(self as any).FileTransfer = createMainProxy("FileTransfer")
   ;(self as any).BackupProcessor = createMainProxy("BackupProcessor")
   ;(self as any).NativeCookies = createMainProxy("NativeCookies")
+  ;(self as any).TlsHttp = createMainProxy("TlsHttp")
   ;(self as any).Capacitor = {
     Plugins: {
       NativeCookies: (self as any).NativeCookies,

@@ -13,6 +13,7 @@ from domain.entity_login import (
     LoginResultCode,
 )
 from domain.native_entity import EntityCredentials
+from infrastructure.client.http.http_session import new_impersonated_http_session
 
 SESSION_LIFETIME = 4 * 60  # 4 minutes
 
@@ -20,34 +21,14 @@ DATE_FORMAT = "%d/%m/%Y"
 DASHED_DATE_FORMAT = "%Y-%m-%d"
 
 
-def _create_mobile_client():
-    from infrastructure.client.http.http_session import new_http_session
-
-    return new_http_session()
-
-
-def _create_desktop_client():
-    from infrastructure.client.http.http_session import new_impersonated_http_session
-
-    return new_impersonated_http_session()
-
-
-def _create_client(mobile: bool):
-    if mobile:
-        return _create_mobile_client()
-    else:
-        return _create_desktop_client()
-
-
 class INGAPIClient:
     GENOMA_BASE_URL = "https://ing.ingdirect.es/genoma_api/rest"
     API_BASE_URL = "https://api.ing.ingdirect.es"
 
-    def __init__(self, use_mobile_client: bool = False):
+    def __init__(self):
         self._genoma_session = None
         self._api_session = None
         self._session_expiration = None
-        self._use_mobile_client = use_mobile_client
 
         self._log = logging.getLogger(__name__)
 
@@ -94,8 +75,8 @@ class INGAPIClient:
 
             return EntityLoginResult(code=LoginResultCode.MANUAL_LOGIN)
 
-        self._genoma_session = _create_client(self._use_mobile_client)
-        self._api_session = _create_client(self._use_mobile_client)
+        self._genoma_session = new_impersonated_http_session()
+        self._api_session = new_impersonated_http_session()
 
         now = datetime.now(tzlocal())
         if session and not login_options.force_new_session and now < session.expiration:
@@ -109,7 +90,7 @@ class INGAPIClient:
         try:
             self.inject_session(credentials)
             try:
-                await self.get_user()
+                await self.get_position()
             except httpx.NetworkError as e:
                 if "request timed out" in str(e):
                     return EntityLoginResult(
@@ -142,16 +123,18 @@ class INGAPIClient:
 
     async def _resumable_session(self) -> bool:
         try:
-            await self.get_user()
+            await self.get_position()
         except httpx.HTTPStatusError:
             return False
         else:
             return True
 
     def inject_session(self, payload: dict):
+        user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"
         self._genoma_session.headers["Content-Type"] = "application/json"
         self._genoma_session.headers["Cookie"] = payload["genomaCookie"]
         self._genoma_session.headers["genoma-session-id"] = payload["genomaSessionId"]
+        self._genoma_session.headers["User-Agent"] = user_agent
 
         self._api_session.headers["Content-Type"] = "application/json; charset=utf-8"
         self._api_session.headers["Cookie"] = payload["apiCookie"]
@@ -159,6 +142,7 @@ class INGAPIClient:
         self._api_session.headers["X-ING-ExtendedSessionContext"] = payload[
             "apiExtendedSessionCtx"
         ]
+        self._api_session.headers["User-Agent"] = user_agent
 
     async def get_user(self) -> dict:
         return await self._get_request("/client", api=False)

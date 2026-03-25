@@ -22,13 +22,16 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
   }
 
   function checkCompletion() {
-    console.debug("ING checkCompletion:", {
-      genomaCookie: !!result.credentials.genomaCookie,
-      genomaSessionId: !!result.credentials.genomaSessionId,
-      apiCookie: !!result.credentials.apiCookie,
-      apiAuth: !!result.credentials.apiAuth,
-      apiExtendedSessionCtx: !!result.credentials.apiExtendedSessionCtx,
-    })
+    console.debug(
+      "ING checkCompletion: " +
+        JSON.stringify({
+          genomaCookie: !!result.credentials.genomaCookie,
+          genomaSessionId: !!result.credentials.genomaSessionId,
+          apiCookie: !!result.credentials.apiCookie,
+          apiAuth: !!result.credentials.apiAuth,
+          apiExtendedSessionCtx: !!result.credentials.apiExtendedSessionCtx,
+        }),
+    )
     if (
       result.credentials.genomaCookie &&
       result.credentials.genomaSessionId &&
@@ -44,11 +47,11 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
     }
   }
 
-  async function readNativeCookies(): Promise<string> {
+  async function readNativeCookies(
+    url = "https://ing.ingdirect.es",
+  ): Promise<string> {
     try {
-      const cookies = await LoginWebView.getCookies({
-        url: "https://ing.ingdirect.es",
-      })
+      const cookies = await LoginWebView.getCookies({ url })
       return cookies.raw
     } catch {
       return ""
@@ -62,9 +65,17 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
     // Cookie header is NOT visible to JS — we read it from the native cookie store.
     // We accumulate credentials incrementally rather than requiring all in one request.
     await LoginWebView.addListener("requestIntercepted", async data => {
+      console.debug(
+        "ING requestIntercepted: " +
+          data.url +
+          " headers: " +
+          JSON.stringify(data.headers),
+      )
       if (data.url.includes("/genoma_api/rest/client")) {
-        // Cookie: always read from native store (JS can't see Cookie header)
-        const cookieHeader = await readNativeCookies()
+        // Cookie: read from native store using the full path (Android is path-sensitive)
+        const cookieHeader = await readNativeCookies(
+          "https://ing.ingdirect.es/genoma_api/rest/client",
+        )
 
         if (cookieHeader && cookieHeader.includes("genoma-session-id")) {
           result.credentials.genomaCookie = cookieHeader
@@ -93,10 +104,25 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
           result.credentials.apiExtendedSessionCtx = extHeader
         }
 
-        // Cookie: read from native store
+        // Cookie: read from native store (same domain, includes genoma cookies too)
         const cookieHeader = await readNativeCookies()
         if (cookieHeader) {
           result.credentials.apiCookie = cookieHeader
+        }
+        // Also capture genoma cookies if not yet captured (use genoma path for Android)
+        if (!result.credentials.genomaCookie) {
+          const genomaCookies = await readNativeCookies(
+            "https://ing.ingdirect.es/genoma_api/rest/client",
+          )
+          if (genomaCookies && genomaCookies.includes("genoma-session-id")) {
+            result.credentials.genomaCookie = genomaCookies
+            const sessionId = genomaCookies
+              .split("genoma-session-id=")[1]
+              ?.split(";")[0]
+            if (sessionId) {
+              result.credentials.genomaSessionId = sessionId
+            }
+          }
         }
 
         checkCompletion()
@@ -106,9 +132,12 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
     // Also listen for response events — they fire after the request completes,
     // giving cookies time to be committed to the native cookie store
     await LoginWebView.addListener("responseIntercepted", async data => {
+      console.debug("ING responseIntercepted: " + data.url)
       if (data.url.includes("/genoma_api/rest/client")) {
         // After response, cookies are definitely committed
-        const cookieHeader = await readNativeCookies()
+        const cookieHeader = await readNativeCookies(
+          "https://ing.ingdirect.es/genoma_api/rest/client",
+        )
         if (cookieHeader && cookieHeader.includes("genoma-session-id")) {
           result.credentials.genomaCookie = cookieHeader
           const sessionId = cookieHeader

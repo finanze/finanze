@@ -18,11 +18,27 @@
 		8D13728D2F730D830082ECAA /* LoginWebViewPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D13728C2F730D800082ECAA /* LoginWebViewPlugin.swift */; };
 		8D6C64562F2502C30028ED99 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 8D6C64552F2502C30028ED99 /* AppIcon.icon */; };
 		8D8FDB822F1FEE4600E8F3FA /* MyViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D8FDB812F1FEE4600E8F3FA /* MyViewController.swift */; };
+		8DAD94E12F73F2A600FCE17F /* TlsHttpPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DAD94E02F73F2A600FCE17F /* TlsHttpPlugin.swift */; };
+		8DAD94E32F73F31300FCE17F /* Tlsclient.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 8D13728E2F73E6200082ECAA /* Tlsclient.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		9A1B2C3D4E5F60718293A4B6 /* BackupProcessorPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B2C3D4E5F60718293A4B5 /* BackupProcessorPlugin.swift */; };
 		9A1B2C3D4E5F60718293A4B7 /* FileTransferPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B2C3D4E5F60718293A4B8 /* FileTransferPlugin.swift */; };
 		9A1B2C3D4E5F60718293A4B9 /* NativeCookiesPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A1B2C3D4E5F60718293A4BA /* NativeCookiesPlugin.swift */; };
 		A1B2C3D4E5F60718293A4BC0 /* ImageProcessorPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4BC1 /* ImageProcessorPlugin.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8DAD94E42F73F31300FCE17F /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8DAD94E32F73F31300FCE17F /* Tlsclient.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		0510CDEB05A96E5572768B80 /* Pods-App.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.release.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.release.xcconfig"; sourceTree = "<group>"; };
@@ -38,8 +54,10 @@
 		6E11FF09748463FE3E5A50E6 /* Pods-App.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-App.debug.xcconfig"; path = "Target Support Files/Pods-App/Pods-App.debug.xcconfig"; sourceTree = "<group>"; };
 		7E6944B2EE00F53D34E1C024 /* Pods_App.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_App.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D13728C2F730D800082ECAA /* LoginWebViewPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginWebViewPlugin.swift; sourceTree = "<group>"; };
+		8D13728E2F73E6200082ECAA /* Tlsclient.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Tlsclient.xcframework; sourceTree = "<group>"; };
 		8D6C64552F2502C30028ED99 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		8D8FDB812F1FEE4600E8F3FA /* MyViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyViewController.swift; sourceTree = "<group>"; };
+		8DAD94E02F73F2A600FCE17F /* TlsHttpPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TlsHttpPlugin.swift; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		9A1B2C3D4E5F60718293A4B5 /* BackupProcessorPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupProcessorPlugin.swift; sourceTree = "<group>"; };
 		9A1B2C3D4E5F60718293A4B8 /* FileTransferPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTransferPlugin.swift; sourceTree = "<group>"; };
@@ -62,6 +80,7 @@
 		052725D7C7AAC2B0D0BF6575 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8D13728E2F73E6200082ECAA /* Tlsclient.xcframework */,
 				7E6944B2EE00F53D34E1C024 /* Pods_App.framework */,
 			);
 			name = Frameworks;
@@ -90,6 +109,7 @@
 		504EC3061FED79650016851F /* App */ = {
 			isa = PBXGroup;
 			children = (
+				8DAD94E02F73F2A600FCE17F /* TlsHttpPlugin.swift */,
 				8D13728C2F730D800082ECAA /* LoginWebViewPlugin.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
@@ -129,6 +149,7 @@
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
 				891E65376F7C46F35118D223 /* [CP] Embed Pods Frameworks */,
+				8DAD94E42F73F31300FCE17F /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -279,6 +300,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8DAD94E12F73F2A600FCE17F /* TlsHttpPlugin.swift in Sources */,
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				9A1B2C3D4E5F60718293A4B6 /* BackupProcessorPlugin.swift in Sources */,
 				A1B2C3D4E5F60718293A4BC0 /* ImageProcessorPlugin.swift in Sources */,

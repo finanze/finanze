@@ -250,6 +250,17 @@ For the frontend use `pnpm`, and node 24.
     pnpm cap:sync     # To sync changes to native projects after frontend development
     ```
 
+6. TLS client for mobile (required for some entities needing TLS fingerprint impersonation):
+
+    Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (`go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
+
+    ```sh
+    cd frontend/app/native/tlsclient
+    go mod tidy
+    bash build.sh    # Builds iOS xcframework + Android AAR
+    bash install.sh  # Copies artifacts to native projects
+    ```
+
 ### How configuration works?
 
 Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export

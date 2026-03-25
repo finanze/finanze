@@ -140,5 +140,6 @@ class ImpersonatedHttpSession:
 
 def new_impersonated_http_session(
     impersonate: str = "firefox135",
+    **_kwargs,
 ) -> ImpersonatedHttpSession:
     return ImpersonatedHttpSession(impersonate=impersonate)

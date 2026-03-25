@@ -357,8 +357,8 @@ def _map_fund_tran_code(code: str | None) -> TxType | None:
 
 
 class INGFetcher(FinancialEntityFetcher):
-    def __init__(self, use_mobile_client: bool = False):
-        self._client = INGAPIClient(use_mobile_client=use_mobile_client)
+    def __init__(self):
+        self._client = INGAPIClient()
 
         self._market_cache: dict[str, str] = {}
 
