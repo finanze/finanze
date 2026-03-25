@@ -90,6 +90,18 @@ class DeferredComponents:
         from infrastructure.client.entity.financial.unicaja.unicaja_fetcher import (
             UnicajaFetcher,
         )
+        from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
+            TradeRepublicFetcher,
+        )
+        from infrastructure.client.entity.financial.ing.ing_fetcher import (
+            INGFetcher,
+        )
+        from infrastructure.client.entity.financial.mintos.mintos_fetcher import (
+            MintosFetcher,
+        )
+        from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import (
+            IBKRFetcher,
+        )
         from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
             WecityFetcher,
         )
@@ -327,13 +339,18 @@ class DeferredComponents:
         }
         financial_entity_fetchers = {
             domain.native_entities.MY_INVESTOR: MyInvestorScraper(),
+            domain.native_entities.TRADE_REPUBLIC: TradeRepublicFetcher(),
+            domain.native_entities.UNICAJA: UnicajaFetcher(),
             domain.native_entities.URBANITAE: UrbanitaeFetcher(),
             domain.native_entities.WECITY: WecityFetcher(),
             domain.native_entities.SEGO: SegoFetcher(),
+            domain.native_entities.MINTOS: MintosFetcher(),
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
+            domain.native_entities.ING: INGFetcher(use_mobile_client=True),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
             domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
+            domain.native_entities.IBKR: IBKRFetcher(),
             domain.native_entities.BINANCE: BinanceFetcher(),
         }
         external_integrations = {

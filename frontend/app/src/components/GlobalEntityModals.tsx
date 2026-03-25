@@ -7,7 +7,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Button } from "@/components/ui/Button"
 import { PinPad } from "@/components/PinPad"
 import { ChallengeModal } from "@/components/ChallengeModal"
-import { ExternalLink, Smartphone } from "lucide-react"
+import { ExternalLink, Smartphone, X } from "lucide-react"
 
 export function GlobalEntityModals() {
   const {
@@ -17,6 +17,7 @@ export function GlobalEntityModals() {
     inAppConfirmation,
     cancelInAppConfirmation,
     view,
+    setView,
     isLoggingIn,
   } = useEntityWorkflow()
   const { t } = useI18n()
@@ -48,6 +49,12 @@ export function GlobalEntityModals() {
                     <ExternalLink className="h-5 w-5" />
                     {t.login.externalLogin} {selectedEntity.name}
                   </CardTitle>
+                  <button
+                    onClick={() => setView("entities")}
+                    className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center py-8">
                   <LoadingSpinner size="lg" />

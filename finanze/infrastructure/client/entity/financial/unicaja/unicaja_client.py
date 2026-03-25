@@ -172,7 +172,9 @@ class UnicajaClient:
         )
 
     async def _ck(self):
-        return (await self._get_request("/services/rest/openapi/v2/ck"))["ck"]
+        return (await self._get_request("/services/rest/openapi/ckLogin"))[
+            "ck"
+        ]  # /services/rest/openapi/v2/ck
 
     async def auth(self, username: str, encoded_password: str):
         data = {

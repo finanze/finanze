@@ -3,9 +3,9 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
-
 from aiocache import cached, Cache
 from dateutil.tz import tzlocal
+
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
@@ -13,7 +13,6 @@ from domain.entity_login import (
     LoginResultCode,
 )
 from domain.native_entity import EntityCredentials
-from infrastructure.client.http.http_session import new_impersonated_http_session
 
 SESSION_LIFETIME = 4 * 60  # 4 minutes
 
@@ -21,14 +20,34 @@ DATE_FORMAT = "%d/%m/%Y"
 DASHED_DATE_FORMAT = "%Y-%m-%d"
 
 
+def _create_mobile_client():
+    from infrastructure.client.http.http_session import new_http_session
+
+    return new_http_session()
+
+
+def _create_desktop_client():
+    from infrastructure.client.http.http_session import new_impersonated_http_session
+
+    return new_impersonated_http_session()
+
+
+def _create_client(mobile: bool):
+    if mobile:
+        return _create_mobile_client()
+    else:
+        return _create_desktop_client()
+
+
 class INGAPIClient:
     GENOMA_BASE_URL = "https://ing.ingdirect.es/genoma_api/rest"
     API_BASE_URL = "https://api.ing.ingdirect.es"
 
-    def __init__(self):
+    def __init__(self, use_mobile_client: bool = False):
         self._genoma_session = None
         self._api_session = None
         self._session_expiration = None
+        self._use_mobile_client = use_mobile_client
 
         self._log = logging.getLogger(__name__)
 
@@ -75,8 +94,8 @@ class INGAPIClient:
 
             return EntityLoginResult(code=LoginResultCode.MANUAL_LOGIN)
 
-        self._genoma_session = new_impersonated_http_session()
-        self._api_session = new_impersonated_http_session()
+        self._genoma_session = _create_client(self._use_mobile_client)
+        self._api_session = _create_client(self._use_mobile_client)
 
         now = datetime.now(tzlocal())
         if session and not login_options.force_new_session and now < session.expiration:
@@ -89,7 +108,16 @@ class INGAPIClient:
 
         try:
             self.inject_session(credentials)
-            await self.get_user()
+            try:
+                await self.get_user()
+            except httpx.NetworkError as e:
+                if "request timed out" in str(e):
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message="Bad fingerprint or network issues",
+                    )
+                else:
+                    raise
 
             self._session_expiration = datetime.now(tzlocal()) + timedelta(
                 seconds=SESSION_LIFETIME

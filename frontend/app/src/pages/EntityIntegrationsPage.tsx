@@ -23,6 +23,7 @@ import {
   Check,
   Smartphone,
   Bitcoin,
+  X,
 } from "lucide-react"
 import {
   EntityOrigin,
@@ -905,6 +906,12 @@ export default function EntityIntegrationsPage() {
                     <ExternalLink className="mr-2 h-5 w-5" />
                     {t.login.externalLogin} {selectedEntity.name}
                   </CardTitle>
+                  <button
+                    onClick={() => setView("entities")}
+                    className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </CardHeader>
                 <CardContent className="text-center">
                   <div className="flex flex-col items-center justify-center py-8">

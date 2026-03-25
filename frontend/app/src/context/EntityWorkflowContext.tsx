@@ -38,6 +38,7 @@ import {
 } from "@/services/autoRefreshService"
 import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
+import { getExternalLoginAPI } from "@/lib/externalLogin"
 
 export interface FetchOptions {
   deep?: boolean
@@ -301,8 +302,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      if (!window.ipcAPI) {
-        console.error("IPC API not available")
+      const loginAPI = getExternalLoginAPI()
+      if (!loginAPI) {
+        console.error("External login API not available")
         showToast(t.common.incompatibleLoginPlatform, "error")
         return
       }
@@ -310,12 +312,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setView("external-login")
 
-        const result = await window.ipcAPI.requestExternalLogin(
-          entityToUse.id,
-          {
-            credentials,
-          },
-        )
+        const result = await loginAPI.requestExternalLogin(entityToUse.id, {
+          credentials,
+        })
 
         if (!result.success) {
           showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
@@ -402,6 +401,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                   )
                 showToast(errorMessage, "error")
                 resetState()
+                setView("entities")
               }
             } catch {
               showToast(
@@ -412,6 +412,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 "error",
               )
               resetState()
+              setView("entities")
             } finally {
               setIsLoggingIn(false)
             }
@@ -495,12 +496,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           showToast(finalMessage, "error")
           resetState()
+          setView("entities")
         }
       } catch {
         showToast(
           t.common.loginErrorEntity.replace("{entity}", selectedEntity.name),
           "error",
         )
+        resetState()
+        setView("entities")
       } finally {
         setIsLoggingIn(false)
       }
@@ -1129,6 +1133,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             setPinLength(selectedEntity.pin?.positions || 4)
           }
         } else {
+          console.debug(
+            "[ExternalLogin] loginEntity returned:",
+            loginResponse.code,
+            "-> resetting to entities",
+          )
           showToast(
             t.errors[loginResponse.code as keyof typeof t.errors] ||
               t.common.loginError,
@@ -1158,53 +1167,79 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.ipcAPI) {
+    const loginAPI = getExternalLoginAPI()
+    if (!loginAPI) {
       return
     }
 
-    const cleanupListener = window.ipcAPI.onCompletedExternalLogin(
+    const cleanupListener = loginAPI.onCompletedExternalLogin(
       async (id, result) => {
-        console.debug("External login completed:", id)
+        console.debug(
+          "[ExternalLogin] completed:",
+          id,
+          "success:",
+          result.success,
+          "scrapeManualLogin:",
+          scrapeManualLogin.current.active,
+          "selectedEntity:",
+          selectedEntity?.id,
+        )
 
         if (!selectedEntity) {
-          console.error("No selected entity when external login completed")
+          console.error("[ExternalLogin] No selected entity")
           showToast(t.common.loginError, "error")
           resetState()
           setView("entities")
           return
         }
 
-        if (result.success) {
-          if (scrapeManualLogin.current.active) {
-            handleScrapeManualLoginCompletion(result.credentials)
-          } else {
-            const visibleCredentials = Object.fromEntries(
-              Object.entries(selectedEntity.credentials_template!).filter(
-                ([, type]) =>
-                  type !== CredentialType.INTERNAL &&
-                  type !== CredentialType.INTERNAL_TEMP,
-              ),
-            )
-
-            const allCredentialsProvided = Object.keys(
-              visibleCredentials,
-            ).every(key => result.credentials[key])
-
-            if (allCredentialsProvided) {
-              await login(result.credentials)
+        try {
+          if (result.success) {
+            if (scrapeManualLogin.current.active) {
+              console.debug(
+                "[ExternalLogin] calling handleScrapeManualLoginCompletion",
+              )
+              await handleScrapeManualLoginCompletion(result.credentials)
+              console.debug(
+                "[ExternalLogin] handleScrapeManualLoginCompletion done",
+              )
             } else {
-              setStoredCredentials(result.credentials)
-              setView("login")
+              const visibleCredentials = Object.fromEntries(
+                Object.entries(selectedEntity.credentials_template!).filter(
+                  ([, type]) =>
+                    type !== CredentialType.INTERNAL &&
+                    type !== CredentialType.INTERNAL_TEMP,
+                ),
+              )
+
+              const allCredentialsProvided = Object.keys(
+                visibleCredentials,
+              ).every(key => result.credentials[key])
+
+              if (allCredentialsProvided) {
+                await login(result.credentials)
+              } else {
+                setStoredCredentials(result.credentials)
+                setView("login")
+              }
             }
+          } else {
+            showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+            resetState()
+            setView("entities")
           }
-        } else {
-          showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+        } catch (error) {
+          console.error("[ExternalLogin] completion handler error:", error)
           resetState()
           setView("entities")
         }
       },
     )
 
+    console.debug(
+      "[ExternalLogin] useEffect registering listener, selectedEntity:",
+      selectedEntity?.id,
+    )
     return cleanupListener
   }, [
     handleScrapeManualLoginCompletion,
