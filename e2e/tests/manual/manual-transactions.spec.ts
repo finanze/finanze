@@ -76,7 +76,9 @@ async function navigateToTransactions(page: Page) {
  */
 async function selectTransactionDate(page: Page, day: number) {
     const dialog = page.locator('.fixed.inset-0').last()
-    const dateContainer = dialog.getByText('Date', { exact: true }).locator('..')
+    const dateContainer = dialog
+        .getByText('Date', { exact: true })
+        .locator('..')
     await dateContainer.getByRole('button').first().click()
     await page.waitForTimeout(300)
     const dayRegex = new RegExp(`${day}(st|nd|rd|th)`)
@@ -94,7 +96,11 @@ async function expandTransaction(page: Page, txName: string) {
     await page.waitForTimeout(500)
 }
 
-async function createManualTransaction(page: Page, name: string, amount: string) {
+async function createManualTransaction(
+    page: Page,
+    name: string,
+    amount: string,
+) {
     await page.getByRole('button', { name: 'Add' }).click()
     await expect(page.getByText('Add manual transaction')).toBeVisible({
         timeout: 5_000,
@@ -184,9 +190,7 @@ test.describe('Manual Transactions', () => {
         })
     })
 
-    test('delete a manual transaction', async ({
-        authenticatedPage: page,
-    }) => {
+    test('delete a manual transaction', async ({ authenticatedPage: page }) => {
         await connectEntityIfNeeded(page, 'Urbanitae', CREDENTIALS)
         await navigateToTransactions(page)
 
@@ -226,9 +230,9 @@ test.describe('Manual Transactions', () => {
         await page.getByRole('button', { name: 'Delete' }).click()
 
         // Confirmation dialog
-        await expect(
-            page.getByText('Delete manual transaction'),
-        ).toBeVisible({ timeout: 3_000 })
+        await expect(page.getByText('Delete manual transaction')).toBeVisible({
+            timeout: 3_000,
+        })
         await expect(
             page.getByText(
                 'Are you sure you want to delete this manual transaction?',
@@ -287,9 +291,9 @@ test.describe('Manual Transactions', () => {
 
         // Clean up: delete — click the Delete button in the expanded area
         await page.getByRole('button', { name: 'Delete' }).click()
-        await expect(
-            page.getByText('Delete manual transaction'),
-        ).toBeVisible({ timeout: 3_000 })
+        await expect(page.getByText('Delete manual transaction')).toBeVisible({
+            timeout: 3_000,
+        })
         await page
             .locator('.fixed.inset-0')
             .last()

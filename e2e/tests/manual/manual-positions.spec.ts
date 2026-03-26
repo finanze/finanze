@@ -80,7 +80,9 @@ async function connectAndFetchEntity(
 async function navigateTo(page: Page, section: string) {
     // Navigate via sidebar - sections are in the "My Assets" submenu
     const sidebarBtn = page.getByRole('button', { name: section, exact: true })
-    const isVisible = await sidebarBtn.isVisible({ timeout: 1_000 }).catch(() => false)
+    const isVisible = await sidebarBtn
+        .isVisible({ timeout: 1_000 })
+        .catch(() => false)
 
     if (isVisible) {
         // Sidebar submenu item already visible, click it directly
@@ -91,8 +93,13 @@ async function navigateTo(page: Page, section: string) {
         await page.waitForTimeout(300)
 
         // The section might be in the sidebar submenu or on the My Assets dashboard
-        const subMenuBtn = page.getByRole('button', { name: section, exact: true })
-        const inSubMenu = await subMenuBtn.isVisible({ timeout: 1_000 }).catch(() => false)
+        const subMenuBtn = page.getByRole('button', {
+            name: section,
+            exact: true,
+        })
+        const inSubMenu = await subMenuBtn
+            .isVisible({ timeout: 1_000 })
+            .catch(() => false)
 
         if (inSubMenu) {
             await subMenuBtn.click()
@@ -356,7 +363,9 @@ test.describe('Manual Positions - Real Estate CF', () => {
             await expect(
                 page.getByText('Add manual real estate CF'),
             ).toBeVisible({ timeout: 5_000 })
-            await page.locator('#entity_id').selectOption({ label: 'Urbanitae' })
+            await page
+                .locator('#entity_id')
+                .selectOption({ label: 'Urbanitae' })
             await page.locator('#name').fill('E2E RE Project')
             await page.locator('#amount').fill('5000')
             await page.locator('#interest_rate').fill('7')

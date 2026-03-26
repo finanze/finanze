@@ -193,9 +193,9 @@ async function saveDraftAndPersist(page: Page) {
     await page.waitForTimeout(1_500)
 
     // Wait for the "unsaved changes" indicator to confirm draft was saved
-    await expect(
-        page.getByText('You have unsaved changes'),
-    ).toBeVisible({ timeout: 5_000 })
+    await expect(page.getByText('You have unsaved changes')).toBeVisible({
+        timeout: 5_000,
+    })
 
     // Click page-level Save button
     const saveBtn = page.getByTestId('save-positions')

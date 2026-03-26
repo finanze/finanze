@@ -62,9 +62,9 @@ async function navigateToCommodities(page: Page) {
 
 async function saveToServer(page: Page) {
     await page.getByTestId('save-commodities').click()
-    await expect(
-        page.getByText('Commodities saved successfully'),
-    ).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Commodities saved successfully')).toBeVisible({
+        timeout: 10_000,
+    })
 }
 
 async function dismissToasts(page: Page) {
@@ -107,9 +107,9 @@ test.describe('Manual Commodities', () => {
         await navigateToCommodities(page)
 
         // Empty state should show initially
-        await expect(
-            page.getByText('No commodities registered'),
-        ).toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText('No commodities registered')).toBeVisible({
+            timeout: 10_000,
+        })
 
         await createCommodity(page, 'E2E Gold Coin')
     })
@@ -204,8 +204,8 @@ test.describe('Manual Commodities', () => {
         await saveToServer(page)
 
         // Verify the deleted commodity is gone
-        await expect(
-            page.getByText('E2E Delete Coin'),
-        ).not.toBeVisible({ timeout: 10_000 })
+        await expect(page.getByText('E2E Delete Coin')).not.toBeVisible({
+            timeout: 10_000,
+        })
     })
 })
