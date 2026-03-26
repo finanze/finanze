@@ -30,9 +30,7 @@ async function connectAndReload(
  * Helper: connect Wecity (2FA entity), entering the PIN code.
  * After connecting, reloads the page so entity accounts are populated.
  */
-async function connectWecityAndReload(
-    page: import('@playwright/test').Page,
-) {
+async function connectWecityAndReload(page: import('@playwright/test').Page) {
     await page.getByText('Wecity').first().click()
     await page.getByText('Enter credentials for').waitFor({ timeout: 5_000 })
     await page.locator('#user').fill('test@example.com')
@@ -213,9 +211,7 @@ test.describe('Fetch Entity Data - 2FA (Wecity)', () => {
         })
 
         for (const digit of MOCK_PIN_CODE) {
-            await page
-                .getByRole('button', { name: digit, exact: true })
-                .click()
+            await page.getByRole('button', { name: digit, exact: true }).click()
         }
         await page.getByRole('button', { name: 'Submit' }).click()
 
@@ -226,7 +222,7 @@ test.describe('Fetch Entity Data - 2FA (Wecity)', () => {
 })
 
 test.describe('Fetch Entity Data - Manual Login (Trade Republic)', () => {
-    test('manual login entity shows use desktop error', async ({
+    test('manual login entity shows use app error', async ({
         authenticatedPage: page,
     }) => {
         await page.getByRole('button', { name: 'Integrations' }).click()
@@ -243,9 +239,7 @@ test.describe('Fetch Entity Data - Manual Login (Trade Republic)', () => {
         await page.getByText('Trade Republic').first().click()
 
         await expect(
-            page.getByText(
-                'Use desktop app in order to do manual log in.',
-            ),
+            page.getByText('Use the app in order to do manual log in.'),
         ).toBeVisible({ timeout: 10_000 })
     })
 })

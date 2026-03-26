@@ -187,11 +187,11 @@ cd /Applications && xattr -d com.apple.quarantine Finanze.app
 
 ### Docker
 
-Two Docker images are available, a Selenium one (latest-selenium) and a light one (latest-no-selenium).
+Two Docker images are available, a Selenium one (`latest-selenium`) and a lighter default one (`latest`).
 
+In case you don't use Mintos, `latest` is highly recommended.
 The first one is required for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO
 dependencies (like ffmpeg).
-In case you don't use Mintos, latest-no-selenium is highly recommended.
 
 Both are available at Docker Hub [finanze/finanze](https://hub.docker.com/r/finanze/finanze).
 
@@ -201,9 +201,9 @@ Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
 ## Development
 
-This project requires `Python 3.13` or ` 3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses
+This project requires `Python 3.13` or `3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses
 `3.13`.
-For the frontend use `pnpm`, and node 24.
+For the frontend use `pnpm`, and `node 24`.
 
 ### Setup
 
@@ -225,7 +225,7 @@ For the frontend use `pnpm`, and node 24.
 
     ```sh
     pip install -r requirements.txt -r requirements-dev.txt -r requirements-lint.txt -r requirements-packaging.txt
-    pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA
+    pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA, only for mintos
     pre-commit install
     ```
 
@@ -261,11 +261,6 @@ For the frontend use `pnpm`, and node 24.
     bash install.sh  # Copies artifacts to native projects
     ```
 
-### How configuration works?
-
-Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
-tables and summary dashboards.
-
 ### Environment Variables
 
 Checkout example docker-compose.yml for the environment variables that can be used to override the default config, most
@@ -288,6 +283,5 @@ important ones are::
 - Selenium reCAPTCHA resolution is based
   on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
   project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
-  for
-  it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
+  for it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
   with headless mode.

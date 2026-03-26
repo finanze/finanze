@@ -38,5 +38,5 @@ export function getIssuerIconPath(
   if (!issuer) return null
   const iconName = KNOWN_ISSUER_ICONS[issuer]
   if (!iconName) return null
-  return `/icons/issuers/${iconName}.png`
+  return `icons/issuers/${iconName}.png`
 }

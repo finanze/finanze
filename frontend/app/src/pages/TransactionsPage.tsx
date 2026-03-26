@@ -1503,6 +1503,7 @@ export default function TransactionsPage() {
 
                                           {hasDetails && (
                                             <button
+                                              data-testid="expand-tx"
                                               onClick={() =>
                                                 toggleCardExpansion(tx.id)
                                               }
@@ -1721,6 +1722,7 @@ export default function TransactionsPage() {
 
                                       {hasDetails && (
                                         <button
+                                          data-testid="expand-tx"
                                           onClick={() =>
                                             toggleCardExpansion(tx.id)
                                           }

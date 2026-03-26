@@ -29,9 +29,18 @@ from domain.global_position import (
     CryptoCurrencies,
     CryptoCurrencyPosition,
     CryptoCurrencyWallet,
+    Deposit,
+    Deposits,
+    EquityType,
+    FactoringDetail,
+    FactoringInvestments,
     GlobalPosition,
     HistoricalPosition,
     ProductType,
+    RealEstateCFDetail,
+    RealEstateCFInvestments,
+    StockDetail,
+    StockInvestments,
 )
 from domain.transactions import (
     AccountTx,
@@ -68,10 +77,59 @@ class MockFinancialEntityFetcher(FinancialEntityFetcher):
             type=AccountType.CHECKING,
             name="Mock Checking Account",
         )
+        deposit = Deposit(
+            id=uuid4(),
+            name="Mock Term Deposit",
+            amount=Dezimal("5000"),
+            currency="EUR",
+            interest_rate=Dezimal("0.03"),
+            creation=datetime.now(tzlocal()),
+            maturity=date.today() + timedelta(days=365),
+        )
+        stock = StockDetail(
+            id=uuid4(),
+            name="Mock ETF",
+            ticker="MKETF",
+            isin="IE00B4L5Y983",
+            shares=Dezimal("10"),
+            market_value=Dezimal("500"),
+            currency="EUR",
+            type=EquityType.ETF,
+            initial_investment=Dezimal("400"),
+        )
+        re_cf = RealEstateCFDetail(
+            id=uuid4(),
+            name="Mock RE Project",
+            amount=Dezimal("1000"),
+            pending_amount=Dezimal("1000"),
+            currency="EUR",
+            interest_rate=Dezimal("0.08"),
+            start=datetime.now(tzlocal()),
+            maturity=date.today() + timedelta(days=730),
+            type="EQUITY",
+            state="ACTIVE",
+        )
+        factoring = FactoringDetail(
+            id=uuid4(),
+            name="Mock Invoice",
+            amount=Dezimal("2000"),
+            currency="EUR",
+            interest_rate=Dezimal("0.10"),
+            start=datetime.now(tzlocal()),
+            maturity=date.today() + timedelta(days=180),
+            type="INVOICE",
+            state="ACTIVE",
+        )
         return GlobalPosition(
             id=uuid4(),
             entity=self._entity,
-            products={ProductType.ACCOUNT: Accounts(entries=[account])},
+            products={
+                ProductType.ACCOUNT: Accounts(entries=[account]),
+                ProductType.DEPOSIT: Deposits(entries=[deposit]),
+                ProductType.STOCK_ETF: StockInvestments(entries=[stock]),
+                ProductType.REAL_ESTATE_CF: RealEstateCFInvestments(entries=[re_cf]),
+                ProductType.FACTORING: FactoringInvestments(entries=[factoring]),
+            },
         )
 
     async def auto_contributions(self) -> AutoContributions:

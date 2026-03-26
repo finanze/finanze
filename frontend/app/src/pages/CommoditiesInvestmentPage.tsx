@@ -589,6 +589,7 @@ export default function CommoditiesInvestmentPage() {
           </Button>
           {hasChanges && (
             <Button
+              data-testid="save-commodities"
               size="sm"
               onClick={saveChanges}
               disabled={isSaving}

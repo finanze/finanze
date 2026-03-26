@@ -2070,6 +2070,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
             {cancelLabel}
           </Button>
           <Button
+            data-testid="save-positions"
             size="sm"
             onClick={requestSave}
             disabled={isSaving || (!hasLocalChanges && !isSaving)}
