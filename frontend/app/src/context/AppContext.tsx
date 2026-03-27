@@ -86,6 +86,7 @@ interface AppContextType {
   fetchEntities: () => Promise<void>
   updateEntityStatus: (entityId: string, status: EntityStatus) => void
   updateEntityLastFetch: (entityId: string, features: string[]) => void
+  updateEntityVirtualFeatures: (entityId: string, features: string[]) => void
   updateEntityAccount: (entityId: string, accountId: string) => void
   showToast: (message: string, type: "success" | "error" | "warning") => void
   hideToast: () => void
@@ -396,6 +397,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const updateEntityVirtualFeatures = useCallback(
+    (entityId: string, features: string[]) => {
+      const now = new Date().toISOString()
+      setEntities(prevEntities =>
+        prevEntities.map(entity =>
+          entity.id === entityId
+            ? {
+                ...entity,
+                virtual_features: {
+                  ...entity.virtual_features,
+                  ...Object.fromEntries(features.map(f => [f, now])),
+                },
+              }
+            : entity,
+        ),
+      )
+    },
+    [],
+  )
+
   const updateEntityAccount = useCallback(
     (entityId: string, accountId: string) => {
       setEntities(prevEntities =>
@@ -494,6 +515,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         fetchEntities,
         updateEntityStatus,
         updateEntityLastFetch,
+        updateEntityVirtualFeatures,
         updateEntityAccount,
         showToast,
         hideToast,

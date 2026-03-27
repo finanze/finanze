@@ -1223,7 +1223,7 @@ export function ManualTransactionDialog({
                             {t.transactions.form.netAmountLabel}
                           </span>{" "}
                           {formattedNetAmount}
-                          <span className="ml-1 text-[11px] uppercase tracking-wide">
+                          <span className="ml-1 text-[11px] tracking-wide">
                             ({netAmountFormulaText})
                           </span>
                         </p>

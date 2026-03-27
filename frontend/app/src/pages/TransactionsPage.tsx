@@ -82,7 +82,13 @@ const ITEMS_PER_PAGE = 20
 
 export default function TransactionsPage() {
   const { t, locale } = useI18n()
-  const { entities, settings, showToast, exchangeRates } = useAppContext()
+  const {
+    entities,
+    settings,
+    showToast,
+    exchangeRates,
+    updateEntityVirtualFeatures,
+  } = useAppContext()
   const location = useLocation()
   const navigateRouter = useNavigate()
 
@@ -135,7 +141,6 @@ export default function TransactionsPage() {
   const [historicEntryName, setHistoricEntryName] = useState<string | null>(
     initialHistoricEntryNameRef.current,
   )
-
   const entityOptions: MultiSelectOption[] = useMemo(() => {
     return (
       entities
@@ -558,6 +563,7 @@ export default function TransactionsPage() {
       } else {
         await createManualTransaction(result.payload)
         showToast(t.transactions.form.createSuccess, "success")
+        updateEntityVirtualFeatures(result.payload.entity_id, ["TRANSACTIONS"])
       }
 
       setIsDialogOpen(false)
