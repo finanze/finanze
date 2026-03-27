@@ -937,7 +937,9 @@ function FundInstrumentSearchField({
           const sharesValue = parseNumberInput(form.shares)
           if (sharesValue != null && sharesValue > 0) {
             const total = priceInTarget * sharesValue
-            const formattedTotal = formatNumberInput(total)
+            const formattedTotal = formatNumberInput(total, {
+              maximumFractionDigits: 4,
+            })
             if (formattedTotal) {
               updateField("market_value", formattedTotal)
             }
@@ -1400,7 +1402,9 @@ function StockInstrumentSearchField({
           const sharesValue = parseNumberInput(form.shares)
           if (sharesValue != null && sharesValue > 0) {
             const total = priceInTarget * sharesValue
-            const formattedTotal = formatNumberInput(total)
+            const formattedTotal = formatNumberInput(total, {
+              maximumFractionDigits: 4,
+            })
             if (formattedTotal) {
               updateField("market_value", formattedTotal)
             }
@@ -3649,15 +3653,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         shares: formatNumberInput(draft.shares ?? 0),
         average_buy_price:
           draft.average_buy_price != null
-            ? formatNumberInput(draft.average_buy_price)
+            ? formatNumberInput(draft.average_buy_price, {
+                maximumFractionDigits: 4,
+              })
             : "",
         initial_investment:
           draft.initial_investment != null
-            ? formatNumberInput(draft.initial_investment)
+            ? formatNumberInput(draft.initial_investment, {
+                maximumFractionDigits: 4,
+              })
             : "",
         market_value:
           draft.market_value != null
-            ? formatNumberInput(draft.market_value)
+            ? formatNumberInput(draft.market_value, {
+                maximumFractionDigits: 4,
+              })
             : "",
         currency: draft.currency,
         type: draft.type ?? FundType.MUTUAL_FUND,
@@ -3688,17 +3698,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const lastField = form._last_investment_field
 
       if (lastField === "initial" && initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       } else if (averageBuy != null) {
-        initialInvestment = averageBuy * shares
+        initialInvestment = Math.round(averageBuy * shares * 10000) / 10000
       } else if (initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       }
 
       const resolvedInitialInvestment =
-        initialInvestment ?? (averageBuy != null ? averageBuy * shares : 0)
+        initialInvestment ??
+        (averageBuy != null
+          ? Math.round(averageBuy * shares * 10000) / 10000
+          : 0)
       const resolvedAverageBuy =
-        averageBuy ?? (shares > 0 ? resolvedInitialInvestment / shares : 0)
+        averageBuy ??
+        (shares > 0
+          ? Math.round((resolvedInitialInvestment / shares) * 10000) / 10000
+          : 0)
       const resolvedMarketValue = marketValueInput ?? resolvedInitialInvestment
 
       const trimmedPortfolioId = form.portfolio_id?.trim() ?? ""
@@ -4059,7 +4075,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   return
 
                 const total = price * sharesValue
-                const formattedTotal = formatNumberInput(total)
+                const formattedTotal = formatNumberInput(total, {
+                  maximumFractionDigits: 4,
+                })
                 if (formattedTotal) {
                   helpers.updateField("market_value", formattedTotal)
                   helpers.clearError("market_value")
@@ -4120,22 +4138,53 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </p>
           </div>
-          {renderTextInput(
-            "market_value",
-            props.t("management.manualPositions.funds.fields.marketValue"),
-            props,
-            {
-              type: "number",
-              step: "0.01",
-              inputMode: "decimal",
-              onValueChange: (_value, helpers) => {
-                if (helpers.form._suggested_market_price) {
-                  helpers.updateField("_suggested_market_price", "")
-                }
-              },
-              disabled: isTrackingActive,
-            },
-          )}
+          {(() => {
+            const marketValue = parseNumberInput(props.form.market_value)
+            const shares = parseNumberInput(props.form.shares)
+            const perSharePrice =
+              marketValue != null && shares != null && shares > 0
+                ? Math.round((marketValue / shares) * 10000) / 10000
+                : null
+            return (
+              <div className="space-y-1.5">
+                <Label htmlFor="market_value">
+                  {props.t(
+                    "management.manualPositions.funds.fields.marketValue",
+                  )}
+                </Label>
+                <Input
+                  id="market_value"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={props.form.market_value ?? ""}
+                  disabled={isTrackingActive}
+                  onChange={event => {
+                    const value = event.target.value
+                    props.updateField("market_value", value)
+                    props.clearError("market_value")
+                    if (props.form._suggested_market_price) {
+                      props.updateField("_suggested_market_price", "")
+                    }
+                  }}
+                />
+                {props.errors.market_value && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {props.errors.market_value}
+                  </p>
+                )}
+                {perSharePrice != null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatNumberInput(perSharePrice, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {props.form.currency || ""}{" "}
+                    {props.t("investments.perSharePrice")}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
           {renderSelectInput(
             "asset_type",
             props.t("management.manualPositions.funds.fields.assetType"),
@@ -4343,14 +4392,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       shares: formatNumberInput(draft.shares ?? 0),
       average_buy_price:
         draft.average_buy_price != null
-          ? formatNumberInput(draft.average_buy_price)
+          ? formatNumberInput(draft.average_buy_price, {
+              maximumFractionDigits: 4,
+            })
           : "",
       initial_investment:
         draft.initial_investment != null
-          ? formatNumberInput(draft.initial_investment)
+          ? formatNumberInput(draft.initial_investment, {
+              maximumFractionDigits: 4,
+            })
           : "",
       market_value:
-        draft.market_value != null ? formatNumberInput(draft.market_value) : "",
+        draft.market_value != null
+          ? formatNumberInput(draft.market_value, { maximumFractionDigits: 4 })
+          : "",
       currency: draft.currency,
       type: draft.type ?? "",
       _last_investment_field: "average",
@@ -4369,17 +4424,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const marketValueInput = parseNumberInput(form.market_value)
       const lastField = form._last_investment_field
       if (lastField === "initial" && initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       } else if (averageBuy != null) {
-        initialInvestment = averageBuy * shares
+        initialInvestment = Math.round(averageBuy * shares * 10000) / 10000
       } else if (initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       }
 
       const resolvedInitialInvestment =
-        initialInvestment ?? (averageBuy != null ? averageBuy * shares : 0)
+        initialInvestment ??
+        (averageBuy != null
+          ? Math.round(averageBuy * shares * 10000) / 10000
+          : 0)
       const resolvedAverageBuy =
-        averageBuy ?? (shares > 0 ? resolvedInitialInvestment / shares : 0)
+        averageBuy ??
+        (shares > 0
+          ? Math.round((resolvedInitialInvestment / shares) * 10000) / 10000
+          : 0)
       const resolvedMarketValue = marketValueInput ?? resolvedInitialInvestment
       const entry: StockDetail = {
         id: previous?.id || previous?.originalId || "",
@@ -4693,7 +4754,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   return
 
                 const total = price * sharesValue
-                const formattedTotal = formatNumberInput(total)
+                const formattedTotal = formatNumberInput(total, {
+                  maximumFractionDigits: 4,
+                })
                 if (formattedTotal) {
                   helpers.updateField("market_value", formattedTotal)
                   helpers.clearError("market_value")
@@ -4754,22 +4817,53 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </p>
           </div>
-          {renderTextInput(
-            "market_value",
-            props.t("management.manualPositions.stocks.fields.marketValue"),
-            props,
-            {
-              type: "number",
-              step: "0.01",
-              inputMode: "decimal",
-              onValueChange: (_value, helpers) => {
-                if (helpers.form._suggested_market_price) {
-                  helpers.updateField("_suggested_market_price", "")
-                }
-              },
-              disabled: isTrackingActive,
-            },
-          )}
+          {(() => {
+            const marketValue = parseNumberInput(props.form.market_value)
+            const shares = parseNumberInput(props.form.shares)
+            const perSharePrice =
+              marketValue != null && shares != null && shares > 0
+                ? Math.round((marketValue / shares) * 10000) / 10000
+                : null
+            return (
+              <div className="space-y-1.5">
+                <Label htmlFor="market_value">
+                  {props.t(
+                    "management.manualPositions.stocks.fields.marketValue",
+                  )}
+                </Label>
+                <Input
+                  id="market_value"
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={props.form.market_value ?? ""}
+                  disabled={isTrackingActive}
+                  onChange={event => {
+                    const value = event.target.value
+                    props.updateField("market_value", value)
+                    props.clearError("market_value")
+                    if (props.form._suggested_market_price) {
+                      props.updateField("_suggested_market_price", "")
+                    }
+                  }}
+                />
+                {props.errors.market_value && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {props.errors.market_value}
+                  </p>
+                )}
+                {perSharePrice != null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatNumberInput(perSharePrice, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {props.form.currency || ""}{" "}
+                    {props.t("investments.perSharePrice")}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )
     },

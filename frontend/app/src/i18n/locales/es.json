@@ -178,6 +178,8 @@
     "issuer": "Emisor",
     "shares": "Acciones",
     "price": "Precio",
+    "averageBuyPrice": "Precio medio compra",
+    "perSharePrice": "por participación",
     "isin": "ISIN",
     "portfolio": "Cartera",
     "ofInvestmentType": "de {type}",

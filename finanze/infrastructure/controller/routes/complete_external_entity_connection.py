@@ -35,7 +35,7 @@ async def complete_external_entity_connection(
     return successfully_connected_external_entity()
 
 
-async def successfully_connected_external_entity():
+def successfully_connected_external_entity():
     html = """
     <html>
         <head>
@@ -48,7 +48,7 @@ async def successfully_connected_external_entity():
     return html, 200
 
 
-async def error_connecting_external_entity(http_status, details=None):
+def error_connecting_external_entity(http_status, details=None):
     error_detail = f"<p>{details}</p>" if details else ""
     html = f"""
     <html>

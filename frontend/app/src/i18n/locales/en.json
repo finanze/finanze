@@ -180,6 +180,8 @@
     "symbol": "Symbol",
     "shares": "Shares",
     "price": "Price",
+    "averageBuyPrice": "Avg. buy price",
+    "perSharePrice": "per share",
     "isin": "ISIN",
     "portfolio": "Portfolio",
     "ofInvestmentType": "of {type}",
