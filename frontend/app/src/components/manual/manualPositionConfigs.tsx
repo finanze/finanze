@@ -105,9 +105,12 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
     <Label htmlFor={String(field)}>{label}</Label>
     <Input
       id={String(field)}
-      type={options?.type ?? "text"}
-      inputMode={options?.inputMode}
-      step={options?.step}
+      type={options?.type === "number" ? "text" : (options?.type ?? "text")}
+      inputMode={
+        options?.type === "number"
+          ? (options?.inputMode ?? "decimal")
+          : options?.inputMode
+      }
       placeholder={options?.placeholder}
       value={(props.form[field] as string) ?? ""}
       disabled={options?.disabled}
@@ -4093,8 +4096,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.initial_investment}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("initial_investment", event.target.value)
@@ -4117,8 +4119,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.average_buy_price}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("average_buy_price", event.target.value)
@@ -4154,8 +4155,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 </Label>
                 <Input
                   id="market_value"
-                  type="number"
-                  step="0.01"
+                  type="text"
                   inputMode="decimal"
                   value={props.form.market_value ?? ""}
                   disabled={isTrackingActive}
@@ -4772,8 +4772,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.initial_investment}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("initial_investment", event.target.value)
@@ -4796,8 +4795,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.average_buy_price}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("average_buy_price", event.target.value)
@@ -4833,8 +4831,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                 </Label>
                 <Input
                   id="market_value"
-                  type="number"
-                  step="0.01"
+                  type="text"
                   inputMode="decimal"
                   value={props.form.market_value ?? ""}
                   disabled={isTrackingActive}

@@ -24,10 +24,12 @@ const KNOWN_ISSUER_ICONS: Record<string, string> = {
   "Morgan Stanley": "morganstanley",
   MyInvestor: "myinvestor",
   PIMCO: "pimco",
+  Robeco: "robeco",
   SPDR: "spdr",
   UBS: "ubs",
   VanEck: "vaneck",
   Vanguard: "vanguard",
+  Vontobel: "vontobel",
   WisdomTree: "wisdomtree",
   Xtrackers: "xtrackers",
 }

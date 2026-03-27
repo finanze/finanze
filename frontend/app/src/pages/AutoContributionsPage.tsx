@@ -575,7 +575,7 @@ export default function AutoContributionsPage() {
             : form.target_subtype
               ? (form.target_subtype as ContributionTargetSubtype)
               : null,
-        amount: Number.parseFloat(form.amount),
+        amount: Number.parseFloat(form.amount.replace(",", ".")),
         currency: form.currency,
         since: form.since,
         until: form.until ? form.until : null,
@@ -630,7 +630,7 @@ export default function AutoContributionsPage() {
       if (!form.target.trim()) {
         errors.target = t.management.manualContributions.validation.target
       }
-      const amountValue = Number.parseFloat(form.amount)
+      const amountValue = Number.parseFloat(form.amount.replace(",", "."))
       if (!form.amount || Number.isNaN(amountValue) || amountValue <= 0) {
         errors.amount = t.management.manualContributions.validation.amount
       }
@@ -1817,10 +1817,8 @@ export default function AutoContributionsPage() {
                         <Label htmlFor="amount">{t.management.amount}</Label>
                         <Input
                           id="amount"
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          min="0"
-                          step="0.01"
                           value={modalForm.amount}
                           onChange={event => {
                             setModalForm(prev =>

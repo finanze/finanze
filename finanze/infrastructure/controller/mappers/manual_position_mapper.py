@@ -44,6 +44,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 
 
 def _uuid(value: Any):
@@ -189,6 +190,7 @@ def _map_funds(entries: list[dict]) -> FundInvestments:
                 else None,
                 portfolio=portfolio,
                 manual_data=_map_manual_data(e["manual_data"]),
+                issuer=resolve_issuer(None, e.get("name")),
                 source=DataSource.MANUAL,
             )
         )
@@ -354,6 +356,12 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
         init_inv = _dez(e.get("initial_investment"))
         avg_buy = _dez(e.get("average_buy_price"))
         market_value = _dez(e.get("market_value")) or Dezimal(0)
+        equity_type = EquityType(e["type"])
+        issuer = (
+            resolve_issuer(None, e.get("name"))
+            if equity_type == EquityType.ETF
+            else None
+        )
         result.append(
             StockDetail(
                 id=_uuid(e.get("id")),
@@ -366,9 +374,10 @@ def _map_stocks(entries: list[dict]) -> StockInvestments:
                 average_buy_price=avg_buy,
                 market_value=market_value,
                 currency=e["currency"],
-                type=EquityType(e["type"]),
+                type=equity_type,
                 subtype=e.get("subtype"),
                 manual_data=_map_manual_data(e["manual_data"]),
+                issuer=issuer,
                 source=DataSource.MANUAL,
             )
         )
