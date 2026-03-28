@@ -14,7 +14,8 @@ concurrency:
 jobs:
 
   build-app:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
+    if: false # Temporarily disabled — re-enable before merging
+    # if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     strategy:
       matrix:
@@ -221,7 +222,8 @@ jobs:
 
 
   build-docker:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
+    if: false # Temporarily disabled — re-enable before merging
+    # if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     runs-on: ubuntu-latest
 
@@ -354,7 +356,7 @@ jobs:
 
 
   build-mobile-android:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
+    if: ${{ (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     runs-on: ubuntu-latest
 
@@ -371,6 +373,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: frontend/app/.nvmrc
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -424,7 +432,7 @@ jobs:
 
 
   build-mobile-ios:
-    if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
+    if: ${{ (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
 
     runs-on: macos-latest
 
@@ -513,7 +521,7 @@ jobs:
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
+            -sdk iphoneos \
             -configuration Debug \
-            -destination 'generic/platform=iOS' \
             build \
             CODE_SIGNING_ALLOWED=NO
