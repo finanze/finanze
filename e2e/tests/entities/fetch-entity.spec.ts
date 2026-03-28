@@ -222,9 +222,14 @@ test.describe('Fetch Entity Data - 2FA (Wecity)', () => {
 })
 
 test.describe('Fetch Entity Data - Manual Login (Trade Republic)', () => {
-    test('manual login entity shows use app error', async ({
+    test('manual login entity shows use app error when external login unavailable', async ({
         authenticatedPage: page,
     }) => {
+        // Temporarily disable the mock external login API so getExternalLoginAPI() returns null
+        await page.evaluate(() =>
+            (window as any).__e2eDisableMockExternalLogin?.(),
+        )
+
         await page.getByRole('button', { name: 'Integrations' }).click()
         await page
             .getByRole('heading', { name: 'Integrations' })
@@ -236,10 +241,28 @@ test.describe('Fetch Entity Data - Manual Login (Trade Republic)', () => {
             await page.waitForTimeout(500)
         }
 
-        await page.getByText('Trade Republic').first().click()
+        const trCard = page
+            .locator('h3', { hasText: 'Trade Republic' })
+            .first()
+            .locator('../..')
+        const reloginBtn = trCard.getByRole('button', { name: 'Relogin' })
+        const isConnected = await reloginBtn
+            .isVisible({ timeout: 2_000 })
+            .catch(() => false)
+
+        if (isConnected) {
+            await reloginBtn.click()
+        } else {
+            await page.getByText('Trade Republic').first().click()
+        }
 
         await expect(
             page.getByText('Use the app in order to do manual log in.'),
         ).toBeVisible({ timeout: 10_000 })
+
+        // Re-enable the mock for subsequent tests
+        await page.evaluate(() =>
+            (window as any).__e2eEnableMockExternalLogin?.(),
+        )
     })
 })

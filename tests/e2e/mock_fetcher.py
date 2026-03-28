@@ -263,10 +263,58 @@ class MockPinEntityFetcher(MockFinancialEntityFetcher):
 
 class MockManualLoginFetcher(MockFinancialEntityFetcher):
     async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
-        if login_params.session:
+        if login_params.session and "awsWafToken" not in login_params.credentials:
             return EntityLoginResult(
                 code=LoginResultCode.MANUAL_LOGIN,
                 details={"phone": "+34612345678", "password": "1234"},
+            )
+
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )
+
+
+class MockManualLoginFullCredsFetcher(MockFinancialEntityFetcher):
+    """For entities where external browser provides ALL credentials (e.g. ING)."""
+
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        if login_params.session and "genomaCookie" not in login_params.credentials:
+            return EntityLoginResult(
+                code=LoginResultCode.MANUAL_LOGIN,
+                details={
+                    "genomaCookie": "mock",
+                    "genomaSessionId": "mock",
+                    "apiCookie": "mock",
+                    "apiAuth": "mock",
+                    "apiExtendedSessionCtx": "mock",
+                },
+            )
+
+        session = EntitySession(
+            creation=datetime.now(tzlocal()),
+            expiration=None,
+            payload={"mock": True},
+        )
+        return EntityLoginResult(
+            code=LoginResultCode.CREATED,
+            session=session,
+        )
+
+
+class MockManualLoginReloginFetcher(MockFinancialEntityFetcher):
+    """For entities where external browser provides a cookie and user re-enters credentials (e.g. Unicaja)."""
+
+    async def login(self, login_params: EntityLoginParams) -> EntityLoginResult:
+        if login_params.session and "abck" not in login_params.credentials:
+            return EntityLoginResult(
+                code=LoginResultCode.MANUAL_LOGIN,
+                details={"abck": "mock-abck"},
             )
 
         session = EntitySession(

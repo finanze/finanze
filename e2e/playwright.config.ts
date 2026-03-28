@@ -31,7 +31,7 @@ export default defineConfig({
     ],
 
     webServer: {
-        command: `cd ../frontend/app && VITE_BASE_URL=http://localhost:${BACKEND_PORT} MOBILE_DEV=1 pnpm dev --port ${FRONTEND_PORT}`,
+        command: `cd ../frontend/app && VITE_BASE_URL=http://localhost:${BACKEND_PORT} MOBILE_DEV=1 VITE_E2E_MOCK_LOGIN=1 pnpm dev --port ${FRONTEND_PORT}`,
         port: FRONTEND_PORT,
         reuseExistingServer: !process.env.CI,
         timeout: 30_000,

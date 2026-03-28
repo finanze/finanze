@@ -33,13 +33,13 @@ export function getExternalLoginAPI(): ExternalLoginAPI | null {
     }
   }
 
-  if (isNativeMobile()) {
+  if (isNativeMobile() || mobileLoginAPI) {
     return mobileLoginAPI
   }
 
   return null
 }
 
-export function setMobileLoginAPI(api: ExternalLoginAPI) {
+export function setMobileLoginAPI(api: ExternalLoginAPI | null) {
   mobileLoginAPI = api
 }
