@@ -27,6 +27,9 @@
     "pretest": "vite build --mode=test",
     "test": "vitest run",
     "lint-staged": "lint-staged --no-stash",
+    "native:setup": "bash native/tlsclient/build.sh && bash native/tlsclient/install.sh",
+    "native:setup:ios": "bash native/tlsclient/build.sh --platform ios && bash native/tlsclient/install.sh",
+    "native:setup:android": "bash native/tlsclient/build.sh --platform android && bash native/tlsclient/install.sh",
     "cap:sync": "pnpm build:mobile && pnpm exec cap sync",
     "cap:ios": "pnpm build:mobile && pnpm exec cap sync ios && open ios/App/App.xcworkspace",
     "cap:android": "pnpm build:mobile && pnpm exec cap sync android && pnpm exec cap open android"

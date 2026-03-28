@@ -255,10 +255,9 @@ For the frontend use `pnpm`, and `node 24`.
     Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (`go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
 
     ```sh
-    cd frontend/app/native/tlsclient
-    go mod tidy
-    bash build.sh    # Builds iOS xcframework + Android AAR
-    bash install.sh  # Copies artifacts to native projects
+    cd frontend/app           # If not already
+    go mod tidy -C native/tlsclient
+    pnpm native:setup         # Builds iOS xcframework + Android AAR and copies to native projects
     ```
 
 ### Environment Variables
