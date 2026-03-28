@@ -24,6 +24,11 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
     entity_account_id = body.get("entityAccountId", None)
     account_name = body.get("accountName", None)
 
+    # if not process_id:
+    #    return '{"code": "CODE_REQUESTED", "processId": "aaaa"}'
+    # else:
+    #    return '{"code": "CREATED"}'
+
     login_request = EntityLoginRequest(
         entity_id=entity,
         credentials=credentials,

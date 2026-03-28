@@ -130,7 +130,7 @@ SQL = """
 class V0810EntityAccounts(DBVersionMigration, QueryMixin):
     @property
     def name(self):
-        return "v0.8.10:0_entity_accounts"
+        return "v0.8.0:10_entity_accounts"
 
     async def upgrade(self, cursor: DBCursor, context: DatasourceInitContext):
         statements = self.parse_block(SQL)

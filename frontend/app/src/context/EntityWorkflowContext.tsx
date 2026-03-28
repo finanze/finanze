@@ -293,7 +293,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   )
 
   const startExternalLogin = useCallback(
-    async (entityOverride?: Entity, credentials?: Record<string, string>) => {
+    async (
+      entityOverride?: Entity,
+      credentials?: Record<string, string>,
+      flow?: "login" | "fetch",
+    ) => {
       const entityToUse = entityOverride || selectedEntity
 
       if (!entityToUse) {
@@ -314,6 +318,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
         const result = await loginAPI.requestExternalLogin(entityToUse.id, {
           credentials,
+          flow,
         })
 
         if (!result.success) {
@@ -561,6 +566,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       features: Feature[],
       options: FetchOptions = DEFAULT_FETCH_OPTIONS,
       entityAccountId?: string,
+      externalCredentials?: Record<string, string>,
     ) => {
       const { silent = false } = options
 
@@ -621,6 +627,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               code: options.code,
               token: options.token,
               entityAccountId: accountId,
+              credentials: externalCredentials,
             })
           } else {
             response = await fetchCryptoEntity({
@@ -704,7 +711,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               entityAccountId,
             }
 
-            await startExternalLogin(entity, response.details?.credentials)
+            await startExternalLogin(
+              entity,
+              response.details?.credentials,
+              "fetch",
+            )
           } else {
             console.debug("MANUAL_LOGIN response without credentials or entity")
             notify(t.common.fetchError, "error")
@@ -1195,7 +1206,33 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
         try {
           if (result.success) {
-            if (scrapeManualLogin.current.active) {
+            if (result.flow === "fetch" && scrapeManualLogin.current.active) {
+              // Fetch flow: skip loginEntity(), go straight to scrape with credentials
+              console.debug(
+                "[ExternalLogin] fetch flow: calling scrape directly with credentials",
+              )
+              const features = scrapeManualLogin.current.features
+              const options = scrapeManualLogin.current.options
+              const entityAccountId = scrapeManualLogin.current.entityAccountId
+
+              scrapeManualLogin.current = {
+                active: false,
+                features: [],
+                options: DEFAULT_FETCH_OPTIONS,
+              }
+
+              try {
+                await scrape(
+                  selectedEntity,
+                  features,
+                  options,
+                  entityAccountId,
+                  result.credentials,
+                )
+              } finally {
+                setView("entities")
+              }
+            } else if (scrapeManualLogin.current.active) {
               console.debug(
                 "[ExternalLogin] calling handleScrapeManualLoginCompletion",
               )
@@ -1245,6 +1282,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     handleScrapeManualLoginCompletion,
     login,
     resetState,
+    scrape,
     selectedEntity,
     setView,
     showToast,

@@ -6,6 +6,7 @@ export interface ExternalLoginRequestResult {
 
 export interface ExternalLoginRequest {
   credentials?: Record<string, string>
+  flow?: "login" | "fetch"
 }
 
 export type { LoginHandlerResult }

@@ -31,13 +31,18 @@ async def fetch_financial_data(fetch_financial_data_uc: FetchFinancialData):
     token = body.get("token", None)
     avoid_new_login = body.get("avoidNewLogin", False)
     deep = body.get("deep", False)
-
+    credentials = body.get("credentials", None)
+    # if not process_id:
+    #    return '{"code": "CODE_REQUESTED", "processId": "aaaa"}'
+    # else:
+    # return '{"code": "MANUAL_LOGIN"}'
     fetch_request = FetchRequest(
         entity_account_id=entity_account_id,
         features=features,
         two_factor=TwoFactor(code=code, process_id=process_id, token=token),
         fetch_options=FetchOptions(deep=deep),
         login_options=LoginOptions(avoid_new_login=avoid_new_login),
+        credentials=credentials,
     )
     result = await fetch_financial_data_uc.execute(fetch_request)
 

@@ -3,12 +3,16 @@ import { isNativeMobile } from "@/lib/platform"
 export interface LoginHandlerResult {
   success: boolean
   credentials: Record<string, string>
+  flow?: "login" | "fetch"
 }
 
 export interface ExternalLoginAPI {
   requestExternalLogin(
     id: string,
-    request?: { credentials?: Record<string, string> },
+    request?: {
+      credentials?: Record<string, string>
+      flow?: "login" | "fetch"
+    },
   ): Promise<{ success: boolean }>
   onCompletedExternalLogin(
     callback: (id: string, result: LoginHandlerResult) => void,

@@ -14,6 +14,7 @@ export async function promptLogin(
   const result: LoginHandlerResult = {
     success: false,
     credentials: {},
+    flow: request.flow,
   }
 
   let completed = false

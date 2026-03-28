@@ -233,6 +233,11 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 return result
 
             credentials = await self._credentials_port.get(entity_account_id)
+            # Incorporate any extra credentials from the request (e.g., for manual login)
+            extra_credentials = fetch_request.credentials or {}
+            for cred_name, cred_value in extra_credentials.items():
+                credentials[cred_name] = cred_value
+
             if credentials is None:
                 return FetchResult(FetchResultCode.NO_CREDENTIALS_AVAILABLE)
 

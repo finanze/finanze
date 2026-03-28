@@ -13,11 +13,13 @@ export interface ExternalLoginRequestResult {
 
 export interface ExternalLoginRequest {
   credentials?: Record<string, string>
+  flow?: "login" | "fetch"
 }
 
 export interface LoginHandlerResult {
   success: boolean
   credentials: Record<string, string>
+  flow?: "login" | "fetch"
 }
 
 type EntityLoginHandlers = {

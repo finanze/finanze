@@ -292,6 +292,7 @@ export interface LoginRequest {
 export interface FetchRequest {
   entity?: string
   features: Feature[]
+  credentials?: Record<string, string>
   code?: string
   processId?: string
   token?: string

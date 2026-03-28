@@ -28,6 +28,7 @@ export async function promptLogin(
   const result: LoginHandlerResult = {
     success: false,
     credentials: { ...credentials },
+    flow: request.flow,
   }
   trSession.clearStorageData()
 

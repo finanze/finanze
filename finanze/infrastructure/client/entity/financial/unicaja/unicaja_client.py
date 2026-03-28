@@ -52,17 +52,18 @@ def _create_mobile_client():
     return new_http_session()
 
 
-def _create_desktop_client():
+def _create_desktop_client(retrying: bool):
     from infrastructure.client.http.http_session import new_impersonated_http_session
 
-    return new_impersonated_http_session()
+    browser = "chrome" if retrying else "firefox135"
+    return new_impersonated_http_session(impersonate=browser)
 
 
-def _create_client(mobile: bool):
+def _create_client(mobile: bool, retrying: bool):
     if mobile:
         return _create_mobile_client()
     else:
-        return _create_desktop_client()
+        return _create_desktop_client(retrying)
 
 
 class UnicajaClient:
@@ -87,14 +88,17 @@ class UnicajaClient:
             "_abck", abck, domain="univia.unicajabanco.es", path="/"
         )
 
-    async def login(self, username: str, password: str, abck: str) -> EntityLoginResult:
+    async def login(
+        self, username: str, password: str, abck: str, **kwargs
+    ) -> EntityLoginResult:
         if not abck:
             return EntityLoginResult(
                 code=LoginResultCode.LOGIN_REQUIRED,
                 message="abck is required for automated login, but it was not provided",
             )
 
-        self._session = _create_client(self._use_mobile_client)
+        retrying = kwargs.get("retrying", False)
+        self._session = _create_client(self._use_mobile_client, retrying)
 
         ck = await self._ck()
 
@@ -121,6 +125,12 @@ class UnicajaClient:
             return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
 
         elif auth_response.status == 403:
+            if not retrying and not self._use_mobile_client:
+                self._log.error(
+                    "Login failed with 403, retrying with different browser impersonation..."
+                )
+                return await self.login(username, password, abck, retrying=True)
+
             return EntityLoginResult(
                 LoginResultCode.LOGIN_REQUIRED, message="abck may not be valid anymore"
             )

@@ -58,6 +58,7 @@ class FetchRequest:
     two_factor: Optional[TwoFactor] = None
     login_options: Optional[LoginOptions] = field(default_factory=LoginOptions)
     fetch_options: Optional[FetchOptions] = field(default_factory=FetchOptions)
+    credentials: Optional[dict] = None
 
 
 @dataclass
