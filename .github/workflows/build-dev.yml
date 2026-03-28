@@ -430,6 +430,13 @@ jobs:
         working-directory: frontend/app/android
         run: ./gradlew assembleDebug
 
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: finanze-mobile-android-debug
+          path: frontend/app/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+
 
   build-mobile-ios:
     if: ${{ (github.event_name == 'pull_request' && github.event.action == 'labeled' && github.event.label.name == 'build') || (github.event_name == 'pull_request' && github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'build')) }}
@@ -521,7 +528,7 @@ jobs:
           xcodebuild \
             -workspace App.xcworkspace \
             -scheme App \
-            -sdk iphoneos \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -configuration Debug \
             build \
             CODE_SIGNING_ALLOWED=NO
