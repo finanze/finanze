@@ -79,7 +79,7 @@ class EthplorerFetcher:
                 decimals = int(token_info.get("decimals", 0))
                 balance = Dezimal(token_data.get("balance", 0))
                 amount = balance * Dezimal(f"1e-{decimals}")
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 self._log.warning(f"Could not parse amount for token {symbol}")
                 continue
 

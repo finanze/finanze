@@ -4,8 +4,9 @@ import { EntityCard } from "@/components/EntityCard"
 import { LoginForm } from "@/components/LoginForm"
 import { AddWalletForm, AddWalletSubmitData } from "@/components/AddWalletForm"
 import { ManageWalletsView } from "@/components/ManageWalletsView"
+import { ManageAccountsDialog } from "@/components/ManageAccountsDialog"
 import { PinPad } from "@/components/PinPad"
-import { CaptchaModal } from "@/components/CaptchaModal"
+import { ChallengeModal } from "@/components/ChallengeModal"
 import { FeatureSelector } from "@/components/FeatureSelector"
 import { Button } from "@/components/ui/Button"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
@@ -15,7 +16,15 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { useState, useEffect } from "react"
 import { useLocation } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
-import { ExternalLink, Landmark, Wallet, Check, Smartphone } from "lucide-react"
+import {
+  ExternalLink,
+  Landmark,
+  Wallet,
+  Check,
+  Smartphone,
+  Bitcoin,
+  X,
+} from "lucide-react"
 import {
   EntityOrigin,
   EntitySetupLoginType,
@@ -51,7 +60,7 @@ export default function EntityIntegrationsPage() {
     isLoggingIn,
     selectedEntity,
     pinRequired,
-    captchaRequired,
+    challengeRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
     selectEntity,
@@ -66,6 +75,7 @@ export default function EntityIntegrationsPage() {
   const [showAddWallet, setShowAddWallet] = useState(false)
   const [isAddingWallet, setIsAddingWallet] = useState(false)
   const [showManageWallets, setShowManageWallets] = useState(false)
+  const [showManageAccounts, setShowManageAccounts] = useState(false)
   // External entity linking state
   const [showAddExternalEntity, setShowAddExternalEntity] = useState(false)
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null)
@@ -140,6 +150,9 @@ export default function EntityIntegrationsPage() {
   const connectedCryptoEntities = connectedEntities.filter(
     entity => entity.type === EntityType.CRYPTO_WALLET,
   )
+  const connectedCryptoExchangeEntities = connectedEntities.filter(
+    entity => entity.type === EntityType.CRYPTO_EXCHANGE,
+  )
 
   // Categorize unconnected entities by type
   const unconnectedFinancialEntities = unconnectedEntities.filter(
@@ -147,6 +160,9 @@ export default function EntityIntegrationsPage() {
   )
   const unconnectedCryptoEntities = unconnectedEntities.filter(
     entity => entity.type === EntityType.CRYPTO_WALLET,
+  )
+  const unconnectedCryptoExchangeEntities = unconnectedEntities.filter(
+    entity => entity.type === EntityType.CRYPTO_EXCHANGE,
   )
 
   const handleEntitySelect = (entity: any) => {
@@ -169,17 +185,23 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleRelogin = (entity: any) => {
-    // Only handle relogin for financial institutions
-    if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+    if (
+      entity.type === EntityType.FINANCIAL_INSTITUTION ||
+      entity.type === EntityType.CRYPTO_EXCHANGE
+    ) {
       selectEntity(entity)
       handleLogin(entity)
     }
   }
 
   const handleDisconnect = async (entity: any) => {
-    // Only handle disconnect for financial institutions
-    if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
-      await disconnectEntity(entity.id)
+    if (
+      entity.type === EntityType.FINANCIAL_INSTITUTION ||
+      entity.type === EntityType.CRYPTO_EXCHANGE
+    ) {
+      const accountId = entity.accounts?.[0]?.id
+      if (!accountId) return
+      await disconnectEntity(entity.id, accountId)
     }
   }
 
@@ -194,14 +216,22 @@ export default function EntityIntegrationsPage() {
   }
 
   const handleManage = (entity: any) => {
-    // Only handle manage for crypto wallets
     if (
       entity.type === EntityType.CRYPTO_WALLET &&
       isCryptoWalletConnected(entity)
     ) {
       selectEntity(entity)
       setShowManageWallets(true)
+    } else if (entity.type === EntityType.CRYPTO_EXCHANGE) {
+      selectEntity(entity)
+      setShowManageAccounts(true)
     }
+  }
+
+  const handleAddAccount = (entity: any) => {
+    selectEntity(entity)
+    setShowManageAccounts(false)
+    handleLogin(entity)
   }
 
   const handleAddWallet = async (
@@ -546,6 +576,7 @@ export default function EntityIntegrationsPage() {
                               onRelogin={() => handleRelogin(entity)}
                               onDisconnect={() => handleDisconnect(entity)}
                               onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
                               onExternalContinue={
                                 handleContinueExternalEntityLink
                               }
@@ -582,6 +613,43 @@ export default function EntityIntegrationsPage() {
                               onRelogin={() => handleRelogin(entity)}
                               onDisconnect={() => handleDisconnect(entity)}
                               onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
+                              onExternalContinue={
+                                handleContinueExternalEntityLink
+                              }
+                              onExternalDisconnect={
+                                handleDisconnectExternalProvided
+                              }
+                              linkingExternalEntityId={linkingExternalEntityId}
+                            />
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    </div>
+                  )}
+
+                  {/* Crypto Exchanges */}
+                  {connectedCryptoExchangeEntities.length > 0 && (
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                        <Bitcoin className="h-5 w-5 mr-2" />
+                        {t.entities.cryptoExchanges}
+                      </h3>
+                      <motion.div
+                        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                        variants={fadeListContainer}
+                        initial={false}
+                        animate="show"
+                      >
+                        {connectedCryptoExchangeEntities.map(entity => (
+                          <motion.div key={entity.id} variants={fadeListItem}>
+                            <EntityCard
+                              entity={entity}
+                              onSelect={() => handleEntitySelect(entity)}
+                              onRelogin={() => handleRelogin(entity)}
+                              onDisconnect={() => handleDisconnect(entity)}
+                              onManage={() => handleManage(entity)}
+                              onAddAccount={() => handleAddAccount(entity)}
                               onExternalContinue={
                                 handleContinueExternalEntityLink
                               }
@@ -697,6 +765,7 @@ export default function EntityIntegrationsPage() {
                           onRelogin={() => handleRelogin(entity)}
                           onDisconnect={() => handleDisconnect(entity)}
                           onManage={() => handleManage(entity)}
+                          onAddAccount={() => handleAddAccount(entity)}
                           onExternalContinue={handleContinueExternalEntityLink}
                           onExternalDisconnect={
                             handleDisconnectExternalProvided
@@ -728,6 +797,42 @@ export default function EntityIntegrationsPage() {
                             onRelogin={() => handleRelogin(entity)}
                             onDisconnect={() => handleDisconnect(entity)}
                             onManage={() => handleManage(entity)}
+                            onAddAccount={() => handleAddAccount(entity)}
+                            onExternalContinue={
+                              handleContinueExternalEntityLink
+                            }
+                            onExternalDisconnect={
+                              handleDisconnectExternalProvided
+                            }
+                            linkingExternalEntityId={linkingExternalEntityId}
+                            onExternalRelink={handleRelinkExternalProvided}
+                          />
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </div>
+                )}
+
+                {/* Crypto Exchanges */}
+                {unconnectedCryptoExchangeEntities.length > 0 && (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      <Bitcoin className="h-5 w-5 mr-2" />
+                      {t.entities.cryptoExchanges}
+                    </h3>
+                    <motion.div
+                      className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+                      variants={fadeListContainer}
+                    >
+                      {unconnectedCryptoExchangeEntities.map(entity => (
+                        <motion.div key={entity.id} variants={fadeListItem}>
+                          <EntityCard
+                            entity={entity}
+                            onSelect={() => handleEntitySelect(entity)}
+                            onRelogin={() => handleRelogin(entity)}
+                            onDisconnect={() => handleDisconnect(entity)}
+                            onManage={() => handleManage(entity)}
+                            onAddAccount={() => handleAddAccount(entity)}
                             onExternalContinue={
                               handleContinueExternalEntityLink
                             }
@@ -801,6 +906,12 @@ export default function EntityIntegrationsPage() {
                     <ExternalLink className="mr-2 h-5 w-5" />
                     {t.login.externalLogin} {selectedEntity.name}
                   </CardTitle>
+                  <button
+                    onClick={() => setView("entities")}
+                    className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </CardHeader>
                 <CardContent className="text-center">
                   <div className="flex flex-col items-center justify-center py-8">
@@ -909,9 +1020,8 @@ export default function EntityIntegrationsPage() {
         )}
       </AnimatePresence>
 
-      {/* CAPTCHA Modal */}
       <AnimatePresence>
-        {captchaRequired && selectedEntity && <CaptchaModal />}
+        {challengeRequired && selectedEntity && <ChallengeModal />}
       </AnimatePresence>
 
       {/* Add Wallet Modal */}
@@ -968,6 +1078,16 @@ export default function EntityIntegrationsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Manage Accounts Dialog for crypto exchanges */}
+      {selectedEntity && (
+        <ManageAccountsDialog
+          entity={selectedEntity}
+          isOpen={showManageAccounts}
+          onClose={() => setShowManageAccounts(false)}
+          onAddAccount={() => handleAddAccount(selectedEntity)}
+        />
+      )}
 
       {/* Add External Entity Modal */}
       <AnimatePresence>

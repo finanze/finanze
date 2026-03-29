@@ -3,9 +3,9 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 
 import httpx
-
 from aiocache import cached, Cache
 from dateutil.tz import tzlocal
+
 from domain.entity_login import (
     EntityLoginResult,
     EntitySession,
@@ -89,7 +89,16 @@ class INGAPIClient:
 
         try:
             self.inject_session(credentials)
-            await self.get_user()
+            try:
+                await self.get_position()
+            except httpx.NetworkError as e:
+                if "request timed out" in str(e):
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message="Bad fingerprint or network issues",
+                    )
+                else:
+                    raise
 
             self._session_expiration = datetime.now(tzlocal()) + timedelta(
                 seconds=SESSION_LIFETIME
@@ -114,16 +123,18 @@ class INGAPIClient:
 
     async def _resumable_session(self) -> bool:
         try:
-            await self.get_user()
+            await self.get_position()
         except httpx.HTTPStatusError:
             return False
         else:
             return True
 
     def inject_session(self, payload: dict):
+        user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"
         self._genoma_session.headers["Content-Type"] = "application/json"
         self._genoma_session.headers["Cookie"] = payload["genomaCookie"]
         self._genoma_session.headers["genoma-session-id"] = payload["genomaSessionId"]
+        self._genoma_session.headers["User-Agent"] = user_agent
 
         self._api_session.headers["Content-Type"] = "application/json; charset=utf-8"
         self._api_session.headers["Cookie"] = payload["apiCookie"]
@@ -131,6 +142,7 @@ class INGAPIClient:
         self._api_session.headers["X-ING-ExtendedSessionContext"] = payload[
             "apiExtendedSessionCtx"
         ]
+        self._api_session.headers["User-Agent"] = user_agent
 
     async def get_user(self) -> dict:
         return await self._get_request("/client", api=False)

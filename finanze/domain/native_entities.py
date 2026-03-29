@@ -7,6 +7,8 @@ from domain.entity import (
     EntityType,
     Feature,
 )
+from domain.external_integration import ExternalIntegrationId
+from domain.global_position import ProductType
 from domain.native_entity import (
     PinDetails,
     CredentialType,
@@ -14,9 +16,8 @@ from domain.native_entity import (
     EntitySessionCategory,
     NativeFinancialEntity,
     NativeCryptoWalletEntity,
+    NativeCryptoExchangeEntity,
 )
-from domain.external_integration import ExternalIntegrationId
-from domain.global_position import ProductType
 
 MY_INVESTOR = NativeFinancialEntity(
     id=UUID("e0000000-0000-0000-0000-000000000001"),
@@ -74,12 +75,13 @@ TRADE_REPUBLIC = NativeFinancialEntity(
         ProductType.FUND,
         ProductType.CRYPTO,
     ],
-    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.SHORT,
     pin=PinDetails(positions=4),
     credentials_template={
         "phone": CredentialType.PHONE,
         "password": CredentialType.PIN,
+        "awsWafToken": CredentialType.INTERNAL_TEMP,
     },
     icon_url=None,
 )
@@ -263,6 +265,8 @@ IBKR = NativeFinancialEntity(
     setup_login_type=EntitySetupLoginType.MANUAL,
     session_category=EntitySessionCategory.NONE,
     credentials_template={
+        "user": CredentialType.USER,
+        "password": CredentialType.PASSWORD,
         "cookie": CredentialType.INTERNAL_TEMP,
     },
     icon_url=None,
@@ -298,6 +302,23 @@ BSC = _create_crypto_entity(
     "Binance Smart Chain",
 )
 
+BINANCE = NativeCryptoExchangeEntity(
+    id=UUID("ce000000-0000-0000-0000-000000000001"),
+    name="Binance",
+    natural_id=None,
+    type=EntityType.CRYPTO_EXCHANGE,
+    origin=EntityOrigin.NATIVE,
+    features=[Feature.POSITION, Feature.TRANSACTIONS],
+    products=[ProductType.CRYPTO, ProductType.DERIVATIVE],
+    setup_login_type=EntitySetupLoginType.AUTOMATED,
+    session_category=EntitySessionCategory.UNDEFINED,
+    credentials_template={
+        "apiKey": CredentialType.API_TOKEN,
+        "secretKey": CredentialType.API_TOKEN,
+    },
+    icon_url=None,
+)
+
 COMMODITIES = Entity(
     id=UUID("ccccdddd-0000-0000-0000-000000000000"),
     name="Commodity Source",
@@ -326,6 +347,7 @@ NATIVE_ENTITIES = [
     LITECOIN,
     TRON,
     BSC,
+    BINANCE,
     COMMODITIES,
 ]
 

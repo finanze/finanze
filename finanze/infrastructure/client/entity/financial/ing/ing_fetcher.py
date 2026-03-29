@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
-from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from dateutil.tz import tzlocal
+
+from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from domain.auto_contributions import (
     AutoContributions,
     ContributionFrequency,
@@ -33,6 +34,7 @@ from domain.global_position import (
     StockDetail,
     StockInvestments,
 )
+from domain.instrument_issuer import resolve_issuer
 from domain.native_entities import ING
 from domain.transactions import FundTx, StockTx, Transactions, TxType
 from infrastructure.client.entity.financial.ing.ing_client import INGAPIClient
@@ -754,6 +756,7 @@ class INGFetcher(FinancialEntityFetcher):
                 name = (pos.get("companyDescription") or "").strip() or isin
                 value_type = pos.get("valueType")
                 equity_type = EquityType.ETF if value_type == "E" else EquityType.STOCK
+                issuer = resolve_issuer(None, name)
                 initial_investment = shares * avg_price
                 average_buy_price = avg_price if shares > 0 else Dezimal(0)
                 result.append(
@@ -769,6 +772,7 @@ class INGFetcher(FinancialEntityFetcher):
                         market_value=round(market_value, 4),
                         currency=currency,
                         type=equity_type,
+                        issuer=issuer,
                     )
                 )
             except Exception as e:

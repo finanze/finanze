@@ -6,17 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Button } from "@/components/ui/Button"
 import { PinPad } from "@/components/PinPad"
-import { CaptchaModal } from "@/components/CaptchaModal"
-import { ExternalLink, Smartphone } from "lucide-react"
+import { ChallengeModal } from "@/components/ChallengeModal"
+import { ExternalLink, Smartphone, X } from "lucide-react"
 
 export function GlobalEntityModals() {
   const {
     selectedEntity,
     pinRequired,
-    captchaRequired,
+    challengeRequired,
     inAppConfirmation,
     cancelInAppConfirmation,
     view,
+    setView,
     isLoggingIn,
   } = useEntityWorkflow()
   const { t } = useI18n()
@@ -48,6 +49,12 @@ export function GlobalEntityModals() {
                     <ExternalLink className="h-5 w-5" />
                     {t.login.externalLogin} {selectedEntity.name}
                   </CardTitle>
+                  <button
+                    onClick={() => setView("entities")}
+                    className="absolute top-3 right-3 p-1 rounded-full hover:bg-muted transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center py-8">
                   <LoadingSpinner size="lg" />
@@ -136,10 +143,9 @@ export function GlobalEntityModals() {
         )}
       </AnimatePresence>
 
-      {/* Global CAPTCHA Modal - shown when not on entities page */}
       <AnimatePresence>
-        {captchaRequired && selectedEntity && !isOnEntitiesPage && (
-          <CaptchaModal />
+        {challengeRequired && selectedEntity && !isOnEntitiesPage && (
+          <ChallengeModal />
         )}
       </AnimatePresence>
     </>

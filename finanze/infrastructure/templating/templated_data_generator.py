@@ -156,11 +156,12 @@ class TemplatedDataGenerator(TemplateProcessorPort):
 
             for entry in data:
                 if ProductType.CRYPTO in params.products:
-                    crypto_pos = entry.products[ProductType.CRYPTO]
-                    crypto_wallets = crypto_pos.entries
-                    crypto_pos.entries = []
-                    for wallet in crypto_wallets:
-                        crypto_pos.entries.extend(wallet.assets)
+                    crypto_pos = entry.products.get(ProductType.CRYPTO)
+                    if crypto_pos:
+                        crypto_wallets = crypto_pos.entries
+                        crypto_pos.entries = []
+                        for wallet in crypto_wallets:
+                            crypto_pos.entries.extend(wallet.assets)
 
             return self._map_entries(data, params, field_paths)
 

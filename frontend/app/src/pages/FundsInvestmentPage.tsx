@@ -268,34 +268,36 @@ function FundsInvestmentPageContent({
 
     const list: ReadOnlyFundPortfolioItem[] = []
 
-    Object.values(positionsData.positions).forEach(globalPosition => {
-      const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
-        | { entries?: FundPortfolio[] }
-        | undefined
-      const entries = product?.entries ?? []
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(globalPosition => {
+        const product = globalPosition.products[ProductType.FUND_PORTFOLIO] as
+          | { entries?: FundPortfolio[] }
+          | undefined
+        const entries = product?.entries ?? []
 
-      entries.forEach(portfolio => {
-        const source = portfolio.source ?? DataSource.REAL
-        if (source === DataSource.MANUAL) {
-          return
-        }
+        entries.forEach(portfolio => {
+          const source = portfolio.source ?? DataSource.REAL
+          if (source === DataSource.MANUAL) {
+            return
+          }
 
-        const id =
-          portfolio.id ||
-          `${globalPosition.entity.id}-readonly-${
-            portfolio.name?.trim() || "portfolio"
-          }`
+          const id =
+            portfolio.id ||
+            `${globalPosition.entity.id}-readonly-${
+              portfolio.name?.trim() || "portfolio"
+            }`
 
-        list.push({
-          id,
-          name: portfolio.name ?? null,
-          currency: portfolio.currency ?? null,
-          entityId: globalPosition.entity.id,
-          entityName: globalPosition.entity.name,
-          source,
+          list.push({
+            id,
+            name: portfolio.name ?? null,
+            currency: portfolio.currency ?? null,
+            entityId: globalPosition.entity.id,
+            entityName: globalPosition.entity.name,
+            source,
+          })
         })
       })
-    })
 
     return list.sort((a, b) => {
       if (a.entityName !== b.entityName) {
@@ -927,10 +929,28 @@ function FundsInvestmentPageContent({
                   : ""
 
                 const rawPrice = position.price
-                const formattedPrice =
+                const formattedAvgBuyPrice =
                   rawPrice !== undefined && rawPrice !== null
                     ? formatCurrency(rawPrice, locale, position.currency)
                     : null
+
+                const marketPricePerShare =
+                  numericShares != null &&
+                  numericShares > 0 &&
+                  position.originalValue
+                    ? Math.round(
+                        (position.originalValue / numericShares) * 10000,
+                      ) / 10000
+                    : null
+                const formattedMarketPrice =
+                  marketPricePerShare != null
+                    ? formatCurrency(
+                        marketPricePerShare,
+                        locale,
+                        position.currency,
+                      )
+                    : null
+
                 const eachLabelSource = t.common.each || ""
                 const eachLabel = eachLabelSource
                   ? eachLabelSource.toLocaleLowerCase(locale)
@@ -1086,13 +1106,15 @@ function FundsInvestmentPageContent({
                             </span>
                           )}
                         </div>
-                        {(formattedShares || formattedPrice) && (
+                        {(formattedShares || formattedMarketPrice) && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             {formattedShares && <span>{formattedShares}</span>}
-                            {formattedShares && formattedPrice && (
+                            {formattedShares && formattedMarketPrice && (
                               <span>×</span>
                             )}
-                            {formattedPrice && <span>{formattedPrice}</span>}
+                            {formattedMarketPrice && (
+                              <span>{formattedMarketPrice}</span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1151,7 +1173,7 @@ function FundsInvestmentPageContent({
                           <div className="px-4 pb-4">
                             <div className="border-t border-border/50 pt-3 space-y-3">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
-                                {(formattedShares || formattedPrice) && (
+                                {(formattedShares || formattedMarketPrice) && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                       {t.investments.shares}
@@ -1167,14 +1189,15 @@ function FundsInvestmentPageContent({
                                           )}
                                         </>
                                       )}
-                                      {formattedShares && formattedPrice && (
-                                        <span className="text-muted-foreground">
-                                          ×
-                                        </span>
-                                      )}
-                                      {formattedPrice && (
+                                      {formattedShares &&
+                                        formattedMarketPrice && (
+                                          <span className="text-muted-foreground">
+                                            ×
+                                          </span>
+                                        )}
+                                      {formattedMarketPrice && (
                                         <>
-                                          <span>{formattedPrice}</span>
+                                          <span>{formattedMarketPrice}</span>
                                           {formattedShares && eachLabel && (
                                             <span className="text-muted-foreground">
                                               {eachLabel}
@@ -1183,6 +1206,12 @@ function FundsInvestmentPageContent({
                                         </>
                                       )}
                                     </div>
+                                    {formattedAvgBuyPrice && (
+                                      <div className="text-xs text-muted-foreground mt-0.5">
+                                        {t.investments.averageBuyPrice}:{" "}
+                                        {formattedAvgBuyPrice}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {position.isin && (

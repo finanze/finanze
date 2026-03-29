@@ -5,6 +5,7 @@ import { useEntityWorkflow } from "@/context/EntityWorkflowContext"
 import { useI18n } from "@/i18n"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
+import { ChallengeType } from "@/types"
 
 declare global {
   interface Window {
@@ -24,26 +25,28 @@ declare global {
   }
 }
 
-export function CaptchaModal() {
-  const { captchaSiteKey, submitCaptchaToken, cancelCaptcha, selectedEntity } =
-    useEntityWorkflow()
-  const { t } = useI18n()
+function RecaptchaChallenge({
+  siteKey,
+  onToken,
+}: {
+  siteKey: string
+  onToken: (token: string) => void
+}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const widgetIdRef = useRef<number | null>(null)
-  const scriptLoadedRef = useRef(false)
-  const submitRef = useRef(submitCaptchaToken)
-  submitRef.current = submitCaptchaToken
+  const onTokenRef = useRef(onToken)
+  onTokenRef.current = onToken
 
   const renderWidget = useCallback(() => {
-    if (!window.grecaptcha || !containerRef.current || !captchaSiteKey) return
+    if (!window.grecaptcha || !containerRef.current || !siteKey) return
     if (widgetIdRef.current !== null) return
 
     containerRef.current.innerHTML = ""
 
     widgetIdRef.current = window.grecaptcha.render(containerRef.current, {
-      sitekey: captchaSiteKey,
+      sitekey: siteKey,
       callback: (token: string) => {
-        submitRef.current(token)
+        onTokenRef.current(token)
       },
       "expired-callback": () => {
         if (widgetIdRef.current !== null && window.grecaptcha) {
@@ -51,35 +54,45 @@ export function CaptchaModal() {
         }
       },
     })
-  }, [captchaSiteKey])
+  }, [siteKey])
 
   useEffect(() => {
-    if (!captchaSiteKey) return
+    if (!siteKey) return
 
     if (window.grecaptcha) {
       renderWidget()
       return
     }
 
-    if (!scriptLoadedRef.current) {
-      scriptLoadedRef.current = true
-      window.onRecaptchaLoaded = () => {
-        renderWidget()
-      }
-      const script = document.createElement("script")
-      script.src =
-        "https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit"
-      script.async = true
-      script.defer = true
-      document.head.appendChild(script)
+    window.onRecaptchaLoaded = () => {
+      renderWidget()
     }
-  }, [captchaSiteKey, renderWidget])
+    const script = document.createElement("script")
+    script.src =
+      "https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoaded&render=explicit"
+    script.async = true
+    script.defer = true
+    document.head.appendChild(script)
+  }, [siteKey, renderWidget])
 
-  if (!selectedEntity) return null
+  return <div ref={containerRef} />
+}
+
+export function ChallengeModal() {
+  const {
+    challengeProcessId,
+    challengeType,
+    submitChallengeToken,
+    cancelChallenge,
+    selectedEntity,
+  } = useEntityWorkflow()
+  const { t } = useI18n()
+
+  if (!selectedEntity || !challengeProcessId) return null
 
   return (
     <motion.div
-      key="captcha-modal"
+      key="challenge-modal"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -95,15 +108,20 @@ export function CaptchaModal() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5" />
-              {t.login.captchaTitle} {selectedEntity.name}
+              {t.login.challengeTitle} {selectedEntity.name}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-4 py-4">
             <p className="text-center text-muted-foreground text-sm">
-              {t.login.captchaMessage}
+              {t.login.challengeMessage}
             </p>
-            <div ref={containerRef} />
-            <Button variant="outline" onClick={cancelCaptcha}>
+            {challengeType === ChallengeType.RECAPTCHA && (
+              <RecaptchaChallenge
+                siteKey={challengeProcessId}
+                onToken={submitChallengeToken}
+              />
+            )}
+            <Button variant="outline" onClick={cancelChallenge}>
               {t.common.cancel}
             </Button>
           </CardContent>

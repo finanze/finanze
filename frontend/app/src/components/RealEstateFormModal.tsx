@@ -268,46 +268,48 @@ export function RealEstateFormModal({
 
       const loanSuggestions: PeriodicFlow[] = []
 
-      Object.values(positionsData.positions).forEach(globalPosition => {
-        if (
-          globalPosition.products &&
-          globalPosition.products[ProductType.LOAN]
-        ) {
-          const loanProducts = globalPosition.products[
-            ProductType.LOAN
-          ] as Loans
+      Object.values(positionsData.positions)
+        .flat()
+        .forEach(globalPosition => {
+          if (
+            globalPosition.products &&
+            globalPosition.products[ProductType.LOAN]
+          ) {
+            const loanProducts = globalPosition.products[
+              ProductType.LOAN
+            ] as Loans
 
-          if (loanProducts && loanProducts.entries) {
-            loanProducts.entries.forEach(loan => {
-              if (
-                !loan ||
-                typeof loan.current_installment !== "number" ||
-                loan.current_installment <= 0
-              ) {
-                return
-              }
+            if (loanProducts && loanProducts.entries) {
+              loanProducts.entries.forEach(loan => {
+                if (
+                  !loan ||
+                  typeof loan.current_installment !== "number" ||
+                  loan.current_installment <= 0
+                ) {
+                  return
+                }
 
-              const sinceDate =
-                loan.creation ||
-                loan.next_payment_date ||
-                new Date().toISOString().split("T")[0]
+                const sinceDate =
+                  loan.creation ||
+                  loan.next_payment_date ||
+                  new Date().toISOString().split("T")[0]
 
-              loanSuggestions.push({
-                id: `loan-suggestion-${loan.id}`,
-                name: loan.name || t.realEstate.flows.genericNames.mortgage,
-                flow_type: FlowType.EXPENSE,
-                amount: loan.current_installment,
-                frequency: FlowFrequency.MONTHLY,
-                category: t.realEstate.flows.categories.loans,
-                enabled: true,
-                since: sinceDate,
-                until: loan.maturity || "",
-                currency: loan.currency,
+                loanSuggestions.push({
+                  id: `loan-suggestion-${loan.id}`,
+                  name: loan.name || t.realEstate.flows.genericNames.mortgage,
+                  flow_type: FlowType.EXPENSE,
+                  amount: loan.current_installment,
+                  frequency: FlowFrequency.MONTHLY,
+                  category: t.realEstate.flows.categories.loans,
+                  enabled: true,
+                  since: sinceDate,
+                  until: loan.maturity || "",
+                  currency: loan.currency,
+                })
               })
-            })
+            }
           }
-        }
-      })
+        })
 
       return loanSuggestions
     }
@@ -520,8 +522,9 @@ export function RealEstateFormModal({
                     const loanId = flow.id?.replace("loan-suggestion-", "")
                     let loanData: any = null
                     if (positionsData?.positions) {
-                      Object.values(positionsData.positions).forEach(
-                        globalPosition => {
+                      Object.values(positionsData.positions)
+                        .flat()
+                        .forEach(globalPosition => {
                           if (
                             globalPosition.products &&
                             globalPosition.products[ProductType.LOAN]
@@ -538,8 +541,7 @@ export function RealEstateFormModal({
                               }
                             }
                           }
-                        },
-                      )
+                        })
                     }
                     if (loanData) {
                       console.log(

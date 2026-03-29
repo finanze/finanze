@@ -21,7 +21,7 @@ class SortOrder(str, Enum):
     DESC = "desc"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class BaseHistoricEntry:
     id: UUID
     name: str
@@ -40,9 +40,10 @@ class BaseHistoricEntry:
     entity: Entity
     product_type: ProductType
     related_txs: list[BaseInvestmentTx]
+    entity_account_id: Optional[UUID] = None
 
 
-@dataclass
+@dataclass(kw_only=True)
 class FactoringEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     gross_interest_rate: Dezimal
@@ -50,7 +51,7 @@ class FactoringEntry(BaseHistoricEntry):
     type: str
 
 
-@dataclass
+@dataclass(kw_only=True)
 class RealEstateCFEntry(BaseHistoricEntry):
     interest_rate: Dezimal
     maturity: date

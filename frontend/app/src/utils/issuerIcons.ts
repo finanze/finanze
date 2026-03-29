@@ -5,6 +5,7 @@ const KNOWN_ISSUER_ICONS: Record<string, string> = {
   Ark: "ark",
   AXA: "axa",
   BBVA: "bbva",
+  Bitwise: "bitwise",
   BlackRock: "blackrock",
   "BNP Paribas": "bnpparibas",
   Caser: "caser",
@@ -23,10 +24,12 @@ const KNOWN_ISSUER_ICONS: Record<string, string> = {
   "Morgan Stanley": "morganstanley",
   MyInvestor: "myinvestor",
   PIMCO: "pimco",
+  Robeco: "robeco",
   SPDR: "spdr",
   UBS: "ubs",
   VanEck: "vaneck",
   Vanguard: "vanguard",
+  Vontobel: "vontobel",
   WisdomTree: "wisdomtree",
   Xtrackers: "xtrackers",
 }
@@ -37,5 +40,5 @@ export function getIssuerIconPath(
   if (!issuer) return null
   const iconName = KNOWN_ISSUER_ICONS[issuer]
   if (!iconName) return null
-  return `/icons/issuers/${iconName}.png`
+  return `icons/issuers/${iconName}.png`
 }

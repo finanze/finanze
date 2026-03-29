@@ -10,12 +10,14 @@ import { AuthProvider } from "@/context/AuthContext"
 import { CloudProvider } from "@/context/CloudContext"
 import { BackupAlertProvider } from "@/context/BackupAlertContext"
 import { initDevPlatformOverride } from "@/lib/dev/initDevPlatformOverride"
+import { initE2eMockExternalLogin } from "@/lib/dev/initE2eMockExternalLogin"
 import * as mobile from "@/lib/mobile"
 
 async function bootstrap(): Promise<void> {
   await mobile.preinit()
 
   initDevPlatformOverride()
+  initE2eMockExternalLogin()
   mobile.init()
 
   createRoot(document.getElementById("root")!).render(

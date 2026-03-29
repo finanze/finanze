@@ -359,6 +359,57 @@ class CryptoInitialInvestment(BaseData):
     currency: str
 
 
+class DerivativeContractType(str, Enum):
+    PERPETUAL = "PERPETUAL"
+    FUTURES = "FUTURES"
+    KNOCK_OUT = "KNOCK_OUT"
+    FACTOR = "FACTOR"
+    WARRANT = "WARRANT"
+    OPTIONS = "OPTIONS"
+    CFD = "CFD"
+    OTHER = "OTHER"
+
+
+class PositionDirection(str, Enum):
+    LONG = "LONG"
+    SHORT = "SHORT"
+
+
+class MarginType(str, Enum):
+    CROSS = "CROSS"
+    ISOLATED = "ISOLATED"
+
+
+@dataclass
+class DerivativeDetail(BaseData):
+    id: Optional[UUID]
+    symbol: str
+    underlying_asset: ProductType
+    contract_type: DerivativeContractType
+    direction: PositionDirection
+    size: Dezimal
+    entry_price: Dezimal
+    currency: str
+    mark_price: Optional[Dezimal] = None
+    market_value: Optional[Dezimal] = None
+    unrealized_pnl: Optional[Dezimal] = None
+    leverage: Optional[Dezimal] = None
+    margin: Optional[Dezimal] = None
+    margin_type: Optional[MarginType] = None
+    liquidation_price: Optional[Dezimal] = None
+    isin: Optional[str] = None
+    strike_price: Optional[Dezimal] = None
+    knock_out_price: Optional[Dezimal] = None
+    ratio: Optional[Dezimal] = None
+    issuer: Optional[str] = None
+    underlying_symbol: Optional[str] = None
+    underlying_isin: Optional[str] = None
+    expiry: Optional[date] = None
+    name: Optional[str] = None
+    initial_investment: Optional[Dezimal] = None
+    source: DataSource = DataSource.REAL
+
+
 @dataclass
 class Commodity(BaseData, CommodityRegister):
     id: UUID = field(default_factory=UUID)
@@ -429,6 +480,11 @@ class Commodities:
     entries: List[Commodity]
 
 
+@dataclass
+class DerivativePositions:
+    entries: List[DerivativeDetail]
+
+
 ProductPosition = Union[
     Accounts,
     Cards,
@@ -442,6 +498,7 @@ ProductPosition = Union[
     Crowdlending,
     CryptoCurrencies,
     Commodities,
+    DerivativePositions,
 ]
 
 ProductPositions = dict[ProductType, ProductPosition]
@@ -454,6 +511,7 @@ class GlobalPosition:
     date: Optional[datetime] = None
     products: ProductPositions = field(default_factory=dict)
     source: DataSource = DataSource.REAL
+    entity_account_id: Optional[UUID] = None
 
     def __post_init__(self):
         if self.date is None:
@@ -467,7 +525,7 @@ class HistoricalPosition:
 
 @dataclass
 class EntitiesPosition:
-    positions: dict[str, GlobalPosition]
+    positions: dict[str, list[GlobalPosition]]
 
 
 @dataclass

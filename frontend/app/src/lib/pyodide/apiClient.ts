@@ -181,7 +181,7 @@ export class PyodideApiClient implements ApiClient {
       }
     } catch (e: any) {
       appConsole.error(`Pyodide Download Error [${path}]:`, e)
-      throw new Error(typeof e === "string" ? e : e.message)
+      throw new Error(typeof e === "string" ? e : e.message, { cause: e })
     }
   }
 
@@ -278,7 +278,7 @@ export class PyodideApiClient implements ApiClient {
       appConsole.error(`[PyodideApiClient] ${method} ${path}:`, e)
 
       if (typeof e === "string") {
-        throw new Error(e)
+        throw new Error(e, { cause: e })
       }
       throw e
     }

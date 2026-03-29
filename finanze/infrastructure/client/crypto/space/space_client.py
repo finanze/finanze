@@ -49,10 +49,9 @@ class SpaceClient:
     @cached(
         cache=Cache.MEMORY,
         ttl=TTL,
-        key_builder=lambda f,
-        self,
-        address,
-        fetched_results: f"space_address_{address}",
+        key_builder=lambda f, self, address, fetched_results: (
+            f"space_address_{address}"
+        ),
     )
     async def _fetch_address(
         self, address: str, fetched_results: dict[str, CryptoFetchResult | None]

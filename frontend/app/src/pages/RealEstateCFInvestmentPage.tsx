@@ -192,151 +192,154 @@ export default function RealEstateCFInvestmentPage() {
 
     const realEstates: RealEstatePosition[] = []
 
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      const realEstateProduct =
-        entityPosition.products[ProductType.REAL_ESTATE_CF]
-      if (
-        realEstateProduct &&
-        "entries" in realEstateProduct &&
-        realEstateProduct.entries.length > 0
-      ) {
-        const entityName = entityPosition.entity?.name || "Unknown"
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const realEstateProduct =
+          entityPosition.products[ProductType.REAL_ESTATE_CF]
+        if (
+          realEstateProduct &&
+          "entries" in realEstateProduct &&
+          realEstateProduct.entries.length > 0
+        ) {
+          const entityName = entityPosition.entity?.name || "Unknown"
 
-        realEstateProduct.entries.forEach((realEstate: any) => {
-          const investmentType =
-            realEstate.investment_project_type ??
-            realEstate.type ??
-            realEstate.business_type ??
-            ""
-          const convertedAmount = convertCurrency(
-            realEstate.amount,
-            realEstate.currency,
-            settings.general.defaultCurrency,
-            exchangeRates,
-          )
-
-          const convertedPendingAmount = isNaN(realEstate.pending_amount)
-            ? null
-            : convertCurrency(
-                realEstate.pending_amount,
-                realEstate.currency,
-                settings.general.defaultCurrency,
-                exchangeRates,
-              )
-
-          const profitabilityDecimal = !isNaN(realEstate.profitability)
-            ? realEstate.profitability
-            : null
-          const rawProfit =
-            profitabilityDecimal !== null
-              ? realEstate.amount * profitabilityDecimal
-              : null
-          const rawExpectedAtMaturity =
-            rawProfit !== null ? realEstate.amount + rawProfit : null
-          const convertedExpectedAtMaturity =
-            rawExpectedAtMaturity !== null
-              ? convertCurrency(
-                  rawExpectedAtMaturity,
-                  realEstate.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
-              : null
-          const convertedProfit =
-            rawProfit !== null
-              ? convertCurrency(
-                  rawProfit,
-                  realEstate.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
-              : null
-          const profitabilityPct =
-            profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
-
-          const entryId = realEstate.id ? String(realEstate.id) : undefined
-          const source =
-            (realEstate.source as DataSource | undefined) ?? DataSource.REAL
-
-          const today = new Date()
-          today.setHours(0, 0, 0, 0)
-          const maturityDate = realEstate.maturity
-            ? new Date(realEstate.maturity)
-            : null
-          maturityDate?.setHours(0, 0, 0, 0)
-
-          const isMaturityPassed = maturityDate && today > maturityDate
-          const hasExtendedMaturity = realEstate.extended_maturity != null
-
-          let displayMaturity = realEstate.maturity
-          let maturityInfo: { isExtended: boolean; label: string } | null = null
-
-          if (isMaturityPassed && hasExtendedMaturity) {
-            displayMaturity = realEstate.extended_maturity
-            maturityInfo = {
-              isExtended: true,
-              label: t.investments.historicSection.initialMaturityDate,
-            }
-          } else if (hasExtendedMaturity) {
-            maturityInfo = {
-              isExtended: false,
-              label: t.investments.historicSection.extendedMaturity,
-            }
-          }
-
-          realEstates.push({
-            ...(realEstate as RealEstatePosition),
-            entryId,
-            investment_project_type: investmentType,
-            entity: entityName,
-            entityId: entityPosition.entity?.id,
-            convertedAmount,
-            convertedPendingAmount,
-            formattedAmount: formatCurrency(
+          realEstateProduct.entries.forEach((realEstate: any) => {
+            const investmentType =
+              realEstate.investment_project_type ??
+              realEstate.type ??
+              realEstate.business_type ??
+              ""
+            const convertedAmount = convertCurrency(
               realEstate.amount,
-              locale,
               realEstate.currency,
-            ),
-            formattedConvertedAmount: formatCurrency(
-              convertedAmount,
-              locale,
               settings.general.defaultCurrency,
-            ),
-            formattedPendingAmount:
-              convertedPendingAmount !== null
-                ? formatCurrency(
-                    convertedPendingAmount,
-                    locale,
+              exchangeRates,
+            )
+
+            const convertedPendingAmount = isNaN(realEstate.pending_amount)
+              ? null
+              : convertCurrency(
+                  realEstate.pending_amount,
+                  realEstate.currency,
+                  settings.general.defaultCurrency,
+                  exchangeRates,
+                )
+
+            const profitabilityDecimal = !isNaN(realEstate.profitability)
+              ? realEstate.profitability
+              : null
+            const rawProfit =
+              profitabilityDecimal !== null
+                ? realEstate.amount * profitabilityDecimal
+                : null
+            const rawExpectedAtMaturity =
+              rawProfit !== null ? realEstate.amount + rawProfit : null
+            const convertedExpectedAtMaturity =
+              rawExpectedAtMaturity !== null
+                ? convertCurrency(
+                    rawExpectedAtMaturity,
+                    realEstate.currency,
                     settings.general.defaultCurrency,
+                    exchangeRates,
                   )
-                : null,
-            convertedExpectedAtMaturity,
-            formattedExpectedAtMaturity:
-              convertedExpectedAtMaturity !== null
-                ? formatCurrency(
-                    convertedExpectedAtMaturity,
-                    locale,
+                : null
+            const convertedProfit =
+              rawProfit !== null
+                ? convertCurrency(
+                    rawProfit,
+                    realEstate.currency,
                     settings.general.defaultCurrency,
+                    exchangeRates,
                   )
-                : null,
-            convertedProfit,
-            formattedProfit:
-              convertedProfit !== null
-                ? formatCurrency(
-                    convertedProfit,
-                    locale,
-                    settings.general.defaultCurrency,
-                  )
-                : null,
-            profitabilityPct,
-            source,
-            extendedMaturity: realEstate.extended_maturity ?? undefined,
-            displayMaturity,
-            maturityInfo,
+                : null
+            const profitabilityPct =
+              profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
+
+            const entryId = realEstate.id ? String(realEstate.id) : undefined
+            const source =
+              (realEstate.source as DataSource | undefined) ?? DataSource.REAL
+
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const maturityDate = realEstate.maturity
+              ? new Date(realEstate.maturity)
+              : null
+            maturityDate?.setHours(0, 0, 0, 0)
+
+            const isMaturityPassed = maturityDate && today > maturityDate
+            const hasExtendedMaturity = realEstate.extended_maturity != null
+
+            let displayMaturity = realEstate.maturity
+            let maturityInfo: { isExtended: boolean; label: string } | null =
+              null
+
+            if (isMaturityPassed && hasExtendedMaturity) {
+              displayMaturity = realEstate.extended_maturity
+              maturityInfo = {
+                isExtended: true,
+                label: t.investments.historicSection.initialMaturityDate,
+              }
+            } else if (hasExtendedMaturity) {
+              maturityInfo = {
+                isExtended: false,
+                label: t.investments.historicSection.extendedMaturity,
+              }
+            }
+
+            realEstates.push({
+              ...(realEstate as RealEstatePosition),
+              entryId,
+              investment_project_type: investmentType,
+              entity: entityName,
+              entityId: entityPosition.entity?.id,
+              convertedAmount,
+              convertedPendingAmount,
+              formattedAmount: formatCurrency(
+                realEstate.amount,
+                locale,
+                realEstate.currency,
+              ),
+              formattedConvertedAmount: formatCurrency(
+                convertedAmount,
+                locale,
+                settings.general.defaultCurrency,
+              ),
+              formattedPendingAmount:
+                convertedPendingAmount !== null
+                  ? formatCurrency(
+                      convertedPendingAmount,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )
+                  : null,
+              convertedExpectedAtMaturity,
+              formattedExpectedAtMaturity:
+                convertedExpectedAtMaturity !== null
+                  ? formatCurrency(
+                      convertedExpectedAtMaturity,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )
+                  : null,
+              convertedProfit,
+              formattedProfit:
+                convertedProfit !== null
+                  ? formatCurrency(
+                      convertedProfit,
+                      locale,
+                      settings.general.defaultCurrency,
+                    )
+                  : null,
+              profitabilityPct,
+              source,
+              extendedMaturity: realEstate.extended_maturity ?? undefined,
+              displayMaturity,
+              maturityInfo,
+            })
           })
-        })
-      }
-    })
+        }
+      })
 
     return realEstates
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])

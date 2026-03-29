@@ -560,92 +560,107 @@ export default function BankingPage() {
 
   const accountPositions = useMemo<AccountPosition[]>(() => {
     if (!positionsData?.positions) return []
-    return Object.values(positionsData.positions).flatMap(entityPosition => {
-      const entityMeta = entities?.find(
-        entity => entity.id === entityPosition.entity.id,
-      )
-      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
-        return []
-      }
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
 
-      const product = entityPosition.products[ProductType.ACCOUNT] as
-        | { entries?: Account[] }
-        | undefined
-      if (!product?.entries?.length) return []
+        const product = entityPosition.products[ProductType.ACCOUNT] as
+          | { entries?: Account[] }
+          | undefined
+        if (!product?.entries?.length) return []
 
-      const entityId = entityPosition.entity.id
-      const entityName = entityMeta?.name ?? entityPosition.entity.name
-      const entityOrigin =
-        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
 
-      return product.entries.map(account => ({
-        ...account,
-        entityId,
-        entityName,
-        entryId: account.id,
-        entityOrigin,
-      }))
-    })
+        return product.entries.map(account => ({
+          ...account,
+          entityId,
+          entityName,
+          entryId: account.id,
+          entityOrigin,
+        }))
+      })
   }, [positionsData, entities])
 
   const cardPositions = useMemo<CardPosition[]>(() => {
     if (!positionsData?.positions) return []
-    return Object.values(positionsData.positions).flatMap(entityPosition => {
-      const entityMeta = entities?.find(
-        entity => entity.id === entityPosition.entity.id,
-      )
-      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
-        return []
-      }
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
 
-      const product = entityPosition.products[ProductType.CARD] as
-        | { entries?: CardModel[] }
-        | undefined
-      if (!product?.entries?.length) return []
+        const product = entityPosition.products[ProductType.CARD] as
+          | { entries?: CardModel[] }
+          | undefined
+        if (!product?.entries?.length) return []
 
-      const entityId = entityPosition.entity.id
-      const entityName = entityMeta?.name ?? entityPosition.entity.name
-      const entityOrigin =
-        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
 
-      return product.entries.map(card => ({
-        ...card,
-        entityId,
-        entityName,
-        entryId: card.id,
-        entityOrigin,
-      }))
-    })
+        return product.entries.map(card => ({
+          ...card,
+          entityId,
+          entityName,
+          entryId: card.id,
+          entityOrigin,
+        }))
+      })
   }, [positionsData, entities])
 
   const loanPositions = useMemo<LoanPosition[]>(() => {
     if (!positionsData?.positions) return []
-    return Object.values(positionsData.positions).flatMap(entityPosition => {
-      const entityMeta = entities?.find(
-        entity => entity.id === entityPosition.entity.id,
-      )
-      if (entityMeta && entityMeta.type !== EntityType.FINANCIAL_INSTITUTION) {
-        return []
-      }
+    return Object.values(positionsData.positions)
+      .flat()
+      .flatMap(entityPosition => {
+        const entityMeta = entities?.find(
+          entity => entity.id === entityPosition.entity.id,
+        )
+        if (
+          entityMeta &&
+          entityMeta.type !== EntityType.FINANCIAL_INSTITUTION
+        ) {
+          return []
+        }
 
-      const product = entityPosition.products[ProductType.LOAN] as
-        | { entries?: Loan[] }
-        | undefined
-      if (!product?.entries?.length) return []
+        const product = entityPosition.products[ProductType.LOAN] as
+          | { entries?: Loan[] }
+          | undefined
+        if (!product?.entries?.length) return []
 
-      const entityId = entityPosition.entity.id
-      const entityName = entityMeta?.name ?? entityPosition.entity.name
-      const entityOrigin =
-        entityMeta?.origin ?? entityPosition.entity.origin ?? null
+        const entityId = entityPosition.entity.id
+        const entityName = entityMeta?.name ?? entityPosition.entity.name
+        const entityOrigin =
+          entityMeta?.origin ?? entityPosition.entity.origin ?? null
 
-      return product.entries.map(loan => ({
-        ...loan,
-        entityId,
-        entityName,
-        entryId: loan.id,
-        entityOrigin,
-      }))
-    })
+        return product.entries.map(loan => ({
+          ...loan,
+          entityId,
+          entityName,
+          entryId: loan.id,
+          entityOrigin,
+        }))
+      })
   }, [positionsData, entities])
 
   const filteredAccounts = useMemo(() => {

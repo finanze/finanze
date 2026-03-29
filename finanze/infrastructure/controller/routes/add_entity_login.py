@@ -20,11 +20,21 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
 
     code = body.get("code", None)
     process_id = body.get("processId", None)
+    token = body.get("token", None)
+    entity_account_id = body.get("entityAccountId", None)
+    account_name = body.get("accountName", None)
+
+    # if not process_id:
+    #    return '{"code": "CODE_REQUESTED", "processId": "aaaa"}'
+    # else:
+    #    return '{"code": "CREATED"}'
 
     login_request = EntityLoginRequest(
         entity_id=entity,
         credentials=credentials,
-        two_factor=TwoFactor(code=code, process_id=process_id),
+        two_factor=TwoFactor(code=code, process_id=process_id, token=token),
+        entity_account_id=UUID(entity_account_id) if entity_account_id else None,
+        account_name=account_name,
     )
     result = await add_entity_credentials.execute(login_request)
 
@@ -37,4 +47,8 @@ async def add_entity_login(add_entity_credentials: AddEntityCredentials):
         response["confirmationType"] = result.confirmation_type
     if result.process_id:
         response["processId"] = result.process_id
+    if result.challenge_type:
+        response["challengeType"] = result.challenge_type
+    if result.entity_account_id:
+        response["entityAccountId"] = str(result.entity_account_id)
     return jsonify(response), 200

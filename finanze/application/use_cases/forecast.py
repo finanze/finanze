@@ -1048,7 +1048,9 @@ class ForecastImpl(Forecast):
 
         return ForecastResult(
             target_date=target,
-            positions=EntitiesPosition(positions=forecast_positions),
+            positions=EntitiesPosition(
+                positions={k: [v] for k, v in forecast_positions.items()}
+            ),
             cash_delta=cash_delta_list,
             real_estate=re_equity,
             crypto_appreciation=crypto_appreciation,

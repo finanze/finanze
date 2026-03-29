@@ -13,6 +13,18 @@ export function init() {
   if (!__MOBILE__) return
   if (!isNativeMobile()) return
 
+  // Set up mobile external login API
+  import("@/lib/capacitor/loginHandlers").then(
+    ({ promptLogin, onCompletedExternalLogin }) => {
+      import("@/lib/externalLogin").then(({ setMobileLoginAPI }) => {
+        setMobileLoginAPI({
+          requestExternalLogin: (id, req) => promptLogin(id, req || {}),
+          onCompletedExternalLogin,
+        })
+      })
+    },
+  )
+
   import("@/lib/pyodide/init").then(({ ensureCoreInitialized }) => {
     ensureCoreInitialized()
   })

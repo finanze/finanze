@@ -1,11 +1,17 @@
 import { BrowserWindow, ipcMain, session } from "electron"
-import { ExternalLoginRequestResult, LoginHandlerResult } from "."
+import {
+  ExternalLoginRequest,
+  ExternalLoginRequestResult,
+  LoginHandlerResult,
+} from "."
 
 export const IBKR_ID = "e0000000-0000-0000-0000-000000000013"
 
 const IBKR_URL = "https://www.interactivebrokers.ie"
 
-export async function promptLogin(): Promise<ExternalLoginRequestResult> {
+export async function promptLogin(
+  request: ExternalLoginRequest,
+): Promise<ExternalLoginRequestResult> {
   const ibkrPartition = `persist:ibkr`
   const ibkrSession = session.fromPartition(ibkrPartition)
 
@@ -31,7 +37,37 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
   const result: LoginHandlerResult = {
     success: false,
     credentials: {},
+    flow: request.flow,
   }
+
+  ibkrSession.webRequest.onSendHeaders(
+    { types: ["xhr"], urls: ["<all_urls>"] },
+    details => {
+      if (details.url.includes("/sso/Authenticator")) {
+        ibkrWindow?.webContents
+          .executeJavaScript(
+            `(() => {
+              const u = document.getElementById('xyz-field-username');
+              const p = document.getElementById('xyz-field-password');
+              return JSON.stringify({
+                user: u ? u.value : '',
+                password: p ? p.value : ''
+              });
+            })()`,
+          )
+          .then(r => {
+            const creds = JSON.parse(r)
+            if (creds.user) result.credentials.user = creds.user
+            if (creds.password) result.credentials.password = creds.password
+            console.debug(
+              "Captured IBKR credentials:",
+              creds ? { user: creds.user, password: "****" } : {},
+            )
+          })
+          .catch(() => {})
+      }
+    },
+  )
 
   ibkrSession.webRequest.onHeadersReceived(
     { types: ["xhr"], urls: ["<all_urls>"] },
@@ -86,7 +122,25 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
     }
   }
 
+  if (request.credentials?.user && request.credentials?.password) {
+    ibkrWindow.webContents.once("did-finish-load", () => {
+      setTimeout(() => {
+        ibkrWindow?.webContents
+          .executeJavaScript(
+            `(() => {
+            const u = document.getElementById('xyz-field-username');
+            const p = document.getElementById('xyz-field-password');
+            if (u) { u.focus(); u.value = ${JSON.stringify(request.credentials!.user)}; u.dispatchEvent(new Event('input', {bubbles: true})); }
+            if (p) { p.focus(); p.value = ${JSON.stringify(request.credentials!.password)}; p.dispatchEvent(new Event('input', {bubbles: true})); }
+          })()`,
+          )
+          .catch(() => {})
+      }, 500)
+    })
+  }
+
   ibkrWindow.on("closed", () => {
+    ibkrSession.webRequest.onSendHeaders(null)
     ibkrSession.webRequest.onHeadersReceived(null)
     ibkrWindow?.removeAllListeners()
     if (!result.credentials || !result.credentials.cookie) {

@@ -16,6 +16,8 @@ import me.finanze.plugins.BackupProcessorPlugin;
 import me.finanze.plugins.FileTransferPlugin;
 import me.finanze.plugins.ImageProcessorPlugin;
 import me.finanze.plugins.NativeCookiesPlugin;
+import me.finanze.plugins.LoginWebViewPlugin;
+import me.finanze.plugins.TlsHttpPlugin;
 
 public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
 
@@ -25,6 +27,8 @@ public class MainActivity extends BridgeActivity implements ModifiedMainActivity
         registerPlugin(FileTransferPlugin.class);
         registerPlugin(ImageProcessorPlugin.class);
         registerPlugin(NativeCookiesPlugin.class);
+        registerPlugin(LoginWebViewPlugin.class);
+        registerPlugin(TlsHttpPlugin.class);
         super.onCreate(savedInstanceState);
     }
 

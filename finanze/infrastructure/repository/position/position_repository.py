@@ -25,6 +25,9 @@ from domain.global_position import (
     CryptoCurrencyWallet,
     Deposit,
     Deposits,
+    DerivativeContractType,
+    DerivativeDetail,
+    DerivativePositions,
     EquityType,
     FactoringDetail,
     FactoringInvestments,
@@ -39,6 +42,8 @@ from domain.global_position import (
     Loans,
     LoanType,
     ManualEntryData,
+    MarginType,
+    PositionDirection,
     PositionQueryRequest,
     ProductPositions,
     ProductType,
@@ -168,6 +173,51 @@ async def _save_commodities(cursor, position: GlobalPosition, commodities: Commo
                     if commodity.average_buy_price
                     else None
                 ),
+            ),
+        )
+
+
+async def _save_derivatives(
+    cursor, position: GlobalPosition, derivatives: DerivativePositions
+):
+    for detail in derivatives.entries:
+        await cursor.execute(
+            PositionWriteQueries.INSERT_DERIVATIVE_POSITION,
+            (
+                str(detail.id),
+                str(position.id),
+                detail.symbol,
+                detail.underlying_asset.value,
+                detail.contract_type.value,
+                detail.direction.value,
+                str(detail.size),
+                str(detail.entry_price),
+                detail.currency,
+                str(detail.mark_price) if detail.mark_price is not None else None,
+                str(detail.market_value) if detail.market_value is not None else None,
+                str(detail.unrealized_pnl)
+                if detail.unrealized_pnl is not None
+                else None,
+                str(detail.leverage) if detail.leverage is not None else None,
+                str(detail.margin) if detail.margin is not None else None,
+                detail.margin_type.value if detail.margin_type else None,
+                str(detail.liquidation_price)
+                if detail.liquidation_price is not None
+                else None,
+                detail.isin,
+                str(detail.strike_price) if detail.strike_price is not None else None,
+                str(detail.knock_out_price)
+                if detail.knock_out_price is not None
+                else None,
+                str(detail.ratio) if detail.ratio is not None else None,
+                detail.issuer,
+                detail.underlying_symbol,
+                detail.underlying_isin,
+                detail.expiry.isoformat() if detail.expiry else None,
+                detail.name,
+                str(detail.initial_investment)
+                if detail.initial_investment is not None
+                else None,
             ),
         )
 
@@ -404,6 +454,7 @@ async def _save_product_positions(cursor, position: GlobalPosition):
     await _save_position(cursor, position, ProductType.CROWDLENDING, _save_crowdlending)
     await _save_position(cursor, position, ProductType.CRYPTO, _save_crypto_currencies)
     await _save_position(cursor, position, ProductType.COMMODITY, _save_commodities)
+    await _save_position(cursor, position, ProductType.DERIVATIVE, _save_derivatives)
 
 
 async def _store_position(
@@ -452,6 +503,9 @@ class PositionSQLRepository(PositionPort):
                     position.date.isoformat(),
                     str(position.entity.id),
                     position.source.value,
+                    str(position.entity_account_id)
+                    if position.entity_account_id
+                    else None,
                 ),
             )
 
@@ -460,38 +514,65 @@ class PositionSQLRepository(PositionPort):
     async def get_last_grouped_by_entity(
         self, query: Optional[PositionQueryRequest] = None
     ) -> dict[Entity, GlobalPosition]:
-        real_global_position_by_entity, manual_global_position_by_entity = {}, {}
+        real_global_position_by_entity, manual_global_positions_by_entity = {}, {}
 
         if not query or query.real is None or query.real:
             real_global_position_by_entity = await self._get_real_grouped_by_entity(
                 query
             )
         if not query or query.real is None or not query.real:
-            manual_global_position_by_entity: dict[
+            manual_global_positions_by_entity: dict[
                 Entity, list[GlobalPosition]
             ] = await self._get_non_real_grouped_by_entity(query)
 
         global_position_by_entity = {}
-        for entity, position in real_global_position_by_entity.items():
-            if entity in manual_global_position_by_entity:
-                manual_positions = manual_global_position_by_entity[entity]
-                aggregated_manual_position = _aggregate_positions(manual_positions)
-
-                global_position_by_entity[entity] = (
-                    position + aggregated_manual_position
-                )
-                del manual_global_position_by_entity[entity]
+        for entity, positions in real_global_position_by_entity.items():
+            aggregated_real = _aggregate_positions(positions)
+            if entity in manual_global_positions_by_entity:
+                manual_positions = manual_global_positions_by_entity[entity]
+                aggregated_manual = _aggregate_positions(manual_positions)
+                global_position_by_entity[entity] = aggregated_real + aggregated_manual
+                del manual_global_positions_by_entity[entity]
             else:
-                global_position_by_entity[entity] = position
+                global_position_by_entity[entity] = aggregated_real
 
-        for entity, manual_positions in manual_global_position_by_entity.items():
+        for entity, manual_positions in manual_global_positions_by_entity.items():
             global_position_by_entity[entity] = _aggregate_positions(manual_positions)
+
+        return global_position_by_entity
+
+    async def get_last_by_entity_broken_down(
+        self, query: Optional[PositionQueryRequest] = None
+    ) -> dict[Entity, list[GlobalPosition]]:
+        real_global_positions_by_entity, manual_global_positions_by_entity = {}, {}
+
+        if not query or query.real is None or query.real:
+            real_global_positions_by_entity = await self._get_real_grouped_by_entity(
+                query
+            )
+        if not query or query.real is None or not query.real:
+            manual_global_positions_by_entity = (
+                await self._get_non_real_grouped_by_entity(query)
+            )
+
+        global_position_by_entity = {}
+        for entity, positions in real_global_positions_by_entity.items():
+            if entity not in global_position_by_entity:
+                global_position_by_entity[entity] = list(positions)
+            else:
+                global_position_by_entity[entity].extend(positions)
+
+        for entity, manual_positions in manual_global_positions_by_entity.items():
+            if entity not in global_position_by_entity:
+                global_position_by_entity[entity] = manual_positions
+            else:
+                global_position_by_entity[entity].extend(manual_positions)
 
         return global_position_by_entity
 
     async def _get_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> dict[Entity, GlobalPosition]:
+    ) -> dict[Entity, list[GlobalPosition]]:
         async with self._db_client.read() as cursor:
             sql = PositionQueries.REAL_GROUPED_BY_ENTITY_BASE.value
             params = []
@@ -515,32 +596,9 @@ class PositionSQLRepository(PositionPort):
             return await self._map_position_rows(cursor, products=products)
 
     async def _map_position_rows(
-        self, cursor: DBCursor, multi: bool = False, products: list[ProductType] = None
-    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
+        self, cursor: DBCursor, products: list[ProductType] = None
+    ) -> dict[Entity, list[GlobalPosition]]:
         rows = await cursor.fetchall()
-
-        if not multi:
-            positions: dict[Entity, GlobalPosition] = {}
-            for row in rows:
-                entity = Entity(
-                    id=UUID(row["entity_id"]),
-                    name=row["entity_name"],
-                    natural_id=row["entity_natural_id"],
-                    type=row["entity_type"],
-                    origin=row["entity_origin"],
-                    icon_url=row["icon_url"],
-                )
-                pos_id = UUID(row["id"])
-                source = DataSource(row["source"])
-                position = GlobalPosition(
-                    id=pos_id,
-                    entity=entity,
-                    date=datetime.fromisoformat(row["date"]),
-                    source=source,
-                )
-                position.products = await self._get_product_positions(position)
-                positions[entity] = position
-            return positions
 
         entities: dict[UUID, Entity] = {}
         result: dict[Entity, list[GlobalPosition]] = {}
@@ -560,11 +618,15 @@ class PositionSQLRepository(PositionPort):
 
             pos_id = UUID(row["id"])
             source = DataSource(row["source"])
+            entity_account_id = (
+                UUID(row["entity_account_id"]) if row["entity_account_id"] else None
+            )
             position = GlobalPosition(
                 id=pos_id,
                 entity=entity,
                 date=datetime.fromisoformat(row["date"]),
                 source=source,
+                entity_account_id=entity_account_id,
             )
             position.products = await self._get_product_positions(position, products)
 
@@ -578,7 +640,7 @@ class PositionSQLRepository(PositionPort):
 
     async def _get_non_real_grouped_by_entity(
         self, query: Optional[PositionQueryRequest]
-    ) -> dict[Entity, GlobalPosition] | dict[Entity, list[GlobalPosition]]:
+    ) -> dict[Entity, list[GlobalPosition]]:
         async with self._db_client.read() as cursor:
             sql = PositionQueries.NON_REAL_GROUPED_BY_ENTITY_BASE.value
 
@@ -596,7 +658,7 @@ class PositionSQLRepository(PositionPort):
 
             products = query.products if query else None
 
-            return await self._map_position_rows(cursor, multi=True, products=products)
+            return await self._map_position_rows(cursor, products=products)
 
     async def _get_accounts(
         self, global_position: GlobalPosition
@@ -1130,6 +1192,68 @@ class PositionSQLRepository(PositionPort):
 
             return Commodities(commodities)
 
+    async def _get_derivatives(
+        self, global_position: GlobalPosition
+    ) -> Optional[DerivativePositions]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PositionQueries.GET_DERIVATIVES_BY_GLOBAL_POSITION_ID,
+                (str(global_position.id),),
+            )
+
+            details = [
+                DerivativeDetail(
+                    id=UUID(row["id"]),
+                    symbol=row["symbol"],
+                    underlying_asset=ProductType(row["underlying_asset"]),
+                    contract_type=DerivativeContractType(row["contract_type"]),
+                    direction=PositionDirection(row["direction"]),
+                    size=Dezimal(row["size"]),
+                    entry_price=Dezimal(row["entry_price"]),
+                    currency=row["currency"],
+                    mark_price=Dezimal(row["mark_price"])
+                    if row["mark_price"]
+                    else None,
+                    market_value=Dezimal(row["market_value"])
+                    if row["market_value"]
+                    else None,
+                    unrealized_pnl=Dezimal(row["unrealized_pnl"])
+                    if row["unrealized_pnl"]
+                    else None,
+                    leverage=Dezimal(row["leverage"]) if row["leverage"] else None,
+                    margin=Dezimal(row["margin"]) if row["margin"] else None,
+                    margin_type=MarginType(row["margin_type"])
+                    if row["margin_type"]
+                    else None,
+                    liquidation_price=Dezimal(row["liquidation_price"])
+                    if row["liquidation_price"]
+                    else None,
+                    isin=row["isin"],
+                    strike_price=Dezimal(row["strike_price"])
+                    if row["strike_price"]
+                    else None,
+                    knock_out_price=Dezimal(row["knock_out_price"])
+                    if row["knock_out_price"]
+                    else None,
+                    ratio=Dezimal(row["ratio"]) if row["ratio"] else None,
+                    issuer=row["issuer"],
+                    underlying_symbol=row["underlying_symbol"],
+                    underlying_isin=row["underlying_isin"],
+                    expiry=date.fromisoformat(row["expiry"]) if row["expiry"] else None,
+                    name=row["name"],
+                    initial_investment=Dezimal(row["initial_investment"])
+                    if row["initial_investment"]
+                    else None,
+                    source=global_position.source,
+                )
+                for row in cursor
+            ]
+
+            if not details:
+                return None
+
+            return DerivativePositions(details)
+
     async def _get_product_positions(
         self, g_position: GlobalPosition, products: list[ProductType] = None
     ) -> ProductPositions:
@@ -1190,6 +1314,13 @@ class PositionSQLRepository(PositionPort):
             products,
             self._get_commodities,
         )
+        await _store_position(
+            positions,
+            g_position,
+            ProductType.DERIVATIVE,
+            products,
+            self._get_derivatives,
+        )
         return positions
 
     async def _get_entity_id_from_global(self, global_position_id: UUID) -> int:
@@ -1234,6 +1365,9 @@ class PositionSQLRepository(PositionPort):
                 entity=entity,
                 date=datetime.fromisoformat(row["date"]),
                 source=source,
+                entity_account_id=UUID(row["entity_account_id"])
+                if row["entity_account_id"]
+                else None,
             )
             position.products = await self._get_product_positions(position)
             return position

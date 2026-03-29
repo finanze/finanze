@@ -40,30 +40,34 @@ platforms. It supports multiple sources, asset types (real estate, crypto, funds
 - ⚙️ Highly configurable with templating for exports and imports
 - 📊 Complex savings & retirement calculator with multiple scenarios and variables
 
-### Supported Assets by Financial Entity
+### Supported Assets by Financial Entity & Crypto Exchanges
 
-| Entity              | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
-|---------------------|----------|-------|-------|----------------|----------|------------|---------------------|--------|-------|---------------------|
-| Urbanitae           | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
-| MyInvestor          | ✅        | ✅     | ✅     | ✅              | ✅        | ✅          | ❌                   | -      | -     |                     |
-| SEGO                | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
-| Trade Republic      | ✅        | -     | ✅     | ✅              | -        | -          | -                   | ✅      | ❌     | Private Markets     |
-| Unicaja             | ✅        | ✅     | ❌     | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-| Wecity              | ✅        | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
-| Mintos              | ✅        | -     | -     | ❌              | ❌        | -          | -                   | -      | ❌     | Crowdlending        |
-| Freedom24           | ✅        | -     | -     | ❌              | -        | -          | -                   | ❌      | ❌     |                     |
-| Indexa Capital      | ✅        | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
-| ING                 | ✅        | ✅     | ✅️    | ✅              | ❌        | -          | ❌                   | -      | -     |                     |
-| Grupo Cajamar       | ✅        | ✅     | ❌️    | ❌              | ❌        | -          | ✅                   | -      | -     |                     |
-| DEGIRO              | ✅        | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
-| Interactive Brokers | ✅        | -     | ❌     | ✅️ Stocks      | -        | -          | -                   | -      | ❌     |                     |
+| Financial Entity    | Accounts | Cards | Funds | Stock/<br>ETFs | Deposits | Portfolios | Loans/<br>Mortgages | Crypto | Bonds | Specific            |
+| ------------------- | -------- | ----- | ----- | -------------- | -------- | ---------- | ------------------- | ------ | ----- | ------------------- |
+| Urbanitae           | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Lending Investments |
+| MyInvestor          | ✅       | ✅    | ✅    | ✅             | ✅       | ✅         | ❌                  | -      | -     |                     |
+| SEGO                | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Factoring           |
+| Trade Republic      | ✅       | -     | ✅    | ✅             | -        | -          | -                   | ✅     | ❌    | Private Markets     |
+| Unicaja             | ✅       | ✅    | ❌    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
+| Wecity              | ✅       | -     | -     | -              | -        | -          | -                   | -      | -     | Investments         |
+| Mintos              | ✅       | -     | -     | ❌             | ❌       | -          | -                   | -      | ❌    | Crowdlending        |
+| Freedom24           | ✅       | -     | -     | ❌             | -        | -          | -                   | ❌     | ❌    |                     |
+| Indexa Capital      | ✅       | -     | ✅️    | -              | -        | ✅️         | -                   | -      | -     |                     |
+| ING                 | ✅       | ✅    | ✅️    | ✅             | ❌       | -          | ❌                  | -      | -     |                     |
+| Grupo Cajamar       | ✅       | ✅    | ❌️    | ❌             | ❌       | -          | ✅                  | -      | -     |                     |
+| DEGIRO              | ✅       | -     | ✅️    | ✅️             | -        | -          | -                   | -      | -     |                     |
+| Interactive Brokers | ✅       | -     | ❌    | ✅️ Stocks      | -        | -          | -                   | -      | ❌    |                     |
+
+| Crypto Exchange | Crypto            | Specific |
+| --------------- | ----------------- | -------- |
+| Binance         | ✅ Spot & Futures | Futures  |
 
 #### GoCardless Integration
 
 GoCardless provides PSD2 compliant bank account information for many EU/UK banks, for institutions not natively
 supported this is the way to get account related data.
 
-### Financial Entity Features
+### Financial Entity & Crypto Exchanges Features
 
 Not all entities support the same features, in general we can group data in the following categories:
 
@@ -76,21 +80,25 @@ Not all entities support the same features, in general we can group data in the 
 - **Investment Historic**: aggregates past positions and TXs to create a history of past and current investments (
   deposits are not included here).
 
-| Entity              | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
-|---------------------|-----------------|---------------------------|--------------------------------|------------------------|
-| Urbanitae           | ✅               | -                         | ✅                              | ✅                      |
-| MyInvestor          | ✅               | ✅                         | ✅                              | ❌                      |
-| SEGO                | ✅               | -                         | ✅                              | ✅                      |
-| Trade Republic      | ✅               | ✅                         | ✅                              | -                      |
-| Unicaja             | ✅               | ✅                         | ❌                              | -                      |
-| Wecity              | ✅               | -                         | ✅                              | ✅                      |
-| Mintos              | ✅               | -                         | ❌                              | ❌                      |
-| Freedom24           | ✅               | -                         | ✅                              | ❌                      |
-| Indexa Capital      | ✅               | -                         | ✅                              | -                      |
-| ING                 | ✅               | ✅                         | ✅                              | -                      |
-| Grupo Cajamar       | ✅               | -                         | ❌                              | -                      |
-| DEGIRO              | ✅               | ❌                         | ✅                              | -                      |
-| Interactive Brokers | ✅               | ❌                         | ✅⚠️                            | -                      |
+| Financial Entity    | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
+| ------------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
+| Urbanitae           | ✅              | -                         | ✅                             | ✅                     |
+| MyInvestor          | ✅              | ✅                        | ✅                             | ❌                     |
+| SEGO                | ✅              | -                         | ✅                             | ✅                     |
+| Trade Republic      | ✅              | ✅                        | ✅                             | -                      |
+| Unicaja             | ✅              | ✅                        | ❌                             | -                      |
+| Wecity              | ✅              | -                         | ✅                             | ✅                     |
+| Mintos              | ✅              | -                         | ❌                             | ❌                     |
+| Freedom24           | ✅              | -                         | ✅                             | ❌                     |
+| Indexa Capital      | ✅              | -                         | ✅                             | -                      |
+| ING                 | ✅              | ✅                        | ✅                             | -                      |
+| Grupo Cajamar       | ✅              | -                         | ❌                             | -                      |
+| DEGIRO              | ✅              | ❌                        | ✅                             | -                      |
+| Interactive Brokers | ✅              | ❌                        | ✅⚠️                           | -                      |
+
+| Crypto Exchange | Global Position | Periodic<br>Contributions | Transactions<br>(inv. related) | Investment<br>Historic |
+| --------------- | --------------- | ------------------------- | ------------------------------ | ---------------------- |
+| Binance         | ✅ Spot         | ❌                        | ✅️                             | -                      |
 
 ### Financial Entity notes
 
@@ -105,11 +113,10 @@ following ones:
 
 Important points to remark:
 
-- **Unicaja** if not using the desktop app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
-  Akamai for anti
-  bot protection.
-- **Mintos** needs Selenium to resolve reCAPTCHA when not using frontend.
-- **ING** and **IBKR** only work via frontend, as require user interaction to log in.
+- **Unicaja** if not using the app, it requires setting `UNICAJA_ABCK` environment variable to login, as it uses
+  Akamai for antibot protection.
+- **Mintos** needs Selenium to resolve reCAPTCHA when not using the app.
+- **Trade Republic**, **ING** and **IBKR** only work via app, as require user interaction to log in.
 - **Freedom24** D-Account interest (swaps) txs were supported and its related transactions, but not anymore since its
   removal.
 
@@ -180,11 +187,11 @@ cd /Applications && xattr -d com.apple.quarantine Finanze.app
 
 ### Docker
 
-Two Docker images are available, a Selenium one (latest-selenium) and a light one (latest-no-selenium).
+Two Docker images are available, a Selenium one (`latest-selenium`) and a lighter default one (`latest`).
 
+In case you don't use Mintos, `latest` is highly recommended.
 The first one is required for Mintos, as it contains Selenium and reCAPTCHA resolution related Python and SO
 dependencies (like ffmpeg).
-In case you don't use Mintos, latest-no-selenium is highly recommended.
 
 Both are available at Docker Hub [finanze/finanze](https://hub.docker.com/r/finanze/finanze).
 
@@ -194,9 +201,9 @@ Checkout example [docker-compose.yml](docker-compose.yml) for a complete setup.
 
 ## Development
 
-This project requires `Python 3.13` or ` 3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses
+This project requires `Python 3.13` or `3.14` for backend, desktop app and Docker use `3.14`, while Pyodide uses
 `3.13`.
-For the frontend use `pnpm`, and node 24.
+For the frontend use `pnpm`, and `node 24`.
 
 ### Setup
 
@@ -218,7 +225,7 @@ For the frontend use `pnpm`, and node 24.
 
     ```sh
     pip install -r requirements.txt -r requirements-dev.txt -r requirements-lint.txt -r requirements-packaging.txt
-    pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA
+    pip install -r requirements-selenium.txt  # If you want to use Selenium for reCAPTCHA, only for mintos
     pre-commit install
     ```
 
@@ -243,10 +250,15 @@ For the frontend use `pnpm`, and node 24.
     pnpm cap:sync     # To sync changes to native projects after frontend development
     ```
 
-### How configuration works?
+6. TLS client for mobile (required for some entities needing TLS fingerprint impersonation):
 
-Checking [example_config.yml](resources/example_config.yml) could be useful in order to see some examples of export
-tables and summary dashboards.
+    Requires: Go, Xcode (iOS), Android NDK r28+ (Android), gomobile (`go install golang.org/x/mobile/cmd/gomobile@latest && go install golang.org/x/mobile/cmd/gobind@latest`).
+
+    ```sh
+    cd frontend/app           # If not already
+    go mod tidy -C native/tlsclient
+    pnpm native:setup         # Builds iOS xcframework + Android AAR and copies to native projects
+    ```
 
 ### Environment Variables
 
@@ -256,19 +268,6 @@ important ones are::
 - `USERNAME` and `PASSWORD` optional, to auto start session on load.
 - `MULTI_USER` optional, to allow multiple user sign up (only recommended for local development).
 - Other Selenium related ones.
-
-### Credentials
-
-There are two ways of handling this, the default and recommended one is storing them in the encrypted database,
-this is done using the login endpoint showed in the [Usage](#usage) section. This mode is enabled by default.
-
-_Just for development_ - Credentials can also be stored in the environment variables like `{ENTITY_NAME}_USERNAME` and
-`{ENTITY_NAME}_PASSWORD`.
-Except for `MYI_USERNAME` and `MYI_PASSWORD` in MyInvestor case, and `TR_PHONE` and `TR_PIN` for Trade Republic.
-This is enabled by setting `CREDENTIAL_STORAGE` environment variable to `ENV`.
-
-Also, credentials_reader.py is a basic and unsecure implementation to retrieve credentials from environments, there you
-can get the needed environment names.
 
 ## Attributions & Credits
 
@@ -283,6 +282,5 @@ can get the needed environment names.
 - Selenium reCAPTCHA resolution is based
   on [sarperavci/GoogleRecaptchaBypass](https://github.com/sarperavci/GoogleRecaptchaBypass/tree/selenium)
   project, using a slightly modified version of Selenium version. In an attempt of using Playwright I made an adaptation
-  for
-  it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
+  for it [here](finanze/infrastructure/scrapers/mintos/recaptcha_solver_playwright.py), it works, but has some troubles
   with headless mode.

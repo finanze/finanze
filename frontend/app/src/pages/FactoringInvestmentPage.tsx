@@ -182,98 +182,100 @@ export default function FactoringInvestmentPage() {
 
     const factoring: FactoringPosition[] = []
 
-    Object.values(positionsData.positions).forEach(entityPosition => {
-      const factoringProduct = entityPosition.products[ProductType.FACTORING]
-      if (
-        factoringProduct &&
-        "entries" in factoringProduct &&
-        factoringProduct.entries.length > 0
-      ) {
-        const entityName = entityPosition.entity?.name || "Unknown"
-        const entityOrigin = entityPosition.entity?.origin ?? null
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const factoringProduct = entityPosition.products[ProductType.FACTORING]
+        if (
+          factoringProduct &&
+          "entries" in factoringProduct &&
+          factoringProduct.entries.length > 0
+        ) {
+          const entityName = entityPosition.entity?.name || "Unknown"
+          const entityOrigin = entityPosition.entity?.origin ?? null
 
-        factoringProduct.entries.forEach((factor: any) => {
-          const convertedAmount = convertCurrency(
-            factor.amount,
-            factor.currency,
-            settings.general.defaultCurrency,
-            exchangeRates,
-          )
-
-          // Profitability provided as decimal (e.g. 0.1 = 10%)
-          const profitabilityDecimal = !isNaN(factor.profitability)
-            ? factor.profitability
-            : null
-          const rawProfit =
-            profitabilityDecimal !== null
-              ? factor.amount * profitabilityDecimal
-              : null
-          const expectedAtMaturity =
-            rawProfit !== null ? factor.amount + rawProfit : null
-          const convertedExpectedAmount =
-            expectedAtMaturity !== null
-              ? convertCurrency(
-                  expectedAtMaturity,
-                  factor.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
-              : null
-          const convertedProfit =
-            rawProfit !== null
-              ? convertCurrency(
-                  rawProfit,
-                  factor.currency,
-                  settings.general.defaultCurrency,
-                  exchangeRates,
-                )
-              : null
-          const profitabilityPct =
-            profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
-
-          const entryId = factor.id ? String(factor.id) : undefined
-          const source =
-            (factor.source as DataSource | undefined) ?? DataSource.REAL
-
-          factoring.push({
-            ...(factor as FactoringPosition),
-            entryId,
-            entity: entityName,
-            entityId: entityPosition.entity?.id,
-            entityOrigin,
-            convertedAmount,
-            convertedExpectedAmount,
-            formattedAmount: formatCurrency(
+          factoringProduct.entries.forEach((factor: any) => {
+            const convertedAmount = convertCurrency(
               factor.amount,
-              locale,
               factor.currency,
-            ),
-            formattedConvertedAmount: formatCurrency(
-              convertedAmount,
-              locale,
               settings.general.defaultCurrency,
-            ),
-            formattedExpectedAmount: convertedExpectedAmount
-              ? formatCurrency(
-                  convertedExpectedAmount,
-                  locale,
-                  settings.general.defaultCurrency,
-                )
-              : null,
-            convertedProfit,
-            formattedProfit: convertedProfit
-              ? formatCurrency(
-                  convertedProfit,
-                  locale,
-                  settings.general.defaultCurrency,
-                )
-              : null,
-            profitabilityPct,
-            source,
+              exchangeRates,
+            )
+
+            // Profitability provided as decimal (e.g. 0.1 = 10%)
+            const profitabilityDecimal = !isNaN(factor.profitability)
+              ? factor.profitability
+              : null
+            const rawProfit =
+              profitabilityDecimal !== null
+                ? factor.amount * profitabilityDecimal
+                : null
+            const expectedAtMaturity =
+              rawProfit !== null ? factor.amount + rawProfit : null
+            const convertedExpectedAmount =
+              expectedAtMaturity !== null
+                ? convertCurrency(
+                    expectedAtMaturity,
+                    factor.currency,
+                    settings.general.defaultCurrency,
+                    exchangeRates,
+                  )
+                : null
+            const convertedProfit =
+              rawProfit !== null
+                ? convertCurrency(
+                    rawProfit,
+                    factor.currency,
+                    settings.general.defaultCurrency,
+                    exchangeRates,
+                  )
+                : null
+            const profitabilityPct =
+              profitabilityDecimal !== null ? profitabilityDecimal * 100 : null
+
+            const entryId = factor.id ? String(factor.id) : undefined
+            const source =
+              (factor.source as DataSource | undefined) ?? DataSource.REAL
+
+            factoring.push({
+              ...(factor as FactoringPosition),
+              entryId,
+              entity: entityName,
+              entityId: entityPosition.entity?.id,
+              entityOrigin,
+              convertedAmount,
+              convertedExpectedAmount,
+              formattedAmount: formatCurrency(
+                factor.amount,
+                locale,
+                factor.currency,
+              ),
+              formattedConvertedAmount: formatCurrency(
+                convertedAmount,
+                locale,
+                settings.general.defaultCurrency,
+              ),
+              formattedExpectedAmount: convertedExpectedAmount
+                ? formatCurrency(
+                    convertedExpectedAmount,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
+              convertedProfit,
+              formattedProfit: convertedProfit
+                ? formatCurrency(
+                    convertedProfit,
+                    locale,
+                    settings.general.defaultCurrency,
+                  )
+                : null,
+              profitabilityPct,
+              source,
+            })
           })
-        })
-      }
-    })
+        }
+      })
 
     return factoring
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])

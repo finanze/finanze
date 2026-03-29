@@ -10,9 +10,10 @@ class AutoContributionsQueries(str, Enum):
         INSERT INTO periodic_contributions (
             id, entity_id, target, target_type, target_subtype, alias,
             target_name, amount, currency,
-            since, until, frequency, active, is_real, source, created_at
+            since, until, frequency, active, is_real, source, created_at,
+            entity_account_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     GET_ALL_GROUPED_BY_ENTITY_BASE = """
@@ -26,6 +27,12 @@ class AutoContributionsQueries(str, Enum):
                pc.*
         FROM periodic_contributions pc
             JOIN entities e ON pc.entity_id = e.id
+            LEFT JOIN entity_accounts ea ON pc.entity_account_id = ea.id
+        WHERE (pc.entity_account_id IS NULL OR ea.deleted_at IS NULL)
     """
 
     DELETE_BY_SOURCE = "DELETE FROM periodic_contributions WHERE source = ?"
+
+    DELETE_BY_ENTITY_ACCOUNT = (
+        "DELETE FROM periodic_contributions WHERE entity_account_id = ?"
+    )

@@ -28,6 +28,8 @@ import {
   AlertCircle,
   Info,
   Unplug,
+  Plus,
+  Users,
 } from "lucide-react"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
 import { useNavigate } from "react-router-dom"
@@ -39,6 +41,7 @@ interface EntityCardProps {
   onRelogin: () => void
   onDisconnect: () => void
   onManage?: () => void
+  onAddAccount?: () => void
   onExternalContinue?: (entity: Entity) => void
   onExternalDisconnect?: (entity: Entity) => Promise<void> | void
   linkingExternalEntityId?: string | null
@@ -51,6 +54,7 @@ export function EntityCard({
   onRelogin,
   onDisconnect,
   onManage,
+  onAddAccount,
   onExternalContinue,
   onExternalDisconnect,
   linkingExternalEntityId,
@@ -261,6 +265,7 @@ export function EntityCard({
 
   const isFinancialInstitution =
     entity.type === EntityType.FINANCIAL_INSTITUTION
+  const isCryptoExchange = entity.type === EntityType.CRYPTO_EXCHANGE
   const isCryptoWallet = entity.type === EntityType.CRYPTO_WALLET
 
   const isDisconnected = effectiveStatus === EntityStatus.DISCONNECTED
@@ -457,6 +462,49 @@ export function EntityCard({
                 </div>
               )}
 
+              {/* Show account badges for crypto exchange entities */}
+              {isCryptoExchange &&
+                effectiveStatus === EntityStatus.CONNECTED &&
+                entity.accounts &&
+                entity.accounts.length > 0 && (
+                  <div className="mt-3 p-2 bg-gray-50/50 dark:bg-gray-800/30 rounded-md border border-gray-200/50 dark:border-gray-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Users className="h-3 w-3 text-gray-500 dark:text-gray-400" />
+                        <span className="text-gray-600 dark:text-gray-300 font-medium">
+                          {entity.accounts.length === 1
+                            ? `1 ${t.entities.account}`
+                            : `${entity.accounts.length} ${t.entities.account}s`}
+                        </span>
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {entity.accounts.slice(0, 3).map((account, index) => (
+                          <Badge
+                            key={account.id}
+                            variant="secondary"
+                            className={`text-xs px-1.5 py-0.5 ${
+                              account.status === EntityStatus.CONNECTED
+                                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                : "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                            }`}
+                          >
+                            {account.name ||
+                              `${t.entities.account} ${index + 1}`}
+                          </Badge>
+                        ))}
+                        {entity.accounts.length > 3 && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                          >
+                            +{entity.accounts.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
               {/* Requires login - internal entities */}
               {effectiveStatus === EntityStatus.REQUIRES_LOGIN &&
                 !isExternallyProvided && (
@@ -643,6 +691,54 @@ export function EntityCard({
                             className="h-4 w-4 flex-shrink-0"
                             strokeWidth={2.5}
                           />
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Crypto exchange buttons */}
+                    {isCryptoExchange && !missingIntegrations && (
+                      <div className="flex gap-2 flex-wrap justify-center w-full">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                          onClick={onManage}
+                          disabled={entityFetching || !onManage}
+                        >
+                          <Settings className="mr-1 h-4 w-4 flex-shrink-0" />
+                          {t.entities.manage}
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-gray-900 font-bold hover:text-gray-700 dark:text-white dark:hover:text-gray-200"
+                          disabled={entityFetching}
+                          onClick={onSelect}
+                        >
+                          {entityFetching ? (
+                            <>
+                              <LoadingSpinner size="sm" />
+                              <span className="ml-2 flex-shrink-0">
+                                {t.common.fetching}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="mr-2 h-4 w-4 flex-shrink-0" />
+                              {getButtonText()}
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                          onClick={onAddAccount}
+                          disabled={entityFetching || !onAddAccount}
+                        >
+                          <Plus className="h-4 w-4 flex-shrink-0" />
                         </Button>
                       </div>
                     )}

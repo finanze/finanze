@@ -349,7 +349,7 @@ const getFieldConfigs = (
 }
 
 const parseNumberValue = (value: string, fallback = 0) => {
-  const trimmed = value.trim()
+  const trimmed = value.trim().replace(",", ".")
   if (!trimmed) return fallback
   const parsed = Number.parseFloat(trimmed)
   if (Number.isNaN(parsed)) return fallback
@@ -357,7 +357,7 @@ const parseNumberValue = (value: string, fallback = 0) => {
 }
 
 const parseOptionalNumber = (value: string) => {
-  const trimmed = value.trim()
+  const trimmed = value.trim().replace(",", ".")
   if (!trimmed) return undefined
   const parsed = Number.parseFloat(trimmed)
   if (Number.isNaN(parsed)) return undefined
@@ -399,7 +399,7 @@ export function ManualTransactionDialog({
     const option = entities.find(entity => entity.id === formState.entityId)
     if (option) return option.name
     const positionEntityName =
-      positionsData?.positions?.[formState.entityId]?.entity?.name
+      positionsData?.positions?.[formState.entityId]?.[0]?.entity?.name
     return positionEntityName || ""
   }, [entities, formState.entityId, formState.entityName, positionsData])
 
@@ -409,7 +409,7 @@ export function ManualTransactionDialog({
       return suggestions
     }
 
-    const entityPosition = positionsData.positions[formState.entityId]
+    const entityPosition = positionsData.positions[formState.entityId]?.[0]
     if (!entityPosition) {
       return suggestions
     }
@@ -530,15 +530,17 @@ export function ManualTransactionDialog({
       return null
     }
 
-    const gross = Number.parseFloat(formState.amount)
+    const gross = Number.parseFloat(formState.amount.replace(",", "."))
     if (!Number.isFinite(gross) || gross <= 0) {
       return null
     }
 
     const feesRaw = formState.extra?.fees ?? ""
     const retentionsRaw = formState.extra?.retentions ?? ""
-    const fees = Number.parseFloat(feesRaw || "0")
-    const retentions = Number.parseFloat(retentionsRaw || "0")
+    const fees = Number.parseFloat((feesRaw || "0").replace(",", "."))
+    const retentions = Number.parseFloat(
+      (retentionsRaw || "0").replace(",", "."),
+    )
 
     const safeFees = Number.isFinite(fees) ? fees : 0
     const safeRetentions = Number.isFinite(retentions) ? retentions : 0
@@ -601,8 +603,12 @@ export function ManualTransactionDialog({
         return prev
       }
 
-      const shares = Number.parseFloat(prev.extra?.shares ?? "")
-      const price = Number.parseFloat(prev.extra?.price ?? "")
+      const shares = Number.parseFloat(
+        (prev.extra?.shares ?? "").replace(",", "."),
+      )
+      const price = Number.parseFloat(
+        (prev.extra?.price ?? "").replace(",", "."),
+      )
 
       if (!Number.isFinite(shares) || !Number.isFinite(price)) {
         return prev
@@ -841,7 +847,7 @@ export function ManualTransactionDialog({
       newErrors.date = t.transactions.form.errors.required
     }
 
-    const amountValue = Number.parseFloat(formState.amount)
+    const amountValue = Number.parseFloat(formState.amount.replace(",", "."))
     if (!formState.amount || Number.isNaN(amountValue) || amountValue <= 0) {
       newErrors.amount = t.transactions.form.errors.positive
     }
@@ -867,7 +873,7 @@ export function ManualTransactionDialog({
       }
 
       if (field.type === "number" && value.trim()) {
-        const numeric = Number.parseFloat(value)
+        const numeric = Number.parseFloat(value.replace(",", "."))
         if (Number.isNaN(numeric)) {
           newErrors[`extra.${field.name}`] =
             t.transactions.form.errors.invalidNumber
@@ -1016,9 +1022,6 @@ export function ManualTransactionDialog({
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
           className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
-          onClick={e => {
-            if (e.target === e.currentTarget) handleClose()
-          }}
         >
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1201,10 +1204,8 @@ export function ManualTransactionDialog({
                       </Label>
                       <Input
                         id="transaction-amount"
-                        type="number"
+                        type="text"
                         inputMode="decimal"
-                        min="0"
-                        step="0.01"
                         value={formState.amount}
                         onChange={event =>
                           handleBaseChange("amount", event.target.value)
@@ -1222,7 +1223,7 @@ export function ManualTransactionDialog({
                             {t.transactions.form.netAmountLabel}
                           </span>{" "}
                           {formattedNetAmount}
-                          <span className="ml-1 text-[11px] uppercase tracking-wide">
+                          <span className="ml-1 text-[11px] tracking-wide">
                             ({netAmountFormulaText})
                           </span>
                         </p>
@@ -1410,17 +1411,10 @@ export function ManualTransactionDialog({
                               </Label>
                               <Input
                                 id={`transaction-${field.name}`}
-                                type={
-                                  field.type === "number" ? "number" : "text"
-                                }
+                                type="text"
                                 inputMode={
                                   field.type === "number"
                                     ? "decimal"
-                                    : undefined
-                                }
-                                step={
-                                  field.type === "number"
-                                    ? (field.step ?? "0.01")
                                     : undefined
                                 }
                                 value={formState.extra[field.name] ?? ""}

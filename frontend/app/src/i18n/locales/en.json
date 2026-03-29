@@ -82,7 +82,7 @@
     "copy": "Copy",
     "copied": "Copied",
     "each": "each",
-    "incompatibleLoginPlatform": "Use desktop app in order to do manual log in.",
+    "incompatibleLoginPlatform": "Use the app in order to do manual log in.",
     "selectOptions": "Select options...",
     "searchOptions": "Search options...",
     "noOptionsFound": "No options found",
@@ -180,6 +180,8 @@
     "symbol": "Symbol",
     "shares": "Shares",
     "price": "Price",
+    "averageBuyPrice": "Avg. buy price",
+    "perSharePrice": "per share",
     "isin": "ISIN",
     "portfolio": "Portfolio",
     "ofInvestmentType": "of {type}",
@@ -195,6 +197,8 @@
     "sortAmount": "Amount",
     "sortRelativeGain": "Gain %",
     "sortAbsoluteGain": "Gain",
+    "actives": "Actives",
+    "passives": "Passives",
     "sortStart": "Start",
     "sortMaturity": "Maturity",
     "cryptoView": {
@@ -202,7 +206,46 @@
       "viewModeLabel": "View",
       "viewModes": {
         "wallets": "By wallet",
-        "network": "By network"
+        "network": "By source"
+      }
+    },
+    "derivatives": {
+      "title": "Derivatives",
+      "singular": "derivative",
+      "plural": "derivatives",
+      "includeDerivatives": "Include Derivatives",
+      "size": "Size",
+      "direction": {
+        "LONG": "Long",
+        "SHORT": "Short"
+      },
+      "contractType": {
+        "PERPETUAL": "Perpetual",
+        "FUTURES": "Futures",
+        "KNOCK_OUT": "Knock Out",
+        "FACTOR": "Factor",
+        "WARRANT": "Warrant",
+        "OPTIONS": "Options",
+        "CFD": "CFD",
+        "OTHER": "Other"
+      },
+      "detail": {
+        "positionDetails": "Position Details",
+        "overview": "Overview",
+        "symbol": "Symbol",
+        "underlying": "Underlying",
+        "direction": "Direction",
+        "contractType": "Contract Type",
+        "pricing": "Pricing",
+        "entryPrice": "Entry Price",
+        "markPrice": "Mark Price",
+        "marketValue": "Market Value",
+        "unrealizedPnl": "Unrealized P&L",
+        "risk": "Risk & Margin",
+        "leverage": "Leverage",
+        "margin": "Margin",
+        "marginType": "Margin Type",
+        "liquidationPrice": "Liquidation Price"
       }
     },
     "weightedAverageInterest": "Weighted Avg. Interest",
@@ -288,6 +331,12 @@
       "USER": "Username",
       "API_TOKEN": "API Token"
     },
+    "credentialFields": {
+      "apiKey": "API Key",
+      "secretKey": "Secret Key"
+    },
+    "addAccountName": "Name this account",
+    "accountNamePlaceholder": "Account name (optional)",
     "title": "Welcome to Finanze",
     "subtitle": "Your financial data is encrypted",
     "welcomeBack": "Welcome back, {username}!",
@@ -329,8 +378,8 @@
     "biometricLoginFailed": "Biometric authentication failed",
     "inAppConfirmationTitle": "Confirm login in",
     "inAppConfirmationMessage": "Open the financial institution app on your phone and confirm the login request.",
-    "captchaTitle": "Security verification for",
-    "captchaMessage": "Please complete the CAPTCHA to continue."
+    "challengeTitle": "Security verification for",
+    "challengeMessage": "Please complete the security verification to continue."
   },
   "pinpad": {
     "enterCode": "Enter {length}-digit code for",
@@ -392,10 +441,15 @@
     "refreshEntity": "Update data",
     "financialInstitutions": "Financial Institutions",
     "cryptoWallets": "Crypto Wallets",
+    "cryptoExchanges": "Crypto Exchanges",
     "commodities": "Commodities",
     "commoditiesDescription": "Integrate your commodities with live market value",
     "manualDataEntry": "User data",
     "manage": "Manage",
+    "addAccount": "Add Account",
+    "manageAccounts": "Manage Accounts",
+    "account": "Account",
+    "noAccounts": "No accounts connected",
     "moreFinancialInstitutionsCard": "More Banks",
     "addExternalEntity": "Financial institutions",
     "requiresProviderIntegration": "Requires integration",

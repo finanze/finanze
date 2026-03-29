@@ -142,6 +142,7 @@ function StockPositionLogo({
   const [sourceIndex, setSourceIndex] = useState(0)
   const [shouldInvert, setShouldInvert] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const imageRef = useRef<HTMLImageElement | null>(null)
 
   useEffect(() => {
@@ -166,6 +167,7 @@ function StockPositionLogo({
   useEffect(() => {
     setSourceIndex(0)
     setShouldInvert(false)
+    setLoaded(false)
   }, [sources.join("|")])
 
   const isStock = position.equityType === EquityType.STOCK
@@ -209,6 +211,39 @@ function StockPositionLogo({
     return fallback
   }
 
+  if (!loaded) {
+    return (
+      <>
+        {fallback}
+        <img
+          src={currentSrc}
+          alt=""
+          crossOrigin={isStock ? "anonymous" : undefined}
+          className="absolute h-0 w-0 opacity-0 pointer-events-none"
+          onLoad={event => {
+            const img = event.currentTarget
+            if (img.naturalWidth <= 1 || img.naturalHeight <= 1) {
+              setSourceIndex(prev => prev + 1)
+              return
+            }
+            setLoaded(true)
+            imageRef.current = img
+            if (isStock && !isDarkMode) {
+              try {
+                setShouldInvert(isMostlyWhiteLogo(img))
+              } catch {
+                setShouldInvert(false)
+              }
+            }
+          }}
+          onError={() => {
+            setSourceIndex(prev => prev + 1)
+          }}
+        />
+      </>
+    )
+  }
+
   return (
     <img
       ref={imageRef}
@@ -227,20 +262,9 @@ function StockPositionLogo({
           : "rounded-md",
         externalClassName,
       )}
-      onLoad={event => {
-        if (!isStock || isDarkMode) {
-          setShouldInvert(false)
-          return
-        }
-
-        try {
-          setShouldInvert(isMostlyWhiteLogo(event.currentTarget))
-        } catch {
-          setShouldInvert(false)
-        }
-      }}
       onError={() => {
         setShouldInvert(false)
+        setLoaded(false)
         setSourceIndex(prev => prev + 1)
       }}
     />
@@ -853,10 +877,28 @@ function StocksViewContent({
                   : ""
 
                 const rawPrice = position.price
-                const formattedPrice =
+                const formattedAvgBuyPrice =
                   rawPrice !== undefined && rawPrice !== null
                     ? formatCurrency(rawPrice, locale, position.currency)
                     : null
+
+                const marketPricePerShare =
+                  numericShares != null &&
+                  numericShares > 0 &&
+                  position.originalValue
+                    ? Math.round(
+                        (position.originalValue / numericShares) * 10000,
+                      ) / 10000
+                    : null
+                const formattedMarketPrice =
+                  marketPricePerShare != null
+                    ? formatCurrency(
+                        marketPricePerShare,
+                        locale,
+                        position.currency,
+                      )
+                    : null
+
                 const eachLabelSource = t.common.each || ""
                 const eachLabel = eachLabelSource
                   ? eachLabelSource.toLocaleLowerCase(locale)
@@ -971,13 +1013,15 @@ function StocksViewContent({
                             </span>
                           )}
                         </div>
-                        {(formattedShares || formattedPrice) && (
+                        {(formattedShares || formattedMarketPrice) && (
                           <div className="text-xs text-muted-foreground flex items-center gap-1">
                             {formattedShares && <span>{formattedShares}</span>}
-                            {formattedShares && formattedPrice && (
+                            {formattedShares && formattedMarketPrice && (
                               <span>×</span>
                             )}
-                            {formattedPrice && <span>{formattedPrice}</span>}
+                            {formattedMarketPrice && (
+                              <span>{formattedMarketPrice}</span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1035,7 +1079,7 @@ function StocksViewContent({
                           <div className="px-4 pb-4">
                             <div className="border-t border-border/50 pt-3 space-y-3">
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
-                                {(formattedShares || formattedPrice) && (
+                                {(formattedShares || formattedMarketPrice) && (
                                   <div>
                                     <div className="text-xs text-muted-foreground font-medium mb-0.5">
                                       {t.investments.shares}
@@ -1051,14 +1095,15 @@ function StocksViewContent({
                                           )}
                                         </>
                                       )}
-                                      {formattedShares && formattedPrice && (
-                                        <span className="text-muted-foreground">
-                                          ×
-                                        </span>
-                                      )}
-                                      {formattedPrice && (
+                                      {formattedShares &&
+                                        formattedMarketPrice && (
+                                          <span className="text-muted-foreground">
+                                            ×
+                                          </span>
+                                        )}
+                                      {formattedMarketPrice && (
                                         <>
-                                          <span>{formattedPrice}</span>
+                                          <span>{formattedMarketPrice}</span>
                                           {formattedShares && eachLabel && (
                                             <span className="text-muted-foreground">
                                               {eachLabel}
@@ -1067,6 +1112,12 @@ function StocksViewContent({
                                         </>
                                       )}
                                     </div>
+                                    {formattedAvgBuyPrice && (
+                                      <div className="text-xs text-muted-foreground mt-0.5">
+                                        {t.investments.averageBuyPrice}:{" "}
+                                        {formattedAvgBuyPrice}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {position.symbol?.trim() && (

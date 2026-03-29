@@ -41,11 +41,14 @@ class CompleteExternalEntityConnectionImpl(CompleteExternalEntityConnection):
             )
             raise ExternalEntityLinkError(details=details)
 
-        is_callback = "ref" in request.payload or bool(request.payload.get("ref"))
+        raw_ref = request.payload.get("ref")
+        is_callback = "ref" in request.payload or bool(raw_ref)
         if not request.external_entity_id and not is_callback:
             raise ValueError("Missing 'ref' or 'external_entity_id'")
 
-        external_entity_id = request.external_entity_id or request.payload.get("ref")[0]
+        external_entity_id = request.external_entity_id or (
+            raw_ref if isinstance(raw_ref, str) else raw_ref[0]
+        )
         external_entity = await self._external_entity_port.get_by_id(external_entity_id)
         if not external_entity:
             raise ExternalEntityNotFound()

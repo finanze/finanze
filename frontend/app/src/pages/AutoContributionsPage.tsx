@@ -240,7 +240,8 @@ export default function AutoContributionsPage() {
       (entities ?? []).filter(
         entity =>
           entity.type === EntityType.FINANCIAL_INSTITUTION ||
-          entity.type === EntityType.CRYPTO_WALLET,
+          entity.type === EntityType.CRYPTO_WALLET ||
+          entity.type === EntityType.CRYPTO_EXCHANGE,
       ),
     [entities],
   )
@@ -574,7 +575,7 @@ export default function AutoContributionsPage() {
             : form.target_subtype
               ? (form.target_subtype as ContributionTargetSubtype)
               : null,
-        amount: Number.parseFloat(form.amount),
+        amount: Number.parseFloat(form.amount.replace(",", ".")),
         currency: form.currency,
         since: form.since,
         until: form.until ? form.until : null,
@@ -629,7 +630,7 @@ export default function AutoContributionsPage() {
       if (!form.target.trim()) {
         errors.target = t.management.manualContributions.validation.target
       }
-      const amountValue = Number.parseFloat(form.amount)
+      const amountValue = Number.parseFloat(form.amount.replace(",", "."))
       if (!form.amount || Number.isNaN(amountValue) || amountValue <= 0) {
         errors.amount = t.management.manualContributions.validation.amount
       }
@@ -663,103 +664,106 @@ export default function AutoContributionsPage() {
 
   const modalSuggestions = useMemo<TargetSuggestion[]>(() => {
     if (!modalForm) return []
-    const entityPositions = positionsData?.positions?.[modalForm.entity_id]
-    if (!entityPositions?.products) return []
+    const entityPositionsList =
+      positionsData?.positions?.[modalForm.entity_id] ?? []
+    if (entityPositionsList.length === 0) return []
 
     const suggestions = new Map<string, TargetSuggestion>()
 
-    switch (modalForm.target_type) {
-      case ContributionTargetType.FUND: {
-        const funds =
-          (
-            entityPositions.products[ProductType.FUND] as
-              | FundInvestments
-              | undefined
-          )?.entries ?? []
-        funds.forEach(fund => {
-          if (!fund.isin) return
-          const value = fund.isin.toUpperCase()
-          if (!suggestions.has(value)) {
-            suggestions.set(value, {
-              value,
-              label: value,
-              secondary: fund.name,
-            })
-          }
-        })
-        break
-      }
-      case ContributionTargetType.STOCK_ETF: {
-        const stocks =
-          (
-            entityPositions.products[ProductType.STOCK_ETF] as
-              | StockInvestments
-              | undefined
-          )?.entries ?? []
-        stocks.forEach(stock => {
-          if (!stock.isin) return
-          const value = stock.isin.toUpperCase()
-          if (!suggestions.has(value)) {
-            const secondary = stock.ticker
-              ? `${stock.name} · ${stock.ticker}`
-              : stock.name
-            suggestions.set(value, {
-              value,
-              label: value,
-              secondary,
-            })
-          }
-        })
-        break
-      }
-      case ContributionTargetType.FUND_PORTFOLIO: {
-        const accounts =
-          (
-            entityPositions.products[ProductType.ACCOUNT] as
-              | Accounts
-              | undefined
-          )?.entries ?? []
-        accounts
-          .filter(
-            account =>
-              account.type === AccountType.FUND_PORTFOLIO && account.iban,
-          )
-          .forEach(account => {
-            const normalized = account.iban!.replace(/\s+/g, "").toUpperCase()
-            if (!suggestions.has(normalized)) {
-              suggestions.set(normalized, {
-                value: normalized,
-                label: normalized,
-                secondary: account.name || undefined,
-              })
-            }
-          })
-        break
-      }
-      case ContributionTargetType.CRYPTO: {
-        const cryptoWallets =
-          (
-            entityPositions.products[ProductType.CRYPTO] as
-              | CryptoCurrencies
-              | undefined
-          )?.entries ?? []
-        cryptoWallets.forEach(wallet => {
-          wallet.assets?.forEach(asset => {
-            if (!asset.symbol || !asset.crypto_asset) return
-            const value = asset.symbol.toUpperCase()
+    for (const entityPositions of entityPositionsList) {
+      switch (modalForm.target_type) {
+        case ContributionTargetType.FUND: {
+          const funds =
+            (
+              entityPositions.products[ProductType.FUND] as
+                | FundInvestments
+                | undefined
+            )?.entries ?? []
+          funds.forEach(fund => {
+            if (!fund.isin) return
+            const value = fund.isin.toUpperCase()
             if (!suggestions.has(value)) {
               suggestions.set(value, {
                 value,
                 label: value,
-                secondary: asset.name || undefined,
+                secondary: fund.name,
               })
             }
           })
-        })
-        break
+          break
+        }
+        case ContributionTargetType.STOCK_ETF: {
+          const stocks =
+            (
+              entityPositions.products[ProductType.STOCK_ETF] as
+                | StockInvestments
+                | undefined
+            )?.entries ?? []
+          stocks.forEach(stock => {
+            if (!stock.isin) return
+            const value = stock.isin.toUpperCase()
+            if (!suggestions.has(value)) {
+              const secondary = stock.ticker
+                ? `${stock.name} · ${stock.ticker}`
+                : stock.name
+              suggestions.set(value, {
+                value,
+                label: value,
+                secondary,
+              })
+            }
+          })
+          break
+        }
+        case ContributionTargetType.FUND_PORTFOLIO: {
+          const accounts =
+            (
+              entityPositions.products[ProductType.ACCOUNT] as
+                | Accounts
+                | undefined
+            )?.entries ?? []
+          accounts
+            .filter(
+              account =>
+                account.type === AccountType.FUND_PORTFOLIO && account.iban,
+            )
+            .forEach(account => {
+              const normalized = account.iban!.replace(/\s+/g, "").toUpperCase()
+              if (!suggestions.has(normalized)) {
+                suggestions.set(normalized, {
+                  value: normalized,
+                  label: normalized,
+                  secondary: account.name || undefined,
+                })
+              }
+            })
+          break
+        }
+        case ContributionTargetType.CRYPTO: {
+          const cryptoWallets =
+            (
+              entityPositions.products[ProductType.CRYPTO] as
+                | CryptoCurrencies
+                | undefined
+            )?.entries ?? []
+          cryptoWallets.forEach(wallet => {
+            wallet.assets?.forEach(asset => {
+              if (!asset.symbol || !asset.crypto_asset) return
+              const value = asset.symbol.toUpperCase()
+              if (!suggestions.has(value)) {
+                suggestions.set(value, {
+                  value,
+                  label: value,
+                  secondary: asset.name || undefined,
+                })
+              }
+            })
+          })
+          break
+        }
+        default:
+          break
       }
-      default:
-        break
     }
 
     return Array.from(suggestions.values())
@@ -1583,14 +1587,17 @@ export default function AutoContributionsPage() {
                             const selectedEntity = financialEntities.find(
                               e => e.id === selectedEntityId,
                             )
-                            const isCryptoWallet =
-                              selectedEntity?.type === EntityType.CRYPTO_WALLET
+                            const isCryptoOnly =
+                              selectedEntity?.type ===
+                                EntityType.CRYPTO_WALLET ||
+                              selectedEntity?.type ===
+                                EntityType.CRYPTO_EXCHANGE
                             setModalForm(prev =>
                               prev
                                 ? {
                                     ...prev,
                                     entity_id: selectedEntityId,
-                                    ...(isCryptoWallet && {
+                                    ...(isCryptoOnly && {
                                       target_type:
                                         ContributionTargetType.CRYPTO,
                                       target_subtype: "",
@@ -1644,9 +1651,10 @@ export default function AutoContributionsPage() {
                           const selectedEntity = financialEntities.find(
                             e => e.id === modalForm.entity_id,
                           )
-                          const isCryptoWallet =
-                            selectedEntity?.type === EntityType.CRYPTO_WALLET
-                          const filteredOptions = isCryptoWallet
+                          const isCryptoOnly =
+                            selectedEntity?.type === EntityType.CRYPTO_WALLET ||
+                            selectedEntity?.type === EntityType.CRYPTO_EXCHANGE
+                          const filteredOptions = isCryptoOnly
                             ? targetSubtypeOptions.filter(
                                 opt =>
                                   opt.targetType ===
@@ -1666,7 +1674,7 @@ export default function AutoContributionsPage() {
                                     ? "CRYPTO"
                                     : modalForm.target_subtype || ""
                               }
-                              disabled={isCryptoWallet}
+                              disabled={isCryptoOnly}
                               onChange={event => {
                                 const value = event.target.value as
                                   | ContributionTargetSubtype
@@ -1809,10 +1817,8 @@ export default function AutoContributionsPage() {
                         <Label htmlFor="amount">{t.management.amount}</Label>
                         <Input
                           id="amount"
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          min="0"
-                          step="0.01"
                           value={modalForm.amount}
                           onChange={event => {
                             setModalForm(prev =>

@@ -92,6 +92,9 @@ export default defineConfig(({ command, mode }) => {
                     outDir: "dist-electron/preload",
                     rollupOptions: {
                       external: electronExternals,
+                      output: {
+                        inlineDynamicImports: true,
+                      },
                     },
                   },
                 },

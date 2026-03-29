@@ -83,6 +83,12 @@ export interface CryptoWalletConnection {
   hd_wallet: HDWallet | null
 }
 
+export interface EntityAccountInfo {
+  id: string
+  name: string | null
+  status: EntityStatus
+}
+
 export interface Entity {
   id: string
   name: string
@@ -106,6 +112,7 @@ export interface Entity {
   natively_supported_products?: ProductType[] | null
   fetchable?: boolean
   allows_hd_wallet?: boolean | null
+  accounts?: EntityAccountInfo[]
 }
 
 export enum EntitySessionCategory {
@@ -277,28 +284,40 @@ export interface LoginRequest {
   credentials: Record<string, string>
   code?: string
   processId?: string
+  token?: string
+  entityAccountId?: string
+  accountName?: string
 }
 
 export interface FetchRequest {
   entity?: string
   features: Feature[]
+  credentials?: Record<string, string>
   code?: string
   processId?: string
   token?: string
   avoidNewLogin?: boolean
   deep?: boolean
+  entityAccountId?: string
 }
 
 export enum LoginConfirmationType {
   IN_APP = "IN_APP",
-  CAPTCHA = "CAPTCHA",
+  CHALLENGE = "CHALLENGE",
+}
+
+export enum ChallengeType {
+  RECAPTCHA = "RECAPTCHA",
+  AWSWAF = "AWSWAF",
 }
 
 export interface LoginResponse {
   code: LoginResultCode
   processId?: string
   confirmationType?: LoginConfirmationType
+  challengeType?: ChallengeType
   details?: any
+  entityAccountId?: string
 }
 
 export interface FetchResponse {
@@ -307,6 +326,7 @@ export interface FetchResponse {
   details?: {
     wait?: number
     processId?: string
+    challengeType?: ChallengeType
     credentials?: Record<string, string>
   }
   data?: any
@@ -363,6 +383,9 @@ export enum LoginResultCode {
   INVALID_CODE = "INVALID_CODE",
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
 
+  // Other unexpected-unsuccessful-controlled results
+  CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE",
+
   // Not setup
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
 
@@ -393,6 +416,7 @@ export enum FetchResultCode {
   INVALID_CODE = "INVALID_CODE",
   INVALID_CREDENTIALS = "INVALID_CREDENTIALS",
   NO_CREDENTIALS_AVAILABLE = "NO_CREDENTIALS_AVAILABLE",
+  NOT_CONNECTED = "NOT_CONNECTED",
   LOGIN_REQUIRED = "LOGIN_REQUIRED",
   CURRENTLY_UNAVAILABLE = "CURRENTLY_UNAVAILABLE",
   UNEXPECTED_LOGIN_ERROR = "UNEXPECTED_LOGIN_ERROR",

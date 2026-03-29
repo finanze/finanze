@@ -345,6 +345,60 @@ export interface Commodities {
   entries: Commodity[]
 }
 
+export enum DerivativeContractType {
+  PERPETUAL = "PERPETUAL",
+  FUTURES = "FUTURES",
+  KNOCK_OUT = "KNOCK_OUT",
+  FACTOR = "FACTOR",
+  WARRANT = "WARRANT",
+  OPTIONS = "OPTIONS",
+  CFD = "CFD",
+  OTHER = "OTHER",
+}
+
+export enum PositionDirection {
+  LONG = "LONG",
+  SHORT = "SHORT",
+}
+
+export enum MarginType {
+  CROSS = "CROSS",
+  ISOLATED = "ISOLATED",
+}
+
+export interface DerivativeDetail {
+  id: string
+  symbol: string
+  underlying_asset: ProductType
+  contract_type: DerivativeContractType
+  direction: PositionDirection
+  size: number
+  entry_price: number
+  currency: string
+  mark_price?: number | null
+  market_value?: number | null
+  unrealized_pnl?: number | null
+  leverage?: number | null
+  margin?: number | null
+  margin_type?: MarginType | null
+  liquidation_price?: number | null
+  isin?: string | null
+  strike_price?: number | null
+  knock_out_price?: number | null
+  ratio?: number | null
+  issuer?: string | null
+  underlying_symbol?: string | null
+  underlying_isin?: string | null
+  expiry?: string | null
+  name?: string | null
+  initial_investment?: number | null
+  source: DataSource
+}
+
+export interface DerivativePositions {
+  entries: DerivativeDetail[]
+}
+
 export type ProductPosition =
   | Accounts
   | Cards
@@ -358,6 +412,7 @@ export type ProductPosition =
   | Crowdlending
   | CryptoCurrencies
   | Commodities
+  | DerivativePositions
 
 export type ProductPositions = Record<ProductType, ProductPosition>
 export type PartialProductPositions = Partial<
@@ -376,10 +431,11 @@ export interface GlobalPosition {
   date: string
   products: ProductPositions
   source: DataSource
+  entity_account_id?: string | null
 }
 
 export interface EntitiesPosition {
-  positions: Record<string, GlobalPosition>
+  positions: Record<string, GlobalPosition[]>
 }
 
 export interface PositionQueryRequest {

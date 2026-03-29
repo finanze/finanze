@@ -13,11 +13,11 @@ class SessionsRepository(SessionsPort):
     def __init__(self, client: DBClient):
         self._db_client = client
 
-    async def get(self, entity_id: UUID) -> Optional[EntitySession]:
+    async def get(self, entity_account_id: UUID) -> Optional[EntitySession]:
         async with self._db_client.read() as cursor:
             await cursor.execute(
                 SessionsQueries.GET,
-                (str(entity_id),),
+                (str(entity_account_id),),
             )
             row = await cursor.fetchone()
             if row:
@@ -31,11 +31,14 @@ class SessionsRepository(SessionsPort):
                 return EntitySession(created_at, expiration, payload)
             return None
 
-    async def save(self, entity_id: UUID, session: EntitySession):
+    async def save(
+        self, entity_account_id: UUID, entity_id: UUID, session: EntitySession
+    ):
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 SessionsQueries.INSERT,
                 (
+                    str(entity_account_id),
                     str(entity_id),
                     session.creation.isoformat(),
                     session.expiration.isoformat() if session.expiration else None,
@@ -43,9 +46,16 @@ class SessionsRepository(SessionsPort):
                 ),
             )
 
-    async def delete(self, entity_id: UUID):
+    async def delete(self, entity_account_id: UUID):
         async with self._db_client.tx() as cursor:
             await cursor.execute(
                 SessionsQueries.DELETE,
+                (str(entity_account_id),),
+            )
+
+    async def delete_by_entity_id(self, entity_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                SessionsQueries.DELETE_BY_ENTITY_ID,
                 (str(entity_id),),
             )

@@ -18,6 +18,7 @@ import {
   FetchResultCode,
   LoginResultCode,
   LoginConfirmationType,
+  ChallengeType,
   EntityStatus,
   EntityType,
   EntityOrigin,
@@ -37,6 +38,7 @@ import {
 } from "@/services/autoRefreshService"
 import { AutoRefreshMode, BackupMode } from "@/types"
 import { useCloud } from "@/context/CloudContext"
+import { getExternalLoginAPI } from "@/lib/externalLogin"
 
 export interface FetchOptions {
   deep?: boolean
@@ -66,6 +68,7 @@ export interface PendingScrapeParams {
   processId: string | null
   pinLength: number
   currentAction: "scrape" | "login"
+  entityAccountId?: string
 }
 
 interface EntityWorkflowContextValue {
@@ -79,10 +82,11 @@ interface EntityWorkflowContextValue {
   clearPinError: () => void
   inAppConfirmation: boolean
   cancelInAppConfirmation: () => void
-  captchaRequired: boolean
-  captchaSiteKey: string | null
-  submitCaptchaToken: (token: string) => void
-  cancelCaptcha: () => void
+  challengeRequired: boolean
+  challengeProcessId: string | null
+  challengeType: ChallengeType | null
+  submitChallengeToken: (token: string) => void
+  cancelChallenge: () => void
   selectedFeatures: Feature[]
   setSelectedFeatures: (features: Feature[]) => void
   fetchOptions: FetchOptions
@@ -91,18 +95,23 @@ interface EntityWorkflowContextValue {
   storedCredentials: Record<string, string> | null
   view: "entities" | "login" | "features" | "external-login"
   setView: (view: "entities" | "login" | "features" | "external-login") => void
-  login: (credentials: Record<string, string>, pin?: string) => Promise<void>
+  login: (
+    credentials: Record<string, string>,
+    pin?: string,
+    accountName?: string,
+  ) => Promise<void>
   scrape: (
     entity: Entity | null,
     features: Feature[],
     options?: FetchOptions,
+    entityAccountId?: string,
   ) => Promise<void>
   resetState: (options?: ResetStateOptions) => void
   startExternalLogin: (
     entity?: Entity,
     credentials?: Record<string, string>,
   ) => Promise<void>
-  disconnectEntity: (entityId: string) => Promise<void>
+  disconnectEntity: (entityId: string, entityAccountId: string) => Promise<void>
   fetchingEntityState: FetchingEntityState
   setFetchingEntityState: (
     state:
@@ -135,6 +144,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     showToast,
     updateEntityStatus,
     updateEntityLastFetch,
+    updateEntityAccount,
     fetchEntities,
     settings,
     entities,
@@ -166,8 +176,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   >("entities")
   const [pinError, setPinError] = useState(false)
   const [inAppConfirmation, setInAppConfirmation] = useState(false)
-  const [captchaRequired, setCaptchaRequired] = useState(false)
-  const [captchaSiteKey, setCaptchaSiteKey] = useState<string | null>(null)
+  const [challengeRequired, setChallengeRequired] = useState(false)
+  const [challengeProcessId, setChallengeProcessId] = useState<string | null>(
+    null,
+  )
+  const [challengeType, setChallengeType] = useState<ChallengeType | null>(null)
   const [fetchingEntityState, setFetchingEntityState] =
     useState<FetchingEntityState>({
       fetchingEntityIds: [],
@@ -177,6 +190,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     active: boolean
     features: Feature[]
     options: FetchOptions
+    entityAccountId?: string
   }>({
     active: false,
     features: [],
@@ -219,13 +233,16 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ((entityId: string) => Promise<void>) | null
   >(null)
 
+  const scrapeRef = useRef<typeof scrape>(null!)
+
   const resetState = useCallback((options: ResetStateOptions = {}) => {
     const { preserveSelectedFeatures = false } = options
     setPinRequired(false)
     setActivePinEntityId(null)
     setInAppConfirmation(false)
-    setCaptchaRequired(false)
-    setCaptchaSiteKey(null)
+    setChallengeRequired(false)
+    setChallengeProcessId(null)
+    setChallengeType(null)
 
     if (!preserveSelectedFeatures) {
       setSelectedFeatures([])
@@ -264,7 +281,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     setView("entities")
   }, [selectedEntity, resetState, setView])
 
-  const cancelCaptcha = useCallback(() => {
+  const cancelChallenge = useCallback(() => {
     resetState()
   }, [resetState])
 
@@ -276,7 +293,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   )
 
   const startExternalLogin = useCallback(
-    async (entityOverride?: Entity, credentials?: Record<string, string>) => {
+    async (
+      entityOverride?: Entity,
+      credentials?: Record<string, string>,
+      flow?: "login" | "fetch",
+    ) => {
       const entityToUse = entityOverride || selectedEntity
 
       if (!entityToUse) {
@@ -285,8 +306,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      if (!window.ipcAPI) {
-        console.error("IPC API not available")
+      const loginAPI = getExternalLoginAPI()
+      if (!loginAPI) {
+        console.error("External login API not available")
         showToast(t.common.incompatibleLoginPlatform, "error")
         return
       }
@@ -294,12 +316,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       try {
         setView("external-login")
 
-        const result = await window.ipcAPI.requestExternalLogin(
-          entityToUse.id,
-          {
-            credentials,
-          },
-        )
+        const result = await loginAPI.requestExternalLogin(entityToUse.id, {
+          credentials,
+          flow,
+        })
 
         if (!result.success) {
           showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
@@ -317,7 +337,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   )
 
   const login = useCallback(
-    async (credentials: Record<string, string>, pin?: string) => {
+    async (
+      credentials: Record<string, string>,
+      pin?: string,
+      accountName?: string,
+    ) => {
       if (!selectedEntity) return
 
       try {
@@ -326,6 +350,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
 
         if (!storedCredentials) {
           setStoredCredentials(credentials)
+        } else {
+          const merged = { ...storedCredentials, ...credentials }
+          if (JSON.stringify(merged) !== JSON.stringify(storedCredentials)) {
+            setStoredCredentials(merged)
+          }
         }
 
         const response = await loginEntity({
@@ -333,6 +362,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           credentials: credentials,
           code: pin,
           processId: processId || undefined,
+          accountName,
         })
 
         if (response.code === "CODE_REQUESTED") {
@@ -352,6 +382,12 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 confirmResponse.code === "RESUMED"
               ) {
                 updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
+                if (confirmResponse.entityAccountId) {
+                  updateEntityAccount(
+                    selectedEntity.id,
+                    confirmResponse.entityAccountId,
+                  )
+                }
                 showToast(
                   t.common.loginSuccessEntity.replace(
                     "{entity}",
@@ -362,12 +398,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 resetState()
                 setView("entities")
               } else {
-                const errorMessage = (
+                const errorMessage =
                   t.errors[confirmResponse.code as keyof typeof t.errors] ||
-                  t.common.loginErrorEntity
-                ).replace("{entity}", selectedEntity.name)
+                  t.common.loginErrorEntity.replace(
+                    "{entity}",
+                    selectedEntity.name,
+                  )
                 showToast(errorMessage, "error")
                 resetState()
+                setView("entities")
               }
             } catch {
               showToast(
@@ -378,31 +417,73 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 "error",
               )
               resetState()
+              setView("entities")
             } finally {
               setIsLoggingIn(false)
             }
             return
           }
+          if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
+            if (
+              response.challengeType === ChallengeType.RECAPTCHA &&
+              response.processId
+            ) {
+              setChallengeProcessId(response.processId)
+              setChallengeType(ChallengeType.RECAPTCHA)
+              setChallengeRequired(true)
+              return
+            }
+          }
           setPinRequired(true)
           setPinLength(selectedEntity.pin?.positions || 4)
         } else if (response.code === "CREATED" || response.code === "RESUMED") {
           updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
-          showToast(
-            t.common.loginSuccessEntity.replace(
-              "{entity}",
-              selectedEntity.name,
-            ),
-            "success",
-          )
-          resetState()
-          setView("entities")
+          if (response.entityAccountId) {
+            updateEntityAccount(selectedEntity.id, response.entityAccountId)
+          }
+
+          if (scrapeManualLogin.current.active) {
+            const features = scrapeManualLogin.current.features
+            const options = scrapeManualLogin.current.options
+            const entityAccountId =
+              response.entityAccountId ||
+              scrapeManualLogin.current.entityAccountId
+
+            scrapeManualLogin.current = {
+              active: false,
+              features: [],
+              options: DEFAULT_FETCH_OPTIONS,
+            }
+
+            try {
+              await scrapeRef.current(
+                selectedEntity,
+                features,
+                options,
+                entityAccountId,
+              )
+            } finally {
+              setView("entities")
+            }
+          } else {
+            showToast(
+              t.common.loginSuccessEntity.replace(
+                "{entity}",
+                selectedEntity.name,
+              ),
+              "success",
+            )
+            resetState()
+            setView("entities")
+          }
         } else if (response.code === "INVALID_CODE") {
           setPinError(true)
           showToast(
-            (
-              t.errors[response.code as keyof typeof t.errors] ||
-              t.common.loginErrorEntity
-            ).replace("{entity}", selectedEntity.name),
+            t.errors[response.code as keyof typeof t.errors] ||
+              t.common.loginErrorEntity.replace(
+                "{entity}",
+                selectedEntity.name,
+              ),
             "error",
           )
         } else {
@@ -420,12 +501,15 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           showToast(finalMessage, "error")
           resetState()
+          setView("entities")
         }
       } catch {
         showToast(
           t.common.loginErrorEntity.replace("{entity}", selectedEntity.name),
           "error",
         )
+        resetState()
+        setView("entities")
       } finally {
         setIsLoggingIn(false)
       }
@@ -481,6 +565,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
       entity: Entity | null,
       features: Feature[],
       options: FetchOptions = DEFAULT_FETCH_OPTIONS,
+      entityAccountId?: string,
+      externalCredentials?: Record<string, string>,
     ) => {
       const { silent = false } = options
 
@@ -527,7 +613,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               }
               throw e
             }
-          } else if (entity.type === EntityType.FINANCIAL_INSTITUTION) {
+          } else if (
+            entity.type === EntityType.FINANCIAL_INSTITUTION ||
+            entity.type === EntityType.CRYPTO_EXCHANGE
+          ) {
+            const accountId = entityAccountId || entity.accounts?.[0]?.id
             response = await fetchFinancialEntity({
               entity: entity.id,
               features: features,
@@ -536,6 +626,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               avoidNewLogin: options.avoidNewLogin,
               code: options.code,
               token: options.token,
+              entityAccountId: accountId,
+              credentials: externalCredentials,
             })
           } else {
             response = await fetchCryptoEntity({
@@ -563,9 +655,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
             }
             return
           }
-          if (response.confirmationType === LoginConfirmationType.CAPTCHA) {
-            const siteKey = response.details?.processId || null
-            if (siteKey && entity) {
+          if (response.confirmationType === LoginConfirmationType.CHALLENGE) {
+            const processIdValue = response.details?.processId || null
+            const challengeTypeValue = response.details?.challengeType || null
+            if (processIdValue && entity) {
               setSelectedEntity(entity)
               setSelectedFeatures(features)
               setFetchOptions(current => ({
@@ -574,8 +667,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
                 avoidNewLogin: options.avoidNewLogin,
               }))
               setCurrentAction("scrape")
-              setCaptchaSiteKey(siteKey)
-              setCaptchaRequired(true)
+              setChallengeProcessId(processIdValue)
+              setChallengeType(challengeTypeValue)
+              setChallengeRequired(true)
             }
           } else if (entity) {
             const processIdValue = response.details?.processId || null
@@ -590,6 +684,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               processId: processIdValue,
               pinLength: pinLen,
               currentAction: "scrape",
+              entityAccountId,
             }
 
             const hadPendingBefore = pendingScrapeParamsRef.current.size > 0
@@ -613,9 +708,14 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
               active: true,
               features: features,
               options: options,
+              entityAccountId,
             }
 
-            await startExternalLogin(entity, response.details?.credentials)
+            await startExternalLogin(
+              entity,
+              response.details?.credentials,
+              "fetch",
+            )
           } else {
             console.debug("MANUAL_LOGIN response without credentials or entity")
             notify(t.common.fetchError, "error")
@@ -750,10 +850,9 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
           setPinError(true)
           const entityName = entity?.name || t.common.crypto
-          const errorMessage = (
+          const errorMessage =
             t.errors[response.code as keyof typeof t.errors] ||
-            t.common.fetchErrorEntity
-          ).replace("{entity}", entityName)
+            t.common.fetchErrorEntity.replace("{entity}", entityName)
           notify(errorMessage, "error")
         } else if (response.code === FetchResultCode.NOT_LOGGED) {
           if (!silent) {
@@ -855,17 +954,83 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ],
   )
 
-  const submitCaptchaToken = useCallback(
+  scrapeRef.current = scrape
+
+  const submitChallengeToken = useCallback(
     (token: string) => {
       if (!selectedEntity) return
-      setCaptchaRequired(false)
-      setCaptchaSiteKey(null)
-      scrape(selectedEntity, selectedFeatures, {
-        ...fetchOptions,
-        token: token,
-      })
+      setChallengeRequired(false)
+      setChallengeProcessId(null)
+      setChallengeType(null)
+      if (currentAction === "login" && storedCredentials) {
+        loginEntity({
+          entity: selectedEntity.id,
+          credentials: storedCredentials,
+          token: token,
+        })
+          .then(response => {
+            if (response.code === "CREATED" || response.code === "RESUMED") {
+              updateEntityStatus(selectedEntity.id, EntityStatus.CONNECTED)
+              if (response.entityAccountId) {
+                updateEntityAccount(selectedEntity.id, response.entityAccountId)
+              }
+              showToast(
+                t.common.loginSuccessEntity.replace(
+                  "{entity}",
+                  selectedEntity.name,
+                ),
+                "success",
+              )
+              resetState()
+              setView("entities")
+            } else if (response.code === "CODE_REQUESTED") {
+              setProcessId(response.processId || null)
+              setPinRequired(true)
+              setPinLength(selectedEntity.pin?.positions || 4)
+            } else {
+              showToast(
+                t.common.loginErrorEntity.replace(
+                  "{entity}",
+                  selectedEntity.name,
+                ),
+                "error",
+              )
+              resetState()
+            }
+          })
+          .catch(() => {
+            showToast(
+              t.common.loginErrorEntity.replace(
+                "{entity}",
+                selectedEntity.name,
+              ),
+              "error",
+            )
+            resetState()
+          })
+          .finally(() => {
+            setIsLoggingIn(false)
+          })
+      } else {
+        scrape(selectedEntity, selectedFeatures, {
+          ...fetchOptions,
+          token: token,
+        })
+      }
     },
-    [selectedEntity, selectedFeatures, fetchOptions, scrape],
+    [
+      currentAction,
+      storedCredentials,
+      selectedEntity,
+      selectedFeatures,
+      fetchOptions,
+      scrape,
+      resetState,
+      setView,
+      showToast,
+      t,
+      updateEntityStatus,
+    ],
   )
 
   const handleScrapeManualLoginCompletion = useCallback(
@@ -884,8 +1049,17 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           loginResponse.code === LoginResultCode.CREATED ||
           loginResponse.code === LoginResultCode.RESUMED
         ) {
+          if (loginResponse.entityAccountId) {
+            updateEntityAccount(
+              selectedEntity.id,
+              loginResponse.entityAccountId,
+            )
+          }
           const features = scrapeManualLogin.current.features
           const options = scrapeManualLogin.current.options
+          const entityAccountId =
+            loginResponse.entityAccountId ||
+            scrapeManualLogin.current.entityAccountId
 
           scrapeManualLogin.current = {
             active: false,
@@ -894,16 +1068,90 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
           }
 
           try {
-            await scrape(selectedEntity, features, options)
+            await scrape(selectedEntity, features, options, entityAccountId)
           } finally {
             setView("entities")
           }
+        } else if (loginResponse.code === LoginResultCode.CODE_REQUESTED) {
+          setProcessId(loginResponse.processId || null)
+          setCurrentAction("login")
+          setStoredCredentials(credentials)
+          if (loginResponse.confirmationType === LoginConfirmationType.IN_APP) {
+            setInAppConfirmation(true)
+            try {
+              const confirmResponse = await loginEntity({
+                entity: selectedEntity.id,
+                credentials,
+                processId: loginResponse.processId || undefined,
+              })
+              if (
+                confirmResponse.code === LoginResultCode.CREATED ||
+                confirmResponse.code === LoginResultCode.RESUMED
+              ) {
+                if (confirmResponse.entityAccountId) {
+                  updateEntityAccount(
+                    selectedEntity.id,
+                    confirmResponse.entityAccountId,
+                  )
+                }
+                const features = scrapeManualLogin.current.features
+                const options = scrapeManualLogin.current.options
+                const entityAccountId =
+                  confirmResponse.entityAccountId ||
+                  scrapeManualLogin.current.entityAccountId
+
+                scrapeManualLogin.current = {
+                  active: false,
+                  features: [],
+                  options: DEFAULT_FETCH_OPTIONS,
+                }
+
+                try {
+                  await scrape(
+                    selectedEntity,
+                    features,
+                    options,
+                    entityAccountId,
+                  )
+                } finally {
+                  setView("entities")
+                }
+              } else {
+                showToast(
+                  t.errors[confirmResponse.code as keyof typeof t.errors] ||
+                    t.common.loginError,
+                  "error",
+                )
+                resetState()
+                setView("entities")
+              }
+            } catch {
+              showToast(t.common.loginError, "error")
+              resetState()
+              setView("entities")
+            }
+          } else if (
+            loginResponse.confirmationType ===
+              LoginConfirmationType.CHALLENGE &&
+            loginResponse.challengeType === ChallengeType.RECAPTCHA &&
+            loginResponse.processId
+          ) {
+            setChallengeProcessId(loginResponse.processId)
+            setChallengeType(ChallengeType.RECAPTCHA)
+            setChallengeRequired(true)
+          } else {
+            setPinRequired(true)
+            setPinLength(selectedEntity.pin?.positions || 4)
+          }
         } else {
+          console.debug(
+            "[ExternalLogin] loginEntity returned:",
+            loginResponse.code,
+            "-> resetting to entities",
+          )
           showToast(
-            (
-              t.errors[loginResponse.code as keyof typeof t.errors] ||
-              t.common.loginError
-            ).replace("{entity}", selectedEntity.name),
+            t.errors[loginResponse.code as keyof typeof t.errors] ||
+              t.common.loginError,
             "error",
           )
           resetState()
@@ -918,66 +1166,123 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         setIsLoggingIn(false)
       }
     },
-    [resetState, scrape, selectedEntity, setView, showToast, t],
+    [
+      resetState,
+      scrape,
+      selectedEntity,
+      setView,
+      showToast,
+      t,
+      updateEntityStatus,
+    ],
   )
 
   useEffect(() => {
-    if (typeof window === "undefined" || !window.ipcAPI) {
+    const loginAPI = getExternalLoginAPI()
+    if (!loginAPI) {
       return
     }
 
-    const cleanupListener = window.ipcAPI.onCompletedExternalLogin(
+    const cleanupListener = loginAPI.onCompletedExternalLogin(
       async (id, result) => {
-        console.debug("External login completed:", id)
+        console.debug(
+          "[ExternalLogin] completed:",
+          id,
+          "success:",
+          result.success,
+          "scrapeManualLogin:",
+          scrapeManualLogin.current.active,
+          "selectedEntity:",
+          selectedEntity?.id,
+        )
 
         if (!selectedEntity) {
-          console.error("No selected entity when external login completed")
+          console.error("[ExternalLogin] No selected entity")
           showToast(t.common.loginError, "error")
           resetState()
           setView("entities")
           return
         }
 
-        if (result.success) {
-          if (scrapeManualLogin.current.active) {
-            handleScrapeManualLoginCompletion(result.credentials)
-          } else {
-            const visibleCredentials = Object.fromEntries(
-              Object.entries(selectedEntity.credentials_template!).filter(
-                ([, type]) =>
-                  type !== CredentialType.INTERNAL &&
-                  type !== CredentialType.INTERNAL_TEMP,
-              ),
-            )
+        try {
+          if (result.success) {
+            if (result.flow === "fetch" && scrapeManualLogin.current.active) {
+              // Fetch flow: skip loginEntity(), go straight to scrape with credentials
+              console.debug(
+                "[ExternalLogin] fetch flow: calling scrape directly with credentials",
+              )
+              const features = scrapeManualLogin.current.features
+              const options = scrapeManualLogin.current.options
+              const entityAccountId = scrapeManualLogin.current.entityAccountId
 
-            const allCredentialsProvided = Object.keys(
-              visibleCredentials,
-            ).every(key => result.credentials[key])
+              scrapeManualLogin.current = {
+                active: false,
+                features: [],
+                options: DEFAULT_FETCH_OPTIONS,
+              }
 
-            if (allCredentialsProvided) {
               try {
-                await login(result.credentials)
+                await scrape(
+                  selectedEntity,
+                  features,
+                  options,
+                  entityAccountId,
+                  result.credentials,
+                )
               } finally {
                 setView("entities")
               }
+            } else if (scrapeManualLogin.current.active) {
+              console.debug(
+                "[ExternalLogin] calling handleScrapeManualLoginCompletion",
+              )
+              await handleScrapeManualLoginCompletion(result.credentials)
+              console.debug(
+                "[ExternalLogin] handleScrapeManualLoginCompletion done",
+              )
             } else {
-              setStoredCredentials(result.credentials)
-              setView("login")
+              const visibleCredentials = Object.fromEntries(
+                Object.entries(selectedEntity.credentials_template!).filter(
+                  ([, type]) =>
+                    type !== CredentialType.INTERNAL &&
+                    type !== CredentialType.INTERNAL_TEMP,
+                ),
+              )
+
+              const allCredentialsProvided = Object.keys(
+                visibleCredentials,
+              ).every(key => result.credentials[key])
+
+              if (allCredentialsProvided) {
+                await login(result.credentials)
+              } else {
+                setStoredCredentials(result.credentials)
+                setView("login")
+              }
             }
+          } else {
+            showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+            resetState()
+            setView("entities")
           }
-        } else {
-          showToast(t.errors.EXTERNAL_LOGIN_FAILED, "error")
+        } catch (error) {
+          console.error("[ExternalLogin] completion handler error:", error)
           resetState()
           setView("entities")
         }
       },
     )
 
+    console.debug(
+      "[ExternalLogin] useEffect registering listener, selectedEntity:",
+      selectedEntity?.id,
+    )
     return cleanupListener
   }, [
     handleScrapeManualLoginCompletion,
     login,
     resetState,
+    scrape,
     selectedEntity,
     setView,
     showToast,
@@ -1040,12 +1345,12 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   }, [entitiesLoaded, entities, settings, scrape, backupMode])
 
   const disconnectEntityHandler = useCallback(
-    async (entityId: string) => {
+    async (entityId: string, entityAccountId: string) => {
       if (!isAuthenticated) return
 
       try {
         setIsLoggingIn(true)
-        await disconnectEntity(entityId)
+        await disconnectEntity(entityAccountId)
 
         updateEntityStatus(entityId, EntityStatus.DISCONNECTED)
         showToast(t.common.disconnectSuccess, "success")
@@ -1087,10 +1392,11 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         clearPinError,
         inAppConfirmation,
         cancelInAppConfirmation,
-        captchaRequired,
-        captchaSiteKey,
-        submitCaptchaToken,
-        cancelCaptcha,
+        challengeRequired,
+        challengeProcessId,
+        challengeType,
+        submitChallengeToken,
+        cancelChallenge,
         selectedFeatures,
         setSelectedFeatures,
         fetchOptions,

@@ -8,6 +8,8 @@ __pycache__
 /build
 /dist
 .coverage
+*/node_modules
+*/test-results
 
 .DS_Store
 .idea

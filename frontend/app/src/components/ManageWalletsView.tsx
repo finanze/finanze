@@ -117,10 +117,13 @@ export function ManageWalletsView({
 
     setIsLoading(true)
 
-    const cryptoProduct =
-      positionsData?.positions[entity.id]?.products[ProductType.CRYPTO]
-    const positionWallets =
-      (cryptoProduct as { entries: CryptoCurrencyWallet[] })?.entries || []
+    const entityPositions = positionsData?.positions[entity.id] ?? []
+    const positionWallets = entityPositions.flatMap(pos => {
+      const cryptoProduct = pos.products[ProductType.CRYPTO]
+      return cryptoProduct && "entries" in cryptoProduct
+        ? (cryptoProduct.entries as CryptoCurrencyWallet[])
+        : []
+    })
 
     const connectedWallets = entity.connected || []
     const combinedWallets: WalletEntry[] = []

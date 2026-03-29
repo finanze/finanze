@@ -117,8 +117,8 @@ export async function cancelEntityLogin(entityId: string): Promise<void> {
   ).post("/entities/login/cancel", { entity: entityId })
 }
 
-export async function disconnectEntity(entityId: string): Promise<void> {
-  await (await getApiClient()).delete("/entities/login", { id: entityId })
+export async function disconnectEntity(entityAccountId: string): Promise<void> {
+  await (await getApiClient()).delete("/entities/login", { entityAccountId })
 }
 
 export async function fetchFinancialEntity(
@@ -376,9 +376,9 @@ export async function signup(
       return { success: false }
     }
     if (error.status === 500) {
-      throw new Error("Server error")
+      throw new Error("Server error", { cause: error })
     }
-    throw new Error("Signup failed")
+    throw new Error("Signup failed", { cause: error })
   }
 }
 

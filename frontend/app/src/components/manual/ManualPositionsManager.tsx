@@ -313,15 +313,19 @@ export function ManualPositionsManager({
         return []
       }
 
-      const entityPosition = positionsData.positions[entityId]
-      if (!entityPosition) return []
+      const entityPositions = positionsData.positions[entityId] ?? []
+      const allAccountEntries: Account[] = []
+      entityPositions.forEach(entityPosition => {
+        const product = entityPosition.products[ProductType.ACCOUNT] as
+          | { entries?: Account[] }
+          | undefined
+        if (product?.entries?.length) {
+          allAccountEntries.push(...product.entries)
+        }
+      })
+      if (allAccountEntries.length === 0) return []
 
-      const product = entityPosition.products[ProductType.ACCOUNT] as
-        | { entries?: Account[] }
-        | undefined
-      if (!product?.entries?.length) return []
-
-      const options = product.entries
+      const options = allAccountEntries
         .filter(account => {
           if (!account.id) return false
           const source = account.source ?? DataSource.REAL
@@ -364,16 +368,19 @@ export function ManualPositionsManager({
         return []
       }
 
-      const entityPosition = positionsData?.positions
-        ? positionsData.positions[entityId]
-        : undefined
+      const entityPositions = positionsData?.positions
+        ? (positionsData.positions[entityId] ?? [])
+        : []
 
-      const product = entityPosition
-        ? (entityPosition.products[ProductType.FUND_PORTFOLIO] as
-            | { entries?: FundPortfolio[] }
-            | undefined)
-        : undefined
-      const entries = product?.entries ?? []
+      const entries: FundPortfolio[] = []
+      entityPositions.forEach(entityPosition => {
+        const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
+          | { entries?: FundPortfolio[] }
+          | undefined
+        if (product?.entries) {
+          entries.push(...product.entries)
+        }
+      })
 
       const isAllowedPortfolioSource = (source?: DataSource | null) => {
         const resolved = source ?? DataSource.REAL
@@ -1045,24 +1052,30 @@ export function ManualPositionsManager({
       })
 
       if (positionsData?.positions) {
-        const entityPortfolios = positionsData.positions[accountDraft.entityId]
-          ?.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
-        const entries = entityPortfolios?.entries ?? []
-        entries.forEach((portfolio, index) => {
-          if (portfolio.source !== DataSource.MANUAL) {
-            return
-          }
-          if (portfolio.id && deletedFundPortfolioIdSet.has(portfolio.id)) {
-            return
-          }
-          if (matches(portfolio.account_id) || matches(portfolio.account?.id)) {
-            const key = portfolio.id
-              ? `position:${portfolio.id}`
-              : `position:${accountDraft.entityId}:${index}`
-            seen.add(key)
-          }
+        const entityPositions =
+          positionsData.positions[accountDraft.entityId] ?? []
+        entityPositions.forEach(entityPosition => {
+          const entityPortfolios = entityPosition.products[
+            ProductType.FUND_PORTFOLIO
+          ] as { entries?: FundPortfolio[] } | undefined
+          const entries = entityPortfolios?.entries ?? []
+          entries.forEach((portfolio, index) => {
+            if (portfolio.source !== DataSource.MANUAL) {
+              return
+            }
+            if (portfolio.id && deletedFundPortfolioIdSet.has(portfolio.id)) {
+              return
+            }
+            if (
+              matches(portfolio.account_id) ||
+              matches(portfolio.account?.id)
+            ) {
+              const key = portfolio.id
+                ? `position:${portfolio.id}`
+                : `position:${accountDraft.entityId}:${index}`
+              seen.add(key)
+            }
+          })
         })
       }
 
@@ -2057,6 +2070,7 @@ export function ManualPositionsControls({ className }: { className?: string }) {
             {cancelLabel}
           </Button>
           <Button
+            data-testid="save-positions"
             size="sm"
             onClick={requestSave}
             disabled={isSaving || (!hasLocalChanges && !isSaving)}

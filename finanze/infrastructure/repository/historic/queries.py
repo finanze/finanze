@@ -8,12 +8,14 @@ class HistoricQueries(str, Enum):
                                          last_tx_date, effective_maturity, net_return, fees,
                                          retentions, interests, state, entity_id, product_type,
                                          interest_rate, gross_interest_rate, maturity,
-                                         extended_maturity, type, business_type, created_at)
+                                         extended_maturity, type, business_type, created_at,
+                                         entity_account_id)
         VALUES (:id, :name, :invested, :repaid, :returned, :currency, :last_invest_date,
                 :last_tx_date, :effective_maturity, :net_return, :fees,
                 :retentions, :interests, :state, :entity_id, :product_type,
                 :interest_rate, :gross_interest_rate, :maturity,
-                :extended_maturity, :type, :business_type, :created_at)
+                :extended_maturity, :type, :business_type, :created_at,
+                :entity_account_id)
     """
 
     INSERT_HISTORIC_TX = """
@@ -37,7 +39,9 @@ class HistoricQueries(str, Enum):
         WHERE h_txs.historic_entry_id IN ({placeholders})
     """
 
-    DELETE_BY_ENTITY = "DELETE FROM investment_historic WHERE entity_id = ?"
+    DELETE_BY_ENTITY_ACCOUNT = (
+        "DELETE FROM investment_historic WHERE entity_account_id = ?"
+    )
 
     GET_BY_FILTERS_BASE = """
         SELECT h.*,
@@ -49,4 +53,6 @@ class HistoricQueries(str, Enum):
                e.icon_url   AS icon_url
         FROM investment_historic h
             JOIN entities e ON h.entity_id = e.id
+            LEFT JOIN entity_accounts ea ON h.entity_account_id = ea.id
+        WHERE (h.entity_account_id IS NULL OR ea.deleted_at IS NULL)
     """

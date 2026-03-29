@@ -326,3 +326,8 @@ sketch
 
 /dist-electron
 /release
+
+# gomobile build artifacts (tls-client)
+native/tlsclient/build/
+ios/App/Tlsclient.xcframework/
+android/app/libs/tlsclient.aar

@@ -2,6 +2,7 @@ import asyncio
 import time
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from finanze.app_core import MobileAppCore
 
@@ -83,17 +84,29 @@ class DeferredComponents:
         )
         from infrastructure.client.entity.financial.myinvestor import MyInvestorScraper
         from infrastructure.client.entity.financial.sego.sego_fetcher import SegoFetcher
-        from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
-            TradeRepublicFetcher,
-        )
         from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
             UrbanitaeFetcher,
         )
         from infrastructure.client.entity.financial.unicaja.unicaja_fetcher import (
             UnicajaFetcher,
         )
+        from infrastructure.client.entity.financial.tr.trade_republic_fetcher import (
+            TradeRepublicFetcher,
+        )
+        from infrastructure.client.entity.financial.ing.ing_fetcher import (
+            INGFetcher,
+        )
+        from infrastructure.client.entity.financial.mintos.mintos_fetcher import (
+            MintosFetcher,
+        )
+        from infrastructure.client.entity.financial.ibkr.ibkr_fetcher import (
+            IBKRFetcher,
+        )
         from infrastructure.client.entity.financial.wecity.wecity_fetcher import (
             WecityFetcher,
+        )
+        from finanze.infrastructure.client.entity.exchange.binance.binance_fetcher import (
+            BinanceFetcher,
         )
         from infrastructure.client.instrument.instrument_provider_adapter import (
             InstrumentProviderAdapter,
@@ -132,6 +145,9 @@ class DeferredComponents:
         )
         from infrastructure.repository.credentials.credentials_repository import (
             CredentialsRepository,
+        )
+        from infrastructure.repository.entity_account.entity_account_repository import (
+            EntityAccountRepository,
         )
         from infrastructure.repository.crypto.crypto_asset_repository import (
             CryptoAssetRegistryRepository,
@@ -327,10 +343,14 @@ class DeferredComponents:
             domain.native_entities.URBANITAE: UrbanitaeFetcher(),
             domain.native_entities.WECITY: WecityFetcher(),
             domain.native_entities.SEGO: SegoFetcher(),
+            domain.native_entities.MINTOS: MintosFetcher(),
             domain.native_entities.F24: F24Fetcher(),
             domain.native_entities.INDEXA_CAPITAL: IndexaCapitalFetcher(),
+            domain.native_entities.ING: INGFetcher(),
             domain.native_entities.CAJAMAR: CajamarFetcher(),
             domain.native_entities.UNICAJA: UnicajaFetcher(use_mobile_client=True),
+            domain.native_entities.IBKR: IBKRFetcher(),
+            domain.native_entities.BINANCE: BinanceFetcher(),
         }
         external_integrations = {
             ExternalIntegrationId.ETHERSCAN: etherscan_client,
@@ -364,6 +384,7 @@ class DeferredComponents:
         ext_ent_repo = ExternalEntityRepository(client=db_client)
         temp_repo = TemplateRepository(client=db_client)
         creds_repo = CredentialsRepository(client=db_client)
+        entity_account_repo = EntityAccountRepository(client=db_client)
 
         public_keychain_data_repo = PublicKeychainRepository(client=db_client)
         public_keychain_fetcher = PublicKeychainClient()
@@ -403,6 +424,7 @@ class DeferredComponents:
             virtual_repo,
             financial_entity_fetchers,
             {},
+            entity_account_repo,
         )
         self.add_entity_creds = AddEntityCredentialsImpl(
             financial_entity_fetchers,
@@ -410,9 +432,16 @@ class DeferredComponents:
             sessions_repo,
             tx_handler,
             public_keychain,
+            entity_account_repo,
         )
         self.disconnect_entity = DisconnectEntityImpl(
-            creds_repo, sessions_repo, tx_handler
+            creds_repo,
+            sessions_repo,
+            tx_handler,
+            entity_account_repo,
+            tx_repo,
+            auto_repo,
+            historic_repo,
         )
 
         self.fetch_financial = FetchFinancialDataImpl(
@@ -429,6 +458,7 @@ class DeferredComponents:
             crypto_info,
             tx_handler,
             public_keychain,
+            entity_account_repo,
         )
         self.fetch_crypto = FetchCryptoDataImpl(
             position_repo,

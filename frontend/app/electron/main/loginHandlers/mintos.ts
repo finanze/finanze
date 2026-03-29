@@ -29,6 +29,7 @@ export async function promptLogin(
   const result: LoginHandlerResult = {
     success: false,
     credentials: {},
+    flow: request.flow,
   }
 
   mintosSession.webRequest.onSendHeaders(

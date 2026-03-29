@@ -11,7 +11,7 @@ async def delete_real_estate(
 ):
     try:
         real_estate_id = UUID(real_estate_id)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return jsonify(
             {"code": "INVALID_REQUEST", "message": "Invalid real estate ID"}
         ), 400

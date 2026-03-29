@@ -139,7 +139,7 @@ def _deserialize_rental_data(data: Optional[str | bytes]) -> Optional[RentalData
         return None
     try:
         parsed = json.loads(data)
-    except (TypeError, json.JSONDecodeError):
+    except TypeError, json.JSONDecodeError:
         return None
     amortizations_list = parsed.get("amortizations")
     amortizations = None

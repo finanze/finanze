@@ -103,18 +103,27 @@ class PositionWriteQueries(str, Enum):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
+    INSERT_DERIVATIVE_POSITION = """
+        INSERT INTO derivative_positions (id, global_position_id, symbol, underlying_asset,
+                                          contract_type, direction, size, entry_price, currency,
+                                          mark_price, market_value, unrealized_pnl, leverage,
+                                          margin, margin_type, liquidation_price, isin,
+                                          strike_price, knock_out_price, ratio, issuer,
+                                          underlying_symbol, underlying_isin, expiry, name,
+                                          initial_investment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
 
 class PositionQueries(str, Enum):
-    INSERT_GLOBAL_POSITION = (
-        "INSERT INTO global_positions (id, date, entity_id, source) VALUES (?, ?, ?, ?)"
-    )
+    INSERT_GLOBAL_POSITION = "INSERT INTO global_positions (id, date, entity_id, source, entity_account_id) VALUES (?, ?, ?, ?, ?)"
 
     REAL_GROUPED_BY_ENTITY_BASE = """
         WITH latest_positions AS (
-            SELECT entity_id, MAX(date) as latest_date
+            SELECT entity_id, COALESCE(entity_account_id, '') as ea_key, MAX(date) as latest_date
             FROM global_positions
             WHERE source = 'REAL'
-            GROUP BY entity_id
+            GROUP BY entity_id, ea_key
         )
         SELECT gp.*,
                e.id         AS entity_id,
@@ -124,9 +133,13 @@ class PositionQueries(str, Enum):
                e.origin     as entity_origin,
                e.icon_url   as icon_url
         FROM global_positions gp
-            JOIN latest_positions lp ON gp.entity_id = lp.entity_id AND gp.date = lp.latest_date
+            JOIN latest_positions lp ON gp.entity_id = lp.entity_id
+                AND COALESCE(gp.entity_account_id, '') = lp.ea_key
+                AND gp.date = lp.latest_date
             JOIN entities e ON gp.entity_id = e.id
+            LEFT JOIN entity_accounts ea ON gp.entity_account_id = ea.id
         WHERE gp.source = 'REAL'
+            AND (gp.entity_account_id IS NULL OR ea.deleted_at IS NULL)
     """
 
     NON_REAL_GROUPED_BY_ENTITY_BASE = """
@@ -238,6 +251,10 @@ class PositionQueries(str, Enum):
 
     GET_COMMODITIES_BY_GLOBAL_POSITION_ID = (
         "SELECT * FROM commodity_positions WHERE global_position_id = ?"
+    )
+
+    GET_DERIVATIVES_BY_GLOBAL_POSITION_ID = (
+        "SELECT * FROM derivative_positions WHERE global_position_id = ?"
     )
 
     GET_ENTITY_ID_FROM_GLOBAL_POSITION_ID = (

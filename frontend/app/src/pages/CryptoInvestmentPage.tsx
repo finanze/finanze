@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from "react"
+import { createPortal } from "react-dom"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
 import { useAppContext } from "@/context/AppContext"
@@ -11,6 +12,7 @@ import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import {
   formatCurrency,
+  formatGainLoss,
   formatNumber,
   formatPercentage,
 } from "@/lib/formatters"
@@ -28,6 +30,10 @@ import {
   CryptoCurrencyWallet,
   CryptoCurrencyPosition,
   CryptoCurrencyType,
+  DerivativeDetail,
+  DerivativePositions,
+  PositionDirection,
+  MarginType,
 } from "@/types/position"
 import {
   DataSource,
@@ -47,6 +53,11 @@ import {
   Trash2,
   MoreVertical,
   Layers,
+  FlaskConical,
+  X,
+  DollarSign,
+  ShieldAlert,
+  Tag,
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
@@ -68,6 +79,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/Popover"
+import { cn } from "@/lib/utils"
+
+const STABLECOIN_CURRENCIES: Record<string, string> = { BNFCR: "USD" }
+const normalizeDerivativeCurrency = (currency: string) =>
+  STABLECOIN_CURRENCIES[currency] || currency
 
 interface WalletAssetView {
   asset: CryptoCurrencyPosition
@@ -95,6 +111,8 @@ interface WalletWithComputed {
   tokenAssets: WalletAssetView[]
   totalValue: number
   totalInitialInvestment: number
+  accountId?: string | null
+  accountName?: string | null
 }
 
 interface EntityWalletGroup {
@@ -456,6 +474,8 @@ function CryptoInvestmentContent({
   const [deleteWalletEntityId, setDeleteWalletEntityId] = useState<
     string | null
   >(null)
+  const [selectedDerivative, setSelectedDerivative] =
+    useState<DerivativeDetail | null>(null)
   const registerAssetRef = useCallback(
     (identifier: string, element: HTMLDivElement | null) => {
       if (!identifier) return
@@ -470,6 +490,98 @@ function CryptoInvestmentContent({
 
   const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const [includeDerivatives, setIncludeDerivatives] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("cryptoIncludeDerivatives")
+        if (raw !== null) return JSON.parse(raw)
+      } catch {
+        /* ignore */
+      }
+    }
+    return true
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "cryptoIncludeDerivatives",
+        JSON.stringify(includeDerivatives),
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [includeDerivatives])
+
+  interface CryptoDerivativeEntry {
+    derivative: DerivativeDetail
+    entityName: string
+    entityId: string
+  }
+
+  const cryptoDerivatives = useMemo<CryptoDerivativeEntry[]>(() => {
+    if (!positionsData?.positions) return []
+    const entries: CryptoDerivativeEntry[] = []
+    Object.values(positionsData.positions)
+      .flat()
+      .forEach(entityPosition => {
+        const derivProduct = entityPosition.products[ProductType.DERIVATIVE] as
+          | DerivativePositions
+          | undefined
+        if (
+          !derivProduct ||
+          !("entries" in derivProduct) ||
+          derivProduct.entries.length === 0
+        )
+          return
+        derivProduct.entries.forEach((d: DerivativeDetail) => {
+          if (d.underlying_asset === ProductType.CRYPTO) {
+            entries.push({
+              derivative: d,
+              entityName: entityPosition.entity?.name || "",
+              entityId: entityPosition.entity?.id || "",
+            })
+          }
+        })
+      })
+    return entries
+  }, [positionsData])
+
+  const derivativesTotalValue = useMemo(() => {
+    if (!includeDerivatives) return 0
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    return cryptoDerivatives.reduce((sum, entry) => {
+      const mv = entry.derivative.market_value || 0
+      const currency = normalizeDerivativeCurrency(entry.derivative.currency)
+      return sum + convertCurrency(mv, currency, targetCurrency, rates)
+    }, 0)
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+  ])
+
+  const derivativeValueByEntity = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!includeDerivatives) return map
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    cryptoDerivatives.forEach(({ derivative, entityId }) => {
+      const mv = derivative.market_value || 0
+      const currency = normalizeDerivativeCurrency(derivative.currency)
+      const converted = convertCurrency(mv, currency, targetCurrency, rates)
+      map.set(entityId, (map.get(entityId) || 0) + converted)
+    })
+    return map
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+  ])
+
   const walletGroups = useMemo<EntityWalletGroup[]>(() => {
     if (!positionsData?.positions) {
       return []
@@ -480,8 +592,9 @@ function CryptoInvestmentContent({
     const hideUnknownTokens =
       settings.assets?.crypto?.hideUnknownTokens ?? false
 
-    return Object.values(positionsData.positions).reduce<EntityWalletGroup[]>(
-      (acc, entityPosition) => {
+    return Object.values(positionsData.positions)
+      .flat()
+      .reduce<EntityWalletGroup[]>((acc, entityPosition) => {
         const entityId = entityPosition.entity?.id
         const entityName = entityPosition.entity?.name
 
@@ -505,6 +618,10 @@ function CryptoInvestmentContent({
         const entityIconUrl = entityData?.icon_url
         const isCryptoWalletEntity = entityType === "CRYPTO_WALLET"
         const nativeEntityIconPath = `entities/${entityId}.png`
+
+        const accountId = entityPosition.entity_account_id ?? null
+        const accountInfo = entityData?.accounts?.find(a => a.id === accountId)
+        const accountName = accountInfo?.name ?? null
 
         const wallets = (cryptoProduct.entries as CryptoCurrencyWallet[])
           .map(wallet => {
@@ -628,11 +745,9 @@ function CryptoInvestmentContent({
               .filter((view): view is WalletAssetView => view !== null)
 
             const sortedAssetViews = [...assetViews].sort((a, b) => {
-              // Prioritize by value availability: assets with available values come first
               if (a.valueAvailable !== b.valueAvailable) {
                 return a.valueAvailable ? -1 : 1
               }
-              // Both available or both unavailable: sort by value descending
               return b.value - a.value
             })
 
@@ -655,36 +770,49 @@ function CryptoInvestmentContent({
               tokenAssets,
               totalValue,
               totalInitialInvestment,
+              accountId,
+              accountName,
             }
           })
           .sort((a, b) => b.totalValue - a.totalValue)
 
-        const entityTotalValue = wallets.reduce(
-          (sum, wallet) => sum + wallet.totalValue,
-          0,
-        )
-        const entityTotalInitialInvestment = wallets.reduce(
-          (sum, wallet) => sum + wallet.totalInitialInvestment,
-          0,
-        )
+        const existingGroup = acc.find(g => g.entity.id === entityId)
+        if (existingGroup) {
+          existingGroup.wallets.push(...wallets)
+          existingGroup.wallets.sort((a, b) => b.totalValue - a.totalValue)
+          const addedValue = wallets.reduce((s, w) => s + w.totalValue, 0)
+          const addedInvestment = wallets.reduce(
+            (s, w) => s + w.totalInitialInvestment,
+            0,
+          )
+          existingGroup.totalValue += addedValue
+          existingGroup.totalInitialInvestment += addedInvestment
+        } else {
+          const entityTotalValue = wallets.reduce(
+            (sum, wallet) => sum + wallet.totalValue,
+            0,
+          )
+          const entityTotalInitialInvestment = wallets.reduce(
+            (sum, wallet) => sum + wallet.totalInitialInvestment,
+            0,
+          )
 
-        acc.push({
-          entity: {
-            id: entityId,
-            name: entityName,
-            type: entityType,
-            origin: entityOrigin,
-            icon_url: entityIconUrl,
-          },
-          wallets,
-          totalValue: entityTotalValue,
-          totalInitialInvestment: entityTotalInitialInvestment,
-        })
+          acc.push({
+            entity: {
+              id: entityId,
+              name: entityName,
+              type: entityType,
+              origin: entityOrigin,
+              icon_url: entityIconUrl,
+            },
+            wallets,
+            totalValue: entityTotalValue,
+            totalInitialInvestment: entityTotalInitialInvestment,
+          })
+        }
 
         return acc
-      },
-      [],
-    )
+      }, [])
   }, [
     positionsData,
     exchangeRates,
@@ -1095,9 +1223,52 @@ function CryptoInvestmentContent({
 
   const totalValue = useMemo(
     () =>
-      filteredCryptoWallets.reduce((sum, group) => sum + group.totalValue, 0),
-    [filteredCryptoWallets],
+      filteredCryptoWallets.reduce((sum, group) => sum + group.totalValue, 0) +
+      derivativesTotalValue,
+    [filteredCryptoWallets, derivativesTotalValue],
   )
+
+  const totalGain = useMemo(() => {
+    let investedValue = 0
+    let currentValue = 0
+    allAssets.forEach(asset => {
+      if (asset.initialInvestment > 0) {
+        investedValue += asset.initialInvestment
+        currentValue += asset.value
+      }
+    })
+    if (investedValue === 0) return null
+    return currentValue - investedValue
+  }, [allAssets])
+
+  const { activesValue, passivesValue } = useMemo(() => {
+    let actives = 0
+    let passives = 0
+    const defaultCurrency = settings.general.defaultCurrency
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    allAssets.forEach(asset => {
+      if (asset.value >= 0) actives += asset.value
+      else passives += asset.value
+    })
+    if (includeDerivatives) {
+      cryptoDerivatives.forEach(({ derivative }) => {
+        const mv = derivative.market_value || 0
+        const currency = normalizeDerivativeCurrency(derivative.currency)
+        const converted = convertCurrency(mv, currency, defaultCurrency, rates)
+        if (converted >= 0) actives += converted
+        else passives += converted
+      })
+    }
+    return { activesValue: actives, passivesValue: passives }
+  }, [
+    allAssets,
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+  ])
+
+  const hasNegativePositions = passivesValue < 0
 
   const totalCryptoAssets = useMemo(() => {
     const uniqueIdentifiers = new Set<string>()
@@ -1352,13 +1523,27 @@ function CryptoInvestmentContent({
                   const walletCount = entityGroup.wallets.filter(
                     walletGroup => !isWalletlessEntry(walletGroup.wallet),
                   ).length
-                  if (walletCount === 0) return null
+                  const accountIdSet = new Set(
+                    entityGroup.wallets.map(w => w.accountId).filter(Boolean),
+                  )
+                  const accountCount = accountIdSet.size
+                  if (walletCount === 0 && accountCount <= 1) return null
                   return (
                     <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {walletCount}{" "}
-                      {walletCount !== 1
-                        ? t.walletManagement.wallets
-                        : t.walletManagement.wallet}
+                      {walletCount > 0 && (
+                        <>
+                          {walletCount}{" "}
+                          {walletCount !== 1
+                            ? t.walletManagement.wallets
+                            : t.walletManagement.wallet}
+                        </>
+                      )}
+                      {walletCount > 0 && accountCount > 1 && " · "}
+                      {accountCount > 1 && (
+                        <>
+                          {accountCount} {t.entities.account}s
+                        </>
+                      )}
                     </p>
                   )
                 })()}
@@ -1367,7 +1552,8 @@ function CryptoInvestmentContent({
             <div className="text-right">
               <div className="text-2xl font-bold">
                 {formatCurrency(
-                  entityGroup.totalValue,
+                  entityGroup.totalValue +
+                    (derivativeValueByEntity.get(entityGroup.entity.id) || 0),
                   locale,
                   settings.general.defaultCurrency,
                 )}
@@ -1657,7 +1843,9 @@ function CryptoInvestmentContent({
                                       </div>
                                     </div>
                                     <div className="text-right">
-                                      <p className="font-medium">
+                                      <p
+                                        className={`font-medium ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                                      >
                                         {assetView.valueAvailable
                                           ? formatCurrency(
                                               assetView.value,
@@ -1817,7 +2005,9 @@ function CryptoInvestmentContent({
                                       </div>
                                     </div>
                                     <div className="text-right">
-                                      <p className="text-sm font-medium">
+                                      <p
+                                        className={`text-sm font-medium ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                                      >
                                         {assetView.valueAvailable
                                           ? formatCurrency(
                                               assetView.value,
@@ -1843,10 +2033,21 @@ function CryptoInvestmentContent({
                 )
               })}
 
-            {entityGroup.wallets
-              .filter(walletGroup => isWalletlessEntry(walletGroup.wallet))
-              .flatMap(walletGroup => walletGroup.assets)
-              .map(assetView => {
+            {(() => {
+              const walletlessGroups = entityGroup.wallets.filter(walletGroup =>
+                isWalletlessEntry(walletGroup.wallet),
+              )
+              if (walletlessGroups.length === 0) return null
+
+              const accountIds = new Set(
+                walletlessGroups.map(w => w.accountId).filter(Boolean),
+              )
+              const showAccountHeaders = accountIds.size > 1
+
+              const renderAssetCard = (
+                assetView: WalletAssetView,
+                cardKey: string,
+              ) => {
                 const assetSymbol =
                   assetView.symbol || assetView.displayName || ""
                 const amountText =
@@ -1857,14 +2058,9 @@ function CryptoInvestmentContent({
                   chartColorMap.get(assetView.groupingKey) ?? "transparent"
                 const hasAccent = color !== "transparent"
                 const isHighlighted = highlightedAsset === assetView.groupingKey
-
                 return (
                   <div
-                    key={
-                      assetView.originalId ??
-                      assetView.localId ??
-                      assetView.groupingKey
-                    }
+                    key={cardKey}
                     ref={element =>
                       registerAssetRef(assetView.groupingKey, element)
                     }
@@ -1937,7 +2133,9 @@ function CryptoInvestmentContent({
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-semibold">
+                            <p
+                              className={`text-lg font-semibold ${assetView.value < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                            >
                               {assetView.valueAvailable
                                 ? formatCurrency(
                                     assetView.value,
@@ -2004,8 +2202,159 @@ function CryptoInvestmentContent({
                     </Card>
                   </div>
                 )
-              })}
+              }
+
+              if (showAccountHeaders) {
+                const accountGroups = new Map<
+                  string,
+                  { name: string; assets: WalletAssetView[] }
+                >()
+                walletlessGroups.forEach(wg => {
+                  const key = wg.accountId ?? "default"
+                  const existing = accountGroups.get(key)
+                  if (existing) {
+                    existing.assets.push(...wg.assets)
+                  } else {
+                    accountGroups.set(key, {
+                      name:
+                        wg.accountName ||
+                        `${t.entities.account} ${accountGroups.size + 1}`,
+                      assets: [...wg.assets],
+                    })
+                  }
+                })
+                return Array.from(accountGroups.entries()).map(
+                  ([accountKey, group]) => (
+                    <React.Fragment key={`account-${accountKey}`}>
+                      <div className="col-span-full mt-2">
+                        <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                          {group.name}
+                        </p>
+                      </div>
+                      {group.assets.map(assetView =>
+                        renderAssetCard(
+                          assetView,
+                          assetView.originalId ??
+                            assetView.localId ??
+                            `${accountKey}-${assetView.groupingKey}`,
+                        ),
+                      )}
+                    </React.Fragment>
+                  ),
+                )
+              }
+
+              return walletlessGroups
+                .flatMap(walletGroup => walletGroup.assets)
+                .map(assetView =>
+                  renderAssetCard(
+                    assetView,
+                    assetView.originalId ??
+                      assetView.localId ??
+                      assetView.groupingKey,
+                  ),
+                )
+            })()}
           </div>
+
+          {includeDerivatives &&
+            (() => {
+              const entityDerivs = cryptoDerivatives.filter(
+                d => d.entityId === entityGroup.entity.id,
+              )
+              if (entityDerivs.length === 0) return null
+              const rates = (exchangeRates ?? {}) as ExchangeRates
+              const targetCurrency = settings.general.defaultCurrency
+              return (
+                <div className="space-y-3 mt-4">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                    <FlaskConical className="h-3.5 w-3.5" />
+                    {t.investments.derivatives.title}
+                  </h4>
+                  <div className="grid gap-3 grid-cols-1 md:grid-cols-2 xl:grid-cols-3">
+                    {entityDerivs.map(({ derivative }) => {
+                      const currency = normalizeDerivativeCurrency(
+                        derivative.currency,
+                      )
+                      const convertedValue = convertCurrency(
+                        derivative.market_value || 0,
+                        currency,
+                        targetCurrency,
+                        rates,
+                      )
+                      const isLong =
+                        derivative.direction === PositionDirection.LONG
+                      const directionLabel = isLong
+                        ? t.investments.derivatives.direction.LONG
+                        : t.investments.derivatives.direction.SHORT
+                      const contractLabel =
+                        (
+                          t.investments.derivatives.contractType as Record<
+                            string,
+                            string
+                          >
+                        )[derivative.contract_type] || derivative.contract_type
+
+                      return (
+                        <Card
+                          key={derivative.id}
+                          className="overflow-hidden cursor-pointer hover:shadow-sm transition-shadow"
+                          onClick={() => setSelectedDerivative(derivative)}
+                        >
+                          <CardContent className="py-3 px-4">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                              <span
+                                className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  isLong
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                }`}
+                              >
+                                {directionLabel}
+                              </span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                {contractLabel}
+                              </span>
+                              {derivative.leverage != null && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  {derivative.leverage}x
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-end justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">
+                                  {derivative.symbol}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatNumber(derivative.size, locale)}{" "}
+                                  {derivative.underlying_symbol || ""}
+                                </p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p
+                                  className={`text-base font-semibold ${
+                                    convertedValue < 0
+                                      ? "text-red-600 dark:text-red-400"
+                                      : ""
+                                  }`}
+                                >
+                                  {formatCurrency(
+                                    convertedValue,
+                                    locale,
+                                    targetCurrency,
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
         </motion.section>
       ))}
     </motion.div>
@@ -2186,7 +2535,9 @@ function CryptoInvestmentContent({
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="text-lg font-semibold">
+                            <p
+                              className={`text-lg font-semibold ${assetSummary.totalValue < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                            >
                               {assetSummary.valueAvailable
                                 ? formatCurrency(
                                     assetSummary.totalValue,
@@ -2274,6 +2625,22 @@ function CryptoInvestmentContent({
         walletOptions={walletFilterOptions}
         selectedWallets={selectedWalletFilters}
         onWalletsChange={setSelectedWalletFilters}
+        extraFilters={
+          cryptoDerivatives.length > 0 ? (
+            <Button
+              variant={includeDerivatives ? "default" : "outline"}
+              size="sm"
+              onClick={() => setIncludeDerivatives(prev => !prev)}
+              className={cn(
+                "h-8 gap-1.5 text-xs",
+                !includeDerivatives && "text-muted-foreground",
+              )}
+            >
+              <FlaskConical className="h-3.5 w-3.5" />
+              {t.investments.derivatives.title}
+            </Button>
+          ) : undefined
+        }
       />
 
       {noResults ? (
@@ -2339,6 +2706,14 @@ function CryptoInvestmentContent({
                     icon: <Wallet className="h-3 w-3" />,
                     value: `${totalFilteredWallets} ${totalFilteredWallets === 1 ? t.walletManagement.wallet : t.walletManagement.wallets}`,
                   },
+                  ...(includeDerivatives && cryptoDerivatives.length > 0
+                    ? [
+                        {
+                          icon: <FlaskConical className="h-3 w-3" />,
+                          value: `${cryptoDerivatives.length} ${cryptoDerivatives.length === 1 ? t.investments.derivatives.singular : t.investments.derivatives.plural}`,
+                        },
+                      ]
+                    : []),
                 ]}
                 centerContent={{
                   rawValue: totalValue,
@@ -2351,6 +2726,44 @@ function CryptoInvestmentContent({
                         settings.general.defaultCurrency,
                       ),
                     },
+                    ...(hasNegativePositions
+                      ? [
+                          {
+                            label: t.investments.actives,
+                            value: formatCurrency(
+                              activesValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                            valueClassName: "text-green-500",
+                          },
+                          {
+                            label: t.investments.passives,
+                            value: formatCurrency(
+                              passivesValue,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                            valueClassName: "text-red-500",
+                          },
+                        ]
+                      : []),
+                    ...(totalGain !== null
+                      ? [
+                          {
+                            label: t.investments.sortAbsoluteGain,
+                            value: formatGainLoss(
+                              totalGain,
+                              locale,
+                              settings.general.defaultCurrency,
+                            ),
+                            valueClassName:
+                              totalGain >= 0
+                                ? "text-green-500"
+                                : "text-red-500",
+                          },
+                        ]
+                      : []),
                   ],
                 }}
               />
@@ -2425,6 +2838,265 @@ function CryptoInvestmentContent({
         confirmText={t.common.save}
         cancelText={t.common.cancel}
       />
+
+      {selectedDerivative &&
+        (() => {
+          const d = selectedDerivative
+          const dt = t.investments.derivatives.detail
+          const rates = (exchangeRates ?? {}) as ExchangeRates
+          const targetCurrency = settings.general.defaultCurrency
+          const cur = normalizeDerivativeCurrency(d.currency)
+          const convertedMv = convertCurrency(
+            d.market_value || 0,
+            cur,
+            targetCurrency,
+            rates,
+          )
+          const convertedPnl =
+            d.unrealized_pnl != null
+              ? convertCurrency(d.unrealized_pnl, cur, targetCurrency, rates)
+              : null
+          const isLong = d.direction === PositionDirection.LONG
+          const directionLabel = isLong
+            ? t.investments.derivatives.direction.LONG
+            : t.investments.derivatives.direction.SHORT
+          const contractLabel =
+            (t.investments.derivatives.contractType as Record<string, string>)[
+              d.contract_type
+            ] || d.contract_type
+          const marginLabel =
+            d.margin_type === MarginType.CROSS
+              ? "Cross"
+              : d.margin_type === MarginType.ISOLATED
+                ? "Isolated"
+                : null
+
+          const dialogContent = (
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[18000]"
+                onClick={e => {
+                  if (e.target === e.currentTarget) setSelectedDerivative(null)
+                }}
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                  className="w-full max-w-md mx-auto"
+                >
+                  <Card>
+                    <CardContent className="pt-5 pb-4 px-5 space-y-5">
+                      {/* Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                isLong
+                                  ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                  : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                              }`}
+                            >
+                              {directionLabel}
+                            </span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                              {contractLabel}
+                            </span>
+                            {d.leverage != null && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                {d.leverage}x
+                              </span>
+                            )}
+                          </div>
+                          <h3 className="text-lg font-semibold">{d.symbol}</h3>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="p-1 h-7 w-7"
+                          onClick={() => setSelectedDerivative(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Market Value hero */}
+                      <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-4 text-center">
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {dt.marketValue}
+                        </p>
+                        <p
+                          className={`text-2xl font-bold ${
+                            convertedMv < 0
+                              ? "text-red-600 dark:text-red-400"
+                              : convertedMv > 0
+                                ? "text-green-600 dark:text-green-400"
+                                : ""
+                          }`}
+                        >
+                          {formatCurrency(convertedMv, locale, targetCurrency)}
+                        </p>
+                      </div>
+
+                      {/* Overview section */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                          <Tag className="h-3 w-3" />
+                          {dt.overview}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          {d.underlying_symbol && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {dt.underlying}
+                              </span>
+                              <span className="font-medium text-right">
+                                {d.underlying_symbol}
+                              </span>
+                            </>
+                          )}
+                          <span className="text-muted-foreground">
+                            {t.investments.derivatives.size}
+                          </span>
+                          <span className="font-medium text-right">
+                            {formatNumber(d.size, locale)}{" "}
+                            {d.underlying_symbol || ""}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Pricing section */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                          <DollarSign className="h-3 w-3" />
+                          {dt.pricing}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                          <span className="text-muted-foreground">
+                            {dt.entryPrice}
+                          </span>
+                          <span className="font-medium text-right">
+                            {formatCurrency(d.entry_price, locale, cur)}
+                          </span>
+                          {d.mark_price != null && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {dt.markPrice}
+                              </span>
+                              <span className="font-medium text-right">
+                                {formatCurrency(d.mark_price, locale, cur)}
+                              </span>
+                            </>
+                          )}
+                          {convertedPnl != null && (
+                            <>
+                              <span className="text-muted-foreground">
+                                {dt.unrealizedPnl}
+                              </span>
+                              <span
+                                className={`font-medium text-right ${
+                                  convertedPnl < 0
+                                    ? "text-red-600 dark:text-red-400"
+                                    : convertedPnl > 0
+                                      ? "text-green-600 dark:text-green-400"
+                                      : ""
+                                }`}
+                              >
+                                {convertedPnl >= 0 ? "+" : ""}
+                                {formatCurrency(
+                                  convertedPnl,
+                                  locale,
+                                  targetCurrency,
+                                )}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Risk & Margin section */}
+                      {(d.leverage != null ||
+                        d.margin != null ||
+                        d.liquidation_price != null) && (
+                        <div className="space-y-2">
+                          <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                            <ShieldAlert className="h-3 w-3" />
+                            {dt.risk}
+                          </h4>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            {d.leverage != null && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.leverage}
+                                </span>
+                                <span className="font-medium text-right">
+                                  {d.leverage}x
+                                </span>
+                              </>
+                            )}
+                            {d.margin != null && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.margin}
+                                </span>
+                                <span className="font-medium text-right">
+                                  {formatCurrency(
+                                    convertCurrency(
+                                      d.margin,
+                                      cur,
+                                      targetCurrency,
+                                      rates,
+                                    ),
+                                    locale,
+                                    targetCurrency,
+                                  )}
+                                </span>
+                              </>
+                            )}
+                            {marginLabel && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.marginType}
+                                </span>
+                                <span className="font-medium text-right">
+                                  {marginLabel}
+                                </span>
+                              </>
+                            )}
+                            {d.liquidation_price != null && (
+                              <>
+                                <span className="text-muted-foreground">
+                                  {dt.liquidationPrice}
+                                </span>
+                                <span className="font-medium text-right text-amber-600 dark:text-amber-400">
+                                  {formatCurrency(
+                                    d.liquidation_price,
+                                    locale,
+                                    cur,
+                                  )}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              </motion.div>
+            </AnimatePresence>
+          )
+
+          return typeof document !== "undefined"
+            ? createPortal(dialogContent, document.body)
+            : dialogContent
+        })()}
     </div>
   )
 }

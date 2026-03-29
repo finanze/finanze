@@ -105,9 +105,12 @@ const renderTextInput = <FormState extends ManualPositionFormBase>(
     <Label htmlFor={String(field)}>{label}</Label>
     <Input
       id={String(field)}
-      type={options?.type ?? "text"}
-      inputMode={options?.inputMode}
-      step={options?.step}
+      type={options?.type === "number" ? "text" : (options?.type ?? "text")}
+      inputMode={
+        options?.type === "number"
+          ? (options?.inputMode ?? "decimal")
+          : options?.inputMode
+      }
       placeholder={options?.placeholder}
       value={(props.form[field] as string) ?? ""}
       disabled={options?.disabled}
@@ -937,7 +940,9 @@ function FundInstrumentSearchField({
           const sharesValue = parseNumberInput(form.shares)
           if (sharesValue != null && sharesValue > 0) {
             const total = priceInTarget * sharesValue
-            const formattedTotal = formatNumberInput(total)
+            const formattedTotal = formatNumberInput(total, {
+              maximumFractionDigits: 4,
+            })
             if (formattedTotal) {
               updateField("market_value", formattedTotal)
             }
@@ -1400,7 +1405,9 @@ function StockInstrumentSearchField({
           const sharesValue = parseNumberInput(form.shares)
           if (sharesValue != null && sharesValue > 0) {
             const total = priceInTarget * sharesValue
-            const formattedTotal = formatNumberInput(total)
+            const formattedTotal = formatNumberInput(total, {
+              maximumFractionDigits: 4,
+            })
             if (formattedTotal) {
               updateField("market_value", formattedTotal)
             }
@@ -2637,20 +2644,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Account>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(account => {
-          if (!isManualSource(account)) return
-          result.push({
-            ...account,
-            localId: account.id || `${entity.id}-account-${account.name}`,
-            originalId: account.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.ACCOUNT] as
+            | { entries?: Account[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(account => {
+            if (!isManualSource(account)) return
+            result.push({
+              ...account,
+              localId: account.id || `${entity.id}-account-${account.name}`,
+              originalId: account.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -2834,20 +2842,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Card>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.CARD] as
-          | { entries?: Card[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(card => {
-          if (!isManualSource(card)) return
-          result.push({
-            ...card,
-            localId: card.id || `${entity.id}-card-${card.name}`,
-            originalId: card.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CARD] as
+            | { entries?: Card[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(card => {
+            if (!isManualSource(card)) return
+            result.push({
+              ...card,
+              localId: card.id || `${entity.id}-card-${card.name}`,
+              originalId: card.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3045,20 +3054,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Loan>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.LOAN] as
-          | { entries?: Loan[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(loan => {
-          if (!isManualSource(loan)) return
-          result.push({
-            ...loan,
-            localId: loan.id || `${entity.id}-loan-${loan.name}`,
-            originalId: loan.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.LOAN] as
+            | { entries?: Loan[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(loan => {
+            if (!isManualSource(loan)) return
+            result.push({
+              ...loan,
+              localId: loan.id || `${entity.id}-loan-${loan.name}`,
+              originalId: loan.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3380,54 +3390,56 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FundPortfolio>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FUND_PORTFOLIO] as
-          | { entries?: FundPortfolio[] }
-          | undefined
-        const accountProduct = entityPosition.products[ProductType.ACCOUNT] as
-          | { entries?: Account[] }
-          | undefined
-        const accountEntries = accountProduct?.entries ?? []
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[
+            ProductType.FUND_PORTFOLIO
+          ] as { entries?: FundPortfolio[] } | undefined
+          const accountProduct = entityPosition.products[
+            ProductType.ACCOUNT
+          ] as { entries?: Account[] } | undefined
+          const accountEntries = accountProduct?.entries ?? []
 
-        const entries = product?.entries ?? []
-        entries.forEach(portfolio => {
-          if (!isManualSource(portfolio)) return
-          let resolvedAccountId = portfolio.account_id ?? null
+          const entries = product?.entries ?? []
+          entries.forEach(portfolio => {
+            if (!isManualSource(portfolio)) return
+            let resolvedAccountId = portfolio.account_id ?? null
 
-          if (portfolio.account && accountEntries.length > 0) {
-            const targetIban = portfolio.account.iban?.trim().toUpperCase()
-            const targetName = portfolio.account.name?.trim().toLowerCase()
+            if (portfolio.account && accountEntries.length > 0) {
+              const targetIban = portfolio.account.iban?.trim().toUpperCase()
+              const targetName = portfolio.account.name?.trim().toLowerCase()
 
-            const matchedAccount = accountEntries.find(account => {
-              if (account.type !== AccountType.FUND_PORTFOLIO) return false
-              if (!account.id) return false
+              const matchedAccount = accountEntries.find(account => {
+                if (account.type !== AccountType.FUND_PORTFOLIO) return false
+                if (!account.id) return false
 
-              const accountIban = account.iban?.trim().toUpperCase()
-              if (!targetIban || !accountIban || accountIban !== targetIban) {
-                return false
+                const accountIban = account.iban?.trim().toUpperCase()
+                if (!targetIban || !accountIban || accountIban !== targetIban) {
+                  return false
+                }
+
+                const accountName = account.name?.trim().toLowerCase()
+                if (targetName && accountName) {
+                  return accountName === targetName
+                }
+
+                return true
+              })
+
+              if (matchedAccount?.id) {
+                resolvedAccountId = matchedAccount.id
               }
-
-              const accountName = account.name?.trim().toLowerCase()
-              if (targetName && accountName) {
-                return accountName === targetName
-              }
-
-              return true
-            })
-
-            if (matchedAccount?.id) {
-              resolvedAccountId = matchedAccount.id
             }
-          }
 
-          result.push({
-            ...portfolio,
-            account_id: resolvedAccountId,
-            localId: portfolio.id || `${entity.id}-portfolio-${portfolio.name}`,
-            originalId: portfolio.id,
-            entityId: entity.id,
-            entityName: entity.name,
+            result.push({
+              ...portfolio,
+              account_id: resolvedAccountId,
+              localId:
+                portfolio.id || `${entity.id}-portfolio-${portfolio.name}`,
+              originalId: portfolio.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3582,20 +3594,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FundDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FUND] as
-          | { entries?: FundDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(fund => {
-          if (!isManualSource(fund)) return
-          result.push({
-            ...fund,
-            localId: fund.id || `${entity.id}-fund-${fund.isin || fund.name}`,
-            originalId: fund.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.FUND] as
+            | { entries?: FundDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(fund => {
+            if (!isManualSource(fund)) return
+            result.push({
+              ...fund,
+              localId: fund.id || `${entity.id}-fund-${fund.isin || fund.name}`,
+              originalId: fund.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -3643,15 +3656,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         shares: formatNumberInput(draft.shares ?? 0),
         average_buy_price:
           draft.average_buy_price != null
-            ? formatNumberInput(draft.average_buy_price)
+            ? formatNumberInput(draft.average_buy_price, {
+                maximumFractionDigits: 4,
+              })
             : "",
         initial_investment:
           draft.initial_investment != null
-            ? formatNumberInput(draft.initial_investment)
+            ? formatNumberInput(draft.initial_investment, {
+                maximumFractionDigits: 4,
+              })
             : "",
         market_value:
           draft.market_value != null
-            ? formatNumberInput(draft.market_value)
+            ? formatNumberInput(draft.market_value, {
+                maximumFractionDigits: 4,
+              })
             : "",
         currency: draft.currency,
         type: draft.type ?? FundType.MUTUAL_FUND,
@@ -3682,17 +3701,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const lastField = form._last_investment_field
 
       if (lastField === "initial" && initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       } else if (averageBuy != null) {
-        initialInvestment = averageBuy * shares
+        initialInvestment = Math.round(averageBuy * shares * 10000) / 10000
       } else if (initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       }
 
       const resolvedInitialInvestment =
-        initialInvestment ?? (averageBuy != null ? averageBuy * shares : 0)
+        initialInvestment ??
+        (averageBuy != null
+          ? Math.round(averageBuy * shares * 10000) / 10000
+          : 0)
       const resolvedAverageBuy =
-        averageBuy ?? (shares > 0 ? resolvedInitialInvestment / shares : 0)
+        averageBuy ??
+        (shares > 0
+          ? Math.round((resolvedInitialInvestment / shares) * 10000) / 10000
+          : 0)
       const resolvedMarketValue = marketValueInput ?? resolvedInitialInvestment
 
       const trimmedPortfolioId = form.portfolio_id?.trim() ?? ""
@@ -4053,7 +4078,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   return
 
                 const total = price * sharesValue
-                const formattedTotal = formatNumberInput(total)
+                const formattedTotal = formatNumberInput(total, {
+                  maximumFractionDigits: 4,
+                })
                 if (formattedTotal) {
                   helpers.updateField("market_value", formattedTotal)
                   helpers.clearError("market_value")
@@ -4069,8 +4096,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.initial_investment}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("initial_investment", event.target.value)
@@ -4093,8 +4119,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.average_buy_price}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("average_buy_price", event.target.value)
@@ -4114,22 +4139,52 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </p>
           </div>
-          {renderTextInput(
-            "market_value",
-            props.t("management.manualPositions.funds.fields.marketValue"),
-            props,
-            {
-              type: "number",
-              step: "0.01",
-              inputMode: "decimal",
-              onValueChange: (_value, helpers) => {
-                if (helpers.form._suggested_market_price) {
-                  helpers.updateField("_suggested_market_price", "")
-                }
-              },
-              disabled: isTrackingActive,
-            },
-          )}
+          {(() => {
+            const marketValue = parseNumberInput(props.form.market_value)
+            const shares = parseNumberInput(props.form.shares)
+            const perSharePrice =
+              marketValue != null && shares != null && shares > 0
+                ? Math.round((marketValue / shares) * 10000) / 10000
+                : null
+            return (
+              <div className="space-y-1.5">
+                <Label htmlFor="market_value">
+                  {props.t(
+                    "management.manualPositions.funds.fields.marketValue",
+                  )}
+                </Label>
+                <Input
+                  id="market_value"
+                  type="text"
+                  inputMode="decimal"
+                  value={props.form.market_value ?? ""}
+                  disabled={isTrackingActive}
+                  onChange={event => {
+                    const value = event.target.value
+                    props.updateField("market_value", value)
+                    props.clearError("market_value")
+                    if (props.form._suggested_market_price) {
+                      props.updateField("_suggested_market_price", "")
+                    }
+                  }}
+                />
+                {props.errors.market_value && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {props.errors.market_value}
+                  </p>
+                )}
+                {perSharePrice != null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatNumberInput(perSharePrice, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {props.form.currency || ""}{" "}
+                    {props.t("investments.perSharePrice")}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
           {renderSelectInput(
             "asset_type",
             props.t("management.manualPositions.funds.fields.assetType"),
@@ -4283,21 +4338,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<StockDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.STOCK_ETF] as
-          | { entries?: StockDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(stock => {
-          if (!isManualSource(stock)) return
-          result.push({
-            ...stock,
-            localId:
-              stock.id || `${entity.id}-stock-${stock.isin || stock.ticker}`,
-            originalId: stock.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.STOCK_ETF] as
+            | { entries?: StockDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(stock => {
+            if (!isManualSource(stock)) return
+            result.push({
+              ...stock,
+              localId:
+                stock.id || `${entity.id}-stock-${stock.isin || stock.ticker}`,
+              originalId: stock.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4336,14 +4392,20 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       shares: formatNumberInput(draft.shares ?? 0),
       average_buy_price:
         draft.average_buy_price != null
-          ? formatNumberInput(draft.average_buy_price)
+          ? formatNumberInput(draft.average_buy_price, {
+              maximumFractionDigits: 4,
+            })
           : "",
       initial_investment:
         draft.initial_investment != null
-          ? formatNumberInput(draft.initial_investment)
+          ? formatNumberInput(draft.initial_investment, {
+              maximumFractionDigits: 4,
+            })
           : "",
       market_value:
-        draft.market_value != null ? formatNumberInput(draft.market_value) : "",
+        draft.market_value != null
+          ? formatNumberInput(draft.market_value, { maximumFractionDigits: 4 })
+          : "",
       currency: draft.currency,
       type: draft.type ?? "",
       _last_investment_field: "average",
@@ -4362,17 +4424,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const marketValueInput = parseNumberInput(form.market_value)
       const lastField = form._last_investment_field
       if (lastField === "initial" && initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       } else if (averageBuy != null) {
-        initialInvestment = averageBuy * shares
+        initialInvestment = Math.round(averageBuy * shares * 10000) / 10000
       } else if (initialInvestment != null) {
-        averageBuy = initialInvestment / shares
+        averageBuy = Math.round((initialInvestment / shares) * 10000) / 10000
       }
 
       const resolvedInitialInvestment =
-        initialInvestment ?? (averageBuy != null ? averageBuy * shares : 0)
+        initialInvestment ??
+        (averageBuy != null
+          ? Math.round(averageBuy * shares * 10000) / 10000
+          : 0)
       const resolvedAverageBuy =
-        averageBuy ?? (shares > 0 ? resolvedInitialInvestment / shares : 0)
+        averageBuy ??
+        (shares > 0
+          ? Math.round((resolvedInitialInvestment / shares) * 10000) / 10000
+          : 0)
       const resolvedMarketValue = marketValueInput ?? resolvedInitialInvestment
       const entry: StockDetail = {
         id: previous?.id || previous?.originalId || "",
@@ -4686,7 +4754,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
                   return
 
                 const total = price * sharesValue
-                const formattedTotal = formatNumberInput(total)
+                const formattedTotal = formatNumberInput(total, {
+                  maximumFractionDigits: 4,
+                })
                 if (formattedTotal) {
                   helpers.updateField("market_value", formattedTotal)
                   helpers.clearError("market_value")
@@ -4702,8 +4772,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.initial_investment}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("initial_investment", event.target.value)
@@ -4726,8 +4795,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             </Label>
             <Input
               value={props.form.average_buy_price}
-              type="number"
-              step="0.01"
+              type="text"
               inputMode="decimal"
               onChange={event => {
                 props.updateField("average_buy_price", event.target.value)
@@ -4747,22 +4815,52 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               )}
             </p>
           </div>
-          {renderTextInput(
-            "market_value",
-            props.t("management.manualPositions.stocks.fields.marketValue"),
-            props,
-            {
-              type: "number",
-              step: "0.01",
-              inputMode: "decimal",
-              onValueChange: (_value, helpers) => {
-                if (helpers.form._suggested_market_price) {
-                  helpers.updateField("_suggested_market_price", "")
-                }
-              },
-              disabled: isTrackingActive,
-            },
-          )}
+          {(() => {
+            const marketValue = parseNumberInput(props.form.market_value)
+            const shares = parseNumberInput(props.form.shares)
+            const perSharePrice =
+              marketValue != null && shares != null && shares > 0
+                ? Math.round((marketValue / shares) * 10000) / 10000
+                : null
+            return (
+              <div className="space-y-1.5">
+                <Label htmlFor="market_value">
+                  {props.t(
+                    "management.manualPositions.stocks.fields.marketValue",
+                  )}
+                </Label>
+                <Input
+                  id="market_value"
+                  type="text"
+                  inputMode="decimal"
+                  value={props.form.market_value ?? ""}
+                  disabled={isTrackingActive}
+                  onChange={event => {
+                    const value = event.target.value
+                    props.updateField("market_value", value)
+                    props.clearError("market_value")
+                    if (props.form._suggested_market_price) {
+                      props.updateField("_suggested_market_price", "")
+                    }
+                  }}
+                />
+                {props.errors.market_value && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    {props.errors.market_value}
+                  </p>
+                )}
+                {perSharePrice != null && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {formatNumberInput(perSharePrice, {
+                      maximumFractionDigits: 4,
+                    })}{" "}
+                    {props.form.currency || ""}{" "}
+                    {props.t("investments.perSharePrice")}
+                  </p>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )
     },
@@ -4821,20 +4919,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<Deposit>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.DEPOSIT] as
-          | { entries?: Deposit[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(deposit => {
-          if (!isManualSource(deposit)) return
-          result.push({
-            ...deposit,
-            localId: deposit.id || `${entity.id}-deposit-${deposit.name}`,
-            originalId: deposit.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.DEPOSIT] as
+            | { entries?: Deposit[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(deposit => {
+            if (!isManualSource(deposit)) return
+            result.push({
+              ...deposit,
+              localId: deposit.id || `${entity.id}-deposit-${deposit.name}`,
+              originalId: deposit.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -4978,20 +5077,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<FactoringDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.FACTORING] as
-          | { entries?: FactoringDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(factor => {
-          if (!isManualSource(factor)) return
-          result.push({
-            ...factor,
-            localId: factor.id || `${entity.id}-factoring-${factor.name}`,
-            originalId: factor.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.FACTORING] as
+            | { entries?: FactoringDetail[] }
+            | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(factor => {
+            if (!isManualSource(factor)) return
+            result.push({
+              ...factor,
+              localId: factor.id || `${entity.id}-factoring-${factor.name}`,
+              originalId: factor.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -5185,21 +5285,22 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<RealEstateCFDetail>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.REAL_ESTATE_CF] as
-          | { entries?: RealEstateCFDetail[] }
-          | undefined
-        const entries = product?.entries ?? []
-        entries.forEach(realEstate => {
-          if (!isManualSource(realEstate)) return
-          result.push({
-            ...realEstate,
-            localId:
-              realEstate.id || `${entity.id}-realestate-${realEstate.name}`,
-            originalId: realEstate.id,
-            entityId: entity.id,
-            entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[
+            ProductType.REAL_ESTATE_CF
+          ] as { entries?: RealEstateCFDetail[] } | undefined
+          const entries = product?.entries ?? []
+          entries.forEach(realEstate => {
+            if (!isManualSource(realEstate)) return
+            result.push({
+              ...realEstate,
+              localId:
+                realEstate.id || `${entity.id}-realestate-${realEstate.name}`,
+              originalId: realEstate.id,
+              entityId: entity.id,
+              entityName: entity.name,
+            })
           })
         })
       })
@@ -5459,23 +5560,25 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       if (!positionsData?.positions) return []
       const result: ManualPositionDraft<CryptoCurrencyPosition>[] = []
       manualEntities.forEach(entity => {
-        const entityPosition = positionsData.positions[entity.id]
-        if (!entityPosition) return
-        const product = entityPosition.products[ProductType.CRYPTO] as
-          | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
-          | undefined
-        const wallets = product?.entries ?? []
-        wallets.forEach(wallet => {
-          const assets = wallet.assets ?? []
-          assets.forEach(asset => {
-            if (!isManualSource(asset)) return
-            result.push({
-              ...asset,
-              localId:
-                asset.id || `${entity.id}-crypto-${asset.symbol}-${asset.name}`,
-              originalId: asset.id,
-              entityId: entity.id,
-              entityName: entity.name,
+        const entityPositions = positionsData.positions[entity.id] ?? []
+        entityPositions.forEach(entityPosition => {
+          const product = entityPosition.products[ProductType.CRYPTO] as
+            | { entries?: { assets?: CryptoCurrencyPosition[] }[] }
+            | undefined
+          const wallets = product?.entries ?? []
+          wallets.forEach(wallet => {
+            const assets = wallet.assets ?? []
+            assets.forEach(asset => {
+              if (!isManualSource(asset)) return
+              result.push({
+                ...asset,
+                localId:
+                  asset.id ||
+                  `${entity.id}-crypto-${asset.symbol}-${asset.name}`,
+                originalId: asset.id,
+                entityId: entity.id,
+                entityName: entity.name,
+              })
             })
           })
         })

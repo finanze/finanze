@@ -9,6 +9,7 @@ class KnownIssuer(str, Enum):
     ARK = "Ark"
     AXA = "AXA"
     BBVA = "BBVA"
+    BITWISE = "Bitwise"
     BLACKROCK = "BlackRock"
     BNP_PARIBAS = "BNP Paribas"
     CASER = "Caser"
@@ -27,10 +28,12 @@ class KnownIssuer(str, Enum):
     MORGAN_STANLEY = "Morgan Stanley"
     MY_INVESTOR = "MyInvestor"
     PIMCO = "PIMCO"
+    ROBECO = "Robeco"
     SPDR = "SPDR"
     UBS = "UBS"
     VANECK = "VanEck"
     VANGUARD = "Vanguard"
+    VONTOBEL = "Vontobel"
     WISDOMTREE = "WisdomTree"
     XTRACKERS = "Xtrackers"
 
@@ -45,6 +48,9 @@ _MANUAL_ALIASES: dict[str, KnownIssuer] = {
     "is ": KnownIssuer.BLACKROCK,
     "bgf ": KnownIssuer.BLACKROCK,
     "jpm ": KnownIssuer.JP_MORGAN,
+    "dbx ": KnownIssuer.XTRACKERS,
+    "franklin ": KnownIssuer.FRANKLIN_TEMPLETON,
+    "templeton ": KnownIssuer.FRANKLIN_TEMPLETON,
 }
 
 _ISSUER_ALIASES: dict[str, KnownIssuer] = {

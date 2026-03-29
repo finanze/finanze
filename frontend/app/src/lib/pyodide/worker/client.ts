@@ -194,6 +194,7 @@ export class PyodideWorkerClient {
       "BackupProcessor.",
       "NativeCookies.",
       "Capacitor.Plugins.CapacitorHttp.",
+      "TlsHttp.",
     ]
 
     if (!allowedPrefixes.some(p => methodPath.startsWith(p))) {

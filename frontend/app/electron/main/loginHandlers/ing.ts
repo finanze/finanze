@@ -1,9 +1,15 @@
 import { BrowserWindow, ipcMain, session } from "electron"
-import { ExternalLoginRequestResult, LoginHandlerResult } from "."
+import {
+  ExternalLoginRequest,
+  ExternalLoginRequestResult,
+  LoginHandlerResult,
+} from "."
 
 export const ING_ID = "e0000000-0000-0000-0000-000000000010"
 
-export async function promptLogin(): Promise<ExternalLoginRequestResult> {
+export async function promptLogin(
+  request: ExternalLoginRequest,
+): Promise<ExternalLoginRequestResult> {
   const ingPartition = `persist:ing`
   const ingSession = session.fromPartition(ingPartition)
 
@@ -29,6 +35,7 @@ export async function promptLogin(): Promise<ExternalLoginRequestResult> {
   const result: LoginHandlerResult = {
     success: false,
     credentials: {},
+    flow: request.flow,
   }
 
   ingSession.webRequest.onSendHeaders(

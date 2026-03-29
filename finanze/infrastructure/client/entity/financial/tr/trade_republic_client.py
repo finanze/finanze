@@ -25,7 +25,7 @@ def _json_cookie_jar(jar: httpx.Cookies) -> list[dict]:
         if cookie.expires is not None:
             try:
                 expires_timestamp = int(cookie.expires)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 expires_timestamp = 0
 
         cookie_dict = {
@@ -75,6 +75,7 @@ class TradeRepublicClient:
         login_options: LoginOptions,
         process_id: str = None,
         code: str = None,
+        waf_token: str = None,
         session: Optional[EntitySession] = None,
     ) -> EntityLoginResult:
         self._tr_api = TradeRepublicApi(
@@ -89,6 +90,14 @@ class TradeRepublicClient:
                 self._log.debug("Resuming session")
                 return EntityLoginResult(LoginResultCode.RESUMED)
 
+        if waf_token:
+            self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
+        else:
+            return EntityLoginResult(
+                LoginResultCode.MANUAL_LOGIN,
+                details={"phone": phone, "password": pin},
+            )
+
         if code and process_id:
             self._tr_api._process_id = process_id
             try:
@@ -98,6 +107,8 @@ class TradeRepublicClient:
                     return EntityLoginResult(LoginResultCode.INVALID_CREDENTIALS)
                 elif e.response.status_code == 400:
                     return EntityLoginResult(LoginResultCode.INVALID_CODE)
+                elif e.response.status_code == 403:
+                    return EntityLoginResult(LoginResultCode.CURRENTLY_UNAVAILABLE)
                 else:
                     self._log.error("Unexpected error during login", exc_info=e)
                     return EntityLoginResult(
@@ -106,7 +117,7 @@ class TradeRepublicClient:
                     )
 
             sess_created_at = datetime.now(tzlocal())
-            session_payload = self._export_session()
+            session_payload = self._export_session(waf_token)
             new_session = EntitySession(
                 creation=sess_created_at, expiration=None, payload=session_payload
             )
@@ -116,6 +127,20 @@ class TradeRepublicClient:
             if not login_options.avoid_new_login:
                 try:
                     countdown = await self._initiate_weblogin()
+
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code in (403, 405):
+                        return EntityLoginResult(
+                            LoginResultCode.UNEXPECTED_ERROR,
+                            message="Invalid challenge token",
+                        )
+                    else:
+                        self._log.error("Unexpected error during login", exc_info=e)
+                    return EntityLoginResult(
+                        LoginResultCode.UNEXPECTED_ERROR,
+                        message=f"Got unexpected error {e.response.status_code} during login",
+                    )
+
                 except ValueError as e:
                     if str(e) == "NUMBER_INVALID":
                         return EntityLoginResult(
@@ -133,6 +158,11 @@ class TradeRepublicClient:
             else:
                 return EntityLoginResult(LoginResultCode.NOT_LOGGED)
 
+        return EntityLoginResult(
+            LoginResultCode.UNEXPECTED_ERROR,
+            message="Unexpected behavior during login",
+        )
+
     async def _resumable_session(self) -> bool:
         try:
             await self._tr_api.settings()
@@ -147,6 +177,8 @@ class TradeRepublicClient:
             f"{self._tr_api._host}/api/v1/auth/web/login",
             json={"phoneNumber": self._tr_api.phone_no, "pin": self._tr_api.pin},
         )
+        r.raise_for_status()
+
         j = await r.json()
         try:
             if j.get("errorCode") == "TOO_MANY_REQUESTS":
@@ -165,14 +197,20 @@ class TradeRepublicClient:
 
         return int(j["countdownInSeconds"]) + 1
 
-    def _export_session(self) -> dict:
-        return {"cookies": _json_cookie_jar(self._tr_api._websession.cookies)}
+    def _export_session(self, waf_token: str) -> dict:
+        return {
+            "cookies": _json_cookie_jar(self._tr_api._websession.cookies),
+            "waf_token": waf_token,
+        }
 
     def _inject_session(self, session: EntitySession):
         cookies = _rebuild_cookie_jar(session.payload["cookies"])
         self._tr_api._websession.clear_cookies()
         for cookie in cookies.jar:
             self._tr_api._websession.set_cookie(cookie)
+        waf_token = session.payload.get("waf_token")
+        if waf_token:
+            self._tr_api._websession.headers["x-aws-waf-token"] = waf_token
         self._tr_api._weblogin = True
 
     async def close(self):

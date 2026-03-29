@@ -1,4 +1,5 @@
 import { registerPlugin } from "@capacitor/core"
+import { TlsHttp } from "./tlsHttp"
 
 const NativeCookies = registerPlugin("NativeCookies")
 const FileTransfer = registerPlugin("FileTransfer")
@@ -31,6 +32,7 @@ declare global {
     FileTransfer: typeof FileTransfer
     BackupProcessor: typeof BackupProcessor
     ImageProcessor: typeof ImageProcessor
+    TlsHttp: typeof TlsHttp
   }
 }
 
@@ -38,5 +40,6 @@ window.NativeCookies = NativeCookies
 window.FileTransfer = FileTransfer
 window.BackupProcessor = BackupProcessor
 window.ImageProcessor = ImageProcessor
+window.TlsHttp = TlsHttp
 
-export { NativeCookies, FileTransfer, BackupProcessor, ImageProcessor }
+export { NativeCookies, FileTransfer, BackupProcessor, ImageProcessor, TlsHttp }

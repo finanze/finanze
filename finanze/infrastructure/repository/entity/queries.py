@@ -37,14 +37,16 @@ class EntityQueries(str, Enum):
         )
         SELECT e.*
         FROM entities e
-            LEFT JOIN entity_credentials c ON e.id = c.entity_id
+            LEFT JOIN entity_accounts ea ON e.id = ea.entity_id AND ea.deleted_at IS NULL
             LEFT JOIN external_entities ee ON e.id = ee.entity_id
             LEFT JOIN latest_manual lm ON e.id = lm.entity_id
         WHERE (
             e.origin = 'EXTERNALLY_PROVIDED' AND ee.entity_id IS NULL
         )
         OR (
-            e.origin = 'NATIVE' AND e.type = 'FINANCIAL_INSTITUTION' AND c.entity_id IS NULL
+            e.origin = 'NATIVE'
+            AND e.type IN ('FINANCIAL_INSTITUTION', 'CRYPTO_EXCHANGE')
+            AND ea.entity_id IS NULL
         )
         OR (
             e.origin = 'MANUAL' AND e.type = 'FINANCIAL_INSTITUTION' AND lm.entity_id IS NULL

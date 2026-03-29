@@ -26,6 +26,13 @@ class FinancialEntityStatus(str, Enum):
     REQUIRES_LOGIN = "REQUIRES_LOGIN"
 
 
+@dataclass
+class EntityAccountInfo:
+    id: UUID
+    name: Optional[str]
+    status: FinancialEntityStatus
+
+
 @dataclass(eq=False)
 class AvailableSource(Entity):
     features: list[Feature]
@@ -44,6 +51,7 @@ class AvailableSource(Entity):
     natively_supported_products: Optional[list[ProductType]] = None
     fetchable: bool = True
     allows_hd_wallet: Optional[bool] = None
+    accounts: Optional[list[EntityAccountInfo]] = None
 
 
 @dataclass

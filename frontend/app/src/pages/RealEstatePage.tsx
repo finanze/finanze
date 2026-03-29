@@ -117,7 +117,7 @@ export default function RealEstatePage() {
       const frequency = flow.periodic_flow.frequency
 
       // Convert to monthly amount
-      let monthlyAmount = 0
+      let monthlyAmount: number
       switch (frequency) {
         case FlowFrequency.DAILY:
           monthlyAmount = amount * 30

@@ -14,7 +14,7 @@ async def update_manual_transaction(
 ):
     try:
         tx_uuid = UUID(tx_id)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return jsonify(
             {"code": "INVALID_REQUEST", "message": "Invalid transaction ID"}
         ), 400

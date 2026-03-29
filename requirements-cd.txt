@@ -1,2 +1,2 @@
-bump-my-version==1.2.6
-git-cliff==2.11.0
+bump-my-version==1.2.7
+git-cliff==2.12.0

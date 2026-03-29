@@ -100,8 +100,6 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                     if market_value == 0 or initial_investment == 0 or titles == 0:
                         continue
 
-                    price = Dezimal(pos.get("price", 0))
-
                     isin = instrument.get("identifier") or instrument.get("isin_code")
                     if not isin:
                         continue
@@ -134,7 +132,6 @@ class IndexaCapitalFetcher(FinancialEntityFetcher):
                             market=instrument.get("market_code"),
                             shares=titles,
                             initial_investment=initial_investment,
-                            average_buy_price=price,
                             market_value=market_value,
                             type=fund_type,
                             asset_type=asset_type,
