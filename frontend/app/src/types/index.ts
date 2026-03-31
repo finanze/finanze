@@ -888,8 +888,10 @@ export interface LoanPayload {
   euribor_rate?: number | null
   interest_type: InterestType
   fixed_years?: number | null
+  fixed_interest_rate?: number | null
   principal_outstanding: number
   monthly_interests?: number | null
+  linked_loan_hash?: string | null
 }
 
 export interface RentPayload {}
@@ -1005,6 +1007,8 @@ export interface LoanCalculationRequest {
   interest_type: InterestType
   euribor_rate?: number | null
   fixed_years?: number | null
+  fixed_interest_rate?: number | null
+  installment_frequency?: string
   start: string
   end: string
 }

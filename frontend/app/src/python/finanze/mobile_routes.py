@@ -360,6 +360,13 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
             d.up_tracked,
         ),
         (
+            "POST",
+            "/api/v1/data/manual/positions/update-loans",
+            "update_tracked_loans",
+            "update_tracked_loans",
+            d.up_tracked_loans,
+        ),
+        (
             "GET",
             "/api/v1/templates",
             "get_templates",

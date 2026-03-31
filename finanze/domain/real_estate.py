@@ -27,6 +27,8 @@ class LoanPayload:
     fixed_years: Optional[int]
     principal_outstanding: Dezimal
     monthly_interests: Optional[Dezimal] = None
+    fixed_interest_rate: Optional[Dezimal] = None
+    linked_loan_hash: Optional[str] = None
 
 
 @dataclass

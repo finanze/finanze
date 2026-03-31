@@ -63,6 +63,11 @@ def _deserialize_valuation(data: dict) -> Valuation:
 
 def _serialize_payload(payload) -> dict:
     if isinstance(payload, LoanPayload):
+        if payload.linked_loan_hash:
+            return {
+                "type": payload.type,
+                "linked_loan_hash": payload.linked_loan_hash,
+            }
         return {
             "type": payload.type,
             "loan_amount": str(payload.loan_amount) if payload.loan_amount else None,
@@ -70,6 +75,9 @@ def _serialize_payload(payload) -> dict:
             "euribor_rate": str(payload.euribor_rate) if payload.euribor_rate else None,
             "interest_type": payload.interest_type,
             "fixed_years": payload.fixed_years,
+            "fixed_interest_rate": str(payload.fixed_interest_rate)
+            if payload.fixed_interest_rate
+            else None,
             "principal_outstanding": str(payload.principal_outstanding),
             "monthly_interests": str(payload.monthly_interests)
             if payload.monthly_interests
@@ -87,6 +95,18 @@ def _serialize_payload(payload) -> dict:
 
 def _deserialize_payload(flow_subtype: RealEstateFlowSubtype, data: dict):
     if flow_subtype == RealEstateFlowSubtype.LOAN:
+        linked_hash = data.get("linked_loan_hash")
+        if linked_hash:
+            return LoanPayload(
+                type=LoanType(data["type"]),
+                loan_amount=None,
+                interest_rate=Dezimal(0),
+                euribor_rate=None,
+                interest_type=InterestType.FIXED,
+                fixed_years=None,
+                principal_outstanding=Dezimal(0),
+                linked_loan_hash=linked_hash,
+            )
         return LoanPayload(
             type=LoanType(data["type"]),
             loan_amount=Dezimal(data["loan_amount"])
@@ -98,6 +118,9 @@ def _deserialize_payload(flow_subtype: RealEstateFlowSubtype, data: dict):
             else None,
             interest_type=InterestType(data["interest_type"]),
             fixed_years=data.get("fixed_years"),
+            fixed_interest_rate=Dezimal(data["fixed_interest_rate"])
+            if data.get("fixed_interest_rate")
+            else None,
             principal_outstanding=Dezimal(data["principal_outstanding"]),
             monthly_interests=Dezimal(data["monthly_interests"])
             if data.get("monthly_interests")

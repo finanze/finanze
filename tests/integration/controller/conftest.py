@@ -75,6 +75,7 @@ from application.ports.external_integration_port import ExternalIntegrationPort
 from application.ports.public_key_derivation import PublicKeyDerivation
 from application.ports.entity_port import EntityPort
 from application.ports.external_entity_port import ExternalEntityPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.public_keychain import PublicKeychain
@@ -148,6 +149,8 @@ async def app(tmp_path):
     entity_fetchers: dict[Entity, FinancialEntityFetcher] = {}
 
     position_port = AsyncMock(spec=PositionPort)
+    position_port.get_account_iban_index = AsyncMock(return_value={})
+    position_port.get_portfolio_name_index = AsyncMock(return_value={})
     auto_contr_port = AsyncMock(spec=AutoContributionsPort)
     transaction_port = AsyncMock(spec=TransactionPort)
     historic_port = AsyncMock(spec=HistoricPort)
@@ -173,6 +176,7 @@ async def app(tmp_path):
     keychain_loader.load = AsyncMock(return_value=PublicKeychain({}))
 
     entity_account_port = AsyncMock(spec=EntityAccountPort)
+    loan_calculator = AsyncMock(spec=LoanCalculatorPort)
 
     crypto_wallet_port = AsyncMock(spec=CryptoWalletPort)
     crypto_entity_fetchers: dict[Entity, CryptoEntityFetcher] = {}
@@ -224,6 +228,7 @@ async def app(tmp_path):
         transaction_handler_port,
         keychain_loader,
         entity_account_port,
+        loan_calculator,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,
@@ -447,6 +452,7 @@ async def app(tmp_path):
         crypto_asset_info_provider,
         auto_contr_port,
         external_entity_port,
+        loan_calculator,
     )
 
     await db_client.silent_close()
@@ -582,3 +588,8 @@ async def auto_contr_port(app):
 @pytest_asyncio.fixture
 async def external_entity_port(app):
     return app[25]
+
+
+@pytest_asyncio.fixture
+async def loan_calculator(app):
+    return app[26]

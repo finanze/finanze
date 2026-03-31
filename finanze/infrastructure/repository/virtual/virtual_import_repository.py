@@ -75,3 +75,13 @@ class VirtualImportRepository(VirtualImportRegistry):
                 VirtualImportQueries.DELETE_BY_IMPORT_FEATURE_AND_ENTITY,
                 (str(import_id), feature, str(entity_id)),
             )
+
+    async def is_position_shared(
+        self, global_position_id: UUID, current_import_id: UUID
+    ) -> bool:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                VirtualImportQueries.IS_POSITION_SHARED,
+                (str(global_position_id), str(current_import_id)),
+            )
+            return await cursor.fetchone() is not None

@@ -17,6 +17,14 @@ class ManualPositionDataPort(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
     @abc.abstractmethod
+    async def get_trackable_loans(self) -> list[ManualPositionData]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def delete_by_position_id(self, global_position_id: UUID):
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def delete_by_position_id_and_type(
         self, global_position_id: UUID, product_type: ProductType
     ):

@@ -17,6 +17,7 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
         async with self._db_client.tx() as cursor:
             for entry in valid_entries:
                 track_ticker = bool(entry.data and entry.data.tracker_key)
+                track_loan = bool(entry.data and entry.data.track)
                 await cursor.execute(
                     ManualPositionDataQueries.INSERT,
                     (
@@ -25,6 +26,7 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
                         entry.product_type.value,
                         track_ticker,
                         entry.data.tracker_key if entry.data else None,
+                        track_loan,
                     ),
                 )
 
@@ -43,6 +45,29 @@ class ManualPositionDataSQLRepository(ManualPositionDataPort):
                     )
                 )
         return result
+
+    async def get_trackable_loans(self) -> list[ManualPositionData]:
+        result: list[ManualPositionData] = []
+        async with self._db_client.read() as cursor:
+            await cursor.execute(ManualPositionDataQueries.GET_TRACKABLE_LOANS)
+            rows = await cursor.fetchall()
+            for row in rows:
+                result.append(
+                    ManualPositionData(
+                        entry_id=UUID(row["entry_id"]),
+                        global_position_id=UUID(row["global_position_id"]),
+                        product_type=ProductType(row["product_type"]),
+                        data=ManualEntryData(track=True),
+                    )
+                )
+        return result
+
+    async def delete_by_position_id(self, global_position_id: UUID):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                ManualPositionDataQueries.DELETE_BY_POSITION_ID,
+                (str(global_position_id),),
+            )
 
     async def delete_by_position_id_and_type(
         self, global_position_id: UUID, product_type: ProductType

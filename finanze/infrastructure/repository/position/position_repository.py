@@ -37,6 +37,7 @@ from domain.global_position import (
     FundPortfolios,
     FundType,
     GlobalPosition,
+    InstallmentFrequency,
     InterestType,
     Loan,
     Loans,
@@ -51,6 +52,7 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
+    compute_loan_hash,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.crypto.crypto_wallet_repository import (
@@ -68,6 +70,15 @@ _AND = " AND "
 
 async def _save_loans(cursor, position: GlobalPosition, loans: Loans):
     for loan in loans.entries:
+        loan_hash = loan.hash
+        if not loan_hash:
+            loan_hash = compute_loan_hash(
+                str(position.entity.id),
+                str(loan.loan_amount),
+                date(
+                    loan.creation.year, loan.creation.month, loan.creation.day
+                ).isoformat(),
+            )
         await cursor.execute(
             PositionWriteQueries.INSERT_LOAN_POSITION,
             (
@@ -77,17 +88,20 @@ async def _save_loans(cursor, position: GlobalPosition, loans: Loans):
                 loan.currency,
                 loan.name,
                 str(loan.current_installment),
+                loan.installment_frequency,
                 str(loan.interest_rate),
                 loan.interest_type,
+                str(loan.installment_interests) if loan.installment_interests else None,
                 str(loan.loan_amount),
                 loan.next_payment_date.isoformat() if loan.next_payment_date else None,
                 str(loan.principal_outstanding),
-                str(loan.principal_paid) if loan.principal_paid else None,
                 str(loan.euribor_rate) if loan.euribor_rate else None,
                 str(loan.fixed_years) if loan.fixed_years else None,
+                str(loan.fixed_interest_rate) if loan.fixed_interest_rate else None,
                 loan.creation.isoformat(),
                 loan.maturity.isoformat(),
                 str(loan.unpaid) if loan.unpaid else None,
+                loan_hash,
             ),
         )
 
@@ -484,10 +498,13 @@ def _aggregate_positions(positions: list[GlobalPosition]) -> GlobalPosition:
 
 
 def _map_manual_entry_data(row) -> Optional[ManualEntryData]:
-    if row is None or row["track_ticker"] is None:
+    if row["track_ticker"] is None and row["track_loan"] is None:
         return None
 
-    return ManualEntryData(tracker_key=row["tracker_key"])
+    return ManualEntryData(
+        tracker_key=row["tracker_key"],
+        track=bool(row["track_loan"]),
+    )
 
 
 class PositionSQLRepository(PositionPort):
@@ -737,10 +754,19 @@ class PositionSQLRepository(PositionPort):
                     name=row["name"],
                     current_installment=Dezimal(row["current_installment"]),
                     interest_rate=Dezimal(row["interest_rate"]),
-                    interest_type=(
-                        row["interest_type"]
-                        if row["interest_type"]
-                        else InterestType.FIXED
+                    interest_type=InterestType(row["interest_type"]),
+                    installment_frequency=InstallmentFrequency(
+                        row["installment_frequency"]
+                    ),
+                    installment_interests=(
+                        Dezimal(row["installment_interests"])
+                        if row["installment_interests"]
+                        else None
+                    ),
+                    fixed_interest_rate=(
+                        Dezimal(row["fixed_interest_rate"])
+                        if row["fixed_interest_rate"]
+                        else None
                     ),
                     loan_amount=Dezimal(row["loan_amount"]),
                     next_payment_date=(
@@ -749,11 +775,6 @@ class PositionSQLRepository(PositionPort):
                         else None
                     ),
                     principal_outstanding=Dezimal(row["principal_outstanding"]),
-                    principal_paid=(
-                        Dezimal(row["principal_paid"])
-                        if row["principal_paid"]
-                        else None
-                    ),
                     euribor_rate=(
                         Dezimal(row["euribor_rate"]) if row["euribor_rate"] else None
                     ),
@@ -761,6 +782,8 @@ class PositionSQLRepository(PositionPort):
                     creation=datetime.fromisoformat(row["creation"]).date(),
                     maturity=datetime.fromisoformat(row["maturity"]).date(),
                     unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
+                    hash=row["hash"] or "",
+                    manual_data=_map_manual_entry_data(row),
                     source=global_position.source,
                 )
                 for row in cursor
@@ -1444,3 +1467,161 @@ class PositionSQLRepository(PositionPort):
             return
         async with self._db_client.tx() as cursor:
             await cursor.execute(sql, (str(market_value), str(entry_id)))
+
+    def _row_to_loan(self, row) -> Loan:
+        return Loan(
+            id=UUID(row["id"]),
+            type=LoanType(row["type"]),
+            currency=row["currency"],
+            name=row["name"],
+            current_installment=Dezimal(row["current_installment"]),
+            interest_rate=Dezimal(row["interest_rate"]),
+            interest_type=InterestType(row["interest_type"]),
+            installment_frequency=InstallmentFrequency(row["installment_frequency"]),
+            installment_interests=(
+                Dezimal(row["installment_interests"])
+                if row["installment_interests"]
+                else None
+            ),
+            fixed_interest_rate=(
+                Dezimal(row["fixed_interest_rate"])
+                if row["fixed_interest_rate"]
+                else None
+            ),
+            loan_amount=Dezimal(row["loan_amount"]),
+            next_payment_date=(
+                datetime.fromisoformat(row["next_payment_date"]).date()
+                if row["next_payment_date"]
+                else None
+            ),
+            principal_outstanding=Dezimal(row["principal_outstanding"]),
+            euribor_rate=(
+                Dezimal(row["euribor_rate"]) if row["euribor_rate"] else None
+            ),
+            fixed_years=int(row["fixed_years"]) if row["fixed_years"] else None,
+            creation=datetime.fromisoformat(row["creation"]).date(),
+            maturity=datetime.fromisoformat(row["maturity"]).date(),
+            unpaid=Dezimal(row["unpaid"]) if row["unpaid"] else None,
+            hash=row["hash"] or "",
+            source=DataSource(row["source"]),
+        )
+
+    async def get_loans_by_hash(self, hashes: list[str]) -> dict[str, Loan]:
+        if not hashes:
+            return {}
+        placeholders = ",".join("?" for _ in hashes)
+        query = PositionQueries.GET_LOANS_BY_HASHES.replace(
+            "{placeholders}", placeholders
+        )
+        async with self._db_client.read() as cursor:
+            await cursor.execute(query, tuple(hashes))
+            result = {}
+            for row in cursor:
+                loan = self._row_to_loan(row)
+                result[loan.hash] = loan
+            return result
+
+    async def get_loan_by_entry_id(self, entry_id: UUID) -> Optional[Loan]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(PositionQueries.GET_LOAN_BY_ENTRY_ID, (str(entry_id),))
+            row = None
+            for r in cursor:
+                row = r
+                break
+            if not row:
+                return None
+            return self._row_to_loan(row)
+
+    async def update_loan_position(
+        self,
+        entry_id: UUID,
+        current_installment: Dezimal,
+        installment_interests: Optional[Dezimal],
+        principal_outstanding: Dezimal,
+        next_payment_date: Optional[date],
+    ):
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                PositionQueries.UPDATE_LOAN_POSITION,
+                (
+                    str(current_installment),
+                    str(installment_interests) if installment_interests else None,
+                    str(principal_outstanding),
+                    next_payment_date.isoformat() if next_payment_date else None,
+                    str(entry_id),
+                ),
+            )
+
+    # --- Stale reference migration ---
+
+    async def get_latest_real_position_id(
+        self, entity_account_id: UUID
+    ) -> Optional[UUID]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PositionQueries.GET_LATEST_REAL_POSITION_ID_FOR_ENTITY_ACCOUNT,
+                (str(entity_account_id),),
+            )
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            return UUID(row["id"])
+
+    async def get_account_iban_index(
+        self, global_position_id: UUID
+    ) -> dict[UUID, Optional[str]]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PositionQueries.GET_ACCOUNTS_LIGHTWEIGHT,
+                (str(global_position_id),),
+            )
+            rows = await cursor.fetchall()
+            return {UUID(r["id"]): r["iban"] for r in rows}
+
+    async def get_portfolio_name_index(
+        self, global_position_id: UUID
+    ) -> dict[UUID, Optional[str]]:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PositionQueries.GET_FUND_PORTFOLIOS_LIGHTWEIGHT,
+                (str(global_position_id),),
+            )
+            rows = await cursor.fetchall()
+            return {UUID(r["id"]): r["name"] for r in rows}
+
+    async def migrate_references(
+        self,
+        account_mapping: dict[UUID, UUID],
+        portfolio_mapping: dict[UUID, UUID],
+    ):
+        async with self._db_client.tx() as cursor:
+            for old_id, new_id in account_mapping.items():
+                await cursor.execute(
+                    PositionQueries.MIGRATE_CARD_RELATED_ACCOUNTS,
+                    (str(new_id), str(old_id)),
+                )
+                await cursor.execute(
+                    PositionQueries.MIGRATE_FUND_PORTFOLIO_ACCOUNTS,
+                    (str(new_id), str(old_id)),
+                )
+            for old_id, new_id in portfolio_mapping.items():
+                await cursor.execute(
+                    PositionQueries.MIGRATE_FUND_PORTFOLIO_REFERENCES,
+                    (str(new_id), str(old_id)),
+                )
+
+    async def account_exists(self, entry_id: UUID) -> bool:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PositionQueries.ACCOUNT_EXISTS,
+                (str(entry_id),),
+            )
+            return await cursor.fetchone() is not None
+
+    async def fund_portfolio_exists(self, entry_id: UUID) -> bool:
+        async with self._db_client.read() as cursor:
+            await cursor.execute(
+                PositionQueries.FUND_PORTFOLIO_EXISTS,
+                (str(entry_id),),
+            )
+            return await cursor.fetchone() is not None

@@ -48,8 +48,6 @@ import {
   Calendar,
   Shield,
   AlertCircle,
-  Eye,
-  EyeOff,
   Pencil,
   Plus,
   Save,
@@ -57,6 +55,8 @@ import {
   X,
   Copy,
   Check,
+  Loader2,
+  Binary,
 } from "lucide-react"
 import {
   ProductType,
@@ -214,12 +214,6 @@ function BankingManualControls({
     controller => controller.isEditMode && controller.hasLocalChanges,
   )
 
-  const handleEnterEdit = useCallback(() => {
-    controllers.forEach(controller => {
-      controller.enterEditMode()
-    })
-  }, [controllers])
-
   const handleCancel = useCallback(() => {
     controllers.forEach(controller => {
       controller.requestCancel()
@@ -336,7 +330,7 @@ function BankingManualControls({
         return
       }
 
-      const requestPromises: Promise<void>[] = []
+      const requests: { payload: UpdatePositionRequest }[] = []
       let missingNewEntityName = false
 
       aggregated.forEach(
@@ -370,13 +364,7 @@ function BankingManualControls({
             requestPayload.entity_id = entityId
           }
 
-          requestPromises.push(
-            saveManualPositions(requestPayload).then(() => {
-              if (requestPayload.entity_id) {
-                return refreshEntity(requestPayload.entity_id)
-              }
-            }),
-          )
+          requests.push({ payload: requestPayload })
         },
       )
 
@@ -395,12 +383,17 @@ function BankingManualControls({
         return
       }
 
-      if (requestPromises.length === 0) {
+      if (requests.length === 0) {
         controllers.forEach(controller => controller.handleSaveSuccess())
         return
       }
 
-      await Promise.all(requestPromises)
+      for (const { payload } of requests) {
+        await saveManualPositions(payload)
+        if (payload.entity_id) {
+          await refreshEntity(payload.entity_id)
+        }
+      }
 
       controllers.forEach(controller => controller.handleSaveSuccess())
 
@@ -430,41 +423,33 @@ function BankingManualControls({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end">
-        {isAnyEditMode ? (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCancel}
-              disabled={isAnySaving}
-              className="flex items-center gap-2"
-            >
-              <X className="h-3.5 w-3.5" />
-              {t.common.cancel}
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={isAnySaving || !hasAnyChanges}
-              className="flex items-center gap-2"
-            >
-              <Save className="h-3.5 w-3.5" />
-              {t.common.save}
-            </Button>
-          </>
-        ) : (
+      {isAnyEditMode && (
+        <div className="flex flex-wrap items-center gap-2 justify-center md:justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleCancel}
+            disabled={isAnySaving}
+            className="flex items-center gap-2"
+          >
+            <X className="h-3.5 w-3.5" />
+            {t.common.cancel}
+          </Button>
           <Button
             size="sm"
-            onClick={handleEnterEdit}
+            onClick={handleSave}
+            disabled={isAnySaving || !hasAnyChanges}
             className="flex items-center gap-2"
-            disabled={isAnySaving}
           >
-            <Pencil className="h-3.5 w-3.5" />
-            {t.common.edit}
+            {isAnySaving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Save className="h-3.5 w-3.5" />
+            )}
+            {t.common.save}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
       {unsavedControllers.length > 0 && (
         <div className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-100/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
           <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -810,21 +795,6 @@ export default function BankingPage() {
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2 [@media(min-width:500px)]:justify-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowAccountNumbers(value => !value)}
-                className="flex items-center gap-2"
-              >
-                {showAccountNumbers ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-                {showAccountNumbers
-                  ? t.banking.hideNumbers
-                  : t.banking.showNumbers}
-              </Button>
               {manualControllers.length > 0 && (
                 <BankingManualControls
                   controllers={manualControllers}
@@ -959,6 +929,7 @@ export default function BankingPage() {
           defaultCurrency={settings.general.defaultCurrency}
           exchangeRates={exchangeRates}
           showAccountNumbers={showAccountNumbers}
+          onToggleAccountNumbers={() => setShowAccountNumbers(v => !v)}
           onSummaryChange={updateAccountsSummary}
           onFocusEntity={handleFocusEntity}
           selectedEntities={selectedEntities}
@@ -1018,6 +989,7 @@ interface SectionCommonProps {
 interface BankAccountsSectionProps extends SectionCommonProps {
   positions: AccountPosition[]
   showAccountNumbers: boolean
+  onToggleAccountNumbers: () => void
   onSummaryChange: (summary: AccountsSummary) => void
 }
 
@@ -1028,6 +1000,7 @@ function BankAccountsSection({
   defaultCurrency,
   exchangeRates,
   showAccountNumbers,
+  onToggleAccountNumbers,
   onSummaryChange,
   onFocusEntity,
   selectedEntities,
@@ -1313,7 +1286,7 @@ function BankAccountsSection({
 
   return (
     <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Wallet className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
@@ -1323,21 +1296,41 @@ function BankAccountsSection({
             </span>
           </h2>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onEnterGlobalEditMode()
-            beginCreate(
-              defaultEntityId ? { entityId: defaultEntityId } : undefined,
-            )
-          }}
-          disabled={!canCreate}
-          className="flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {addLabel}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showAccountNumbers ? "outline" : "ghost"}
+            size="sm"
+            className="flex items-center gap-1 h-8 px-2 text-xs"
+            onClick={onToggleAccountNumbers}
+          >
+            <Binary className="h-3.5 w-3.5" />
+            Iban
+          </Button>
+          {!isEditMode && (
+            <Button
+              variant="default"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onEnterGlobalEditMode}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="default"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => {
+              onEnterGlobalEditMode()
+              beginCreate(
+                defaultEntityId ? { entityId: defaultEntityId } : undefined,
+              )
+            }}
+            disabled={!canCreate}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {summary.count === 0 ? (
@@ -1400,7 +1393,14 @@ function BankAccountsSection({
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
-                      <SourceBadge source={position.source} />
+                      <SourceBadge
+                        source={position.source}
+                        onClick={
+                          position.source === DataSource.MANUAL
+                            ? onEnterGlobalEditMode
+                            : undefined
+                        }
+                      />
                       <EntityBadge
                         name={position.entityName}
                         origin={position.entityOrigin}
@@ -1818,7 +1818,7 @@ function BankCardsSection({
 
   return (
     <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <CreditCard className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
@@ -1828,21 +1828,32 @@ function BankCardsSection({
             </span>
           </h2>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onEnterGlobalEditMode()
-            beginCreate(
-              defaultEntityId ? { entityId: defaultEntityId } : undefined,
-            )
-          }}
-          disabled={!canCreate}
-          className="flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {addLabel}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!isEditMode && (
+            <Button
+              variant="default"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onEnterGlobalEditMode}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="default"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => {
+              onEnterGlobalEditMode()
+              beginCreate(
+                defaultEntityId ? { entityId: defaultEntityId } : undefined,
+              )
+            }}
+            disabled={!canCreate}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {summary.count === 0 ? (
@@ -1900,7 +1911,14 @@ function BankCardsSection({
                   )}
                 >
                   <div className="absolute right-3 top-3 flex items-center gap-2">
-                    <SourceBadge source={position.source} />
+                    <SourceBadge
+                      source={position.source}
+                      onClick={
+                        position.source === DataSource.MANUAL
+                          ? onEnterGlobalEditMode
+                          : undefined
+                      }
+                    />
                     <EntityBadge
                       name={position.entityName}
                       origin={position.entityOrigin}
@@ -2303,7 +2321,7 @@ function BankLoansSection({
 
   return (
     <motion.div variants={fadeListItem} className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <TrendingDown className="h-5 w-5" />
           <h2 className="text-xl font-semibold">
@@ -2313,21 +2331,32 @@ function BankLoansSection({
             </span>
           </h2>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            onEnterGlobalEditMode()
-            beginCreate(
-              defaultEntityId ? { entityId: defaultEntityId } : undefined,
-            )
-          }}
-          disabled={!canCreate}
-          className="flex items-center gap-2 self-start sm:self-auto"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          {addLabel}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!isEditMode && (
+            <Button
+              variant="default"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onEnterGlobalEditMode}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="default"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => {
+              onEnterGlobalEditMode()
+              beginCreate(
+                defaultEntityId ? { entityId: defaultEntityId } : undefined,
+              )
+            }}
+            disabled={!canCreate}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
 
       {summary.count === 0 ? (
@@ -2402,7 +2431,14 @@ function BankLoansSection({
                       : t.loanTypes.STANDARD}
                   </Badge>
                   <div className="flex items-center gap-2">
-                    <SourceBadge source={position.source} />
+                    <SourceBadge
+                      source={position.source}
+                      onClick={
+                        position.source === DataSource.MANUAL
+                          ? onEnterGlobalEditMode
+                          : undefined
+                      }
+                    />
                     <EntityBadge
                       name={position.entityName}
                       origin={position.entityOrigin}
@@ -2536,6 +2572,19 @@ function BankLoansSection({
                             {
                               years: fixedYearsValue,
                             },
+                          )}
+                        </div>
+                      )}
+                    {position.interest_type === InterestType.MIXED &&
+                      isFiniteNumber(position.fixed_interest_rate) && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {manualTranslate(
+                            `${assetPath}.fields.fixedInterestRate`,
+                          )}
+                          {": "}
+                          {formatPercentage(
+                            (position.fixed_interest_rate ?? 0) * 100,
+                            locale,
                           )}
                         </div>
                       )}

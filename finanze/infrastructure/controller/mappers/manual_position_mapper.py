@@ -33,6 +33,7 @@ from domain.global_position import (
     FundPortfolios,
     FundType,
     InterestType,
+    InstallmentFrequency,
     Loan,
     Loans,
     LoanType,
@@ -56,10 +57,13 @@ def _uuid(value: Any):
         return None
 
 
-def _dez(value: Any):
+def _dez(value: Any, round_digits: int | None = None):
     if value is None:
         return None
-    return Dezimal(str(value))
+    d = Dezimal(str(value))
+    if round_digits is not None:
+        d = round(d, round_digits)
+    return d
 
 
 def _date(value: Any):
@@ -87,6 +91,7 @@ def _dt(value: Any):
 def _map_manual_data(entry: dict) -> ManualEntryData:
     return ManualEntryData(
         tracker_key=entry.get("tracker_key"),
+        track=bool(entry.get("track", False)),
     )
 
 
@@ -104,7 +109,7 @@ def _map_accounts(entries: list[dict]) -> Accounts:
                 type=AccountType(e["type"]),
                 name=e.get("name"),
                 iban=e.get("iban"),
-                interest=_dez(e.get("interest")),
+                interest=_dez(e.get("interest"), 6),
                 retained=_dez(e.get("retained")),
                 pending_transfers=_dez(e.get("pending_transfers")),
                 source=DataSource.MANUAL,
@@ -220,14 +225,14 @@ def _map_real_estate_cf(entries: list[dict]) -> RealEstateCFInvestments:
                 amount=_dez(e["amount"]),
                 pending_amount=_dez(e["pending_amount"]),
                 currency=e["currency"],
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 business_type=e.get("business_type", ""),
                 state=e["state"],
                 extended_maturity=_date(e.get("extended_maturity")),
-                extended_interest_rate=_dez(e.get("extended_interest_rate"))
+                extended_interest_rate=_dez(e.get("extended_interest_rate"), 6)
                 if e.get("extended_interest_rate")
                 else None,
                 source=DataSource.MANUAL,
@@ -257,12 +262,12 @@ def _map_factoring(entries: list[dict]) -> FactoringInvestments:
                 name=e["name"],
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 start=_dt(e["start"]),
                 maturity=_date(e["maturity"]),
                 type=e["type"],
                 state=e["state"],
-                late_interest_rate=_dez(e.get("late_interest_rate"))
+                late_interest_rate=_dez(e.get("late_interest_rate"), 6)
                 if e.get("late_interest_rate")
                 else None,
                 source=DataSource.MANUAL,
@@ -291,7 +296,7 @@ def _map_deposits(entries: list[dict]) -> Deposits:
                 amount=_dez(e["amount"]),
                 currency=e["currency"],
                 expected_interests=Dezimal(0),
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 creation=_dt(e["creation"]),
                 maturity=_date(e["maturity"]),
                 source=DataSource.MANUAL,
@@ -321,18 +326,24 @@ def _map_loans(entries: list[dict]) -> Loans:
                 type=LoanType(e["type"]),
                 currency=e["currency"],
                 current_installment=_dez(e["current_installment"]),
-                interest_rate=_dez(e["interest_rate"]),
+                interest_rate=_dez(e["interest_rate"], 6),
                 loan_amount=_dez(e["loan_amount"]),
                 creation=_date(e["creation"]),
                 maturity=_date(e["maturity"]),
                 principal_outstanding=_dez(e["principal_outstanding"]),
-                principal_paid=_dez(e.get("principal_paid")),
                 interest_type=InterestType(e.get("interest_type", InterestType.FIXED)),
-                next_payment_date=_date(e.get("next_payment_date")),
-                euribor_rate=_dez(e.get("euribor_rate")),
+                installment_frequency=InstallmentFrequency(
+                    e.get("installment_frequency", InstallmentFrequency.MONTHLY)
+                ),
+                installment_interests=_dez(e.get("installment_interests")),
+                fixed_interest_rate=_dez(e.get("fixed_interest_rate"), 6),
+                euribor_rate=_dez(e.get("euribor_rate"), 6),
                 fixed_years=e.get("fixed_years"),
                 name=e.get("name"),
                 unpaid=_dez(e.get("unpaid")),
+                manual_data=_map_manual_data(e["manual_data"])
+                if e.get("manual_data")
+                else None,
                 source=DataSource.MANUAL,
             )
         )

@@ -1489,6 +1489,16 @@
       "VARIABLE": "Variable",
       "MIXED": "Mixed"
     },
+    "installmentFrequency": {
+      "WEEKLY": "Weekly",
+      "BIWEEKLY": "Biweekly",
+      "SEMIMONTHLY": "Semimonthly",
+      "MONTHLY": "Monthly",
+      "BIMONTHLY": "Bimonthly",
+      "QUARTERLY": "Quarterly",
+      "SEMIANNUAL": "Semiannual",
+      "YEARLY": "Yearly"
+    },
     "fundType": {
       "MUTUAL_FUND": "Mutual fund",
       "PRIVATE_EQUITY": "Private equity",
@@ -2008,7 +2018,12 @@
           "euriborRate": "Euribor rate",
           "fixedYears": "Fixed-rate years",
           "creation": "Start date",
-          "maturity": "Maturity"
+          "maturity": "Maturity",
+          "installmentFrequency": "Installment frequency",
+          "fixedInterestRate": "Fixed interest rate (%)",
+          "trackLoan": "Update loan automatically",
+          "trackLoanLabel": "Auto-update",
+          "trackLoanInfo": "Automatically recalculates the installment, interests, and outstanding principal over time."
         },
         "helpers": {
           "calculationHint": "Use the calculator to estimate the current installment and outstanding principal.",
@@ -2428,6 +2443,7 @@
       "interestType": "Interest type",
       "fixedYears": "Fixed years",
       "fixedYearsLabel": "Fixed rate years",
+      "fixedInterestRateLabel": "Fixed interest rate",
       "fromLabel": "From",
       "untilLabel": "Until",
       "existingLoan": "Existing Loan",
@@ -2662,7 +2678,12 @@
       "saveChanges": "Save changes",
       "discardChanges": "Discard changes",
       "discardChangesTitle": "Discard changes?",
-      "deleteUnassignedFlows": "Do you want to delete the income/expenses that you have unassigned from this property?"
+      "deleteUnassignedFlows": "Do you want to delete the income/expenses that you have unassigned from this property?",
+      "unlinkLoanTitle": "Unlink loan?",
+      "unlinkLoanMessage": "Unlinking the loan will remove the connection to the banking position. To link it again, you will need to add the loan again.",
+      "unlinkLoanWarning": "This action cannot be undone.",
+      "unlinkLoanConfirm": "Unlink",
+      "unlinkLoanCancel": "Cancel"
     },
     "validation": {
       "title": "Validation Errors",

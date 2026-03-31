@@ -175,6 +175,18 @@ def map_real_estate(body: dict, real_estate_id: UUID = None) -> RealEstate:
 
 def _parse_flow_payload(flow_subtype: RealEstateFlowSubtype, payload_data: dict):
     if flow_subtype == RealEstateFlowSubtype.LOAN:
+        linked_hash = payload_data.get("linked_loan_hash")
+        if linked_hash:
+            return LoanPayload(
+                type=LoanType(payload_data.get("type", "MORTGAGE")),
+                loan_amount=None,
+                interest_rate=Dezimal(0),
+                euribor_rate=None,
+                interest_type=InterestType.FIXED,
+                fixed_years=None,
+                principal_outstanding=Dezimal(0),
+                linked_loan_hash=linked_hash,
+            )
         return LoanPayload(
             type=LoanType(payload_data["type"]),
             loan_amount=Dezimal(payload_data["loan_amount"])
@@ -186,6 +198,9 @@ def _parse_flow_payload(flow_subtype: RealEstateFlowSubtype, payload_data: dict)
             else None,
             interest_type=InterestType(payload_data["interest_type"]),
             fixed_years=payload_data.get("fixed_years"),
+            fixed_interest_rate=Dezimal(payload_data["fixed_interest_rate"])
+            if payload_data.get("fixed_interest_rate")
+            else None,
             principal_outstanding=Dezimal(payload_data["principal_outstanding"]),
             monthly_interests=Dezimal(payload_data["monthly_interests"])
             if payload_data.get("monthly_interests")

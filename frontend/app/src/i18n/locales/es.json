@@ -1488,6 +1488,16 @@
       "VARIABLE": "Variable",
       "MIXED": "Mixto"
     },
+    "installmentFrequency": {
+      "WEEKLY": "Semanal",
+      "BIWEEKLY": "Quincenal",
+      "SEMIMONTHLY": "Bimensual",
+      "MONTHLY": "Mensual",
+      "BIMONTHLY": "Bimestral",
+      "QUARTERLY": "Trimestral",
+      "SEMIANNUAL": "Semestral",
+      "YEARLY": "Anual"
+    },
     "fundType": {
       "MUTUAL_FUND": "Fondo de inversión",
       "PRIVATE_EQUITY": "Capital privado",
@@ -1724,7 +1734,7 @@
     "SAVINGS": "Ahorros",
     "BROKERAGE": "Inversión",
     "VIRTUAL_WALLET": "Monedero",
-    "FUND_PORTFOLIO": "Asociada a cartera"
+    "FUND_PORTFOLIO": "De cartera"
   },
   "management": {
     "title": "Gestión",
@@ -2020,7 +2030,12 @@
           "euriborRate": "Euríbor",
           "fixedYears": "Años a tipo fijo",
           "creation": "Fecha de inicio",
-          "maturity": "Vencimiento"
+          "maturity": "Vencimiento",
+          "installmentFrequency": "Frecuencia de cuota",
+          "fixedInterestRate": "Tipo de interés fijo (%)",
+          "trackLoan": "Actualizar préstamo automáticamente",
+          "trackLoanLabel": "Auto-actualizar",
+          "trackLoanInfo": "Recalcula automáticamente la cuota, los intereses y el principal pendiente con el tiempo."
         },
         "helpers": {
           "calculationHint": "Usa la calculadora para estimar la cuota actual y el principal pendiente.",
@@ -2440,6 +2455,7 @@
       "interestType": "Tipo de interés",
       "fixedYears": "Años fijos",
       "fixedYearsLabel": "Años a tipo fijo",
+      "fixedInterestRateLabel": "Tipo de interés fijo",
       "monthlyInterest": "Intereses mensuales",
       "fromLabel": "Desde",
       "untilLabel": "Hasta",
@@ -2675,7 +2691,12 @@
       "saveChanges": "Guardar",
       "discardChanges": "Descartar cambios",
       "discardChangesTitle": "¿Descartar cambios?",
-      "deleteUnassignedFlows": "¿Deseas eliminar los gastos/ingresos que has desasociado de esta propiedad?"
+      "deleteUnassignedFlows": "¿Deseas eliminar los gastos/ingresos que has desasociado de esta propiedad?",
+      "unlinkLoanTitle": "¿Desvincular préstamo?",
+      "unlinkLoanMessage": "Al desvincular el préstamo, se perderá la conexión con la posición bancaria. Para volver a vincularlo, deberás añadirlo de nuevo.",
+      "unlinkLoanWarning": "Esta acción no se puede deshacer.",
+      "unlinkLoanConfirm": "Desvincular",
+      "unlinkLoanCancel": "Cancelar"
     },
     "validation": {
       "title": "Errores de Validación",

@@ -25,6 +25,7 @@ import {
   getExchangeRates,
   getExternalIntegrations,
   updateQuotesManualPositions,
+  updateTrackedLoans,
 } from "@/services/api"
 import { useI18n } from "@/i18n"
 import { useAuth } from "@/context/AuthContext"
@@ -237,7 +238,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const exchangeRatesTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const LAST_UPDATE_QUOTES_KEY = "lastUpdateQuotesTime"
-  const QUOTES_UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000
+  const LAST_UPDATE_LOANS_KEY = "lastUpdateLoansTime"
+  const QUOTES_UPDATE_INTERVAL_MS = 12 * 60 * 60 * 1000
   const EXCHANGE_RATES_REFRESH_INTERVAL_MS = 10 * 60 * 1000
 
   const showToast = useCallback(
@@ -468,12 +470,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [LAST_UPDATE_QUOTES_KEY, QUOTES_UPDATE_INTERVAL_MS])
 
+  const updateLoansIfNeeded = useCallback(async () => {
+    const now = Date.now()
+
+    const lastCallTimeStr = localStorage.getItem(LAST_UPDATE_LOANS_KEY)
+    const lastCallTime = lastCallTimeStr ? parseInt(lastCallTimeStr, 10) : null
+
+    if (
+      lastCallTime === null ||
+      now - lastCallTime >= QUOTES_UPDATE_INTERVAL_MS
+    ) {
+      try {
+        await updateTrackedLoans()
+        localStorage.setItem(LAST_UPDATE_LOANS_KEY, now.toString())
+      } catch (error) {
+        console.error("Error updating tracked loans:", error)
+      }
+    }
+  }, [LAST_UPDATE_LOANS_KEY, QUOTES_UPDATE_INTERVAL_MS])
+
   useEffect(() => {
     if (isAuthenticated && !initialFetchDone.current) {
       fetchEntities()
       fetchSettings()
       fetchExternalIntegrations()
       updateQuotesIfNeeded()
+      updateLoansIfNeeded()
       initialFetchDone.current = true
     } else if (!isAuthenticated) {
       stopExchangeRatesTimer()
@@ -487,6 +509,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isAuthenticated,
     stopExchangeRatesTimer,
     updateQuotesIfNeeded,
+    updateLoansIfNeeded,
   ])
 
   useEffect(() => {

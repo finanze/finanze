@@ -16,6 +16,7 @@ from application.ports.entity_account_port import EntityAccountPort
 from application.ports.financial_entity_fetcher import FinancialEntityFetcher
 from application.ports.historic_port import HistoricPort
 from application.ports.last_fetches_port import LastFetchesPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.position_port import PositionPort
 from application.ports.public_keychain_loader import PublicKeychainLoader
 from application.ports.sessions_port import SessionsPort
@@ -44,6 +45,7 @@ from domain.global_position import (
     ProductType,
     RealEstateCFDetail,
 )
+from domain.loan_calculator import LoanCalculationParams
 from domain.historic import (
     BaseHistoricEntry,
     FactoringEntry,
@@ -174,6 +176,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         transaction_handler_port: TransactionHandlerPort,
         keychain_loader: PublicKeychainLoader,
         entity_account_port: EntityAccountPort,
+        loan_calculator: LoanCalculatorPort,
     ):
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
@@ -189,6 +192,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._transaction_handler_port = transaction_handler_port
         self._keychain_loader = keychain_loader
         self._entity_account_port = entity_account_port
+        self._loan_calculator = loan_calculator
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -336,6 +340,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             position = await specific_fetcher.global_position()
             position.entity_account_id = entity_account_id
             await self._enrich_crypto_assets(position)
+            await self._enrich_loans(position)
 
         auto_contributions = None
         if Feature.AUTO_CONTRIBUTIONS in features:
@@ -366,9 +371,16 @@ class FetchFinancialDataImpl(FetchFinancialData):
                 if Feature.HISTORIC in features:
                     historical_position = await specific_fetcher.historical_position()
 
+        old_position_id = None
+        if position and position.entity_account_id:
+            old_position_id = await self._position_port.get_latest_real_position_id(
+                position.entity_account_id
+            )
+
         async with self._transaction_handler_port.start():
             if position:
                 await self._position_port.save(position)
+                await self._migrate_stale_references(old_position_id, position)
 
             if auto_contributions:
                 await self._auto_contr_repository.save(
@@ -558,3 +570,87 @@ class FetchFinancialDataImpl(FetchFinancialData):
                         crypto_entry.crypto_asset = asset_info
                 else:
                     crypto_entry.crypto_asset = asset_details
+
+    async def _enrich_loans(self, position: GlobalPosition):
+        loan_container = position.products.get(ProductType.LOAN)
+        if not loan_container or not loan_container.entries:
+            return
+
+        for loan in loan_container.entries:
+            if loan.installment_interests is not None:
+                continue
+            try:
+                params = LoanCalculationParams(
+                    loan_amount=None,
+                    interest_rate=loan.interest_rate,
+                    interest_type=loan.interest_type,
+                    euribor_rate=loan.euribor_rate,
+                    fixed_years=loan.fixed_years,
+                    start=loan.creation,
+                    end=loan.maturity,
+                    principal_outstanding=loan.principal_outstanding,
+                    fixed_interest_rate=loan.fixed_interest_rate,
+                    installment_frequency=loan.installment_frequency,
+                )
+                result = await self._loan_calculator.calculate(params)
+                loan.installment_interests = result.current_monthly_interests
+            except Exception:
+                self._log.error(
+                    "Could not compute installment_interests for loan %s %s",
+                    loan.name,
+                    loan.id,
+                )
+
+    async def _migrate_stale_references(
+        self,
+        old_position_id,
+        new_position: GlobalPosition,
+    ):
+        if old_position_id is None:
+            return
+
+        old_accounts = await self._position_port.get_account_iban_index(old_position_id)
+        new_accounts_by_iban: dict[str, "UUID"] = {}
+        accounts_container = new_position.products.get(ProductType.ACCOUNT)
+        if accounts_container and hasattr(accounts_container, "entries"):
+            for acc in accounts_container.entries:
+                iban = getattr(acc, "iban", None)
+                if iban and iban.strip():
+                    new_accounts_by_iban[iban.strip()] = acc.id
+
+        account_mapping = {}
+        for old_id, old_iban in old_accounts.items():
+            if not old_iban or not old_iban.strip():
+                continue
+            new_id = new_accounts_by_iban.get(old_iban.strip())
+            if new_id and old_id != new_id:
+                account_mapping[old_id] = new_id
+
+        old_portfolios = await self._position_port.get_portfolio_name_index(
+            old_position_id
+        )
+        new_portfolios_by_name: dict[str, "UUID"] = {}
+        portfolios_container = new_position.products.get(ProductType.FUND_PORTFOLIO)
+        if portfolios_container and hasattr(portfolios_container, "entries"):
+            for pf in portfolios_container.entries:
+                name = getattr(pf, "name", None)
+                if name and name.strip():
+                    new_portfolios_by_name[name.strip()] = pf.id
+
+        portfolio_mapping = {}
+        for old_id, old_name in old_portfolios.items():
+            if not old_name or not old_name.strip():
+                continue
+            new_id = new_portfolios_by_name.get(old_name.strip())
+            if new_id and old_id != new_id:
+                portfolio_mapping[old_id] = new_id
+
+        if account_mapping or portfolio_mapping:
+            self._log.info(
+                "Migrating stale references: %d account(s), %d portfolio(s)",
+                len(account_mapping),
+                len(portfolio_mapping),
+            )
+            await self._position_port.migrate_references(
+                account_mapping, portfolio_mapping
+            )

@@ -4,9 +4,9 @@ from enum import Enum
 class ManualPositionDataQueries(str, Enum):
     INSERT = """
         INSERT INTO manual_position_data (
-            entry_id, global_position_id, product_type, track_ticker, tracker_key
+            entry_id, global_position_id, product_type, track_ticker, tracker_key, track_loan
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
     """
 
     GET_TRACKABLE = """
@@ -15,16 +15,27 @@ class ManualPositionDataQueries(str, Enum):
         WHERE track_ticker = 1 AND tracker_key IS NOT NULL
     """
 
+    GET_TRACKABLE_LOANS = """
+        SELECT entry_id, global_position_id, product_type
+        FROM manual_position_data
+        WHERE track_loan = 1 AND product_type = 'LOAN'
+    """
+
+    DELETE_BY_POSITION_ID = (
+        "DELETE FROM manual_position_data WHERE global_position_id = ?"
+    )
+
     DELETE_BY_POSITION_ID_AND_TYPE = "DELETE FROM manual_position_data WHERE global_position_id = ? AND product_type = ?"
 
 
 class PositionWriteQueries(str, Enum):
     INSERT_LOAN_POSITION = """
         INSERT INTO loan_positions (id, global_position_id, type, currency, name, current_installment,
-                                    interest_rate, interest_type, loan_amount, next_payment_date,
-                                    principal_outstanding, principal_paid, euribor_rate, fixed_years,
-                                    creation, maturity, unpaid)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    installment_frequency, interest_rate, interest_type, installment_interests,
+                                    loan_amount, next_payment_date,
+                                    principal_outstanding, euribor_rate, fixed_years,
+                                    fixed_interest_rate, creation, maturity, unpaid, hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     INSERT_CARD_POSITION = """
@@ -182,8 +193,30 @@ class PositionQueries(str, Enum):
     )
 
     GET_LOANS_BY_GLOBAL_POSITION_ID = (
-        "SELECT * FROM loan_positions WHERE global_position_id = ?"
+        "SELECT lp.*, mpd.track_ticker, mpd.tracker_key, mpd.track_loan "
+        "FROM loan_positions lp "
+        "LEFT JOIN manual_position_data mpd ON mpd.entry_id = lp.id "
+        "WHERE lp.global_position_id = ?"
     )
+
+    GET_LOANS_BY_HASHES = (
+        "SELECT lp.*, gp.entity_id, gp.source FROM loan_positions lp "
+        "JOIN global_positions gp ON lp.global_position_id = gp.id "
+        "WHERE lp.hash IN ({placeholders})"
+    )
+
+    GET_LOAN_BY_ENTRY_ID = (
+        "SELECT lp.*, gp.entity_id, gp.source FROM loan_positions lp "
+        "JOIN global_positions gp ON lp.global_position_id = gp.id "
+        "WHERE lp.id = ?"
+    )
+
+    UPDATE_LOAN_POSITION = """
+        UPDATE loan_positions
+        SET current_installment = ?, installment_interests = ?,
+            principal_outstanding = ?, next_payment_date = ?
+        WHERE id = ?
+    """
 
     GET_STOCKS_BY_GLOBAL_POSITION_ID = "SELECT * FROM stock_positions s LEFT JOIN manual_position_data mpd ON mpd.entry_id = s.id WHERE s.global_position_id = ?"
 
@@ -302,3 +335,47 @@ class PositionQueries(str, Enum):
         "UPDATE stock_positions SET market_value = ? WHERE id = ?"
     )
     UPDATE_FUND_MARKET_VALUE = "UPDATE fund_positions SET market_value = ? WHERE id = ?"
+
+    # --- Stale reference migration ---
+
+    GET_LATEST_REAL_POSITION_ID_FOR_ENTITY_ACCOUNT = """
+        SELECT id FROM global_positions
+        WHERE source = 'REAL' AND entity_account_id = ?
+        ORDER BY date DESC LIMIT 1
+    """
+
+    GET_ACCOUNTS_LIGHTWEIGHT = """
+        SELECT id, iban FROM account_positions WHERE global_position_id = ?
+    """
+
+    GET_FUND_PORTFOLIOS_LIGHTWEIGHT = """
+        SELECT id, name FROM fund_portfolios WHERE global_position_id = ?
+    """
+
+    MIGRATE_CARD_RELATED_ACCOUNTS = """
+        UPDATE card_positions SET related_account = ?
+        WHERE related_account = ?
+          AND global_position_id IN (
+              SELECT id FROM global_positions WHERE source = 'MANUAL'
+          )
+    """
+
+    MIGRATE_FUND_PORTFOLIO_ACCOUNTS = """
+        UPDATE fund_portfolios SET account_id = ?
+        WHERE account_id = ?
+          AND global_position_id IN (
+              SELECT id FROM global_positions WHERE source = 'MANUAL'
+          )
+    """
+
+    MIGRATE_FUND_PORTFOLIO_REFERENCES = """
+        UPDATE fund_positions SET portfolio_id = ?
+        WHERE portfolio_id = ?
+          AND global_position_id IN (
+              SELECT id FROM global_positions WHERE source = 'MANUAL'
+          )
+    """
+
+    ACCOUNT_EXISTS = "SELECT 1 FROM account_positions WHERE id = ? LIMIT 1"
+
+    FUND_PORTFOLIO_EXISTS = "SELECT 1 FROM fund_portfolios WHERE id = ? LIMIT 1"

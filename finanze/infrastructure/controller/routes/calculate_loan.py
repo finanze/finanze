@@ -3,7 +3,7 @@ from datetime import date
 
 from domain.dezimal import Dezimal
 from domain.exception.exceptions import MissingFieldsError
-from domain.global_position import InterestType
+from domain.global_position import InstallmentFrequency, InterestType
 from domain.loan_calculator import LoanCalculationParams
 from domain.use_cases.calculate_loan import CalculateLoan
 from quart import jsonify, request
@@ -36,6 +36,20 @@ async def calculate_loan(calculate_loan_uc: CalculateLoan):
         if fixed_years is not None:
             fixed_years = int(fixed_years)
 
+        fixed_interest_rate_val = body.get("fixed_interest_rate")
+        fixed_interest_rate = (
+            Dezimal(fixed_interest_rate_val)
+            if fixed_interest_rate_val is not None
+            else None
+        )
+
+        installment_frequency_val = body.get("installment_frequency")
+        installment_frequency = (
+            InstallmentFrequency(installment_frequency_val)
+            if installment_frequency_val
+            else InstallmentFrequency.MONTHLY
+        )
+
         start = body["start"]
         end = body["end"]
         if isinstance(start, str):
@@ -52,6 +66,8 @@ async def calculate_loan(calculate_loan_uc: CalculateLoan):
             start=start,
             end=end,
             principal_outstanding=principal_outstanding,
+            fixed_interest_rate=fixed_interest_rate,
+            installment_frequency=installment_frequency,
         )
     except (KeyError, ValueError, TypeError) as e:
         return jsonify({"code": "INVALID_REQUEST", "message": str(e)}), 400

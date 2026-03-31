@@ -2,6 +2,7 @@ import { DataSource, EntityOrigin, HDWallet } from "."
 
 export interface ManualEntryData {
   tracker_key?: string | null
+  track?: boolean
 }
 
 export enum ProductType {
@@ -46,6 +47,17 @@ export enum InterestType {
   MIXED = "MIXED",
 }
 
+export enum InstallmentFrequency {
+  WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  SEMIMONTHLY = "SEMIMONTHLY",
+  MONTHLY = "MONTHLY",
+  BIMONTHLY = "BIMONTHLY",
+  QUARTERLY = "QUARTERLY",
+  SEMIANNUAL = "SEMIANNUAL",
+  YEARLY = "YEARLY",
+}
+
 export interface Account {
   id: string
   total: number
@@ -83,12 +95,17 @@ export interface Loan {
   principal_outstanding: number
   principal_paid: number | null
   interest_type: InterestType
+  installment_frequency?: InstallmentFrequency
+  installment_interests?: number | null
+  fixed_interest_rate?: number | null
   euribor_rate?: number | null
   fixed_years?: number | null
   name?: string | null
   creation: string
   maturity: string
   unpaid?: number | null
+  hash?: string
+  manual_data?: ManualEntryData | null
   source: DataSource
 }
 

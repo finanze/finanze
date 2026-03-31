@@ -12,16 +12,20 @@ from quart import jsonify
 def _serialize_flow_payload(payload) -> dict:
     """Serialize the payload based on its type."""
     if isinstance(payload, LoanPayload):
-        return {
+        result = {
             "type": payload.type,
             "loan_amount": payload.loan_amount,
             "interest_rate": payload.interest_rate,
             "euribor_rate": payload.euribor_rate,
             "interest_type": payload.interest_type,
             "fixed_years": payload.fixed_years,
+            "fixed_interest_rate": payload.fixed_interest_rate,
             "principal_outstanding": payload.principal_outstanding,
             "monthly_interests": payload.monthly_interests,
         }
+        if payload.linked_loan_hash:
+            result["linked_loan_hash"] = payload.linked_loan_hash
+        return result
     elif isinstance(payload, CostPayload) or isinstance(payload, SupplyPayload):
         return {
             "tax_deductible": payload.tax_deductible,

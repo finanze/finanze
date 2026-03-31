@@ -25,6 +25,7 @@ import {
   Loan,
   LoanType,
   InterestType,
+  InstallmentFrequency,
   FundDetail,
   FundPortfolio,
   FundType,
@@ -320,7 +321,7 @@ const numberFieldError = <FormState extends ManualPositionFormBase>(
 const isManualSource = (entry: { source?: DataSource | null }) =>
   entry.source === DataSource.MANUAL
 
-interface BankLoanFormState extends ManualPositionFormBase {
+export interface BankLoanFormState extends ManualPositionFormBase {
   name: string
   type: LoanType
   currency: string
@@ -329,10 +330,13 @@ interface BankLoanFormState extends ManualPositionFormBase {
   current_installment: string
   principal_outstanding: string
   interest_type: InterestType
+  installment_frequency: string
+  fixed_interest_rate: string
   euribor_rate: string
   fixed_years: string
   creation: string
   maturity: string
+  track_loan: string
 }
 
 function LoanCalculationHelper(
@@ -394,12 +398,16 @@ function LoanCalculationHelper(
 
     const euriborRate = parseNumberInput(props.form.euribor_rate)
     const fixedYears = parseNumberInput(props.form.fixed_years)
+    const fixedInterestRate = parseNumberInput(props.form.fixed_interest_rate)
 
     const request: LoanCalculationRequest = {
       interest_rate: (interestRatePercent ?? 0) / 100,
       interest_type: interestType,
       start: creationDate,
       end: maturityDate,
+      fixed_interest_rate:
+        fixedInterestRate != null ? fixedInterestRate / 100 : undefined,
+      installment_frequency: props.form.installment_frequency || undefined,
     }
 
     if (principalOutstanding !== null && principalOutstanding > 0) {
@@ -2721,7 +2729,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     },
     validateForm: (form, { t }) => {
       const errors: ManualFormErrors<typeof form> = {}
-      if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.type) errors.type = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
       const total = parseNumberInput(form.total)
@@ -2756,6 +2763,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           props.t("management.manualPositions.shared.currency"),
           props,
           props.currencyOptions.map(value => ({ value, label: value })),
+        )}
+        {renderTextInput(
+          "name",
+          props.t("management.manualPositions.shared.name"),
+          props,
         )}
         {renderTextInput(
           "total",
@@ -2913,7 +2925,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
     },
     validateForm: (form, { t }) => {
       const errors: ManualFormErrors<typeof form> = {}
-      if (!form.name.trim()) errors.name = requiredField(t)
       if (!form.type) errors.type = requiredField(t)
       if (!form.currency) errors.currency = requiredField(t)
       const used = parseNumberInput(form.used)
@@ -3086,10 +3097,13 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       current_installment: "",
       principal_outstanding: "",
       interest_type: InterestType.FIXED,
+      installment_frequency: "MONTHLY",
+      fixed_interest_rate: "",
       euribor_rate: "",
       fixed_years: "",
       creation: "",
       maturity: "",
+      track_loan: "true",
     }),
     draftToForm: draft => ({
       entity_id: draft.isNewEntity ? "" : draft.entityId,
@@ -3110,6 +3124,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         draft.principal_outstanding ?? 0,
       ),
       interest_type: draft.interest_type,
+      installment_frequency: draft.installment_frequency ?? "MONTHLY",
+      fixed_interest_rate:
+        draft.fixed_interest_rate != null
+          ? String(draft.fixed_interest_rate * 100)
+          : "",
       euribor_rate:
         draft.euribor_rate != null
           ? formatNumberInput(draft.euribor_rate * 100)
@@ -3122,6 +3141,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
           : "",
       creation: draft.creation ?? "",
       maturity: draft.maturity ?? "",
+      track_loan: (draft as any).manual_data?.track ? "true" : "",
     }),
     buildEntryFromForm: (form, { previous }) => {
       const loanAmount = parseNumberInput(form.loan_amount)
@@ -3157,6 +3177,11 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         return null
       }
 
+      const fixedInterestRatePercent =
+        interestType === InterestType.MIXED
+          ? parseNumberInput(form.fixed_interest_rate)
+          : null
+
       const creationDate = normalizeDateInput(form.creation)
       const maturityDate = normalizeDateInput(form.maturity)
       if (!creationDate || !maturityDate) {
@@ -3172,8 +3197,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         loan_amount: loanAmount,
         next_payment_date: previous?.next_payment_date ?? null,
         principal_outstanding: principalOutstanding,
-        principal_paid: previous?.principal_paid ?? null,
+        principal_paid: null,
         interest_type: interestType,
+        installment_frequency:
+          (form.installment_frequency as InstallmentFrequency) ||
+          InstallmentFrequency.MONTHLY,
+        fixed_interest_rate:
+          fixedInterestRatePercent != null
+            ? fixedInterestRatePercent / 100
+            : null,
         euribor_rate: requiresEuribor ? (euriborPercent ?? 0) / 100 : null,
         fixed_years: requiresFixedYears
           ? (fixedYearsValue ?? previous?.fixed_years ?? null)
@@ -3182,6 +3214,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         creation: creationDate,
         maturity: maturityDate,
         unpaid: previous?.unpaid ?? null,
+        manual_data: form.track_loan ? { track: true } : null,
         source: DataSource.MANUAL,
       }
 
@@ -3221,6 +3254,12 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       ) {
         errors.fixed_years = numberFieldError(t)
       }
+      if (interestType === InterestType.MIXED) {
+        const fixedRate = parseNumberInput(form.fixed_interest_rate)
+        if (fixedRate === null || fixedRate <= 0) {
+          errors.fixed_interest_rate = numberFieldError(t)
+        }
+      }
       if (!normalizeDateInput(form.creation)) {
         errors.creation = requiredField(t)
       }
@@ -3235,6 +3274,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         props.form.interest_type === InterestType.VARIABLE ||
         props.form.interest_type === InterestType.MIXED
       const showFixedYearsField =
+        props.form.interest_type === InterestType.MIXED
+      const showFixedInterestRateField =
         props.form.interest_type === InterestType.MIXED
 
       return (
@@ -3297,6 +3338,57 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               label: props.t(`enums.interestType.${value}`) || value,
             })),
           )}
+          {renderSelectInput(
+            "installment_frequency",
+            props.t(
+              "management.manualPositions.bankLoans.fields.installmentFrequency",
+            ),
+            props,
+            [
+              {
+                value: InstallmentFrequency.WEEKLY,
+                label: props.t("enums.installmentFrequency.WEEKLY") || "Weekly",
+              },
+              {
+                value: InstallmentFrequency.BIWEEKLY,
+                label:
+                  props.t("enums.installmentFrequency.BIWEEKLY") || "Biweekly",
+              },
+              {
+                value: InstallmentFrequency.SEMIMONTHLY,
+                label:
+                  props.t("enums.installmentFrequency.SEMIMONTHLY") ||
+                  "Semi-monthly",
+              },
+              {
+                value: InstallmentFrequency.MONTHLY,
+                label:
+                  props.t("enums.installmentFrequency.MONTHLY") || "Monthly",
+              },
+              {
+                value: InstallmentFrequency.BIMONTHLY,
+                label:
+                  props.t("enums.installmentFrequency.BIMONTHLY") ||
+                  "Bimonthly",
+              },
+              {
+                value: InstallmentFrequency.QUARTERLY,
+                label:
+                  props.t("enums.installmentFrequency.QUARTERLY") ||
+                  "Quarterly",
+              },
+              {
+                value: InstallmentFrequency.SEMIANNUAL,
+                label:
+                  props.t("enums.installmentFrequency.SEMIANNUAL") ||
+                  "Semi-annual",
+              },
+              {
+                value: InstallmentFrequency.YEARLY,
+                label: props.t("enums.installmentFrequency.YEARLY") || "Yearly",
+              },
+            ],
+          )}
           {showEuriborField &&
             renderTextInput(
               "euribor_rate",
@@ -3312,6 +3404,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               props.t("management.manualPositions.bankLoans.fields.fixedYears"),
               props,
               { type: "number", step: "1", inputMode: "numeric" },
+            )}
+          {showFixedInterestRateField &&
+            renderTextInput(
+              "fixed_interest_rate",
+              props.t(
+                "management.manualPositions.bankLoans.fields.fixedInterestRate",
+              ),
+              props,
+              { type: "number", step: "0.01", inputMode: "decimal" },
             )}
           <LoanCalculationHelper {...loanProps} />
           {renderDateInput(
@@ -3359,6 +3460,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       current_installment: draft.current_installment,
       principal_outstanding: draft.principal_outstanding,
       interest_type: draft.interest_type,
+      installment_frequency: draft.installment_frequency ?? null,
+      fixed_interest_rate: draft.fixed_interest_rate ?? null,
       euribor_rate: draft.euribor_rate ?? null,
       fixed_years: draft.fixed_years ?? null,
       creation: draft.creation ?? "",
@@ -3374,6 +3477,8 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       principal_outstanding: draft.principal_outstanding,
       principal_paid: draft.principal_paid,
       interest_type: draft.interest_type,
+      installment_frequency: draft.installment_frequency ?? null,
+      fixed_interest_rate: draft.fixed_interest_rate ?? null,
       next_payment_date: draft.next_payment_date ?? null,
       creation: draft.creation ?? null,
       maturity: draft.maturity ?? null,
@@ -3381,6 +3486,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       euribor_rate: draft.euribor_rate ?? null,
       fixed_years: draft.fixed_years ?? null,
       unpaid: draft.unpaid ?? null,
+      manual_data: draft.manual_data?.track ? { track: true } : null,
     }),
   },
   fundPortfolios: {

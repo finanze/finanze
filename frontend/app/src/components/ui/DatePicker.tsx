@@ -156,6 +156,7 @@ function DatePicker({
               locale={dateLocale}
               weekStartsOn={1}
               showOutsideDays={true}
+              fixedWeeks={true}
               classNames={{
                 nav: "absolute end-4 flex justify-between w-16 p-0.5",
                 month_grid: "mt-4",

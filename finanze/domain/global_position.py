@@ -1,4 +1,5 @@
 from dataclasses import field
+import hashlib
 from datetime import date, datetime
 from enum import Enum
 from typing import List, Optional, Union
@@ -21,6 +22,7 @@ from domain.profitability import annualized_profitability
 @dataclass
 class ManualEntryData:
     tracker_key: Optional[str] = None
+    track: bool = False
 
 
 class ProductType(str, Enum):
@@ -92,6 +94,35 @@ class InterestType(str, Enum):
     MIXED = "MIXED"
 
 
+class InstallmentFrequency(str, Enum):
+    WEEKLY = "WEEKLY"
+    BIWEEKLY = "BIWEEKLY"
+    SEMIMONTHLY = "SEMIMONTHLY"
+    MONTHLY = "MONTHLY"
+    BIMONTHLY = "BIMONTHLY"
+    QUARTERLY = "QUARTERLY"
+    SEMIANNUAL = "SEMIANNUAL"
+    YEARLY = "YEARLY"
+
+    @property
+    def payments_per_year(self) -> int:
+        return {
+            "WEEKLY": 52,
+            "BIWEEKLY": 26,
+            "SEMIMONTHLY": 24,
+            "MONTHLY": 12,
+            "BIMONTHLY": 6,
+            "QUARTERLY": 4,
+            "SEMIANNUAL": 2,
+            "YEARLY": 1,
+        }[self.value]
+
+
+def compute_loan_hash(entity_id: str, loan_amount: str, creation_date: str) -> str:
+    raw = f"{entity_id}|{loan_amount}|{creation_date}"
+    return hashlib.shake_128(raw.encode()).hexdigest(16)
+
+
 @dataclass
 class Loan(BaseData):
     id: Optional[UUID]
@@ -105,11 +136,16 @@ class Loan(BaseData):
     principal_outstanding: Dezimal
     principal_paid: Optional[Dezimal] = None
     interest_type: InterestType = InterestType.FIXED
+    installment_frequency: InstallmentFrequency = InstallmentFrequency.MONTHLY
+    installment_interests: Optional[Dezimal] = None
+    fixed_interest_rate: Optional[Dezimal] = None
     next_payment_date: Optional[date] = None
     euribor_rate: Optional[Dezimal] = None
     fixed_years: Optional[int] = None
     name: Optional[str] = None
     unpaid: Optional[Dezimal] = None
+    hash: str = ""
+    manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):

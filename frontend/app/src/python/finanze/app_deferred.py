@@ -288,6 +288,7 @@ class DeferredComponents:
         from application.use_cases.update_real_estate import UpdateRealEstateImpl
         from application.use_cases.update_template import UpdateTemplateImpl
         from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
+        from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
         from application.use_cases.upload_backup import UploadBackupImpl
 
         core = self._core
@@ -444,6 +445,10 @@ class DeferredComponents:
             historic_repo,
         )
 
+        from infrastructure.loan_calculator import LoanCalculator
+
+        loan_calculator = LoanCalculator()
+
         self.fetch_financial = FetchFinancialDataImpl(
             position_repo,
             auto_repo,
@@ -459,6 +464,7 @@ class DeferredComponents:
             tx_handler,
             public_keychain,
             entity_account_repo,
+            loan_calculator,
         )
         self.fetch_crypto = FetchCryptoDataImpl(
             position_repo,
@@ -544,7 +550,7 @@ class DeferredComponents:
         self.save_pending = SavePendingFlowsImpl(pending_repo, tx_handler)
         self.get_pending = GetPendingFlowsImpl(pending_repo)
 
-        self.list_re = ListRealEstateImpl(re_repo)
+        self.list_re = ListRealEstateImpl(re_repo, position_repo)
         self.create_re = CreateRealEstateImpl(
             re_repo, period_repo, tx_handler, file_storage
         )
@@ -555,7 +561,7 @@ class DeferredComponents:
             re_repo, period_repo, tx_handler, file_storage
         )
 
-        self.calc_loan = CalculateLoanImpl()
+        self.calc_loan = CalculateLoanImpl(loan_calculator)
         self.forecast = ForecastImpl(
             position_repo, auto_repo, period_repo, pending_repo, re_repo, entity_repo
         )
@@ -589,6 +595,9 @@ class DeferredComponents:
         self.get_crypto_details = GetCryptoAssetDetailsImpl(crypto_info, entity_repo)
         self.up_tracked = UpdateTrackedQuotesImpl(
             position_repo, manual_repo, inst_provider, ex_client
+        )
+        self.up_tracked_loans = UpdateTrackedLoansImpl(
+            position_repo, manual_repo, loan_calculator
         )
 
         self.get_tmpl = GetTemplatesImpl(temp_repo)
