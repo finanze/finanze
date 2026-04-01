@@ -498,8 +498,10 @@ class TestInterestBreakdown:
 
         result = await calc.calculate(params)
 
-        expected = round(outstanding * rate / Dezimal(12), 2)
-        assert result.current_installment_interests == expected
+        expected = (outstanding * rate / Dezimal(12)).val.quantize(
+            Dezimal("0.01").val, rounding="ROUND_HALF_UP"
+        )
+        assert result.current_installment_interests == Dezimal(expected)
 
     @pytest.mark.asyncio
     async def test_interests_decrease_with_lower_outstanding(self):

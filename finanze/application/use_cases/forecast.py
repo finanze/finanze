@@ -372,7 +372,18 @@ class ForecastImpl(Forecast):
                             )
                         else:
                             # Compute monthly interests from loan data
-                            monthly_rate = linked_loan.interest_rate / 12
+                            annual_rate = self._compute_annual_rate(
+                                linked_loan.interest_type.name
+                                if linked_loan.interest_type
+                                else None,
+                                linked_loan.interest_rate,
+                                linked_loan.euribor_rate,
+                                linked_loan.fixed_years,
+                                linked_loan.creation,
+                                target,
+                                linked_loan.fixed_interest_rate,
+                            )
+                            monthly_rate = annual_rate / 12
                             monthly_loan_interests = (
                                 monthly_loan_interests
                                 + linked_loan.principal_outstanding * monthly_rate
@@ -765,6 +776,7 @@ class ForecastImpl(Forecast):
         fixed_years: Optional[int],
         start: Optional[date],
         cur_date: date,
+        fixed_interest_rate: Optional[Dezimal] = None,
     ) -> Dezimal:
         base = annual_rate_base or Dezimal(0)
         if interest_type == "FIXED":
@@ -775,7 +787,7 @@ class ForecastImpl(Forecast):
         if fixed_years is not None and start is not None:
             fixed_end = start + relativedelta(years=fixed_years)
             if cur_date < fixed_end:
-                return base
+                return fixed_interest_rate if fixed_interest_rate is not None else base
         return base + (euribor or Dezimal(0))
 
     def _simulate_loan_outstanding(
@@ -789,6 +801,7 @@ class ForecastImpl(Forecast):
         fixed_years: Optional[int],
         months: int,
         today: date,
+        fixed_interest_rate: Optional[Dezimal] = None,
     ) -> Dezimal:
         # Safeguards: never allow negative starting outstanding
         if outstanding_now < Dezimal(0):
@@ -799,7 +812,13 @@ class ForecastImpl(Forecast):
         cur_date = today
         for _ in range(max(0, months)):
             annual = self._compute_annual_rate(
-                interest_type, annual_rate_base, euribor, fixed_years, start, cur_date
+                interest_type,
+                annual_rate_base,
+                euribor,
+                fixed_years,
+                start,
+                cur_date,
+                fixed_interest_rate,
             )
             # Clamp negative rates to zero to avoid increasing outstanding via negative interest side-effects
             if annual < Dezimal(0):
@@ -872,6 +891,7 @@ class ForecastImpl(Forecast):
                     fixed_years=linked_loan.fixed_years,
                     months=months,
                     today=today,
+                    fixed_interest_rate=linked_loan.fixed_interest_rate,
                 )
             else:
                 outstanding_now = payload.principal_outstanding or Dezimal(0)
@@ -897,6 +917,7 @@ class ForecastImpl(Forecast):
                     fixed_years=getattr(payload, "fixed_years", None),
                     months=months,
                     today=today,
+                    fixed_interest_rate=getattr(payload, "fixed_interest_rate", None),
                 )
 
             if outstanding_target < Dezimal(0):

@@ -91,13 +91,17 @@ async def _save_loans(cursor, position: GlobalPosition, loans: Loans):
                 loan.installment_frequency,
                 str(loan.interest_rate),
                 loan.interest_type,
-                str(loan.installment_interests) if loan.installment_interests else None,
+                str(loan.installment_interests)
+                if loan.installment_interests is not None
+                else None,
                 str(loan.loan_amount),
                 loan.next_payment_date.isoformat() if loan.next_payment_date else None,
                 str(loan.principal_outstanding),
-                str(loan.euribor_rate) if loan.euribor_rate else None,
+                str(loan.euribor_rate) if loan.euribor_rate is not None else None,
                 str(loan.fixed_years) if loan.fixed_years else None,
-                str(loan.fixed_interest_rate) if loan.fixed_interest_rate else None,
+                str(loan.fixed_interest_rate)
+                if loan.fixed_interest_rate is not None
+                else None,
                 loan.creation.isoformat(),
                 loan.maturity.isoformat(),
                 str(loan.unpaid) if loan.unpaid else None,

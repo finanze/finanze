@@ -76,11 +76,11 @@ def _serialize_payload(payload) -> dict:
             "interest_type": payload.interest_type,
             "fixed_years": payload.fixed_years,
             "fixed_interest_rate": str(payload.fixed_interest_rate)
-            if payload.fixed_interest_rate
+            if payload.fixed_interest_rate is not None
             else None,
             "principal_outstanding": str(payload.principal_outstanding),
             "monthly_interests": str(payload.monthly_interests)
-            if payload.monthly_interests
+            if payload.monthly_interests is not None
             else None,
         }
     elif isinstance(payload, (CostPayload, SupplyPayload)):
