@@ -44,11 +44,13 @@ class LoanCalculator(LoanCalculatorPort):
             # Standard schedule: first payment at start + 1 period; last payment at 'end'.
             # Total installments N = periods between start and end.
             total_periods = max(
-                1, self._full_months_between(p.start, p.end) * ppy // 12
+                1, self._count_periods(p.installment_frequency, p.start, p.end)
             )
             # Payments made before next_inst_date
             payments_made = max(
-                0, self._full_months_between(p.start, next_inst_date) * ppy // 12 - 1
+                0,
+                self._count_periods(p.installment_frequency, p.start, next_inst_date)
+                - 1,
             )
 
             A = self._amortizing_payment(p.loan_amount, period_rate, total_periods)
@@ -70,9 +72,11 @@ class LoanCalculator(LoanCalculatorPort):
             and p.loan_amount is None
             and p.principal_outstanding is not None
         ):
-            N = max(1, self._full_months_between(p.start, p.end) * ppy // 12)
+            N = max(1, self._count_periods(p.installment_frequency, p.start, p.end))
             k = max(
-                0, self._full_months_between(p.start, next_inst_date) * ppy // 12 - 1
+                0,
+                self._count_periods(p.installment_frequency, p.start, next_inst_date)
+                - 1,
             )
             r = period_rate
             RBk = p.principal_outstanding
@@ -81,7 +85,8 @@ class LoanCalculator(LoanCalculatorPort):
                 # No interest: A is simply original principal / N; with only RBk we can't recover P reliably.
                 # Fall back to dividing RBk evenly over remaining periods.
                 remaining_periods = max(
-                    1, self._full_months_between(next_inst_date, p.end) * ppy // 12
+                    1,
+                    self._count_periods(p.installment_frequency, next_inst_date, p.end),
                 )
                 period_payment = self._round_cents(RBk / remaining_periods)
                 return LoanCalculationResult(
@@ -98,7 +103,8 @@ class LoanCalculator(LoanCalculatorPort):
             if coeff.val == 0:
                 # Fallback to general formula using remaining periods
                 remaining_periods = max(
-                    1, self._full_months_between(next_inst_date, p.end) * ppy // 12
+                    1,
+                    self._count_periods(p.installment_frequency, next_inst_date, p.end),
                 )
                 denom = Dezimal(1) - (Dezimal(1) + r) ** (-remaining_periods)
                 period_payment = RBk if denom.val == 0 else RBk * r / denom
@@ -128,20 +134,21 @@ class LoanCalculator(LoanCalculatorPort):
         # If we are given principal_outstanding (calculating from now), consider end as exclusive.
         # If we are calculating from a computed outstanding (from start), include the end installment.
         if p.principal_outstanding is not None:
-            # For FIXED, treat end as exclusive (previous logic).
-            # For VARIABLE/MIXED, treat end as inclusive (add +1 to months before conversion).
             if p.interest_type in (InterestType.VARIABLE, InterestType.MIXED):
                 remaining_periods = max(
                     1,
-                    (self._full_months_between(next_inst_date, p.end) + 1) * ppy // 12,
+                    self._count_periods(p.installment_frequency, next_inst_date, p.end)
+                    + 1,
                 )
             else:
                 remaining_periods = max(
-                    1, self._full_months_between(next_inst_date, p.end) * ppy // 12
+                    1,
+                    self._count_periods(p.installment_frequency, next_inst_date, p.end),
                 )
         else:
             remaining_periods = max(
-                1, (self._full_months_between(next_inst_date, p.end) + 1) * ppy // 12
+                1,
+                self._count_periods(p.installment_frequency, next_inst_date, p.end) + 1,
             )
 
         # If there is only interest (edge case), handle gracefully
@@ -224,6 +231,31 @@ class LoanCalculator(LoanCalculatorPort):
         rd = relativedelta(d2, d1)
         return rd.years * 12 + rd.months
 
+    _MONTH_ALIGNED = frozenset(
+        {
+            InstallmentFrequency.MONTHLY,
+            InstallmentFrequency.BIMONTHLY,
+            InstallmentFrequency.QUARTERLY,
+            InstallmentFrequency.SEMIANNUAL,
+            InstallmentFrequency.YEARLY,
+        }
+    )
+
+    def _count_periods(self, freq: InstallmentFrequency, d1: date, d2: date) -> int:
+        """Count the number of full periods of the given frequency between d1 and d2."""
+        if d2 <= d1:
+            return 0
+        if freq in self._MONTH_ALIGNED:
+            return self._full_months_between(d1, d2) * freq.payments_per_year // 12
+        step = self._period_step(freq)
+        count = 0
+        cursor = d1
+        while cursor < d2:
+            cursor = cursor + step
+            if cursor <= d2:
+                count += 1
+        return count
+
     def _period_step(self, freq: InstallmentFrequency) -> relativedelta:
         """Return the relativedelta step corresponding to one payment period."""
         mapping = {
@@ -259,8 +291,9 @@ class LoanCalculator(LoanCalculatorPort):
             period_rate = self._to_period_rate(annual_rate, ppy)
 
             # Remaining periods counting from the next due date
-            remaining_months = max(1, self._full_months_between(current_date, p.end))
-            remaining_periods = max(1, remaining_months * ppy // 12)
+            remaining_periods = max(
+                1, self._count_periods(p.installment_frequency, current_date, p.end)
+            )
 
             # Payment for this period under current regime
             if period_rate == Dezimal(0):

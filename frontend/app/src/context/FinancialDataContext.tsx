@@ -75,7 +75,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
   } = useAppContext()
   const { setOnScrapeCompleted, setOnEntityDisconnected } = useEntityWorkflow()
 
-  const fetchFinancialData = async () => {
+  const fetchFinancialData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
@@ -103,7 +103,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
       setIsInitialLoading(false)
     }
-  }
+  }, [])
 
   const refreshFlows = useCallback(async () => {
     try {
