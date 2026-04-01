@@ -563,16 +563,16 @@ export function RealEstateFormModal({
                           new Date().toISOString().split("T")[0],
                         principal_outstanding:
                           loanData.principal_outstanding || 0,
-                        euribor_rate: loanData.euribor_rate || null,
+                        euribor_rate: loanData.euribor_rate ?? null,
                         interest_type: loanData.interest_type || "FIXED",
-                        fixed_years: loanData.fixed_years || null,
+                        fixed_years: loanData.fixed_years ?? null,
                         fixed_interest_rate:
-                          loanData.fixed_interest_rate || null,
-                        principal_paid: loanData.principal_paid || null,
+                          loanData.fixed_interest_rate ?? null,
+                        principal_paid: loanData.principal_paid ?? null,
                         monthly_interests:
-                          loanData.installment_interests || null,
-                        monthly_payment: loanData.current_installment || null,
-                        linked_loan_hash: loanData.hash || null,
+                          loanData.installment_interests ?? null,
+                        monthly_payment: loanData.current_installment ?? null,
+                        linked_loan_hash: loanData.hash ?? null,
                       }
                     } else {
                       console.log("No loan data found for loan ID:", loanId)
@@ -689,53 +689,62 @@ export function RealEstateFormModal({
 
     if (linkedLoansToCalc.length === 0) return
 
-    linkedLoansToCalc.forEach(async ({ flow, idx }) => {
-      const loanPayload = flow.payload as any
-      const startStr =
-        flow.periodic_flow?.since || new Date().toISOString().split("T")[0]
-      const endStr =
-        flow.periodic_flow?.until && flow.periodic_flow.until.trim() !== ""
-          ? flow.periodic_flow.until
-          : startStr
+    let cancelled = false
+    ;(async () => {
+      for (const { flow, idx } of linkedLoansToCalc) {
+        if (cancelled) return
+        const loanPayload = flow.payload as any
+        const startStr =
+          flow.periodic_flow?.since || new Date().toISOString().split("T")[0]
+        const endStr =
+          flow.periodic_flow?.until && flow.periodic_flow.until.trim() !== ""
+            ? flow.periodic_flow.until
+            : startStr
 
-      const req: LoanCalculationRequest = {
-        interest_rate: loanPayload.interest_rate || 0,
-        interest_type: loanPayload.interest_type || "FIXED",
-        euribor_rate: loanPayload.euribor_rate ?? undefined,
-        fixed_years: loanPayload.fixed_years ?? undefined,
-        fixed_interest_rate: loanPayload.fixed_interest_rate ?? undefined,
-        start: startStr,
-        end: endStr,
-      }
+        const req: LoanCalculationRequest = {
+          interest_rate: loanPayload.interest_rate || 0,
+          interest_type: loanPayload.interest_type || "FIXED",
+          euribor_rate: loanPayload.euribor_rate ?? undefined,
+          fixed_years: loanPayload.fixed_years ?? undefined,
+          fixed_interest_rate: loanPayload.fixed_interest_rate ?? undefined,
+          start: startStr,
+          end: endStr,
+        }
 
-      if (
-        loanPayload.principal_outstanding &&
-        loanPayload.principal_outstanding > 0
-      ) {
-        req.principal_outstanding = loanPayload.principal_outstanding
-      } else if (loanPayload.loan_amount && loanPayload.loan_amount > 0) {
-        req.loan_amount = loanPayload.loan_amount
-      } else {
-        return
-      }
+        if (
+          loanPayload.principal_outstanding &&
+          loanPayload.principal_outstanding > 0
+        ) {
+          req.principal_outstanding = loanPayload.principal_outstanding
+        } else if (loanPayload.loan_amount && loanPayload.loan_amount > 0) {
+          req.loan_amount = loanPayload.loan_amount
+        } else {
+          continue
+        }
 
-      try {
-        const result = await calculateLoan(req)
-        setFormData(prev => {
-          const flows = [...prev.flows]
-          const f = { ...flows[idx] }
-          const payload = { ...(f.payload as any) }
-          if (result.current_installment_interests != null) {
-            payload.monthly_interests = result.current_installment_interests
-          }
-          f.payload = payload
-          flows[idx] = f
-          return { ...prev, flows }
-        })
-      } catch {
-        // Silently ignore — not critical
+        try {
+          const result = await calculateLoan(req)
+          if (cancelled) return
+          setFormData(prev => {
+            const flows = [...prev.flows]
+            const f = { ...flows[idx] }
+            const payload = { ...(f.payload as any) }
+            if (result.current_installment_interests != null) {
+              payload.monthly_interests = result.current_installment_interests
+            }
+            f.payload = payload
+            flows[idx] = f
+            return { ...prev, flows }
+          })
+        } catch {
+          // Silently ignore — not critical
+        }
       }
-    })
+    })()
+
+    return () => {
+      cancelled = true
+    }
   }, [formData.flows.map(f => (f.payload as any)?.linked_loan_hash).join(",")])
 
   const toggleSection = (section: keyof typeof expandedSections) => {

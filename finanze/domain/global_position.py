@@ -119,7 +119,8 @@ class InstallmentFrequency(str, Enum):
 
 
 def compute_loan_hash(entity_id: str, loan_amount: str, creation_date: str) -> str:
-    raw = f"{entity_id}|{loan_amount}|{creation_date}"
+    canonical_amount = str(Dezimal(loan_amount))
+    raw = f"{entity_id}|{canonical_amount}|{creation_date}"
     return hashlib.shake_128(raw.encode()).hexdigest(16)
 
 
