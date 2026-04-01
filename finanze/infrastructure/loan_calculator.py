@@ -58,8 +58,8 @@ class LoanCalculator(LoanCalculatorPort):
 
             interest_part = self._round_cents(outstanding * period_rate)
             return LoanCalculationResult(
-                current_monthly_payment=self._round_cents(A),
-                current_monthly_interests=interest_part,
+                current_installment_payment=self._round_cents(A),
+                current_installment_interests=interest_part,
                 principal_outstanding=self._round_cents(outstanding),
                 installment_date=next_inst_date,
             )
@@ -85,8 +85,8 @@ class LoanCalculator(LoanCalculatorPort):
                 )
                 period_payment = self._round_cents(RBk / remaining_periods)
                 return LoanCalculationResult(
-                    current_monthly_payment=period_payment,
-                    current_monthly_interests=Dezimal(0),
+                    current_installment_payment=period_payment,
+                    current_installment_interests=Dezimal(0),
                     principal_outstanding=RBk,
                     installment_date=next_inst_date,
                 )
@@ -103,8 +103,8 @@ class LoanCalculator(LoanCalculatorPort):
                 denom = Dezimal(1) - (Dezimal(1) + r) ** (-remaining_periods)
                 period_payment = RBk if denom.val == 0 else RBk * r / denom
                 return LoanCalculationResult(
-                    current_monthly_payment=self._round_cents(period_payment),
-                    current_monthly_interests=self._round_cents(RBk * r),
+                    current_installment_payment=self._round_cents(period_payment),
+                    current_installment_interests=self._round_cents(RBk * r),
                     principal_outstanding=RBk,
                     installment_date=next_inst_date,
                 )
@@ -112,8 +112,8 @@ class LoanCalculator(LoanCalculatorPort):
             P0 = RBk / coeff
             A = P0 * r / D
             return LoanCalculationResult(
-                current_monthly_payment=self._round_cents(A),
-                current_monthly_interests=self._round_cents(RBk * r),
+                current_installment_payment=self._round_cents(A),
+                current_installment_interests=self._round_cents(RBk * r),
                 principal_outstanding=RBk,
                 installment_date=next_inst_date,
             )
@@ -150,8 +150,8 @@ class LoanCalculator(LoanCalculatorPort):
             period_payment = self._round_cents(outstanding / remaining_periods)
             interest_part = Dezimal(0)
             return LoanCalculationResult(
-                current_monthly_payment=period_payment,
-                current_monthly_interests=interest_part,
+                current_installment_payment=period_payment,
+                current_installment_interests=interest_part,
                 principal_outstanding=outstanding,
                 installment_date=next_inst_date,
             )
@@ -172,8 +172,8 @@ class LoanCalculator(LoanCalculatorPort):
         interest_part = self._round_cents(outstanding * period_rate)
 
         return LoanCalculationResult(
-            current_monthly_payment=period_payment,
-            current_monthly_interests=interest_part,
+            current_installment_payment=period_payment,
+            current_installment_interests=interest_part,
             principal_outstanding=outstanding,
             installment_date=next_inst_date,
         )

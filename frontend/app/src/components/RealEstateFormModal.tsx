@@ -684,7 +684,7 @@ export function RealEstateFormModal({
       .filter(({ flow }) => {
         if (flow.flow_subtype !== RealEstateFlowSubtype.LOAN) return false
         const payload = flow.payload as any
-        return payload?.linked_loan_hash && !payload?.monthly_interests
+        return payload?.linked_loan_hash && payload?.monthly_interests == null
       })
 
     if (linkedLoansToCalc.length === 0) return
@@ -725,8 +725,8 @@ export function RealEstateFormModal({
           const flows = [...prev.flows]
           const f = { ...flows[idx] }
           const payload = { ...(f.payload as any) }
-          if (result.current_monthly_interests != null) {
-            payload.monthly_interests = result.current_monthly_interests
+          if (result.current_installment_interests != null) {
+            payload.monthly_interests = result.current_installment_interests
           }
           f.payload = payload
           flows[idx] = f
@@ -2331,8 +2331,8 @@ export function RealEstateFormModal({
                                     className={`mt-0 sm:mt-6 ${isLinked ? "border-blue-400 text-blue-600 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40" : "text-gray-400 hover:text-gray-600"}`}
                                     title={
                                       isLinked
-                                        ? "Linked to banking position"
-                                        : "Not linked"
+                                        ? t.realEstate.linkedToPosition
+                                        : t.realEstate.notLinked
                                     }
                                   >
                                     {isLinked ? (
@@ -2410,7 +2410,7 @@ export function RealEstateFormModal({
                                           const payload: LoanPayload = {
                                             ...(f.payload as LoanPayload),
                                             monthly_interests:
-                                              result.current_monthly_interests ??
+                                              result.current_installment_interests ??
                                               null,
                                           }
 
@@ -2435,11 +2435,11 @@ export function RealEstateFormModal({
                                           if (f.periodic_flow) {
                                             const pf = { ...f.periodic_flow }
                                             if (
-                                              typeof result.current_monthly_payment ===
+                                              typeof result.current_installment_payment ===
                                               "number"
                                             ) {
                                               pf.amount =
-                                                result.current_monthly_payment
+                                                result.current_installment_payment
                                             }
                                             f.periodic_flow = pf
                                           }

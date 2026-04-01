@@ -2016,7 +2016,7 @@ export function ManualPositionsManager({
                         ) : asset === "bankLoans" ? (
                           <div className="flex items-center gap-2">
                             <Switch
-                              id="track_loan"
+                              id={`track_loan_${activeDraft?.localId}`}
                               checked={
                                 !!(formState as unknown as BankLoanFormState)
                                   ?.track_loan
@@ -2026,7 +2026,7 @@ export function ManualPositionsManager({
                               }
                             />
                             <Label
-                              htmlFor="track_loan"
+                              htmlFor={`track_loan_${activeDraft?.localId}`}
                               className="cursor-pointer text-sm"
                             >
                               {translate(

@@ -593,7 +593,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
                     installment_frequency=loan.installment_frequency,
                 )
                 result = await self._loan_calculator.calculate(params)
-                loan.installment_interests = result.current_monthly_interests
+                loan.installment_interests = result.current_installment_interests
             except Exception:
                 self._log.error(
                     "Could not compute installment_interests for loan %s %s",

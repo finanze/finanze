@@ -1491,7 +1491,7 @@
     "installmentFrequency": {
       "WEEKLY": "Semanal",
       "BIWEEKLY": "Quincenal",
-      "SEMIMONTHLY": "Bimensual",
+      "SEMIMONTHLY": "Bimensual (2x/mes)",
       "MONTHLY": "Mensual",
       "BIMONTHLY": "Bimestral",
       "QUARTERLY": "Trimestral",
@@ -2380,6 +2380,8 @@
   },
   "realEstate": {
     "title": "Inmobiliario",
+    "linkedToPosition": "Vinculado a préstamo",
+    "notLinked": "No vinculado",
     "properties": "Propiedades",
     "summary": "Resumen",
     "addProperty": "Añadir",

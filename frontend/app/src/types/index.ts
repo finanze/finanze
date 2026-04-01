@@ -1014,8 +1014,8 @@ export interface LoanCalculationRequest {
 }
 
 export interface LoanCalculationResult {
-  current_monthly_payment?: number | null
-  current_monthly_interests?: number | null
+  current_installment_payment?: number | null
+  current_installment_interests?: number | null
   principal_outstanding?: number | null
   installment_date?: string | null
 }

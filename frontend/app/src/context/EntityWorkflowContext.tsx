@@ -121,6 +121,7 @@ interface EntityWorkflowContextValue {
   setOnScrapeCompleted: (
     callback: ((entityId: string) => Promise<void>) | null,
   ) => void
+  setOnEntityDisconnected: (callback: (() => Promise<void>) | null) => void
   getPendingScrapeParams: (entityId: string) => PendingScrapeParams | undefined
   clearPendingScrapeParams: (entityId: string) => void
   pendingPinEntityIds: () => string[]
@@ -233,6 +234,8 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
     ((entityId: string) => Promise<void>) | null
   >(null)
 
+  const onEntityDisconnectedRef = useRef<(() => Promise<void>) | null>(null)
+
   const scrapeRef = useRef<typeof scrape>(null!)
 
   const resetState = useCallback((options: ResetStateOptions = {}) => {
@@ -288,6 +291,13 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
   const setOnScrapeCompleted = useCallback(
     (callback: ((entityId: string) => Promise<void>) | null) => {
       onScrapeCompletedRef.current = callback
+    },
+    [],
+  )
+
+  const setOnEntityDisconnected = useCallback(
+    (callback: (() => Promise<void>) | null) => {
+      onEntityDisconnectedRef.current = callback
     },
     [],
   )
@@ -1361,6 +1371,10 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         }
 
         await fetchEntities()
+
+        if (onEntityDisconnectedRef.current) {
+          await onEntityDisconnectedRef.current()
+        }
       } catch (error) {
         console.error("Error disconnecting entity:", error)
         showToast(t.common.disconnectError, "error")
@@ -1413,6 +1427,7 @@ export function EntityWorkflowProvider({ children }: { children: ReactNode }) {
         fetchingEntityState,
         setFetchingEntityState,
         setOnScrapeCompleted,
+        setOnEntityDisconnected,
         getPendingScrapeParams: (entityId: string) =>
           pendingScrapeParamsRef.current.get(entityId),
         clearPendingScrapeParams: (entityId: string) => {

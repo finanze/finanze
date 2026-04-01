@@ -2368,6 +2368,8 @@
   },
   "realEstate": {
     "title": "Real Estate",
+    "linkedToPosition": "Linked to loan",
+    "notLinked": "Not linked",
     "properties": "Properties",
     "summary": "Summary",
     "addProperty": "Add",

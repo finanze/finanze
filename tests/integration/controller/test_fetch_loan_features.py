@@ -428,8 +428,8 @@ class TestLoanInterestEnrichment:
 
         loan_calculator.calculate = AsyncMock(
             return_value=LoanCalculationResult(
-                current_monthly_payment=Dezimal(500),
-                current_monthly_interests=Dezimal(200),
+                current_installment_payment=Dezimal(500),
+                current_installment_interests=Dezimal(200),
                 principal_outstanding=Dezimal(80000),
                 installment_date=None,
             )

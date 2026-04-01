@@ -432,12 +432,12 @@ function LoanCalculationHelper(
       const result = await calculateLoan(request)
 
       if (
-        typeof result.current_monthly_payment === "number" &&
-        Number.isFinite(result.current_monthly_payment)
+        typeof result.current_installment_payment === "number" &&
+        Number.isFinite(result.current_installment_payment)
       ) {
         props.updateField(
           "current_installment",
-          formatNumberInput(result.current_monthly_payment, {
+          formatNumberInput(result.current_installment_payment, {
             maximumFractionDigits: 2,
           }),
         )
@@ -3347,45 +3347,35 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             [
               {
                 value: InstallmentFrequency.WEEKLY,
-                label: props.t("enums.installmentFrequency.WEEKLY") || "Weekly",
+                label: props.t("enums.installmentFrequency.WEEKLY"),
               },
               {
                 value: InstallmentFrequency.BIWEEKLY,
-                label:
-                  props.t("enums.installmentFrequency.BIWEEKLY") || "Biweekly",
+                label: props.t("enums.installmentFrequency.BIWEEKLY"),
               },
               {
                 value: InstallmentFrequency.SEMIMONTHLY,
-                label:
-                  props.t("enums.installmentFrequency.SEMIMONTHLY") ||
-                  "Semi-monthly",
+                label: props.t("enums.installmentFrequency.SEMIMONTHLY"),
               },
               {
                 value: InstallmentFrequency.MONTHLY,
-                label:
-                  props.t("enums.installmentFrequency.MONTHLY") || "Monthly",
+                label: props.t("enums.installmentFrequency.MONTHLY"),
               },
               {
                 value: InstallmentFrequency.BIMONTHLY,
-                label:
-                  props.t("enums.installmentFrequency.BIMONTHLY") ||
-                  "Bimonthly",
+                label: props.t("enums.installmentFrequency.BIMONTHLY"),
               },
               {
                 value: InstallmentFrequency.QUARTERLY,
-                label:
-                  props.t("enums.installmentFrequency.QUARTERLY") ||
-                  "Quarterly",
+                label: props.t("enums.installmentFrequency.QUARTERLY"),
               },
               {
                 value: InstallmentFrequency.SEMIANNUAL,
-                label:
-                  props.t("enums.installmentFrequency.SEMIANNUAL") ||
-                  "Semi-annual",
+                label: props.t("enums.installmentFrequency.SEMIANNUAL"),
               },
               {
                 value: InstallmentFrequency.YEARLY,
-                label: props.t("enums.installmentFrequency.YEARLY") || "Yearly",
+                label: props.t("enums.installmentFrequency.YEARLY"),
               },
             ],
           )}

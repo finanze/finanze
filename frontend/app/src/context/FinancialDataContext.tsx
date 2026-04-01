@@ -73,7 +73,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     exchangeRates,
     exchangeRatesLoading,
   } = useAppContext()
-  const { setOnScrapeCompleted } = useEntityWorkflow()
+  const { setOnScrapeCompleted, setOnEntityDisconnected } = useEntityWorkflow()
 
   const fetchFinancialData = async () => {
     setIsLoading(true)
@@ -275,6 +275,14 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setOnScrapeCompleted(null)
     }
   }, [refreshEntity, setOnScrapeCompleted])
+
+  // Refresh all financial data when an entity is disconnected
+  useEffect(() => {
+    setOnEntityDisconnected(fetchFinancialData)
+    return () => {
+      setOnEntityDisconnected(null)
+    }
+  }, [fetchFinancialData, setOnEntityDisconnected])
 
   return (
     <FinancialDataContext.Provider

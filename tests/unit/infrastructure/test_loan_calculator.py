@@ -104,7 +104,7 @@ class TestValidation:
         result = await calc.calculate(params)
 
         assert result is not None
-        assert result.current_monthly_payment is not None
+        assert result.current_installment_payment is not None
 
 
 # ---------------------------------------------------------------------------
@@ -123,10 +123,10 @@ class TestFixedRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
-        assert result.current_monthly_interests is not None
-        assert result.current_monthly_interests.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
+        assert result.current_installment_interests is not None
+        assert result.current_installment_interests.val > 0
         assert result.principal_outstanding is not None
         assert result.principal_outstanding.val > 0
 
@@ -141,8 +141,8 @@ class TestFixedRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
         assert result.principal_outstanding == Dezimal(80000)
 
     @pytest.mark.asyncio
@@ -155,9 +155,9 @@ class TestFixedRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_interests == Dezimal(0)
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
+        assert result.current_installment_interests == Dezimal(0)
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
 
     @pytest.mark.asyncio
     async def test_fixed_result_has_installment_date(self):
@@ -188,10 +188,10 @@ class TestVariableRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
-        assert result.current_monthly_interests is not None
-        assert result.current_monthly_interests.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
+        assert result.current_installment_interests is not None
+        assert result.current_installment_interests.val > 0
         assert result.principal_outstanding is not None
         assert result.principal_outstanding.val > 0
 
@@ -208,8 +208,8 @@ class TestVariableRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
         assert result.principal_outstanding == Dezimal(90000)
 
     @pytest.mark.asyncio
@@ -237,8 +237,8 @@ class TestVariableRate:
         variable_result = await calc.calculate(variable_params)
 
         assert (
-            variable_result.current_monthly_payment
-            > fixed_result.current_monthly_payment
+            variable_result.current_installment_payment
+            > fixed_result.current_installment_payment
         )
 
 
@@ -272,12 +272,12 @@ class TestMixedRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
         # During the fixed period, interest should be based on base rate only
         # interest_if_euribor_included would be outstanding * (base + euribor) / 12
         interest_with_euribor = outstanding * (base_rate + euribor) / Dezimal(12)
-        assert result.current_monthly_interests.val < interest_with_euribor.val
+        assert result.current_installment_interests.val < interest_with_euribor.val
 
     @pytest.mark.asyncio
     async def test_mixed_with_principal_outstanding(self):
@@ -293,8 +293,8 @@ class TestMixedRate:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
         assert result.principal_outstanding == Dezimal(75000)
 
 
@@ -338,10 +338,10 @@ class TestFixedRateWithOutstandingOnly:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
-        assert result.current_monthly_interests is not None
-        assert result.current_monthly_interests.val > 0
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
+        assert result.current_installment_interests is not None
+        assert result.current_installment_interests.val > 0
         assert result.principal_outstanding == Dezimal(80000)
 
     @pytest.mark.asyncio
@@ -355,9 +355,9 @@ class TestFixedRateWithOutstandingOnly:
 
         result = await calc.calculate(params)
 
-        assert result.current_monthly_interests == Dezimal(0)
-        assert result.current_monthly_payment is not None
-        assert result.current_monthly_payment.val > 0
+        assert result.current_installment_interests == Dezimal(0)
+        assert result.current_installment_payment is not None
+        assert result.current_installment_payment.val > 0
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +385,7 @@ class TestMixedWithOutstandingOnly:
         result = await calc.calculate(params)
 
         interest_with_euribor = outstanding * (base_rate + euribor) / Dezimal(12)
-        assert result.current_monthly_interests.val < interest_with_euribor.val
+        assert result.current_installment_interests.val < interest_with_euribor.val
 
     @pytest.mark.asyncio
     async def test_variable_period_interests_include_euribor(self):
@@ -408,7 +408,7 @@ class TestMixedWithOutstandingOnly:
         result = await calc.calculate(params)
 
         interest_fixed_only = outstanding * base_rate / Dezimal(12)
-        assert result.current_monthly_interests.val > interest_fixed_only.val
+        assert result.current_installment_interests.val > interest_fixed_only.val
 
 
 # ---------------------------------------------------------------------------
@@ -424,7 +424,9 @@ class TestInstallmentFrequencies:
         quarterly = await calc.calculate(
             _params(installment_frequency=InstallmentFrequency.QUARTERLY)
         )
-        assert quarterly.current_monthly_payment > monthly.current_monthly_payment
+        assert (
+            quarterly.current_installment_payment > monthly.current_installment_payment
+        )
 
     @pytest.mark.asyncio
     async def test_semiannual_higher_than_quarterly(self):
@@ -435,7 +437,10 @@ class TestInstallmentFrequencies:
         semiannual = await calc.calculate(
             _params(installment_frequency=InstallmentFrequency.SEMIANNUAL)
         )
-        assert semiannual.current_monthly_payment > quarterly.current_monthly_payment
+        assert (
+            semiannual.current_installment_payment
+            > quarterly.current_installment_payment
+        )
 
     @pytest.mark.asyncio
     async def test_yearly_highest(self):
@@ -446,7 +451,9 @@ class TestInstallmentFrequencies:
         yearly = await calc.calculate(
             _params(installment_frequency=InstallmentFrequency.YEARLY)
         )
-        assert yearly.current_monthly_payment > semiannual.current_monthly_payment
+        assert (
+            yearly.current_installment_payment > semiannual.current_installment_payment
+        )
 
     @pytest.mark.asyncio
     async def test_biweekly_lower_than_monthly(self):
@@ -455,7 +462,9 @@ class TestInstallmentFrequencies:
         biweekly = await calc.calculate(
             _params(installment_frequency=InstallmentFrequency.BIWEEKLY)
         )
-        assert biweekly.current_monthly_payment < monthly.current_monthly_payment
+        assert (
+            biweekly.current_installment_payment < monthly.current_installment_payment
+        )
 
     @pytest.mark.asyncio
     async def test_weekly_lower_than_biweekly(self):
@@ -466,7 +475,7 @@ class TestInstallmentFrequencies:
         weekly = await calc.calculate(
             _params(installment_frequency=InstallmentFrequency.WEEKLY)
         )
-        assert weekly.current_monthly_payment < biweekly.current_monthly_payment
+        assert weekly.current_installment_payment < biweekly.current_installment_payment
 
 
 # ---------------------------------------------------------------------------
@@ -490,7 +499,7 @@ class TestInterestBreakdown:
         result = await calc.calculate(params)
 
         expected = round(outstanding * rate / Dezimal(12), 2)
-        assert result.current_monthly_interests == expected
+        assert result.current_installment_interests == expected
 
     @pytest.mark.asyncio
     async def test_interests_decrease_with_lower_outstanding(self):
@@ -512,4 +521,4 @@ class TestInterestBreakdown:
             )
         )
 
-        assert low.current_monthly_interests < high.current_monthly_interests
+        assert low.current_installment_interests < high.current_installment_interests

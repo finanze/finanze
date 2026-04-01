@@ -68,14 +68,16 @@ class UpdateTrackedLoansImpl(UpdateTrackedLoans):
 
         result = await self._loan_calculator.calculate(params)
 
-        new_installment = result.current_monthly_payment or loan.current_installment
-        new_interests = result.current_monthly_interests
+        new_installment = result.current_installment_payment or loan.current_installment
+        new_interests = result.current_installment_interests
         new_outstanding = result.principal_outstanding or loan.principal_outstanding
         new_next_date = result.installment_date
 
         if (
             new_installment == loan.current_installment
             and new_outstanding == loan.principal_outstanding
+            and (new_interests is None or new_interests == loan.installment_interests)
+            and (new_next_date is None or new_next_date == loan.next_payment_date)
         ):
             return
 

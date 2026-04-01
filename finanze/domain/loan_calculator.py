@@ -22,7 +22,7 @@ class LoanCalculationParams:
 
 @dataclass
 class LoanCalculationResult:
-    current_monthly_payment: Optional[Dezimal]
-    current_monthly_interests: Optional[Dezimal]
+    current_installment_payment: Optional[Dezimal]
+    current_installment_interests: Optional[Dezimal]
     principal_outstanding: Optional[Dezimal]
     installment_date: Optional[date] = None

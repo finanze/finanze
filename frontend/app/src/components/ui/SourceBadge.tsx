@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import React from "react"
 import type { LucideIcon } from "lucide-react"
 import { FileSpreadsheet, UserRoundPen } from "lucide-react"
 import { Badge } from "./Badge"
@@ -45,6 +46,16 @@ export function SourceBadge({
       )}
       title={title}
       onClick={onClick}
+      {...(onClick && {
+        role: "button" as const,
+        tabIndex: 0,
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            onClick()
+          }
+        },
+      })}
     >
       <Icon className={cn("h-3.5 w-3.5", iconClassName)} />
       {children}

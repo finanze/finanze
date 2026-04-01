@@ -309,8 +309,8 @@ class TestEnrichLoans:
         uc, _, loan_calculator = _build_use_case()
         loan = _make_loan(installment_interests=None)
         result = LoanCalculationResult(
-            current_monthly_payment=Dezimal(510),
-            current_monthly_interests=Dezimal(200),
+            current_installment_payment=Dezimal(510),
+            current_installment_interests=Dezimal(200),
             principal_outstanding=Dezimal(79500),
         )
         loan_calculator.calculate.return_value = result
@@ -337,8 +337,8 @@ class TestEnrichLoans:
         loan_with = _make_loan(installment_interests=Dezimal(150))
         loan_without = _make_loan(installment_interests=None)
         result = LoanCalculationResult(
-            current_monthly_payment=Dezimal(510),
-            current_monthly_interests=Dezimal(200),
+            current_installment_payment=Dezimal(510),
+            current_installment_interests=Dezimal(200),
             principal_outstanding=Dezimal(79500),
         )
         loan_calculator.calculate.return_value = result
@@ -395,8 +395,8 @@ class TestEnrichLoans:
             maturity=date(2045, 6, 1),
         )
         result = LoanCalculationResult(
-            current_monthly_payment=Dezimal(510),
-            current_monthly_interests=Dezimal(200),
+            current_installment_payment=Dezimal(510),
+            current_installment_interests=Dezimal(200),
             principal_outstanding=Dezimal(79500),
         )
         loan_calculator.calculate.return_value = result

@@ -84,8 +84,8 @@ def _make_result(
     inst_date=None,
 ):
     return LoanCalculationResult(
-        current_monthly_payment=payment,
-        current_monthly_interests=interests,
+        current_installment_payment=payment,
+        current_installment_interests=interests,
         principal_outstanding=outstanding,
         installment_date=inst_date,
     )
@@ -131,7 +131,7 @@ class TestSingleLoan:
         position_port.update_loan_position.assert_awaited_once_with(
             entry_id=entry_id,
             current_installment=Dezimal(510),
-            installment_interests=result.current_monthly_interests,
+            installment_interests=result.current_installment_interests,
             principal_outstanding=Dezimal(79500),
             next_payment_date=result.installment_date,
         )
@@ -168,7 +168,7 @@ class TestSingleLoan:
         uc, position_port, manual_data_port, calculator = _build_use_case()
         entry_id = uuid4()
         mpd = _make_mpd(entry_id=entry_id)
-        loan = _make_loan(id=entry_id)
+        loan = _make_loan(id=entry_id, installment_interests=Dezimal(200))
         result = _make_result(
             payment=loan.current_installment,
             outstanding=loan.principal_outstanding,
