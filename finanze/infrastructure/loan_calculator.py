@@ -41,7 +41,7 @@ class LoanCalculator(LoanCalculatorPort):
 
         # Fixed-rate optimization: compute payment from original schedule (constant A)
         if p.interest_type == InterestType.FIXED and p.loan_amount is not None:
-            # Standard schedule: first payment at start + 1 period; last payment at 'end'.
+            # Standard schedule: start = first payment date; last payment at 'end'.
             # Total installments N = periods between start and end.
             total_periods = max(
                 1, self._count_periods(p.installment_frequency, p.start, p.end)

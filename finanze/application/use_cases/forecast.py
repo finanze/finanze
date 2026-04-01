@@ -98,7 +98,7 @@ class ForecastImpl(Forecast):
                     hashes.append(payload.linked_loan_hash)
         if not hashes:
             return {}
-        return await self._position_port.get_loans_by_hash(hashes)
+        return await self._position_port.get_loans_by_hash(list(set(hashes)))
 
     # ---------- Helpers for occurrences ----------
     def _advance_after_today(

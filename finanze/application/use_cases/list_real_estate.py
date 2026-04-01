@@ -36,7 +36,7 @@ class ListRealEstateImpl(ListRealEstate):
         if not hashes:
             return
 
-        loans_by_hash = await self._position_port.get_loans_by_hash(hashes)
+        loans_by_hash = await self._position_port.get_loans_by_hash(list(set(hashes)))
 
         for entry in entries:
             for flow in entry.flows:
