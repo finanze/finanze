@@ -39,6 +39,18 @@ from infrastructure.controller.routes.contributions import (
     contributions as contributions_route,
 )
 from infrastructure.controller.routes.get_available_sources import get_available_sources
+from infrastructure.controller.routes.create_real_estate import (
+    create_real_estate as create_real_estate_route,
+)
+from infrastructure.controller.routes.update_real_estate import (
+    update_real_estate as update_real_estate_route,
+)
+from infrastructure.controller.routes.list_real_estate import (
+    list_real_estate as list_real_estate_route,
+)
+from infrastructure.controller.routes.delete_real_estate import (
+    delete_real_estate as delete_real_estate_route,
+)
 from infrastructure.controller.exception_handler import register_exception_handlers
 
 from infrastructure.repository.db.client import DBClient
@@ -78,6 +90,9 @@ from application.ports.external_entity_port import ExternalEntityPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
+from application.ports.real_estate_port import RealEstatePort
+from application.ports.periodic_flow_port import PeriodicFlowPort
+from application.ports.file_storage_port import FileStoragePort
 from domain.public_keychain import PublicKeychain
 
 from application.use_cases.register_user import RegisterUserImpl
@@ -105,6 +120,10 @@ from application.use_cases.get_position import GetPositionImpl
 from application.use_cases.get_transactions import GetTransactionsImpl
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_available_entities import GetAvailableEntitiesImpl
+from application.use_cases.create_real_estate import CreateRealEstateImpl
+from application.use_cases.update_real_estate import UpdateRealEstateImpl
+from application.use_cases.delete_real_estate import DeleteRealEstateImpl
+from application.use_cases.list_real_estate import ListRealEstateImpl
 
 from domain.entity import Entity
 from domain.backup import BackupFileType
@@ -189,6 +208,11 @@ async def app(tmp_path):
     virtual_import_registry = AsyncMock(spec=VirtualImportRegistry)
     external_entity_port = AsyncMock(spec=ExternalEntityPort)
     external_entity_fetchers = {}
+
+    real_estate_port = AsyncMock(spec=RealEstatePort)
+    periodic_flow_port = AsyncMock(spec=PeriodicFlowPort)
+    file_storage_port = AsyncMock(spec=FileStoragePort)
+    file_storage_port.get_url = MagicMock(return_value="/static/real_estate/test.jpg")
 
     register_user_uc = RegisterUserImpl(
         db_manager, data_manager, config_loader, sheets_initiator, cloud_register
@@ -318,6 +342,25 @@ async def app(tmp_path):
         external_entity_fetchers,
         entity_account_port,
     )
+    create_real_estate_uc = CreateRealEstateImpl(
+        real_estate_port,
+        periodic_flow_port,
+        transaction_handler_port,
+        file_storage_port,
+    )
+    update_real_estate_uc = UpdateRealEstateImpl(
+        real_estate_port,
+        periodic_flow_port,
+        transaction_handler_port,
+        file_storage_port,
+    )
+    delete_real_estate_uc = DeleteRealEstateImpl(
+        real_estate_port,
+        periodic_flow_port,
+        transaction_handler_port,
+        file_storage_port,
+    )
+    list_real_estate_uc = ListRealEstateImpl(real_estate_port, position_port)
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
@@ -425,6 +468,22 @@ async def app(tmp_path):
     async def get_available_source_route():
         return await get_available_sources(get_available_entities_uc)
 
+    @test_app.route("/api/v1/real-estate", methods=["GET"])
+    async def list_re_route():
+        return await list_real_estate_route(list_real_estate_uc)
+
+    @test_app.route("/api/v1/real-estate", methods=["POST"])
+    async def create_re_route():
+        return await create_real_estate_route(create_real_estate_uc)
+
+    @test_app.route("/api/v1/real-estate", methods=["PUT"])
+    async def update_re_route():
+        return await update_real_estate_route(update_real_estate_uc)
+
+    @test_app.route("/api/v1/real-estate/<real_estate_id>", methods=["DELETE"])
+    async def delete_re_route(real_estate_id: str):
+        return await delete_real_estate_route(delete_real_estate_uc, real_estate_id)
+
     yield (
         test_app,
         db_client,
@@ -453,6 +512,9 @@ async def app(tmp_path):
         auto_contr_port,
         external_entity_port,
         loan_calculator,
+        real_estate_port,
+        periodic_flow_port,
+        file_storage_port,
     )
 
     await db_client.silent_close()
@@ -593,3 +655,18 @@ async def external_entity_port(app):
 @pytest_asyncio.fixture
 async def loan_calculator(app):
     return app[26]
+
+
+@pytest_asyncio.fixture
+async def real_estate_port(app):
+    return app[27]
+
+
+@pytest_asyncio.fixture
+async def periodic_flow_port(app):
+    return app[28]
+
+
+@pytest_asyncio.fixture
+async def file_storage_port(app):
+    return app[29]
