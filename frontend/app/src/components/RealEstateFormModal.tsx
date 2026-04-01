@@ -2649,6 +2649,7 @@ export function RealEstateFormModal({
                                               originalIndex,
                                             )
                                           }
+                                          disabled={isLinked}
                                           className="hover:bg-blue-50 hover:text-blue-600 h-10"
                                           title={
                                             t.realEstate.purchase
