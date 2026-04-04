@@ -52,7 +52,6 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockDetail,
     StockInvestments,
-    compute_loan_hash,
 )
 from infrastructure.repository.common.json_serialization import DezimalJSONEncoder
 from infrastructure.repository.crypto.crypto_wallet_repository import (
@@ -70,15 +69,7 @@ _AND = " AND "
 
 async def _save_loans(cursor, position: GlobalPosition, loans: Loans):
     for loan in loans.entries:
-        loan_hash = loan.hash
-        if not loan_hash:
-            loan_hash = compute_loan_hash(
-                str(position.entity.id),
-                str(loan.loan_amount),
-                date(
-                    loan.creation.year, loan.creation.month, loan.creation.day
-                ).isoformat(),
-            )
+        loan_hash = loan.compute_hash(str(position.entity.id))
         await cursor.execute(
             PositionWriteQueries.INSERT_LOAN_POSITION,
             (

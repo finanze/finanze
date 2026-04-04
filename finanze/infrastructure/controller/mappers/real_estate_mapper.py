@@ -23,6 +23,20 @@ from domain.real_estate import (
 )
 
 
+def _empty_loan_payload():
+    return LoanPayload(
+        type=LoanType.MORTGAGE,
+        loan_amount=None,
+        interest_rate=Dezimal(0),
+        euribor_rate=None,
+        interest_type=InterestType.FIXED,
+        fixed_years=None,
+        fixed_interest_rate=None,
+        principal_outstanding=Dezimal(0),
+        monthly_interests=None,
+    )
+
+
 def map_real_estate(body: dict, real_estate_id: UUID = None) -> RealEstate:
     basic_info = BasicInfo(
         name=body["basic_info"]["name"],
@@ -89,7 +103,17 @@ def map_real_estate(body: dict, real_estate_id: UUID = None) -> RealEstate:
     flows = []
     for flow_data in body.get("flows", []):
         flow_subtype = RealEstateFlowSubtype(flow_data["flow_subtype"])
-        payload = _parse_flow_payload(flow_subtype, flow_data["payload"])
+        linked_loan_hash = (
+            flow_data.get("linked_loan_hash")
+            if flow_subtype == RealEstateFlowSubtype.LOAN
+            else None
+        )
+        payload_data = flow_data.get("payload") or {}
+        payload = (
+            _parse_flow_payload(flow_subtype, payload_data)
+            if not linked_loan_hash
+            else _empty_loan_payload()
+        )
 
         periodic_flow_data = flow_data.get("periodic_flow", {})
         periodic_flow = None
@@ -134,6 +158,7 @@ def map_real_estate(body: dict, real_estate_id: UUID = None) -> RealEstate:
                 flow_subtype=flow_subtype,
                 description=flow_data["description"],
                 payload=payload,
+                linked_loan_hash=linked_loan_hash,
             )
         )
 
@@ -175,33 +200,21 @@ def map_real_estate(body: dict, real_estate_id: UUID = None) -> RealEstate:
 
 def _parse_flow_payload(flow_subtype: RealEstateFlowSubtype, payload_data: dict):
     if flow_subtype == RealEstateFlowSubtype.LOAN:
-        linked_hash = payload_data.get("linked_loan_hash")
-        if linked_hash:
-            return LoanPayload(
-                type=LoanType(payload_data.get("type", "MORTGAGE")),
-                loan_amount=None,
-                interest_rate=Dezimal(0),
-                euribor_rate=None,
-                interest_type=InterestType.FIXED,
-                fixed_years=None,
-                principal_outstanding=Dezimal(0),
-                linked_loan_hash=linked_hash,
-            )
         return LoanPayload(
-            type=LoanType(payload_data["type"]),
+            type=LoanType(payload_data.get("type", "MORTGAGE")),
             loan_amount=Dezimal(payload_data["loan_amount"])
             if payload_data.get("loan_amount")
             else None,
-            interest_rate=Dezimal(payload_data["interest_rate"]),
+            interest_rate=Dezimal(payload_data.get("interest_rate", 0)),
             euribor_rate=Dezimal(payload_data["euribor_rate"])
             if payload_data.get("euribor_rate")
             else None,
-            interest_type=InterestType(payload_data["interest_type"]),
+            interest_type=InterestType(payload_data.get("interest_type", "FIXED")),
             fixed_years=payload_data.get("fixed_years"),
             fixed_interest_rate=Dezimal(payload_data["fixed_interest_rate"])
             if payload_data.get("fixed_interest_rate")
             else None,
-            principal_outstanding=Dezimal(payload_data["principal_outstanding"]),
+            principal_outstanding=Dezimal(payload_data.get("principal_outstanding", 0)),
             monthly_interests=Dezimal(payload_data["monthly_interests"])
             if payload_data.get("monthly_interests")
             else None,

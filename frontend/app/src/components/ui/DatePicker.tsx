@@ -105,7 +105,7 @@ function DatePicker({
           </Button>
         </PopoverTrigger>
 
-        {value && (
+        {value && !disabled && (
           <div
             className="absolute right-2 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center"
             onClick={handleClear}

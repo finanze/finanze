@@ -58,6 +58,11 @@ DDL = """
       ALTER TABLE loan_positions_new RENAME TO loan_positions;
 
       CREATE INDEX idx_lp_global_position_id ON loan_positions (global_position_id);
+
+      ALTER TABLE real_estate_flows ADD COLUMN extra_reference VARCHAR(255);
+
+      ALTER TABLE manual_position_data ADD COLUMN tracking_ref_outstanding TEXT;
+      ALTER TABLE manual_position_data ADD COLUMN tracking_ref_date DATE;
       """
 
 

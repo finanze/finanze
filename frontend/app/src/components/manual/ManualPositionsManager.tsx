@@ -1315,11 +1315,6 @@ export function ManualPositionsManager({
           draft => draft.entityId === entityId && isManualDraft(draft),
         )
 
-        const entries = manualEntries.map(draft => ({
-          draft,
-          payload: config.toPayloadEntry(draft) as Record<string, any>,
-        }))
-
         const isNewEntityGroup = manualEntries.some(draft => {
           if (draft.isNewEntity) return true
           if (typeof draft.entityId === "string") {
@@ -1327,6 +1322,33 @@ export function ManualPositionsManager({
           }
           return false
         })
+
+        // Skip entities with no actual changes (no dirty/new/deleted drafts)
+        const entityHasDeleted = initialDrafts.some(
+          d =>
+            isManualDraft(d) &&
+            d.entityId === entityId &&
+            d.originalId &&
+            !drafts.some(cur => cur.originalId === d.originalId),
+        )
+        const entityHasDirty = manualEntries.some(d => {
+          if (!d.originalId) return true
+          const initial = initialDrafts.find(i => i.originalId === d.originalId)
+          if (!initial) return true
+          return (
+            serialize(config.normalizeDraftForCompare(d)) !==
+            serialize(config.normalizeDraftForCompare(initial))
+          )
+        })
+        const entityHasChanges =
+          isNewEntityGroup || entityHasDeleted || entityHasDirty
+        if (!entityHasChanges) return
+
+        const entries = manualEntries.map(draft => ({
+          draft,
+          payload: config.toPayloadEntry(draft) as Record<string, any>,
+        }))
+
         const resolvedNewEntityName = isNewEntityGroup
           ? (manualEntries
               .map(
@@ -2018,8 +2040,14 @@ export function ManualPositionsManager({
                             <Switch
                               id={`track_loan_${activeDraft?.localId}`}
                               checked={
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type === "FIXED" &&
                                 !!(formState as unknown as BankLoanFormState)
                                   ?.track_loan
+                              }
+                              disabled={
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type !== "FIXED"
                               }
                               onCheckedChange={checked =>
                                 updateField("track_loan", checked ? "true" : "")
@@ -2027,7 +2055,11 @@ export function ManualPositionsManager({
                             />
                             <Label
                               htmlFor={`track_loan_${activeDraft?.localId}`}
-                              className="cursor-pointer text-sm"
+                              className={cn(
+                                "cursor-pointer text-sm",
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type !== "FIXED" && "opacity-50",
+                              )}
                             >
                               {translate(
                                 "management.manualPositions.bankLoans.fields.trackLoanLabel",

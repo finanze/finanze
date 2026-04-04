@@ -90,7 +90,8 @@ def _loan_flow_payload(linked_loan_hash=None, pf_id=None, **overrides):
     if pf_id:
         flow["periodic_flow_id"] = str(pf_id)
     if linked_loan_hash:
-        flow["payload"] = {"linked_loan_hash": linked_loan_hash, "type": "MORTGAGE"}
+        flow["linked_loan_hash"] = linked_loan_hash
+        flow["payload"] = {}
     else:
         flow["payload"] = {
             "type": "MORTGAGE",
@@ -167,13 +168,16 @@ def _make_periodic_flow(id=None, name="Mortgage Payment", amount=Dezimal(500)):
     )
 
 
-def _make_stored_flow(periodic_flow_id, subtype, payload, periodic_flow=None):
+def _make_stored_flow(
+    periodic_flow_id, subtype, payload, periodic_flow=None, linked_loan_hash=None
+):
     return RealEstateFlow(
         periodic_flow_id=periodic_flow_id,
         periodic_flow=periodic_flow,
         flow_subtype=subtype,
         description="Test flow",
         payload=payload,
+        linked_loan_hash=linked_loan_hash,
     )
 
 
@@ -449,7 +453,7 @@ class TestCreateWithFlows:
         assert inserted.flows[0].periodic_flow_id == FLOW_ID_1
         assert isinstance(inserted.flows[0].payload, LoanPayload)
         assert inserted.flows[0].payload.loan_amount == Dezimal(200000)
-        assert inserted.flows[0].payload.linked_loan_hash is None
+        assert inserted.flows[0].linked_loan_hash is None
 
     @pytest.mark.asyncio
     async def test_create_single_linked_loan(
@@ -461,10 +465,8 @@ class TestCreateWithFlows:
         assert response.status_code == 201
 
         inserted = real_estate_port.insert.await_args[0][0]
-        loan_payload = inserted.flows[0].payload
-        assert loan_payload.linked_loan_hash == "hash1"
-        assert loan_payload.loan_amount is None
-        assert loan_payload.interest_rate == Dezimal(0)
+        assert inserted.flows[0].linked_loan_hash == "hash1"
+        assert inserted.flows[0].payload.loan_amount is None
 
         # Verify list injects linked loan data
         stored = _make_stored_re(
@@ -480,8 +482,8 @@ class TestCreateWithFlows:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(0),
-                        linked_loan_hash="hash1",
                     ),
+                    linked_loan_hash="hash1",
                 )
             ]
         )
@@ -493,10 +495,11 @@ class TestCreateWithFlows:
         list_resp = await client.get(LIST_URL)
         assert list_resp.status_code == 200
         data = await list_resp.get_json()
-        loan_data = data[0]["flows"][0]["payload"]
+        flow_data = data[0]["flows"][0]
+        loan_data = flow_data["payload"]
         assert loan_data["loan_amount"] == 250000
         assert loan_data["interest_rate"] == pytest.approx(0.025)
-        assert loan_data["linked_loan_hash"] == "hash1"
+        assert flow_data["linked_loan_hash"] == "hash1"
 
     @pytest.mark.asyncio
     async def test_create_rent_flow(self, client, real_estate_port, periodic_flow_port):
@@ -830,9 +833,8 @@ class TestUpdateFlows:
         response = await _update_re_json(client, payload)
         assert response.status_code == 204
         updated = real_estate_port.update.await_args[0][0]
-        loan_p = updated.flows[0].payload
-        assert loan_p.linked_loan_hash == "link1"
-        assert loan_p.loan_amount is None
+        assert updated.flows[0].linked_loan_hash == "link1"
+        assert updated.flows[0].payload.loan_amount is None
 
     @pytest.mark.asyncio
     async def test_update_loan_linked_to_unlinked(
@@ -852,8 +854,8 @@ class TestUpdateFlows:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(0),
-                        linked_loan_hash="link1",
                     ),
+                    linked_loan_hash="link1",
                 )
             ]
         )
@@ -867,8 +869,8 @@ class TestUpdateFlows:
         response = await _update_re_json(client, payload)
         assert response.status_code == 204
         updated = real_estate_port.update.await_args[0][0]
+        assert updated.flows[0].linked_loan_hash is None
         loan_p = updated.flows[0].payload
-        assert loan_p.linked_loan_hash is None
         assert loan_p.loan_amount == Dezimal(200000)
 
 
@@ -1124,8 +1126,8 @@ class TestListLinkedLoanInjection:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(0),
-                        linked_loan_hash="hash1",
                     ),
+                    linked_loan_hash="hash1",
                 )
             ]
         )
@@ -1136,13 +1138,14 @@ class TestListLinkedLoanInjection:
         response = await client.get(LIST_URL)
         assert response.status_code == 200
         data = await response.get_json()
-        payload = data[0]["flows"][0]["payload"]
+        flow_data = data[0]["flows"][0]
+        payload = flow_data["payload"]
         assert payload["loan_amount"] == 250000
         assert payload["principal_outstanding"] == 230000
         assert payload["interest_type"] == "VARIABLE"
         assert payload["euribor_rate"] == pytest.approx(0.035)
         assert payload["monthly_interests"] == 450
-        assert payload["linked_loan_hash"] == "hash1"
+        assert flow_data["linked_loan_hash"] == "hash1"
 
     @pytest.mark.asyncio
     async def test_list_linked_loan_not_found_keeps_stub(
@@ -1161,8 +1164,8 @@ class TestListLinkedLoanInjection:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(0),
-                        linked_loan_hash="missing_hash",
                     ),
+                    linked_loan_hash="missing_hash",
                 )
             ]
         )
@@ -1172,10 +1175,11 @@ class TestListLinkedLoanInjection:
         response = await client.get(LIST_URL)
         assert response.status_code == 200
         data = await response.get_json()
-        payload = data[0]["flows"][0]["payload"]
+        flow_data = data[0]["flows"][0]
+        payload = flow_data["payload"]
         assert payload["loan_amount"] is None
         assert payload["interest_rate"] == 0
-        assert payload["linked_loan_hash"] == "missing_hash"
+        assert flow_data["linked_loan_hash"] == "missing_hash"
 
     @pytest.mark.asyncio
     async def test_list_mixed_linked_and_unlinked(
@@ -1194,8 +1198,8 @@ class TestListLinkedLoanInjection:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(0),
-                        linked_loan_hash="hash1",
                     ),
+                    linked_loan_hash="hash1",
                 ),
                 _make_stored_flow(
                     FLOW_ID_2,
@@ -1221,10 +1225,8 @@ class TestListLinkedLoanInjection:
         flows = data[0]["flows"]
 
         # Find linked and unlinked
-        linked = next(
-            f for f in flows if f["payload"].get("linked_loan_hash") == "hash1"
-        )
-        unlinked = next(f for f in flows if "linked_loan_hash" not in f["payload"])
+        linked = next(f for f in flows if f.get("linked_loan_hash") == "hash1")
+        unlinked = next(f for f in flows if not f.get("linked_loan_hash"))
 
         # Linked got injected
         assert linked["payload"]["loan_amount"] == 250000

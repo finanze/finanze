@@ -18,6 +18,8 @@ class LoanCalculationParams:
     principal_outstanding: Optional[Dezimal]
     fixed_interest_rate: Optional[Dezimal] = None
     installment_frequency: InstallmentFrequency = InstallmentFrequency.MONTHLY
+    tracking_ref_outstanding: Optional[Dezimal] = None
+    tracking_ref_date: Optional[date] = None
 
 
 @dataclass

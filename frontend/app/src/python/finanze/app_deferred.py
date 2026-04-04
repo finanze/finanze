@@ -465,6 +465,7 @@ class DeferredComponents:
             public_keychain,
             entity_account_repo,
             loan_calculator,
+            re_repo,
         )
         self.fetch_crypto = FetchCryptoDataImpl(
             position_repo,
@@ -577,6 +578,8 @@ class DeferredComponents:
             crypto_asset_repo,
             crypto_info,
             tx_handler,
+            re_repo,
+            loan_calculator,
         )
         self.add_manual_tx = AddManualTransactionImpl(
             entity_repo, tx_repo, virtual_repo, tx_handler
@@ -597,7 +600,7 @@ class DeferredComponents:
             position_repo, manual_repo, inst_provider, ex_client
         )
         self.up_tracked_loans = UpdateTrackedLoansImpl(
-            position_repo, manual_repo, loan_calculator
+            position_repo, manual_repo, loan_calculator, re_repo
         )
 
         self.get_tmpl = GetTemplatesImpl(temp_repo)

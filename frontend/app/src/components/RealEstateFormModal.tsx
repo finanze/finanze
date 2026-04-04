@@ -573,6 +573,8 @@ export function RealEstateFormModal({
                           loanData.installment_interests ?? null,
                         monthly_payment: loanData.current_installment ?? null,
                         linked_loan_hash: loanData.hash ?? null,
+                        installment_frequency:
+                          loanData.installment_frequency ?? "MONTHLY",
                       }
                     } else {
                       console.log("No loan data found for loan ID:", loanId)
@@ -591,6 +593,12 @@ export function RealEstateFormModal({
                   }
                 })()
               : {},
+    }
+
+    // Move linked_loan_hash from payload to flow level
+    if ((newFlow.payload as any)?.linked_loan_hash) {
+      newFlow.linked_loan_hash = (newFlow.payload as any).linked_loan_hash
+      delete (newFlow.payload as any).linked_loan_hash
     }
 
     setFormData(prev => ({
@@ -684,7 +692,7 @@ export function RealEstateFormModal({
       .filter(({ flow }) => {
         if (flow.flow_subtype !== RealEstateFlowSubtype.LOAN) return false
         const payload = flow.payload as any
-        return payload?.linked_loan_hash && payload?.monthly_interests == null
+        return flow.linked_loan_hash && payload?.monthly_interests == null
       })
 
     if (linkedLoansToCalc.length === 0) return
@@ -745,7 +753,7 @@ export function RealEstateFormModal({
     return () => {
       cancelled = true
     }
-  }, [formData.flows.map(f => (f.payload as any)?.linked_loan_hash).join(",")])
+  }, [formData.flows.map(f => f.linked_loan_hash).join(",")])
 
   const toggleSection = (section: keyof typeof expandedSections) => {
     setExpandedSections(prev => ({
@@ -1184,18 +1192,14 @@ export function RealEstateFormModal({
           } as RealEstateFlow
         }
 
-        // For linked loans, send only type and linked_loan_hash in the payload
+        // For linked loans, no payload needed — backend injects real data on read
         if (
           processedFlow.flow_subtype === RealEstateFlowSubtype.LOAN &&
-          (processedFlow.payload as any)?.linked_loan_hash
+          processedFlow.linked_loan_hash
         ) {
-          const loanPayload = processedFlow.payload as LoanPayload
           processedFlow = {
             ...processedFlow,
-            payload: {
-              type: loanPayload.type,
-              linked_loan_hash: loanPayload.linked_loan_hash,
-            } as unknown as LoanPayload,
+            payload: {},
           }
         }
 
@@ -1293,6 +1297,8 @@ export function RealEstateFormModal({
     const labels: Record<string, string> = {
       DAILY: t.realEstate.frequency.daily,
       WEEKLY: t.realEstate.frequency.weekly,
+      BIWEEKLY: (t.realEstate.frequency as any).biweekly || "Biweekly",
+      SEMIMONTHLY: (t.realEstate.frequency as any).semimonthly || "Semimonthly",
       MONTHLY: t.realEstate.frequency.monthly,
       EVERY_TWO_MONTHS: t.realEstate.frequency.bimonthly,
       QUARTERLY: t.realEstate.frequency.quarterly,
@@ -2234,7 +2240,7 @@ export function RealEstateFormModal({
                             f => f === flow,
                           )
                           const loanPayload = flow.payload as any
-                          const isLinked = !!loanPayload?.linked_loan_hash
+                          const isLinked = !!flow.linked_loan_hash
                           return (
                             <div
                               key={originalIndex}
@@ -2559,6 +2565,35 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               </div>
+
+                              {isLinked &&
+                                flow.periodic_flow?.frequency &&
+                                flow.periodic_flow.frequency !==
+                                  FlowFrequency.MONTHLY && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                      <Label>
+                                        {
+                                          t.realEstate.loans
+                                            .installmentFrequencyLabel
+                                        }
+                                      </Label>
+                                      <select
+                                        value={flow.periodic_flow.frequency}
+                                        disabled
+                                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 opacity-60"
+                                      >
+                                        {Object.values(FlowFrequency).map(
+                                          freq => (
+                                            <option key={freq} value={freq}>
+                                              {getFrequencyLabel(freq)}
+                                            </option>
+                                          ),
+                                        )}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )}
 
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                                 <div>
@@ -3527,6 +3562,24 @@ export function RealEstateFormModal({
                                     <option value={FlowFrequency.YEARLY}>
                                       {t.realEstate.frequency.yearly}
                                     </option>
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.BIWEEKLY && (
+                                      <option value={FlowFrequency.BIWEEKLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .biweekly
+                                        }
+                                      </option>
+                                    )}
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.SEMIMONTHLY && (
+                                      <option value={FlowFrequency.SEMIMONTHLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .semimonthly
+                                        }
+                                      </option>
+                                    )}
                                   </select>
                                 </div>
 
@@ -3929,6 +3982,24 @@ export function RealEstateFormModal({
                                     <option value={FlowFrequency.YEARLY}>
                                       {t.realEstate.frequency.yearly}
                                     </option>
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.BIWEEKLY && (
+                                      <option value={FlowFrequency.BIWEEKLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .biweekly
+                                        }
+                                      </option>
+                                    )}
+                                    {flow.periodic_flow?.frequency ===
+                                      FlowFrequency.SEMIMONTHLY && (
+                                      <option value={FlowFrequency.SEMIMONTHLY}>
+                                        {
+                                          (t.realEstate.frequency as any)
+                                            .semimonthly
+                                        }
+                                      </option>
+                                    )}
                                   </select>
                                 </div>
 
@@ -4656,7 +4727,15 @@ export function RealEstateFormModal({
             cancelText={t.realEstate.modals.unlinkLoanCancel}
             onConfirm={() => {
               if (unlinkConfirmIndex !== null) {
-                updateFlowPayload(unlinkConfirmIndex, "linked_loan_hash", null)
+                setFormData(prev => ({
+                  ...prev,
+                  flows: prev.flows.map((flow, i) =>
+                    i === unlinkConfirmIndex
+                      ? { ...flow, linked_loan_hash: null }
+                      : flow,
+                  ),
+                }))
+                setHasUnsavedChanges(true)
               }
               setUnlinkConfirmIndex(null)
             }}

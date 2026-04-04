@@ -3117,7 +3117,9 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       loan_amount: formatNumberInput(draft.loan_amount ?? 0),
       interest_rate:
         draft.interest_rate != null
-          ? formatNumberInput(draft.interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       current_installment: formatNumberInput(draft.current_installment ?? 0),
       principal_outstanding: formatNumberInput(
@@ -3127,11 +3129,15 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       installment_frequency: draft.installment_frequency ?? "MONTHLY",
       fixed_interest_rate:
         draft.fixed_interest_rate != null
-          ? String(draft.fixed_interest_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.fixed_interest_rate * 100 * 10000) / 10000,
+            )
           : "",
       euribor_rate:
         draft.euribor_rate != null
-          ? formatNumberInput(draft.euribor_rate * 100)
+          ? formatNumberInput(
+              Math.round(draft.euribor_rate * 100 * 10000) / 10000,
+            )
           : "",
       fixed_years:
         draft.fixed_years != null
@@ -3214,7 +3220,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
         creation: creationDate,
         maturity: maturityDate,
         unpaid: previous?.unpaid ?? null,
-        manual_data: form.track_loan ? { track: true } : null,
+        manual_data:
+          form.track_loan && form.interest_type === InterestType.FIXED
+            ? { track: true }
+            : null,
         source: DataSource.MANUAL,
       }
 
@@ -3476,7 +3485,10 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       euribor_rate: draft.euribor_rate ?? null,
       fixed_years: draft.fixed_years ?? null,
       unpaid: draft.unpaid ?? null,
-      manual_data: draft.manual_data?.track ? { track: true } : null,
+      manual_data:
+        draft.manual_data?.track && draft.interest_type === InterestType.FIXED
+          ? { track: true }
+          : null,
     }),
   },
   fundPortfolios: {
@@ -3487,14 +3499,21 @@ const manualPositionConfigs: ManualPositionConfigMap = {
       const result: ManualPositionDraft<FundPortfolio>[] = []
       manualEntities.forEach(entity => {
         const entityPositions = positionsData.positions[entity.id] ?? []
+
+        // Collect account entries across ALL positions for this entity
+        // (the linked account may be in a REAL position while the portfolio is MANUAL)
+        const accountEntries: Account[] = []
+        entityPositions.forEach(ep => {
+          const ap = ep.products[ProductType.ACCOUNT] as
+            | { entries?: Account[] }
+            | undefined
+          if (ap?.entries) accountEntries.push(...ap.entries)
+        })
+
         entityPositions.forEach(entityPosition => {
           const product = entityPosition.products[
             ProductType.FUND_PORTFOLIO
           ] as { entries?: FundPortfolio[] } | undefined
-          const accountProduct = entityPosition.products[
-            ProductType.ACCOUNT
-          ] as { entries?: Account[] } | undefined
-          const accountEntries = accountProduct?.entries ?? []
 
           const entries = product?.entries ?? []
           entries.forEach(portfolio => {

@@ -792,6 +792,8 @@ export enum FlowType {
 export enum FlowFrequency {
   DAILY = "DAILY",
   WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  SEMIMONTHLY = "SEMIMONTHLY",
   MONTHLY = "MONTHLY",
   EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
   QUARTERLY = "QUARTERLY",
@@ -813,6 +815,10 @@ export interface PeriodicFlow {
   currency: string
   icon?: string
   linked?: boolean
+  real_estate_flow?: {
+    flow_subtype: string
+    linked_loan_hash?: string | null
+  } | null
   next_date?: string
   max_amount?: number
 }
@@ -891,7 +897,6 @@ export interface LoanPayload {
   fixed_interest_rate?: number | null
   principal_outstanding: number
   monthly_interests?: number | null
-  linked_loan_hash?: string | null
 }
 
 export interface RentPayload {}
@@ -916,6 +921,7 @@ export interface RealEstateFlow {
   flow_subtype: RealEstateFlowSubtype
   description: string
   payload: RealEstateFlowPayload
+  linked_loan_hash?: string | null
 }
 
 export interface PurchaseExpense {

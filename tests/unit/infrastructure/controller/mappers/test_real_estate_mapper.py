@@ -38,11 +38,9 @@ def _make_loan_flow_dict(linked_loan_hash=None):
         "interest_type": "FIXED",
         "principal_outstanding": "80000",
     }
-    if linked_loan_hash:
-        payload["linked_loan_hash"] = linked_loan_hash
-    else:
+    if not linked_loan_hash:
         payload["loan_amount"] = "100000"
-    return {
+    result = {
         "flow_subtype": "LOAN",
         "payload": payload,
         "description": "Mortgage",
@@ -55,6 +53,9 @@ def _make_loan_flow_dict(linked_loan_hash=None):
             "since": "2020-02-01",
         },
     }
+    if linked_loan_hash:
+        result["linked_loan_hash"] = linked_loan_hash
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -63,7 +64,9 @@ def _make_loan_flow_dict(linked_loan_hash=None):
 
 
 class TestParseFlowPayloadLoan:
-    def test_linked_hash_creates_stub(self):
+    def test_linked_hash_parses_available_fields(self):
+        """linked_loan_hash is now on the flow, not the payload.
+        _parse_flow_payload always parses whatever fields are present."""
         payload_data = {
             "type": "MORTGAGE",
             "interest_rate": "0.05",
@@ -74,9 +77,10 @@ class TestParseFlowPayloadLoan:
         result = _parse_flow_payload(RealEstateFlowSubtype.LOAN, payload_data)
 
         assert isinstance(result, LoanPayload)
-        assert result.loan_amount is None
-        assert result.interest_rate == Dezimal(0)
-        assert result.linked_loan_hash == "abc"
+        assert result.loan_amount is None  # not provided in dict
+        assert result.interest_rate == Dezimal("0.05")
+        assert result.interest_type == InterestType.VARIABLE
+        assert result.principal_outstanding == Dezimal("90000")
 
     def test_no_linked_hash_full_payload(self):
         payload_data = {
@@ -94,9 +98,10 @@ class TestParseFlowPayloadLoan:
         assert result.interest_rate == Dezimal("0.03")
         assert result.interest_type == InterestType.FIXED
         assert result.principal_outstanding == Dezimal("80000")
-        assert result.linked_loan_hash is None
 
-    def test_linked_hash_ignores_other_fields(self):
+    def test_all_fields_parsed_even_with_linked_hash_key(self):
+        """linked_loan_hash in dict is ignored by _parse_flow_payload —
+        it's extracted at the flow level by map_real_estate."""
         payload_data = {
             "type": "STANDARD",
             "interest_rate": "0.05",
@@ -107,11 +112,10 @@ class TestParseFlowPayloadLoan:
         }
         result = _parse_flow_payload(RealEstateFlowSubtype.LOAN, payload_data)
 
-        assert result.loan_amount is None
-        assert result.interest_rate == Dezimal(0)
-        assert result.interest_type == InterestType.FIXED
-        assert result.principal_outstanding == Dezimal(0)
-        assert result.linked_loan_hash == "xyz123"
+        assert result.loan_amount == Dezimal("200000")
+        assert result.interest_rate == Dezimal("0.05")
+        assert result.interest_type == InterestType.VARIABLE
+        assert result.principal_outstanding == Dezimal("90000")
 
 
 # ---------------------------------------------------------------------------
@@ -153,11 +157,10 @@ class TestMapRealEstateFlows:
         result = map_real_estate(body)
 
         assert len(result.flows) == 1
-        payload = result.flows[0].payload
-        assert isinstance(payload, LoanPayload)
-        assert payload.linked_loan_hash == "abc"
-        assert payload.loan_amount is None
-        assert payload.interest_rate == Dezimal(0)
+        flow = result.flows[0]
+        assert flow.linked_loan_hash == "abc"
+        assert isinstance(flow.payload, LoanPayload)
+        assert flow.payload.loan_amount is None
 
     def test_unlinked_loan_flow_mapped(self):
         flow_dict = _make_loan_flow_dict()

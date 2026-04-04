@@ -10,6 +10,8 @@ from pydantic.dataclasses import dataclass
 class FlowFrequency(str, Enum):
     DAILY = "DAILY"
     WEEKLY = "WEEKLY"
+    BIWEEKLY = "BIWEEKLY"
+    SEMIMONTHLY = "SEMIMONTHLY"
     MONTHLY = "MONTHLY"
     EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS"
     QUARTERLY = "QUARTERLY"
@@ -21,6 +23,12 @@ class FlowFrequency(str, Enum):
 class FlowType(str, Enum):
     EARNING = "EARNING"
     EXPENSE = "EXPENSE"
+
+
+@dataclass
+class RealEstateFlowInfo:
+    flow_subtype: str
+    linked_loan_hash: Optional[str] = None
 
 
 @dataclass
@@ -37,6 +45,7 @@ class PeriodicFlow:
     until: Optional[date]
     icon: Optional[str]
     linked: Optional[bool] = None
+    real_estate_flow: Optional[RealEstateFlowInfo] = None
     next_date: Optional[date] = None
     max_amount: Optional[Dezimal] = None
 

@@ -4,9 +4,10 @@ from enum import Enum
 class ManualPositionDataQueries(str, Enum):
     INSERT = """
         INSERT INTO manual_position_data (
-            entry_id, global_position_id, product_type, track_ticker, tracker_key, track_loan
+            entry_id, global_position_id, product_type, track_ticker, tracker_key, track_loan,
+            tracking_ref_outstanding, tracking_ref_date
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """
 
     GET_TRACKABLE = """
@@ -16,9 +17,16 @@ class ManualPositionDataQueries(str, Enum):
     """
 
     GET_TRACKABLE_LOANS = """
-        SELECT entry_id, global_position_id, product_type
+        SELECT entry_id, global_position_id, product_type,
+               tracking_ref_outstanding, tracking_ref_date
         FROM manual_position_data
         WHERE track_loan = 1 AND product_type = 'LOAN'
+    """
+
+    UPDATE_TRACKING_REF = """
+        UPDATE manual_position_data
+        SET tracking_ref_outstanding = ?, tracking_ref_date = ?
+        WHERE entry_id = ?
     """
 
     DELETE_BY_POSITION_ID = (
@@ -200,8 +208,15 @@ class PositionQueries(str, Enum):
     )
 
     GET_LOANS_BY_HASHES = (
+        "WITH latest_per_entity AS ("
+        "  SELECT entity_id, COALESCE(entity_account_id, '') as ea_key, MAX(date) as latest_date"
+        "  FROM global_positions GROUP BY entity_id, ea_key"
+        ") "
         "SELECT lp.*, gp.entity_id, gp.source FROM loan_positions lp "
         "JOIN global_positions gp ON lp.global_position_id = gp.id "
+        "JOIN latest_per_entity lpe ON gp.entity_id = lpe.entity_id "
+        "  AND COALESCE(gp.entity_account_id, '') = lpe.ea_key "
+        "  AND gp.date = lpe.latest_date "
         "WHERE lp.hash IN ({placeholders})"
     )
 

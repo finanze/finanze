@@ -35,6 +35,8 @@ def _build_use_case():
     position_port = AsyncMock(spec=PositionPort)
     loan_calculator = AsyncMock(spec=LoanCalculatorPort)
 
+    real_estate_port = AsyncMock()
+
     uc = FetchFinancialDataImpl(
         position_port=position_port,
         auto_contr_port=AsyncMock(),
@@ -51,8 +53,9 @@ def _build_use_case():
         keychain_loader=AsyncMock(),
         entity_account_port=AsyncMock(),
         loan_calculator=loan_calculator,
+        real_estate_port=real_estate_port,
     )
-    return uc, position_port, loan_calculator
+    return uc, position_port, loan_calculator, real_estate_port
 
 
 def _make_entity(id=None):
@@ -131,7 +134,7 @@ def _make_position(products=None):
 class TestMigrateStaleReferences:
     @pytest.mark.asyncio
     async def test_no_old_position_skips(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         position = _make_position()
 
         await uc._migrate_stale_references(None, position)
@@ -140,7 +143,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_account_iban_match_changed_id(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
         old_acc_id = uuid4()
         new_acc_id = uuid4()
@@ -161,7 +164,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_portfolio_name_match_changed_id(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
         old_pf_id = uuid4()
         new_pf_id = uuid4()
@@ -184,7 +187,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_no_matching_ibans_no_migration(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
 
         position_port.get_account_iban_index.return_value = {uuid4(): "ES9999"}
@@ -201,7 +204,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_same_id_same_iban_no_migration(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
         same_id = uuid4()
 
@@ -219,7 +222,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_partial_account_match(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
         old_id1, old_id2 = uuid4(), uuid4()
         new_id1 = uuid4()
@@ -243,7 +246,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_both_accounts_and_portfolios_migrated(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
         old_acc_id, new_acc_id = uuid4(), uuid4()
         old_pf_id, new_pf_id = uuid4(), uuid4()
@@ -268,7 +271,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_old_has_accounts_new_has_none(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
 
         position_port.get_account_iban_index.return_value = {uuid4(): "ES1234"}
@@ -282,7 +285,7 @@ class TestMigrateStaleReferences:
 
     @pytest.mark.asyncio
     async def test_blank_iban_skipped(self):
-        uc, position_port, _ = _build_use_case()
+        uc, position_port, _, _ = _build_use_case()
         old_pos_id = uuid4()
 
         position_port.get_account_iban_index.return_value = {uuid4(): "  "}
@@ -306,7 +309,7 @@ class TestMigrateStaleReferences:
 class TestEnrichLoans:
     @pytest.mark.asyncio
     async def test_missing_interests_enriched(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         loan = _make_loan(installment_interests=None)
         result = LoanCalculationResult(
             current_installment_payment=Dezimal(510),
@@ -323,7 +326,7 @@ class TestEnrichLoans:
 
     @pytest.mark.asyncio
     async def test_existing_interests_skipped(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         loan = _make_loan(installment_interests=Dezimal(150))
         position = _make_position(products={ProductType.LOAN: Loans(entries=[loan])})
 
@@ -333,7 +336,7 @@ class TestEnrichLoans:
 
     @pytest.mark.asyncio
     async def test_mix_only_missing_enriched(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         loan_with = _make_loan(installment_interests=Dezimal(150))
         loan_without = _make_loan(installment_interests=None)
         result = LoanCalculationResult(
@@ -354,7 +357,7 @@ class TestEnrichLoans:
 
     @pytest.mark.asyncio
     async def test_calculator_exception_swallowed(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         loan = _make_loan(installment_interests=None)
         loan_calculator.calculate.side_effect = RuntimeError("boom")
         position = _make_position(products={ProductType.LOAN: Loans(entries=[loan])})
@@ -365,7 +368,7 @@ class TestEnrichLoans:
 
     @pytest.mark.asyncio
     async def test_empty_loans_no_calls(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         position = _make_position(products={ProductType.LOAN: Loans(entries=[])})
 
         await uc._enrich_loans(position)
@@ -374,7 +377,7 @@ class TestEnrichLoans:
 
     @pytest.mark.asyncio
     async def test_no_loan_product_returns_early(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         position = _make_position(products={})
 
         await uc._enrich_loans(position)
@@ -383,7 +386,7 @@ class TestEnrichLoans:
 
     @pytest.mark.asyncio
     async def test_correct_params_passed(self):
-        uc, _, loan_calculator = _build_use_case()
+        uc, _, loan_calculator, _ = _build_use_case()
         loan = _make_loan(
             interest_rate=Dezimal("0.025"),
             interest_type=InterestType.VARIABLE,
@@ -417,3 +420,43 @@ class TestEnrichLoans:
             installment_frequency=loan.installment_frequency,
         )
         loan_calculator.calculate.assert_awaited_once_with(expected_params)
+
+
+# ---------------------------------------------------------------------------
+# TestSyncLinkedLoanFlows
+# ---------------------------------------------------------------------------
+
+
+class TestSyncLinkedLoanFlows:
+    @pytest.mark.asyncio
+    async def test_sync_called_for_each_loan(self):
+        uc, _, _, real_estate_port = _build_use_case()
+        loan1 = _make_loan()
+        loan2 = _make_loan()
+        position = _make_position(
+            products={ProductType.LOAN: Loans(entries=[loan1, loan2])}
+        )
+
+        await uc._sync_linked_loan_flows(position)
+
+        assert real_estate_port.sync_linked_loan_flows.await_count == 2
+        real_estate_port.sync_linked_loan_flows.assert_any_await(loan1)
+        real_estate_port.sync_linked_loan_flows.assert_any_await(loan2)
+
+    @pytest.mark.asyncio
+    async def test_sync_not_called_when_no_loan_product(self):
+        uc, _, _, real_estate_port = _build_use_case()
+        position = _make_position(products={})
+
+        await uc._sync_linked_loan_flows(position)
+
+        real_estate_port.sync_linked_loan_flows.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_sync_not_called_when_empty_loans(self):
+        uc, _, _, real_estate_port = _build_use_case()
+        position = _make_position(products={ProductType.LOAN: Loans(entries=[])})
+
+        await uc._sync_linked_loan_flows(position)
+
+        real_estate_port.sync_linked_loan_flows.assert_not_awaited()

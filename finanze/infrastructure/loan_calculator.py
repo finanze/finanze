@@ -54,9 +54,28 @@ class LoanCalculator(LoanCalculatorPort):
             )
 
             A = self._amortizing_payment(p.loan_amount, period_rate, total_periods)
-            outstanding = p.principal_outstanding or self._remaining_balance(
-                p.loan_amount, period_rate, total_periods, payments_made, A
-            )
+
+            if (
+                p.tracking_ref_outstanding is not None
+                and p.tracking_ref_date is not None
+            ):
+                # Tracked loan: compute outstanding from reference snapshot
+                remaining_from_ref = max(
+                    1,
+                    self._count_periods(
+                        p.installment_frequency, p.tracking_ref_date, p.end
+                    ),
+                )
+                k = self._count_periods(
+                    p.installment_frequency, p.tracking_ref_date, next_inst_date
+                )
+                outstanding = self._remaining_balance(
+                    p.tracking_ref_outstanding, period_rate, remaining_from_ref, k, A
+                )
+            else:
+                outstanding = p.principal_outstanding or self._remaining_balance(
+                    p.loan_amount, period_rate, total_periods, payments_made, A
+                )
 
             interest_part = self._round_cents(outstanding * period_rate)
             return LoanCalculationResult(
@@ -375,3 +394,14 @@ class LoanCalculator(LoanCalculatorPort):
             candidate = candidate + step
 
         return min(candidate, p.end)
+
+    def next_installment_date(
+        self, start: date, end: date, frequency: InstallmentFrequency, today: date
+    ) -> date:
+        if today <= start:
+            return start
+        step = self._period_step(frequency)
+        candidate = start
+        while candidate < today and candidate < end:
+            candidate = candidate + step
+        return min(candidate, end)

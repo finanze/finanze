@@ -337,6 +337,10 @@ class GetMoneyEventsImpl(GetMoneyEvents):
             return current + delta
         if flow.frequency.value == FlowFrequency.WEEKLY.value:
             return current + timedelta(weeks=1)
+        if flow.frequency.value == FlowFrequency.BIWEEKLY.value:
+            return current + timedelta(weeks=2)
+        if flow.frequency.value == FlowFrequency.SEMIMONTHLY.value:
+            return current + timedelta(days=15)
         if flow.frequency.value == FlowFrequency.DAILY.value:
             return current + timedelta(days=1)
         return None

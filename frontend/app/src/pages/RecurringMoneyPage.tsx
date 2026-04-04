@@ -140,6 +140,10 @@ export default function RecurringMoneyPage() {
           return 30 // Approximate days per month
         case FlowFrequency.WEEKLY:
           return 4.33 // Approximate weeks per month (52/12)
+        case FlowFrequency.BIWEEKLY:
+          return 26 / 12 // ~2.167
+        case FlowFrequency.SEMIMONTHLY:
+          return 2 // 24/12
         case FlowFrequency.MONTHLY:
           return 1
         case FlowFrequency.EVERY_TWO_MONTHS:
@@ -315,19 +319,23 @@ export default function RecurringMoneyPage() {
           ? 30
           : flow.frequency === FlowFrequency.WEEKLY
             ? 4.33
-            : flow.frequency === FlowFrequency.MONTHLY
-              ? 1
-              : flow.frequency === FlowFrequency.EVERY_TWO_MONTHS
-                ? 0.5
-                : flow.frequency === FlowFrequency.QUARTERLY
-                  ? 1 / 3
-                  : flow.frequency === FlowFrequency.EVERY_FOUR_MONTHS
-                    ? 1 / 4
-                    : flow.frequency === FlowFrequency.SEMIANNUALLY
-                      ? 1 / 6
-                      : flow.frequency === FlowFrequency.YEARLY
-                        ? 1 / 12
-                        : 1
+            : flow.frequency === FlowFrequency.BIWEEKLY
+              ? 26 / 12
+              : flow.frequency === FlowFrequency.SEMIMONTHLY
+                ? 2
+                : flow.frequency === FlowFrequency.MONTHLY
+                  ? 1
+                  : flow.frequency === FlowFrequency.EVERY_TWO_MONTHS
+                    ? 0.5
+                    : flow.frequency === FlowFrequency.QUARTERLY
+                      ? 1 / 3
+                      : flow.frequency === FlowFrequency.EVERY_FOUR_MONTHS
+                        ? 1 / 4
+                        : flow.frequency === FlowFrequency.SEMIANNUALLY
+                          ? 1 / 6
+                          : flow.frequency === FlowFrequency.YEARLY
+                            ? 1 / 12
+                            : 1
       const normalized = flow.amount * multiplier
       return convertCurrency(
         normalized,
@@ -714,6 +722,8 @@ export default function RecurringMoneyPage() {
     const frequencyMap: Record<FlowFrequency, string> = {
       [FlowFrequency.DAILY]: t.management.frequency.DAILY,
       [FlowFrequency.WEEKLY]: t.management.frequency.WEEKLY,
+      [FlowFrequency.BIWEEKLY]: (t.management.frequency as any).BIWEEKLY,
+      [FlowFrequency.SEMIMONTHLY]: (t.management.frequency as any).SEMIMONTHLY,
       [FlowFrequency.MONTHLY]: t.management.frequency.MONTHLY,
       [FlowFrequency.EVERY_TWO_MONTHS]: t.management.frequency.EVERY_TWO_MONTHS,
       [FlowFrequency.QUARTERLY]: t.management.frequency.QUARTERLY,
@@ -878,13 +888,32 @@ export default function RecurringMoneyPage() {
                           )}
                           <h3 className="font-medium">{flow.name}</h3>
                         </div>
-                        {flow.linked && (
-                          <Link2
-                            size={18}
-                            strokeWidth={2.5}
-                            style={{ transform: "rotate(155deg)" }}
-                          />
-                        )}
+                        {flow.linked &&
+                          (flow.real_estate_flow?.linked_loan_hash ? (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <span className="inline-flex text-blue-500 cursor-pointer">
+                                  <Link2
+                                    size={18}
+                                    strokeWidth={2.5}
+                                    style={{ transform: "rotate(155deg)" }}
+                                  />
+                                </span>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                side="top"
+                                className="w-auto text-xs px-3 py-2"
+                              >
+                                {(t.management as any).linkedToLoan}
+                              </PopoverContent>
+                            </Popover>
+                          ) : (
+                            <Link2
+                              size={18}
+                              strokeWidth={2.5}
+                              style={{ transform: "rotate(155deg)" }}
+                            />
+                          ))}
                         {flow.category && (
                           <Badge
                             variant="secondary"
@@ -964,14 +993,34 @@ export default function RecurringMoneyPage() {
                     >
                       <Edit size={16} />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openDeleteDialog(flow)}
-                      className="text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 size={16} />
-                    </Button>
+                    {flow.real_estate_flow?.linked_loan_hash ? (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 opacity-50 cursor-not-allowed"
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          side="top"
+                          className="w-auto text-xs px-3 py-2"
+                        >
+                          {(t.management as any).linkedToLoan}
+                        </PopoverContent>
+                      </Popover>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openDeleteDialog(flow)}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    )}
                   </div>
                 </motion.div>
               )
@@ -1790,7 +1839,9 @@ export default function RecurringMoneyPage() {
                     {editingFlow?.linked && (
                       <Popover>
                         <PopoverTrigger asChild>
-                          <span className="inline-flex text-muted-foreground mt-1">
+                          <span
+                            className={`inline-flex mt-1 cursor-pointer ${editingFlow?.real_estate_flow?.linked_loan_hash ? "text-blue-500" : "text-muted-foreground"}`}
+                          >
                             <Link2
                               size={18}
                               strokeWidth={2.5}
@@ -1799,13 +1850,15 @@ export default function RecurringMoneyPage() {
                           </span>
                         </PopoverTrigger>
                         <PopoverContent side="left" className="w-72 text-xs">
-                          {(t.management as any).editLinkedWarning.replace(
-                            "{type}",
-                            (editingFlow?.flow_type === FlowType.EARNING
-                              ? t.management.flowType.EARNING
-                              : t.management.flowType.EXPENSE
-                            ).toLowerCase(),
-                          )}
+                          {editingFlow?.real_estate_flow?.linked_loan_hash
+                            ? (t.management as any).linkedToLoan
+                            : (t.management as any).editLinkedWarning.replace(
+                                "{type}",
+                                (editingFlow?.flow_type === FlowType.EARNING
+                                  ? t.management.flowType.EARNING
+                                  : t.management.flowType.EXPENSE
+                                ).toLowerCase(),
+                              )}
                         </PopoverContent>
                       </Popover>
                     )}
@@ -1846,6 +1899,9 @@ export default function RecurringMoneyPage() {
                         checked={formData.enabled}
                         onCheckedChange={checked =>
                           setFormData(prev => ({ ...prev, enabled: checked }))
+                        }
+                        disabled={
+                          editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
                         }
                       />
                     </div>
@@ -1889,6 +1945,9 @@ export default function RecurringMoneyPage() {
                           }))
                         }
                         placeholder={t.management.amountPlaceholder}
+                        disabled={
+                          editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
+                        }
                         className={`pl-8 ${validationErrors.includes("amount") ? "border-red-500" : ""}`}
                       />
                     </div>
@@ -1911,6 +1970,9 @@ export default function RecurringMoneyPage() {
                       }
                       placeholder={t.management.categoryPlaceholder}
                       categories={existingCategories}
+                      disabled={
+                        editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
+                      }
                     />
                   </div>
 
@@ -1927,13 +1989,24 @@ export default function RecurringMoneyPage() {
                           frequency: e.target.value as FlowFrequency,
                         }))
                       }
+                      disabled={
+                        editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
+                      }
                       className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${validationErrors.includes("frequency") ? "border-red-500" : ""}`}
                     >
-                      {Object.values(FlowFrequency).map(freq => (
-                        <option key={freq} value={freq}>
-                          {getFrequencyLabel(freq)}
-                        </option>
-                      ))}
+                      {Object.values(FlowFrequency)
+                        .filter(
+                          freq =>
+                            ![
+                              FlowFrequency.BIWEEKLY,
+                              FlowFrequency.SEMIMONTHLY,
+                            ].includes(freq) || freq === formData.frequency,
+                        )
+                        .map(freq => (
+                          <option key={freq} value={freq}>
+                            {getFrequencyLabel(freq)}
+                          </option>
+                        ))}
                     </select>
                   </div>
 
@@ -1946,6 +2019,9 @@ export default function RecurringMoneyPage() {
                       value={formData.since}
                       onChange={value =>
                         setFormData(prev => ({ ...prev, since: value }))
+                      }
+                      disabled={
+                        editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
                       }
                       className={
                         validationErrors.includes("since")
@@ -1966,6 +2042,9 @@ export default function RecurringMoneyPage() {
                       value={formData.until}
                       onChange={value =>
                         setFormData(prev => ({ ...prev, until: value }))
+                      }
+                      disabled={
+                        editingFlow?.real_estate_flow?.flow_subtype === "LOAN"
                       }
                     />
                   </div>

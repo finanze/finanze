@@ -8,6 +8,7 @@ interface CategorySelectorProps {
   className?: string
   id?: string
   categories: string[]
+  disabled?: boolean
 }
 
 export const CategorySelector = ({
@@ -17,6 +18,7 @@ export const CategorySelector = ({
   className,
   id,
   categories,
+  disabled,
 }: CategorySelectorProps) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState(value)
@@ -77,6 +79,7 @@ export const CategorySelector = ({
         onFocus={handleInputFocus}
         placeholder={placeholder}
         className={className}
+        disabled={disabled}
       />
       {isOpen && categoriesToShow.length > 0 && (
         <div className="absolute z-50 w-full mt-1 bg-white dark:bg-black border border-gray-200 dark:border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto">

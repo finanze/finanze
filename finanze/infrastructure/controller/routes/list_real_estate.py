@@ -23,8 +23,6 @@ def _serialize_flow_payload(payload) -> dict:
             "principal_outstanding": payload.principal_outstanding,
             "monthly_interests": payload.monthly_interests,
         }
-        if payload.linked_loan_hash:
-            result["linked_loan_hash"] = payload.linked_loan_hash
         return result
     elif isinstance(payload, CostPayload) or isinstance(payload, SupplyPayload):
         return {
@@ -80,6 +78,7 @@ def _serialize_real_estate(real_estate: RealEstate) -> dict:
                 "periodic_flow_id": str(flow.periodic_flow_id),
                 "flow_subtype": flow.flow_subtype,
                 "description": flow.description,
+                "linked_loan_hash": flow.linked_loan_hash,
                 "payload": _serialize_flow_payload(flow.payload),
                 "periodic_flow": {
                     "id": str(flow.periodic_flow.id),

@@ -2467,7 +2467,11 @@ function BankLoansSection({
                   </div>
                   <div>
                     <span className="block text-sm text-muted-foreground">
-                      {t.banking.monthlyInstallment}
+                      {(position.installment_frequency &&
+                        (t.banking as any).installmentByFrequency?.[
+                          position.installment_frequency
+                        ]) ||
+                        t.banking.monthlyInstallment}
                     </span>
                     <span className="text-lg font-semibold">
                       {formatCurrency(
@@ -2629,7 +2633,12 @@ function BankLoansSection({
                     </div>
                     <div>
                       <span className="block">
-                        {t.banking.monthlyInstallment}:
+                        {(position.installment_frequency &&
+                          (t.banking as any).installmentByFrequency?.[
+                            position.installment_frequency
+                          ]) ||
+                          t.banking.monthlyInstallment}
+                        :
                       </span>
                       <span>
                         {formatCurrency(

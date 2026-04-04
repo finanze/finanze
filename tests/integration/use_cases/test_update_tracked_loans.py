@@ -20,12 +20,16 @@ from domain.global_position import (
 from infrastructure.loan_calculator import LoanCalculator
 
 
-def _make_mpd(entry_id=None):
+def _make_mpd(entry_id=None, tracking_ref_outstanding=None, tracking_ref_date=None):
     return ManualPositionData(
         entry_id=entry_id or uuid4(),
         global_position_id=uuid4(),
         product_type=ProductType.LOAN,
-        data=ManualEntryData(track=True),
+        data=ManualEntryData(
+            track=True,
+            tracking_ref_outstanding=tracking_ref_outstanding,
+            tracking_ref_date=tracking_ref_date,
+        ),
     )
 
 
@@ -62,8 +66,8 @@ def _make_loan(
 
 class TestTrackedLoanEndToEnd:
     @pytest.mark.asyncio
-    async def test_fixed_loan_updates_installment_and_outstanding(self):
-        """Full pipeline: real calculator produces new values, position port updated."""
+    async def test_fixed_loan_first_run_initializes_ref(self):
+        """First run: ref is None, calculator uses normal path, ref is initialized."""
         position_port = AsyncMock(spec=PositionPort)
         manual_data_port = AsyncMock(spec=ManualPositionDataPort)
         calculator = LoanCalculator()
@@ -72,6 +76,7 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port,
             manual_position_data_port=manual_data_port,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         entry_id = uuid4()
@@ -83,14 +88,51 @@ class TestTrackedLoanEndToEnd:
 
         await uc.execute()
 
+        # Ref should be initialized with current outstanding
+        manual_data_port.update_tracking_ref.assert_awaited_once()
+        ref_args = manual_data_port.update_tracking_ref.await_args
+        assert ref_args[0][0] == entry_id
+        assert ref_args[0][1] == loan.principal_outstanding
+        assert ref_args[0][2] is not None  # installment_date
+
+    @pytest.mark.asyncio
+    async def test_fixed_loan_with_ref_decreases_outstanding(self):
+        """FIXED loan with tracking ref: outstanding decreases over time."""
+        position_port = AsyncMock(spec=PositionPort)
+        manual_data_port = AsyncMock(spec=ManualPositionDataPort)
+        calculator = LoanCalculator()
+
+        uc = UpdateTrackedLoansImpl(
+            position_port=position_port,
+            manual_position_data_port=manual_data_port,
+            loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
+        )
+
+        entry_id = uuid4()
+        # Ref from 12 months ago — outstanding should have decreased
+        ref_date = date(2025, 4, 15)
+        ref_outstanding = Dezimal(80000)
+        mpd = _make_mpd(
+            entry_id=entry_id,
+            tracking_ref_outstanding=ref_outstanding,
+            tracking_ref_date=ref_date,
+        )
+        loan = _make_loan(
+            entry_id=entry_id,
+            principal_outstanding=ref_outstanding,
+        )
+
+        manual_data_port.get_trackable_loans.return_value = [mpd]
+        position_port.get_loan_by_entry_id.return_value = loan
+
+        await uc.execute()
+
         position_port.update_loan_position.assert_awaited_once()
         call_kwargs = position_port.update_loan_position.await_args.kwargs
-        assert call_kwargs["entry_id"] == entry_id
-        # Calculator should produce sensible values
-        assert call_kwargs["current_installment"].val > 0
-        assert call_kwargs["installment_interests"].val > 0
-        assert call_kwargs["principal_outstanding"].val > 0
-        assert call_kwargs["next_payment_date"] is not None
+        assert call_kwargs["principal_outstanding"] < ref_outstanding
+        # Ref should NOT be re-initialized
+        manual_data_port.update_tracking_ref.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_variable_loan_includes_euribor(self):
@@ -103,6 +145,7 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port,
             manual_position_data_port=manual_data_port,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         entry_id = uuid4()
@@ -136,6 +179,7 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port,
             manual_position_data_port=manual_data_port,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         entry_id = uuid4()
@@ -171,6 +215,7 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port,
             manual_position_data_port=manual_data_port,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         entry_id = uuid4()
@@ -199,6 +244,7 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port,
             manual_position_data_port=manual_data_port,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         # Loan 1: valid, should be updated
@@ -243,6 +289,7 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port,
             manual_position_data_port=manual_data_port,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         await uc._lock.acquire()
@@ -265,11 +312,13 @@ class TestTrackedLoanEndToEnd:
             position_port=position_port_m,
             manual_position_data_port=manual_data_port_m,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
         uc_quarterly = UpdateTrackedLoansImpl(
             position_port=position_port_q,
             manual_position_data_port=manual_data_port_q,
             loan_calculator=calculator,
+            real_estate_port=AsyncMock(),
         )
 
         entry_id_m = uuid4()

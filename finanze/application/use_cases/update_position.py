@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional, Set
 from uuid import uuid4
 
@@ -10,8 +10,10 @@ from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_port import EntityPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.ports.real_estate_port import RealEstatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.constants import SUPPORTED_CURRENCIES
@@ -50,6 +52,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         crypto_asset_registry_port: CryptoAssetRegistryPort,
         crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
+        real_estate_port: RealEstatePort,
+        loan_calculator: LoanCalculatorPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
         self._entity_port = entity_port
@@ -58,6 +62,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._virtual_import_registry = virtual_import_registry
         self._crypto_asset_registry_port = crypto_asset_registry_port
         self._crypto_asset_info_provider = crypto_asset_info_provider
+        self._real_estate_port = real_estate_port
+        self._loan_calculator = loan_calculator
 
         self._log = logging.getLogger(__name__)
 
@@ -505,6 +511,23 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     entry, position, product_type
                 )
                 if manual_pos_data:
+                    if (
+                        product_type == ProductType.LOAN
+                        and manual_pos_data.data
+                        and manual_pos_data.data.track
+                        and hasattr(entry, "principal_outstanding")
+                    ):
+                        manual_pos_data.data.tracking_ref_outstanding = (
+                            entry.principal_outstanding
+                        )
+                        manual_pos_data.data.tracking_ref_date = (
+                            self._loan_calculator.next_installment_date(
+                                entry.creation,
+                                entry.maturity,
+                                entry.installment_frequency,
+                                date.today(),
+                            )
+                        )
                     entries.append(manual_pos_data)
 
         return entries
@@ -640,6 +663,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     )
             await self._position_port.save(base_position)
             await self._manual_position_data_port.save(manual_data_entries)
+            await self._sync_linked_loan_flows(base_position)
 
             new_entries = [
                 VirtualDataImport(
@@ -657,6 +681,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         import_id = uuid4()
         await self._position_port.save(base_position)
         await self._manual_position_data_port.save(manual_data_entries)
+        await self._sync_linked_loan_flows(base_position)
         cloned_entries = []
 
         for entry in last_manual_imports:
@@ -685,3 +710,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         )
 
         await self._virtual_import_registry.insert(cloned_entries)
+
+    async def _sync_linked_loan_flows(self, position: GlobalPosition):
+        loan_container = position.products.get(ProductType.LOAN)
+        if not loan_container:
+            return
+        for loan in loan_container.entries:
+            await self._real_estate_port.sync_linked_loan_flows(loan)

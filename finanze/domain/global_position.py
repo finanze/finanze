@@ -12,6 +12,7 @@ from domain.base import BaseData
 from domain.commodity import CommodityRegister
 from domain.crypto import CryptoAsset, CryptoCurrencyType, AddressSource, HDWallet
 from domain.dezimal import Dezimal
+from domain.earnings_expenses import FlowFrequency
 from domain.entity import Entity
 from domain.exception.exceptions import MissingFieldsError
 from domain.external_integration import ExternalIntegrationId
@@ -23,6 +24,8 @@ from domain.profitability import annualized_profitability
 class ManualEntryData:
     tracker_key: Optional[str] = None
     track: bool = False
+    tracking_ref_outstanding: Optional[Dezimal] = None
+    tracking_ref_date: Optional[date] = None
 
 
 class ProductType(str, Enum):
@@ -118,6 +121,18 @@ class InstallmentFrequency(str, Enum):
         }[self.value]
 
 
+INSTALLMENT_TO_FLOW_FREQ = {
+    InstallmentFrequency.WEEKLY: FlowFrequency.WEEKLY,
+    InstallmentFrequency.BIWEEKLY: FlowFrequency.BIWEEKLY,
+    InstallmentFrequency.SEMIMONTHLY: FlowFrequency.SEMIMONTHLY,
+    InstallmentFrequency.MONTHLY: FlowFrequency.MONTHLY,
+    InstallmentFrequency.BIMONTHLY: FlowFrequency.EVERY_TWO_MONTHS,
+    InstallmentFrequency.QUARTERLY: FlowFrequency.QUARTERLY,
+    InstallmentFrequency.SEMIANNUAL: FlowFrequency.SEMIANNUALLY,
+    InstallmentFrequency.YEARLY: FlowFrequency.YEARLY,
+}
+
+
 def compute_loan_hash(entity_id: str, loan_amount: str, creation_date: str) -> str:
     canonical_amount = str(Dezimal(loan_amount))
     raw = f"{entity_id}|{canonical_amount}|{creation_date}"
@@ -151,6 +166,16 @@ class Loan(BaseData):
 
     def __post_init__(self):
         self.principal_paid = self.loan_amount - self.principal_outstanding
+
+    def compute_hash(self, entity_id: str) -> str:
+        if not self.hash:
+            creation_date = date(
+                self.creation.year, self.creation.month, self.creation.day
+            ).isoformat()
+            self.hash = compute_loan_hash(
+                entity_id, str(self.loan_amount), creation_date
+            )
+        return self.hash
 
 
 class AssetType(str, Enum):

@@ -19,6 +19,7 @@ from application.ports.last_fetches_port import LastFetchesPort
 from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.position_port import PositionPort
 from application.ports.public_keychain_loader import PublicKeychainLoader
+from application.ports.real_estate_port import RealEstatePort
 from application.ports.sessions_port import SessionsPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.transaction_port import TransactionPort
@@ -177,6 +178,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         keychain_loader: PublicKeychainLoader,
         entity_account_port: EntityAccountPort,
         loan_calculator: LoanCalculatorPort,
+        real_estate_port: RealEstatePort,
     ):
         self._position_port = position_port
         self._auto_contr_repository = auto_contr_port
@@ -193,6 +195,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
         self._keychain_loader = keychain_loader
         self._entity_account_port = entity_account_port
         self._loan_calculator = loan_calculator
+        self._real_estate_port = real_estate_port
 
         self._locks: dict[UUID, Lock] = {}
 
@@ -381,6 +384,7 @@ class FetchFinancialDataImpl(FetchFinancialData):
             if position:
                 await self._position_port.save(position)
                 await self._migrate_stale_references(old_position_id, position)
+                await self._sync_linked_loan_flows(position)
 
             if auto_contributions:
                 await self._auto_contr_repository.save(
@@ -600,6 +604,13 @@ class FetchFinancialDataImpl(FetchFinancialData):
                     loan.name,
                     loan.id,
                 )
+
+    async def _sync_linked_loan_flows(self, position: GlobalPosition):
+        loans_container = position.products.get(ProductType.LOAN)
+        if not loans_container:
+            return
+        for loan in loans_container.entries:
+            await self._real_estate_port.sync_linked_loan_flows(loan)
 
     async def _migrate_stale_references(
         self,

@@ -63,17 +63,21 @@ export default function RealEstateDetailsPage() {
         ? t.realEstate.frequency.yearly
         : f === "WEEKLY"
           ? t.realEstate.frequency.weekly
-          : f === "DAILY"
-            ? t.realEstate.frequency.daily
-            : f === "QUARTERLY"
-              ? t.realEstate.frequency.quarterly
-              : f === "EVERY_TWO_MONTHS"
-                ? t.realEstate.frequency.bimonthly
-                : f === "EVERY_FOUR_MONTHS"
-                  ? t.realEstate.frequency.fourMonthly
-                  : f === "SEMIANNUALLY"
-                    ? t.realEstate.frequency.semiannually
-                    : f
+          : f === "BIWEEKLY"
+            ? (t.realEstate.frequency as any).biweekly
+            : f === "SEMIMONTHLY"
+              ? (t.realEstate.frequency as any).semimonthly
+              : f === "DAILY"
+                ? t.realEstate.frequency.daily
+                : f === "QUARTERLY"
+                  ? t.realEstate.frequency.quarterly
+                  : f === "EVERY_TWO_MONTHS"
+                    ? t.realEstate.frequency.bimonthly
+                    : f === "EVERY_FOUR_MONTHS"
+                      ? t.realEstate.frequency.fourMonthly
+                      : f === "SEMIANNUALLY"
+                        ? t.realEstate.frequency.semiannually
+                        : f
   }
 
   useEffect(() => {

@@ -9,6 +9,7 @@ from dateutil.tz import tzlocal
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_port import EntityPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
 from application.ports.transaction_handler_port import TransactionHandlerPort
@@ -32,6 +33,11 @@ from domain.global_position import (
     FundPortfolios,
     FundType,
     GlobalPosition,
+    InstallmentFrequency,
+    InterestType,
+    Loan,
+    LoanType,
+    Loans,
     ProductType,
     UpdatePositionRequest,
 )
@@ -90,6 +96,9 @@ def _build_use_case():
     position_port.get_by_id.return_value = None
     virtual_registry.get_last_import_records.return_value = []
 
+    real_estate_port = AsyncMock()
+    loan_calculator = MagicMock(spec=LoanCalculatorPort)
+
     uc = UpdatePositionImpl(
         entity_port,
         position_port,
@@ -98,8 +107,18 @@ def _build_use_case():
         crypto_registry,
         crypto_info,
         tx_handler,
+        real_estate_port,
+        loan_calculator,
     )
-    return uc, entity_port, position_port, manual_data_port, virtual_registry, entity
+    return (
+        uc,
+        entity_port,
+        position_port,
+        manual_data_port,
+        virtual_registry,
+        entity,
+        real_estate_port,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -110,9 +129,15 @@ def _build_use_case():
 class TestSameDayDeletionGuard:
     @pytest.mark.asyncio
     async def test_not_shared_deletes_old(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         now = datetime.now(tzlocal())
         import_id = uuid4()
         old_gp_id = uuid4()
@@ -140,9 +165,15 @@ class TestSameDayDeletionGuard:
 
     @pytest.mark.asyncio
     async def test_shared_keeps_old(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         now = datetime.now(tzlocal())
         import_id = uuid4()
         old_gp_id = uuid4()
@@ -170,9 +201,15 @@ class TestSameDayDeletionGuard:
 
     @pytest.mark.asyncio
     async def test_no_prior_just_saves(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         now = datetime.now(tzlocal())
         import_id = uuid4()
         other_entity_id = uuid4()
@@ -198,9 +235,15 @@ class TestSameDayDeletionGuard:
 class TestNewDayPath:
     @pytest.mark.asyncio
     async def test_new_day_does_not_delete_old(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         yesterday = datetime.now(tzlocal()) - timedelta(days=1)
         import_id = uuid4()
         old_gp_id = uuid4()
@@ -225,9 +268,15 @@ class TestNewDayPath:
 
     @pytest.mark.asyncio
     async def test_first_ever_just_saves(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         # Empty records (default)
         request = _make_request(entity.id, products={})
         await uc.execute(request)
@@ -237,9 +286,15 @@ class TestNewDayPath:
 
     @pytest.mark.asyncio
     async def test_clones_other_entity_imports(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         yesterday = datetime.now(tzlocal()) - timedelta(days=1)
         import_id = uuid4()
         other1 = uuid4()
@@ -280,9 +335,15 @@ class TestNewDayPath:
 class TestManualDataDeletion:
     @pytest.mark.asyncio
     async def test_deleted_when_prior_same_day(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         now = datetime.now(tzlocal())
         import_id = uuid4()
         old_gp_id = uuid4()
@@ -307,9 +368,15 @@ class TestManualDataDeletion:
 
     @pytest.mark.asyncio
     async def test_deleted_when_prior_new_day(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         yesterday = datetime.now(tzlocal()) - timedelta(days=1)
         import_id = uuid4()
         old_gp_id = uuid4()
@@ -333,9 +400,15 @@ class TestManualDataDeletion:
 
     @pytest.mark.asyncio
     async def test_not_deleted_when_no_prior(self):
-        uc, entity_port, position_port, manual_data_port, virtual_registry, entity = (
-            _build_use_case()
-        )
+        (
+            uc,
+            entity_port,
+            position_port,
+            manual_data_port,
+            virtual_registry,
+            entity,
+            _,
+        ) = _build_use_case()
         # No records at all
         request = _make_request(entity.id, products={})
         await uc.execute(request)
@@ -566,3 +639,59 @@ class TestRegenerateSnapshotIds:
         UpdatePositionImpl._regenerate_snapshot_ids(position)
 
         assert dep.id != old_id
+
+
+# ---------------------------------------------------------------------------
+# TestSyncLinkedLoanFlows
+# ---------------------------------------------------------------------------
+
+
+def _make_loan(id=None):
+    return Loan(
+        id=id or uuid4(),
+        type=LoanType.MORTGAGE,
+        currency="EUR",
+        current_installment=Dezimal(500),
+        interest_rate=Dezimal("0.03"),
+        loan_amount=Dezimal(100000),
+        creation=datetime.now(tzlocal()).date(),
+        maturity=datetime(2050, 1, 15, tzinfo=tzlocal()).date(),
+        principal_outstanding=Dezimal(80000),
+        interest_type=InterestType.FIXED,
+        installment_frequency=InstallmentFrequency.MONTHLY,
+    )
+
+
+class TestSyncLinkedLoanFlows:
+    @pytest.mark.asyncio
+    async def test_sync_called_for_each_loan(self):
+        uc, _, _, _, _, _, real_estate_port = _build_use_case()
+        loan1 = _make_loan()
+        loan2 = _make_loan()
+        position = _make_global_position(
+            {ProductType.LOAN: Loans(entries=[loan1, loan2])}
+        )
+
+        await uc._sync_linked_loan_flows(position)
+
+        assert real_estate_port.sync_linked_loan_flows.await_count == 2
+        real_estate_port.sync_linked_loan_flows.assert_any_await(loan1)
+        real_estate_port.sync_linked_loan_flows.assert_any_await(loan2)
+
+    @pytest.mark.asyncio
+    async def test_sync_not_called_when_no_loan_product(self):
+        uc, _, _, _, _, _, real_estate_port = _build_use_case()
+        position = _make_global_position({})
+
+        await uc._sync_linked_loan_flows(position)
+
+        real_estate_port.sync_linked_loan_flows.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_sync_not_called_when_empty_loans(self):
+        uc, _, _, _, _, _, real_estate_port = _build_use_case()
+        position = _make_global_position({ProductType.LOAN: Loans(entries=[])})
+
+        await uc._sync_linked_loan_flows(position)
+
+        real_estate_port.sync_linked_loan_flows.assert_not_awaited()

@@ -427,6 +427,7 @@ class FinanzeServer:
             public_keychain,
             entity_account_repository,
             loan_calculator,
+            real_estate_repository,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -653,6 +654,8 @@ class FinanzeServer:
             crypto_asset_registry_port=crypto_asset_repository,
             crypto_asset_info_provider=crypto_asset_info_client,
             transaction_handler_port=transaction_handler,
+            real_estate_port=real_estate_repository,
+            loan_calculator=loan_calculator,
         )
         add_manual_transaction = AddManualTransactionImpl(
             entity_port=entity_repository,
@@ -681,6 +684,7 @@ class FinanzeServer:
             position_port=position_repository,
             manual_position_data_port=manual_position_data_repository,
             loan_calculator=loan_calculator,
+            real_estate_port=real_estate_repository,
         )
         create_template = CreateTemplateImpl(template_repository)
         update_template = UpdateTemplateImpl(template_repository)

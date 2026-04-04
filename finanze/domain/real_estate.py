@@ -28,7 +28,6 @@ class LoanPayload:
     principal_outstanding: Dezimal
     monthly_interests: Optional[Dezimal] = None
     fixed_interest_rate: Optional[Dezimal] = None
-    linked_loan_hash: Optional[str] = None
 
 
 @dataclass
@@ -56,6 +55,7 @@ class RealEstateFlow:
     flow_subtype: RealEstateFlowSubtype
     description: str
     payload: RealEstateFlowPayload
+    linked_loan_hash: Optional[str] = None
 
 
 @dataclass

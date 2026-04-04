@@ -1,6 +1,8 @@
 from application.ports.position_port import PositionPort
 from application.ports.real_estate_port import RealEstatePort
 from application.use_cases.get_periodic_flows import get_next_date
+from domain.earnings_expenses import FlowFrequency
+from domain.global_position import INSTALLMENT_TO_FLOW_FREQ
 from domain.real_estate import LoanPayload, RealEstate, RealEstateFlowSubtype
 from domain.use_cases.list_real_estate import ListRealEstate
 
@@ -28,10 +30,9 @@ class ListRealEstateImpl(ListRealEstate):
             for flow in entry.flows:
                 if (
                     flow.flow_subtype == RealEstateFlowSubtype.LOAN
-                    and isinstance(flow.payload, LoanPayload)
-                    and flow.payload.linked_loan_hash
+                    and flow.linked_loan_hash
                 ):
-                    hashes.append(flow.payload.linked_loan_hash)
+                    hashes.append(flow.linked_loan_hash)
 
         if not hashes:
             return
@@ -42,17 +43,26 @@ class ListRealEstateImpl(ListRealEstate):
             for flow in entry.flows:
                 if (
                     flow.flow_subtype == RealEstateFlowSubtype.LOAN
-                    and isinstance(flow.payload, LoanPayload)
-                    and flow.payload.linked_loan_hash
+                    and flow.linked_loan_hash
                 ):
-                    loan = loans_by_hash.get(flow.payload.linked_loan_hash)
+                    loan = loans_by_hash.get(flow.linked_loan_hash)
                     if loan:
-                        flow.payload.type = loan.type
-                        flow.payload.loan_amount = loan.loan_amount
-                        flow.payload.interest_rate = loan.interest_rate
-                        flow.payload.euribor_rate = loan.euribor_rate
-                        flow.payload.interest_type = loan.interest_type
-                        flow.payload.fixed_years = loan.fixed_years
-                        flow.payload.fixed_interest_rate = loan.fixed_interest_rate
-                        flow.payload.principal_outstanding = loan.principal_outstanding
-                        flow.payload.monthly_interests = loan.installment_interests
+                        if flow.periodic_flow:
+                            flow.periodic_flow.amount = loan.current_installment
+                            flow.periodic_flow.currency = loan.currency
+                            flow.periodic_flow.frequency = INSTALLMENT_TO_FLOW_FREQ.get(
+                                loan.installment_frequency, FlowFrequency.MONTHLY
+                            )
+                            flow.periodic_flow.since = loan.creation
+                            flow.periodic_flow.until = loan.maturity
+                        flow.payload = LoanPayload(
+                            type=loan.type,
+                            loan_amount=loan.loan_amount,
+                            interest_rate=loan.interest_rate,
+                            euribor_rate=loan.euribor_rate,
+                            interest_type=loan.interest_type,
+                            fixed_years=loan.fixed_years,
+                            fixed_interest_rate=loan.fixed_interest_rate,
+                            principal_outstanding=loan.principal_outstanding,
+                            monthly_interests=loan.installment_interests,
+                        )

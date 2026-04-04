@@ -105,7 +105,6 @@ class TestCreateRealEstateWithLinkedLoan:
             interest_type=InterestType.FIXED,
             fixed_years=None,
             principal_outstanding=Dezimal(0),
-            linked_loan_hash="abc123",
         )
         flow = RealEstateFlow(
             periodic_flow_id=None,
@@ -113,6 +112,7 @@ class TestCreateRealEstateWithLinkedLoan:
             flow_subtype=RealEstateFlowSubtype.LOAN,
             description="Linked mortgage",
             payload=loan_payload,
+            linked_loan_hash="abc123",
         )
         re = _make_re(flows=[flow])
         request = CreateRealEstateRequest(real_estate=re, photo=None)
@@ -123,7 +123,7 @@ class TestCreateRealEstateWithLinkedLoan:
         re_port.insert.assert_awaited_once()
         inserted = re_port.insert.await_args[0][0]
         assert inserted.flows[0].periodic_flow_id == saved_pf.id
-        assert inserted.flows[0].payload.linked_loan_hash == "abc123"
+        assert inserted.flows[0].linked_loan_hash == "abc123"
         assert inserted.flows[0].payload.loan_amount is None
 
     @pytest.mark.asyncio
@@ -158,7 +158,7 @@ class TestCreateRealEstateWithLinkedLoan:
         re_port.insert.assert_awaited_once()
         inserted = re_port.insert.await_args[0][0]
         assert inserted.flows[0].payload.loan_amount == Dezimal(200000)
-        assert inserted.flows[0].payload.linked_loan_hash is None
+        assert inserted.flows[0].linked_loan_hash is None
 
     @pytest.mark.asyncio
     async def test_create_with_mixed_flow_types(self):
@@ -291,7 +291,6 @@ class TestUpdateRealEstateLinkedLoans:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(180000),
-                        linked_loan_hash=None,
                     ),
                 )
             ],
@@ -315,8 +314,8 @@ class TestUpdateRealEstateLinkedLoans:
                 interest_type=InterestType.FIXED,
                 fixed_years=None,
                 principal_outstanding=Dezimal(0),
-                linked_loan_hash="new_hash_123",
             ),
+            linked_loan_hash="new_hash_123",
         )
         new_re = _make_re(id=re_id, flows=[new_flow])
         request = UpdateRealEstateRequest(
@@ -350,8 +349,8 @@ class TestUpdateRealEstateLinkedLoans:
                         interest_type=InterestType.FIXED,
                         fixed_years=None,
                         principal_outstanding=Dezimal(0),
-                        linked_loan_hash="old_hash",
                     ),
+                    linked_loan_hash="old_hash",
                 )
             ],
         )
@@ -373,7 +372,6 @@ class TestUpdateRealEstateLinkedLoans:
                 interest_type=InterestType.FIXED,
                 fixed_years=None,
                 principal_outstanding=Dezimal(180000),
-                linked_loan_hash=None,
             ),
         )
         new_re = _make_re(id=re_id, flows=[new_flow])
@@ -386,7 +384,7 @@ class TestUpdateRealEstateLinkedLoans:
         re_port.update.assert_awaited_once()
         updated = re_port.update.await_args[0][0]
         assert updated.flows[0].payload.loan_amount == Dezimal(200000)
-        assert updated.flows[0].payload.linked_loan_hash is None
+        assert updated.flows[0].linked_loan_hash is None
 
     @pytest.mark.asyncio
     async def test_remove_unassigned_flows_deletes_missing(self):

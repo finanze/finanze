@@ -253,6 +253,7 @@ async def app(tmp_path):
         keychain_loader,
         entity_account_port,
         loan_calculator,
+        real_estate_port,
     )
     get_backups_uc = GetBackupsImpl(
         backupable_ports,
@@ -304,6 +305,8 @@ async def app(tmp_path):
         crypto_asset_registry_port=crypto_asset_registry_port,
         crypto_asset_info_provider=crypto_asset_info_provider,
         transaction_handler_port=transaction_handler_port,
+        real_estate_port=real_estate_port,
+        loan_calculator=loan_calculator,
     )
     add_manual_transaction_uc = AddManualTransactionImpl(
         entity_port,

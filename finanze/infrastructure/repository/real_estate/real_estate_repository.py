@@ -7,7 +7,12 @@ from application.ports.real_estate_port import RealEstatePort
 from dateutil.tz import tzlocal
 from domain.dezimal import Dezimal
 from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
-from domain.global_position import InterestType, LoanType
+from domain.global_position import (
+    INSTALLMENT_TO_FLOW_FREQ,
+    InterestType,
+    Loan,
+    LoanType,
+)
 from domain.real_estate import (
     Amortization,
     BasicInfo,
@@ -61,13 +66,22 @@ def _deserialize_valuation(data: dict) -> Valuation:
     )
 
 
+def _empty_loan_payload():
+    return LoanPayload(
+        type=LoanType.MORTGAGE,
+        loan_amount=None,
+        interest_rate=Dezimal(0),
+        euribor_rate=None,
+        interest_type=InterestType.FIXED,
+        fixed_years=None,
+        fixed_interest_rate=None,
+        principal_outstanding=Dezimal(0),
+        monthly_interests=None,
+    )
+
+
 def _serialize_payload(payload) -> dict:
     if isinstance(payload, LoanPayload):
-        if payload.linked_loan_hash:
-            return {
-                "type": payload.type,
-                "linked_loan_hash": payload.linked_loan_hash,
-            }
         return {
             "type": payload.type,
             "loan_amount": str(payload.loan_amount) if payload.loan_amount else None,
@@ -95,18 +109,6 @@ def _serialize_payload(payload) -> dict:
 
 def _deserialize_payload(flow_subtype: RealEstateFlowSubtype, data: dict):
     if flow_subtype == RealEstateFlowSubtype.LOAN:
-        linked_hash = data.get("linked_loan_hash")
-        if linked_hash:
-            return LoanPayload(
-                type=LoanType(data["type"]),
-                loan_amount=None,
-                interest_rate=Dezimal(0),
-                euribor_rate=None,
-                interest_type=InterestType.FIXED,
-                fixed_years=None,
-                principal_outstanding=Dezimal(0),
-                linked_loan_hash=linked_hash,
-            )
         return LoanPayload(
             type=LoanType(data["type"]),
             loan_amount=Dezimal(data["loan_amount"])
@@ -192,9 +194,13 @@ def _deserialize_rental_data(data: Optional[str | bytes]) -> Optional[RentalData
 
 
 async def _build_flow(flow_row) -> RealEstateFlow:
-    payload_data = json.loads(flow_row["payload"])
-    payload = _deserialize_payload(
-        RealEstateFlowSubtype(flow_row["flow_subtype"]), payload_data
+    flow_subtype = RealEstateFlowSubtype(flow_row["flow_subtype"])
+    raw_payload = flow_row["payload"]
+    payload_data = json.loads(raw_payload) if raw_payload else {}
+    payload = (
+        _deserialize_payload(flow_subtype, payload_data)
+        if payload_data
+        else _empty_loan_payload()
     )
 
     return RealEstateFlow(
@@ -218,6 +224,9 @@ async def _build_flow(flow_row) -> RealEstateFlow:
         flow_subtype=RealEstateFlowSubtype(flow_row["flow_subtype"]),
         description=flow_row["description"],
         payload=payload,
+        linked_loan_hash=flow_row["extra_reference"]
+        if "extra_reference" in flow_row.keys()
+        else None,
     )
 
 
@@ -278,7 +287,10 @@ async def _save_flow(cursor, real_estate_id: UUID, flow: RealEstateFlow) -> None
             str(flow.periodic_flow_id),
             flow.flow_subtype.value,
             flow.description,
-            json.dumps(_serialize_payload(flow.payload)),
+            json.dumps(
+                _serialize_payload(flow.payload) if not flow.linked_loan_hash else {}
+            ),
+            flow.linked_loan_hash,
         ),
     )
 
@@ -403,3 +415,21 @@ class RealEstateRepository(RealEstatePort):
             await cursor.execute(RealEstateQueries.GET_ALL)
             rows = await cursor.fetchall()
             return [await _build_real_estate(row, cursor) for row in rows]
+
+    async def sync_linked_loan_flows(self, loan: Loan) -> None:
+        if not loan.hash:
+            return
+        freq = INSTALLMENT_TO_FLOW_FREQ.get(
+            loan.installment_frequency, FlowFrequency.MONTHLY
+        )
+        async with self._db_client.tx() as cursor:
+            await cursor.execute(
+                RealEstateQueries.SYNC_LINKED_LOAN_PERIODIC_FLOWS,
+                (
+                    str(loan.current_installment),
+                    freq.value,
+                    str(loan.creation),
+                    str(loan.maturity),
+                    loan.hash,
+                ),
+            )

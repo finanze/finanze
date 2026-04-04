@@ -42,7 +42,7 @@ from domain.global_position import (
     RealEstateCFInvestments,
     StockInvestments,
 )
-from domain.real_estate import LoanPayload, RealEstate, RealEstateFlowSubtype
+from domain.real_estate import RealEstate, RealEstateFlowSubtype
 from domain.use_cases.forecast import Forecast
 
 
@@ -90,12 +90,8 @@ class ForecastImpl(Forecast):
             for flow in re.flows:
                 if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
                     continue
-                payload = flow.payload
-                if (
-                    isinstance(payload, LoanPayload)
-                    and payload.linked_loan_hash is not None
-                ):
-                    hashes.append(payload.linked_loan_hash)
+                if flow.linked_loan_hash is not None:
+                    hashes.append(flow.linked_loan_hash)
         if not hashes:
             return {}
         return await self._position_port.get_loans_by_hash(list(set(hashes)))
@@ -114,6 +110,24 @@ class ForecastImpl(Forecast):
                 candidate
                 if candidate > today
                 else start + timedelta(weeks=weeks_passed + 2)
+            )
+        if every == FlowFrequency.BIWEEKLY:
+            days_since = (today - start).days
+            periods_passed = days_since // 14
+            candidate = start + timedelta(weeks=(periods_passed + 1) * 2)
+            return (
+                candidate
+                if candidate > today
+                else start + timedelta(weeks=(periods_passed + 2) * 2)
+            )
+        if every == FlowFrequency.SEMIMONTHLY:
+            days_since = (today - start).days
+            periods_passed = days_since // 15
+            candidate = start + timedelta(days=(periods_passed + 1) * 15)
+            return (
+                candidate
+                if candidate > today
+                else start + timedelta(days=(periods_passed + 2) * 15)
             )
         # Monthly-based frequencies
         months_map = {
@@ -138,6 +152,10 @@ class ForecastImpl(Forecast):
             return current + timedelta(days=1)
         if every == FlowFrequency.WEEKLY:
             return current + timedelta(weeks=1)
+        if every == FlowFrequency.BIWEEKLY:
+            return current + timedelta(weeks=2)
+        if every == FlowFrequency.SEMIMONTHLY:
+            return current + timedelta(days=15)
         months_map = {
             FlowFrequency.EVERY_TWO_MONTHS: 2,
             FlowFrequency.MONTHLY: 1,
@@ -273,6 +291,10 @@ class ForecastImpl(Forecast):
             return amount * Dezimal("30")
         if freq == FlowFrequency.WEEKLY:
             return amount * Dezimal("4.33")
+        if freq == FlowFrequency.BIWEEKLY:
+            return amount * Dezimal("2.1667")
+        if freq == FlowFrequency.SEMIMONTHLY:
+            return amount * Dezimal("2")
         if freq == FlowFrequency.EVERY_TWO_MONTHS:
             return amount / Dezimal("2")
         if freq == FlowFrequency.QUARTERLY:
@@ -340,12 +362,7 @@ class ForecastImpl(Forecast):
                         )
                 elif f.flow_subtype == RealEstateFlowSubtype.LOAN:
                     payload = getattr(f, "payload", None)
-                    loan_hash = (
-                        payload.linked_loan_hash
-                        if isinstance(payload, LoanPayload)
-                        and payload.linked_loan_hash is not None
-                        else None
-                    )
+                    loan_hash = f.linked_loan_hash
                     linked_loan = linked_loans.get(loan_hash) if loan_hash else None
 
                     if linked_loan is not None:
@@ -862,15 +879,13 @@ class ForecastImpl(Forecast):
             if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
                 continue
             payload = getattr(flow, "payload", None)
-            if not payload or not hasattr(payload, "principal_outstanding"):
+            loan_hash = flow.linked_loan_hash
+
+            if not loan_hash and (
+                not payload or not hasattr(payload, "principal_outstanding")
+            ):
                 continue
 
-            loan_hash = (
-                payload.linked_loan_hash
-                if isinstance(payload, LoanPayload)
-                and payload.linked_loan_hash is not None
-                else None
-            )
             linked_loan = linked_loans.get(loan_hash) if loan_hash else None
 
             if linked_loan is not None:
