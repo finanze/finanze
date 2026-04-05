@@ -212,11 +212,11 @@ def _parse_flow_payload(flow_subtype: RealEstateFlowSubtype, payload_data: dict)
             interest_type=InterestType(payload_data.get("interest_type", "FIXED")),
             fixed_years=payload_data.get("fixed_years"),
             fixed_interest_rate=Dezimal(payload_data["fixed_interest_rate"])
-            if payload_data.get("fixed_interest_rate")
+            if payload_data.get("fixed_interest_rate") is not None
             else None,
             principal_outstanding=Dezimal(payload_data.get("principal_outstanding", 0)),
             monthly_interests=Dezimal(payload_data["monthly_interests"])
-            if payload_data.get("monthly_interests")
+            if payload_data.get("monthly_interests") is not None
             else None,
         )
     elif flow_subtype == RealEstateFlowSubtype.RENT:

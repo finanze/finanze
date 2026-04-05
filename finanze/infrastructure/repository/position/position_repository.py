@@ -1540,7 +1540,9 @@ class PositionSQLRepository(PositionPort):
                 PositionQueries.UPDATE_LOAN_POSITION,
                 (
                     str(current_installment),
-                    str(installment_interests) if installment_interests else None,
+                    str(installment_interests)
+                    if installment_interests is not None
+                    else None,
                     str(principal_outstanding),
                     next_payment_date.isoformat() if next_payment_date else None,
                     str(entry_id),

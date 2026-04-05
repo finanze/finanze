@@ -121,11 +121,11 @@ def _deserialize_payload(flow_subtype: RealEstateFlowSubtype, data: dict):
             interest_type=InterestType(data["interest_type"]),
             fixed_years=data.get("fixed_years"),
             fixed_interest_rate=Dezimal(data["fixed_interest_rate"])
-            if data.get("fixed_interest_rate")
+            if data.get("fixed_interest_rate") is not None
             else None,
             principal_outstanding=Dezimal(data["principal_outstanding"]),
             monthly_interests=Dezimal(data["monthly_interests"])
-            if data.get("monthly_interests")
+            if data.get("monthly_interests") is not None
             else None,
         )
     elif flow_subtype == RealEstateFlowSubtype.RENT:
@@ -200,7 +200,11 @@ async def _build_flow(flow_row) -> RealEstateFlow:
     payload = (
         _deserialize_payload(flow_subtype, payload_data)
         if payload_data
-        else _empty_loan_payload()
+        else (
+            _empty_loan_payload()
+            if flow_subtype == RealEstateFlowSubtype.LOAN
+            else _deserialize_payload(flow_subtype, {})
+        )
     )
 
     return RealEstateFlow(
