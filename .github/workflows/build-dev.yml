@@ -516,17 +516,14 @@ jobs:
         working-directory: frontend/app
         run: pnpm exec cap sync ios
 
-      - name: Install CocoaPods dependencies
-        working-directory: frontend/app/ios/App
-        run: pod install
-
       - name: Build iOS (no signing)
         working-directory: frontend/app/ios/App
         run: |
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -configuration Debug \
+            -skipPackagePluginValidation \
             build \
             CODE_SIGNING_ALLOWED=NO
