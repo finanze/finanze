@@ -3,8 +3,6 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Set
 
-from dateutil.tz import tzlocal
-
 from domain.data_init import DatasourceInitContext, MigrationAheadOfTime, MigrationError
 from infrastructure.repository.db.client import DBClient, DBCursor
 
@@ -101,7 +99,7 @@ class DatabaseUpgrader:
                         f"There was an error while executing migration {migration.name}: {str(e)}"
                     ) from e
 
-                applied_at = datetime.now(tzlocal()).isoformat()
+                applied_at = datetime.now().astimezone().isoformat()
 
                 await cursor.execute(
                     "INSERT INTO migrations (version, applied_at, name) VALUES (?, ?, ?)",

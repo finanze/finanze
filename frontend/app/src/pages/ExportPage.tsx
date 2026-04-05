@@ -1028,9 +1028,7 @@ export default function ExportPage() {
   )
 
   const templateFieldLabels = useMemo(
-    () =>
-      ((t.export?.templates?.fieldLabels ?? {}) as Record<string, string>) ??
-      {},
+    () => (t.export?.templates?.fieldLabels ?? {}) as Record<string, string>,
     [t],
   )
 
