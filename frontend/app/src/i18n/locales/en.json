@@ -2604,7 +2604,8 @@
       "noSuggestionsAvailable": "No suggestions available"
     },
     "suggestions": {
-      "availableSuggestions": "Available Suggestions"
+      "availableSuggestions": "Available Suggestions",
+      "currencyMismatch": "This item is in {currency} and cannot be linked to a {propertyCurrency} property"
     },
     "frequency": {
       "daily": "Daily",

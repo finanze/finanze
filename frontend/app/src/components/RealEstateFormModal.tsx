@@ -37,6 +37,12 @@ import {
   Unlink,
 } from "lucide-react"
 import { formatCurrency } from "@/lib/formatters"
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip"
 import { IconPicker, Icon, type IconName } from "@/components/ui/icon-picker"
 import RealEstateStats from "@/components/real-estate/RealEstateStats"
 import { getCurrencySymbol } from "@/lib/utils"
@@ -1406,7 +1412,7 @@ export function RealEstateFormModal({
                         />
                         <label
                           htmlFor="photo-upload"
-                          className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                          className="cursor-pointer flex items-center gap-2 px-4 py-2 border border-input rounded-md text-foreground bg-background hover:bg-accent hover:text-accent-foreground"
                         >
                           <Upload size={16} />
                           {t.common.upload}
@@ -2173,16 +2179,24 @@ export function RealEstateFormModal({
                                 flow.frequency,
                                 true,
                               )
+                              const isCurrencyMismatch =
+                                !flow.id?.startsWith("generic-") &&
+                                flow.currency !== formData.currency
 
                               const iconName = getSuggestionIconName(
                                 flow,
                                 "loans",
                               )
-                              return (
+
+                              const content = (
                                 <div
                                   key={`${flow.id}-${index}`}
-                                  className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                  onClick={() => applyFlowSuggestion(flow)}
+                                  className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                  onClick={
+                                    isCurrencyMismatch
+                                      ? undefined
+                                      : () => applyFlowSuggestion(flow)
+                                  }
                                 >
                                   <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                     <Icon
@@ -2201,6 +2215,11 @@ export function RealEstateFormModal({
                                           {t.realEstate.loans.existingLoan}
                                         </span>
                                       )}
+                                      {isCurrencyMismatch && (
+                                        <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                          {flow.currency}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-500 dark:text-gray-400">
                                       {isGeneric
@@ -2213,6 +2232,31 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               )
+
+                              if (isCurrencyMismatch) {
+                                return (
+                                  <TooltipProvider key={`${flow.id}-${index}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {content}
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs"
+                                      >
+                                        {t.realEstate.suggestions.currencyMismatch
+                                          .replace("{currency}", flow.currency)
+                                          .replace(
+                                            "{propertyCurrency}",
+                                            formData.currency,
+                                          )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+
+                              return content
                             })}
                           {availableFlows.filter(flow => {
                             return (
@@ -3206,16 +3250,24 @@ export function RealEstateFormModal({
                                 flow.frequency,
                                 true,
                               )
+                              const isCurrencyMismatch =
+                                !flow.id?.startsWith("generic-") &&
+                                flow.currency !== formData.currency
 
                               const iconName = getSuggestionIconName(
                                 flow,
                                 "costs",
                               )
-                              return (
+
+                              const content = (
                                 <div
                                   key={`${flow.id}-${index}`}
-                                  className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                  onClick={() => applyFlowSuggestion(flow)}
+                                  className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                  onClick={
+                                    isCurrencyMismatch
+                                      ? undefined
+                                      : () => applyFlowSuggestion(flow)
+                                  }
                                 >
                                   <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                     <Icon
@@ -3228,6 +3280,11 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <div className="text-sm font-medium text-white">
                                       {flow.name}
+                                      {isCurrencyMismatch && (
+                                        <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                          {flow.currency}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-300">
                                       {isGeneric
@@ -3240,6 +3297,31 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               )
+
+                              if (isCurrencyMismatch) {
+                                return (
+                                  <TooltipProvider key={`${flow.id}-${index}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {content}
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs"
+                                      >
+                                        {t.realEstate.suggestions.currencyMismatch
+                                          .replace("{currency}", flow.currency)
+                                          .replace(
+                                            "{propertyCurrency}",
+                                            formData.currency,
+                                          )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+
+                              return content
                             })}
                           {availableFlows.filter(flow => {
                             return flow.flow_type === FlowType.EXPENSE
@@ -3735,16 +3817,24 @@ export function RealEstateFormModal({
                                 flow.frequency,
                                 true,
                               )
+                              const isCurrencyMismatch =
+                                !flow.id?.startsWith("generic-") &&
+                                flow.currency !== formData.currency
 
                               const iconName = getSuggestionIconName(
                                 flow,
                                 "utilities",
                               )
-                              return (
+
+                              const content = (
                                 <div
                                   key={`${flow.id}-${index}`}
-                                  className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                  onClick={() => applyFlowSuggestion(flow)}
+                                  className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                  onClick={
+                                    isCurrencyMismatch
+                                      ? undefined
+                                      : () => applyFlowSuggestion(flow)
+                                  }
                                 >
                                   <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                     <Icon
@@ -3758,6 +3848,11 @@ export function RealEstateFormModal({
                                   <div className="flex-1">
                                     <div className="text-sm font-medium text-white">
                                       {flow.name}
+                                      {isCurrencyMismatch && (
+                                        <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                          {flow.currency}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-xs text-gray-300">
                                       {isGeneric
@@ -3770,6 +3865,31 @@ export function RealEstateFormModal({
                                   </div>
                                 </div>
                               )
+
+                              if (isCurrencyMismatch) {
+                                return (
+                                  <TooltipProvider key={`${flow.id}-${index}`}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {content}
+                                      </TooltipTrigger>
+                                      <TooltipContent
+                                        side="top"
+                                        className="max-w-xs"
+                                      >
+                                        {t.realEstate.suggestions.currencyMismatch
+                                          .replace("{currency}", flow.currency)
+                                          .replace(
+                                            "{propertyCurrency}",
+                                            formData.currency,
+                                          )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )
+                              }
+
+                              return content
                             })}
                           {availableFlows.filter(flow => {
                             return flow.flow_type === FlowType.EXPENSE
@@ -4186,16 +4306,24 @@ export function RealEstateFormModal({
                                   flow.frequency,
                                   true,
                                 )
+                                const isCurrencyMismatch =
+                                  !flow.id?.startsWith("generic-") &&
+                                  flow.currency !== formData.currency
 
                                 const iconName = getSuggestionIconName(
                                   flow,
                                   "rent",
                                 )
-                                return (
+
+                                const content = (
                                   <div
                                     key={`${flow.id}-${index}`}
-                                    className="flex items-center p-3 rounded cursor-pointer bg-gray-800 hover:bg-gray-700 transition-colors"
-                                    onClick={() => applyFlowSuggestion(flow)}
+                                    className={`flex items-center p-3 rounded transition-colors ${isCurrencyMismatch ? "opacity-40 cursor-not-allowed bg-gray-800" : "cursor-pointer bg-gray-800 hover:bg-gray-700"}`}
+                                    onClick={
+                                      isCurrencyMismatch
+                                        ? undefined
+                                        : () => applyFlowSuggestion(flow)
+                                    }
                                   >
                                     <div className="mr-3 flex items-center justify-center w-8 h-8 rounded-full bg-gray-600">
                                       <Icon
@@ -4209,6 +4337,11 @@ export function RealEstateFormModal({
                                     <div className="flex-1">
                                       <div className="text-sm font-medium text-white">
                                         {flow.name}
+                                        {isCurrencyMismatch && (
+                                          <span className="ml-2 text-xs bg-yellow-600 text-white px-2 py-0.5 rounded">
+                                            {flow.currency}
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="text-xs text-gray-300">
                                         {isGeneric
@@ -4221,6 +4354,36 @@ export function RealEstateFormModal({
                                     </div>
                                   </div>
                                 )
+
+                                if (isCurrencyMismatch) {
+                                  return (
+                                    <TooltipProvider
+                                      key={`${flow.id}-${index}`}
+                                    >
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          {content}
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side="top"
+                                          className="max-w-xs"
+                                        >
+                                          {t.realEstate.suggestions.currencyMismatch
+                                            .replace(
+                                              "{currency}",
+                                              flow.currency,
+                                            )
+                                            .replace(
+                                              "{propertyCurrency}",
+                                              formData.currency,
+                                            )}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )
+                                }
+
+                                return content
                               })}
                             {availableFlows.filter(
                               flow =>

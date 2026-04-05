@@ -2617,7 +2617,8 @@
       "noSuggestionsAvailable": "No hay sugerencias disponibles"
     },
     "suggestions": {
-      "availableSuggestions": "Sugerencias Disponibles"
+      "availableSuggestions": "Sugerencias Disponibles",
+      "currencyMismatch": "Este elemento está en {currency} y no se puede vincular a una propiedad en {propertyCurrency}"
     },
     "frequency": {
       "daily": "Diario",

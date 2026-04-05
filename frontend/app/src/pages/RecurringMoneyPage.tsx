@@ -65,8 +65,13 @@ import {
 export default function RecurringMoneyPage() {
   const { t, locale } = useI18n()
   const { showToast, settings, exchangeRates } = useAppContext()
-  const { periodicFlows, refreshFlows, positionsData, contributions } =
-    useFinancialData()
+  const {
+    periodicFlows,
+    refreshFlows,
+    refreshFlowsIfStale,
+    positionsData,
+    contributions,
+  } = useFinancialData()
   const navigate = useNavigate()
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
@@ -611,6 +616,10 @@ export default function RecurringMoneyPage() {
       showToast(t.management.loanSuggestions.acceptedError, "error")
     }
   }
+
+  useEffect(() => {
+    refreshFlowsIfStale()
+  }, [refreshFlowsIfStale])
 
   useEffect(() => {
     // Extract unique categories for suggestions
