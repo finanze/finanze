@@ -7,7 +7,7 @@ from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.db.upgrader import (
     DBVersionMigration,
     DatabaseUpgrader,
-    MigrationIntegrityError,
+    DuplicateMigrationNameError,
 )
 
 
@@ -67,12 +67,10 @@ async def _insert_migration_record(conn, version, name):
 
 class TestUpgradeEmptyVersions:
     @pytest.mark.asyncio
-    async def test_raises_value_error(self, db):
+    async def test_no_op_with_empty_list(self, db):
         db_client, _ = db
         upgrader = DatabaseUpgrader(db_client, [], _make_context())
-
-        with pytest.raises(ValueError, match="Invalid target version"):
-            await upgrader.upgrade()
+        await upgrader.upgrade()
 
 
 class TestUpgradeAppliesAllMigrations:
@@ -90,37 +88,16 @@ class TestUpgradeAppliesAllMigrations:
         assert m1.applied is True
         assert m2.applied is True
 
-        rows = conn.execute(
-            "SELECT version, name FROM migrations ORDER BY version"
-        ).fetchall()
+        rows = conn.execute("SELECT name FROM migrations ORDER BY version").fetchall()
         assert len(rows) == 3
-        assert rows[0] == (0, "create_users")
-        assert rows[1] == (1, "create_accounts")
-        assert rows[2] == (2, "add_indexes")
-
-    @pytest.mark.asyncio
-    async def test_applies_up_to_explicit_target(self, db):
-        db_client, conn = db
-        m0 = FakeMigration("first")
-        m1 = FakeMigration("second")
-        m2 = FakeMigration("third")
-        upgrader = DatabaseUpgrader(db_client, [m0, m1, m2], _make_context())
-
-        await upgrader.upgrade(target_version=1)
-
-        assert m0.applied is True
-        assert m1.applied is True
-        assert m2.applied is False
-
-        rows = conn.execute(
-            "SELECT version FROM migrations ORDER BY version"
-        ).fetchall()
-        assert [r[0] for r in rows] == [0, 1]
+        assert rows[0][0] == "create_users"
+        assert rows[1][0] == "create_accounts"
+        assert rows[2][0] == "add_indexes"
 
 
 class TestUpgradeNoOp:
     @pytest.mark.asyncio
-    async def test_no_op_when_already_at_target(self, db):
+    async def test_no_op_when_all_applied(self, db):
         db_client, conn = db
         conn.execute(
             "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
@@ -137,27 +114,6 @@ class TestUpgradeNoOp:
 
         assert m0.applied is False
         assert m1.applied is False
-
-
-class TestMigrationAheadOfTimeError:
-    @pytest.mark.asyncio
-    async def test_raises_when_current_ahead_of_target(self, db):
-        db_client, conn = db
-        conn.execute(
-            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
-        )
-        conn.commit()
-        await _insert_migration_record(conn, 0, "first")
-        await _insert_migration_record(conn, 1, "second")
-        await _insert_migration_record(conn, 2, "third")
-
-        m0 = FakeMigration("first")
-        m1 = FakeMigration("second")
-        m2 = FakeMigration("third")
-        upgrader = DatabaseUpgrader(db_client, [m0, m1, m2], _make_context())
-
-        with pytest.raises(MigrationAheadOfTime, match="ahead of current one"):
-            await upgrader.upgrade(target_version=1)
 
 
 class TestMigrationErrorOnFailure:
@@ -182,45 +138,19 @@ class TestMigrationErrorOnFailure:
             await upgrader.upgrade()
 
         assert m0.applied is True
-        rows = conn.execute("SELECT version, name FROM migrations").fetchall()
+        rows = conn.execute("SELECT name FROM migrations").fetchall()
         assert len(rows) == 1
-        assert rows[0] == (0, "first")
+        assert rows[0][0] == "first"
 
 
-class TestMigrationIntegrityErrorOnNameMismatch:
-    @pytest.mark.asyncio
-    async def test_raises_on_name_mismatch(self, db):
-        db_client, conn = db
-        conn.execute(
-            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
-        )
-        conn.commit()
-        await _insert_migration_record(conn, 0, "old_name")
+class TestDuplicateMigrationNameError:
+    def test_raises_on_duplicate_names(self, db):
+        db_client, _ = db
+        m0 = FakeMigration("same_name")
+        m1 = FakeMigration("same_name")
 
-        m0 = FakeMigration("new_name")
-        m1 = FakeMigration("second")
-        upgrader = DatabaseUpgrader(db_client, [m0, m1], _make_context())
-
-        with pytest.raises(MigrationIntegrityError, match="Name mismatch"):
-            await upgrader.upgrade()
-
-    @pytest.mark.asyncio
-    async def test_raises_on_name_mismatch_for_earlier_migration(self, db):
-        db_client, conn = db
-        conn.execute(
-            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
-        )
-        conn.commit()
-        await _insert_migration_record(conn, 0, "wrong_name")
-        await _insert_migration_record(conn, 1, "second")
-
-        m0 = FakeMigration("first")
-        m1 = FakeMigration("second")
-        m2 = FakeMigration("third")
-        upgrader = DatabaseUpgrader(db_client, [m0, m1, m2], _make_context())
-
-        with pytest.raises(MigrationIntegrityError, match="Name mismatch"):
-            await upgrader.upgrade()
+        with pytest.raises(DuplicateMigrationNameError, match="same_name"):
+            DatabaseUpgrader(db_client, [m0, m1], _make_context())
 
 
 class TestUpgradeAppliesOnlyPendingMigrations:
@@ -244,13 +174,8 @@ class TestUpgradeAppliesOnlyPendingMigrations:
         assert m1.applied is True
         assert m2.applied is True
 
-        rows = conn.execute(
-            "SELECT version, name FROM migrations ORDER BY version"
-        ).fetchall()
+        rows = conn.execute("SELECT name FROM migrations ORDER BY version").fetchall()
         assert len(rows) == 3
-        assert rows[0] == (0, "first")
-        assert rows[1] == (1, "second")
-        assert rows[2] == (2, "third")
 
     @pytest.mark.asyncio
     async def test_applies_single_pending_migration(self, db):
@@ -273,3 +198,71 @@ class TestUpgradeAppliesOnlyPendingMigrations:
         assert m1.applied is False
         assert m2.applied is True
         assert m2.applied_count == 1
+
+
+class TestOutOfOrderMigrations:
+    @pytest.mark.asyncio
+    async def test_applies_unapplied_migration_even_if_later_ones_exist(self, db):
+        db_client, conn = db
+        conn.execute(
+            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
+        )
+        conn.commit()
+        await _insert_migration_record(conn, 0, "bbb")
+
+        m0 = FakeMigration("aaa")
+        m1 = FakeMigration("bbb")
+        upgrader = DatabaseUpgrader(db_client, [m0, m1], _make_context())
+
+        await upgrader.upgrade()
+
+        assert m0.applied is True
+        assert m1.applied is False
+
+        rows = conn.execute("SELECT name FROM migrations ORDER BY version").fetchall()
+        assert len(rows) == 2
+        names = {r[0] for r in rows}
+        assert names == {"aaa", "bbb"}
+
+    @pytest.mark.asyncio
+    async def test_applies_gap_migration_from_another_developer(self, db):
+        db_client, conn = db
+        conn.execute(
+            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
+        )
+        conn.commit()
+        await _insert_migration_record(conn, 0, "first")
+        await _insert_migration_record(conn, 1, "third")
+
+        m0 = FakeMigration("first")
+        m1 = FakeMigration("second")
+        m2 = FakeMigration("third")
+        upgrader = DatabaseUpgrader(db_client, [m0, m1, m2], _make_context())
+
+        await upgrader.upgrade()
+
+        assert m0.applied is False
+        assert m1.applied is True
+        assert m2.applied is False
+
+        rows = conn.execute("SELECT name FROM migrations").fetchall()
+        assert len(rows) == 3
+        names = {r[0] for r in rows}
+        assert names == {"first", "second", "third"}
+
+
+class TestMigrationAheadOfTime:
+    @pytest.mark.asyncio
+    async def test_raises_when_db_has_unknown_migrations(self, db):
+        db_client, conn = db
+        conn.execute(
+            "CREATE TABLE migrations (version INTEGER PRIMARY KEY, applied_at TIMESTAMP NOT NULL, name TEXT NOT NULL)"
+        )
+        conn.commit()
+        await _insert_migration_record(conn, 0, "from_another_branch")
+
+        m0 = FakeMigration("my_migration")
+        upgrader = DatabaseUpgrader(db_client, [m0], _make_context())
+
+        with pytest.raises(MigrationAheadOfTime, match="from_another_branch"):
+            await upgrader.upgrade()
