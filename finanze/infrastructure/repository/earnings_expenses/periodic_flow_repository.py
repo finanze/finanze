@@ -3,12 +3,27 @@ from uuid import UUID, uuid4
 
 from application.ports.periodic_flow_port import PeriodicFlowPort
 from domain.dezimal import Dezimal
-from domain.earnings_expenses import FlowFrequency, FlowType, PeriodicFlow
+from domain.earnings_expenses import (
+    FlowFrequency,
+    FlowType,
+    PeriodicFlow,
+    RealEstateFlowInfo,
+)
 from infrastructure.repository.db.client import DBClient
 from infrastructure.repository.earnings_expenses.queries import PeriodicFlowsQueries
 
 
 def _map_row_to_periodic_flow(row) -> PeriodicFlow:
+    keys = row.keys()
+    linked_loan_hash = row["linked_loan_hash"] if "linked_loan_hash" in keys else None
+    re_flow_subtype = row["re_flow_subtype"] if "re_flow_subtype" in keys else None
+    real_estate_flow = (
+        RealEstateFlowInfo(
+            flow_subtype=re_flow_subtype, linked_loan_hash=linked_loan_hash
+        )
+        if re_flow_subtype is not None
+        else None
+    )
     return PeriodicFlow(
         id=UUID(row["id"]),
         name=row["name"],
@@ -22,6 +37,7 @@ def _map_row_to_periodic_flow(row) -> PeriodicFlow:
         until=row["until"],
         icon=row["icon"],
         linked=row["linked"],
+        real_estate_flow=real_estate_flow,
         max_amount=Dezimal(row["max_amount"]) if row["max_amount"] else None,
     )
 

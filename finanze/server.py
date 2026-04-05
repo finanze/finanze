@@ -12,6 +12,7 @@ from application.use_cases.cancel_entity_login import CancelEntityLoginImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.calculate_savings import CalculateSavingsImpl
+from infrastructure.loan_calculator import LoanCalculator
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
@@ -85,6 +86,7 @@ from application.use_cases.update_real_estate import UpdateRealEstateImpl
 from application.use_cases.update_settings import UpdateSettingsImpl
 from application.use_cases.update_template import UpdateTemplateImpl
 from application.use_cases.update_tracked_quotes import UpdateTrackedQuotesImpl
+from application.use_cases.update_tracked_loans import UpdateTrackedLoansImpl
 from application.use_cases.upload_backup import UploadBackupImpl
 from application.use_cases.user_login import UserLoginImpl
 from application.use_cases.user_logout import UserLogoutImpl
@@ -408,6 +410,7 @@ class FinanzeServer:
             external_entity_fetchers,
             entity_account_repository,
         )
+        loan_calculator = LoanCalculator()
         fetch_financial_data = FetchFinancialDataImpl(
             position_repository,
             auto_contrib_repository,
@@ -423,6 +426,8 @@ class FinanzeServer:
             transaction_handler,
             public_keychain,
             entity_account_repository,
+            loan_calculator,
+            real_estate_repository,
         )
         fetch_crypto_data = FetchCryptoDataImpl(
             position_repository,
@@ -622,8 +627,10 @@ class FinanzeServer:
             transaction_handler,
             file_storage_repository,
         )
-        list_real_estate = ListRealEstateImpl(real_estate_repository)
-        calculate_loan = CalculateLoanImpl()
+        list_real_estate = ListRealEstateImpl(
+            real_estate_repository, position_repository
+        )
+        calculate_loan = CalculateLoanImpl(loan_calculator)
         calculate_savings = CalculateSavingsImpl()
         forecast = ForecastImpl(
             position_port=position_repository,
@@ -647,6 +654,8 @@ class FinanzeServer:
             crypto_asset_registry_port=crypto_asset_repository,
             crypto_asset_info_provider=crypto_asset_info_client,
             transaction_handler_port=transaction_handler,
+            real_estate_port=real_estate_repository,
+            loan_calculator=loan_calculator,
         )
         add_manual_transaction = AddManualTransactionImpl(
             entity_port=entity_repository,
@@ -670,6 +679,12 @@ class FinanzeServer:
             manual_position_data_port=manual_position_data_repository,
             instrument_info_provider=instrument_provider,
             exchange_rate_provider=exchange_rate_client,
+        )
+        update_tracked_loans = UpdateTrackedLoansImpl(
+            position_port=position_repository,
+            manual_position_data_port=manual_position_data_repository,
+            loan_calculator=loan_calculator,
+            real_estate_port=real_estate_repository,
         )
         create_template = CreateTemplateImpl(template_repository)
         update_template = UpdateTemplateImpl(template_repository)
@@ -789,6 +804,7 @@ class FinanzeServer:
             get_instruments,
             get_instrument_info,
             update_tracked_quotes,
+            update_tracked_loans,
             search_crypto_assets,
             get_crypto_asset_details,
             create_template,

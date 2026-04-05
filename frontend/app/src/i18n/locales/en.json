@@ -1489,6 +1489,16 @@
       "VARIABLE": "Variable",
       "MIXED": "Mixed"
     },
+    "installmentFrequency": {
+      "WEEKLY": "Weekly",
+      "BIWEEKLY": "Biweekly",
+      "SEMIMONTHLY": "Semimonthly",
+      "MONTHLY": "Monthly",
+      "BIMONTHLY": "Bimonthly",
+      "QUARTERLY": "Quarterly",
+      "SEMIANNUAL": "Semiannual",
+      "YEARLY": "Yearly"
+    },
     "fundType": {
       "MUTUAL_FUND": "Mutual fund",
       "PRIVATE_EQUITY": "Private equity",
@@ -1701,6 +1711,16 @@
     "inactive": "Inactive",
     "principalOutstanding": "Principal Outstanding",
     "monthlyInstallment": "Monthly Installment",
+    "installmentByFrequency": {
+      "WEEKLY": "Weekly Installment",
+      "BIWEEKLY": "Biweekly Installment",
+      "SEMIMONTHLY": "Semi-monthly Installment",
+      "MONTHLY": "Monthly Installment",
+      "BIMONTHLY": "Bimonthly Installment",
+      "QUARTERLY": "Quarterly Installment",
+      "SEMIANNUAL": "Semiannual Installment",
+      "YEARLY": "Yearly Installment"
+    },
     "interestRate": "Interest Rate",
     "nextPayment": "Next Payment",
     "originalAmount": "Original Amount",
@@ -1756,6 +1776,7 @@
     "deleteConfirmTitle": "Delete {type}",
     "deleteLinkedWarning": "Note: This {type} is linked to a real estate operation. Deleting it will affect the related real estate.",
     "editLinkedWarning": "Editing this {type} will affect the related real estate.",
+    "linkedToLoan": "Linked to a loan, managed from real estate",
     "noEarnings": "No earnings configured",
     "noExpenses": "No expenses configured",
     "addFirstEarning": "Click '+' to add recurring earnings.",
@@ -1773,6 +1794,8 @@
     "frequency": {
       "DAILY": "Daily",
       "WEEKLY": "Weekly",
+      "BIWEEKLY": "Biweekly",
+      "SEMIMONTHLY": "Semi-monthly",
       "MONTHLY": "Monthly",
       "EVERY_TWO_MONTHS": "Every 2 Months",
       "QUARTERLY": "Quarterly",
@@ -2008,7 +2031,12 @@
           "euriborRate": "Euribor rate",
           "fixedYears": "Fixed-rate years",
           "creation": "Start date",
-          "maturity": "Maturity"
+          "maturity": "Maturity",
+          "installmentFrequency": "Installment frequency",
+          "fixedInterestRate": "Fixed interest rate (%)",
+          "trackLoan": "Update loan automatically",
+          "trackLoanLabel": "Auto-update",
+          "trackLoanInfo": "Automatically recalculates the installment, interests, and outstanding principal over time. Only for fixed interest loans."
         },
         "helpers": {
           "calculationHint": "Use the calculator to estimate the current installment and outstanding principal.",
@@ -2353,6 +2381,8 @@
   },
   "realEstate": {
     "title": "Real Estate",
+    "linkedToPosition": "Linked to loan",
+    "notLinked": "Not linked",
     "properties": "Properties",
     "summary": "Summary",
     "addProperty": "Add",
@@ -2428,6 +2458,7 @@
       "interestType": "Interest type",
       "fixedYears": "Fixed years",
       "fixedYearsLabel": "Fixed rate years",
+      "fixedInterestRateLabel": "Fixed interest rate",
       "fromLabel": "From",
       "untilLabel": "Until",
       "existingLoan": "Existing Loan",
@@ -2446,7 +2477,8 @@
       "paymentDate": "Payment date",
       "principalOutstanding": "Principal outstanding",
       "principalPaid": "Principal paid",
-      "monthlyPayment": "Monthly payment",
+      "monthlyPayment": "Current installment",
+      "installmentFrequencyLabel": "Installment frequency",
       "capitalContributed": "Capital contributed",
       "totalFinanced": "Total financed",
       "precalculate": "Precalculate",
@@ -2572,11 +2604,14 @@
       "noSuggestionsAvailable": "No suggestions available"
     },
     "suggestions": {
-      "availableSuggestions": "Available Suggestions"
+      "availableSuggestions": "Available Suggestions",
+      "currencyMismatch": "This item is in {currency} and cannot be linked to a {propertyCurrency} property"
     },
     "frequency": {
       "daily": "Daily",
       "weekly": "Weekly",
+      "biweekly": "Biweekly",
+      "semimonthly": "Semi-monthly",
       "monthly": "Monthly",
       "bimonthly": "Bimonthly",
       "quarterly": "Quarterly",
@@ -2590,7 +2625,7 @@
       "marginalTaxRate": "Marginal tax rate (%):",
       "estimatedMonthlyTax": "Estimated monthly tax:",
       "estimatedAnnualTax": "Estimated annual tax:",
-      "monthlyPayment": "Monthly payment",
+      "monthlyPayment": "Current installment",
       "monthlyAmount": "Monthly amount",
       "monthlyIncomeGross": "Monthly income (gross):",
       "monthlyIncome": "Monthly income:",
@@ -2604,7 +2639,7 @@
       "totalPurchaseCost": "Total purchase cost",
       "estimatedValue": "Estimated value",
       "equity": "Equity",
-      "monthlyInterest": "Monthly interest",
+      "monthlyInterest": "Installment interest",
       "taxDeductible": "Deductible",
       "taxDeductibleShort": "deductible",
       "taxableAmount": "Taxable amount",
@@ -2662,7 +2697,12 @@
       "saveChanges": "Save changes",
       "discardChanges": "Discard changes",
       "discardChangesTitle": "Discard changes?",
-      "deleteUnassignedFlows": "Do you want to delete the income/expenses that you have unassigned from this property?"
+      "deleteUnassignedFlows": "Do you want to delete the income/expenses that you have unassigned from this property?",
+      "unlinkLoanTitle": "Unlink loan?",
+      "unlinkLoanMessage": "Unlinking the loan will remove the connection to the banking position. To link it again, you will need to add the loan again.",
+      "unlinkLoanWarning": "This action cannot be undone.",
+      "unlinkLoanConfirm": "Unlink",
+      "unlinkLoanCancel": "Cancel"
     },
     "validation": {
       "title": "Validation Errors",

@@ -72,6 +72,7 @@ from domain.use_cases.update_real_estate import UpdateRealEstate
 from domain.use_cases.update_settings import UpdateSettings
 from domain.use_cases.update_template import UpdateTemplate
 from domain.use_cases.update_tracked_quotes import UpdateTrackedQuotes
+from domain.use_cases.update_tracked_loans import UpdateTrackedLoans
 from domain.use_cases.upload_backup import UploadBackup
 from domain.use_cases.user_login import UserLogin
 from domain.use_cases.user_logout import UserLogout
@@ -173,6 +174,7 @@ from infrastructure.controller.routes.update_real_estate import update_real_esta
 from infrastructure.controller.routes.update_settings import update_settings
 from infrastructure.controller.routes.update_template import update_template
 from infrastructure.controller.routes.update_tracked_quotes import update_tracked_quotes
+from infrastructure.controller.routes.update_tracked_loans import update_tracked_loans
 from infrastructure.controller.routes.upload_backup import upload_backup
 from infrastructure.controller.routes.user_login import user_login
 from infrastructure.controller.routes.search_crypto_assets import search_crypto_assets
@@ -237,6 +239,7 @@ async def register_routes(
     get_instruments_uc: GetInstruments,
     get_instrument_info_uc: GetInstrumentInfo,
     update_tracked_quotes_uc: UpdateTrackedQuotes,
+    update_tracked_loans_uc: UpdateTrackedLoans,
     search_crypto_assets_uc: SearchCryptoAssets,
     get_crypto_asset_details_uc: GetCryptoAssetDetails,
     create_template_uc: CreateTemplate,
@@ -493,6 +496,10 @@ async def register_routes(
     @app.route("/api/v1/data/manual/positions/update-quotes", methods=["POST"])
     async def update_tracked_quotes_route():
         return await update_tracked_quotes(update_tracked_quotes_uc)
+
+    @app.route("/api/v1/data/manual/positions/update-loans", methods=["POST"])
+    async def update_tracked_loans_route():
+        return await update_tracked_loans(update_tracked_loans_uc)
 
     @app.route("/api/v1/templates", methods=["GET"])
     async def get_templates_route():

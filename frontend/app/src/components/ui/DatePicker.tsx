@@ -105,7 +105,7 @@ function DatePicker({
           </Button>
         </PopoverTrigger>
 
-        {value && (
+        {value && !disabled && (
           <div
             className="absolute right-2 top-1/2 transform -translate-y-1/2 z-10 flex items-center justify-center"
             onClick={handleClear}
@@ -156,6 +156,7 @@ function DatePicker({
               locale={dateLocale}
               weekStartsOn={1}
               showOutsideDays={true}
+              fixedWeeks={true}
               classNames={{
                 nav: "absolute end-4 flex justify-between w-16 p-0.5",
                 month_grid: "mt-4",

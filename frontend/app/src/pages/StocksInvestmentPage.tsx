@@ -371,6 +371,7 @@ function StocksViewContent({
     isEntryDeleted,
     translate: manualTranslate,
     isDraftDirty: manualIsDraftDirty,
+    enterEditMode,
   } = useManualPositions()
 
   const stockDrafts = drafts as StockDraft[]
@@ -1005,6 +1006,11 @@ function StocksViewContent({
                                 source={position.source}
                                 title={t.management?.source}
                                 className="text-[0.65rem]"
+                                onClick={
+                                  position.source === DataSource.MANUAL
+                                    ? () => enterEditMode()
+                                    : undefined
+                                }
                               />
                             )}
                           {isDirty && (

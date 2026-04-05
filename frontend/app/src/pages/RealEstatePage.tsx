@@ -125,6 +125,12 @@ export default function RealEstatePage() {
         case FlowFrequency.WEEKLY:
           monthlyAmount = amount * 4.33
           break
+        case FlowFrequency.BIWEEKLY:
+          monthlyAmount = amount * (26 / 12)
+          break
+        case FlowFrequency.SEMIMONTHLY:
+          monthlyAmount = amount * 2
+          break
         case FlowFrequency.MONTHLY:
           monthlyAmount = amount
           break

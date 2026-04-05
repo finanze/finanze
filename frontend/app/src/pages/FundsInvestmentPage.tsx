@@ -1098,6 +1098,12 @@ function FundsInvestmentPageContent({
                                 source={position.source}
                                 title={t.management?.source}
                                 className="text-[0.65rem]"
+                                onClick={() => {
+                                  if (!fundsContext.isEditMode)
+                                    fundsContext.enterEditMode()
+                                  if (!portfolioContext.isEditMode)
+                                    portfolioContext.enterEditMode()
+                                }}
                               />
                             )}
                           {isDirty && (

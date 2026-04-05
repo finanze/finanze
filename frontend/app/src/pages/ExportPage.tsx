@@ -1028,9 +1028,7 @@ export default function ExportPage() {
   )
 
   const templateFieldLabels = useMemo(
-    () =>
-      ((t.export?.templates?.fieldLabels ?? {}) as Record<string, string>) ??
-      {},
+    () => (t.export?.templates?.fieldLabels ?? {}) as Record<string, string>,
     [t],
   )
 
@@ -2581,7 +2579,7 @@ export default function ExportPage() {
               )}
             >
               {exportState.isExporting && (
-                <LoadingSpinner className="mr-2 h-5 w-5" />
+                <LoadingSpinner className="mr-2 h-5 w-5 text-current" />
               )}
               {successAnimation ? (
                 <motion.div

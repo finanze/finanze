@@ -90,6 +90,7 @@ async def _default_job_scheduler(
 
 class GetExchangeRatesImpl(GetExchangeRates):
     BASE_CRYPTO_SYMBOLS = ["BTC", "ETH", "LTC", "TRX", "BNB", "USDT", "USDC"]
+    IGNORED_CRYPTO_SYMBOLS = {"BNFCR"}
     DEFAULT_TIMEOUT = 8
     CACHE_TTL_SECONDS = 300
     STORAGE_REFRESH_SECONDS = 1 * 60 * 60
@@ -440,6 +441,8 @@ class GetExchangeRatesImpl(GetExchangeRates):
         asset_symbol_addresses = (
             await self._get_position_crypto_currency_symbol_address()
         )
+        for ignored in self.IGNORED_CRYPTO_SYMBOLS:
+            asset_symbol_addresses.pop(ignored, None)
         if not asset_symbol_addresses:
             return []
 

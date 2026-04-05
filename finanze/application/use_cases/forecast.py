@@ -37,6 +37,7 @@ from domain.global_position import (
     FundInvestments,
     FundPortfolios,
     GlobalPosition,
+    Loan,
     ProductType,
     RealEstateCFInvestments,
     StockInvestments,
@@ -80,6 +81,21 @@ class ForecastImpl(Forecast):
         self._real_estate_port = real_estate_port
         self._entity_port = entity_port
 
+    # ---------- Resolve linked loans ----------
+    async def _resolve_linked_loans(
+        self, real_estates: list[RealEstate]
+    ) -> dict[str, Loan]:
+        hashes: list[str] = []
+        for re in real_estates:
+            for flow in re.flows:
+                if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
+                    continue
+                if flow.linked_loan_hash is not None:
+                    hashes.append(flow.linked_loan_hash)
+        if not hashes:
+            return {}
+        return await self._position_port.get_loans_by_hash(list(set(hashes)))
+
     # ---------- Helpers for occurrences ----------
     def _advance_after_today(
         self, start: date, every: FlowFrequency, today: date
@@ -94,6 +110,24 @@ class ForecastImpl(Forecast):
                 candidate
                 if candidate > today
                 else start + timedelta(weeks=weeks_passed + 2)
+            )
+        if every == FlowFrequency.BIWEEKLY:
+            days_since = (today - start).days
+            periods_passed = days_since // 14
+            candidate = start + timedelta(weeks=(periods_passed + 1) * 2)
+            return (
+                candidate
+                if candidate > today
+                else start + timedelta(weeks=(periods_passed + 2) * 2)
+            )
+        if every == FlowFrequency.SEMIMONTHLY:
+            days_since = (today - start).days
+            periods_passed = days_since // 15
+            candidate = start + timedelta(days=(periods_passed + 1) * 15)
+            return (
+                candidate
+                if candidate > today
+                else start + timedelta(days=(periods_passed + 2) * 15)
             )
         # Monthly-based frequencies
         months_map = {
@@ -118,6 +152,10 @@ class ForecastImpl(Forecast):
             return current + timedelta(days=1)
         if every == FlowFrequency.WEEKLY:
             return current + timedelta(weeks=1)
+        if every == FlowFrequency.BIWEEKLY:
+            return current + timedelta(weeks=2)
+        if every == FlowFrequency.SEMIMONTHLY:
+            return current + timedelta(days=15)
         months_map = {
             FlowFrequency.EVERY_TWO_MONTHS: 2,
             FlowFrequency.MONTHLY: 1,
@@ -253,6 +291,10 @@ class ForecastImpl(Forecast):
             return amount * Dezimal("30")
         if freq == FlowFrequency.WEEKLY:
             return amount * Dezimal("4.33")
+        if freq == FlowFrequency.BIWEEKLY:
+            return amount * Dezimal("2.1667")
+        if freq == FlowFrequency.SEMIMONTHLY:
+            return amount * Dezimal("2")
         if freq == FlowFrequency.EVERY_TWO_MONTHS:
             return amount / Dezimal("2")
         if freq == FlowFrequency.QUARTERLY:
@@ -279,6 +321,7 @@ class ForecastImpl(Forecast):
         if steps <= 0:
             return
         real_estates: list[RealEstate] = await self._real_estate_port.get_all()
+        linked_loans = await self._resolve_linked_loans(real_estates)
         for re in real_estates:
             currency = re.currency
             # Totals based on occurrences until target (income/costs/loan payments)
@@ -318,21 +361,68 @@ class ForecastImpl(Forecast):
                             pf.amount, pf.frequency
                         )
                 elif f.flow_subtype == RealEstateFlowSubtype.LOAN:
-                    if pf and pf.amount is not None:
-                        occ = self._count_periodic_occurrences(
-                            pf.since, pf.frequency, pf.until, target
-                        )
-                        if occ > 0:
-                            total_loan_pay = total_loan_pay + pf.amount * Dezimal(occ)
-                        monthly_loan_payments = monthly_loan_payments + pf.amount
                     payload = getattr(f, "payload", None)
-                    if (
-                        payload is not None
-                        and getattr(payload, "monthly_interests", None) is not None
-                    ):
-                        monthly_loan_interests = (
-                            monthly_loan_interests + payload.monthly_interests
-                        )
+                    loan_hash = f.linked_loan_hash
+                    linked_loan = linked_loans.get(loan_hash) if loan_hash else None
+
+                    if linked_loan is not None:
+                        # Use live loan data for payment and interests
+                        payment_amount = linked_loan.current_installment
+                        if pf and pf.amount is not None:
+                            occ = self._count_periodic_occurrences(
+                                pf.since, pf.frequency, pf.until, target
+                            )
+                            if occ > 0:
+                                total_loan_pay = (
+                                    total_loan_pay + payment_amount * Dezimal(occ)
+                                )
+                        else:
+                            # No periodic flow; approximate using monthly steps
+                            total_loan_pay = total_loan_pay + payment_amount * Dezimal(
+                                steps
+                            )
+                        monthly_loan_payments = monthly_loan_payments + payment_amount
+                        if linked_loan.installment_interests is not None:
+                            monthly_loan_interests = (
+                                monthly_loan_interests
+                                + linked_loan.installment_interests
+                            )
+                        else:
+                            # Compute monthly interests from loan data
+                            annual_rate = self._compute_annual_rate(
+                                linked_loan.interest_type.name
+                                if linked_loan.interest_type
+                                else None,
+                                linked_loan.interest_rate,
+                                linked_loan.euribor_rate,
+                                linked_loan.fixed_years,
+                                linked_loan.creation,
+                                target,
+                                linked_loan.fixed_interest_rate,
+                            )
+                            monthly_rate = annual_rate / 12
+                            monthly_loan_interests = (
+                                monthly_loan_interests
+                                + linked_loan.principal_outstanding * monthly_rate
+                            )
+                    else:
+                        # Original behaviour for non-linked loans
+                        if pf and pf.amount is not None:
+                            occ = self._count_periodic_occurrences(
+                                pf.since, pf.frequency, pf.until, target
+                            )
+                            if occ > 0:
+                                total_loan_pay = total_loan_pay + pf.amount * Dezimal(
+                                    occ
+                                )
+                            monthly_loan_payments = monthly_loan_payments + pf.amount
+                        if (
+                            payload is not None
+                            and getattr(payload, "monthly_interests", None) is not None
+                        ):
+                            monthly_loan_interests = (
+                                monthly_loan_interests + payload.monthly_interests
+                            )
 
             # Vacancy rate and marginal tax
             vacancy_rate = (
@@ -703,6 +793,7 @@ class ForecastImpl(Forecast):
         fixed_years: Optional[int],
         start: Optional[date],
         cur_date: date,
+        fixed_interest_rate: Optional[Dezimal] = None,
     ) -> Dezimal:
         base = annual_rate_base or Dezimal(0)
         if interest_type == "FIXED":
@@ -713,7 +804,7 @@ class ForecastImpl(Forecast):
         if fixed_years is not None and start is not None:
             fixed_end = start + relativedelta(years=fixed_years)
             if cur_date < fixed_end:
-                return base
+                return fixed_interest_rate if fixed_interest_rate is not None else base
         return base + (euribor or Dezimal(0))
 
     def _simulate_loan_outstanding(
@@ -727,6 +818,7 @@ class ForecastImpl(Forecast):
         fixed_years: Optional[int],
         months: int,
         today: date,
+        fixed_interest_rate: Optional[Dezimal] = None,
     ) -> Dezimal:
         # Safeguards: never allow negative starting outstanding
         if outstanding_now < Dezimal(0):
@@ -737,7 +829,13 @@ class ForecastImpl(Forecast):
         cur_date = today
         for _ in range(max(0, months)):
             annual = self._compute_annual_rate(
-                interest_type, annual_rate_base, euribor, fixed_years, start, cur_date
+                interest_type,
+                annual_rate_base,
+                euribor,
+                fixed_years,
+                start,
+                cur_date,
+                fixed_interest_rate,
             )
             # Clamp negative rates to zero to avoid increasing outstanding via negative interest side-effects
             if annual < Dezimal(0):
@@ -760,7 +858,11 @@ class ForecastImpl(Forecast):
         return outstanding
 
     def _equity_for_property(
-        self, re: RealEstate, today: date, months: int
+        self,
+        re: RealEstate,
+        today: date,
+        months: int,
+        linked_loans: dict[str, Loan],
     ) -> Optional[RealEstateEquityForecast]:
         if not re.valuation_info or re.valuation_info.estimated_market_value is None:
             return None
@@ -777,32 +879,62 @@ class ForecastImpl(Forecast):
             if flow.flow_subtype != RealEstateFlowSubtype.LOAN:
                 continue
             payload = getattr(flow, "payload", None)
-            if not payload or not hasattr(payload, "principal_outstanding"):
+            loan_hash = flow.linked_loan_hash
+
+            if not loan_hash and (
+                not payload or not hasattr(payload, "principal_outstanding")
+            ):
                 continue
-            outstanding_now = payload.principal_outstanding or Dezimal(0)
-            if outstanding_now < Dezimal(0):
-                outstanding_now = Dezimal(0)
-            outstanding_now_total = outstanding_now_total + outstanding_now
 
-            payment: Optional[Dezimal] = None
-            start: Optional[date] = None
-            if flow.periodic_flow:
-                payment = flow.periodic_flow.amount
-                start = flow.periodic_flow.since
+            linked_loan = linked_loans.get(loan_hash) if loan_hash else None
 
-            outstanding_target = self._simulate_loan_outstanding(
-                outstanding_now=outstanding_now,
-                payment=payment,
-                start=start,
-                interest_type=payload.interest_type.name
-                if getattr(payload, "interest_type", None) is not None
-                else None,
-                annual_rate_base=getattr(payload, "interest_rate", None),
-                euribor=getattr(payload, "euribor_rate", None),
-                fixed_years=getattr(payload, "fixed_years", None),
-                months=months,
-                today=today,
-            )
+            if linked_loan is not None:
+                outstanding_now = linked_loan.principal_outstanding or Dezimal(0)
+                if outstanding_now < Dezimal(0):
+                    outstanding_now = Dezimal(0)
+                outstanding_now_total = outstanding_now_total + outstanding_now
+
+                outstanding_target = self._simulate_loan_outstanding(
+                    outstanding_now=outstanding_now,
+                    payment=linked_loan.current_installment,
+                    start=linked_loan.creation,
+                    interest_type=linked_loan.interest_type.name
+                    if linked_loan.interest_type is not None
+                    else None,
+                    annual_rate_base=linked_loan.interest_rate,
+                    euribor=linked_loan.euribor_rate,
+                    fixed_years=linked_loan.fixed_years,
+                    months=months,
+                    today=today,
+                    fixed_interest_rate=linked_loan.fixed_interest_rate,
+                )
+            else:
+                outstanding_now = payload.principal_outstanding or Dezimal(0)
+                if outstanding_now < Dezimal(0):
+                    outstanding_now = Dezimal(0)
+                outstanding_now_total = outstanding_now_total + outstanding_now
+
+                payment: Optional[Dezimal] = None
+                start: Optional[date] = None
+                if flow.periodic_flow:
+                    payment = flow.periodic_flow.amount
+                    start = flow.periodic_flow.since
+
+                outstanding_target = self._simulate_loan_outstanding(
+                    outstanding_now=outstanding_now,
+                    payment=payment,
+                    start=start,
+                    interest_type=payload.interest_type.name
+                    if getattr(payload, "interest_type", None) is not None
+                    else None,
+                    annual_rate_base=getattr(payload, "interest_rate", None),
+                    euribor=getattr(payload, "euribor_rate", None),
+                    fixed_years=getattr(payload, "fixed_years", None),
+                    months=months,
+                    today=today,
+                    fixed_interest_rate=getattr(payload, "fixed_interest_rate", None),
+                )
+
             if outstanding_target < Dezimal(0):
                 outstanding_target = Dezimal(0)
             outstanding_target_total = outstanding_target_total + outstanding_target
@@ -823,6 +955,7 @@ class ForecastImpl(Forecast):
     ) -> list[RealEstateEquityForecast]:
         today = date.today()
         real_estate: list[RealEstate] = await self._real_estate_port.get_all()
+        linked_loans = await self._resolve_linked_loans(real_estate)
         months_delta = relativedelta(target, today)
         months = (
             months_delta.years * 12
@@ -831,7 +964,7 @@ class ForecastImpl(Forecast):
         )
         results: list[RealEstateEquityForecast] = []
         for re in real_estate:
-            eq = self._equity_for_property(re, today, months)
+            eq = self._equity_for_property(re, today, months, linked_loans)
             if eq is not None:
                 results.append(eq)
         return results

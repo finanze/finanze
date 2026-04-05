@@ -106,6 +106,12 @@ export function RealEstateStats({
       case "WEEKLY":
         amount = amount * 4.33
         break
+      case "BIWEEKLY":
+        amount = amount * (26 / 12)
+        break
+      case "SEMIMONTHLY":
+        amount = amount * 2
+        break
       case "EVERY_TWO_MONTHS":
         amount = amount / 2
         break

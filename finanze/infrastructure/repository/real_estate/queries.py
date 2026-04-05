@@ -11,8 +11,8 @@ class RealEstateQueries(str, Enum):
 
     INSERT_FLOW = """
         INSERT INTO real_estate_flows (
-            real_estate_id, periodic_flow_id, flow_subtype, description, payload
-        ) VALUES (?, ?, ?, ?, ?)
+            real_estate_id, periodic_flow_id, flow_subtype, description, payload, extra_reference
+        ) VALUES (?, ?, ?, ?, ?, ?)
     """
 
     INSERT_REAL_ESTATE = """
@@ -30,6 +30,15 @@ class RealEstateQueries(str, Enum):
             purchase_expenses = ?, estimated_market_value = ?, annual_appreciation = ?, valuations = ?, rental_data = ?,
             updated_at = ?
         WHERE id = ?
+    """
+
+    SYNC_LINKED_LOAN_PERIODIC_FLOWS = """
+        UPDATE periodic_flows
+        SET amount = ?, frequency = ?, since = ?, until = ?
+        WHERE id IN (
+            SELECT periodic_flow_id FROM real_estate_flows
+            WHERE extra_reference = ?
+        )
     """
 
     DELETE_FLOWS_BY_REAL_ESTATE_ID = (

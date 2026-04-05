@@ -208,7 +208,6 @@ class UnicajaFetcher(FinancialEntityFetcher):
                 currency=currency,
                 current_installment=Dezimal(loan_response["cuotaActual"]["cantidad"]),
                 loan_amount=Dezimal(loan_response["importePrestamo"]["cantidad"]),
-                principal_paid=Dezimal(loan_response["capitalPagado"]["cantidad"]),
                 principal_outstanding=outstanding_amount,
                 interest_rate=Dezimal(loan_response["interes"]) / 100,
                 next_payment_date=datetime.strptime(

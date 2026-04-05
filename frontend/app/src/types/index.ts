@@ -792,6 +792,8 @@ export enum FlowType {
 export enum FlowFrequency {
   DAILY = "DAILY",
   WEEKLY = "WEEKLY",
+  BIWEEKLY = "BIWEEKLY",
+  SEMIMONTHLY = "SEMIMONTHLY",
   MONTHLY = "MONTHLY",
   EVERY_TWO_MONTHS = "EVERY_TWO_MONTHS",
   QUARTERLY = "QUARTERLY",
@@ -813,6 +815,10 @@ export interface PeriodicFlow {
   currency: string
   icon?: string
   linked?: boolean
+  real_estate_flow?: {
+    flow_subtype: string
+    linked_loan_hash?: string | null
+  } | null
   next_date?: string
   max_amount?: number
 }
@@ -888,6 +894,7 @@ export interface LoanPayload {
   euribor_rate?: number | null
   interest_type: InterestType
   fixed_years?: number | null
+  fixed_interest_rate?: number | null
   principal_outstanding: number
   monthly_interests?: number | null
 }
@@ -914,6 +921,7 @@ export interface RealEstateFlow {
   flow_subtype: RealEstateFlowSubtype
   description: string
   payload: RealEstateFlowPayload
+  linked_loan_hash?: string | null
 }
 
 export interface PurchaseExpense {
@@ -1005,13 +1013,15 @@ export interface LoanCalculationRequest {
   interest_type: InterestType
   euribor_rate?: number | null
   fixed_years?: number | null
+  fixed_interest_rate?: number | null
+  installment_frequency?: string
   start: string
   end: string
 }
 
 export interface LoanCalculationResult {
-  current_monthly_payment?: number | null
-  current_monthly_interests?: number | null
+  current_installment_payment?: number | null
+  current_installment_interests?: number | null
   principal_outstanding?: number | null
   installment_date?: string | null
 }

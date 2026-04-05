@@ -24,7 +24,7 @@ import {
   FinanzeConfig,
 } from "../types"
 import { promptLogin } from "./loginHandlers"
-import packageJson from "../../package.json" assert { type: "json" }
+import packageJson from "../../package.json" with { type: "json" }
 import { BackendController } from "./backend-controller"
 import {
   initializeLogger,

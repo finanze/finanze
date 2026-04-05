@@ -1,4 +1,5 @@
 from dataclasses import field
+import hashlib
 from datetime import date, datetime
 from enum import Enum
 from typing import List, Optional, Union
@@ -11,6 +12,7 @@ from domain.base import BaseData
 from domain.commodity import CommodityRegister
 from domain.crypto import CryptoAsset, CryptoCurrencyType, AddressSource, HDWallet
 from domain.dezimal import Dezimal
+from domain.earnings_expenses import FlowFrequency
 from domain.entity import Entity
 from domain.exception.exceptions import MissingFieldsError
 from domain.external_integration import ExternalIntegrationId
@@ -21,6 +23,9 @@ from domain.profitability import annualized_profitability
 @dataclass
 class ManualEntryData:
     tracker_key: Optional[str] = None
+    track: bool = False
+    tracking_ref_outstanding: Optional[Dezimal] = None
+    tracking_ref_date: Optional[date] = None
 
 
 class ProductType(str, Enum):
@@ -92,6 +97,48 @@ class InterestType(str, Enum):
     MIXED = "MIXED"
 
 
+class InstallmentFrequency(str, Enum):
+    WEEKLY = "WEEKLY"
+    BIWEEKLY = "BIWEEKLY"
+    SEMIMONTHLY = "SEMIMONTHLY"
+    MONTHLY = "MONTHLY"
+    BIMONTHLY = "BIMONTHLY"
+    QUARTERLY = "QUARTERLY"
+    SEMIANNUAL = "SEMIANNUAL"
+    YEARLY = "YEARLY"
+
+    @property
+    def payments_per_year(self) -> int:
+        return {
+            "WEEKLY": 52,
+            "BIWEEKLY": 26,
+            "SEMIMONTHLY": 24,
+            "MONTHLY": 12,
+            "BIMONTHLY": 6,
+            "QUARTERLY": 4,
+            "SEMIANNUAL": 2,
+            "YEARLY": 1,
+        }[self.value]
+
+
+INSTALLMENT_TO_FLOW_FREQ = {
+    InstallmentFrequency.WEEKLY: FlowFrequency.WEEKLY,
+    InstallmentFrequency.BIWEEKLY: FlowFrequency.BIWEEKLY,
+    InstallmentFrequency.SEMIMONTHLY: FlowFrequency.SEMIMONTHLY,
+    InstallmentFrequency.MONTHLY: FlowFrequency.MONTHLY,
+    InstallmentFrequency.BIMONTHLY: FlowFrequency.EVERY_TWO_MONTHS,
+    InstallmentFrequency.QUARTERLY: FlowFrequency.QUARTERLY,
+    InstallmentFrequency.SEMIANNUAL: FlowFrequency.SEMIANNUALLY,
+    InstallmentFrequency.YEARLY: FlowFrequency.YEARLY,
+}
+
+
+def compute_loan_hash(entity_id: str, loan_amount: str, creation_date: str) -> str:
+    canonical_amount = str(Dezimal(loan_amount))
+    raw = f"{entity_id}|{canonical_amount}|{creation_date}"
+    return hashlib.shake_128(raw.encode()).hexdigest(16)
+
+
 @dataclass
 class Loan(BaseData):
     id: Optional[UUID]
@@ -105,15 +152,30 @@ class Loan(BaseData):
     principal_outstanding: Dezimal
     principal_paid: Optional[Dezimal] = None
     interest_type: InterestType = InterestType.FIXED
+    installment_frequency: InstallmentFrequency = InstallmentFrequency.MONTHLY
+    installment_interests: Optional[Dezimal] = None
+    fixed_interest_rate: Optional[Dezimal] = None
     next_payment_date: Optional[date] = None
     euribor_rate: Optional[Dezimal] = None
     fixed_years: Optional[int] = None
     name: Optional[str] = None
     unpaid: Optional[Dezimal] = None
+    hash: str = ""
+    manual_data: Optional[ManualEntryData] = None
     source: DataSource = DataSource.REAL
 
     def __post_init__(self):
         self.principal_paid = self.loan_amount - self.principal_outstanding
+
+    def compute_hash(self, entity_id: str) -> str:
+        if not self.hash:
+            creation_date = date(
+                self.creation.year, self.creation.month, self.creation.day
+            ).isoformat()
+            self.hash = compute_loan_hash(
+                entity_id, str(self.loan_amount), creation_date
+            )
+        return self.hash
 
 
 class AssetType(str, Enum):

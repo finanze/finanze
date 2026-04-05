@@ -26,3 +26,9 @@ class VirtualImportRegistry(metaclass=abc.ABCMeta):
         self, import_id: UUID, feature: Feature, entity_id: UUID
     ):
         raise NotImplementedError
+
+    @abc.abstractmethod
+    async def is_position_shared(
+        self, global_position_id: UUID, current_import_id: UUID
+    ) -> bool:
+        raise NotImplementedError

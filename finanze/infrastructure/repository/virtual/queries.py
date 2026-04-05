@@ -31,3 +31,9 @@ class VirtualImportQueries(str, Enum):
         FROM virtual_data_imports vdi
             JOIN latest_import_details lid ON vdi.import_id = lid.import_id
     """
+
+    IS_POSITION_SHARED = """
+        SELECT 1 FROM virtual_data_imports
+        WHERE global_position_id = ? AND import_id != ?
+        LIMIT 1
+    """

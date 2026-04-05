@@ -21,7 +21,7 @@ jobs:
     permissions: write-all
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine Release Tag
         run: |
@@ -30,18 +30,18 @@ jobs:
         shell: bash
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v5
         with:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: frontend/app/.nvmrc
 
       - name: Setup python (non-macOS)
         if: ${{ !startsWith(matrix.os, 'macos-') }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.14.2
 
@@ -126,7 +126,7 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Determine Release Tag
         run: |

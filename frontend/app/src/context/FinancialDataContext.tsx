@@ -38,6 +38,7 @@ interface FinancialDataContextType {
   refreshData: () => Promise<void>
   refreshEntity: (entityId: string) => Promise<void>
   refreshFlows: () => Promise<void>
+  refreshFlowsIfStale: (maxAgeMs?: number) => Promise<void>
   refreshPendingFlows: () => Promise<void>
   realEstateList: RealEstate[]
   refreshRealEstate: () => Promise<void>
@@ -58,6 +59,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     useState<EntityContributions | null>(null)
   const [periodicFlows, setPeriodicFlows] = useState<PeriodicFlow[]>([])
   const [pendingFlows, setPendingFlows] = useState<PendingFlow[]>([])
+  const flowsLastFetchedAt = useRef<number>(0)
   const [realEstateList, setRealEstateList] = useState<RealEstate[]>([])
   const [cachedLastTransactions, setCachedLastTransactions] =
     useState<TransactionsResult | null>(null)
@@ -73,9 +75,9 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     exchangeRates,
     exchangeRatesLoading,
   } = useAppContext()
-  const { setOnScrapeCompleted } = useEntityWorkflow()
+  const { setOnScrapeCompleted, setOnEntityDisconnected } = useEntityWorkflow()
 
-  const fetchFinancialData = async () => {
+  const fetchFinancialData = useCallback(async () => {
     setIsLoading(true)
     setError(null)
 
@@ -96,6 +98,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setContributions(contributionsData)
       setPeriodicFlows(periodicFlowsData)
       setPendingFlows(pendingFlowsData)
+      flowsLastFetchedAt.current = Date.now()
     } catch (err) {
       console.error("Error fetching financial data:", err)
       setError("Failed to load financial data. Please try again.")
@@ -103,7 +106,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
       setIsInitialLoading(false)
     }
-  }
+  }, [])
 
   const refreshFlows = useCallback(async () => {
     try {
@@ -113,9 +116,22 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
       ])
       setPeriodicFlows(periodicFlowsData)
       setPendingFlows(pendingFlowsData)
+      flowsLastFetchedAt.current = Date.now()
     } catch (err) {
       console.error("Error refreshing flows:", err)
       setError("Failed to refresh flows. Please try again.")
+    }
+  }, [])
+
+  const refreshFlowsIfStale = useCallback(async (maxAgeMs = 15_000) => {
+    if (Date.now() - flowsLastFetchedAt.current > maxAgeMs) {
+      try {
+        const data = await getAllPeriodicFlows()
+        setPeriodicFlows(data)
+        flowsLastFetchedAt.current = Date.now()
+      } catch (err) {
+        console.error("Error refreshing periodic flows:", err)
+      }
     }
   }, [])
 
@@ -276,6 +292,14 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
     }
   }, [refreshEntity, setOnScrapeCompleted])
 
+  // Refresh all financial data when an entity is disconnected
+  useEffect(() => {
+    setOnEntityDisconnected(fetchFinancialData)
+    return () => {
+      setOnEntityDisconnected(null)
+    }
+  }, [fetchFinancialData, setOnEntityDisconnected])
+
   return (
     <FinancialDataContext.Provider
       value={{
@@ -289,6 +313,7 @@ export function FinancialDataProvider({ children }: { children: ReactNode }) {
         refreshData: fetchFinancialData,
         refreshEntity,
         refreshFlows,
+        refreshFlowsIfStale,
         refreshPendingFlows,
         realEstateList,
         refreshRealEstate,

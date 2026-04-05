@@ -410,6 +410,10 @@ export async function updateQuotesManualPositions(): Promise<void> {
   return (await getApiClient()).post("/data/manual/positions/update-quotes")
 }
 
+export async function updateTrackedLoans(): Promise<void> {
+  return (await getApiClient()).post("/data/manual/positions/update-loans")
+}
+
 export async function createManualTransaction(
   request: ManualTransactionPayload,
 ): Promise<void> {

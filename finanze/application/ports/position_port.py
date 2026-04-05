@@ -9,6 +9,7 @@ from domain.fetch_record import DataSource
 from domain.global_position import (
     FundDetail,
     GlobalPosition,
+    Loan,
     PositionQueryRequest,
     ProductType,
     StockDetail,
@@ -58,4 +59,59 @@ class PositionPort(metaclass=abc.ABCMeta):
     async def update_market_value(
         self, entry_id: UUID, product_type: ProductType, market_value: Dezimal
     ):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_loans_by_hash(self, hashes: list[str]) -> dict[str, Loan]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_loan_by_entry_id(self, entry_id: UUID) -> Optional[Loan]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def update_loan_position(
+        self,
+        entry_id: UUID,
+        current_installment: Dezimal,
+        installment_interests: Optional[Dezimal],
+        principal_outstanding: Dezimal,
+        next_payment_date: Optional[datetime.date],
+    ):
+        raise NotImplementedError
+
+    # --- Stale reference migration ---
+
+    @abc.abstractmethod
+    async def get_latest_real_position_id(
+        self, entity_account_id: UUID
+    ) -> Optional[UUID]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_account_iban_index(
+        self, global_position_id: UUID
+    ) -> dict[UUID, Optional[str]]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def get_portfolio_name_index(
+        self, global_position_id: UUID
+    ) -> dict[UUID, Optional[str]]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def migrate_references(
+        self,
+        account_mapping: dict[UUID, UUID],
+        portfolio_mapping: dict[UUID, UUID],
+    ):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def account_exists(self, entry_id: UUID) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def fund_portfolio_exists(self, entry_id: UUID) -> bool:
         raise NotImplementedError

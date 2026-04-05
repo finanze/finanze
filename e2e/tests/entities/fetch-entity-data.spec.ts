@@ -199,34 +199,41 @@ test.describe('Fetch Entity Data - Disconnect Cleanup', () => {
             page.getByText('Entity disconnected successfully'),
         ).toBeVisible({ timeout: 10_000 })
 
-        // Also disconnect Urbanitae if it's connected (from prior test in same worker)
-        await page.reload()
-        await page.waitForLoadState('networkidle')
-        await page.getByRole('button', { name: 'Integrations' }).click()
-        await page
-            .getByRole('heading', { name: 'Integrations' })
-            .waitFor({ timeout: 15_000 })
+        // Disconnect all other entities that may be connected from prior specs in same worker
+        for (const otherEntity of [
+            'Urbanitae',
+            'Trade Republic',
+            'ING',
+            'Unicaja',
+        ]) {
+            await page.reload()
+            await page.waitForLoadState('networkidle')
+            await page.getByRole('button', { name: 'Integrations' }).click()
+            await page
+                .getByRole('heading', { name: 'Integrations' })
+                .waitFor({ timeout: 15_000 })
 
-        const urbanitaeCard = page
-            .locator('h3', { hasText: 'Urbanitae' })
-            .first()
-            .locator('../..')
-        const urbanitaeDisconnect = urbanitaeCard.locator(
-            'button.text-red-600, button.text-red-500',
-        )
-        if (
-            await urbanitaeDisconnect
-                .isVisible({ timeout: 2_000 })
-                .catch(() => false)
-        ) {
-            await urbanitaeDisconnect.click()
-            await expect(page.getByText('Confirm Disconnect')).toBeVisible({
-                timeout: 5_000,
-            })
-            await page.getByRole('button', { name: 'Disconnect' }).click()
-            await expect(
-                page.getByText('Entity disconnected successfully'),
-            ).toBeVisible({ timeout: 10_000 })
+            const otherCard = page
+                .locator('h3', { hasText: otherEntity })
+                .first()
+                .locator('../..')
+            const otherDisconnect = otherCard.locator(
+                'button.text-red-600, button.text-red-500',
+            )
+            if (
+                await otherDisconnect
+                    .isVisible({ timeout: 3_000 })
+                    .catch(() => false)
+            ) {
+                await otherDisconnect.click()
+                await expect(page.getByText('Confirm Disconnect')).toBeVisible({
+                    timeout: 5_000,
+                })
+                await page.getByRole('button', { name: 'Disconnect' }).click()
+                await expect(
+                    page.getByText('Entity disconnected successfully'),
+                ).toBeVisible({ timeout: 10_000 })
+            }
         }
 
         // Verify MyInvestor and Urbanitae transactions are gone

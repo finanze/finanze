@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional, Set
 from uuid import uuid4
 
@@ -10,8 +10,10 @@ from application.mixins.atomic_use_case import AtomicUCMixin
 from application.ports.crypto_asset_port import CryptoAssetRegistryPort
 from application.ports.crypto_price_provider import CryptoAssetInfoProvider
 from application.ports.entity_port import EntityPort
+from application.ports.loan_calculator_port import LoanCalculatorPort
 from application.ports.manual_position_data_port import ManualPositionDataPort
 from application.ports.position_port import PositionPort
+from application.ports.real_estate_port import RealEstatePort
 from application.ports.transaction_handler_port import TransactionHandlerPort
 from application.ports.virtual_import_registry import VirtualImportRegistry
 from domain.constants import SUPPORTED_CURRENCIES
@@ -50,6 +52,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         crypto_asset_registry_port: CryptoAssetRegistryPort,
         crypto_asset_info_provider: CryptoAssetInfoProvider,
         transaction_handler_port: TransactionHandlerPort,
+        real_estate_port: RealEstatePort,
+        loan_calculator: LoanCalculatorPort,
     ):
         AtomicUCMixin.__init__(self, transaction_handler_port)
         self._entity_port = entity_port
@@ -58,6 +62,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._virtual_import_registry = virtual_import_registry
         self._crypto_asset_registry_port = crypto_asset_registry_port
         self._crypto_asset_info_provider = crypto_asset_info_provider
+        self._real_estate_port = real_estate_port
+        self._loan_calculator = loan_calculator
 
         self._log = logging.getLogger(__name__)
 
@@ -143,9 +149,21 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         new_account_id_map: dict = {}
         new_portfolio_id_map: dict = {}
 
-        self._process_card_account_links(ctx, new_account_id_map)
-        self._process_portfolio_account_links(ctx, new_account_id_map)
-        self._process_fund_portfolio_links(ctx, new_portfolio_id_map)
+        unresolved_card_accs = self._process_card_account_links(ctx, new_account_id_map)
+        unresolved_pf_accs = self._process_portfolio_account_links(
+            ctx, new_account_id_map
+        )
+        unresolved_fund_pfs = self._process_fund_portfolio_links(
+            ctx, new_portfolio_id_map
+        )
+
+        for acc_id in unresolved_card_accs + unresolved_pf_accs:
+            if not await self._position_port.account_exists(acc_id):
+                raise RelatedAccountNotFound(acc_id)
+
+        for pf_id in unresolved_fund_pfs:
+            if not await self._position_port.fund_portfolio_exists(pf_id):
+                raise RelatedFundPortfolioNotFound(pf_id)
 
         if new_account_id_map:
             self._apply_new_account_ids(ctx, new_account_id_map)
@@ -217,9 +235,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
     @staticmethod
     def _process_card_account_links(
         ctx: "UpdatePositionImpl._RelCtx", new_account_id_map: dict
-    ):
+    ) -> list:
+        unresolved = []
         if not (ctx.cards_container and hasattr(ctx.cards_container, "entries")):
-            return
+            return unresolved
         for card in ctx.cards_container.entries:
             rel_acc_id = getattr(card, "related_account", None)
             if not rel_acc_id:
@@ -233,17 +252,19 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 ):
                     new_account_id_map[rel_acc_id] = uuid4()
             else:
-                raise RelatedAccountNotFound(rel_acc_id)
+                unresolved.append(rel_acc_id)
+        return unresolved
 
     @staticmethod
     def _process_portfolio_account_links(
         ctx: "UpdatePositionImpl._RelCtx", new_account_id_map: dict
-    ):
+    ) -> list:
+        unresolved = []
         if not (
             ctx.portfolios_container_req
             and hasattr(ctx.portfolios_container_req, "entries")
         ):
-            return
+            return unresolved
         for pf in ctx.portfolios_container_req.entries:
             acc_id = getattr(pf, "account_id", None)
             if not acc_id:
@@ -267,7 +288,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 and acc_id not in ctx.validation_accounts
                 and acc_id not in ctx.real_account_ids
             ):
-                raise RelatedAccountNotFound(acc_id)
+                unresolved.append(acc_id)
+                continue
             if acc_obj and acc_obj.type != AccountType.FUND_PORTFOLIO:
                 raise ValueError(
                     f"Account {acc_id} linked to portfolio {pf.id} is not of type FUND_PORTFOLIO"
@@ -280,17 +302,19 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 and acc_id not in new_account_id_map
             ):
                 new_account_id_map[acc_id] = uuid4()
+        return unresolved
 
     @staticmethod
     def _process_fund_portfolio_links(
         ctx: "UpdatePositionImpl._RelCtx", new_portfolio_id_map: dict
-    ):
+    ) -> list:
+        unresolved = []
         if not (
             ctx.funds_container
             and hasattr(ctx.funds_container, "entries")
             and ctx.portfolios_container_req
         ):
-            return
+            return unresolved
         for fund in ctx.funds_container.entries:
             portfolio = getattr(fund, "portfolio", None)
             port_id = getattr(portfolio, "id", None) if portfolio else None
@@ -305,7 +329,8 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             ):
                 new_portfolio_id_map[port_id] = uuid4()
             elif port_id not in ctx.validation_portfolios:
-                raise RelatedFundPortfolioNotFound(port_id)
+                unresolved.append(port_id)
+        return unresolved
 
     @staticmethod
     def _apply_new_account_ids(
@@ -469,10 +494,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         )
 
     def _create_manual_position_data_entries(
-        self, position: GlobalPosition, request: UpdatePositionRequest
+        self, position: GlobalPosition
     ) -> list[ManualPositionData]:
         entries = []
-        for product_type, container in request.products.items():
+        for product_type, container in position.products.items():
             if not (container and hasattr(container, "entries")):
                 continue
             container_entries = container.entries
@@ -486,6 +511,23 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                     entry, position, product_type
                 )
                 if manual_pos_data:
+                    if (
+                        product_type == ProductType.LOAN
+                        and manual_pos_data.data
+                        and manual_pos_data.data.track
+                        and hasattr(entry, "principal_outstanding")
+                    ):
+                        manual_pos_data.data.tracking_ref_outstanding = (
+                            entry.principal_outstanding
+                        )
+                        manual_pos_data.data.tracking_ref_date = (
+                            self._loan_calculator.next_installment_date(
+                                entry.creation,
+                                entry.maturity,
+                                entry.installment_frequency,
+                                date.today(),
+                            )
+                        )
                     entries.append(manual_pos_data)
 
         return entries
@@ -587,10 +629,9 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
             )
 
         if prior_position_entry:
-            for product_type in request.products.keys():
-                await self._manual_position_data_port.delete_by_position_id_and_type(
-                    prior_position_entry.global_position_id, product_type
-                )
+            await self._manual_position_data_port.delete_by_position_id(
+                prior_position_entry.global_position_id
+            )
 
         base_position = self._build_base_position(entity, prior_position, now, request)
         await self._prepare_relationship_mappings(entity, base_position, request)
@@ -598,9 +639,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         self._adjust_investment_costs(base_position)
         self._ensure_all_unique(base_position)
         self._regenerate_snapshot_ids(base_position)
-        manual_data_entries = self._create_manual_position_data_entries(
-            base_position, request
-        )
+        manual_data_entries = self._create_manual_position_data_entries(base_position)
 
         await self._process_crypto_assets_in_position(base_position)
 
@@ -615,11 +654,16 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
                 import_id, Feature.POSITION, req_entity_id
             )
             if prior_position_entry:
-                await self._position_port.delete_by_id(
-                    prior_position_entry.global_position_id
+                is_shared = await self._virtual_import_registry.is_position_shared(
+                    prior_position_entry.global_position_id, import_id
                 )
+                if not is_shared:
+                    await self._position_port.delete_by_id(
+                        prior_position_entry.global_position_id
+                    )
             await self._position_port.save(base_position)
             await self._manual_position_data_port.save(manual_data_entries)
+            await self._sync_linked_loan_flows(base_position)
 
             new_entries = [
                 VirtualDataImport(
@@ -637,6 +681,7 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         import_id = uuid4()
         await self._position_port.save(base_position)
         await self._manual_position_data_port.save(manual_data_entries)
+        await self._sync_linked_loan_flows(base_position)
         cloned_entries = []
 
         for entry in last_manual_imports:
@@ -665,3 +710,10 @@ class UpdatePositionImpl(UpdatePosition, AtomicUCMixin):
         )
 
         await self._virtual_import_registry.insert(cloned_entries)
+
+    async def _sync_linked_loan_flows(self, position: GlobalPosition):
+        loan_container = position.products.get(ProductType.LOAN)
+        if not loan_container:
+            return
+        for loan in loan_container.entries:
+            await self._real_estate_port.sync_linked_loan_flows(loan)

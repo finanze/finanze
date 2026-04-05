@@ -14,6 +14,8 @@ from domain.global_position import (
     Accounts,
     EquityType,
     GlobalPosition,
+    InstallmentFrequency,
+    InterestType,
     ManualEntryData,
     ProductType,
     StockDetail,
@@ -433,6 +435,7 @@ class TestUpdateExistingPositionAndRead:
         )
         position_port.get_by_id = AsyncMock(return_value=old_position)
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+        virtual_import_registry.is_position_shared = AsyncMock(return_value=False)
 
         response = await client.post(
             UPDATE_POSITION_URL,
@@ -524,6 +527,7 @@ class TestUpdateExistingPositionAndRead:
         )
         position_port.get_by_id = AsyncMock(return_value=old_position)
         position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+        virtual_import_registry.is_position_shared = AsyncMock(return_value=False)
 
         response = await client.post(
             UPDATE_POSITION_URL,
@@ -693,3 +697,360 @@ class TestMultipleProductTypesAndRead:
         assert len(pos["products"]["STOCK_ETF"]["entries"]) == 1
         assert pos["products"]["STOCK_ETF"]["entries"][0]["name"] == "Apple"
         assert pos["products"]["STOCK_ETF"]["entries"][0]["ticker"] == "AAPL"
+
+
+class TestSharedPositionDeletionGuard:
+    @pytest.mark.asyncio
+    async def test_shared_position_not_deleted_on_same_day_update(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        """When old position is shared with another entity, don't delete it."""
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+
+        now = datetime.now(tzlocal())
+        old_position_id = uuid.uuid4()
+        import_id = uuid.uuid4()
+        prior_import = VirtualDataImport(
+            import_id=import_id,
+            global_position_id=old_position_id,
+            source=VirtualDataSource.MANUAL,
+            date=now,
+            feature=Feature.POSITION,
+            entity_id=uuid.UUID(ENTITY_ID),
+        )
+        virtual_import_registry.get_last_import_records = AsyncMock(
+            return_value=[prior_import]
+        )
+
+        old_position = GlobalPosition(
+            id=old_position_id,
+            entity=entity,
+            date=now,
+            products={
+                ProductType.ACCOUNT: Accounts(
+                    [
+                        Account(
+                            id=uuid.uuid4(),
+                            total=Dezimal("1000"),
+                            currency="EUR",
+                            type=AccountType.CHECKING,
+                            source=DataSource.MANUAL,
+                        )
+                    ]
+                )
+            },
+            source=DataSource.MANUAL,
+        )
+        position_port.get_by_id = AsyncMock(return_value=old_position)
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+        virtual_import_registry.is_position_shared = AsyncMock(return_value=True)
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "ACCOUNT": [_account_payload("5000.00")],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        position_port.delete_by_id.assert_not_awaited()
+        position_port.save.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_unshared_position_deleted_on_same_day_update(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        """When old position is NOT shared, delete it on same-day update."""
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+
+        now = datetime.now(tzlocal())
+        old_position_id = uuid.uuid4()
+        import_id = uuid.uuid4()
+        prior_import = VirtualDataImport(
+            import_id=import_id,
+            global_position_id=old_position_id,
+            source=VirtualDataSource.MANUAL,
+            date=now,
+            feature=Feature.POSITION,
+            entity_id=uuid.UUID(ENTITY_ID),
+        )
+        virtual_import_registry.get_last_import_records = AsyncMock(
+            return_value=[prior_import]
+        )
+
+        old_position = GlobalPosition(
+            id=old_position_id,
+            entity=entity,
+            date=now,
+            products={
+                ProductType.ACCOUNT: Accounts(
+                    [
+                        Account(
+                            id=uuid.uuid4(),
+                            total=Dezimal("1000"),
+                            currency="EUR",
+                            type=AccountType.CHECKING,
+                            source=DataSource.MANUAL,
+                        )
+                    ]
+                )
+            },
+            source=DataSource.MANUAL,
+        )
+        position_port.get_by_id = AsyncMock(return_value=old_position)
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+        virtual_import_registry.is_position_shared = AsyncMock(return_value=False)
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "ACCOUNT": [_account_payload("5000.00")],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        position_port.delete_by_id.assert_awaited_once_with(old_position_id)
+        position_port.save.assert_awaited_once()
+
+
+class TestManualDataCleanup:
+    @pytest.mark.asyncio
+    async def test_manual_data_deleted_when_same_day_prior_exists(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        """Manual position data is deleted for old position on same-day update."""
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+
+        now = datetime.now(tzlocal())
+        old_position_id = uuid.uuid4()
+        import_id = uuid.uuid4()
+        prior_import = VirtualDataImport(
+            import_id=import_id,
+            global_position_id=old_position_id,
+            source=VirtualDataSource.MANUAL,
+            date=now,
+            feature=Feature.POSITION,
+            entity_id=uuid.UUID(ENTITY_ID),
+        )
+        virtual_import_registry.get_last_import_records = AsyncMock(
+            return_value=[prior_import]
+        )
+
+        old_position = GlobalPosition(
+            id=old_position_id,
+            entity=entity,
+            date=now,
+            products={
+                ProductType.ACCOUNT: Accounts(
+                    [
+                        Account(
+                            id=uuid.uuid4(),
+                            total=Dezimal("1000"),
+                            currency="EUR",
+                            type=AccountType.CHECKING,
+                            source=DataSource.MANUAL,
+                        )
+                    ]
+                )
+            },
+            source=DataSource.MANUAL,
+        )
+        position_port.get_by_id = AsyncMock(return_value=old_position)
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+        virtual_import_registry.is_position_shared = AsyncMock(return_value=False)
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "ACCOUNT": [_account_payload("5000.00")],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        manual_position_data_port.delete_by_position_id.assert_awaited_once_with(
+            old_position_id
+        )
+
+    @pytest.mark.asyncio
+    async def test_manual_data_deleted_when_new_day_prior_exists(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        """Manual position data is deleted for old position even on new-day update."""
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+
+        yesterday = datetime(2025, 1, 1, 12, 0, tzinfo=tzlocal())
+        old_position_id = uuid.uuid4()
+        import_id = uuid.uuid4()
+        prior_import = VirtualDataImport(
+            import_id=import_id,
+            global_position_id=old_position_id,
+            source=VirtualDataSource.MANUAL,
+            date=yesterday,
+            feature=Feature.POSITION,
+            entity_id=uuid.UUID(ENTITY_ID),
+        )
+        virtual_import_registry.get_last_import_records = AsyncMock(
+            return_value=[prior_import]
+        )
+
+        old_position = GlobalPosition(
+            id=old_position_id,
+            entity=entity,
+            date=yesterday,
+            products={
+                ProductType.ACCOUNT: Accounts(
+                    [
+                        Account(
+                            id=uuid.uuid4(),
+                            total=Dezimal("1000"),
+                            currency="EUR",
+                            type=AccountType.CHECKING,
+                            source=DataSource.MANUAL,
+                        )
+                    ]
+                )
+            },
+            source=DataSource.MANUAL,
+        )
+        position_port.get_by_id = AsyncMock(return_value=old_position)
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "ACCOUNT": [_account_payload("2000.00")],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        manual_position_data_port.delete_by_position_id.assert_awaited_once_with(
+            old_position_id
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_manual_data_deleted_when_no_prior(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        """No prior imports means delete_by_position_id never called."""
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "ACCOUNT": [_account_payload("1000.00")],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        manual_position_data_port.delete_by_position_id.assert_not_awaited()
+
+
+def _loan_payload(
+    loan_type="MORTGAGE",
+    currency="EUR",
+    current_installment="500",
+    interest_rate="0.03",
+    loan_amount="100000",
+    creation="2020-01-15",
+    maturity="2050-01-15",
+    principal_outstanding="80000",
+    interest_type="FIXED",
+    installment_frequency="MONTHLY",
+):
+    return {
+        "type": loan_type,
+        "currency": currency,
+        "current_installment": current_installment,
+        "interest_rate": interest_rate,
+        "loan_amount": loan_amount,
+        "creation": creation,
+        "maturity": maturity,
+        "principal_outstanding": principal_outstanding,
+        "interest_type": interest_type,
+        "installment_frequency": installment_frequency,
+        "manual_data": {"track": True},
+    }
+
+
+class TestLoanPositionSaveAndRead:
+    @pytest.mark.asyncio
+    async def test_saves_loan_with_tracking_and_reads_back(
+        self,
+        client,
+        entity_port,
+        position_port,
+        virtual_import_registry,
+        manual_position_data_port,
+    ):
+        entity = _make_entity()
+        entity_port.get_by_id = AsyncMock(return_value=entity)
+        virtual_import_registry.get_last_import_records = AsyncMock(return_value=[])
+        position_port.get_last_grouped_by_entity = AsyncMock(return_value={})
+
+        response = await client.post(
+            UPDATE_POSITION_URL,
+            json={
+                "entity_id": ENTITY_ID,
+                "products": {
+                    "LOAN": [_loan_payload()],
+                },
+            },
+        )
+        assert response.status_code == 204
+
+        position_port.save.assert_awaited_once()
+        saved = position_port.save.await_args[0][0]
+        loan = saved.products[ProductType.LOAN].entries[0]
+        assert loan.interest_type == InterestType.FIXED
+        assert loan.installment_frequency == InstallmentFrequency.MONTHLY
+        assert loan.principal_outstanding == Dezimal("80000")
+
+        # manual_data with track=True should trigger manual_position_data_port.save
+        manual_position_data_port.save.assert_awaited_once()

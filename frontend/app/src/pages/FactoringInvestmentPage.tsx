@@ -383,6 +383,7 @@ function FactoringViewContent({
   const {
     drafts,
     isEditMode,
+    enterEditMode,
     editByOriginalId,
     editByLocalId,
     deleteByOriginalId,
@@ -1221,6 +1222,7 @@ function FactoringViewContent({
                                 source={position.source}
                                 title={t.management?.source}
                                 className="text-[0.65rem]"
+                                onClick={() => enterEditMode()}
                               />
                             )}
                           {isDirty && (

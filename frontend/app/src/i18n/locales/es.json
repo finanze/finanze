@@ -1488,6 +1488,16 @@
       "VARIABLE": "Variable",
       "MIXED": "Mixto"
     },
+    "installmentFrequency": {
+      "WEEKLY": "Semanal",
+      "BIWEEKLY": "Quincenal",
+      "SEMIMONTHLY": "Bimensual (2x/mes)",
+      "MONTHLY": "Mensual",
+      "BIMONTHLY": "Bimestral",
+      "QUARTERLY": "Trimestral",
+      "SEMIANNUAL": "Semestral",
+      "YEARLY": "Anual"
+    },
     "fundType": {
       "MUTUAL_FUND": "Fondo de inversión",
       "PRIVATE_EQUITY": "Capital privado",
@@ -1700,6 +1710,16 @@
     "inactive": "Inactiva",
     "principalOutstanding": "Capital pendiente",
     "monthlyInstallment": "Cuota mensual",
+    "installmentByFrequency": {
+      "WEEKLY": "Cuota semanal",
+      "BIWEEKLY": "Cuota quincenal",
+      "SEMIMONTHLY": "Cuota bimensual",
+      "MONTHLY": "Cuota mensual",
+      "BIMONTHLY": "Cuota bimestral",
+      "QUARTERLY": "Cuota trimestral",
+      "SEMIANNUAL": "Cuota semestral",
+      "YEARLY": "Cuota anual"
+    },
     "interestRate": "Tasa de interés",
     "nextPayment": "Próximo pago",
     "originalAmount": "Total",
@@ -1724,7 +1744,7 @@
     "SAVINGS": "Ahorros",
     "BROKERAGE": "Inversión",
     "VIRTUAL_WALLET": "Monedero",
-    "FUND_PORTFOLIO": "Asociada a cartera"
+    "FUND_PORTFOLIO": "De cartera"
   },
   "management": {
     "title": "Gestión",
@@ -1755,6 +1775,7 @@
     "deleteConfirmTitle": "Eliminar {type}",
     "deleteLinkedWarning": "Nota: Este {type} está asociado a una operación inmobiliaria. Al eliminarlo afectará a la propiedad relacionada.",
     "editLinkedWarning": "Editar este {type} afectará a la propiedad relacionada.",
+    "linkedToLoan": "Vinculado a un préstamo, gestionado desde inmuebles",
     "noEarnings": "No hay ingresos configurados",
     "noExpenses": "No hay gastos configurados",
     "addFirstEarning": "Haz clic en '+' para añadir ingresos recurrentes.",
@@ -1772,6 +1793,8 @@
     "frequency": {
       "DAILY": "Diario",
       "WEEKLY": "Semanal",
+      "BIWEEKLY": "Quincenal",
+      "SEMIMONTHLY": "Bimensual",
       "MONTHLY": "Mensual",
       "EVERY_TWO_MONTHS": "Cada 2 Meses",
       "QUARTERLY": "Trimestral",
@@ -2020,7 +2043,12 @@
           "euriborRate": "Euríbor",
           "fixedYears": "Años a tipo fijo",
           "creation": "Fecha de inicio",
-          "maturity": "Vencimiento"
+          "maturity": "Vencimiento",
+          "installmentFrequency": "Frecuencia de cuota",
+          "fixedInterestRate": "Tipo de interés fijo (%)",
+          "trackLoan": "Actualizar préstamo automáticamente",
+          "trackLoanLabel": "Auto-actualizar",
+          "trackLoanInfo": "Recalcula automáticamente la cuota, los intereses y el principal pendiente con el tiempo. Solo para tipo fijo."
         },
         "helpers": {
           "calculationHint": "Usa la calculadora para estimar la cuota actual y el principal pendiente.",
@@ -2365,6 +2393,8 @@
   },
   "realEstate": {
     "title": "Inmobiliario",
+    "linkedToPosition": "Vinculado a préstamo",
+    "notLinked": "No vinculado",
     "properties": "Propiedades",
     "summary": "Resumen",
     "addProperty": "Añadir",
@@ -2440,7 +2470,8 @@
       "interestType": "Tipo de interés",
       "fixedYears": "Años fijos",
       "fixedYearsLabel": "Años a tipo fijo",
-      "monthlyInterest": "Intereses mensuales",
+      "fixedInterestRateLabel": "Tipo de interés fijo",
+      "monthlyInterest": "Intereses de la cuota",
       "fromLabel": "Desde",
       "untilLabel": "Hasta",
       "existingLoan": "Préstamo Existente",
@@ -2459,7 +2490,8 @@
       "paymentDate": "Fecha de pago",
       "principalOutstanding": "Capital pendiente",
       "principalPaid": "Capital pagado",
-      "monthlyPayment": "Cuota mensual",
+      "monthlyPayment": "Cuota actual",
+      "installmentFrequencyLabel": "Frecuencia de cuota",
       "capitalContributed": "Capital aportado",
       "totalFinanced": "Total financiado",
       "precalculate": "Precalcular",
@@ -2585,11 +2617,14 @@
       "noSuggestionsAvailable": "No hay sugerencias disponibles"
     },
     "suggestions": {
-      "availableSuggestions": "Sugerencias Disponibles"
+      "availableSuggestions": "Sugerencias Disponibles",
+      "currencyMismatch": "Este elemento está en {currency} y no se puede vincular a una propiedad en {propertyCurrency}"
     },
     "frequency": {
       "daily": "Diario",
       "weekly": "Semanal",
+      "biweekly": "Quincenal",
+      "semimonthly": "Bimensual",
       "monthly": "Mensual",
       "bimonthly": "Bimestral",
       "quarterly": "Trimestral",
@@ -2603,7 +2638,7 @@
       "marginalTaxRate": "Tramo marginal (%):",
       "estimatedMonthlyTax": "Impuestos estimados mensuales:",
       "estimatedAnnualTax": "Impuestos estimados anuales:",
-      "monthlyPayment": "Cuota mensual",
+      "monthlyPayment": "Cuota actual",
       "monthlyAmount": "Importe mensual",
       "monthlyIncomeGross": "Ingresos mensuales (bruto):",
       "monthlyIncome": "Ingresos mensuales:",
@@ -2617,7 +2652,7 @@
       "totalPurchaseCost": "Coste total compra",
       "estimatedValue": "Valor estimado",
       "equity": "Patrimonio neto",
-      "monthlyInterest": "Intereses mensuales",
+      "monthlyInterest": "Intereses de la cuota",
       "taxDeductible": "Deducible",
       "taxDeductibleShort": "deducibles",
       "taxableAmount": "Importe gravable",
@@ -2675,7 +2710,12 @@
       "saveChanges": "Guardar",
       "discardChanges": "Descartar cambios",
       "discardChangesTitle": "¿Descartar cambios?",
-      "deleteUnassignedFlows": "¿Deseas eliminar los gastos/ingresos que has desasociado de esta propiedad?"
+      "deleteUnassignedFlows": "¿Deseas eliminar los gastos/ingresos que has desasociado de esta propiedad?",
+      "unlinkLoanTitle": "¿Desvincular préstamo?",
+      "unlinkLoanMessage": "Al desvincular el préstamo, se perderá la conexión con la posición bancaria. Para volver a vincularlo, deberás añadirlo de nuevo.",
+      "unlinkLoanWarning": "Esta acción no se puede deshacer.",
+      "unlinkLoanConfirm": "Desvincular",
+      "unlinkLoanCancel": "Cancelar"
     },
     "validation": {
       "title": "Errores de Validación",

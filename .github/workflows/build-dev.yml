@@ -24,23 +24,23 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v5
         with:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: frontend/app/.nvmrc
 
       - name: Setup python (non-macOS)
         if: ${{ !startsWith(matrix.os, 'macos-') }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.14.2
 
@@ -194,7 +194,7 @@ jobs:
 
       - name: Upload macOS artifact
         if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
           path: dist/*.dmg
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload Ubuntu artifact
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
           path: dist/*.AppImage
@@ -212,7 +212,7 @@ jobs:
 
       - name: Upload Windows artifact
         if: ${{ matrix.os == 'windows-latest' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: finanze-${{ steps.dev_version.outputs.dev_version }}-${{ matrix.os }}
           path: dist/*.exe
@@ -227,7 +227,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -360,15 +360,15 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v5
         with:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: frontend/app/.nvmrc
 
@@ -379,7 +379,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: 3.14.2
 
@@ -429,7 +429,7 @@ jobs:
         run: ./gradlew assembleDebug
 
       - name: Upload Android APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: finanze-mobile-android-debug
           path: frontend/app/android/app/build/outputs/apk/debug/*.apk
@@ -443,15 +443,15 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v5
         with:
           package_json_file: frontend/app/package.json
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: frontend/app/.nvmrc
 
@@ -516,17 +516,14 @@ jobs:
         working-directory: frontend/app
         run: pnpm exec cap sync ios
 
-      - name: Install CocoaPods dependencies
-        working-directory: frontend/app/ios/App
-        run: pod install
-
       - name: Build iOS (no signing)
         working-directory: frontend/app/ios/App
         run: |
           xcodebuild \
-            -workspace App.xcworkspace \
+            -project App.xcodeproj \
             -scheme App \
             -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -configuration Debug \
+            -skipPackagePluginValidation \
             build \
             CODE_SIGNING_ALLOWED=NO

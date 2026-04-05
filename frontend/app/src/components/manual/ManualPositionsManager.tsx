@@ -19,6 +19,7 @@ import {
   manualPositionFormatNumberInput,
   FundFormState,
   StockFormState,
+  BankLoanFormState,
 } from "./manualPositionConfigs"
 import type {
   ManualFormErrors,
@@ -69,7 +70,15 @@ import {
   CardTitle,
 } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
+import { Switch } from "@/components/ui/Switch"
+import { Label } from "@/components/ui/Label"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/Popover"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
+import { Info } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 import { AlertCircle, Pencil, Plus, Save, X } from "lucide-react"
@@ -337,7 +346,7 @@ export function ManualPositionsManager({
           }
 
           if (asset === "bankCards") {
-            return true
+            return Boolean(account.iban && account.iban.trim())
           }
 
           return false
@@ -390,7 +399,9 @@ export function ManualPositionsManager({
       const existingOptions: LinkedPortfolioOption[] = entries
         .filter(
           portfolio =>
-            portfolio.id && isAllowedPortfolioSource(portfolio.source),
+            portfolio.id &&
+            isAllowedPortfolioSource(portfolio.source) &&
+            Boolean(portfolio.name && portfolio.name.trim()),
         )
         .map(portfolio => {
           const baseName =
@@ -1304,11 +1315,6 @@ export function ManualPositionsManager({
           draft => draft.entityId === entityId && isManualDraft(draft),
         )
 
-        const entries = manualEntries.map(draft => ({
-          draft,
-          payload: config.toPayloadEntry(draft) as Record<string, any>,
-        }))
-
         const isNewEntityGroup = manualEntries.some(draft => {
           if (draft.isNewEntity) return true
           if (typeof draft.entityId === "string") {
@@ -1316,6 +1322,33 @@ export function ManualPositionsManager({
           }
           return false
         })
+
+        // Skip entities with no actual changes (no dirty/new/deleted drafts)
+        const entityHasDeleted = initialDrafts.some(
+          d =>
+            isManualDraft(d) &&
+            d.entityId === entityId &&
+            d.originalId &&
+            !drafts.some(cur => cur.originalId === d.originalId),
+        )
+        const entityHasDirty = manualEntries.some(d => {
+          if (!d.originalId) return true
+          const initial = initialDrafts.find(i => i.originalId === d.originalId)
+          if (!initial) return true
+          return (
+            serialize(config.normalizeDraftForCompare(d)) !==
+            serialize(config.normalizeDraftForCompare(initial))
+          )
+        })
+        const entityHasChanges =
+          isNewEntityGroup || entityHasDeleted || entityHasDirty
+        if (!entityHasChanges) return
+
+        const entries = manualEntries.map(draft => ({
+          draft,
+          payload: config.toPayloadEntry(draft) as Record<string, any>,
+        }))
+
         const resolvedNewEntityName = isNewEntityGroup
           ? (manualEntries
               .map(
@@ -1980,9 +2013,9 @@ export function ManualPositionsManager({
                   }
 
                   return (
-                    <CardFooter className="flex flex-wrap items-center justify-between gap-2">
+                    <CardFooter className="flex flex-wrap items-center justify-between gap-2 max-sm:flex-col max-sm:items-center">
                       <div className="flex items-center gap-2">
-                        {asset !== "funds" && asset !== "stocks" ? null : (
+                        {asset === "funds" || asset === "stocks" ? (
                           <Button
                             type="button"
                             size="sm"
@@ -2002,7 +2035,56 @@ export function ManualPositionsManager({
                               "management.manualPositions.shared.trackPrice",
                             )}
                           </Button>
-                        )}
+                        ) : asset === "bankLoans" ? (
+                          <div className="flex items-center gap-2">
+                            <Switch
+                              id={`track_loan_${activeDraft?.localId}`}
+                              checked={
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type === "FIXED" &&
+                                !!(formState as unknown as BankLoanFormState)
+                                  ?.track_loan
+                              }
+                              disabled={
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type !== "FIXED"
+                              }
+                              onCheckedChange={checked =>
+                                updateField("track_loan", checked ? "true" : "")
+                              }
+                            />
+                            <Label
+                              htmlFor={`track_loan_${activeDraft?.localId}`}
+                              className={cn(
+                                "cursor-pointer text-sm",
+                                (formState as unknown as BankLoanFormState)
+                                  ?.interest_type !== "FIXED" && "opacity-50",
+                              )}
+                            >
+                              {translate(
+                                "management.manualPositions.bankLoans.fields.trackLoanLabel",
+                              )}
+                            </Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center cursor-help text-gray-400 hover:text-gray-500"
+                                >
+                                  <Info className="h-3.5 w-3.5" />
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                className="w-72 text-xs"
+                                side="top"
+                              >
+                                {translate(
+                                  "management.manualPositions.bankLoans.fields.trackLoanInfo",
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" onClick={handleCloseForm}>
