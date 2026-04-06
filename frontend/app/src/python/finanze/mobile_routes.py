@@ -409,6 +409,13 @@ def setup_deferred_routes(router: "Router", deferred: "DeferredComponents") -> N
             d.calc_savings,
         ),
         (
+            "GET",
+            "/api/v1/rates/euribor",
+            "get_euribor_rates",
+            "get_euribor_rates",
+            d.get_euribor,
+        ),
+        (
             "POST",
             "/api/v1/cloud/backup/upload",
             "upload_backup",

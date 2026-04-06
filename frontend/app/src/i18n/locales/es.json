@@ -2058,6 +2058,7 @@
           "missingFixedYears": "Especifica los años a tipo fijo para calcular préstamos mixtos.",
           "calculationApplied": "Se añadieron valores sugeridos al formulario.",
           "calculationFailed": "No pudimos calcular la sugerencia del préstamo. Inténtalo de nuevo.",
+          "euriborUnavailable": "Las tasas Euríbor no están disponibles temporalmente.",
           "fixedRateDuration": "Tipo fijo: {{years}} años"
         },
         "summary": {

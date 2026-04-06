@@ -6,7 +6,7 @@ from domain.dezimal import Dezimal
 from domain.exception.exceptions import MissingFieldsError
 from domain.global_position import InstallmentFrequency, InterestType
 from domain.loan_calculator import LoanCalculationParams
-from infrastructure.loan_calculator import LoanCalculator
+from infrastructure.calculations.loan_calculator import LoanCalculator
 
 
 def _calculator() -> LoanCalculator:

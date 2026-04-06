@@ -203,6 +203,7 @@ class DeferredComponents:
         )
         from infrastructure.templating.templated_data_parser import TemplateDataParser
         from infrastructure.client.http.httpx_patch import apply_httpx_patch
+        from infrastructure.calculations.loan_calculator import LoanCalculator
         from application.use_cases.add_entity_credentials import (
             AddEntityCredentialsImpl,
         )
@@ -445,8 +446,6 @@ class DeferredComponents:
             historic_repo,
         )
 
-        from infrastructure.loan_calculator import LoanCalculator
-
         loan_calculator = LoanCalculator()
 
         self.fetch_financial = FetchFinancialDataImpl(
@@ -563,6 +562,13 @@ class DeferredComponents:
         )
 
         self.calc_loan = CalculateLoanImpl(loan_calculator)
+        self.calc_savings = CalculateSavingsImpl()
+
+        from infrastructure.client.interests.ecb_client import ECBClient
+        from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
+
+        self.get_euribor = GetEuriborRatesImpl(ECBClient())
+
         self.forecast = ForecastImpl(
             position_repo, auto_repo, period_repo, pending_repo, re_repo, entity_repo
         )

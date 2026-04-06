@@ -47,6 +47,7 @@ import {
   MoneyEventQuery,
   SavingsCalculationRequest,
   SavingsCalculationResult,
+  EuriborHistory,
   CloudAuthRequest,
   CloudAuthResponse,
   CloudAuthData,
@@ -398,6 +399,10 @@ export async function calculateLoan(
   request: LoanCalculationRequest,
 ): Promise<LoanCalculationResult> {
   return (await getApiClient()).post("/calculation/loan", request)
+}
+
+export async function getEuriborRates(): Promise<EuriborHistory> {
+  return (await getApiClient()).get("/rates/euribor")
 }
 
 export async function saveManualPositions(

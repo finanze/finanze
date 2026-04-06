@@ -1026,6 +1026,15 @@ export interface LoanCalculationResult {
   installment_date?: string | null
 }
 
+export interface EuriborRate {
+  period: string
+  rate: number
+}
+
+export interface EuriborHistory {
+  rates: EuriborRate[]
+}
+
 // Forecast types
 export interface ForecastRequest {
   target_date: string

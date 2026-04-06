@@ -2046,6 +2046,7 @@
           "missingFixedYears": "Specify the fixed-rate years to calculate mixed interest loans.",
           "calculationApplied": "Suggested values were added to the form.",
           "calculationFailed": "We couldn't calculate the loan suggestion. Try again.",
+          "euriborUnavailable": "Euribor rates are temporarily unavailable.",
           "fixedRateDuration": "Fixed rate: {{years}} years"
         },
         "summary": {
