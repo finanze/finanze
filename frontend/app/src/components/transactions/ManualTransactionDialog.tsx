@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { format } from "date-fns"
 import { X } from "lucide-react"
+import { EntitySelector } from "@/components/EntitySelector"
 import { useI18n } from "@/i18n"
 import {
   Card,
@@ -14,7 +15,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { DatePicker } from "@/components/ui/DatePicker"
-import { DataSource, EntityOrigin } from "@/types"
+import { DataSource, EntityOrigin, type Entity } from "@/types"
 import {
   ProductType,
   type StockInvestments,
@@ -69,12 +70,6 @@ const OUTGOING_TX_TYPES = new Set<TxType>([
   TxType.SWAP_FROM,
 ])
 
-export interface ManualTransactionEntityOption {
-  id: string
-  name: string
-  origin: EntityOrigin
-}
-
 export interface ManualTransactionSubmitResult {
   payload: ManualTransactionPayload
   transactionId?: string
@@ -84,7 +79,7 @@ interface ManualTransactionDialogProps {
   isOpen: boolean
   mode: "create" | "edit"
   transaction?: TransactionsResult["transactions"][number] | null
-  entities: ManualTransactionEntityOption[]
+  entities: Entity[]
   currencyOptions: string[]
   defaultCurrency: string
   onClose: () => void
@@ -1058,14 +1053,15 @@ export function ManualTransactionDialog({
                       <Label htmlFor="transaction-entity">
                         {t.transactions.form.entity}
                       </Label>
-                      <select
-                        id="transaction-entity"
-                        value={formState.entityId}
-                        onChange={event => {
-                          const option = entities.find(
-                            e => e.id === event.target.value,
-                          )
-                          handleBaseChange("entityId", event.target.value)
+                      <EntitySelector
+                        entities={entities}
+                        selectedEntityIds={
+                          formState.entityId ? [formState.entityId] : []
+                        }
+                        onSelectionChange={ids => {
+                          const entityId = ids[0] ?? ""
+                          const option = entities.find(e => e.id === entityId)
+                          handleBaseChange("entityId", entityId)
                           if (option) {
                             setFormState(prev => ({
                               ...prev,
@@ -1074,18 +1070,11 @@ export function ManualTransactionDialog({
                             }))
                           }
                         }}
+                        singleSelect
                         disabled={mode === "edit"}
-                        className={`w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${errors.entityId ? "border-red-500" : ""}`}
-                      >
-                        <option value="" disabled>
-                          {t.common.selectOptions}
-                        </option>
-                        {entities.map(option => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
+                        placeholder={t.common.selectOptions}
+                        className="max-w-none"
+                      />
                       {errors.entityId && (
                         <p className="text-xs text-red-600 dark:text-red-400">
                           {errors.entityId}

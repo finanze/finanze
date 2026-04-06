@@ -38,7 +38,6 @@ import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { getIssuerIconPath } from "@/utils/issuerIcons"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import { useNavigate } from "react-router-dom"
-import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
@@ -66,7 +65,7 @@ interface StocksViewContentProps {
   t: Translations
   locale: Locale
   navigateBack: () => void
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   setSelectedEntities: React.Dispatch<React.SetStateAction<string[]>>
   positions: StockPositionWithEntity[]
@@ -308,18 +307,13 @@ export default function StocksInvestmentPage() {
     entities,
   ])
 
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithStocks = getEntitiesWithProductType(
       positionsData,
       ProductType.STOCK_ETF,
     )
     return (
-      entities
-        ?.filter(entity => entitiesWithStocks.includes(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(entity => entitiesWithStocks.includes(entity.id)) ?? []
     )
   }, [entities, positionsData])
 
@@ -337,7 +331,7 @@ export default function StocksInvestmentPage() {
         t={t}
         locale={locale}
         navigateBack={() => navigate(-1)}
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         setSelectedEntities={setSelectedEntities}
         entities={entities ?? []}
@@ -353,7 +347,7 @@ function StocksViewContent({
   t,
   locale,
   navigateBack,
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   setSelectedEntities,
   positions,
@@ -661,7 +655,7 @@ function StocksViewContent({
 
       <motion.div variants={fadeListItem}>
         <InvestmentFilters
-          entityOptions={entityOptions}
+          filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
           extraFilters={

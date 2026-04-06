@@ -29,6 +29,7 @@ import {
   MultiSelect,
   type MultiSelectOption,
 } from "@/components/ui/MultiSelect"
+import { EntitySelector } from "@/components/EntitySelector"
 import { Badge } from "@/components/ui/Badge"
 import { DatePicker } from "@/components/ui/DatePicker"
 import { formatCurrency } from "@/lib/formatters"
@@ -55,10 +56,9 @@ import {
   getIconForProductType,
   getProductTypeColor,
 } from "@/utils/dashboardUtils"
-import { DataSource, EntityOrigin, EntityType } from "@/types"
+import { DataSource, EntityType } from "@/types"
 import {
   ManualTransactionDialog,
-  type ManualTransactionEntityOption,
   type ManualTransactionSubmitResult,
 } from "@/components/transactions/ManualTransactionDialog"
 import { ConfirmationDialog } from "@/components/ui/ConfirmationDialog"
@@ -141,18 +141,13 @@ export default function TransactionsPage() {
   const [historicEntryName, setHistoricEntryName] = useState<string | null>(
     initialHistoricEntryNameRef.current,
   )
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     return (
-      entities
-        ?.filter(
-          entity =>
-            "TRANSACTIONS" in entity.last_fetch ||
-            "TRANSACTIONS" in entity.virtual_features,
-        )
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) || []
+      entities?.filter(
+        entity =>
+          "TRANSACTIONS" in entity.last_fetch ||
+          "TRANSACTIONS" in entity.virtual_features,
+      ) || []
     )
   }, [entities])
 
@@ -213,15 +208,10 @@ export default function TransactionsPage() {
     return options.sort((a, b) => a.localeCompare(b))
   }, [exchangeRates, defaultCurrency, supportedCurrencySet])
 
-  const manualEntityOptions = useMemo<ManualTransactionEntityOption[]>(() => {
+  const manualEntityOptions = useMemo(() => {
     if (!entities) return []
     return entities
       .filter(entity => entity.type === EntityType.FINANCIAL_INSTITUTION)
-      .map(entity => ({
-        id: entity.id,
-        name: entity.name,
-        origin: entity.origin as EntityOrigin,
-      }))
       .sort((a, b) =>
         a.name.localeCompare(b.name, locale, { sensitivity: "base" }),
       )
@@ -1237,11 +1227,10 @@ export default function TransactionsPage() {
               <Landmark className="h-3 w-3" />
               <span>{t.transactions.entities}</span>
             </Label>
-            <MultiSelect
-              options={entityOptions}
-              value={filters.entities}
-              onChange={value => handleFilterChange("entities", value)}
-              placeholder={t.transactions.selectEntities}
+            <EntitySelector
+              entities={filteredEntities}
+              selectedEntityIds={filters.entities}
+              onSelectionChange={value => handleFilterChange("entities", value)}
               className="w-full"
             />
           </div>

@@ -32,7 +32,6 @@ import {
 } from "lucide-react"
 import { getIconForAssetType } from "@/utils/dashboardUtils"
 import { useNavigate } from "react-router-dom"
-import { MultiSelectOption } from "@/components/ui/MultiSelect"
 import {
   ManualPositionsManager,
   ManualPositionsControls,
@@ -76,7 +75,7 @@ interface DepositsViewContentProps {
   t: Translations
   locale: Locale
   navigateBack: () => void
-  entityOptions: MultiSelectOption[]
+  filteredEntities: Entity[]
   selectedEntities: string[]
   setSelectedEntities: React.Dispatch<React.SetStateAction<string[]>>
   positions: DepositPosition[]
@@ -184,18 +183,11 @@ export default function DepositsInvestmentPage() {
   }, [positionsData, settings.general.defaultCurrency, exchangeRates, locale])
 
   // Get entity options for the filter - only entities with deposits
-  const entityOptions: MultiSelectOption[] = useMemo(() => {
+  const filteredEntities = useMemo(() => {
     const entitiesWithDeposits = new Set(
       allDepositPositions.map(position => position.entityId).filter(Boolean),
     )
-    return (
-      entities
-        ?.filter(entity => entitiesWithDeposits.has(entity.id))
-        .map(entity => ({
-          value: entity.id,
-          label: entity.name,
-        })) ?? []
-    )
+    return entities?.filter(entity => entitiesWithDeposits.has(entity.id)) ?? []
   }, [entities, allDepositPositions])
 
   if (isLoading) {
@@ -212,7 +204,7 @@ export default function DepositsInvestmentPage() {
         t={t}
         locale={locale}
         navigateBack={() => navigate(-1)}
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         setSelectedEntities={setSelectedEntities}
         entities={entities ?? []}
@@ -228,7 +220,7 @@ function DepositsViewContent({
   t,
   locale,
   navigateBack,
-  entityOptions,
+  filteredEntities,
   selectedEntities,
   setSelectedEntities,
   positions,
@@ -501,7 +493,7 @@ function DepositsViewContent({
 
       <motion.div variants={fadeListItem}>
         <InvestmentFilters
-          entityOptions={entityOptions}
+          filteredEntities={filteredEntities}
           selectedEntities={selectedEntities}
           onEntitiesChange={setSelectedEntities}
         />

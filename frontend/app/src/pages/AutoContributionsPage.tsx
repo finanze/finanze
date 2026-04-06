@@ -54,6 +54,7 @@ import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { getProductTypeColor } from "@/utils/dashboardUtils"
+import { EntitySelector } from "@/components/EntitySelector"
 import {
   ContributionFrequency,
   ContributionTargetType,
@@ -1578,12 +1579,13 @@ export default function AutoContributionsPage() {
                         <Label htmlFor="entity">
                           {t.management.manualContributions.entity}
                         </Label>
-                        <select
-                          id="entity"
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          value={modalForm.entity_id}
-                          onChange={event => {
-                            const selectedEntityId = event.target.value
+                        <EntitySelector
+                          entities={financialEntities}
+                          selectedEntityIds={
+                            modalForm.entity_id ? [modalForm.entity_id] : []
+                          }
+                          onSelectionChange={ids => {
+                            const selectedEntityId = ids[0] ?? ""
                             const selectedEntity = financialEntities.find(
                               e => e.id === selectedEntityId,
                             )
@@ -1607,16 +1609,8 @@ export default function AutoContributionsPage() {
                             )
                             clearFormError("entity_id")
                           }}
-                        >
-                          <option value="" disabled>
-                            {t.common.selectOptions}
-                          </option>
-                          {financialEntities.map(entity => (
-                            <option key={entity.id} value={entity.id}>
-                              {entity.name}
-                            </option>
-                          ))}
-                        </select>
+                          singleSelect
+                        />
                         {formErrors.entity_id && (
                           <p className="text-xs text-red-600 dark:text-red-400 mt-1">
                             {formErrors.entity_id}

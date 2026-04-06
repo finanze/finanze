@@ -37,9 +37,9 @@ import {
 } from "@/types/position"
 import {
   DataSource,
+  EntityOrigin,
+  EntityType,
   type Entity,
-  type EntityType,
-  type EntityOrigin,
   type ExchangeRates,
 } from "@/types"
 import {
@@ -993,16 +993,33 @@ function CryptoInvestmentContent({
     exchangeRates,
   ])
 
-  const entityOptions = useMemo<MultiSelectOption[]>(() => {
-    const unique = new Map<string, string>()
-    walletGroupsWithDrafts.forEach(group => {
-      unique.set(group.entity.id, group.entity.name)
-    })
-    return Array.from(unique.entries()).map(([value, label]) => ({
-      value,
-      label,
-    }))
-  }, [walletGroupsWithDrafts])
+  const filteredEntities = useMemo(() => {
+    const unique = new Set<string>()
+    walletGroupsWithDrafts.forEach(group => unique.add(group.entity.id))
+    return entities?.filter(e => unique.has(e.id)) ?? []
+  }, [walletGroupsWithDrafts, entities])
+
+  const cryptoEntityImageOverride = useCallback(
+    (entity: Entity) => {
+      if (
+        entity.origin === EntityOrigin.NATIVE &&
+        entity.type === EntityType.CRYPTO_WALLET
+      ) {
+        return `entities/${entity.id}.png`
+      }
+      if (entity.origin !== EntityOrigin.MANUAL) return undefined
+      const nativeMatch = entities?.find(
+        e =>
+          e.id !== entity.id &&
+          e.origin === EntityOrigin.NATIVE &&
+          e.type === EntityType.CRYPTO_WALLET &&
+          e.name.toLowerCase() === entity.name.toLowerCase(),
+      )
+      if (nativeMatch) return `entities/${nativeMatch.id}.png`
+      return undefined
+    },
+    [entities],
+  )
 
   const entityFilteredWalletGroups = useMemo<EntityWalletGroup[]>(() => {
     const groups =
@@ -2619,12 +2636,13 @@ function CryptoInvestmentContent({
       <ManualPositionsUnsavedNotice />
 
       <InvestmentFilters
-        entityOptions={entityOptions}
+        filteredEntities={filteredEntities}
         selectedEntities={selectedEntities}
         onEntitiesChange={setSelectedEntities}
         walletOptions={walletFilterOptions}
         selectedWallets={selectedWalletFilters}
         onWalletsChange={setSelectedWalletFilters}
+        entityImageOverride={cryptoEntityImageOverride}
         extraFilters={
           cryptoDerivatives.length > 0 ? (
             <Button
