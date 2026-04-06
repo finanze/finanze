@@ -53,7 +53,7 @@ import {
   EntityType,
 } from "@/types"
 import type { LoanCalculationRequest } from "@/types"
-import { calculateLoan } from "@/services/api"
+import { calculateLoan, getEuriborRates } from "@/services/api"
 import { useAppContext } from "@/context/AppContext"
 import {
   ManualFormErrors,
@@ -70,6 +70,7 @@ import {
 } from "@/utils/manualData"
 import {
   Calculator,
+  ChevronDown,
   Loader2,
   Plus,
   Search,
@@ -337,6 +338,177 @@ export interface BankLoanFormState extends ManualPositionFormBase {
   creation: string
   maturity: string
   track_loan: string
+}
+
+function EuriborSuggestField(
+  props: ManualFormFieldRenderProps<BankLoanFormState>,
+) {
+  const [rates, setRates] = useState<{ period: string; rate: number }[]>([])
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasFetched, setHasFetched] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const fetchRates = useCallback(async () => {
+    if (hasFetched) return rates
+    setIsLoading(true)
+    try {
+      const result = await getEuriborRates()
+      const fetched = result.rates ?? []
+      setRates(fetched)
+      setHasFetched(true)
+      return fetched
+    } catch {
+      setRates([])
+      return []
+    } finally {
+      setIsLoading(false)
+    }
+  }, [hasFetched, rates])
+
+  const handleToggle = useCallback(() => {
+    const next = !isOpen
+    setIsOpen(next)
+    if (next && !hasFetched) {
+      fetchRates()
+    }
+  }, [isOpen, hasFetched, fetchRates])
+
+  const applyRate = useCallback(
+    (rate: number) => {
+      const formatted = formatNumberInput(rate, { maximumFractionDigits: 4 })
+      props.updateField("euribor_rate", formatted)
+      props.clearError("euribor_rate")
+    },
+    [props],
+  )
+
+  const handleSelect = useCallback(
+    (rate: number) => {
+      applyRate(rate)
+      setIsOpen(false)
+    },
+    [applyRate],
+  )
+
+  const fetchRatesRef = useRef(fetchRates)
+  fetchRatesRef.current = fetchRates
+  const applyRateRef = useRef(applyRate)
+  applyRateRef.current = applyRate
+
+  useEffect(() => {
+    const interestType = props.form.interest_type as InterestType
+    const isVariableOrMixed =
+      interestType === InterestType.VARIABLE ||
+      interestType === InterestType.MIXED
+    if (!isVariableOrMixed || props.form.euribor_rate) return
+    ;(async () => {
+      const fetched = await fetchRatesRef.current()
+      if (fetched.length > 0) {
+        applyRateRef.current(fetched[0].rate)
+      }
+    })()
+  }, [props.form.interest_type, props.form.euribor_rate])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [isOpen])
+
+  const formatPeriodLabel = useCallback(
+    (period: string) => {
+      try {
+        const [year, month] = period.split("-")
+        const date = new Date(Number(year), Number(month) - 1)
+        return date.toLocaleDateString(props.locale, {
+          month: "short",
+          year: "numeric",
+        })
+      } catch {
+        return period
+      }
+    },
+    [props.locale],
+  )
+
+  return (
+    <div className="space-y-1.5" ref={containerRef}>
+      <Label htmlFor="euribor_rate">
+        {props.t("management.manualPositions.bankLoans.fields.euriborRate")}
+      </Label>
+      <div className="relative">
+        <Input
+          id="euribor_rate"
+          type="text"
+          inputMode="decimal"
+          value={props.form.euribor_rate ?? ""}
+          onChange={event => {
+            props.updateField("euribor_rate", event.target.value)
+            props.clearError("euribor_rate")
+          }}
+          className="pr-9"
+        />
+        <button
+          type="button"
+          className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={handleToggle}
+          aria-label="Euribor rates"
+          aria-expanded={isOpen}
+        >
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+      </div>
+      {isOpen && (
+        <div className="rounded-md border bg-popover text-popover-foreground shadow-md max-h-48 overflow-y-auto">
+          {isLoading ? (
+            <div className="flex items-center justify-center p-3">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : rates.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground text-center">
+              {props.t(
+                "management.manualPositions.bankLoans.helpers.euriborUnavailable",
+              )}
+            </div>
+          ) : (
+            <div className="py-1">
+              {rates.map(rate => (
+                <button
+                  key={rate.period}
+                  type="button"
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                  onClick={() => handleSelect(rate.rate)}
+                >
+                  <span className="text-muted-foreground">
+                    {formatPeriodLabel(rate.period)}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {rate.rate.toFixed(3)}%
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {props.errors.euribor_rate && (
+        <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+          {props.errors.euribor_rate}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function LoanCalculationHelper(
@@ -3322,22 +3494,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             props,
             { type: "number", step: "0.01", inputMode: "decimal" },
           )}
-          {renderTextInput(
-            "current_installment",
-            props.t(
-              "management.manualPositions.bankLoans.fields.currentInstallment",
-            ),
-            props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
-          )}
-          {renderTextInput(
-            "principal_outstanding",
-            props.t(
-              "management.manualPositions.bankLoans.fields.principalOutstanding",
-            ),
-            props,
-            { type: "number", step: "0.01", inputMode: "decimal" },
-          )}
           {renderSelectInput(
             "interest_type",
             props.t("management.manualPositions.bankLoans.fields.interestType"),
@@ -3388,15 +3544,7 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               },
             ],
           )}
-          {showEuriborField &&
-            renderTextInput(
-              "euribor_rate",
-              props.t(
-                "management.manualPositions.bankLoans.fields.euriborRate",
-              ),
-              props,
-              { type: "number", step: "0.01", inputMode: "decimal" },
-            )}
+          {showEuriborField && <EuriborSuggestField {...loanProps} />}
           {showFixedYearsField &&
             renderTextInput(
               "fixed_years",
@@ -3413,7 +3561,6 @@ const manualPositionConfigs: ManualPositionConfigMap = {
               props,
               { type: "number", step: "0.01", inputMode: "decimal" },
             )}
-          <LoanCalculationHelper {...loanProps} />
           {renderDateInput(
             "creation",
             props.t("management.manualPositions.bankLoans.fields.creation"),
@@ -3424,6 +3571,23 @@ const manualPositionConfigs: ManualPositionConfigMap = {
             props.t("management.manualPositions.bankLoans.fields.maturity"),
             props,
           )}
+          {renderTextInput(
+            "current_installment",
+            props.t(
+              "management.manualPositions.bankLoans.fields.currentInstallment",
+            ),
+            props,
+            { type: "number", step: "0.01", inputMode: "decimal" },
+          )}
+          {renderTextInput(
+            "principal_outstanding",
+            props.t(
+              "management.manualPositions.bankLoans.fields.principalOutstanding",
+            ),
+            props,
+            { type: "number", step: "0.01", inputMode: "decimal" },
+          )}
+          <LoanCalculationHelper {...loanProps} />
         </div>
       )
     },

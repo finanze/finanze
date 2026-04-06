@@ -17,7 +17,7 @@ from domain.global_position import (
     ManualPositionData,
     ProductType,
 )
-from infrastructure.loan_calculator import LoanCalculator
+from infrastructure.calculations.loan_calculator import LoanCalculator
 
 
 def _make_mpd(entry_id=None, tracking_ref_outstanding=None, tracking_ref_date=None):

@@ -38,6 +38,7 @@ from domain.use_cases.get_backups import GetBackups
 from domain.use_cases.get_cloud_auth import GetCloudAuth
 from domain.use_cases.get_contributions import GetContributions
 from domain.use_cases.get_crypto_asset_details import GetCryptoAssetDetails
+from domain.use_cases.get_euribor_rates import GetEuriborRates
 from domain.use_cases.get_exchange_rates import GetExchangeRates
 from domain.use_cases.get_external_integrations import GetExternalIntegrations
 from domain.use_cases.get_historic import GetHistoric
@@ -116,6 +117,7 @@ from infrastructure.controller.routes.disconnect_external_integration import (
     disconnect_external_integration,
 )
 from infrastructure.controller.routes.exchange_rates import exchange_rates
+from infrastructure.controller.routes.get_euribor_rates import get_euribor_rates
 from infrastructure.controller.routes.export_file import export_file
 from infrastructure.controller.routes.export_sheets import export_sheets
 from infrastructure.controller.routes.fetch_crypto_data import fetch_crypto_data
@@ -254,6 +256,7 @@ async def register_routes(
     get_cloud_auth_uc: GetCloudAuth,
     get_backup_settings_uc: GetBackupSettings,
     save_backup_settings_uc: SaveBackupSettings,
+    get_euribor_rates_uc: GetEuriborRates,
 ):
     @app.route("/api/v1/login", methods=["POST"])
     async def user_login_route():
@@ -552,6 +555,10 @@ async def register_routes(
     @app.route("/api/v1/cloud/backup/settings", methods=["POST"])
     async def save_backup_settings_route():
         return await save_backup_settings(save_backup_settings_uc)
+
+    @app.route("/api/v1/rates/euribor", methods=["GET"])
+    async def get_euribor_rates_route():
+        return await get_euribor_rates(get_euribor_rates_uc)
 
     @app.route("/oauth/callback", methods=["GET"])
     async def oauth_callback_route():

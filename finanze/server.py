@@ -12,7 +12,6 @@ from application.use_cases.cancel_entity_login import CancelEntityLoginImpl
 from application.use_cases.add_manual_transaction import AddManualTransactionImpl
 from application.use_cases.calculate_loan import CalculateLoanImpl
 from application.use_cases.calculate_savings import CalculateSavingsImpl
-from infrastructure.loan_calculator import LoanCalculator
 from application.use_cases.change_user_password import ChangeUserPasswordImpl
 from application.use_cases.complete_external_entity_connection import (
     CompleteExternalEntityConnectionImpl,
@@ -53,6 +52,7 @@ from application.use_cases.get_cloud_auth import GetCloudAuthImpl
 from application.use_cases.get_contributions import GetContributionsImpl
 from application.use_cases.get_crypto_asset_details import GetCryptoAssetDetailsImpl
 from application.use_cases.get_exchange_rates import GetExchangeRatesImpl
+from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
 from application.use_cases.get_external_integrations import GetExternalIntegrationsImpl
 from application.use_cases.get_historic import GetHistoricImpl
 from application.use_cases.get_instrument_info import GetInstrumentInfoImpl
@@ -139,6 +139,7 @@ from infrastructure.client.entity.financial.urbanitae.urbanitae_fetcher import (
 )
 from infrastructure.client.entity.financial.wecity.wecity_fetcher import WecityFetcher
 from infrastructure.client.features.feature_flag_client import FeatureFlagClient
+from infrastructure.client.interests.ecb_client import ECBClient
 from infrastructure.client.keychain.public_keychain_client import PublicKeychainClient
 from infrastructure.client.financial.gocardless.gocardless_client import (
     GoCardlessClient,
@@ -200,6 +201,7 @@ from infrastructure.repository.earnings_expenses.periodic_flow_repository import
 from infrastructure.repository.entity.external_entity_repository import (
     ExternalEntityRepository,
 )
+from infrastructure.calculations.loan_calculator import LoanCalculator
 from infrastructure.repository.external_integration.external_integration_repository import (
     ExternalIntegrationRepository,
 )
@@ -350,6 +352,7 @@ class FinanzeServer:
         exchange_rate_storage = ExchangeRateFileStorage(args.data_dir)
 
         exchange_rate_client = ExchangeRateClient()
+        ecb_client = ECBClient()
         crypto_asset_info_client = CryptoAssetInfoClient(
             coingecko_strategy=FileCoinGeckoCacheStrategy(str(args.data_dir))
         )
@@ -632,6 +635,7 @@ class FinanzeServer:
         )
         calculate_loan = CalculateLoanImpl(loan_calculator)
         calculate_savings = CalculateSavingsImpl()
+        get_euribor_rates = GetEuriborRatesImpl(ecb_client)
         forecast = ForecastImpl(
             position_port=position_repository,
             auto_contributions_port=auto_contrib_repository,
@@ -819,6 +823,7 @@ class FinanzeServer:
             get_cloud_auth,
             get_backup_settings,
             save_backup_settings,
+            get_euribor_rates,
         )
 
         self._log.info("Warming up exchange rates...")
