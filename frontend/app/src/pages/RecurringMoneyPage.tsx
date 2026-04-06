@@ -76,6 +76,7 @@ export default function RecurringMoneyPage() {
   const defaultCurrency = settings?.general?.defaultCurrency || "EUR"
   const [loading] = useState(false)
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
+  const [groupByCategory, setGroupByCategory] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingFlow, setEditingFlow] = useState<PeriodicFlow | null>(null)
@@ -851,189 +852,238 @@ export default function RecurringMoneyPage() {
             animate="show"
             className="space-y-2"
           >
-            {flows.map(flow => {
-              const nextDateInfo = getNextDateInfo(flow.next_date)
-              const convertedAmount = convertCurrency(
-                flow.amount,
-                flow.currency,
-                defaultCurrency,
-                exchangeRates,
-              )
-              const showOriginalCurrency = flow.currency !== defaultCurrency
-              const highlightColor = flow.id
-                ? flowHighlightMap[String(flow.id)]
-                : undefined
+            {(() => {
+              const renderFlowCard = (flow: PeriodicFlow) => {
+                const nextDateInfo = getNextDateInfo(flow.next_date)
+                const convertedAmount = convertCurrency(
+                  flow.amount,
+                  flow.currency,
+                  defaultCurrency,
+                  exchangeRates,
+                )
+                const showOriginalCurrency = flow.currency !== defaultCurrency
+                const highlightColor = flow.id
+                  ? flowHighlightMap[String(flow.id)]
+                  : undefined
 
-              return (
-                <motion.div
-                  key={flow.id}
-                  className={cn(
-                    "relative flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
-                    !flow.enabled
-                      ? "opacity-50 bg-gray-50 dark:bg-black"
-                      : "bg-card shadow-sm",
-                  )}
-                  variants={fadeListItem}
-                  initial={initialVariant}
-                  animate="show"
-                >
-                  {highlightColor && (
-                    <div
-                      className={cn(
-                        "pointer-events-none absolute left-0 top-0 h-full w-1 rounded-l-lg",
-                        highlightColor,
-                      )}
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                          {flow.icon && (
-                            <Icon
-                              name={flow.icon as IconName}
-                              className="w-5 h-5"
-                            />
+                return (
+                  <motion.div
+                    key={flow.id}
+                    className={cn(
+                      "relative flex flex-wrap items-start justify-between gap-3 p-4 border rounded-lg",
+                      !flow.enabled
+                        ? "opacity-50 bg-gray-50 dark:bg-black"
+                        : "bg-card shadow-sm",
+                    )}
+                    variants={fadeListItem}
+                    initial={initialVariant}
+                    animate="show"
+                  >
+                    {highlightColor && (
+                      <div
+                        className={cn(
+                          "pointer-events-none absolute left-0 top-0 h-full w-1 rounded-l-lg",
+                          highlightColor,
+                        )}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            {flow.icon && (
+                              <Icon
+                                name={flow.icon as IconName}
+                                className="w-5 h-5"
+                              />
+                            )}
+                            <h3 className="font-medium">{flow.name}</h3>
+                          </div>
+                          {flow.linked &&
+                            (flow.real_estate_flow?.linked_loan_hash ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <span className="inline-flex text-blue-500 cursor-pointer">
+                                    <Link2
+                                      size={18}
+                                      strokeWidth={2.5}
+                                      style={{ transform: "rotate(155deg)" }}
+                                    />
+                                  </span>
+                                </PopoverTrigger>
+                                <PopoverContent
+                                  side="top"
+                                  className="w-auto text-xs px-3 py-2"
+                                >
+                                  {(t.management as any).linkedToLoan}
+                                </PopoverContent>
+                              </Popover>
+                            ) : (
+                              <Link2
+                                size={18}
+                                strokeWidth={2.5}
+                                style={{ transform: "rotate(155deg)" }}
+                              />
+                            ))}
+                          {!groupByCategory && flow.category && (
+                            <Badge
+                              variant="secondary"
+                              onClick={() =>
+                                toggleCategoryFilter(flow.category!)
+                              }
+                              className={cn(
+                                "flex items-center gap-1 cursor-pointer",
+                                getColorForName(flow.category),
+                              )}
+                            >
+                              <Tag size={12} />
+                              {flow.category}
+                            </Badge>
                           )}
-                          <h3 className="font-medium">{flow.name}</h3>
-                        </div>
-                        {flow.linked &&
-                          (flow.real_estate_flow?.linked_loan_hash ? (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <span className="inline-flex text-blue-500 cursor-pointer">
-                                  <Link2
-                                    size={18}
-                                    strokeWidth={2.5}
-                                    style={{ transform: "rotate(155deg)" }}
-                                  />
-                                </span>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                side="top"
-                                className="w-auto text-xs px-3 py-2"
-                              >
-                                {(t.management as any).linkedToLoan}
-                              </PopoverContent>
-                            </Popover>
-                          ) : (
-                            <Link2
-                              size={18}
-                              strokeWidth={2.5}
-                              style={{ transform: "rotate(155deg)" }}
-                            />
-                          ))}
-                        {flow.category && (
                           <Badge
-                            variant="secondary"
-                            onClick={() => toggleCategoryFilter(flow.category!)}
-                            className={cn(
-                              "flex items-center gap-1 cursor-pointer",
-                              getColorForName(flow.category),
-                            )}
+                            variant="outline"
+                            className="flex items-center gap-1"
                           >
-                            <Tag size={12} />
-                            {flow.category}
+                            <Clock size={12} />
+                            {getFrequencyLabel(flow.frequency)}
                           </Badge>
-                        )}
-                        <Badge
-                          variant="outline"
-                          className="flex items-center gap-1"
-                        >
-                          <Clock size={12} />
-                          {getFrequencyLabel(flow.frequency)}
-                        </Badge>
 
-                        {/* Next Date Badge */}
-                        {nextDateInfo && (
-                          <Badge
-                            variant={
-                              nextDateInfo.urgencyLevel === "urgent"
-                                ? "destructive"
-                                : nextDateInfo.urgencyLevel === "soon"
-                                  ? "default"
-                                  : "secondary"
-                            }
-                            className={cn(
-                              "flex items-center gap-1 font-medium",
-                              nextDateInfo.urgencyLevel === "urgent" &&
-                                "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-                              nextDateInfo.urgencyLevel === "soon" &&
-                                "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-                              nextDateInfo.urgencyLevel === "normal" &&
-                                "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-                            )}
-                            title={`${t.management.nextPayment}: ${nextDateInfo.formattedDate}`}
-                          >
-                            <CalendarDays size={12} />
-                            {nextDateInfo.timeText}
-                          </Badge>
-                        )}
-                        {!flow.enabled && (
-                          <span className="text-sm text-gray-500">
-                            {t.management.disabled}
-                          </span>
-                        )}
+                          {nextDateInfo && (
+                            <Badge
+                              variant={
+                                nextDateInfo.urgencyLevel === "urgent"
+                                  ? "destructive"
+                                  : nextDateInfo.urgencyLevel === "soon"
+                                    ? "default"
+                                    : "secondary"
+                              }
+                              className={cn(
+                                "flex items-center gap-1 font-medium",
+                                nextDateInfo.urgencyLevel === "urgent" &&
+                                  "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+                                nextDateInfo.urgencyLevel === "soon" &&
+                                  "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+                                nextDateInfo.urgencyLevel === "normal" &&
+                                  "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+                              )}
+                              title={`${t.management.nextPayment}: ${nextDateInfo.formattedDate}`}
+                            >
+                              <CalendarDays size={12} />
+                              {nextDateInfo.timeText}
+                            </Badge>
+                          )}
+                          {!flow.enabled && (
+                            <span className="text-sm text-gray-500">
+                              {t.management.disabled}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        {t.management.since}: {formatDate(flow.since, locale)}
+                        {flow.until &&
+                          ` • ${t.management.until}: ${formatDate(flow.until, locale)}`}
                       </div>
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      {t.management.since}: {formatDate(flow.since, locale)}
-                      {flow.until &&
-                        ` • ${t.management.until}: ${formatDate(flow.until, locale)}`}
-                    </div>
-                  </div>
 
-                  <div className="flex flex-col items-end gap-1 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto text-right">
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(convertedAmount, locale, defaultCurrency)}
-                    </span>
-                    {showOriginalCurrency && (
-                      <span className="text-xs text-muted-foreground">
-                        {formatCurrency(flow.amount, locale, flow.currency)}
+                    <div className="flex flex-col items-end gap-1 mr-0 sm:mr-4 self-start sm:self-center shrink-0 w-full sm:w-auto text-right">
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(
+                          convertedAmount,
+                          locale,
+                          defaultCurrency,
+                        )}
                       </span>
-                    )}
-                  </div>
+                      {showOriginalCurrency && (
+                        <span className="text-xs text-muted-foreground">
+                          {formatCurrency(flow.amount, locale, flow.currency)}
+                        </span>
+                      )}
+                    </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditDialog(flow)}
-                    >
-                      <Edit size={16} />
-                    </Button>
-                    {flow.real_estate_flow?.linked_loan_hash ? (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-600 opacity-50 cursor-not-allowed"
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          side="top"
-                          className="w-auto text-xs px-3 py-2"
-                        >
-                          {(t.management as any).linkedToLoan}
-                        </PopoverContent>
-                      </Popover>
-                    ) : (
+                    <div className="flex items-center gap-2 self-start sm:self-center shrink-0 w-full sm:w-auto justify-end">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => openDeleteDialog(flow)}
-                        className="text-red-600 hover:text-red-700"
+                        onClick={() => openEditDialog(flow)}
                       >
-                        <Trash2 size={16} />
+                        <Edit size={16} />
                       </Button>
-                    )}
-                  </div>
-                </motion.div>
+                      {flow.real_estate_flow?.linked_loan_hash ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 opacity-50 cursor-not-allowed"
+                            >
+                              <Trash2 size={16} />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            side="top"
+                            className="w-auto text-xs px-3 py-2"
+                          >
+                            {(t.management as any).linkedToLoan}
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openDeleteDialog(flow)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      )}
+                    </div>
+                  </motion.div>
+                )
+              }
+
+              if (!groupByCategory) {
+                return flows.map(renderFlowCard)
+              }
+
+              const groups = flows.reduce(
+                (acc, flow) => {
+                  const key = flow.category || "__uncategorized__"
+                  if (!acc[key]) acc[key] = []
+                  acc[key].push(flow)
+                  return acc
+                },
+                {} as Record<string, PeriodicFlow[]>,
               )
-            })}
+
+              const sortedKeys = Object.keys(groups).sort((a, b) => {
+                if (a === "__uncategorized__") return 1
+                if (b === "__uncategorized__") return -1
+                return a.localeCompare(b)
+              })
+
+              return sortedKeys.map(key => (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center gap-2 pt-2">
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "flex items-center gap-1",
+                        key !== "__uncategorized__" && getColorForName(key),
+                      )}
+                    >
+                      <Tag size={12} />
+                      {key === "__uncategorized__"
+                        ? t.management.uncategorized
+                        : key}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 pl-2 border-l-2 border-muted">
+                    {groups[key].map(renderFlowCard)}
+                  </div>
+                </div>
+              ))
+            })()}
           </motion.div>
         )}
       </motion.div>
@@ -1522,7 +1572,7 @@ export default function RecurringMoneyPage() {
 
             {/* Legends */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-              <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full max-h-40 overflow-auto">
                 {flowDistribution.earnings.map(earning => {
                   const sourceCategory = earning.sourceCategory ?? null
                   const canFilter = Boolean(
@@ -1533,7 +1583,7 @@ export default function RecurringMoneyPage() {
                     <div
                       key={`legend2-earning-${earning.id}`}
                       className={cn(
-                        "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-0 sm:min-w-[180px] max-w-full overflow-hidden",
+                        "flex items-center gap-2 text-xs leading-tight bg-green-50 dark:bg-green-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden",
                         canFilter
                           ? "cursor-pointer"
                           : "cursor-default opacity-70",
@@ -1557,7 +1607,7 @@ export default function RecurringMoneyPage() {
                   )
                 })}
               </div>
-              <div className="flex flex-wrap gap-2 w-full md:max-h-40 md:overflow-auto justify-end">
+              <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 w-full max-h-40 overflow-auto sm:justify-end">
                 {flowDistribution.expenses.map(expense => {
                   const sourceCategory = expense.sourceCategory ?? null
                   const canFilter = Boolean(
@@ -1568,7 +1618,7 @@ export default function RecurringMoneyPage() {
                     <div
                       key={`legend2-expense-${expense.id}`}
                       className={cn(
-                        "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 rounded-md flex-1 sm:flex-none min-w-0 sm:min-w-[180px] max-w-full overflow-hidden",
+                        "flex items-center gap-2 text-xs leading-tight bg-red-50 dark:bg-red-900/20 px-2 py-0 h-7 shrink-0 rounded-md sm:flex-1 sm:flex-none min-w-[180px] max-w-full overflow-hidden",
                         canFilter
                           ? "cursor-pointer"
                           : "cursor-default opacity-70",
@@ -1632,8 +1682,20 @@ export default function RecurringMoneyPage() {
 
         <div className="flex items-center gap-2 ml-auto flex-wrap max-w-full justify-end">
           <span className="text-sm text-muted-foreground">
-            {t.management.category}
+            {t.management.groupBy}
           </span>
+          <button
+            onClick={() => setGroupByCategory(prev => !prev)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+              groupByCategory
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Tag size={14} />
+            {t.management.groupByCategory}
+          </button>
           <MultiSelect
             options={categoryOptions}
             value={categoryFilter}

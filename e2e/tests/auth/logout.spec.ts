@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { BACKEND_URL } from '../../helpers/constants'
 
 test.describe('Logout', () => {
     test('logout returns to login screen', async ({
@@ -17,10 +18,11 @@ test.describe('Logout', () => {
         await expect(page.locator('#password')).toBeVisible()
 
         // Verify status is LOCKED via API
-        const status = await page.evaluate(async () => {
-            const res = await fetch('http://localhost:7592/api/v1/status')
+        const apiUrl = `${BACKEND_URL}/api/v1/status`
+        const status = await page.evaluate(async (url) => {
+            const res = await fetch(url)
             return res.json()
-        })
+        }, apiUrl)
         expect(status.status).toBe('LOCKED')
     })
 })

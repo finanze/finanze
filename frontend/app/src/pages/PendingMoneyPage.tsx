@@ -30,7 +30,7 @@ import {
   Trash2,
   X,
 } from "lucide-react"
-import { getCurrencySymbol, getColorForName } from "@/lib/utils"
+import { cn, getCurrencySymbol, getColorForName } from "@/lib/utils"
 import { formatCurrency, formatDate } from "@/lib/formatters"
 import { fadeListContainer, fadeListItem } from "@/lib/animations"
 import { convertCurrency } from "@/utils/financialDataUtils"
@@ -48,6 +48,7 @@ export default function PendingMoneyPage() {
   const [existingCategories, setExistingCategories] = useState<string[]>([])
   const [validationErrors, setValidationErrors] = useState<string[]>([])
   const [sortBy, setSortBy] = useState<"amount" | "date">("amount")
+  const [groupByCategory, setGroupByCategory] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [runEntranceAnimation, setRunEntranceAnimation] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -500,108 +501,152 @@ export default function PendingMoneyPage() {
             animate="show"
             className="space-y-2"
           >
-            {flows.map(flow => (
-              <motion.div
-                key={flow.id}
-                variants={fadeListItem}
-                initial={initialVariant}
-                animate="show"
-                className={`${
-                  !flow.enabled
-                    ? "opacity-50 bg-gray-50 dark:bg-black"
-                    : "bg-card shadow-sm"
-                } flex items-start justify-between gap-4 p-4 border rounded-lg`}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
-                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
-                    <div className="flex items-center gap-2">
-                      {(flow as any).icon && (
-                        <Icon
-                          name={(flow as any).icon as IconName}
-                          className="w-5 h-5"
-                        />
+            {(() => {
+              const renderFlowCard = (flow: PendingFlow) => (
+                <motion.div
+                  key={flow.id}
+                  variants={fadeListItem}
+                  initial={initialVariant}
+                  animate="show"
+                  className={`${
+                    !flow.enabled
+                      ? "opacity-50 bg-gray-50 dark:bg-black"
+                      : "bg-card shadow-sm"
+                  } flex items-start justify-between gap-4 p-4 border rounded-lg`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full gap-3">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                      <div className="flex items-center gap-2">
+                        {(flow as any).icon && (
+                          <Icon
+                            name={(flow as any).icon as IconName}
+                            className="w-5 h-5"
+                          />
+                        )}
+                        <h3 className="font-medium">{flow.name}</h3>
+                      </div>
+                      {!groupByCategory && flow.category && (
+                        <Badge
+                          variant="secondary"
+                          onClick={() => toggleCategoryFilter(flow.category!)}
+                          className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
+                        >
+                          <Tag size={12} />
+                          {flow.category}
+                        </Badge>
                       )}
-                      <h3 className="font-medium">{flow.name}</h3>
+                      {(() => {
+                        const urgencyInfo = getDateUrgencyInfo(flow.date)
+                        if (urgencyInfo?.show) {
+                          return (
+                            <Badge
+                              variant={
+                                urgencyInfo.urgencyLevel === "urgent"
+                                  ? "destructive"
+                                  : urgencyInfo.urgencyLevel === "soon"
+                                    ? "default"
+                                    : "outline"
+                              }
+                              className={`flex items-center gap-1 ${
+                                urgencyInfo.urgencyLevel === "urgent"
+                                  ? "bg-red-500 text-white hover:bg-red-600"
+                                  : urgencyInfo.urgencyLevel === "soon"
+                                    ? "bg-orange-500 text-white hover:bg-orange-600"
+                                    : "bg-blue-500 text-white hover:bg-blue-600"
+                              }`}
+                            >
+                              <CalendarDays size={12} />
+                              {urgencyInfo.timeText}
+                            </Badge>
+                          )
+                        } else if (flow.date) {
+                          return (
+                            <Badge
+                              variant="outline"
+                              className="flex items-center gap-1"
+                            >
+                              <Calendar size={12} />
+                              {formatDate(flow.date || "", locale)}
+                            </Badge>
+                          )
+                        }
+                      })()}
+                      {!flow.enabled && (
+                        <span className="text-sm text-gray-500">
+                          {t.management.disabled}
+                        </span>
+                      )}
                     </div>
-                    {flow.category && (
-                      <Badge
-                        variant="secondary"
-                        onClick={() => toggleCategoryFilter(flow.category!)}
-                        className={`flex items-center gap-1 cursor-pointer ${getColorForName(flow.category)}`}
-                      >
-                        <Tag size={12} />
-                        {flow.category}
-                      </Badge>
-                    )}
-                    {(() => {
-                      const urgencyInfo = getDateUrgencyInfo(flow.date)
-                      if (urgencyInfo?.show) {
-                        return (
-                          <Badge
-                            variant={
-                              urgencyInfo.urgencyLevel === "urgent"
-                                ? "destructive"
-                                : urgencyInfo.urgencyLevel === "soon"
-                                  ? "default"
-                                  : "outline"
-                            }
-                            className={`flex items-center gap-1 ${
-                              urgencyInfo.urgencyLevel === "urgent"
-                                ? "bg-red-500 text-white hover:bg-red-600"
-                                : urgencyInfo.urgencyLevel === "soon"
-                                  ? "bg-orange-500 text-white hover:bg-orange-600"
-                                  : "bg-blue-500 text-white hover:bg-blue-600"
-                            }`}
-                          >
-                            <CalendarDays size={12} />
-                            {urgencyInfo.timeText}
-                          </Badge>
-                        )
-                      } else if (flow.date) {
-                        return (
-                          <Badge
-                            variant="outline"
-                            className="flex items-center gap-1"
-                          >
-                            <Calendar size={12} />
-                            {formatDate(flow.date || "", locale)}
-                          </Badge>
-                        )
-                      }
-                    })()}
-                    {!flow.enabled && (
-                      <span className="text-sm text-gray-500">
-                        {t.management.disabled}
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-semibold">
+                        {formatCurrency(flow.amount, locale, flow.currency)}
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(flow.amount, locale, flow.currency)}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditDialog(flow)}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Edit size={16} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openDeleteDialog(flow)}
-                    className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(flow)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit size={16} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openDeleteDialog(flow)}
+                      className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                </motion.div>
+              )
+
+              if (!groupByCategory) {
+                return flows.map(renderFlowCard)
+              }
+
+              const groups = flows.reduce(
+                (acc, flow) => {
+                  const key = flow.category || "__uncategorized__"
+                  if (!acc[key]) acc[key] = []
+                  acc[key].push(flow)
+                  return acc
+                },
+                {} as Record<string, PendingFlow[]>,
+              )
+
+              const sortedKeys = Object.keys(groups).sort((a, b) => {
+                if (a === "__uncategorized__") return 1
+                if (b === "__uncategorized__") return -1
+                return a.localeCompare(b)
+              })
+
+              return sortedKeys.map(key => (
+                <div key={key} className="space-y-2">
+                  <div className="flex items-center gap-2 pt-2">
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "flex items-center gap-1",
+                        key !== "__uncategorized__" && getColorForName(key),
+                      )}
+                    >
+                      <Tag size={12} />
+                      {key === "__uncategorized__"
+                        ? t.management.uncategorized
+                        : key}
+                    </Badge>
+                  </div>
+                  <div className="space-y-2 pl-2 border-l-2 border-muted">
+                    {groups[key].map(renderFlowCard)}
+                  </div>
                 </div>
-              </motion.div>
-            ))}
+              ))
+            })()}
           </motion.div>
         )}
       </motion.div>
@@ -873,8 +918,20 @@ export default function PendingMoneyPage() {
 
         <div className="flex items-center gap-2 ml-auto">
           <span className="text-sm text-muted-foreground">
-            {t.management.category}
+            {t.management.groupBy}
           </span>
+          <button
+            onClick={() => setGroupByCategory(prev => !prev)}
+            className={cn(
+              "flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-muted",
+              groupByCategory
+                ? "bg-foreground text-background"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Tag size={14} />
+            {t.management.groupByCategory}
+          </button>
           <MultiSelect
             options={categoryOptions}
             value={categoryFilter}

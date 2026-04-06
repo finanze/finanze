@@ -9,7 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner"
 import { Card } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Badge } from "@/components/ui/Badge"
-import { EntitySelector } from "@/components/EntitySelector"
+import { InvestmentFilters } from "@/components/InvestmentFilters"
 import { PinAssetButton } from "@/components/ui/PinAssetButton"
 import {
   ManualPositionsManager,
@@ -821,14 +821,11 @@ export default function BankingPage() {
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-3 [@media(min-width:450px)]:flex-row [@media(min-width:450px)]:items-center [@media(min-width:450px)]:justify-end">
-            <EntitySelector
-              entities={bankingEntities}
-              selectedEntityIds={selectedEntities}
-              onSelectionChange={setSelectedEntities}
-              className="w-full min-w-0 max-w-full [@media(min-width:450px)]:min-w-[200px] [@media(min-width:450px)]:max-w-[320px]"
-            />
-          </div>
+          <InvestmentFilters
+            filteredEntities={bankingEntities}
+            selectedEntities={selectedEntities}
+            onEntitiesChange={setSelectedEntities}
+          />
         </div>
       </motion.div>
 

@@ -25,6 +25,7 @@ import {
   AlertCircle,
   Loader2,
   Bitcoin,
+  Layers,
 } from "lucide-react"
 import { useI18n } from "@/i18n"
 import { useFinancialData } from "@/context/FinancialDataContext"
@@ -55,6 +56,8 @@ import { cn } from "@/lib/utils"
 import { convertCurrency } from "@/utils/financialDataUtils"
 import { getProductTypeColor } from "@/utils/dashboardUtils"
 import { EntitySelector } from "@/components/EntitySelector"
+import { InvestmentFilters } from "@/components/InvestmentFilters"
+import { InvestmentDistributionChart } from "@/components/InvestmentDistributionChart"
 import {
   ContributionFrequency,
   ContributionTargetType,
@@ -174,8 +177,20 @@ export default function AutoContributionsPage() {
     return acc
   }, [periodicByEntity])
 
+  const [selectedEntities, setSelectedEntities] = useState<string[]>([])
+
+  const filteredEntities = useMemo(() => {
+    const entityIds = new Set(flatContributions.map(c => c.entityId))
+    return (entities ?? []).filter(entity => entityIds.has(entity.id))
+  }, [entities, flatContributions])
+
+  const filteredContributions = useMemo(() => {
+    if (selectedEntities.length === 0) return flatContributions
+    return flatContributions.filter(c => selectedEntities.includes(c.entityId))
+  }, [flatContributions, selectedEntities])
+
   const monthlyTotal = useMemo(() => {
-    return flatContributions.reduce((acc, { contribution }) => {
+    return filteredContributions.reduce((acc, { contribution }) => {
       if (!contribution.active) {
         return acc
       }
@@ -191,11 +206,11 @@ export default function AutoContributionsPage() {
 
       return acc + converted
     }, 0)
-  }, [flatContributions, exchangeRates, defaultCurrency])
+  }, [filteredContributions, exchangeRates, defaultCurrency])
 
   const grouped = useMemo(() => {
     const map: Record<string, PeriodicContribution[]> = {}
-    flatContributions.forEach(({ entityId, contribution }) => {
+    filteredContributions.forEach(({ entityId, contribution }) => {
       if (!map[entityId]) map[entityId] = []
       map[entityId].push(contribution)
     })
@@ -213,14 +228,14 @@ export default function AutoContributionsPage() {
       })
     })
     return map
-  }, [flatContributions])
+  }, [filteredContributions])
 
   const freqLabel = (f: ContributionFrequency) =>
     (t.management.contributionFrequency as any)?.[f] || f
 
   const activeCount = useMemo(
-    () => flatContributions.filter(c => c.contribution.active).length,
-    [flatContributions],
+    () => filteredContributions.filter(c => c.contribution.active).length,
+    [filteredContributions],
   )
 
   const colors = [
@@ -265,7 +280,7 @@ export default function AutoContributionsPage() {
       string,
       { amount: number; type?: string; byType: boolean }
     >()
-    flatContributions.forEach(({ contribution }) => {
+    filteredContributions.forEach(({ contribution }) => {
       if (!contribution.active) return
       const normalized =
         contribution.amount * monthlyMultiplier(contribution.frequency)
@@ -304,9 +319,7 @@ export default function AutoContributionsPage() {
       percentage: (e.value / total) * 100,
       total,
     }))
-  }, [flatContributions, t, exchangeRates, defaultCurrency])
-
-  const barColor = (i: number) => colors[i % colors.length]
+  }, [filteredContributions, t, exchangeRates, defaultCurrency])
 
   const distributionColorMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -315,6 +328,17 @@ export default function AutoContributionsPage() {
     })
     return m
   }, [distributionData])
+
+  const chartData = useMemo(
+    () =>
+      distributionData.map((d, i) => ({
+        name: d.name,
+        value: d.value,
+        color: colors[i % colors.length],
+        percentage: d.percentage,
+      })),
+    [distributionData],
+  )
 
   const manualEntriesFromData = useMemo<ManualContributionDraft[]>(() => {
     const fallbackName = t.management.manualContributions.unnamed
@@ -1397,76 +1421,47 @@ export default function AutoContributionsPage() {
         </motion.div>
       )}
 
-      <motion.div variants={fadeListItem} className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4">
-          <Card className="p-5 flex flex-col justify-between">
-            <div className="flex items-center gap-2 mb-3">
-              <CalendarDays className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium text-muted-foreground">
-                {t.management.monthlyAverageContributions}
-              </span>
-            </div>
-            <div>
-              <div className="text-3xl font-bold leading-tight tracking-tight">
-                {formatCurrency(monthlyTotal, locale, defaultCurrency)}
-              </div>
-            </div>
-          </Card>
-          <Card className="p-5 flex flex-col justify-between">
-            <div className="flex items-center gap-2 mb-3">
-              <BarChart3 className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium text-muted-foreground">
-                {t.management.activeContributions}
-              </span>
-            </div>
-            <div>
-              <div className="text-3xl font-bold leading-tight tracking-tight">
-                {activeCount}
-              </div>
-            </div>
-          </Card>
-        </div>
-        {distributionData.length > 0 && (
-          <Card className="p-5 flex flex-col lg:col-span-2 min-w-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3
-                className="text-sm font-medium text-muted-foreground"
-                title={t.management.monthlyPerTarget}
-              >
-                {t.management.monthlyPerTarget}
-              </h3>
-              <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-                {formatCurrency(
-                  distributionData[0].total,
-                  locale,
-                  defaultCurrency,
-                )}
-              </span>
-            </div>
-            <div className="space-y-3 overflow-auto lg:max-h-72 pr-1 scrollbar-thin scrollbar-thumb-border/30">
-              {distributionData.map((d, i) => (
-                <div key={d.rawKey} className="group">
-                  <div className="flex justify-between gap-4 text-xs font-medium mb-1">
-                    <span className="truncate" title={d.name}>
-                      {d.name}
-                    </span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground group-hover:text-foreground transition-colors">
-                      {formatCurrency(d.value, locale, defaultCurrency)} ·{" "}
-                      {d.percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${d.percentage}%`,
-                        background: barColor(i),
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+      <motion.div variants={fadeListItem}>
+        <InvestmentFilters
+          filteredEntities={filteredEntities}
+          selectedEntities={selectedEntities}
+          onEntitiesChange={setSelectedEntities}
+        />
+      </motion.div>
+
+      <motion.div variants={fadeListItem}>
+        {chartData.length > 0 && (
+          <Card className="-mx-6 rounded-none border-x-0">
+            <CardContent className="pt-6">
+              <InvestmentDistributionChart
+                data={chartData}
+                title={t.common.distribution}
+                locale={locale}
+                currency={defaultCurrency}
+                hideLegend
+                containerClassName="overflow-visible w-full"
+                variant="bare"
+                toggleConfig={{
+                  activeView: "target",
+                  onViewChange: () => {},
+                  options: [
+                    {
+                      value: "target",
+                      label: t.management.monthlyPerTarget,
+                    },
+                  ],
+                }}
+                badges={[
+                  {
+                    icon: <Layers className="h-3 w-3" />,
+                    value: `${activeCount} ${t.management.activeContributions}`,
+                  },
+                ]}
+                centerContent={{
+                  rawValue: monthlyTotal,
+                }}
+              />
+            </CardContent>
           </Card>
         )}
       </motion.div>
@@ -1487,52 +1482,65 @@ export default function AutoContributionsPage() {
         </motion.div>
       )}
 
-      {Array.from(groupedEntries.entries()).map(([entityId, list]) => {
-        const entityName =
-          entities.find(entity => entity.id === entityId)?.name || entityId
-        const draftsForEntity = manualDraftsByEntity.get(entityId) || []
-        const unsavedDrafts = draftsForEntity.filter(draft => !draft.originalId)
-
-        return (
-          <div key={entityId} className="space-y-4">
-            <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
-              {entityName}
-            </h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              {list.map(c => {
-                const manualDraft = manualDraftByOriginalId.get(c.id)
-                if (
-                  isEditMode &&
-                  c.source === DataSource.MANUAL &&
-                  !manualDraft
-                ) {
-                  return null
-                }
-                const isDirty = manualDraft
-                  ? isManualDraftDirty(manualDraft)
-                  : false
-
-                return (
-                  <div key={manualDraft?.localId ?? c.id} className="h-full">
-                    {renderContributionCard(c, entityId, manualDraft, isDirty)}
-                  </div>
-                )
-              })}
-              {isEditMode &&
-                unsavedDrafts.map(draft => (
-                  <div key={draft.localId} className="h-full">
-                    {renderContributionCard(
-                      null,
-                      entityId,
-                      draft,
-                      isManualDraftDirty(draft),
-                    )}
-                  </div>
-                ))}
-            </div>
-          </div>
+      {Array.from(groupedEntries.entries())
+        .filter(
+          ([entityId]) =>
+            selectedEntities.length === 0 ||
+            selectedEntities.includes(entityId),
         )
-      })}
+        .map(([entityId, list]) => {
+          const entityName =
+            entities.find(entity => entity.id === entityId)?.name || entityId
+          const draftsForEntity = manualDraftsByEntity.get(entityId) || []
+          const unsavedDrafts = draftsForEntity.filter(
+            draft => !draft.originalId,
+          )
+
+          return (
+            <div key={entityId} className="space-y-4">
+              <h2 className="text-sm font-semibold text-muted-foreground tracking-wide">
+                {entityName}
+              </h2>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {list.map(c => {
+                  const manualDraft = manualDraftByOriginalId.get(c.id)
+                  if (
+                    isEditMode &&
+                    c.source === DataSource.MANUAL &&
+                    !manualDraft
+                  ) {
+                    return null
+                  }
+                  const isDirty = manualDraft
+                    ? isManualDraftDirty(manualDraft)
+                    : false
+
+                  return (
+                    <div key={manualDraft?.localId ?? c.id} className="h-full">
+                      {renderContributionCard(
+                        c,
+                        entityId,
+                        manualDraft,
+                        isDirty,
+                      )}
+                    </div>
+                  )
+                })}
+                {isEditMode &&
+                  unsavedDrafts.map(draft => (
+                    <div key={draft.localId} className="h-full">
+                      {renderContributionCard(
+                        null,
+                        entityId,
+                        draft,
+                        isManualDraftDirty(draft),
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )
+        })}
 
       <AnimatePresence>
         {isModalOpen && modalForm && (

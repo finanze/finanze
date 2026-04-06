@@ -547,41 +547,6 @@ function CryptoInvestmentContent({
     return entries
   }, [positionsData])
 
-  const derivativesTotalValue = useMemo(() => {
-    if (!includeDerivatives) return 0
-    const rates = (exchangeRates ?? {}) as ExchangeRates
-    const targetCurrency = settings.general.defaultCurrency
-    return cryptoDerivatives.reduce((sum, entry) => {
-      const mv = entry.derivative.market_value || 0
-      const currency = normalizeDerivativeCurrency(entry.derivative.currency)
-      return sum + convertCurrency(mv, currency, targetCurrency, rates)
-    }, 0)
-  }, [
-    cryptoDerivatives,
-    includeDerivatives,
-    exchangeRates,
-    settings.general.defaultCurrency,
-  ])
-
-  const derivativeValueByEntity = useMemo(() => {
-    const map = new Map<string, number>()
-    if (!includeDerivatives) return map
-    const rates = (exchangeRates ?? {}) as ExchangeRates
-    const targetCurrency = settings.general.defaultCurrency
-    cryptoDerivatives.forEach(({ derivative, entityId }) => {
-      const mv = derivative.market_value || 0
-      const currency = normalizeDerivativeCurrency(derivative.currency)
-      const converted = convertCurrency(mv, currency, targetCurrency, rates)
-      map.set(entityId, (map.get(entityId) || 0) + converted)
-    })
-    return map
-  }, [
-    cryptoDerivatives,
-    includeDerivatives,
-    exchangeRates,
-    settings.general.defaultCurrency,
-  ])
-
   const walletGroups = useMemo<EntityWalletGroup[]>(() => {
     if (!positionsData?.positions) {
       return []
@@ -1083,6 +1048,48 @@ function CryptoInvestmentContent({
       .sort((a, b) => b.totalValue - a.totalValue)
   }, [entityFilteredWalletGroups, selectedWalletFilters])
 
+  const filteredDerivativeEntityIds = useMemo(() => {
+    return new Set(filteredCryptoWallets.map(g => g.entity.id))
+  }, [filteredCryptoWallets])
+
+  const derivativesTotalValue = useMemo(() => {
+    if (!includeDerivatives) return 0
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    return cryptoDerivatives
+      .filter(entry => filteredDerivativeEntityIds.has(entry.entityId))
+      .reduce((sum, entry) => {
+        const mv = entry.derivative.market_value || 0
+        const currency = normalizeDerivativeCurrency(entry.derivative.currency)
+        return sum + convertCurrency(mv, currency, targetCurrency, rates)
+      }, 0)
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+    filteredDerivativeEntityIds,
+  ])
+
+  const derivativeValueByEntity = useMemo(() => {
+    const map = new Map<string, number>()
+    if (!includeDerivatives) return map
+    const rates = (exchangeRates ?? {}) as ExchangeRates
+    const targetCurrency = settings.general.defaultCurrency
+    cryptoDerivatives.forEach(({ derivative, entityId }) => {
+      const mv = derivative.market_value || 0
+      const currency = normalizeDerivativeCurrency(derivative.currency)
+      const converted = convertCurrency(mv, currency, targetCurrency, rates)
+      map.set(entityId, (map.get(entityId) || 0) + converted)
+    })
+    return map
+  }, [
+    cryptoDerivatives,
+    includeDerivatives,
+    exchangeRates,
+    settings.general.defaultCurrency,
+  ])
+
   useEffect(() => {
     setSelectedWalletFilters(prevFilters => {
       if (prevFilters.length === 0) {
@@ -1268,13 +1275,20 @@ function CryptoInvestmentContent({
       else passives += asset.value
     })
     if (includeDerivatives) {
-      cryptoDerivatives.forEach(({ derivative }) => {
-        const mv = derivative.market_value || 0
-        const currency = normalizeDerivativeCurrency(derivative.currency)
-        const converted = convertCurrency(mv, currency, defaultCurrency, rates)
-        if (converted >= 0) actives += converted
-        else passives += converted
-      })
+      cryptoDerivatives
+        .filter(entry => filteredDerivativeEntityIds.has(entry.entityId))
+        .forEach(({ derivative }) => {
+          const mv = derivative.market_value || 0
+          const currency = normalizeDerivativeCurrency(derivative.currency)
+          const converted = convertCurrency(
+            mv,
+            currency,
+            defaultCurrency,
+            rates,
+          )
+          if (converted >= 0) actives += converted
+          else passives += converted
+        })
     }
     return { activesValue: actives, passivesValue: passives }
   }, [
@@ -1283,6 +1297,7 @@ function CryptoInvestmentContent({
     includeDerivatives,
     exchangeRates,
     settings.general.defaultCurrency,
+    filteredDerivativeEntityIds,
   ])
 
   const hasNegativePositions = passivesValue < 0

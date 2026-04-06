@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test'
 import { test } from '../../fixtures/auth'
+import { selectEntity } from '../../helpers/entity-selector'
 
 const CREDENTIALS = {
     user: 'test@example.com',
@@ -212,7 +213,7 @@ test.describe('Manual Positions - Deposits', () => {
         })
 
         // Fill form
-        await page.locator('#entity_id').selectOption({ label: 'Urbanitae' })
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#name').fill('E2E Manual Deposit')
         await page.locator('#amount').fill('10000')
         await page.locator('#interest_rate').fill('3.5')
@@ -289,7 +290,7 @@ test.describe('Manual Positions - Deposits', () => {
         await expect(page.getByText('Add manual deposit')).toBeVisible({
             timeout: 5_000,
         })
-        await page.locator('#entity_id').selectOption({ label: 'Urbanitae' })
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#name').fill('Coexistence Deposit')
         await page.locator('#amount').fill('7500')
         await page.locator('#interest_rate').fill('2.5')
@@ -322,7 +323,7 @@ test.describe('Manual Positions - Real Estate CF', () => {
             timeout: 5_000,
         })
 
-        await page.locator('#entity_id').selectOption({ label: 'Urbanitae' })
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#name').fill('E2E RE Project')
         await page.locator('#amount').fill('5000')
         await page.locator('#interest_rate').fill('7')
@@ -363,9 +364,7 @@ test.describe('Manual Positions - Real Estate CF', () => {
             await expect(
                 page.getByText('Add manual real estate CF'),
             ).toBeVisible({ timeout: 5_000 })
-            await page
-                .locator('#entity_id')
-                .selectOption({ label: 'Urbanitae' })
+            await selectEntity(page, 'Urbanitae', { inDialog: true })
             await page.locator('#name').fill('E2E RE Project')
             await page.locator('#amount').fill('5000')
             await page.locator('#interest_rate').fill('7')
@@ -404,7 +403,7 @@ test.describe('Manual Positions - Factoring', () => {
             timeout: 5_000,
         })
 
-        await page.locator('#entity_id').selectOption({ label: 'Urbanitae' })
+        await selectEntity(page, 'Urbanitae', { inDialog: true })
         await page.locator('#name').fill('E2E Factoring Invoice')
         await page.locator('#amount').fill('3000')
         await page.locator('#interest_rate').fill('10')

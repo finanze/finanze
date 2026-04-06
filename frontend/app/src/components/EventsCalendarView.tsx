@@ -34,13 +34,19 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
   const [selectedDay, setSelectedDay] =
     useState<CalendarDay<MoneyEvent> | null>(null)
   const [eventTypeFilter, setEventTypeFilter] = useState<EventTypeFilter>({
-    [MoneyEventType.CONTRIBUTION]: true,
-    [MoneyEventType.PERIODIC_FLOW]: true,
-    [MoneyEventType.PENDING_FLOW]: true,
-    [MoneyEventType.MATURITY]: true,
+    [MoneyEventType.CONTRIBUTION]: false,
+    [MoneyEventType.PERIODIC_FLOW]: false,
+    [MoneyEventType.PENDING_FLOW]: false,
+    [MoneyEventType.MATURITY]: false,
   })
 
   const filteredEvents = useMemo(() => {
+    const hasSelectedFilters = Object.values(eventTypeFilter).some(Boolean)
+
+    if (!hasSelectedFilters) {
+      return events
+    }
+
     return events.filter(event => eventTypeFilter[event.type])
   }, [events, eventTypeFilter])
 
@@ -264,8 +270,11 @@ export function EventsCalendarView({ onEventClick }: EventsCalendarViewProps) {
             variant="outline"
             size="sm"
             onClick={() => toggleEventType(type)}
-            className={`inline-flex items-center gap-1.5 text-xs ${
-              !eventTypeFilter[type] ? "opacity-50" : ""
+            aria-pressed={eventTypeFilter[type]}
+            className={`inline-flex items-center gap-1.5 text-xs transition-colors ${
+              eventTypeFilter[type]
+                ? "border-white bg-white text-black hover:border-white hover:bg-white/90 hover:text-black dark:border-white dark:bg-white dark:text-black dark:hover:bg-white/90"
+                : "bg-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             {icon}
