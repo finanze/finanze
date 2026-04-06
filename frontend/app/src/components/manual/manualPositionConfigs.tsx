@@ -391,6 +391,11 @@ function EuriborSuggestField(
     [applyRate],
   )
 
+  const fetchRatesRef = useRef(fetchRates)
+  fetchRatesRef.current = fetchRates
+  const applyRateRef = useRef(applyRate)
+  applyRateRef.current = applyRate
+
   useEffect(() => {
     const interestType = props.form.interest_type as InterestType
     const isVariableOrMixed =
@@ -398,12 +403,12 @@ function EuriborSuggestField(
       interestType === InterestType.MIXED
     if (!isVariableOrMixed || props.form.euribor_rate) return
     ;(async () => {
-      const fetched = await fetchRates()
-      if (fetched.length > 0 && !props.form.euribor_rate) {
-        applyRate(fetched[0].rate)
+      const fetched = await fetchRatesRef.current()
+      if (fetched.length > 0) {
+        applyRateRef.current(fetched[0].rate)
       }
     })()
-  }, [props.form.interest_type])
+  }, [props.form.interest_type, props.form.euribor_rate])
 
   useEffect(() => {
     if (!isOpen) return
@@ -456,7 +461,8 @@ function EuriborSuggestField(
           type="button"
           className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground transition-colors"
           onClick={handleToggle}
-          tabIndex={-1}
+          aria-label="Euribor rates"
+          aria-expanded={isOpen}
         >
           <ChevronDown
             className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}

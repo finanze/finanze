@@ -26,7 +26,7 @@ class TestGetEuriborRatesImpl:
         uc = GetEuriborRatesImpl(provider)
         result = await uc.execute()
 
-        provider.get_yearly_euribor_rates.assert_called_once()
+        provider.get_yearly_euribor_rates.assert_awaited_once()
         assert len(result.rates) == 2
         assert result.rates[0].period == "2026-03"
         assert result.rates[0].rate == Dezimal("2.565")

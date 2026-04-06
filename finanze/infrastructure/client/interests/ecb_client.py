@@ -39,7 +39,6 @@ class ECBClient(EuriborProvider):
             body = await response.text()
             self._log.error(f"ECB API error ({response.status}): {body}")
             response.raise_for_status()
-            return EuriborHistory()
 
         data = await response.json()
         return self._parse_response(data)

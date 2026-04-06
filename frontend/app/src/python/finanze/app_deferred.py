@@ -562,7 +562,6 @@ class DeferredComponents:
         )
 
         self.calc_loan = CalculateLoanImpl(loan_calculator)
-        self.calc_savings = CalculateSavingsImpl()
 
         from infrastructure.client.interests.ecb_client import ECBClient
         from application.use_cases.get_euribor_rates import GetEuriborRatesImpl

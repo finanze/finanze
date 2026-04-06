@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 
 from infrastructure.controller.config import quart
 from infrastructure.controller.routes.get_euribor_rates import get_euribor_rates
-from infrastructure.controller.exception_handler import register_exception_handlers
 
 from application.ports.euribor_provider import EuriborProvider
 from application.use_cases.get_euribor_rates import GetEuriborRatesImpl
@@ -43,7 +42,6 @@ async def app(tmp_path):
     static_dir = tmp_path / "static"
     static_dir.mkdir()
     test_app = quart(static_dir)
-    register_exception_handlers(test_app)
 
     @test_app.route(EURIBOR_URL, methods=["GET"])
     async def euribor_rates_route():
