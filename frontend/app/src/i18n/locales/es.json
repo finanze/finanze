@@ -692,6 +692,7 @@
       "import": "Sincronizar",
       "sync": "Sincronizar",
       "syncNow": "Sincronizar ahora",
+      "syncedRecently": "Sincronizado recientemente",
       "syncing": "Sincronizando...",
       "useRemote": "Usar remoto",
       "useLocal": "Usar local",

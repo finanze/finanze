@@ -301,7 +301,9 @@ export function BackupStatusPopover({ collapsed }: BackupStatusPopoverProps) {
                       <RefreshCw size={14} />
                       {isSyncing
                         ? t.settings.backup.syncing
-                        : t.settings.backup.sync}
+                        : isSyncCooldownActive
+                          ? t.settings.backup.syncedRecently
+                          : t.settings.backup.sync}
                     </Button>
                   </div>
                   {feedbackMessage ? (

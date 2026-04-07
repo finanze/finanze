@@ -693,6 +693,7 @@
       "import": "Sync",
       "sync": "Sync",
       "syncNow": "Sync now",
+      "syncedRecently": "Synced recently",
       "syncing": "Syncing...",
       "useRemote": "Use remote",
       "useLocal": "Use local",
