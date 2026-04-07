@@ -10,6 +10,7 @@ import {
   CryptoCurrencyType,
   DerivativeDetail,
   DerivativePositions,
+  Loan,
 } from "@/types/position"
 import { TransactionsResult, TxType } from "@/types/transactions"
 import { formatCurrency, formatDate, formatGainLoss } from "@/lib/formatters"
@@ -3055,9 +3056,51 @@ export const calculatePendingEarningsTotal = (
 // Dashboard helpers: centralize computations used by DashboardPage
 export interface DashboardOptions {
   includePending: boolean
+  includeLoans: boolean
   includeCardExpenses: boolean
   includeRealEstate: boolean
   includeResidences: boolean
+}
+
+export const getUnlinkedLoansOutstanding = (
+  positionsData: EntitiesPosition | null,
+  realEstateList: RealEstate[] | undefined,
+  targetCurrency: string,
+  exchangeRates: ExchangeRates,
+): number => {
+  if (!positionsData?.positions) return 0
+
+  const linkedHashes = new Set<string>()
+  for (const re of realEstateList || []) {
+    for (const flow of re.flows || []) {
+      if (flow.linked_loan_hash) linkedHashes.add(flow.linked_loan_hash)
+    }
+  }
+
+  let total = 0
+  Object.values(positionsData.positions)
+    .flat()
+    .forEach((entityPosition: any) => {
+      const loansProduct = entityPosition.products?.[ProductType.LOAN]
+      if (
+        loansProduct &&
+        "entries" in loansProduct &&
+        loansProduct.entries.length > 0
+      ) {
+        loansProduct.entries.forEach((loan: Loan) => {
+          if (loan.hash && linkedHashes.has(loan.hash)) return
+          const outstanding = loan.principal_outstanding || 0
+          total += convertCurrency(
+            outstanding,
+            loan.currency,
+            targetCurrency,
+            exchangeRates,
+          )
+        })
+      }
+    })
+
+  return total
 }
 
 export const getTotalCardUsed = (
@@ -3220,9 +3263,17 @@ export const computeAdjustedKpis = (
   const cardUsed = options.includeCardExpenses
     ? getTotalCardUsed(positionsData, targetCurrency, exchangeRates)
     : 0
+  const loansOutstanding = options.includeLoans
+    ? getUnlinkedLoansOutstanding(
+        positionsData,
+        realEstateList,
+        targetCurrency,
+        exchangeRates,
+      )
+    : 0
 
   return {
-    adjustedTotalAssets: baseTotalAssets + equity - cardUsed,
+    adjustedTotalAssets: baseTotalAssets + equity - cardUsed - loansOutstanding,
     adjustedInvestedAmount:
       baseInvestedAmount + realEstateInitialInvestment - cardUsed,
   }
@@ -3299,6 +3350,14 @@ export const computeForecastKpis = (
   const cardUsed = options.includeCardExpenses
     ? getTotalCardUsed(forecastPositions, targetCurrency, exchangeRates)
     : 0
+  const loansOutstanding = options.includeLoans
+    ? getUnlinkedLoansOutstanding(
+        currentPositions,
+        realEstateList,
+        targetCurrency,
+        exchangeRates,
+      )
+    : 0
 
   // Recalculate invested from forecast snapshot so that automatic contributions reflected in new initial_investment numbers are captured.
   const projectedInvestedRaw = getTotalInvestedAmount(
@@ -3312,7 +3371,8 @@ export const computeForecastKpis = (
   const projectedInvestedAmount =
     projectedInvestedRaw + realEstateInitialInvestment - cardUsed
 
-  const projectedTotalAssets = projectedCoreTotal + projectedEquity - cardUsed
+  const projectedTotalAssets =
+    projectedCoreTotal + projectedEquity - cardUsed - loansOutstanding
 
   return {
     projectedTotalAssets,

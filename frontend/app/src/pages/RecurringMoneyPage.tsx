@@ -1887,9 +1887,6 @@ export default function RecurringMoneyPage() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-gray-900/20 dark:bg-black/50 flex items-center justify-center p-4 z-[18000]"
-            onClick={e => {
-              if (e.target === e.currentTarget) setIsDialogOpen(false)
-            }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}

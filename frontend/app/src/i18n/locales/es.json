@@ -926,8 +926,12 @@
     "noTransactions": "No se han encontrado transacciones",
     "noInvestments": "No tienes inversiones",
     "includePendingMoney": "Incluir dinero pendiente",
+    "includePendingMoneyInfo": "Con esta opción activada se tendrá en cuenta el dinero pendiente (gastos o ingresos) definido en la sección de Dinero Pendiente al calcular el patrimonio neto.",
+    "includeLoans": "Incluir préstamos",
+    "includeLoansInfo": "Esta opción hace que se tenga en cuenta el capital pendiente de los préstamos al calcular el patrimonio neto. Los préstamos asociados a un inmueble no se considerarán, ya que ya están calculados en el patrimonio inmobiliario (ver opción abajo).",
     "includeCardExpenses": "Descontar gastos de tarjetas",
     "includeRealEstateEquity": "Incluir patrimonio inmobiliario",
+    "includeRealEstateEquityInfo": "Activar esta opción hace que se tenga en cuenta el patrimonio inmobiliario al calcular el patrimonio neto. El patrimonio inmobiliario se define como la valoración del inmueble menos el capital pendiente de los préstamos asociados. Si también quieres incluir las residencias, marca la opción de abajo.",
     "includeResidences": "Incluir residencias",
     "compactNumbers": "Números compactos"
   },
